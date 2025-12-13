@@ -86,3 +86,116 @@ export function usePublicTemplate(tenantSlug: string, pageType: PageType): Publi
     error: error as Error | null,
   };
 }
+
+// Hook for institutional pages
+interface PublicPageTemplateResult {
+  content: BlockNode | null;
+  isLoading: boolean;
+  error: Error | null;
+  pageTitle: string | null;
+}
+
+export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): PublicPageTemplateResult {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['public-page-template', tenantSlug, pageSlug],
+    queryFn: async () => {
+      // First get the tenant ID from slug
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single();
+
+      if (tenantError || !tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Get the page
+      const { data: page, error: pageError } = await supabase
+        .from('store_pages')
+        .select('id, title, published_version, is_published, content')
+        .eq('tenant_id', tenant.id)
+        .eq('slug', pageSlug)
+        .single();
+
+      if (pageError || !page) {
+        throw new Error('Page not found');
+      }
+
+      // Page must be published
+      if (!page.is_published) {
+        throw new Error('Page not published');
+      }
+
+      // If has published version, use it
+      if (page.published_version) {
+        const { data: version, error: versionError } = await supabase
+          .from('store_page_versions')
+          .select('content')
+          .eq('tenant_id', tenant.id)
+          .eq('entity_type', 'page')
+          .eq('page_id', page.id)
+          .eq('version', page.published_version)
+          .eq('status', 'published')
+          .single();
+
+        if (!versionError && version) {
+          return {
+            content: version.content as unknown as BlockNode,
+            pageTitle: page.title,
+          };
+        }
+      }
+
+      // Fallback: try to migrate legacy content to builder format
+      if (page.content) {
+        const legacyText = typeof page.content === 'object' && page.content !== null && 'text' in page.content
+          ? (page.content as { text: string }).text
+          : '';
+        
+        if (legacyText) {
+          const defaultTemplate = getDefaultTemplate('institutional');
+          // Find the RichText block and update its content
+          const updateContent = (node: BlockNode): BlockNode => {
+            if (node.type === 'RichText') {
+              return {
+                ...node,
+                props: {
+                  ...node.props,
+                  content: `<h1>${page.title}</h1>${legacyText.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('')}`,
+                },
+              };
+            }
+            if (node.children) {
+              return {
+                ...node,
+                children: node.children.map(updateContent),
+              };
+            }
+            return node;
+          };
+          return {
+            content: updateContent(defaultTemplate),
+            pageTitle: page.title,
+          };
+        }
+      }
+
+      // Return default template with page title
+      const defaultTemplate = getDefaultTemplate('institutional');
+      return {
+        content: defaultTemplate,
+        pageTitle: page.title,
+      };
+    },
+    enabled: !!tenantSlug && !!pageSlug,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  return {
+    content: data?.content || null,
+    pageTitle: data?.pageTitle || null,
+    isLoading,
+    error: error as Error | null,
+  };
+}

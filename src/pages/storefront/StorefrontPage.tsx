@@ -1,39 +1,70 @@
 // =============================================
-// STOREFRONT PAGE - Public institutional page
+// STOREFRONT PAGE - Public institutional page via Builder
 // =============================================
 
-import { useParams, Link } from 'react-router-dom';
-import { usePublicStorefront, usePublicPage } from '@/hooks/useStorefront';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { usePublicStorefront } from '@/hooks/useStorefront';
+import { usePublicPageTemplate } from '@/hooks/usePublicTemplate';
+import { usePreviewPageTemplate } from '@/hooks/usePreviewTemplate';
+import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { BlockRenderContext } from '@/lib/builder/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Home, FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronRight, Home } from 'lucide-react';
 
 export default function StorefrontPage() {
   const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
-  const { storeSettings, isLoading: storeLoading, isPublished } = usePublicStorefront(tenantSlug || '');
-  const { page, isLoading: pageLoading } = usePublicPage(tenantSlug || '', pageSlug || '');
+  const [searchParams] = useSearchParams();
+  const isPreviewMode = searchParams.get('preview') === '1';
 
-  if (storeLoading || pageLoading) {
+  const { storeSettings, headerMenu, footerMenu, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  
+  // Use preview hook if in preview mode, otherwise use public hook
+  const publicPage = usePublicPageTemplate(tenantSlug || '', pageSlug || '');
+  const previewPage = usePreviewPageTemplate(tenantSlug || '', pageSlug || '');
+  
+  const pageData = isPreviewMode ? previewPage : publicPage;
+
+  // Loading state
+  if (pageData.isLoading || storeLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Skeleton className="h-8 w-64 mb-4" />
-        <Skeleton className="h-4 w-full mb-2" />
-        <Skeleton className="h-4 w-3/4 mb-2" />
-        <Skeleton className="h-4 w-1/2" />
+      <div className="min-h-screen">
+        <Skeleton className="h-16 w-full" />
+        <div className="container mx-auto px-4 py-8">
+          <Skeleton className="h-8 w-64 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
       </div>
     );
   }
 
-  if (!isPublished) {
+  // Store not published (and not in preview mode)
+  if (!isPreviewMode && !isPublished) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">Loja não disponível</p>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Alert className="max-w-md">
+          <FileX className="h-4 w-4" />
+          <AlertTitle>Loja não disponível</AlertTitle>
+          <AlertDescription>
+            Esta loja não está publicada no momento.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
 
-  if (!page) {
+  // Check preview access
+  const canPreview = isPreviewMode 
+    ? ('canPreview' in pageData ? Boolean(pageData.canPreview) : true) 
+    : true;
+
+  // Page not found
+  if (!pageData.content && !pageData.isLoading) {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
+        <FileX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
         <h1 className="text-2xl font-bold mb-4">Página não encontrada</h1>
         <p className="text-muted-foreground mb-6">
           A página que você procura não existe ou não está publicada.
@@ -49,36 +80,44 @@ export default function StorefrontPage() {
     );
   }
 
-  // Extract content text
-  const contentText = typeof page.content === 'object' && page.content !== null && 'text' in page.content
-    ? (page.content as { text: string }).text
-    : '';
+  // Build context for block rendering
+  const context: BlockRenderContext = {
+    tenantSlug: tenantSlug || '',
+    isPreview: isPreviewMode,
+    settings: {
+      store_name: storeSettings?.store_name || undefined,
+      logo_url: storeSettings?.logo_url || undefined,
+      primary_color: storeSettings?.primary_color || undefined,
+      social_instagram: storeSettings?.social_instagram || undefined,
+      social_facebook: storeSettings?.social_facebook || undefined,
+      social_whatsapp: storeSettings?.social_whatsapp || undefined,
+      store_description: storeSettings?.store_description || undefined,
+    },
+    headerMenu: headerMenu?.items?.map(item => ({
+      id: item.id,
+      label: item.label,
+      url: item.url || undefined,
+    })),
+    footerMenu: footerMenu?.items?.map(item => ({
+      id: item.id,
+      label: item.label,
+      url: item.url || undefined,
+    })),
+    // Page-specific context
+    page: {
+      title: pageData.pageTitle || '',
+      slug: pageSlug || '',
+    },
+  };
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-        <Link to={`/store/${tenantSlug}`} className="hover:text-foreground">
-          Início
-        </Link>
-        <ChevronRight className="h-4 w-4" />
-        <span className="text-foreground">{page.title}</span>
-      </nav>
-
-      {/* Page Content */}
-      <article className="max-w-3xl">
-        <h1 className="text-3xl font-bold mb-6">{page.title}</h1>
-        
-        <div className="prose prose-lg max-w-none">
-          {contentText.split('\n').map((paragraph, i) => (
-            paragraph.trim() ? (
-              <p key={i} className="mb-4 text-muted-foreground leading-relaxed">
-                {paragraph}
-              </p>
-            ) : null
-          ))}
-        </div>
-      </article>
-    </div>
+    <PublicTemplateRenderer
+      content={pageData.content!}
+      context={context}
+      isLoading={false}
+      error={pageData.error}
+      isPreviewMode={isPreviewMode}
+      canPreview={canPreview}
+    />
   );
 }

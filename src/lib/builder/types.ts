@@ -75,34 +75,102 @@ export interface StorefrontTemplate {
   updated_at: string;
 }
 
+// Product context for product pages
+export interface ProductContext {
+  id: string;
+  name: string;
+  slug: string;
+  sku?: string;
+  price: number;
+  compare_at_price?: number;
+  description?: string;
+  short_description?: string;
+  stock_quantity?: number;
+  allow_backorder?: boolean;
+  images?: { url: string; alt?: string; is_primary?: boolean }[];
+}
+
+// Category context for category pages
+export interface CategoryContext {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  image_url?: string;
+}
+
+// Cart item for cart/checkout pages
+export interface CartItemContext {
+  id: string;
+  product_id: string;
+  name: string;
+  sku: string;
+  price: number;
+  quantity: number;
+  image_url?: string;
+}
+
+// Store settings context
+export interface StoreSettingsContext {
+  store_name?: string;
+  logo_url?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  accent_color?: string;
+  social_instagram?: string;
+  social_facebook?: string;
+  social_whatsapp?: string;
+  store_description?: string;
+}
+
 // Context data passed to blocks during rendering
 export interface BlockRenderContext {
   tenantSlug: string;
   isPreview: boolean;
-  // For template pages
-  category?: {
-    id: string;
-    name: string;
-    slug: string;
-    description?: string;
-  };
-  product?: {
+  
+  // Store settings
+  settings?: StoreSettingsContext;
+  
+  // Menus
+  headerMenu?: { id: string; label: string; url?: string }[];
+  footerMenu?: { id: string; label: string; url?: string }[];
+  
+  // Category page context
+  category?: CategoryContext;
+  
+  // Product page context
+  product?: ProductContext;
+  
+  // Products list (for category pages, product grids, etc.)
+  products?: {
     id: string;
     name: string;
     slug: string;
     price: number;
-    description?: string;
-    images?: { url: string; alt_text?: string }[];
+    compare_at_price?: number;
+    image_url?: string;
+  }[];
+  
+  // Cart context
+  cart?: {
+    items: CartItemContext[];
+    subtotal: number;
+    updateQuantity: (id: string, quantity: number) => void;
+    removeItem: (id: string) => void;
   };
-  // Store settings
-  settings?: {
-    store_name?: string;
-    logo_url?: string;
-    primary_color?: string;
+  
+  // Checkout context
+  checkout?: {
+    items: CartItemContext[];
+    subtotal: number;
+    clearCart: () => void;
   };
-  // Menus
-  headerMenu?: { id: string; label: string; url?: string }[];
-  footerMenu?: { id: string; label: string; url?: string }[];
+  
+  // Institutional page context
+  page?: {
+    title: string;
+    slug: string;
+  };
 }
 
 // Default empty page structure
