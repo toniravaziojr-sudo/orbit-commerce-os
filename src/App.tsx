@@ -26,6 +26,7 @@ import Shipping from "@/pages/Shipping";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
+import StoreBuilder from "@/pages/StoreBuilder";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -89,6 +90,7 @@ const App = () => (
               <Route path="/fiscal" element={<Fiscal />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/store-builder" element={<StoreBuilder />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

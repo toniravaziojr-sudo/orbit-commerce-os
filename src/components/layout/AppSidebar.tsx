@@ -21,6 +21,7 @@ import {
   FileText,
   ShoppingBag,
   Command,
+  Store,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,6 +53,12 @@ const navigation: NavGroup[] = [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Clientes", href: "/customers", icon: Users },
+    ],
+  },
+  {
+    label: "Loja Online",
+    items: [
+      { title: "Builder da Loja", href: "/store-builder", icon: Store },
     ],
   },
   {
