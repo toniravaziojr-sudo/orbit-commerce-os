@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Product, useProducts, useCategories } from '@/hooks/useProducts';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,7 +27,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon } from 'lucide-react';
+import { ProductImageManager } from './ProductImageManager';
 
 const productSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
@@ -65,10 +68,40 @@ interface ProductFormProps {
   onSuccess: () => void;
 }
 
+interface ProductImage {
+  id: string;
+  url: string;
+  alt_text: string | null;
+  is_primary: boolean | null;
+  sort_order: number | null;
+}
+
 export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) {
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
   const isEditing = !!product;
+  const [productImages, setProductImages] = useState<ProductImage[]>([]);
+
+  // Load product images
+  useEffect(() => {
+    if (product?.id) {
+      loadProductImages();
+    }
+  }, [product?.id]);
+
+  const loadProductImages = async () => {
+    if (!product?.id) return;
+    
+    const { data, error } = await supabase
+      .from('product_images')
+      .select('id, url, alt_text, is_primary, sort_order')
+      .eq('product_id', product.id)
+      .order('sort_order');
+
+    if (!error && data) {
+      setProductImages(data);
+    }
+  };
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -183,8 +216,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="basic">Básico</TabsTrigger>
+              <TabsTrigger value="images" disabled={!isEditing}>
+                <ImageIcon className="h-4 w-4 mr-1" />
+                Imagens
+              </TabsTrigger>
               <TabsTrigger value="pricing">Preços</TabsTrigger>
               <TabsTrigger value="inventory">Estoque</TabsTrigger>
               <TabsTrigger value="seo">SEO</TabsTrigger>
@@ -486,6 +523,27 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       )}
                     />
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="images" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Imagens do Produto</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isEditing && product ? (
+                    <ProductImageManager
+                      productId={product.id}
+                      images={productImages}
+                      onImagesChange={loadProductImages}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      Salve o produto primeiro para adicionar imagens
+                    </p>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
