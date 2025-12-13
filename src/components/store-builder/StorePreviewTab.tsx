@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, Eye, EyeOff, Monitor, Smartphone, Tablet } from "lucide-react";
+import { ExternalLink, Eye, Monitor, Smartphone, Tablet, AlertTriangle } from "lucide-react";
 import { useState } from "react";
 import { StoreSettings } from "@/pages/StoreBuilder";
 
@@ -22,25 +22,33 @@ export function StorePreviewTab({ storeUrl, settings }: StorePreviewTabProps) {
   const [device, setDevice] = useState<DeviceType>("desktop");
 
   const fullUrl = `${window.location.origin}${storeUrl}`;
-
-  if (!settings?.is_published) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <EyeOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="font-medium text-lg mb-2">Loja não publicada</h3>
-          <p className="text-muted-foreground mb-4">
-            Sua loja ainda não está visível ao público. Ative a opção "Publicar
-            Loja" na aba Aparência para visualizar a prévia.
-          </p>
-          <Badge variant="secondary">Rascunho</Badge>
-        </CardContent>
-      </Card>
-    );
-  }
+  const isPublished = settings?.is_published;
 
   return (
     <div className="space-y-4">
+      {/* Warning if not published */}
+      {!isPublished && (
+        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-amber-800 dark:text-amber-200">
+                  Prévia de Rascunho
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  Sua loja ainda não está publicada. Ative "Publicar Loja" na aba Aparência 
+                  para que clientes possam acessá-la.
+                </p>
+              </div>
+              <Badge variant="outline" className="border-amber-500 text-amber-700">
+                Rascunho
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-4">
           <div>
@@ -124,15 +132,22 @@ export function StorePreviewTab({ storeUrl, settings }: StorePreviewTabProps) {
               <p className="font-medium">Link da sua loja</p>
               <p className="text-sm text-muted-foreground">{fullUrl}</p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(fullUrl);
-              }}
-            >
-              Copiar Link
-            </Button>
+            <div className="flex items-center gap-2">
+              {isPublished && (
+                <Badge variant="default" className="bg-green-600">
+                  Publicada
+                </Badge>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(fullUrl);
+                }}
+              >
+                Copiar Link
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
