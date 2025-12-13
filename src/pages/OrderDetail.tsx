@@ -9,9 +9,12 @@ import {
   Truck,
   Clock,
   MessageSquare,
-  Send
+  Send,
+  Save,
+  ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -68,8 +71,10 @@ export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [newNote, setNewNote] = useState('');
+  const [trackingCode, setTrackingCode] = useState('');
+  const [isEditingTracking, setIsEditingTracking] = useState(false);
 
-  const { order, items, history, isLoading, addNote } = useOrderDetails(id);
+  const { order, items, history, isLoading, addNote, updateTrackingCode } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
 
   const handleStatusChange = (status: OrderStatus) => {
@@ -83,6 +88,18 @@ export default function OrderDetail() {
       addNote.mutate({ orderId: id, note: newNote.trim() });
       setNewNote('');
     }
+  };
+
+  const handleSaveTracking = () => {
+    if (id && trackingCode.trim()) {
+      updateTrackingCode.mutate({ orderId: id, trackingCode: trackingCode.trim() });
+      setIsEditingTracking(false);
+    }
+  };
+
+  const startEditTracking = () => {
+    setTrackingCode(order?.tracking_code || '');
+    setIsEditingTracking(true);
   };
 
   if (isLoading) {
@@ -360,13 +377,65 @@ export default function OrderDetail() {
                   <span>{order.shipping_carrier}</span>
                 </div>
               )}
-              {order.tracking_code && (
-                <div className="flex justify-between">
+              
+              {/* Tracking Code - Editable */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Código de Rastreio</span>
-                  <span className="font-mono text-sm">{order.tracking_code}</span>
+                  {!isEditingTracking && order.tracking_code && (
+                    <a 
+                      href={`https://www.google.com/search?q=${order.tracking_code}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
                 </div>
-              )}
-              {(order.shipping_carrier || order.tracking_code) && order.shipping_street && <Separator />}
+                
+                {isEditingTracking ? (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Digite o código de rastreio"
+                      value={trackingCode}
+                      onChange={(e) => setTrackingCode(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={handleSaveTracking}
+                      disabled={!trackingCode.trim() || updateTrackingCode.isPending}
+                    >
+                      <Save className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setIsEditingTracking(false)}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 items-center">
+                    {order.tracking_code ? (
+                      <span className="font-mono text-sm bg-muted px-2 py-1 rounded flex-1">
+                        {order.tracking_code}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm flex-1">
+                        Não informado
+                      </span>
+                    )}
+                    <Button size="sm" variant="outline" onClick={startEditTracking}>
+                      {order.tracking_code ? 'Editar' : 'Adicionar'}
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {order.shipping_street && <Separator />}
               {order.shipping_street ? (
                 <div className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
