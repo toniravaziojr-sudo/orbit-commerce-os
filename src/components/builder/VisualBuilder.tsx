@@ -12,10 +12,12 @@ import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockPalette } from './BlockPalette';
+import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
-import { findParentBlock } from '@/lib/builder/utils';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Layers, LayoutGrid } from 'lucide-react';
 
 interface VisualBuilderProps {
   tenantId: string;
@@ -36,6 +38,7 @@ export function VisualBuilder({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showPalette, setShowPalette] = useState(true);
   const [showInspector, setShowInspector] = useState(true);
+  const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
 
   // Get initial content from prop or default template
   const startingContent = initialContent || getDefaultTemplate(pageType);
@@ -147,6 +150,12 @@ export function VisualBuilder({
     toast.success('Conteúdo resetado para o padrão');
   }, [pageType, store]);
 
+  // Handle moving block (from tree drag and drop)
+  const handleMoveBlock = useCallback((blockId: string, newParentId: string, newIndex: number) => {
+    store.moveBlock(blockId, newParentId, newIndex);
+    toast.success('Bloco movido');
+  }, [store]);
+
   // Go back
   const handleBack = useCallback(() => {
     if (store.isDirty) {
@@ -188,10 +197,40 @@ export function VisualBuilder({
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Block Palette */}
+        {/* Left Sidebar - Block Palette + Tree */}
         {!isPreviewMode && showPalette && (
-          <div className="w-56 flex-shrink-0">
-            <BlockPalette onAddBlock={handleAddBlock} />
+          <div className="w-64 flex-shrink-0 border-r bg-card flex flex-col">
+            <Tabs value={leftTab} onValueChange={(v) => setLeftTab(v as 'blocks' | 'tree')} className="flex flex-col h-full">
+              <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2 py-0 h-10">
+                <TabsTrigger 
+                  value="blocks" 
+                  className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  <span>Blocos</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="tree" 
+                  className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                >
+                  <Layers className="h-4 w-4" />
+                  <span>Estrutura</span>
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="blocks" className="flex-1 m-0 overflow-hidden">
+                <BlockPalette onAddBlock={handleAddBlock} />
+              </TabsContent>
+              
+              <TabsContent value="tree" className="flex-1 m-0 overflow-hidden">
+                <BlockTree
+                  content={store.content}
+                  selectedBlockId={store.selectedBlockId}
+                  onSelectBlock={store.selectBlock}
+                  onMoveBlock={handleMoveBlock}
+                />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 
