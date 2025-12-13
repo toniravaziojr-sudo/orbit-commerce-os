@@ -54,15 +54,6 @@ export default function CreateStore() {
 
     setIsLoading(true);
     try {
-      // Verificar se a sessão está ativa
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      console.log('Session check:', { session: sessionData?.session, error: sessionError });
-      
-      if (!sessionData?.session) {
-        toast.error('Sessão expirada. Por favor, faça login novamente.');
-        setIsLoading(false);
-        return;
-      }
       // 1. Verificar se o slug já existe
       const { data: existingTenant, error: checkError } = await supabase
         .from('tenants')
