@@ -54,63 +54,25 @@ export default function CreateStore() {
 
     setIsLoading(true);
     try {
-      // 1. Verificar se o slug já existe
-      const { data: existingTenant, error: checkError } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('slug', data.slug)
-        .maybeSingle();
-
-      if (checkError) {
-        throw checkError;
-      }
-
-      if (existingTenant) {
-        form.setError('slug', { message: 'Este slug já está em uso. Escolha outro.' });
-        setIsLoading(false);
-        return;
-      }
-
-      // 2. Criar o tenant
+      // Usar RPC para criar tenant de forma segura (SECURITY DEFINER)
+      // A função cria o tenant, user_role e atualiza o profile em uma transação
       const { data: newTenant, error: createError } = await supabase
-        .from('tenants')
-        .insert({
-          name: data.name,
-          slug: data.slug,
-        })
-        .select()
-        .single();
+        .rpc('create_tenant_for_user', {
+          p_name: data.name,
+          p_slug: data.slug,
+        });
 
       if (createError) {
+        // Tratar erro de slug duplicado
+        if (createError.message?.includes('Slug already exists')) {
+          form.setError('slug', { message: 'Este slug já está em uso. Escolha outro.' });
+          setIsLoading(false);
+          return;
+        }
         throw createError;
       }
 
-      // 3. Criar role de owner para o usuário
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .insert({
-          user_id: user.id,
-          tenant_id: newTenant.id,
-          role: 'owner',
-        });
-
-      if (roleError) {
-        // Rollback: deletar o tenant criado
-        await supabase.from('tenants').delete().eq('id', newTenant.id);
-        throw roleError;
-      }
-
-      // 4. Atualizar o current_tenant_id do perfil
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ current_tenant_id: newTenant.id })
-        .eq('id', user.id);
-
-      if (profileError) {
-        console.error('Error updating current tenant:', profileError);
-      }
-
-      // 5. Atualizar o contexto de autenticação
+      // Atualizar o contexto de autenticação
       await refreshProfile();
 
       toast.success('Loja criada com sucesso!');
