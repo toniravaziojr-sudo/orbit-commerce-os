@@ -50,7 +50,6 @@ const productSchema = z.object({
   width: z.coerce.number().min(0).nullable().optional(),
   height: z.coerce.number().min(0).nullable().optional(),
   depth: z.coerce.number().min(0).nullable().optional(),
-  barcode: z.string().max(50).nullable().optional(),
   gtin: z.string().max(50).nullable().optional(),
   ncm: z.string().max(20).nullable().optional(),
   seo_title: z.string().max(70).nullable().optional(),
@@ -124,8 +123,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       width: product?.width ?? null,
       height: product?.height ?? null,
       depth: product?.depth ?? null,
-      barcode: product?.barcode ?? '',
-      gtin: product?.gtin ?? '',
+      gtin: product?.gtin ?? product?.barcode ?? '',
       ncm: product?.ncm ?? '',
       seo_title: product?.seo_title ?? '',
       seo_description: product?.seo_description ?? '',
@@ -179,7 +177,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           width: data.width ?? null,
           height: data.height ?? null,
           depth: data.depth ?? null,
-          barcode: data.barcode ?? null,
+          barcode: null,
           gtin: data.gtin ?? null,
           ncm: data.ncm ?? null,
           seo_title: data.seo_title ?? null,
@@ -480,30 +478,19 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     />
                   </div>
 
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <FormField
-                      control={form.control}
-                      name="barcode"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Código de Barras</FormLabel>
-                          <FormControl>
-                            <Input {...field} value={field.value ?? ''} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
+                  <div className="grid gap-4 md:grid-cols-2">
                     <FormField
                       control={form.control}
                       name="gtin"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>GTIN/EAN</FormLabel>
+                          <FormLabel>GTIN/EAN (Código de Barras)</FormLabel>
                           <FormControl>
                             <Input {...field} value={field.value ?? ''} />
                           </FormControl>
+                          <FormDescription>
+                            Código de barras internacional do produto
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -518,6 +505,9 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                           <FormControl>
                             <Input {...field} value={field.value ?? ''} />
                           </FormControl>
+                          <FormDescription>
+                            Nomenclatura Comum do Mercosul
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}

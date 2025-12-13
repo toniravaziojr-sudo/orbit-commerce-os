@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,8 +32,25 @@ import {
   GripVertical,
   Loader2,
   ImagePlus,
-  X
 } from 'lucide-react';
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ProductImage {
   id: string;
@@ -50,15 +66,148 @@ interface ProductImageManagerProps {
   onImagesChange: () => void;
 }
 
+interface SortableImageCardProps {
+  image: ProductImage;
+  onSetPrimary: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : 1,
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef} 
+      style={style} 
+      className="relative group overflow-hidden"
+    >
+      <div className="aspect-square relative">
+        {/* Drag handle */}
+        <div 
+          {...attributes} 
+          {...listeners}
+          className="absolute top-2 right-2 z-10 cursor-grab bg-background/80 rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+
+        <img
+          src={image.url}
+          alt={image.alt_text || 'Imagem do produto'}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src = '/placeholder.svg';
+          }}
+        />
+        
+        {/* Primary badge */}
+        {image.is_primary && (
+          <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
+            <Star className="h-3 w-3 fill-current" />
+            Principal
+          </div>
+        )}
+
+        {/* Actions overlay */}
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+          {!image.is_primary && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => onSetPrimary(image.id)}
+              title="Definir como principal"
+            >
+              <Star className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => onDelete(image.id)}
+            title="Excluir"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [altText, setAltText] = useState('');
   const [deleteImageId, setDeleteImageId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const sortedImages = [...images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedImages.findIndex((img) => img.id === active.id);
+      const newIndex = sortedImages.findIndex((img) => img.id === over.id);
+      
+      const newOrder = arrayMove(sortedImages, oldIndex, newIndex);
+      
+      // Update sort_order in database
+      try {
+        const updates = newOrder.map((img, index) => ({
+          id: img.id,
+          sort_order: index,
+        }));
+
+        for (const update of updates) {
+          await supabase
+            .from('product_images')
+            .update({ sort_order: update.sort_order })
+            .eq('id', update.id);
+        }
+
+        toast({
+          title: 'Ordem atualizada',
+          description: 'A ordem das imagens foi salva',
+        });
+        onImagesChange();
+      } catch (error) {
+        console.error('Error updating sort order:', error);
+        toast({
+          title: 'Erro',
+          description: 'Falha ao atualizar a ordem das imagens',
+          variant: 'destructive',
+        });
+      }
+    }
+  };
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -92,7 +241,7 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
         const fileExt = file.name.split('.').pop();
         const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
 
-        const { error: uploadError, data } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('product-images')
           .upload(fileName, file);
 
@@ -285,8 +434,6 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
     }
   };
 
-  const sortedImages = [...images].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-
   return (
     <div className="space-y-4">
       <div className="flex gap-2">
@@ -356,6 +503,12 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
         </Dialog>
       </div>
 
+      {sortedImages.length > 1 && (
+        <p className="text-sm text-muted-foreground">
+          Arraste as imagens para reordená-las
+        </p>
+      )}
+
       {sortedImages.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-10 text-center">
@@ -369,52 +522,27 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {sortedImages.map((image) => (
-            <Card key={image.id} className="relative group overflow-hidden">
-              <div className="aspect-square relative">
-                <img
-                  src={image.url}
-                  alt={image.alt_text || 'Imagem do produto'}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.currentTarget.src = '/placeholder.svg';
-                  }}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={sortedImages.map(img => img.id)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {sortedImages.map((image) => (
+                <SortableImageCard
+                  key={image.id}
+                  image={image}
+                  onSetPrimary={handleSetPrimary}
+                  onDelete={setDeleteImageId}
                 />
-                
-                {/* Primary badge */}
-                {image.is_primary && (
-                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-current" />
-                    Principal
-                  </div>
-                )}
-
-                {/* Actions overlay */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  {!image.is_primary && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => handleSetPrimary(image.id)}
-                      title="Definir como principal"
-                    >
-                      <Star className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => setDeleteImageId(image.id)}
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       <AlertDialog open={!!deleteImageId} onOpenChange={() => setDeleteImageId(null)}>
