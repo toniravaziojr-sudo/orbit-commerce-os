@@ -80,6 +80,57 @@ export type CustomerFormData = {
   accepts_marketing?: boolean;
 };
 
+export function useCustomerTagAssignments(customerId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  const assignmentsQuery = useQuery({
+    queryKey: ['customer-tag-assignments', customerId],
+    queryFn: async () => {
+      if (!customerId) return [];
+      
+      const { data, error } = await supabase
+        .from('customer_tag_assignments')
+        .select('tag_id')
+        .eq('customer_id', customerId);
+
+      if (error) throw error;
+      return data.map(a => a.tag_id);
+    },
+    enabled: !!customerId,
+  });
+
+  const updateAssignments = useMutation({
+    mutationFn: async ({ customerId, tagIds }: { customerId: string; tagIds: string[] }) => {
+      // Delete all current assignments
+      await supabase
+        .from('customer_tag_assignments')
+        .delete()
+        .eq('customer_id', customerId);
+
+      // Insert new assignments
+      if (tagIds.length > 0) {
+        const { error } = await supabase
+          .from('customer_tag_assignments')
+          .insert(tagIds.map(tagId => ({
+            customer_id: customerId,
+            tag_id: tagId,
+          })));
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['customer-tag-assignments', variables.customerId] });
+    },
+  });
+
+  return {
+    tagIds: assignmentsQuery.data ?? [],
+    isLoading: assignmentsQuery.isLoading,
+    updateAssignments,
+  };
+}
+
 export function useCustomers(options?: { page?: number; pageSize?: number; search?: string; status?: string }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();

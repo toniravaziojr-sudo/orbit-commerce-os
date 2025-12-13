@@ -1,4 +1,5 @@
 import { useForm } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -28,7 +29,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import type { Customer, CustomerFormData } from '@/hooks/useCustomers';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
 
 const customerSchema = z.object({
   full_name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
@@ -39,6 +42,7 @@ const customerSchema = z.object({
   gender: z.enum(['male', 'female', 'other', 'not_informed']).optional().nullable(),
   status: z.enum(['active', 'inactive', 'blocked']).default('active'),
   accepts_marketing: z.boolean().default(true),
+  tag_ids: z.array(z.string()).default([]),
 });
 
 type FormValues = z.infer<typeof customerSchema>;
@@ -47,7 +51,9 @@ interface CustomerFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customer?: Customer | null;
-  onSubmit: (data: CustomerFormData) => void;
+  customerTagIds?: string[];
+  availableTags?: CustomerTag[];
+  onSubmit: (data: CustomerFormData & { tag_ids: string[] }) => void;
   isLoading?: boolean;
 }
 
@@ -55,6 +61,8 @@ export function CustomerForm({
   open,
   onOpenChange,
   customer,
+  customerTagIds = [],
+  availableTags = [],
   onSubmit,
   isLoading,
 }: CustomerFormProps) {
@@ -63,16 +71,34 @@ export function CustomerForm({
   const form = useForm<FormValues>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
-      full_name: customer?.full_name ?? '',
-      email: customer?.email ?? '',
-      cpf: customer?.cpf ?? '',
-      phone: customer?.phone ?? '',
-      birth_date: customer?.birth_date ?? '',
-      gender: customer?.gender ?? 'not_informed',
-      status: customer?.status ?? 'active',
-      accepts_marketing: customer?.accepts_marketing ?? true,
+      full_name: '',
+      email: '',
+      cpf: '',
+      phone: '',
+      birth_date: '',
+      gender: 'not_informed',
+      status: 'active',
+      accepts_marketing: true,
+      tag_ids: [],
     },
   });
+
+  // Reset form when customer changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        full_name: customer?.full_name ?? '',
+        email: customer?.email ?? '',
+        cpf: customer?.cpf ?? '',
+        phone: customer?.phone ?? '',
+        birth_date: customer?.birth_date ?? '',
+        gender: customer?.gender ?? 'not_informed',
+        status: customer?.status ?? 'active',
+        accepts_marketing: customer?.accepts_marketing ?? true,
+        tag_ids: customerTagIds,
+      });
+    }
+  }, [open, customer, customerTagIds, form]);
 
   const handleSubmit = (data: FormValues) => {
     onSubmit({
@@ -84,8 +110,8 @@ export function CustomerForm({
       gender: data.gender || null,
       status: data.status,
       accepts_marketing: data.accepts_marketing,
+      tag_ids: data.tag_ids,
     });
-    form.reset();
   };
 
   return (
@@ -242,6 +268,51 @@ export function CustomerForm({
                 </FormItem>
               )}
             />
+
+            {availableTags.length > 0 && (
+              <FormField
+                control={form.control}
+                name="tag_ids"
+                render={() => (
+                  <FormItem>
+                    <FormLabel>Tags</FormLabel>
+                    <div className="flex flex-wrap gap-2 p-3 border rounded-lg">
+                      {availableTags.map((tag) => (
+                        <FormField
+                          key={tag.id}
+                          control={form.control}
+                          name="tag_ids"
+                          render={({ field }) => (
+                            <FormItem className="flex items-center space-x-2 space-y-0">
+                              <FormControl>
+                                <Checkbox
+                                  checked={field.value?.includes(tag.id)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      field.onChange([...field.value, tag.id]);
+                                    } else {
+                                      field.onChange(field.value?.filter((id) => id !== tag.id));
+                                    }
+                                  }}
+                                />
+                              </FormControl>
+                              <Badge 
+                                variant="secondary" 
+                                style={{ backgroundColor: tag.color + '20', borderColor: tag.color }}
+                                className="cursor-pointer border"
+                              >
+                                <span style={{ color: tag.color }}>{tag.name}</span>
+                              </Badge>
+                            </FormItem>
+                          )}
+                        />
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
