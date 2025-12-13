@@ -19,7 +19,7 @@ import type { BlockNode, PageVersion } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional';
 
 interface VersionHistoryDialogProps {
   open: boolean;
