@@ -26,18 +26,10 @@ import Shipping from "@/pages/Shipping";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
-import StoreBuilder from "@/pages/StoreBuilder";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
-
-// Store pages (public)
-import StoreFront from "@/pages/store/StoreFront";
-import ProductPage from "@/pages/store/ProductPage";
-import CategoryPage from "@/pages/store/CategoryPage";
-import CartPage from "@/pages/store/CartPage";
-import Checkout from "@/pages/store/Checkout";
 
 const queryClient = new QueryClient();
 
@@ -53,12 +45,6 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
 
-            {/* Public storefront routes */}
-            <Route path="/store/:tenantSlug" element={<StoreFront />} />
-            <Route path="/store/:tenantSlug/product/:productSlug" element={<ProductPage />} />
-            <Route path="/store/:tenantSlug/category/:categorySlug" element={<CategoryPage />} />
-            <Route path="/store/:tenantSlug/cart" element={<CartPage />} />
-            <Route path="/store/:tenantSlug/checkout" element={<Checkout />} />
 
             {/* Protected route without tenant requirement */}
             <Route
@@ -96,7 +82,7 @@ const App = () => (
               <Route path="/fiscal" element={<Fiscal />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/store-builder" element={<StoreBuilder />} />
+              
             </Route>
 
             <Route path="*" element={<NotFound />} />
