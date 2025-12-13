@@ -2,3 +2,6 @@ project_id = "ojssezfjhdvvncsqyhyq"
 
 [functions.import-shopify-products]
 verify_jwt = false
+
+[functions.scrape-update-products]
+verify_jwt = false
