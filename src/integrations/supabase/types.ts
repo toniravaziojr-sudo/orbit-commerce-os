@@ -393,6 +393,263 @@ export type Database = {
           },
         ]
       }
+      order_history: {
+        Row: {
+          action: string
+          author_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          new_value: Json | null
+          order_id: string
+          previous_value: Json | null
+        }
+        Insert: {
+          action: string
+          author_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          new_value?: Json | null
+          order_id: string
+          previous_value?: Json | null
+        }
+        Update: {
+          action?: string
+          author_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          new_value?: Json | null
+          order_id?: string
+          previous_value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          discount_amount: number
+          id: string
+          order_id: string
+          product_id: string | null
+          product_image_url: string | null
+          product_name: string
+          quantity: number
+          sku: string
+          total_price: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          order_id: string
+          product_id?: string | null
+          product_image_url?: string | null
+          product_name: string
+          quantity?: number
+          sku: string
+          total_price: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          discount_amount?: number
+          id?: string
+          order_id?: string
+          product_id?: string | null
+          product_image_url?: string | null
+          product_name?: string
+          quantity?: number
+          sku?: string
+          total_price?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          billing_city: string | null
+          billing_complement: string | null
+          billing_country: string | null
+          billing_neighborhood: string | null
+          billing_number: string | null
+          billing_postal_code: string | null
+          billing_state: string | null
+          billing_street: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          customer_email: string
+          customer_id: string | null
+          customer_name: string
+          customer_notes: string | null
+          customer_phone: string | null
+          delivered_at: string | null
+          discount_total: number
+          id: string
+          internal_notes: string | null
+          order_number: string
+          paid_at: string | null
+          payment_gateway: string | null
+          payment_gateway_id: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"] | null
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          shipped_at: string | null
+          shipping_carrier: string | null
+          shipping_city: string | null
+          shipping_complement: string | null
+          shipping_country: string | null
+          shipping_neighborhood: string | null
+          shipping_number: string | null
+          shipping_postal_code: string | null
+          shipping_state: string | null
+          shipping_status: Database["public"]["Enums"]["shipping_status"]
+          shipping_street: string | null
+          shipping_total: number
+          status: Database["public"]["Enums"]["order_status"]
+          subtotal: number
+          tax_total: number
+          tenant_id: string
+          total: number
+          tracking_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_country?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_postal_code?: string | null
+          billing_state?: string | null
+          billing_street?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          customer_email: string
+          customer_id?: string | null
+          customer_name: string
+          customer_notes?: string | null
+          customer_phone?: string | null
+          delivered_at?: string | null
+          discount_total?: number
+          id?: string
+          internal_notes?: string | null
+          order_number: string
+          paid_at?: string | null
+          payment_gateway?: string | null
+          payment_gateway_id?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          shipped_at?: string | null
+          shipping_carrier?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_country?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_postal_code?: string | null
+          shipping_state?: string | null
+          shipping_status?: Database["public"]["Enums"]["shipping_status"]
+          shipping_street?: string | null
+          shipping_total?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal?: number
+          tax_total?: number
+          tenant_id: string
+          total?: number
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_city?: string | null
+          billing_complement?: string | null
+          billing_country?: string | null
+          billing_neighborhood?: string | null
+          billing_number?: string | null
+          billing_postal_code?: string | null
+          billing_state?: string | null
+          billing_street?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          customer_email?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_notes?: string | null
+          customer_phone?: string | null
+          delivered_at?: string | null
+          discount_total?: number
+          id?: string
+          internal_notes?: string | null
+          order_number?: string
+          paid_at?: string | null
+          payment_gateway?: string | null
+          payment_gateway_id?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"] | null
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          shipped_at?: string | null
+          shipping_carrier?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_country?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_postal_code?: string | null
+          shipping_state?: string | null
+          shipping_status?: Database["public"]["Enums"]["shipping_status"]
+          shipping_street?: string | null
+          shipping_total?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          subtotal?: number
+          tax_total?: number
+          tenant_id?: string
+          total?: number
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           category_id: string
@@ -834,6 +1091,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -856,6 +1114,39 @@ export type Database = {
         | "support"
         | "finance"
         | "viewer"
+      order_status:
+        | "pending"
+        | "awaiting_payment"
+        | "paid"
+        | "processing"
+        | "shipped"
+        | "in_transit"
+        | "delivered"
+        | "cancelled"
+        | "returned"
+      payment_method:
+        | "pix"
+        | "credit_card"
+        | "debit_card"
+        | "boleto"
+        | "mercado_pago"
+        | "pagarme"
+      payment_status:
+        | "pending"
+        | "processing"
+        | "approved"
+        | "declined"
+        | "refunded"
+        | "cancelled"
+      shipping_status:
+        | "pending"
+        | "processing"
+        | "shipped"
+        | "in_transit"
+        | "out_for_delivery"
+        | "delivered"
+        | "returned"
+        | "failed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -984,6 +1275,43 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
+      order_status: [
+        "pending",
+        "awaiting_payment",
+        "paid",
+        "processing",
+        "shipped",
+        "in_transit",
+        "delivered",
+        "cancelled",
+        "returned",
+      ],
+      payment_method: [
+        "pix",
+        "credit_card",
+        "debit_card",
+        "boleto",
+        "mercado_pago",
+        "pagarme",
+      ],
+      payment_status: [
+        "pending",
+        "processing",
+        "approved",
+        "declined",
+        "refunded",
+        "cancelled",
+      ],
+      shipping_status: [
+        "pending",
+        "processing",
+        "shipped",
+        "in_transit",
+        "out_for_delivery",
+        "delivered",
+        "returned",
+        "failed",
+      ],
     },
   },
 } as const
