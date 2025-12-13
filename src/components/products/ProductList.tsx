@@ -29,7 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package, Copy, ImageIcon, Eye } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
@@ -284,6 +284,12 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem 
+                          onClick={() => window.open(`/store/${currentTenant?.slug}/p/${product.slug}?preview=1`, '_blank')}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          Visualizar
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onEditProduct(product)}>
                           <Pencil className="mr-2 h-4 w-4" />
                           Editar
