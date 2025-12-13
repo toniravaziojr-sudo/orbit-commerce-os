@@ -84,7 +84,7 @@ export function VisualBuilder({
   const handleAddBlock = useCallback((type: string) => {
     const parentId = store.selectedBlockId || 'root';
     store.addBlock(type, parentId);
-    toast.success(`Bloco "${blockRegistry[type]?.label || type}" adicionado`);
+    toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
   }, [store]);
 
   // Determine entity type based on pageType
@@ -169,7 +169,7 @@ export function VisualBuilder({
         return;
       }
     }
-    navigate('/admin/storefront/builder');
+    navigate('/storefront/builder');
   }, [navigate, store.isDirty]);
 
   const pageTypeLabels: Record<string, string> = {
