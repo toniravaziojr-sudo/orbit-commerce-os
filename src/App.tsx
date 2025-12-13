@@ -14,6 +14,8 @@ import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Products from "@/pages/Products";
 import Categories from "@/pages/Categories";
+import Menus from "@/pages/Menus";
+import Pages from "@/pages/Pages";
 import Customers from "@/pages/Customers";
 import CustomerDetail from "@/pages/CustomerDetail";
 import Notifications from "@/pages/Notifications";
@@ -88,6 +90,8 @@ const App = () => (
               <Route path="/orders/:id" element={<OrderDetail />} />
               <Route path="/products" element={<Products />} />
               <Route path="/categories" element={<Categories />} />
+              <Route path="/menus" element={<Menus />} />
+              <Route path="/pages" element={<Pages />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />
