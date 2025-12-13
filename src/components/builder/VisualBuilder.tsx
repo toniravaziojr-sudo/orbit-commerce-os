@@ -2,7 +2,7 @@
 // VISUAL BUILDER - Main builder component
 // =============================================
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
 import { useBuilderData } from '@/hooks/useBuilderData';
@@ -40,6 +40,10 @@ export function VisualBuilder({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  
+  // Example selectors state (for Product/Category templates)
+  const [exampleProductId, setExampleProductId] = useState<string>('');
+  const [exampleCategoryId, setExampleCategoryId] = useState<string>('');
 
   // Get initial content from prop or default template
   const startingContent = initialContent || getDefaultTemplate(pageType);
@@ -49,6 +53,14 @@ export function VisualBuilder({
 
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
+
+  // Build context with example data
+  const builderContext = useMemo<BlockRenderContext>(() => ({
+    ...context,
+    // Override with example IDs when editing Product/Category templates
+    ...(pageType === 'product' && exampleProductId ? { productId: exampleProductId, productSlug: exampleProductId } : {}),
+    ...(pageType === 'category' && exampleCategoryId ? { categoryId: exampleCategoryId, categorySlug: exampleCategoryId } : {}),
+  }), [context, pageType, exampleProductId, exampleCategoryId]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -80,10 +92,10 @@ export function VisualBuilder({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [store.selectedBlockId]);
 
-  // Handle adding a new block
-  const handleAddBlock = useCallback((type: string) => {
-    const parentId = store.selectedBlockId || 'root';
-    store.addBlock(type, parentId);
+  // Handle adding a new block (with optional parent and index for canvas insertion)
+  const handleAddBlock = useCallback((type: string, parentId?: string, index?: number) => {
+    const targetParentId = parentId || store.selectedBlockId || 'root';
+    store.addBlock(type, targetParentId, index);
     toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
   }, [store]);
 
@@ -202,6 +214,10 @@ export function VisualBuilder({
         onReset={handleReset}
         onViewHistory={() => setShowVersionHistory(true)}
         onBack={handleBack}
+        exampleProductId={exampleProductId}
+        exampleCategoryId={exampleCategoryId}
+        onExampleProductChange={setExampleProductId}
+        onExampleCategoryChange={setExampleCategoryId}
       />
 
       {/* Main Content */}
@@ -247,7 +263,7 @@ export function VisualBuilder({
         <div className="flex-1 overflow-hidden">
           <BuilderCanvas
             content={store.content}
-            context={context}
+            context={builderContext}
             selectedBlockId={store.selectedBlockId}
             onSelectBlock={store.selectBlock}
             onAddBlock={handleAddBlock}

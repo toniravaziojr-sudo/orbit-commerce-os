@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Trash2, Copy, Settings2 } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
+import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -62,6 +63,7 @@ export function PropsEditor({
                 schema={schema}
                 value={props[key] ?? schema.defaultValue}
                 onChange={(value) => handleChange(key, value)}
+                blockType={definition.type}
               />
             ))
           ) : (
@@ -104,10 +106,49 @@ interface PropFieldProps {
   schema: BlockPropsSchema[string];
   value: unknown;
   onChange: (value: unknown) => void;
+  blockType?: string;
 }
 
-function PropField({ name, schema, value, onChange }: PropFieldProps) {
+function PropField({ name, schema, value, onChange, blockType }: PropFieldProps) {
   const renderField = () => {
+    // Special handling for array fields based on block type and field name
+    if (schema.type === 'array') {
+      // FAQ items
+      if (blockType === 'FAQ' && name === 'items') {
+        return (
+          <FAQEditor
+            items={(value as { question: string; answer: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // Testimonials items
+      if (blockType === 'Testimonials' && name === 'items') {
+        return (
+          <TestimonialsEditor
+            items={(value as { name: string; content: string; role?: string; avatar?: string; rating?: number }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // Default array handling (JSON)
+      return (
+        <Textarea
+          value={JSON.stringify(value || [], null, 2)}
+          onChange={(e) => {
+            try {
+              onChange(JSON.parse(e.target.value));
+            } catch {
+              // Invalid JSON, ignore
+            }
+          }}
+          placeholder="[]"
+          rows={4}
+          className="font-mono text-xs resize-none"
+        />
+      );
+    }
+    
     switch (schema.type) {
       case 'string':
         return (
@@ -221,22 +262,7 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
           />
         );
 
-      case 'array':
-        return (
-          <Textarea
-            value={JSON.stringify(value || [], null, 2)}
-            onChange={(e) => {
-              try {
-                onChange(JSON.parse(e.target.value));
-              } catch {
-                // Invalid JSON, ignore
-              }
-            }}
-            placeholder="[]"
-            rows={4}
-            className="font-mono text-xs resize-none"
-          />
-        );
+      // 'array' is handled above before the switch
 
       case 'product':
         return (
