@@ -8,7 +8,7 @@ import { BlockCategory, BlockDefinition } from '@/lib/builder/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search, GripVertical } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 interface BlockPaletteProps {
   onAddBlock: (type: string) => void;
@@ -40,9 +40,8 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
   const categories: BlockCategory[] = ['layout', 'header-footer', 'content', 'ecommerce'];
 
   return (
-    <div className="h-full flex flex-col bg-card border-r">
+    <div className="h-full flex flex-col">
       <div className="p-3 border-b">
-        <h3 className="font-semibold mb-2 text-sm">Blocos</h3>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -83,13 +82,12 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
                         className={cn(
                           'flex flex-col items-center gap-1 p-2 rounded border bg-background',
                           'hover:border-primary hover:bg-primary/5 transition-colors',
-                          'group cursor-grab active:cursor-grabbing'
+                          'group cursor-pointer'
                         )}
                         title={block.label}
                       >
                         <div className="relative">
                           <span className="text-xl">{block.icon}</span>
-                          <GripVertical className="absolute -left-3 top-0 h-4 w-4 opacity-0 group-hover:opacity-50" />
                         </div>
                         <span className="text-xs text-center truncate w-full">
                           {block.label}
@@ -105,7 +103,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
       </ScrollArea>
 
       <div className="p-3 border-t text-xs text-muted-foreground">
-        Clique para adicionar ou arraste para posicionar
+        Clique para adicionar ao bloco selecionado
       </div>
     </div>
   );

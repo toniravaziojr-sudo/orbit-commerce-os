@@ -89,19 +89,27 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     Container: ContainerBlock,
     Grid: GridBlock,
     Column: ColumnBlock,
+    Columns: ColumnsBlock,
     Header: HeaderBlock,
     Footer: FooterBlock,
     Hero: HeroBlock,
     Banner: BannerBlock,
     Text: TextBlock,
+    RichText: RichTextBlock,
     Image: ImageBlock,
     Button: ButtonBlock,
     Spacer: SpacerBlock,
     Divider: DividerBlock,
+    FAQ: FAQBlock,
+    Testimonials: TestimonialsBlock,
     ProductGrid: ProductGridBlock,
     ProductCarousel: ProductCarouselBlock,
     CategoryList: CategoryListBlock,
     FeaturedProducts: FeaturedProductsBlock,
+    ProductCard: ProductCardBlock,
+    ProductDetails: ProductDetailsBlock,
+    CartSummary: CartSummaryBlock,
+    CheckoutSteps: CheckoutStepsBlock,
     Cart: CartBlock,
     Checkout: CheckoutBlock,
   };
@@ -504,6 +512,260 @@ function FeaturedProductsBlock({ title, productIds, isEditing }: any) {
   );
 }
 
+// Columns Block (for multi-column layouts)
+function ColumnsBlock({ children, columns, gap }: any) {
+  return (
+    <div 
+      className="grid"
+      style={{ 
+        gridTemplateColumns: `repeat(${columns || 2}, minmax(0, 1fr))`,
+        gap: `${gap || 16}px`
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// RichText Block
+function RichTextBlock({ content, align }: any) {
+  return (
+    <div 
+      className="prose prose-lg max-w-none"
+      style={{ textAlign: align || 'left' }}
+      dangerouslySetInnerHTML={{ __html: content || '<p>Conteúdo de texto formatado...</p>' }}
+    />
+  );
+}
+
+// FAQ Block
+function FAQBlock({ title, items, isEditing }: any) {
+  const faqItems = items || [
+    { question: 'Pergunta de exemplo 1?', answer: 'Resposta de exemplo 1.' },
+    { question: 'Pergunta de exemplo 2?', answer: 'Resposta de exemplo 2.' },
+  ];
+
+  return (
+    <div className="py-8">
+      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
+      <div className="space-y-4">
+        {faqItems.map((item: any, i: number) => (
+          <div key={i} className="border rounded-lg">
+            <div className="p-4 font-semibold bg-muted/50 rounded-t-lg">
+              {item.question}
+            </div>
+            <div className="p-4 text-muted-foreground">
+              {item.answer}
+            </div>
+          </div>
+        ))}
+      </div>
+      {isEditing && (
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          [Configure as perguntas no painel lateral]
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Testimonials Block
+function TestimonialsBlock({ title, items, isEditing }: any) {
+  const testimonials = items || [
+    { name: 'Cliente 1', text: 'Ótima experiência de compra!', rating: 5 },
+    { name: 'Cliente 2', text: 'Produtos de qualidade.', rating: 4 },
+    { name: 'Cliente 3', text: 'Entrega rápida e embalagem perfeita.', rating: 5 },
+  ];
+
+  return (
+    <div className="py-8">
+      {title && <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>}
+      <div className="grid md:grid-cols-3 gap-6">
+        {testimonials.map((item: any, i: number) => (
+          <div key={i} className="bg-card border rounded-lg p-6 text-center">
+            <div className="mb-3">
+              {'⭐'.repeat(item.rating || 5)}
+            </div>
+            <p className="text-muted-foreground mb-4 italic">"{item.text}"</p>
+            <p className="font-semibold">{item.name}</p>
+          </div>
+        ))}
+      </div>
+      {isEditing && (
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          [Configure os depoimentos no painel lateral]
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ProductCard Block
+function ProductCardBlock({ productId, isEditing }: any) {
+  return (
+    <div className="bg-card border rounded-lg p-4">
+      <div className="aspect-square bg-muted rounded mb-3" />
+      <h3 className="font-medium truncate">Produto</h3>
+      <p className="text-primary font-bold">R$ 99,90</p>
+      {isEditing && (
+        <p className="text-xs text-muted-foreground mt-2">
+          [ID: {productId || 'Não selecionado'}]
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ProductDetails Block (for product template)
+function ProductDetailsBlock({ context, isEditing }: any) {
+  const product = context?.product;
+
+  if (isEditing && !product) {
+    return (
+      <div className="py-8">
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+            [Imagem do Produto]
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-3xl font-bold">[Nome do Produto]</h1>
+            <p className="text-2xl text-primary font-bold">[Preço]</p>
+            <p className="text-muted-foreground">[Descrição do produto será exibida aqui]</p>
+            <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg">
+              Adicionar ao Carrinho
+            </button>
+          </div>
+        </div>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          [Selecione um produto de exemplo para visualizar]
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-8">
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+          {product?.images?.[0]?.url ? (
+            <img src={product.images[0].url} alt={product.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+              Sem imagem
+            </div>
+          )}
+        </div>
+        <div className="space-y-4">
+          <h1 className="text-3xl font-bold">{product?.name || 'Produto'}</h1>
+          <p className="text-2xl text-primary font-bold">
+            R$ {(product?.price || 0).toFixed(2).replace('.', ',')}
+          </p>
+          <p className="text-muted-foreground">{product?.description || ''}</p>
+          <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90">
+            Adicionar ao Carrinho
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// CartSummary Block
+function CartSummaryBlock({ isEditing }: any) {
+  return (
+    <div className="py-8">
+      <h1 className="text-3xl font-bold mb-8">Carrinho de Compras</h1>
+      <div className="grid md:grid-cols-3 gap-8">
+        <div className="md:col-span-2 space-y-4">
+          {isEditing ? (
+            <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
+              [Itens do carrinho serão listados aqui]
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground border rounded-lg">
+              Seu carrinho está vazio
+            </div>
+          )}
+        </div>
+        <div className="bg-card border rounded-lg p-6">
+          <h2 className="font-semibold mb-4">Resumo</h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>R$ 0,00</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Frete</span>
+              <span>A calcular</span>
+            </div>
+            <hr className="my-2" />
+            <div className="flex justify-between font-bold">
+              <span>Total</span>
+              <span>R$ 0,00</span>
+            </div>
+          </div>
+          <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg mt-4 font-semibold">
+            Finalizar Compra
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// CheckoutSteps Block
+function CheckoutStepsBlock({ isEditing }: any) {
+  const steps = ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'];
+  
+  return (
+    <div className="py-8">
+      {/* Steps Indicator */}
+      <div className="flex justify-center mb-8">
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-center">
+            <div className={cn(
+              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold",
+              i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}>
+              {i + 1}
+            </div>
+            <span className="ml-2 text-sm hidden sm:inline">{step}</span>
+            {i < steps.length - 1 && (
+              <div className="w-8 md:w-16 h-px bg-muted mx-2" />
+            )}
+          </div>
+        ))}
+      </div>
+      
+      {/* Content */}
+      {isEditing ? (
+        <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
+          [Formulário de checkout será renderizado aqui]
+        </div>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-6">
+            <div className="bg-card border rounded-lg p-6">
+              <h2 className="font-semibold mb-4">Dados do Cliente</h2>
+              <div className="space-y-4">
+                <input type="text" placeholder="Nome completo" className="w-full p-2 border rounded bg-background" />
+                <input type="email" placeholder="E-mail" className="w-full p-2 border rounded bg-background" />
+                <input type="tel" placeholder="Telefone" className="w-full p-2 border rounded bg-background" />
+              </div>
+            </div>
+          </div>
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="font-semibold mb-4">Resumo do Pedido</h2>
+            <div className="text-muted-foreground">
+              Carrinho vazio
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CartBlock({ isEditing }: any) {
   return (
     <div className="py-8">
@@ -535,9 +797,9 @@ function CheckoutBlock({ isEditing }: any) {
             <div className="bg-card border rounded-lg p-6">
               <h2 className="font-semibold mb-4">Dados do Cliente</h2>
               <div className="space-y-4">
-                <input type="text" placeholder="Nome completo" className="w-full p-2 border rounded" />
-                <input type="email" placeholder="E-mail" className="w-full p-2 border rounded" />
-                <input type="tel" placeholder="Telefone" className="w-full p-2 border rounded" />
+                <input type="text" placeholder="Nome completo" className="w-full p-2 border rounded bg-background" />
+                <input type="email" placeholder="E-mail" className="w-full p-2 border rounded bg-background" />
+                <input type="tel" placeholder="Telefone" className="w-full p-2 border rounded bg-background" />
               </div>
             </div>
           </div>
