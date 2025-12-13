@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.scrape-update-products]
 verify_jwt = false
+
+[functions.import-customers]
+verify_jwt = false
