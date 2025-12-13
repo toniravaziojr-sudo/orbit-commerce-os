@@ -163,6 +163,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_tenant_for_user: {
+        Args: { p_name: string; p_slug: string }
+        Returns: {
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          settings: Json | null
+          slug: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tenants"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
