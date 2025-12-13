@@ -7,12 +7,13 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 
-// Pages
+// Admin Pages
 import Dashboard from "@/pages/Dashboard";
 import Executions from "@/pages/Executions";
 import Orders from "@/pages/Orders";
 import OrderDetail from "@/pages/OrderDetail";
 import Products from "@/pages/Products";
+import Categories from "@/pages/Categories";
 import Customers from "@/pages/Customers";
 import CustomerDetail from "@/pages/CustomerDetail";
 import Notifications from "@/pages/Notifications";
@@ -26,10 +27,19 @@ import Shipping from "@/pages/Shipping";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
+import StorefrontSettings from "@/pages/StorefrontSettings";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
+
+// Storefront Pages
+import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
+import StorefrontHome from "@/pages/storefront/StorefrontHome";
+import StorefrontCategory from "@/pages/storefront/StorefrontCategory";
+import StorefrontProduct from "@/pages/storefront/StorefrontProduct";
+import StorefrontCart from "@/pages/storefront/StorefrontCart";
+import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +55,14 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
 
+            {/* Public Storefront routes */}
+            <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
+              <Route index element={<StorefrontHome />} />
+              <Route path="c/:categorySlug" element={<StorefrontCategory />} />
+              <Route path="p/:productSlug" element={<StorefrontProduct />} />
+              <Route path="cart" element={<StorefrontCart />} />
+              <Route path="checkout" element={<StorefrontCheckout />} />
+            </Route>
 
             {/* Protected route without tenant requirement */}
             <Route
@@ -69,6 +87,7 @@ const App = () => (
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/:id" element={<OrderDetail />} />
               <Route path="/products" element={<Products />} />
+              <Route path="/categories" element={<Categories />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />
@@ -82,7 +101,7 @@ const App = () => (
               <Route path="/fiscal" element={<Fiscal />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/settings" element={<Settings />} />
-              
+              <Route path="/storefront" element={<StorefrontSettings />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
