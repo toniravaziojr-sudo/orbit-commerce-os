@@ -174,6 +174,42 @@ export function VisualBuilder({
     store.moveBlock(blockId, newParentId, newIndex);
   }, [store]);
 
+  // Handle moving block by direction (for quick actions on canvas)
+  const handleMoveBlockByDirection = useCallback((blockId: string, direction: 'up' | 'down') => {
+    const { findParentBlock, findBlockById } = require('@/lib/builder/utils');
+    const parent = findParentBlock(store.content, blockId);
+    if (!parent || !parent.children) return;
+    
+    const currentIndex = parent.children.findIndex((c: BlockNode) => c.id === blockId);
+    if (currentIndex === -1) return;
+    
+    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= parent.children.length) return;
+    
+    store.moveBlock(blockId, parent.id, newIndex);
+  }, [store]);
+
+  // Handle duplicating a specific block (for quick actions)
+  const handleDuplicateBlockById = useCallback((blockId: string) => {
+    store.duplicateBlock(blockId);
+    toast.success('Bloco duplicado');
+  }, [store]);
+
+  // Handle deleting a specific block (for quick actions)
+  const handleDeleteBlockById = useCallback((blockId: string) => {
+    const { findBlockById } = require('@/lib/builder/utils');
+    const block = findBlockById(store.content, blockId);
+    if (!block) return;
+    
+    const def = blockRegistry.get(block.type);
+    if (def?.isRemovable === false) {
+      toast.error('Este bloco não pode ser removido');
+      return;
+    }
+    store.removeBlock(blockId);
+    toast.success('Bloco removido');
+  }, [store]);
+
   // Go back
   const handleBack = useCallback(() => {
     if (store.isDirty) {
@@ -267,6 +303,9 @@ export function VisualBuilder({
             selectedBlockId={store.selectedBlockId}
             onSelectBlock={store.selectBlock}
             onAddBlock={handleAddBlock}
+            onMoveBlock={handleMoveBlockByDirection}
+            onDuplicateBlock={handleDuplicateBlockById}
+            onDeleteBlock={handleDeleteBlockById}
             isPreviewMode={isPreviewMode}
           />
         </div>
