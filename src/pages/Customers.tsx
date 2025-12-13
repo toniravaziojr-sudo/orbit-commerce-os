@@ -17,7 +17,7 @@ import { CustomerList } from '@/components/customers/CustomerList';
 import { CustomerForm } from '@/components/customers/CustomerForm';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
 import { CustomerImport } from '@/components/customers/CustomerImport';
-import { useCustomers, useCustomerTags, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
+import { useCustomers, useCustomerTags, useCustomerTagAssignments, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
 
 const PAGE_SIZE = 50;
 
@@ -63,6 +63,7 @@ export default function Customers() {
   });
 
   const { tags, createTag, deleteTag } = useCustomerTags();
+  const { tagIds: selectedCustomerTagIds, updateAssignments } = useCustomerTagAssignments(selectedCustomer?.id);
 
   // Pagination calculations
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -81,14 +82,24 @@ export default function Customers() {
     navigate(`/customers/${customer.id}`);
   };
 
-  const handleSubmit = (data: CustomerFormData) => {
+  const handleSubmit = (data: CustomerFormData & { tag_ids: string[] }) => {
+    const { tag_ids, ...customerData } = data;
+    
     if (selectedCustomer) {
-      updateCustomer.mutate({ id: selectedCustomer.id, ...data }, {
-        onSuccess: () => setFormOpen(false),
+      updateCustomer.mutate({ id: selectedCustomer.id, ...customerData }, {
+        onSuccess: () => {
+          updateAssignments.mutate({ customerId: selectedCustomer.id, tagIds: tag_ids });
+          setFormOpen(false);
+        },
       });
     } else {
-      createCustomer.mutate(data, {
-        onSuccess: () => setFormOpen(false),
+      createCustomer.mutate(customerData, {
+        onSuccess: (newCustomer) => {
+          if (tag_ids.length > 0 && newCustomer?.id) {
+            updateAssignments.mutate({ customerId: newCustomer.id, tagIds: tag_ids });
+          }
+          setFormOpen(false);
+        },
       });
     }
   };
@@ -273,6 +284,8 @@ export default function Customers() {
         open={formOpen}
         onOpenChange={setFormOpen}
         customer={selectedCustomer}
+        customerTagIds={selectedCustomerTagIds}
+        availableTags={tags}
         onSubmit={handleSubmit}
         isLoading={createCustomer.isPending || updateCustomer.isPending}
       />

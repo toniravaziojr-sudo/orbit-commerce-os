@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Tag } from 'lucide-react';
+import { Plus, Trash2, Tag, Users } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 import type { CustomerTag } from '@/hooks/useCustomers';
 
 interface CustomerTagsManagerProps {
@@ -44,8 +47,10 @@ export function CustomerTagsManager({
   onDeleteTag,
   isLoading,
 }: CustomerTagsManagerProps) {
+  const { currentTenant } = useAuth();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(colorOptions[0]);
+  const [assigningTagId, setAssigningTagId] = useState<string | null>(null);
 
   const handleCreateTag = () => {
     if (!newTagName.trim()) return;
@@ -57,9 +62,29 @@ export function CustomerTagsManager({
     setNewTagColor(colorOptions[0]);
   };
 
+  const handleAssignToAllCustomers = async (tagId: string) => {
+    if (!currentTenant?.id) return;
+    
+    setAssigningTagId(tagId);
+    try {
+      const { data, error } = await supabase.functions.invoke('assign-tag-to-all-customers', {
+        body: { tagId, tenantId: currentTenant.id },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Tag atribuída a ${data.assigned} clientes`);
+    } catch (error) {
+      console.error('Error assigning tag:', error);
+      toast.error('Erro ao atribuir tag aos clientes');
+    } finally {
+      setAssigningTagId(null);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5" />
@@ -114,27 +139,44 @@ export function CustomerTagsManager({
                 Nenhuma tag criada ainda
               </p>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {tags.map((tag) => (
-                  <Badge
+                  <div
                     key={tag.id}
-                    variant="outline"
-                    className="gap-2 py-1.5 px-3 group"
-                    style={{ borderColor: tag.color, color: tag.color }}
+                    className="flex items-center justify-between p-2 rounded-lg border"
                   >
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: tag.color }}
-                    />
-                    {tag.name}
-                    <button
-                      type="button"
-                      onClick={() => onDeleteTag(tag.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    <Badge
+                      variant="outline"
+                      className="gap-2 py-1.5 px-3"
+                      style={{ borderColor: tag.color, color: tag.color }}
                     >
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </button>
-                  </Badge>
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      {tag.name}
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAssignToAllCustomers(tag.id)}
+                        disabled={assigningTagId === tag.id}
+                        className="gap-1 text-xs"
+                      >
+                        <Users className="h-3 w-3" />
+                        {assigningTagId === tag.id ? 'Atribuindo...' : 'Atribuir a todos'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => onDeleteTag(tag.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
