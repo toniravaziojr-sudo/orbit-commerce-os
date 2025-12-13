@@ -138,7 +138,7 @@ function TreeNode({
   onSelect,
   onToggleExpand,
 }: TreeNodeProps) {
-  const definition = blockRegistry[node.type];
+  const definition = blockRegistry.get(node.type);
   const hasChildren = node.children && node.children.length > 0;
   const isExpanded = expandedNodes.has(node.id);
   const isSelected = selectedBlockId === node.id;
@@ -257,6 +257,6 @@ function findParentId(root: BlockNode, childId: string): string | null {
 function getBlockLabel(root: BlockNode, id: string): string {
   const block = findBlockById(root, id);
   if (!block) return 'Bloco';
-  const def = blockRegistry[block.type];
+  const def = blockRegistry.get(block.type);
   return def?.label || block.type;
 }

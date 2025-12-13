@@ -87,7 +87,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
   // Get selected block definition
   const selectedBlockDefinition = useMemo(() => {
     if (!selectedBlock) return null;
-    return blockRegistry[selectedBlock.type] || null;
+    return blockRegistry.get(selectedBlock.type) || null;
   }, [selectedBlock]);
 
   // Update block props
@@ -98,7 +98,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
 
   // Add a new block
   const addBlock = useCallback((type: string, parentId?: string, index?: number) => {
-    const definition = blockRegistry[type];
+    const definition = blockRegistry.get(type);
     if (!definition) return;
 
     const newBlock: BlockNode = {
@@ -119,7 +119,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
     const block = findBlockById(state.content, blockId);
     if (!block) return;
 
-    const definition = blockRegistry[block.type];
+    const definition = blockRegistry.get(block.type);
     if (definition?.isRemovable === false) return;
 
     const newContent = removeBlock(state.content, blockId);
@@ -141,7 +141,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
     const block = findBlockById(state.content, blockId);
     if (!block) return;
 
-    const definition = blockRegistry[block.type];
+    const definition = blockRegistry.get(block.type);
     if (definition?.isRemovable === false) return;
 
     const newContent = duplicateBlock(state.content, blockId);

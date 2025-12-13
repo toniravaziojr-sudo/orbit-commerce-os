@@ -24,7 +24,7 @@ export function BlockRenderer({
   isEditing = false,
   onSelect 
 }: BlockRendererProps) {
-  const definition = blockRegistry[node.type];
+  const definition = blockRegistry.get(node.type);
   
   if (!definition) {
     return (
