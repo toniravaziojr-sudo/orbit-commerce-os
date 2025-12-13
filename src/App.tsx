@@ -31,6 +31,10 @@ import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
 
+// Store pages (public)
+import StoreFront from "@/pages/store/StoreFront";
+import Checkout from "@/pages/store/Checkout";
+
 const queryClient = new QueryClient();
 
 const App = () => (

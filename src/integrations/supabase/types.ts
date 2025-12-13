@@ -14,6 +14,109 @@ export type Database = {
   }
   public: {
     Tables: {
+      cart_items: {
+        Row: {
+          cart_id: string
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          unit_price: number
+          updated_at: string
+          variant_id: string | null
+        }
+        Insert: {
+          cart_id: string
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity?: number
+          unit_price: number
+          updated_at?: string
+          variant_id?: string | null
+        }
+        Update: {
+          cart_id?: string
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          unit_price?: number
+          updated_at?: string
+          variant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cart_items_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cart_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cart_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      carts: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          expires_at: string | null
+          id: string
+          session_id: string | null
+          status: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          expires_at?: string | null
+          id?: string
+          session_id?: string | null
+          status?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          expires_at?: string | null
+          id?: string
+          session_id?: string | null
+          status?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "carts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -64,6 +167,146 @@ export type Database = {
           },
           {
             foreignKeyName: "categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkouts: {
+        Row: {
+          abandoned_at: string | null
+          cart_id: string
+          completed_at: string | null
+          coupon_code: string | null
+          created_at: string
+          customer_cpf: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          discount_total: number | null
+          id: string
+          notes: string | null
+          payment_method: string | null
+          shipping_address_id: string | null
+          shipping_carrier: string | null
+          shipping_city: string | null
+          shipping_complement: string | null
+          shipping_country: string | null
+          shipping_estimated_days: number | null
+          shipping_method: string | null
+          shipping_neighborhood: string | null
+          shipping_number: string | null
+          shipping_postal_code: string | null
+          shipping_price: number | null
+          shipping_state: string | null
+          shipping_street: string | null
+          shipping_total: number | null
+          status: string | null
+          step: string | null
+          subtotal: number | null
+          tenant_id: string
+          total: number | null
+          updated_at: string
+        }
+        Insert: {
+          abandoned_at?: string | null
+          cart_id: string
+          completed_at?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          customer_cpf?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_total?: number | null
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          shipping_address_id?: string | null
+          shipping_carrier?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_country?: string | null
+          shipping_estimated_days?: number | null
+          shipping_method?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_postal_code?: string | null
+          shipping_price?: number | null
+          shipping_state?: string | null
+          shipping_street?: string | null
+          shipping_total?: number | null
+          status?: string | null
+          step?: string | null
+          subtotal?: number | null
+          tenant_id: string
+          total?: number | null
+          updated_at?: string
+        }
+        Update: {
+          abandoned_at?: string | null
+          cart_id?: string
+          completed_at?: string | null
+          coupon_code?: string | null
+          created_at?: string
+          customer_cpf?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_total?: number | null
+          id?: string
+          notes?: string | null
+          payment_method?: string | null
+          shipping_address_id?: string | null
+          shipping_carrier?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_country?: string | null
+          shipping_estimated_days?: number | null
+          shipping_method?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_postal_code?: string | null
+          shipping_price?: number | null
+          shipping_state?: string | null
+          shipping_street?: string | null
+          shipping_total?: number | null
+          status?: string | null
+          step?: string | null
+          subtotal?: number | null
+          tenant_id?: string
+          total?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkouts_cart_id_fkey"
+            columns: ["cart_id"]
+            isOneToOne: false
+            referencedRelation: "carts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkouts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkouts_shipping_address_id_fkey"
+            columns: ["shipping_address_id"]
+            isOneToOne: false
+            referencedRelation: "customer_addresses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkouts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -957,6 +1200,145 @@ export type Database = {
             foreignKeyName: "profiles_current_tenant_id_fkey"
             columns: ["current_tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_pages: {
+        Row: {
+          content: Json | null
+          created_at: string
+          id: string
+          is_homepage: boolean | null
+          is_published: boolean | null
+          seo_description: string | null
+          seo_title: string | null
+          slug: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          id?: string
+          is_homepage?: boolean | null
+          is_published?: boolean | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          id?: string
+          is_homepage?: boolean | null
+          is_published?: boolean | null
+          seo_description?: string | null
+          seo_title?: string | null
+          slug?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_pages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_settings: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          custom_css: string | null
+          custom_scripts: string | null
+          facebook_pixel_id: string | null
+          favicon_url: string | null
+          footer_style: string | null
+          google_analytics_id: string | null
+          header_style: string | null
+          id: string
+          is_published: boolean | null
+          logo_url: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          seo_description: string | null
+          seo_keywords: string[] | null
+          seo_title: string | null
+          social_facebook: string | null
+          social_instagram: string | null
+          social_whatsapp: string | null
+          store_description: string | null
+          store_name: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          custom_css?: string | null
+          custom_scripts?: string | null
+          facebook_pixel_id?: string | null
+          favicon_url?: string | null
+          footer_style?: string | null
+          google_analytics_id?: string | null
+          header_style?: string | null
+          id?: string
+          is_published?: boolean | null
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          seo_description?: string | null
+          seo_keywords?: string[] | null
+          seo_title?: string | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_whatsapp?: string | null
+          store_description?: string | null
+          store_name?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          custom_css?: string | null
+          custom_scripts?: string | null
+          facebook_pixel_id?: string | null
+          favicon_url?: string | null
+          footer_style?: string | null
+          google_analytics_id?: string | null
+          header_style?: string | null
+          id?: string
+          is_published?: boolean | null
+          logo_url?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          seo_description?: string | null
+          seo_keywords?: string[] | null
+          seo_title?: string | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_whatsapp?: string | null
+          store_description?: string | null
+          store_name?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
