@@ -132,6 +132,7 @@ export function BlockRenderer({
 
   return (
     <div
+      data-block-id={node.id}
       onClick={handleClick}
       className={cn(
         'relative transition-all group/block-actions',
@@ -486,22 +487,29 @@ function FooterBlock({ menuId, showSocial = true, copyrightText, context, isEdit
 
 // ========== CONTENT BLOCKS ==========
 
-function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, backgroundColor, textColor, height, alignment = 'center', overlayOpacity = 50 }: any) {
+function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, backgroundColor, textColor, buttonColor, height = 'md', alignment = 'center', overlayOpacity = 50 }: any) {
   const alignClass = {
     left: 'items-start text-left',
     center: 'items-center text-center',
     right: 'items-end text-right',
   }[alignment] || 'items-center text-center';
 
+  const heightMap: Record<string, string> = {
+    sm: '300px',
+    md: '400px',
+    lg: '500px',
+    full: '100vh',
+  };
+
   return (
     <div 
       className="relative flex items-center justify-center"
       style={{ 
-        backgroundColor: backgroundColor || 'hsl(var(--primary))',
+        backgroundColor: backgroundImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
         backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        minHeight: height || '400px',
+        minHeight: heightMap[height] || '400px',
       }}
     >
       {backgroundImage && (
@@ -510,17 +518,17 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
           style={{ opacity: overlayOpacity / 100 }} 
         />
       )}
-      <div className={cn("relative z-10 px-4 flex flex-col", alignClass)}>
+      <div className={cn("relative z-10 px-4 py-12 flex flex-col max-w-4xl mx-auto", alignClass)}>
         <h1 
           className="text-4xl md:text-5xl font-bold mb-4"
-          style={{ color: textColor || 'white' }}
+          style={{ color: textColor || '#ffffff' }}
         >
           {title || 'Título Principal'}
         </h1>
         {subtitle && (
           <p 
-            className="text-xl mb-6 opacity-90"
-            style={{ color: textColor || 'white' }}
+            className="text-xl mb-8 opacity-90"
+            style={{ color: textColor || '#ffffff' }}
           >
             {subtitle}
           </p>
@@ -528,7 +536,11 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
         {buttonText && (
           <a 
             href={buttonUrl || '#'} 
-            className="inline-block bg-white text-primary px-6 py-3 rounded-lg font-semibold hover:bg-white/90"
+            className="inline-block px-8 py-3 rounded-lg font-semibold transition-colors hover:opacity-90"
+            style={{
+              backgroundColor: buttonColor || '#ffffff',
+              color: buttonColor ? '#ffffff' : (backgroundColor || 'hsl(var(--primary))'),
+            }}
           >
             {buttonText}
           </a>
@@ -662,8 +674,8 @@ function ImageBlock({ src, alt, width, height, objectFit, rounded }: any) {
   );
 }
 
-function ButtonBlock({ text, url, variant, size }: any) {
-  const baseClasses = 'inline-block rounded font-semibold transition-colors';
+function ButtonBlock({ text, url, variant, size, backgroundColor, textColor, borderRadius = 'md' }: any) {
+  const baseClasses = 'inline-block font-semibold transition-colors';
   const variantClasses: Record<string, string> = {
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
     secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
@@ -675,15 +687,30 @@ function ButtonBlock({ text, url, variant, size }: any) {
     md: 'px-4 py-2',
     lg: 'px-6 py-3 text-lg',
   };
+  const radiusMap: Record<string, string> = {
+    none: '0',
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+    full: '9999px',
+  };
+
+  // If custom colors provided, override variant styles
+  const hasCustomStyles = backgroundColor || textColor;
 
   return (
     <a 
       href={url || '#'}
       className={cn(
         baseClasses,
-        variantClasses[variant] || variantClasses.primary,
+        !hasCustomStyles && (variantClasses[variant] || variantClasses.primary),
         sizeClasses[size] || sizeClasses.md
       )}
+      style={{
+        backgroundColor: backgroundColor || undefined,
+        color: textColor || undefined,
+        borderRadius: radiusMap[borderRadius] || '0.5rem',
+      }}
     >
       {text || 'Botão'}
     </a>

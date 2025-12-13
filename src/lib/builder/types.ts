@@ -6,7 +6,9 @@ export type BlockCategory =
   | 'layout'
   | 'header-footer'
   | 'content'
-  | 'ecommerce';
+  | 'media'
+  | 'ecommerce'
+  | 'utilities';
 
 export interface BlockNode {
   id: string;

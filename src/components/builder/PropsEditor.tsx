@@ -16,6 +16,7 @@ import { Trash2, Copy, Settings2 } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 import { RichTextEditor } from './RichTextEditor';
+import { ImageUploader } from './ImageUploader';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -230,26 +231,11 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
 
       case 'image':
         return (
-          <div className="space-y-2">
-            <Input
-              value={(value as string) || ''}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="URL da imagem"
-              className="h-9"
-            />
-            {value && (
-              <div className="relative aspect-video bg-muted rounded-md overflow-hidden border">
-                <img
-                  src={value as string}
-                  alt="Preview"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
-          </div>
+          <ImageUploader
+            value={(value as string) || ''}
+            onChange={(url) => onChange(url)}
+            placeholder="Arraste uma imagem ou clique para selecionar"
+          />
         );
 
       case 'richtext':

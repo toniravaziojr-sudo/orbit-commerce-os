@@ -210,6 +210,14 @@ export function VisualBuilder({
     toast.success('Bloco removido');
   }, [store]);
 
+  // Scroll to block in canvas
+  const handleScrollToBlock = useCallback((blockId: string) => {
+    const element = document.querySelector(`[data-block-id="${blockId}"]`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, []);
+
   // Go back
   const handleBack = useCallback(() => {
     if (store.isDirty) {
@@ -289,6 +297,7 @@ export function VisualBuilder({
                   selectedBlockId={store.selectedBlockId}
                   onSelectBlock={store.selectBlock}
                   onMoveBlock={handleMoveBlock}
+                  onScrollToBlock={handleScrollToBlock}
                 />
               </TabsContent>
             </Tabs>
