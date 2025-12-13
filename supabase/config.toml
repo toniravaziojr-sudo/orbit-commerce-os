@@ -1,1 +1,4 @@
 project_id = "ojssezfjhdvvncsqyhyq"
+
+[functions.import-shopify-products]
+verify_jwt = false

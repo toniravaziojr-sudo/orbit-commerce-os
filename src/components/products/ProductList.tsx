@@ -30,10 +30,14 @@ import {
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, Package } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ShopifyImportDialog } from './ShopifyImportDialog';
+import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ProductListProps {
   onCreateProduct: () => void;
   onEditProduct: (product: Product) => void;
+  onImportSuccess?: () => void;
 }
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
@@ -43,10 +47,17 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   archived: { label: 'Arquivado', variant: 'destructive' },
 };
 
-export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps) {
+export function ProductList({ onCreateProduct, onEditProduct, onImportSuccess }: ProductListProps) {
   const { products, isLoading, deleteProduct } = useProducts();
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const handleImportSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
+    onImportSuccess?.();
+  };
 
   const filteredProducts = products.filter(
     (product) =>
@@ -96,10 +107,13 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
             className="pl-10"
           />
         </div>
-        <Button onClick={onCreateProduct}>
-          <Plus className="mr-2 h-4 w-4" />
-          Novo Produto
-        </Button>
+        <div className="flex gap-2">
+          <ShopifyImportDialog onSuccess={handleImportSuccess} />
+          <Button onClick={onCreateProduct}>
+            <Plus className="mr-2 h-4 w-4" />
+            Novo Produto
+          </Button>
+        </div>
       </div>
 
       {filteredProducts.length === 0 ? (
