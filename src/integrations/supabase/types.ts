@@ -1310,13 +1310,73 @@ export type Database = {
           },
         ]
       }
+      store_page_versions: {
+        Row: {
+          content: Json
+          created_at: string
+          created_by: string | null
+          entity_type: string
+          id: string
+          page_id: string | null
+          page_type: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_type: string
+          id?: string
+          page_id?: string | null
+          page_type?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          created_by?: string | null
+          entity_type?: string
+          id?: string
+          page_id?: string | null
+          page_type?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_page_versions_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "store_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_page_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_pages: {
         Row: {
+          builder_enabled: boolean | null
           content: Json | null
           created_at: string
+          draft_version: number | null
           id: string
           is_homepage: boolean | null
           is_published: boolean | null
+          published_version: number | null
           seo_description: string | null
           seo_title: string | null
           slug: string
@@ -1327,11 +1387,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          builder_enabled?: boolean | null
           content?: Json | null
           created_at?: string
+          draft_version?: number | null
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
           slug: string
@@ -1342,11 +1405,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          builder_enabled?: boolean | null
           content?: Json | null
           created_at?: string
+          draft_version?: number | null
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
           slug?: string
@@ -1450,6 +1516,44 @@ export type Database = {
             foreignKeyName: "store_settings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storefront_page_templates: {
+        Row: {
+          created_at: string
+          draft_version: number | null
+          id: string
+          page_type: string
+          published_version: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          draft_version?: number | null
+          id?: string
+          page_type: string
+          published_version?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          draft_version?: number | null
+          id?: string
+          page_type?: string
+          published_version?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_page_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -1625,6 +1729,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      initialize_storefront_templates: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
       }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
