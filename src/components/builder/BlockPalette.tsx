@@ -54,7 +54,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     setExpandedCategories(newExpanded);
   };
 
-  const categories: BlockCategory[] = ['layout', 'header-footer', 'content', 'ecommerce'];
+  const categories: BlockCategory[] = ['layout', 'header-footer', 'content', 'media', 'ecommerce', 'utilities'];
 
   return (
     <div className="h-full flex flex-col">

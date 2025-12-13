@@ -348,10 +348,14 @@ const blockDefinitions: BlockDefinition[] = [
       title: 'Bem-vindo à Nossa Loja',
       subtitle: 'Descubra produtos incríveis',
       backgroundImage: '',
+      backgroundColor: '#6366f1',
+      textColor: '#ffffff',
       buttonText: 'Ver Produtos',
       buttonUrl: '/produtos',
+      buttonColor: '',
       alignment: 'center',
       overlayOpacity: 50,
+      height: 'md',
     },
     propsSchema: {
       title: {
@@ -368,6 +372,16 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'image',
         label: 'Imagem de Fundo',
       },
+      backgroundColor: {
+        type: 'color',
+        label: 'Cor de Fundo (se sem imagem)',
+        defaultValue: '#6366f1',
+      },
+      textColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        defaultValue: '#ffffff',
+      },
       buttonText: {
         type: 'string',
         label: 'Texto do Botão',
@@ -378,6 +392,10 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Link do Botão',
         defaultValue: '/produtos',
       },
+      buttonColor: {
+        type: 'color',
+        label: 'Cor do Botão (vazio = tema)',
+      },
       alignment: {
         type: 'select',
         label: 'Alinhamento',
@@ -386,6 +404,17 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Esquerda', value: 'left' },
           { label: 'Centro', value: 'center' },
           { label: 'Direita', value: 'right' },
+        ],
+      },
+      height: {
+        type: 'select',
+        label: 'Altura',
+        defaultValue: 'md',
+        options: [
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+          { label: 'Tela Cheia', value: 'full' },
         ],
       },
       overlayOpacity: {
@@ -512,6 +541,9 @@ const blockDefinitions: BlockDefinition[] = [
       url: '#',
       variant: 'primary',
       size: 'md',
+      backgroundColor: '',
+      textColor: '',
+      borderRadius: 'md',
     },
     propsSchema: {
       text: {
@@ -543,6 +575,26 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Pequeno', value: 'sm' },
           { label: 'Médio', value: 'md' },
           { label: 'Grande', value: 'lg' },
+        ],
+      },
+      backgroundColor: {
+        type: 'color',
+        label: 'Cor de Fundo (vazio = tema)',
+      },
+      textColor: {
+        type: 'color',
+        label: 'Cor do Texto (vazio = tema)',
+      },
+      borderRadius: {
+        type: 'select',
+        label: 'Bordas',
+        defaultValue: 'md',
+        options: [
+          { label: 'Nenhum', value: 'none' },
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+          { label: 'Completo', value: 'full' },
         ],
       },
     },
@@ -850,7 +902,9 @@ class BlockRegistry {
       layout: this.getByCategory('layout'),
       'header-footer': this.getByCategory('header-footer'),
       content: this.getByCategory('content'),
+      media: this.getByCategory('media'),
       ecommerce: this.getByCategory('ecommerce'),
+      utilities: this.getByCategory('utilities'),
     };
   }
 
@@ -879,5 +933,7 @@ export const categoryLabels: Record<BlockCategory, string> = {
   layout: 'Layout',
   'header-footer': 'Cabeçalho / Rodapé',
   content: 'Conteúdo',
+  media: 'Mídia',
   ecommerce: 'E-commerce',
+  utilities: 'Utilitários',
 };

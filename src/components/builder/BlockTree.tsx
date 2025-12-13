@@ -31,6 +31,7 @@ interface BlockTreeProps {
   selectedBlockId: string | null;
   onSelectBlock: (id: string) => void;
   onMoveBlock: (blockId: string, newParentId: string, newIndex: number) => void;
+  onScrollToBlock?: (id: string) => void;
 }
 
 export function BlockTree({ 
@@ -38,6 +39,7 @@ export function BlockTree({
   selectedBlockId, 
   onSelectBlock,
   onMoveBlock,
+  onScrollToBlock,
 }: BlockTreeProps) {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set(['root']));
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -105,7 +107,10 @@ export function BlockTree({
           depth={0}
           selectedBlockId={selectedBlockId}
           expandedNodes={expandedNodes}
-          onSelect={onSelectBlock}
+          onSelect={(id) => {
+            onSelectBlock(id);
+            onScrollToBlock?.(id);
+          }}
           onToggleExpand={toggleExpand}
         />
         
