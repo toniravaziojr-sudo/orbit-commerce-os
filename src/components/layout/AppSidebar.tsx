@@ -12,6 +12,7 @@ import {
   Megaphone,
   Plug,
   DollarSign,
+  CreditCard,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -70,6 +71,7 @@ const navigation: NavGroup[] = [
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
+      { title: "Pagamentos", href: "/payments", icon: CreditCard },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },
