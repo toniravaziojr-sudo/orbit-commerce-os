@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStorePages } from '@/hooks/useStorePages';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -11,11 +12,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, FileText, Eye } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function Pages() {
+  const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { pages, isLoading, createPage, updatePage, deletePage } = useStorePages();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -222,21 +224,29 @@ export default function Pages() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => navigate(`/pages/${page.id}/builder`)}
+                        title="Editar no Builder Visual"
+                      >
+                        <LayoutTemplate className="h-4 w-4" />
+                      </Button>
                       {page.is_published && (
                         <a 
                           href={`/store/${currentTenant?.slug}/page/${page.slug}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
-                          <Button variant="ghost" size="icon">
+                          <Button variant="ghost" size="icon" title="Visualizar">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </a>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleEdit(page)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleEdit(page)} title="Editar Metadados">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(page.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(page.id)} title="Excluir">
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>

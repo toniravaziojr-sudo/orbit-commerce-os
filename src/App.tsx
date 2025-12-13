@@ -31,6 +31,7 @@ import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
 import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
+import PageBuilder from "@/pages/PageBuilder";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -95,6 +96,7 @@ const App = () => (
               <Route path="/categories" element={<Categories />} />
               <Route path="/menus" element={<Menus />} />
               <Route path="/pages" element={<Pages />} />
+              <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />

@@ -22,8 +22,9 @@ import { Layers, LayoutGrid } from 'lucide-react';
 
 interface VisualBuilderProps {
   tenantId: string;
-  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout';
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional';
   pageId?: string;
+  pageTitle?: string;
   initialContent?: BlockNode;
   context: BlockRenderContext;
 }
@@ -32,6 +33,7 @@ export function VisualBuilder({
   tenantId,
   pageType,
   pageId,
+  pageTitle,
   initialContent,
   context,
 }: VisualBuilderProps) {
@@ -88,13 +90,16 @@ export function VisualBuilder({
     toast.success(`Bloco ${blockRegistry[type]?.label || type} adicionado`);
   }, [store]);
 
+  // Determine entity type based on pageType
+  const entityType = pageType === 'institutional' ? 'page' : 'template';
+
   // Handle saving draft
   const handleSave = useCallback(async () => {
     try {
       await saveDraft.mutateAsync({
-        entityType: 'template',
-        pageType,
-        pageId,
+        entityType,
+        pageType: entityType === 'template' ? pageType : undefined,
+        pageId: entityType === 'page' ? pageId : undefined,
         content: store.content,
       });
       store.markClean();
@@ -102,15 +107,15 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, pageType, pageId, store]);
+  }, [saveDraft, entityType, pageType, pageId, store]);
 
   // Handle publishing
   const handlePublish = useCallback(async () => {
     try {
       await publish.mutateAsync({
-        entityType: 'template',
-        pageType,
-        pageId,
+        entityType,
+        pageType: entityType === 'template' ? pageType : undefined,
+        pageId: entityType === 'page' ? pageId : undefined,
         content: store.content,
       });
       store.markClean();
@@ -118,7 +123,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao publicar página');
     }
-  }, [publish, pageType, pageId, store]);
+  }, [publish, entityType, pageType, pageId, store]);
 
   // Handle deleting selected block
   const handleDeleteBlock = useCallback(() => {
@@ -277,8 +282,9 @@ export function VisualBuilder({
       <VersionHistoryDialog
         open={showVersionHistory}
         onOpenChange={setShowVersionHistory}
-        entityType="template"
-        pageType={pageType}
+        entityType={entityType}
+        pageId={entityType === 'page' ? pageId : undefined}
+        pageType={entityType === 'template' ? pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' : undefined}
         onRestore={(content) => store.setContent(content)}
       />
     </div>
