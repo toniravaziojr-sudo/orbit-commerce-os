@@ -111,11 +111,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data as Tenant | null;
   };
 
-  const loadUserData = async (userId: string) => {
+  const loadUserData = async (userId: string): Promise<boolean> => {
     const [profileData, rolesData] = await Promise.all([
       fetchProfile(userId),
       fetchUserRoles(userId),
     ]);
+
+    // Se não existe profile, o usuário foi deletado - fazer logout
+    if (!profileData) {
+      console.log('Profile not found, signing out stale session');
+      await supabase.auth.signOut();
+      return false;
+    }
 
     setProfile(profileData);
     setUserRoles(rolesData);
@@ -135,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Sem tenant atual, selecionar o primeiro
       await setCurrentTenant(tenantsData[0].id);
     }
+    return true;
   };
 
   const refreshProfile = async () => {
@@ -153,7 +161,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Defer data loading to prevent deadlock
         if (newSession?.user) {
           setTimeout(() => {
-            loadUserData(newSession.user.id).finally(() => setIsLoading(false));
+            loadUserData(newSession.user.id).then((valid) => {
+              if (!valid) {
+                // Sessão inválida, já fez logout
+                setUser(null);
+                setSession(null);
+              }
+              setIsLoading(false);
+            });
           }, 0);
         } else {
           setProfile(null);
@@ -171,7 +186,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(existingSession?.user ?? null);
 
       if (existingSession?.user) {
-        loadUserData(existingSession.user.id).finally(() => setIsLoading(false));
+        loadUserData(existingSession.user.id).then((valid) => {
+          if (!valid) {
+            setUser(null);
+            setSession(null);
+          }
+          setIsLoading(false);
+        });
       } else {
         setIsLoading(false);
       }
