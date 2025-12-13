@@ -87,7 +87,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
   // Get selected block definition
   const selectedBlockDefinition = useMemo(() => {
     if (!selectedBlock) return null;
-    return blockRegistry.get(selectedBlock.type);
+    return blockRegistry[selectedBlock.type] || null;
   }, [selectedBlock]);
 
   // Update block props
@@ -98,8 +98,15 @@ export function useBuilderStore(initialContent?: BlockNode) {
 
   // Add a new block
   const addBlock = useCallback((type: string, parentId?: string, index?: number) => {
-    const newBlock = blockRegistry.createDefaultNode(type);
-    if (!newBlock) return;
+    const definition = blockRegistry[type];
+    if (!definition) return;
+
+    const newBlock: BlockNode = {
+      id: `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      props: { ...definition.defaultProps },
+      children: definition.canHaveChildren ? [] : undefined,
+    };
 
     const targetParentId = parentId || 'root';
     const newContent = addBlockChild(state.content, targetParentId, newBlock, index);
@@ -112,7 +119,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
     const block = findBlockById(state.content, blockId);
     if (!block) return;
 
-    const definition = blockRegistry.get(block.type);
+    const definition = blockRegistry[block.type];
     if (definition?.isRemovable === false) return;
 
     const newContent = removeBlock(state.content, blockId);
@@ -134,7 +141,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
     const block = findBlockById(state.content, blockId);
     if (!block) return;
 
-    const definition = blockRegistry.get(block.type);
+    const definition = blockRegistry[block.type];
     if (definition?.isRemovable === false) return;
 
     const newContent = duplicateBlock(state.content, blockId);

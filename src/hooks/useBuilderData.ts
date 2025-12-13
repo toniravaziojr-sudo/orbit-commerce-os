@@ -393,3 +393,16 @@ export function useRestoreVersion() {
     },
   });
 }
+
+// Convenience hook that returns all builder data operations
+export function useBuilderData(tenantId: string) {
+  const saveDraft = useSaveDraft();
+  const publish = usePublish();
+  const restoreVersion = useRestoreVersion();
+
+  return {
+    saveDraft,
+    publish,
+    restoreVersion,
+  };
+}

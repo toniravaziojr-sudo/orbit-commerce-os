@@ -30,6 +30,7 @@ import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
 import StorefrontSettings from "@/pages/StorefrontSettings";
+import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -106,6 +107,7 @@ const App = () => (
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/storefront" element={<StorefrontSettings />} />
+              <Route path="/storefront/builder" element={<StorefrontBuilder />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
