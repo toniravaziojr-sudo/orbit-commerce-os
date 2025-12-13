@@ -8,7 +8,12 @@ import { BlockCategory, BlockDefinition } from '@/lib/builder/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search } from 'lucide-react';
+import { Search, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
 interface BlockPaletteProps {
   onAddBlock: (type: string) => void;
@@ -16,7 +21,9 @@ interface BlockPaletteProps {
 
 export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
   const [search, setSearch] = useState('');
-  const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>('content');
+  const [expandedCategories, setExpandedCategories] = useState<Set<BlockCategory>>(
+    new Set(['content', 'ecommerce'])
+  );
 
   // Group blocks by category
   const blocksByCategory = Object.entries(blockRegistry).reduce((acc, [type, def]) => {
@@ -37,10 +44,21 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     );
   };
 
+  const toggleCategory = (category: BlockCategory) => {
+    const newExpanded = new Set(expandedCategories);
+    if (newExpanded.has(category)) {
+      newExpanded.delete(category);
+    } else {
+      newExpanded.add(category);
+    }
+    setExpandedCategories(newExpanded);
+  };
+
   const categories: BlockCategory[] = ['layout', 'header-footer', 'content', 'ecommerce'];
 
   return (
     <div className="h-full flex flex-col">
+      {/* Search */}
       <div className="p-3 border-b">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -53,57 +71,70 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
         </div>
       </div>
 
+      {/* Block Categories */}
       <ScrollArea className="flex-1">
-        <div className="p-2">
+        <div className="p-2 space-y-1">
           {categories.map((category) => {
             const blocks = filterBlocks(blocksByCategory[category] || []);
             if (blocks.length === 0) return null;
 
-            const isExpanded = expandedCategory === category || !!search;
+            const isExpanded = expandedCategories.has(category) || !!search;
 
             return (
-              <div key={category} className="mb-2">
-                <button
-                  onClick={() => setExpandedCategory(isExpanded && !search ? null : category)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground rounded transition-colors"
-                >
+              <Collapsible
+                key={category}
+                open={isExpanded}
+                onOpenChange={() => !search && toggleCategory(category)}
+              >
+                <CollapsibleTrigger className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors">
                   <span>{categoryLabels[category]}</span>
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                    {blocks.length}
-                  </span>
-                </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                      {blocks.length}
+                    </span>
+                    {isExpanded ? (
+                      <ChevronDown className="h-4 w-4" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4" />
+                    )}
+                  </div>
+                </CollapsibleTrigger>
 
-                {isExpanded && (
-                  <div className="grid grid-cols-2 gap-1.5 mt-1 px-1">
+                <CollapsibleContent className="pt-1">
+                  <div className="grid grid-cols-2 gap-1.5 px-1">
                     {blocks.map((block) => (
                       <button
                         key={block.type}
                         onClick={() => onAddBlock(block.type)}
                         className={cn(
-                          'flex flex-col items-center gap-1 p-2 rounded border bg-background',
-                          'hover:border-primary hover:bg-primary/5 transition-colors',
-                          'group cursor-pointer'
+                          'flex flex-col items-center gap-1.5 p-3 rounded-lg border bg-background',
+                          'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
+                          'transition-all duration-150 group cursor-pointer'
                         )}
-                        title={block.label}
+                        title={`Adicionar ${block.label}`}
                       >
-                        <div className="relative">
-                          <span className="text-xl">{block.icon}</span>
-                        </div>
-                        <span className="text-xs text-center truncate w-full">
+                        <span className="text-xl group-hover:scale-110 transition-transform">
+                          {block.icon}
+                        </span>
+                        <span className="text-xs text-center truncate w-full font-medium">
                           {block.label}
                         </span>
                       </button>
                     ))}
                   </div>
-                )}
-              </div>
+                </CollapsibleContent>
+              </Collapsible>
             );
           })}
         </div>
       </ScrollArea>
 
-      <div className="p-3 border-t text-xs text-muted-foreground">
-        Clique para adicionar ao bloco selecionado
+      {/* Help text */}
+      <div className="p-3 border-t bg-muted/30">
+        <p className="text-xs text-muted-foreground text-center">
+          <Plus className="h-3 w-3 inline mr-1" />
+          Clique para adicionar ao bloco selecionado
+        </p>
       </div>
     </div>
   );

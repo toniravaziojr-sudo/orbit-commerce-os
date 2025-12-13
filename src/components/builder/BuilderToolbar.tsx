@@ -6,25 +6,45 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   Undo2,
   Redo2,
   Save,
   Upload,
   Eye,
-  EyeOff,
   MoreVertical,
   RotateCcw,
   History,
-  Settings,
+  ArrowLeft,
   ExternalLink,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface BuilderToolbarProps {
   pageTitle: string;
@@ -45,7 +65,17 @@ interface BuilderToolbarProps {
   onViewHistory?: () => void;
   onSettings?: () => void;
   onBack: () => void;
+  onPageChange?: (pageType: string) => void;
 }
+
+const pageTypeLabels: Record<string, string> = {
+  home: 'Página Inicial',
+  category: 'Categoria',
+  product: 'Produto',
+  cart: 'Carrinho',
+  checkout: 'Checkout',
+  institutional: 'Página',
+};
 
 export function BuilderToolbar({
   pageTitle,
@@ -64,9 +94,11 @@ export function BuilderToolbar({
   onTogglePreview,
   onReset,
   onViewHistory,
-  onSettings,
   onBack,
+  onPageChange,
 }: BuilderToolbarProps) {
+  const navigate = useNavigate();
+
   // Build preview URL based on page type
   const getPreviewUrl = () => {
     if (!tenantSlug) return null;
@@ -93,27 +125,56 @@ export function BuilderToolbar({
       window.open(url, '_blank');
     }
   };
+
+  const handlePageChange = (newPageType: string) => {
+    if (isDirty) {
+      if (!confirm('Você tem alterações não salvas. Deseja trocar de página?')) {
+        return;
+      }
+    }
+    navigate(`/admin/storefront/builder?edit=${newPageType}`);
+  };
+
   return (
-    <div className="h-14 flex items-center justify-between px-4 bg-background border-b">
-      {/* Left: Back & Title */}
+    <div className="h-14 flex items-center justify-between px-4 bg-background border-b shadow-sm">
+      {/* Left: Breadcrumb & Page Selector */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack}>
-          ← Voltar
+        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
+          <ArrowLeft className="h-4 w-4" />
+          <span className="hidden sm:inline">Sair</span>
         </Button>
+        
         <Separator orientation="vertical" className="h-6" />
-        <div>
-          <h2 className="font-semibold text-sm flex items-center gap-2">
-            {pageTitle}
-            {isDirty && <span className="text-destructive">•</span>}
-          </h2>
-          <p className="text-xs text-muted-foreground capitalize">{pageType}</p>
+        
+        {/* Breadcrumb */}
+        <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+          <span>Builder</span>
+          <ChevronRight className="h-4 w-4" />
         </div>
-        <Badge variant="outline" className="text-xs">
-          {isPreviewMode ? 'Preview' : 'Editando'}
-        </Badge>
+        
+        {/* Page Selector */}
+        <Select value={pageType} onValueChange={handlePageChange}>
+          <SelectTrigger className="w-[160px] h-9 font-medium">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="home">🏠 Página Inicial</SelectItem>
+            <SelectItem value="category">📁 Categoria</SelectItem>
+            <SelectItem value="product">📦 Produto</SelectItem>
+            <SelectItem value="cart">🛒 Carrinho</SelectItem>
+            <SelectItem value="checkout">💳 Checkout</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Dirty indicator */}
+        {isDirty && (
+          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-200">
+            Alterações não salvas
+          </Badge>
+        )}
       </div>
 
-      {/* Center: History Controls */}
+      {/* Center: Undo/Redo */}
       <div className="flex items-center gap-1">
         <Button
           variant="ghost"
@@ -121,6 +182,7 @@ export function BuilderToolbar({
           onClick={onUndo}
           disabled={!canUndo || isPreviewMode}
           title="Desfazer (Ctrl+Z)"
+          className="h-8 w-8"
         >
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -129,7 +191,8 @@ export function BuilderToolbar({
           size="icon"
           onClick={onRedo}
           disabled={!canRedo || isPreviewMode}
-          title="Refazer (Ctrl+Shift+Z)"
+          title="Refazer (Ctrl+Y)"
+          className="h-8 w-8"
         >
           <Redo2 className="h-4 w-4" />
         </Button>
@@ -137,80 +200,95 @@ export function BuilderToolbar({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {/* Preview Button */}
         <Button
-          variant="outline"
+          variant={isPreviewMode ? 'default' : 'outline'}
           size="sm"
           onClick={onTogglePreview}
-          className={cn(isPreviewMode && 'bg-primary text-primary-foreground hover:bg-primary/90')}
+          className="gap-1"
         >
-          {isPreviewMode ? (
-            <>
-              <EyeOff className="h-4 w-4 mr-1" />
-              Sair Preview
-            </>
-          ) : (
-            <>
-              <Eye className="h-4 w-4 mr-1" />
-              Preview
-            </>
-          )}
+          <Eye className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {isPreviewMode ? 'Sair Preview' : 'Preview'}
+          </span>
         </Button>
 
+        {/* Open in new tab */}
         {tenantSlug && (
           <Button
             variant="outline"
-            size="sm"
+            size="icon"
             onClick={handleOpenPreview}
             title="Abrir preview em nova aba"
+            className="h-9 w-9"
           >
-            <ExternalLink className="h-4 w-4 mr-1" />
-            Abrir
+            <ExternalLink className="h-4 w-4" />
           </Button>
         )}
 
+        {/* Save */}
         <Button
           variant="outline"
           size="sm"
           onClick={onSave}
           disabled={!isDirty || isSaving}
+          className="gap-1"
         >
-          <Save className="h-4 w-4 mr-1" />
-          {isSaving ? 'Salvando...' : 'Salvar'}
+          <Save className="h-4 w-4" />
+          <span className="hidden sm:inline">
+            {isSaving ? 'Salvando...' : 'Salvar'}
+          </span>
         </Button>
 
-        <Button
-          size="sm"
-          onClick={onPublish}
-          disabled={isPublishing}
-        >
-          <Upload className="h-4 w-4 mr-1" />
-          {isPublishing ? 'Publicando...' : 'Publicar'}
-        </Button>
+        {/* Publish with confirmation */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button size="sm" disabled={isPublishing} className="gap-1">
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {isPublishing ? 'Publicando...' : 'Publicar'}
+              </span>
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Publicar alterações?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Isso tornará as alterações visíveis para todos os visitantes da loja.
+                O conteúdo atual será substituído pelo novo.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={onPublish}>
+                Sim, publicar agora
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
+        {/* More options */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-9 w-9">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {onReset && (
-              <DropdownMenuItem onClick={onReset}>
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Resetar para padrão
-              </DropdownMenuItem>
-            )}
+          <DropdownMenuContent align="end" className="w-48">
             {onViewHistory && (
               <DropdownMenuItem onClick={onViewHistory}>
                 <History className="h-4 w-4 mr-2" />
                 Ver histórico
               </DropdownMenuItem>
             )}
-            {onSettings && (
-              <DropdownMenuItem onClick={onSettings}>
-                <Settings className="h-4 w-4 mr-2" />
-                Configurações
-              </DropdownMenuItem>
+            {onReset && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={onReset} className="text-destructive">
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Resetar para padrão
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>

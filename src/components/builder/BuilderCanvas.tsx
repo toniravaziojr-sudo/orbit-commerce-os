@@ -14,15 +14,16 @@ interface BuilderCanvasProps {
   context: BlockRenderContext;
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
+  onAddBlock?: (type: string) => void;
   isPreviewMode?: boolean;
 }
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
-const viewportSizes: Record<ViewportSize, { width: string; icon: typeof Monitor }> = {
-  desktop: { width: '100%', icon: Monitor },
-  tablet: { width: '768px', icon: Tablet },
-  mobile: { width: '375px', icon: Smartphone },
+const viewportSizes: Record<ViewportSize, { width: string; label: string; icon: typeof Monitor }> = {
+  desktop: { width: '100%', label: 'Desktop', icon: Monitor },
+  tablet: { width: '768px', label: 'Tablet', icon: Tablet },
+  mobile: { width: '375px', label: 'Mobile', icon: Smartphone },
 };
 
 export function BuilderCanvas({
@@ -30,6 +31,7 @@ export function BuilderCanvas({
   context,
   selectedBlockId,
   onSelectBlock,
+  onAddBlock,
   isPreviewMode = false,
 }: BuilderCanvasProps) {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
@@ -42,24 +44,25 @@ export function BuilderCanvas({
   };
 
   return (
-    <div className="h-full flex flex-col bg-muted/30">
+    <div className="h-full flex flex-col">
       {/* Viewport Controls */}
       {!isPreviewMode && (
-        <div className="flex items-center justify-center gap-1 p-2 bg-background border-b">
+        <div className="flex items-center justify-center gap-1 py-2 px-4 bg-background border-b">
           {(Object.entries(viewportSizes) as [ViewportSize, typeof viewportSizes.desktop][]).map(
-            ([size, { icon: Icon }]) => (
+            ([size, { icon: Icon, label }]) => (
               <button
                 key={size}
                 onClick={() => setViewport(size)}
                 className={cn(
-                  'p-2 rounded transition-colors',
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
                   viewport === size
                     ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted'
+                    : 'hover:bg-muted text-muted-foreground'
                 )}
-                title={size.charAt(0).toUpperCase() + size.slice(1)}
+                title={label}
               >
                 <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline text-xs">{label}</span>
               </button>
             )
           )}
@@ -67,19 +70,21 @@ export function BuilderCanvas({
       )}
 
       {/* Canvas Area */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 bg-muted/50">
         <div 
-          className="min-h-full p-4 flex justify-center"
+          className="min-h-full p-4 sm:p-6 flex justify-center"
           onClick={handleCanvasClick}
         >
           <div
             className={cn(
-              'bg-background shadow-lg transition-all duration-300',
-              viewport !== 'desktop' && 'rounded-lg overflow-hidden'
+              'bg-background transition-all duration-300',
+              viewport !== 'desktop' && 'rounded-lg shadow-xl border',
+              viewport === 'desktop' && 'shadow-sm'
             )}
             style={{ 
               width: viewportSizes[viewport].width,
-              minHeight: 'calc(100vh - 120px)',
+              maxWidth: '100%',
+              minHeight: 'calc(100vh - 180px)',
             }}
           >
             <BlockRenderer
@@ -96,10 +101,18 @@ export function BuilderCanvas({
       {/* Status Bar */}
       {!isPreviewMode && (
         <div className="flex items-center justify-between px-4 py-2 bg-background border-t text-xs text-muted-foreground">
-          <span>
-            {selectedBlockId ? `Selecionado: ${selectedBlockId}` : 'Clique em um bloco para editar'}
+          <span className="truncate">
+            {selectedBlockId ? (
+              <>Bloco selecionado: <code className="bg-muted px-1 py-0.5 rounded">{selectedBlockId}</code></>
+            ) : (
+              'Clique em um bloco para editar'
+            )}
           </span>
-          <span>Viewport: {viewport}</span>
+          <span className="flex items-center gap-1">
+            {viewportSizes[viewport].icon && (
+              <span className="opacity-50">{viewport}</span>
+            )}
+          </span>
         </div>
       )}
     </div>

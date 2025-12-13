@@ -9,21 +9,28 @@ import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { useStorefrontTemplates, useTemplateVersion } from '@/hooks/useBuilderData';
 import { VisualBuilder } from '@/components/builder/VisualBuilder';
 import { BlockRenderContext } from '@/lib/builder/types';
-import { AppShell } from '@/components/layout/AppShell';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Pencil, Eye, CheckCircle2 } from 'lucide-react';
+import { Pencil, Eye, CheckCircle2, Clock, ExternalLink, HelpCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout';
 
 const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
-  category: { title: 'Página de Categoria', description: 'Template para listagem de produtos por categoria', icon: '📁' },
-  product: { title: 'Página de Produto', description: 'Template para detalhes do produto', icon: '📦' },
-  cart: { title: 'Carrinho', description: 'Página do carrinho de compras', icon: '🛒' },
-  checkout: { title: 'Checkout', description: 'Página de finalização da compra', icon: '💳' },
+  category: { title: 'Categoria', description: 'Listagem de produtos', icon: '📁' },
+  product: { title: 'Produto', description: 'Detalhes do produto', icon: '📦' },
+  cart: { title: 'Carrinho', description: 'Carrinho de compras', icon: '🛒' },
+  checkout: { title: 'Checkout', description: 'Finalização', icon: '💳' },
 };
 
 export default function StorefrontBuilder() {
@@ -54,9 +61,9 @@ export default function StorefrontBuilder() {
 
     if (templateLoading) {
       return (
-        <div className="h-screen flex items-center justify-center">
+        <div className="h-screen flex items-center justify-center bg-background">
           <div className="text-center">
-            <Skeleton className="h-8 w-48 mx-auto mb-4" />
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
             <p className="text-muted-foreground">Carregando editor...</p>
           </div>
         </div>
@@ -73,26 +80,56 @@ export default function StorefrontBuilder() {
     );
   }
 
+  const getPreviewUrl = (pageType: PageType) => {
+    if (!currentTenant) return '#';
+    const base = `/store/${currentTenant.slug}`;
+    switch (pageType) {
+      case 'home': return `${base}?preview=1`;
+      case 'category': return `${base}/c/exemplo?preview=1`;
+      case 'product': return `${base}/p/exemplo?preview=1`;
+      case 'cart': return `${base}/cart?preview=1`;
+      case 'checkout': return `${base}/checkout?preview=1`;
+      default: return `${base}?preview=1`;
+    }
+  };
+
   // Otherwise, show the template list
   return (
-    <div className="p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Construtor de Páginas</h1>
-          <p className="text-muted-foreground">
-            Personalize as páginas da sua loja com o editor visual
-          </p>
+    <TooltipProvider>
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Construtor de Páginas</h1>
+            <p className="text-muted-foreground">
+              Personalize as páginas da sua loja
+            </p>
+          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" className="gap-2">
+                <HelpCircle className="h-4 w-4" />
+                Ajuda
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-xs">
+              <p className="text-sm">
+                Clique em "Editar" para personalizar cada página. 
+                Use o preview para visualizar e depois publique.
+              </p>
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {templatesLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 5 }).map((_, i) => (
               <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-32" />
-                  <Skeleton className="h-4 w-48 mt-2" />
+                <CardHeader className="pb-3">
+                  <Skeleton className="h-5 w-24" />
+                  <Skeleton className="h-4 w-32 mt-1" />
                 </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-9 w-24" />
+                <CardContent className="pt-0">
+                  <Skeleton className="h-9 w-full" />
                 </CardContent>
               </Card>
             ))}
@@ -104,47 +141,81 @@ export default function StorefrontBuilder() {
               const template = templates?.find(t => t.page_type === pageType);
               const hasPublished = !!template?.published_version;
               const hasDraft = !!template?.draft_version;
+              const lastUpdated = template?.updated_at;
 
               return (
-                <Card key={pageType} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
+                <Card 
+                  key={pageType} 
+                  className="group hover:shadow-md transition-all hover:border-primary/30"
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-2xl">{info.icon}</span>
-                        <CardTitle className="text-lg">{info.title}</CardTitle>
+                        <span className="text-xl">{info.icon}</span>
+                        <div>
+                          <CardTitle className="text-base">{info.title}</CardTitle>
+                          <CardDescription className="text-xs">
+                            {info.description}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div className="flex gap-1">
-                        {hasPublished && (
-                          <Badge variant="default" className="text-xs">
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Publicado
-                          </Badge>
-                        )}
-                        {hasDraft && !hasPublished && (
-                          <Badge variant="secondary" className="text-xs">
-                            Rascunho
-                          </Badge>
-                        )}
-                      </div>
+                      {hasPublished ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1">
+                          <CheckCircle2 className="h-3 w-3" />
+                          Publicado
+                        </Badge>
+                      ) : hasDraft ? (
+                        <Badge variant="secondary" className="gap-1">
+                          <Clock className="h-3 w-3" />
+                          Rascunho
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          Não editado
+                        </Badge>
+                      )}
                     </div>
-                    <CardDescription>{info.description}</CardDescription>
+                    {lastUpdated && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Atualizado {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                      </p>
+                    )}
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="pt-0">
                     <div className="flex gap-2">
                       <Button
                         onClick={() => navigate(`/admin/storefront/builder?edit=${pageType}`)}
                         className="flex-1"
+                        size="sm"
                       >
                         <Pencil className="h-4 w-4 mr-2" />
                         Editar
                       </Button>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => window.open(getPreviewUrl(pageType), '_blank')}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Prévia</TooltipContent>
+                      </Tooltip>
                       {hasPublished && (
-                        <Button
-                          variant="outline"
-                          onClick={() => window.open(`/store/${currentTenant?.slug}`, '_blank')}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => window.open(`/store/${currentTenant?.slug}`, '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Ver publicado</TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                   </CardContent>
@@ -153,19 +224,7 @@ export default function StorefrontBuilder() {
             })}
           </div>
         )}
-
-        {/* Info section */}
-        <Card className="bg-muted/50">
-          <CardHeader>
-            <CardTitle className="text-base">Como funciona</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>• Clique em "Editar" para abrir o editor visual de cada página</p>
-            <p>• Adicione, remova e reorganize blocos para personalizar o layout</p>
-            <p>• Use o modo "Preview" para visualizar como ficará para os clientes</p>
-            <p>• Salve como rascunho para continuar depois ou publique para ir ao ar</p>
-          </CardContent>
-        </Card>
       </div>
+    </TooltipProvider>
   );
 }
