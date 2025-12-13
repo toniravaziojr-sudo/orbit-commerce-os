@@ -55,7 +55,7 @@ const productSchema = z.object({
   seo_title: z.string().max(70).nullable().optional(),
   seo_description: z.string().max(160).nullable().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
-  is_featured: z.boolean().default(false),
+  
   has_variants: z.boolean().default(false),
 });
 
@@ -128,7 +128,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       seo_title: product?.seo_title ?? '',
       seo_description: product?.seo_description ?? '',
       status: product?.status ?? 'draft',
-      is_featured: product?.is_featured ?? false,
+      
       has_variants: product?.has_variants ?? false,
     },
   });
@@ -183,7 +183,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           seo_title: data.seo_title ?? null,
           seo_description: data.seo_description ?? null,
           status: data.status,
-          is_featured: data.is_featured,
+          is_featured: false,
           has_variants: data.has_variants,
         });
       }
@@ -351,26 +351,6 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="is_featured"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Destaque</FormLabel>
-                            <FormDescription>
-                              Exibir produto em destaque
-                            </FormDescription>
-                          </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 </CardContent>
               </Card>
