@@ -14,6 +14,7 @@ import { BuilderCanvas } from './BuilderCanvas';
 import { BlockPalette } from './BlockPalette';
 import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
+import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -39,6 +40,7 @@ export function VisualBuilder({
   const [showPalette, setShowPalette] = useState(true);
   const [showInspector, setShowInspector] = useState(true);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
 
   // Get initial content from prop or default template
   const startingContent = initialContent || getDefaultTemplate(pageType);
@@ -180,6 +182,7 @@ export function VisualBuilder({
       <BuilderToolbar
         pageTitle={pageTypeLabels[pageType] || pageType}
         pageType={pageType}
+        tenantSlug={context.tenantSlug}
         isDirty={store.isDirty}
         isPreviewMode={isPreviewMode}
         canUndo={store.canUndo}
@@ -192,6 +195,7 @@ export function VisualBuilder({
         onPublish={handlePublish}
         onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
         onReset={handleReset}
+        onViewHistory={() => setShowVersionHistory(true)}
         onBack={handleBack}
       />
 
@@ -268,6 +272,15 @@ export function VisualBuilder({
           </div>
         )}
       </div>
+
+      {/* Version History Dialog */}
+      <VersionHistoryDialog
+        open={showVersionHistory}
+        onOpenChange={setShowVersionHistory}
+        entityType="template"
+        pageType={pageType}
+        onRestore={(content) => store.setContent(content)}
+      />
     </div>
   );
 }
