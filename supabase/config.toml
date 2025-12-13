@@ -9,8 +9,5 @@ verify_jwt = false
 [functions.import-customers]
 verify_jwt = false
 
-[functions.import-orders]
-verify_jwt = false
-
 [functions.assign-tag-to-all-customers]
 verify_jwt = false
