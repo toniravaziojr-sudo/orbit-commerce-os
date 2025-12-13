@@ -10,6 +10,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
+import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
+import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -714,119 +716,21 @@ function DividerBlock({ style, color, thickness }: any) {
 
 // ========== E-COMMERCE BLOCKS WITH REAL DATA ==========
 
-function ProductGridBlock({ title, source, categoryId, columns = 4, limit = 8, showPrice = true, context, isEditing }: any) {
-  const { data: products, isLoading } = useQuery({
-    queryKey: ['product-grid', source, categoryId, limit, context?.tenantSlug],
-    queryFn: async () => {
-      let query = supabase
-        .from('products')
-        .select(`
-          id, name, slug, price, compare_at_price, status, is_featured,
-          product_images (url, is_primary)
-        `)
-        .eq('status', 'active')
-        .limit(limit);
-
-      // Filter by source
-      if (source === 'featured') {
-        query = query.eq('is_featured', true);
-      } else if (source === 'newest') {
-        query = query.order('created_at', { ascending: false });
-      } else if (source === 'category' && categoryId) {
-        // Get products in category
-        const { data: productCategories } = await supabase
-          .from('product_categories')
-          .select('product_id')
-          .eq('category_id', categoryId);
-        
-        if (productCategories?.length) {
-          query = query.in('id', productCategories.map(pc => pc.product_id));
-        }
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !isEditing, // Only fetch real data in preview/storefront
-  });
-
-  // Use mock data when editing
-  const displayProducts = isEditing 
-    ? Array.from({ length: limit }, (_, i) => ({
-        id: `mock-${i}`,
-        name: `Produto ${i + 1}`,
-        price: 99.90 + i * 10,
-        product_images: [],
-      }))
-    : products || [];
-
-  if (isLoading && !isEditing) {
-    return (
-      <div className="py-8">
-        {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-        <div 
-          className="grid gap-4"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        >
-          {Array.from({ length: limit }, (_, i) => (
-            <div key={i} className="bg-card border rounded-lg p-4 animate-pulse">
-              <div className="aspect-square bg-muted rounded mb-3" />
-              <div className="h-4 bg-muted rounded mb-2" />
-              <div className="h-4 bg-muted rounded w-1/2" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+function ProductGridBlock({ title, source, categoryId, columns = 4, limit = 8, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
   return (
     <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div 
-        className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-      >
-        {displayProducts.map((product: any) => {
-          const primaryImage = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
-          return (
-            <a 
-              key={product.id} 
-              href={`/store/${context?.tenantSlug}/p/${product.slug || product.id}`}
-              className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow block"
-            >
-              <div className="aspect-square bg-muted rounded mb-3 overflow-hidden">
-                {primaryImage?.url ? (
-                  <img src={primaryImage.url} alt={product.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    📦
-                  </div>
-                )}
-              </div>
-              <h3 className="font-medium truncate">{product.name}</h3>
-              {showPrice && (
-                <div className="mt-1">
-                  {product.compare_at_price && product.compare_at_price > product.price && (
-                    <span className="text-sm text-muted-foreground line-through mr-2">
-                      R$ {product.compare_at_price.toFixed(2).replace('.', ',')}
-                    </span>
-                  )}
-                  <span className="text-primary font-bold">
-                    R$ {(product.price || 0).toFixed(2).replace('.', ',')}
-                  </span>
-                </div>
-              )}
-            </a>
-          );
-        })}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Produtos reais serão exibidos no preview e storefront]
-        </p>
-      )}
+      {title && <h2 className="text-2xl font-bold mb-6 px-4">{title}</h2>}
+      <ProductGridBlockComponent
+        source={source}
+        categoryId={categoryId}
+        limit={limit}
+        columns={columns}
+        showPrice={showPrice}
+        showButton={showButton}
+        buttonText={buttonText}
+        context={context}
+        isEditing={isEditing}
+      />
     </div>
   );
 }
@@ -853,82 +757,20 @@ function ProductCarouselBlock({ title, limit = 6, isEditing }: any) {
   );
 }
 
-function CategoryListBlock({ title, columns = 4, layout, showDescription, context, isEditing }: any) {
-  const { data: categories, isLoading } = useQuery({
-    queryKey: ['category-list', context?.tenantSlug],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, slug, description, image_url')
-        .eq('is_active', true)
-        .order('sort_order');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !isEditing,
-  });
-
-  const displayCategories = isEditing
-    ? ['Categoria 1', 'Categoria 2', 'Categoria 3', 'Categoria 4'].map((name, i) => ({
-        id: `mock-${i}`,
-        name,
-        slug: `categoria-${i + 1}`,
-        description: 'Descrição da categoria',
-        image_url: null,
-      }))
-    : categories || [];
-
-  if (isLoading && !isEditing) {
-    return (
-      <div className="py-8">
-        {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-        <div 
-          className="grid gap-4"
-          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-        >
-          {Array.from({ length: 4 }, (_, i) => (
-            <div key={i} className="bg-card border rounded-lg p-6 animate-pulse">
-              <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-3" />
-              <div className="h-4 bg-muted rounded mx-auto w-20" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
+function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'grid', showImage = true, showDescription = false, context, isEditing }: any) {
   return (
     <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div 
-        className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
-      >
-        {displayCategories.map((cat: any) => (
-          <a 
-            key={cat.id} 
-            href={`/store/${context?.tenantSlug}/c/${cat.slug}`}
-            className="bg-card border rounded-lg p-6 text-center hover:shadow-md transition-shadow block"
-          >
-            <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-3 overflow-hidden">
-              {cat.image_url ? (
-                <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-2xl">📁</div>
-              )}
-            </div>
-            <span className="font-medium">{cat.name}</span>
-            {showDescription && cat.description && (
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{cat.description}</p>
-            )}
-          </a>
-        ))}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Categorias reais serão exibidas no preview e storefront]
-        </p>
-      )}
+      {title && <h2 className="text-2xl font-bold mb-6 px-4">{title}</h2>}
+      <CategoryListBlockComponent
+        source={source}
+        layout={layout}
+        limit={limit}
+        columns={columns}
+        showImage={showImage}
+        showDescription={showDescription}
+        context={context}
+        isEditing={isEditing}
+      />
     </div>
   );
 }

@@ -1,0 +1,188 @@
+// =============================================
+// PRODUCT GRID BLOCK - Renders real products
+// =============================================
+
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { BlockRenderContext } from '@/lib/builder/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+
+interface ProductGridBlockProps {
+  source?: 'all' | 'featured' | 'category';
+  categoryId?: string;
+  limit?: number;
+  columns?: number;
+  showPrice?: boolean;
+  showButton?: boolean;
+  buttonText?: string;
+  context: BlockRenderContext;
+  isEditing?: boolean;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  slug: string;
+  price: number;
+  compare_at_price: number | null;
+  is_featured: boolean;
+  product_images: { url: string; is_primary: boolean }[];
+}
+
+export function ProductGridBlock({
+  source = 'all',
+  categoryId,
+  limit = 8,
+  columns = 4,
+  showPrice = true,
+  showButton = true,
+  buttonText = 'Ver produto',
+  context,
+  isEditing = false,
+}: ProductGridBlockProps) {
+  const { tenantSlug } = context;
+
+  // Fetch tenant first to get tenantId
+  const { data: tenant } = useQuery({
+    queryKey: ['tenant-by-slug', tenantSlug],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantSlug,
+  });
+
+  const tenantId = tenant?.id;
+
+  // Fetch products based on source
+  const { data: products, isLoading } = useQuery({
+    queryKey: ['builder-products', tenantId, source, categoryId, limit],
+    queryFn: async () => {
+      if (!tenantId) return [];
+
+      let query = supabase
+        .from('products')
+        .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
+        .eq('tenant_id', tenantId)
+        .eq('status', 'active')
+        .limit(limit);
+
+      if (source === 'featured') {
+        query = query.eq('is_featured', true);
+      } else if (source === 'category' && categoryId) {
+        // Need to join with product_categories
+        const { data: productCategories } = await supabase
+          .from('product_categories')
+          .select('product_id')
+          .eq('category_id', categoryId);
+
+        if (!productCategories?.length) return [];
+        
+        const productIds = productCategories.map(pc => pc.product_id);
+        query = query.in('id', productIds);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
+      if (error) throw error;
+      return data as Product[];
+    },
+    enabled: !!tenantId,
+  });
+
+  const getProductImage = (product: Product) => {
+    const primary = product.product_images?.find(img => img.is_primary);
+    return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
+  };
+
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(price);
+  };
+
+  const gridCols = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
+  }[columns] || 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+
+  if (isLoading) {
+    return (
+      <div className={cn('grid gap-4 p-4', gridCols)}>
+        {Array.from({ length: limit }).map((_, i) => (
+          <div key={i} className="space-y-3">
+            <Skeleton className="aspect-square w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-1/2" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (!products?.length) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        <p className="text-sm">Nenhum produto encontrado</p>
+        {isEditing && (
+          <p className="text-xs mt-1">Adicione produtos na seção de Produtos do admin</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('grid gap-4 p-4', gridCols)}>
+      {products.map((product) => (
+        <a
+          key={product.id}
+          href={isEditing ? undefined : `/store/${tenantSlug}/p/${product.slug}`}
+          className={cn(
+            'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+            isEditing && 'pointer-events-none'
+          )}
+        >
+          <div className="aspect-square overflow-hidden bg-muted">
+            <img
+              src={getProductImage(product)}
+              alt={product.name}
+              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+            />
+          </div>
+          <div className="p-3">
+            <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+              {product.name}
+            </h3>
+            {showPrice && (
+              <div className="mt-1 flex items-center gap-2">
+                {product.compare_at_price && product.compare_at_price > product.price && (
+                  <span className="text-xs text-muted-foreground line-through">
+                    {formatPrice(product.compare_at_price)}
+                  </span>
+                )}
+                <span className="text-sm font-semibold text-primary">
+                  {formatPrice(product.price)}
+                </span>
+              </div>
+            )}
+            {showButton && (
+              <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                {buttonText}
+              </button>
+            )}
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
