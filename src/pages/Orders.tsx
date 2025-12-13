@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,14 +14,12 @@ import {
 } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
-import { OrderImport } from '@/components/orders/OrderImport';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
 
 const PAGE_SIZE = 50;
 
 export default function Orders() {
   const navigate = useNavigate();
-  const [importOpen, setImportOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -82,10 +80,6 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
-              <Upload className="h-4 w-4" />
-              Importar
-            </Button>
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar
@@ -249,12 +243,6 @@ export default function Orders() {
         </CardContent>
       </Card>
 
-      {/* Import Modal */}
-      <OrderImport
-        open={importOpen}
-        onOpenChange={setImportOpen}
-        onSuccess={() => refetch()}
-      />
     </div>
   );
 }

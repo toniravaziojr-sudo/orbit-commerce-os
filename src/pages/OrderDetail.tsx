@@ -354,6 +354,19 @@ export default function OrderDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {order.shipping_carrier && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Transportadora</span>
+                  <span>{order.shipping_carrier}</span>
+                </div>
+              )}
+              {order.tracking_code && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Código de Rastreio</span>
+                  <span className="font-mono text-sm">{order.tracking_code}</span>
+                </div>
+              )}
+              {(order.shipping_carrier || order.tracking_code) && order.shipping_street && <Separator />}
               {order.shipping_street ? (
                 <div className="flex items-start gap-2">
                   <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
@@ -367,13 +380,6 @@ export default function OrderDetail() {
                 </div>
               ) : (
                 <p className="text-muted-foreground text-sm">Endereço não informado</p>
-              )}
-
-              {order.tracking_code && (
-                <div className="pt-2 border-t">
-                  <p className="text-sm text-muted-foreground">Código de rastreio</p>
-                  <p className="font-mono">{order.tracking_code}</p>
-                </div>
               )}
             </CardContent>
           </Card>
