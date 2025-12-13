@@ -56,12 +56,6 @@ const navigation: NavGroup[] = [
     ],
   },
   {
-    label: "Loja Online",
-    items: [
-      { title: "Builder da Loja", href: "/store-builder", icon: Store },
-    ],
-  },
-  {
     label: "Comunicação",
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
