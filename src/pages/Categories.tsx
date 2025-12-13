@@ -103,7 +103,7 @@ export default function Categories() {
       <PageHeader
         title="Categorias"
         description="Gerencie as categorias de produtos da sua loja"
-        action={
+        actions={
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
               <Button><Plus className="mr-2 h-4 w-4" />Nova Categoria</Button>
