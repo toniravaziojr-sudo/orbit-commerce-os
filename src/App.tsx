@@ -13,6 +13,7 @@ import Executions from "@/pages/Executions";
 import Orders from "@/pages/Orders";
 import Products from "@/pages/Products";
 import Customers from "@/pages/Customers";
+import CustomerDetail from "@/pages/CustomerDetail";
 import Notifications from "@/pages/Notifications";
 import Support from "@/pages/Support";
 import Media from "@/pages/Media";
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="/orders" element={<Orders />} />
               <Route path="/products" element={<Products />} />
               <Route path="/customers" element={<Customers />} />
+              <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />
               <Route path="/support" element={<Support />} />
               <Route path="/media" element={<Media />} />

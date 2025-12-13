@@ -80,23 +80,42 @@ export type CustomerFormData = {
   accepts_marketing?: boolean;
 };
 
-export function useCustomers() {
+export function useCustomers(options?: { page?: number; pageSize?: number; search?: string; status?: string }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
+  const page = options?.page ?? 1;
+  const pageSize = options?.pageSize ?? 50;
+  const search = options?.search ?? '';
+  const status = options?.status ?? 'all';
 
   const customersQuery = useQuery({
-    queryKey: ['customers', currentTenant?.id],
+    queryKey: ['customers', currentTenant?.id, page, pageSize, search, status],
     queryFn: async () => {
-      if (!currentTenant?.id) return [];
+      if (!currentTenant?.id) return { data: [], count: 0 };
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
-        .select('*')
-        .eq('tenant_id', currentTenant.id)
-        .order('created_at', { ascending: false });
+        .select('*', { count: 'exact' })
+        .eq('tenant_id', currentTenant.id);
+
+      // Apply filters
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+      }
+      if (status && status !== 'all') {
+        query = query.eq('status', status);
+      }
+
+      // Apply pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
+      const { data, error, count } = await query
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
-      return data as Customer[];
+      return { data: data as Customer[], count: count ?? 0 };
     },
     enabled: !!currentTenant?.id,
   });
@@ -173,7 +192,8 @@ export function useCustomers() {
   });
 
   return {
-    customers: customersQuery.data ?? [],
+    customers: customersQuery.data?.data ?? [],
+    totalCount: customersQuery.data?.count ?? 0,
     isLoading: customersQuery.isLoading,
     error: customersQuery.error,
     createCustomer,
