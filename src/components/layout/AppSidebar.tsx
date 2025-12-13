@@ -52,7 +52,14 @@ const navigation: NavGroup[] = [
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
       { title: "Produtos", href: "/products", icon: Package },
+      { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },
+    ],
+  },
+  {
+    label: "Loja Online",
+    items: [
+      { title: "Configurações", href: "/storefront", icon: Store },
     ],
   },
   {

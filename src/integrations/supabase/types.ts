@@ -126,6 +126,8 @@ export type Database = {
           is_active: boolean | null
           name: string
           parent_id: string | null
+          seo_description: string | null
+          seo_title: string | null
           slug: string
           sort_order: number | null
           tenant_id: string
@@ -139,6 +141,8 @@ export type Database = {
           is_active?: boolean | null
           name: string
           parent_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
           slug: string
           sort_order?: number | null
           tenant_id: string
@@ -152,6 +156,8 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           parent_id?: string | null
+          seo_description?: string | null
+          seo_title?: string | null
           slug?: string
           sort_order?: number | null
           tenant_id?: string
@@ -629,6 +635,105 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menu_items: {
+        Row: {
+          created_at: string
+          id: string
+          item_type: string
+          label: string
+          menu_id: string
+          parent_id: string | null
+          ref_id: string | null
+          sort_order: number | null
+          tenant_id: string
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_type?: string
+          label: string
+          menu_id: string
+          parent_id?: string | null
+          ref_id?: string | null
+          sort_order?: number | null
+          tenant_id: string
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_type?: string
+          label?: string
+          menu_id?: string
+          parent_id?: string | null
+          ref_id?: string | null
+          sort_order?: number | null
+          tenant_id?: string
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_menu_id_fkey"
+            columns: ["menu_id"]
+            isOneToOne: false
+            referencedRelation: "menus"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "menu_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      menus: {
+        Row: {
+          created_at: string
+          id: string
+          location: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          location?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          location?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "menus_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1215,8 +1320,10 @@ export type Database = {
           seo_description: string | null
           seo_title: string | null
           slug: string
+          status: string | null
           tenant_id: string
           title: string
+          type: string | null
           updated_at: string
         }
         Insert: {
@@ -1228,8 +1335,10 @@ export type Database = {
           seo_description?: string | null
           seo_title?: string | null
           slug: string
+          status?: string | null
           tenant_id: string
           title: string
+          type?: string | null
           updated_at?: string
         }
         Update: {
@@ -1241,8 +1350,10 @@ export type Database = {
           seo_description?: string | null
           seo_title?: string | null
           slug?: string
+          status?: string | null
           tenant_id?: string
           title?: string
+          type?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1339,6 +1450,38 @@ export type Database = {
             foreignKeyName: "store_settings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storefront_templates: {
+        Row: {
+          id: string
+          page_type: string
+          template_json: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          page_type: string
+          template_json?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          page_type?: string
+          template_json?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
