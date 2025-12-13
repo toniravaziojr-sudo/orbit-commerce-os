@@ -34,6 +34,9 @@ import NotFound from "@/pages/NotFound";
 
 // Store pages (public)
 import StoreFront from "@/pages/store/StoreFront";
+import ProductPage from "@/pages/store/ProductPage";
+import CategoryPage from "@/pages/store/CategoryPage";
+import CartPage from "@/pages/store/CartPage";
 import Checkout from "@/pages/store/Checkout";
 
 const queryClient = new QueryClient();
@@ -52,6 +55,9 @@ const App = () => (
 
             {/* Public storefront routes */}
             <Route path="/store/:tenantSlug" element={<StoreFront />} />
+            <Route path="/store/:tenantSlug/product/:productSlug" element={<ProductPage />} />
+            <Route path="/store/:tenantSlug/category/:categorySlug" element={<CategoryPage />} />
+            <Route path="/store/:tenantSlug/cart" element={<CartPage />} />
             <Route path="/store/:tenantSlug/checkout" element={<Checkout />} />
 
             {/* Protected route without tenant requirement */}

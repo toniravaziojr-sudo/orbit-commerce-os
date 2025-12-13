@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShoppingCart, Eye } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { ProductDetailModal } from "./ProductDetailModal";
 
 interface Product {
   id: string;
@@ -33,7 +33,6 @@ export function StoreProductGrid({
 }: StoreProductGridProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -123,8 +122,7 @@ export function StoreProductGrid({
   }
 
   return (
-    <>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {products.map((product) => {
           const primaryImage =
             product.images.find((img) => img.is_primary)?.url ||
@@ -144,83 +142,68 @@ export function StoreProductGrid({
               key={product.id}
               className="group overflow-hidden hover:shadow-lg transition-shadow"
             >
-              <div className="relative aspect-square bg-muted">
-                {primaryImage ? (
-                  <img
-                    src={primaryImage}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                    Sem imagem
+              <Link to={`/store/${tenantSlug}/product/${product.slug}`}>
+                <div className="relative aspect-square bg-muted">
+                  {primaryImage ? (
+                    <img
+                      src={primaryImage}
+                      alt={product.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                      Sem imagem
+                    </div>
+                  )}
+
+                  {hasDiscount && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute top-2 left-2"
+                    >
+                      -{discountPercent}%
+                    </Badge>
+                  )}
+
+                  {product.stock_quantity <= 0 && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                      <Badge variant="secondary">Esgotado</Badge>
+                    </div>
+                  )}
+                </div>
+              </Link>
+
+              <CardContent className="p-3">
+                <Link to={`/store/${tenantSlug}/product/${product.slug}`}>
+                  <h3 className="font-medium text-sm line-clamp-2 mb-2 hover:text-primary">
+                    {product.name}
+                  </h3>
+                </Link>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-primary">
+                      {formatPrice(product.price)}
+                    </span>
+                    {hasDiscount && (
+                      <span className="text-sm text-muted-foreground line-through">
+                        {formatPrice(product.compare_at_price!)}
+                      </span>
+                    )}
                   </div>
-                )}
-
-                {hasDiscount && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute top-2 left-2"
-                  >
-                    -{discountPercent}%
-                  </Badge>
-                )}
-
-                {product.stock_quantity <= 0 && (
-                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                    <Badge variant="secondary">Esgotado</Badge>
-                  </div>
-                )}
-
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                   <Button
                     size="icon"
-                    variant="secondary"
-                    onClick={() => setSelectedProduct(product)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
                     onClick={() => addToCart(product)}
                     disabled={product.stock_quantity <= 0}
                   >
                     <ShoppingCart className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-
-              <CardContent className="p-3">
-                <h3 className="font-medium text-sm line-clamp-2 mb-2">
-                  {product.name}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-primary">
-                    {formatPrice(product.price)}
-                  </span>
-                  {hasDiscount && (
-                    <span className="text-sm text-muted-foreground line-through">
-                      {formatPrice(product.compare_at_price!)}
-                    </span>
-                  )}
-                </div>
               </CardContent>
             </Card>
           );
         })}
       </div>
-
-      <ProductDetailModal
-        product={selectedProduct}
-        open={!!selectedProduct}
-        onOpenChange={(open) => !open && setSelectedProduct(null)}
-        onAddToCart={() => {
-          if (selectedProduct) {
-            addToCart(selectedProduct);
-            setSelectedProduct(null);
-          }
-        }}
-      />
-    </>
   );
 }
