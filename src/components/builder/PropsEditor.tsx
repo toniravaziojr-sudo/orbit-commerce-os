@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Trash2, Copy, Settings2 } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
+import { RichTextEditor } from './RichTextEditor';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -253,12 +254,10 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
 
       case 'richtext':
         return (
-          <Textarea
+          <RichTextEditor
             value={(value as string) || ''}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(val) => onChange(val)}
             placeholder={schema.placeholder}
-            rows={4}
-            className="resize-none"
           />
         );
 

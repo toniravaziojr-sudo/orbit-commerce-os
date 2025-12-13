@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { AddBlockButton } from './AddBlockButton';
+import { BlockQuickActions } from './BlockQuickActions';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -17,6 +18,12 @@ interface BlockRendererProps {
   isEditing?: boolean;
   onSelect?: (id: string) => void;
   onAddBlock?: (type: string, parentId: string, index: number) => void;
+  onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
+  onDuplicateBlock?: (blockId: string) => void;
+  onDeleteBlock?: (blockId: string) => void;
+  siblingIndex?: number;
+  siblingsCount?: number;
+  parentId?: string;
 }
 
 export function BlockRenderer({ 
@@ -26,6 +33,12 @@ export function BlockRenderer({
   isEditing = false,
   onSelect,
   onAddBlock,
+  onMoveBlock,
+  onDuplicateBlock,
+  onDeleteBlock,
+  siblingIndex = 0,
+  siblingsCount = 1,
+  parentId,
 }: BlockRendererProps) {
   const definition = blockRegistry.get(node.type);
   
@@ -84,6 +97,12 @@ export function BlockRenderer({
               isEditing={isEditing}
               onSelect={onSelect}
               onAddBlock={onAddBlock}
+              onMoveBlock={onMoveBlock}
+              onDuplicateBlock={onDuplicateBlock}
+              onDeleteBlock={onDeleteBlock}
+              siblingIndex={index}
+              siblingsCount={node.children!.length}
+              parentId={node.id}
             />
             
             {/* Add block button after each child */}
@@ -105,20 +124,41 @@ export function BlockRenderer({
   // Get component based on block type
   const BlockComponent = getBlockComponent(node.type);
   
+  const canMoveUp = siblingIndex > 0;
+  const canMoveDown = siblingIndex < siblingsCount - 1;
+  const isRemovable = definition.isRemovable !== false;
+
   return (
     <div
       onClick={handleClick}
       className={cn(
-        'relative transition-all',
+        'relative transition-all group/block-actions',
         isEditing && 'cursor-pointer hover:outline hover:outline-2 hover:outline-primary/50',
         isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20'
       )}
     >
+      {/* Selected block label */}
       {isSelected && isEditing && (
         <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10">
           {definition.label}
         </div>
       )}
+      
+      {/* Quick Actions - only show when editing and not Page block */}
+      {isEditing && node.type !== 'Page' && (
+        <BlockQuickActions
+          blockId={node.id}
+          blockType={node.type}
+          isRemovable={isRemovable}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          onMoveUp={() => onMoveBlock?.(node.id, 'up')}
+          onMoveDown={() => onMoveBlock?.(node.id, 'down')}
+          onDuplicate={() => onDuplicateBlock?.(node.id)}
+          onDelete={() => onDeleteBlock?.(node.id)}
+        />
+      )}
+      
       <BlockComponent 
         {...node.props} 
         context={context}
@@ -171,7 +211,8 @@ function FallbackBlock({ children }: { children?: React.ReactNode }) {
   return <div className="p-4 bg-muted rounded">{children}</div>;
 }
 
-// Layout Blocks
+// ========== LAYOUT BLOCKS ==========
+
 function PageBlock({ children, backgroundColor }: any) {
   return (
     <div 
@@ -183,18 +224,33 @@ function PageBlock({ children, backgroundColor }: any) {
   );
 }
 
-function SectionBlock({ children, backgroundColor, paddingY, paddingX, fullWidth }: any) {
+function SectionBlock({ 
+  children, 
+  backgroundColor, 
+  paddingX = 16, 
+  paddingY = 32, 
+  marginTop = 0,
+  marginBottom = 0,
+  gap = 16,
+  alignItems = 'stretch',
+  fullWidth 
+}: any) {
   return (
     <section 
       className={cn(
+        'flex flex-col',
         fullWidth ? 'w-full' : 'container mx-auto',
       )}
       style={{ 
         backgroundColor: backgroundColor || 'transparent',
-        paddingTop: `${paddingY || 16}px`,
-        paddingBottom: `${paddingY || 16}px`,
-        paddingLeft: `${paddingX || 16}px`,
-        paddingRight: `${paddingX || 16}px`,
+        paddingTop: `${paddingY}px`,
+        paddingBottom: `${paddingY}px`,
+        paddingLeft: `${paddingX}px`,
+        paddingRight: `${paddingX}px`,
+        marginTop: `${marginTop}px`,
+        marginBottom: `${marginBottom}px`,
+        gap: `${gap}px`,
+        alignItems: alignItems,
       }}
     >
       {children}
@@ -202,11 +258,32 @@ function SectionBlock({ children, backgroundColor, paddingY, paddingX, fullWidth
   );
 }
 
-function ContainerBlock({ children, maxWidth }: any) {
+function ContainerBlock({ 
+  children, 
+  maxWidth = '1200',
+  padding = 16,
+  marginTop = 0,
+  marginBottom = 0,
+  gap = 16,
+}: any) {
+  const maxWidthMap: Record<string, string> = {
+    'sm': '640px',
+    'md': '768px',
+    'lg': '1024px',
+    'xl': '1280px',
+    'full': '100%',
+  };
+
   return (
     <div 
-      className="mx-auto px-4"
-      style={{ maxWidth: maxWidth || '1200px' }}
+      className="mx-auto flex flex-col"
+      style={{ 
+        maxWidth: maxWidthMap[maxWidth] || `${maxWidth}px`,
+        padding: `${padding}px`,
+        marginTop: `${marginTop}px`,
+        marginBottom: `${marginBottom}px`,
+        gap: `${gap}px`,
+      }}
     >
       {children}
     </div>
@@ -235,9 +312,34 @@ function ColumnBlock({ children, span }: any) {
   );
 }
 
-// Header/Footer Blocks with dynamic menu support
+function ColumnsBlock({ 
+  children, 
+  columns = 2, 
+  gap = 16,
+  stackOnMobile = true,
+  alignItems = 'stretch',
+}: any) {
+  return (
+    <div 
+      className={cn(
+        'grid',
+        stackOnMobile && 'grid-cols-1 md:grid-cols-[var(--cols)]'
+      )}
+      style={{ 
+        '--cols': `repeat(${columns}, minmax(0, 1fr))`,
+        gridTemplateColumns: stackOnMobile ? undefined : `repeat(${columns}, minmax(0, 1fr))`,
+        gap: `${gap}px`,
+        alignItems: alignItems,
+      } as React.CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ========== HEADER / FOOTER ==========
+
 function HeaderBlock({ menuId, showSearch = true, showCart = true, sticky, context, isEditing }: any) {
-  const { currentTenant } = useAuth();
   const { settings } = context || {};
   
   const { data: menuItems } = useQuery({
@@ -255,7 +357,6 @@ function HeaderBlock({ menuId, showSearch = true, showCart = true, sticky, conte
     enabled: !!menuId,
   });
   
-  // Use context menu as fallback
   const displayItems = menuItems || context?.headerMenu || [];
   
   return (
@@ -381,8 +482,15 @@ function FooterBlock({ menuId, showSocial = true, copyrightText, context, isEdit
   );
 }
 
-// Content Blocks
-function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, backgroundColor, textColor, height }: any) {
+// ========== CONTENT BLOCKS ==========
+
+function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, backgroundColor, textColor, height, alignment = 'center', overlayOpacity = 50 }: any) {
+  const alignClass = {
+    left: 'items-start text-left',
+    center: 'items-center text-center',
+    right: 'items-end text-right',
+  }[alignment] || 'items-center text-center';
+
   return (
     <div 
       className="relative flex items-center justify-center"
@@ -394,8 +502,13 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
         minHeight: height || '400px',
       }}
     >
-      {backgroundImage && <div className="absolute inset-0 bg-black/40" />}
-      <div className="relative z-10 text-center px-4">
+      {backgroundImage && (
+        <div 
+          className="absolute inset-0 bg-black" 
+          style={{ opacity: overlayOpacity / 100 }} 
+        />
+      )}
+      <div className={cn("relative z-10 px-4 flex flex-col", alignClass)}>
         <h1 
           className="text-4xl md:text-5xl font-bold mb-4"
           style={{ color: textColor || 'white' }}
@@ -423,16 +536,30 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
   );
 }
 
-function BannerBlock({ imageUrl, altText, linkUrl, height }: any) {
+function BannerBlock({ imageUrl, altText, linkUrl, height, aspectRatio }: any) {
+  const aspectRatioMap: Record<string, string> = {
+    '16:9': '56.25%',
+    '4:3': '75%',
+    '1:1': '100%',
+    '21:9': '42.86%',
+  };
+
   const content = (
     <div 
-      className="w-full bg-muted overflow-hidden rounded-lg"
-      style={{ height: height || '200px' }}
+      className="w-full bg-muted overflow-hidden rounded-lg relative"
+      style={{ 
+        paddingBottom: height ? undefined : aspectRatioMap[aspectRatio] || '56.25%',
+        height: height || undefined,
+      }}
     >
       {imageUrl ? (
-        <img src={imageUrl} alt={altText || 'Banner'} className="w-full h-full object-cover" />
+        <img 
+          src={imageUrl} 
+          alt={altText || 'Banner'} 
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+        <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground">
           Banner Image
         </div>
       )}
@@ -461,22 +588,71 @@ function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
   );
 }
 
-function ImageBlock({ src, alt, width, height, objectFit }: any) {
+function RichTextBlock({ content, align }: any) {
+  // Convert markdown-like content to HTML
+  const processContent = (text: string): string => {
+    if (!text) return '<p>Conteúdo de texto formatado...</p>';
+    
+    // If already HTML, return as is
+    if (text.includes('<')) return text;
+    
+    // Simple markdown conversion
+    let html = text
+      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
+      .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-primary underline">$1</a>')
+      .replace(/^\- (.*$)/gim, '<li>$1</li>')
+      .replace(/\n/gim, '<br />');
+
+    return html;
+  };
+
   return (
-    <div className="overflow-hidden">
+    <div 
+      className="prose prose-lg max-w-none"
+      style={{ textAlign: align || 'left' }}
+      dangerouslySetInnerHTML={{ __html: processContent(content) }}
+    />
+  );
+}
+
+function ImageBlock({ src, alt, width, height, objectFit, rounded }: any) {
+  const widthMap: Record<string, string> = {
+    '25': '25%',
+    '50': '50%',
+    '75': '75%',
+    'full': '100%',
+  };
+
+  const roundedMap: Record<string, string> = {
+    'none': '0',
+    'sm': '0.25rem',
+    'md': '0.5rem',
+    'lg': '1rem',
+    'full': '9999px',
+  };
+
+  return (
+    <div className="overflow-hidden" style={{ width: widthMap[width] || '100%' }}>
       {src ? (
         <img 
           src={src} 
           alt={alt || 'Imagem'} 
-          className="rounded"
           style={{ 
-            width: width || '100%',
+            width: '100%',
             height: height || 'auto',
             objectFit: objectFit || 'cover',
+            borderRadius: roundedMap[rounded] || '0',
           }}
         />
       ) : (
-        <div className="bg-muted h-48 flex items-center justify-center text-muted-foreground rounded">
+        <div 
+          className="bg-muted h-48 flex items-center justify-center text-muted-foreground"
+          style={{ borderRadius: roundedMap[rounded] || '0' }}
+        >
           Imagem
         </div>
       )}
@@ -486,15 +662,16 @@ function ImageBlock({ src, alt, width, height, objectFit }: any) {
 
 function ButtonBlock({ text, url, variant, size }: any) {
   const baseClasses = 'inline-block rounded font-semibold transition-colors';
-  const variantClasses = {
+  const variantClasses: Record<string, string> = {
     primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
     secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
     outline: 'border border-primary text-primary hover:bg-primary hover:text-primary-foreground',
+    ghost: 'text-primary hover:bg-primary/10',
   };
-  const sizeClasses = {
-    small: 'px-3 py-1.5 text-sm',
-    medium: 'px-4 py-2',
-    large: 'px-6 py-3 text-lg',
+  const sizeClasses: Record<string, string> = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2',
+    lg: 'px-6 py-3 text-lg',
   };
 
   return (
@@ -502,8 +679,8 @@ function ButtonBlock({ text, url, variant, size }: any) {
       href={url || '#'}
       className={cn(
         baseClasses,
-        variantClasses[variant as keyof typeof variantClasses] || variantClasses.primary,
-        sizeClasses[size as keyof typeof sizeClasses] || sizeClasses.medium
+        variantClasses[variant] || variantClasses.primary,
+        sizeClasses[size] || sizeClasses.md
       )}
     >
       {text || 'Botão'}
@@ -512,59 +689,154 @@ function ButtonBlock({ text, url, variant, size }: any) {
 }
 
 function SpacerBlock({ height }: any) {
-  return <div style={{ height: `${height || 32}px` }} />;
+  const heightMap: Record<string, number> = {
+    xs: 8,
+    sm: 16,
+    md: 32,
+    lg: 48,
+    xl: 64,
+  };
+  return <div style={{ height: `${heightMap[height] || height || 32}px` }} />;
 }
 
-function DividerBlock({ color, thickness }: any) {
+function DividerBlock({ style, color, thickness }: any) {
   return (
     <hr 
       className="my-4"
       style={{ 
         borderColor: color || 'hsl(var(--border))',
         borderWidth: `${thickness || 1}px`,
+        borderStyle: style || 'solid',
       }}
     />
   );
 }
 
-// E-commerce Blocks (placeholders for now)
-function ProductGridBlock({ title, columns, limit, isEditing }: any) {
-  const placeholderProducts = Array.from({ length: limit || 8 }, (_, i) => ({
-    id: i,
-    name: `Produto ${i + 1}`,
-    price: 99.90 + i * 10,
-  }));
+// ========== E-COMMERCE BLOCKS WITH REAL DATA ==========
+
+function ProductGridBlock({ title, source, categoryId, columns = 4, limit = 8, showPrice = true, context, isEditing }: any) {
+  const { data: products, isLoading } = useQuery({
+    queryKey: ['product-grid', source, categoryId, limit, context?.tenantSlug],
+    queryFn: async () => {
+      let query = supabase
+        .from('products')
+        .select(`
+          id, name, slug, price, compare_at_price, status, is_featured,
+          product_images (url, is_primary)
+        `)
+        .eq('status', 'active')
+        .limit(limit);
+
+      // Filter by source
+      if (source === 'featured') {
+        query = query.eq('is_featured', true);
+      } else if (source === 'newest') {
+        query = query.order('created_at', { ascending: false });
+      } else if (source === 'category' && categoryId) {
+        // Get products in category
+        const { data: productCategories } = await supabase
+          .from('product_categories')
+          .select('product_id')
+          .eq('category_id', categoryId);
+        
+        if (productCategories?.length) {
+          query = query.in('id', productCategories.map(pc => pc.product_id));
+        }
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !isEditing, // Only fetch real data in preview/storefront
+  });
+
+  // Use mock data when editing
+  const displayProducts = isEditing 
+    ? Array.from({ length: limit }, (_, i) => ({
+        id: `mock-${i}`,
+        name: `Produto ${i + 1}`,
+        price: 99.90 + i * 10,
+        product_images: [],
+      }))
+    : products || [];
+
+  if (isLoading && !isEditing) {
+    return (
+      <div className="py-8">
+        {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
+        <div 
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: limit }, (_, i) => (
+            <div key={i} className="bg-card border rounded-lg p-4 animate-pulse">
+              <div className="aspect-square bg-muted rounded mb-3" />
+              <div className="h-4 bg-muted rounded mb-2" />
+              <div className="h-4 bg-muted rounded w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
       <div 
         className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${columns || 4}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
-        {placeholderProducts.map((product) => (
-          <div key={product.id} className="bg-card border rounded-lg p-4">
-            <div className="aspect-square bg-muted rounded mb-3" />
-            <h3 className="font-medium truncate">{product.name}</h3>
-            <p className="text-primary font-bold">R$ {product.price.toFixed(2)}</p>
-          </div>
-        ))}
+        {displayProducts.map((product: any) => {
+          const primaryImage = product.product_images?.find((img: any) => img.is_primary) || product.product_images?.[0];
+          return (
+            <a 
+              key={product.id} 
+              href={`/store/${context?.tenantSlug}/p/${product.slug || product.id}`}
+              className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow block"
+            >
+              <div className="aspect-square bg-muted rounded mb-3 overflow-hidden">
+                {primaryImage?.url ? (
+                  <img src={primaryImage.url} alt={product.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                    📦
+                  </div>
+                )}
+              </div>
+              <h3 className="font-medium truncate">{product.name}</h3>
+              {showPrice && (
+                <div className="mt-1">
+                  {product.compare_at_price && product.compare_at_price > product.price && (
+                    <span className="text-sm text-muted-foreground line-through mr-2">
+                      R$ {product.compare_at_price.toFixed(2).replace('.', ',')}
+                    </span>
+                  )}
+                  <span className="text-primary font-bold">
+                    R$ {(product.price || 0).toFixed(2).replace('.', ',')}
+                  </span>
+                </div>
+              )}
+            </a>
+          );
+        })}
       </div>
       {isEditing && (
         <p className="text-center text-sm text-muted-foreground mt-4">
-          [Produtos serão carregados dinamicamente]
+          [Produtos reais serão exibidos no preview e storefront]
         </p>
       )}
     </div>
   );
 }
 
-function ProductCarouselBlock({ title, limit, isEditing }: any) {
+function ProductCarouselBlock({ title, limit = 6, isEditing }: any) {
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
       <div className="flex gap-4 overflow-x-auto pb-4">
-        {Array.from({ length: limit || 6 }, (_, i) => (
+        {Array.from({ length: limit }, (_, i) => (
           <div key={i} className="flex-shrink-0 w-48 bg-card border rounded-lg p-4">
             <div className="aspect-square bg-muted rounded mb-3" />
             <h3 className="font-medium truncate">Produto {i + 1}</h3>
@@ -581,26 +853,80 @@ function ProductCarouselBlock({ title, limit, isEditing }: any) {
   );
 }
 
-function CategoryListBlock({ title, columns, isEditing }: any) {
-  const placeholderCategories = ['Categoria 1', 'Categoria 2', 'Categoria 3', 'Categoria 4'];
+function CategoryListBlock({ title, columns = 4, layout, showDescription, context, isEditing }: any) {
+  const { data: categories, isLoading } = useQuery({
+    queryKey: ['category-list', context?.tenantSlug],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug, description, image_url')
+        .eq('is_active', true)
+        .order('sort_order');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !isEditing,
+  });
+
+  const displayCategories = isEditing
+    ? ['Categoria 1', 'Categoria 2', 'Categoria 3', 'Categoria 4'].map((name, i) => ({
+        id: `mock-${i}`,
+        name,
+        slug: `categoria-${i + 1}`,
+        description: 'Descrição da categoria',
+        image_url: null,
+      }))
+    : categories || [];
+
+  if (isLoading && !isEditing) {
+    return (
+      <div className="py-8">
+        {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
+        <div 
+          className="grid gap-4"
+          style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        >
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="bg-card border rounded-lg p-6 animate-pulse">
+              <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-3" />
+              <div className="h-4 bg-muted rounded mx-auto w-20" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
       <div 
         className="grid gap-4"
-        style={{ gridTemplateColumns: `repeat(${columns || 4}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
-        {placeholderCategories.map((cat, i) => (
-          <div key={i} className="bg-card border rounded-lg p-6 text-center hover:shadow-md transition-shadow">
-            <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-3" />
-            <span className="font-medium">{cat}</span>
-          </div>
+        {displayCategories.map((cat: any) => (
+          <a 
+            key={cat.id} 
+            href={`/store/${context?.tenantSlug}/c/${cat.slug}`}
+            className="bg-card border rounded-lg p-6 text-center hover:shadow-md transition-shadow block"
+          >
+            <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-3 overflow-hidden">
+              {cat.image_url ? (
+                <img src={cat.image_url} alt={cat.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl">📁</div>
+              )}
+            </div>
+            <span className="font-medium">{cat.name}</span>
+            {showDescription && cat.description && (
+              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{cat.description}</p>
+            )}
+          </a>
         ))}
       </div>
       {isEditing && (
         <p className="text-center text-sm text-muted-foreground mt-4">
-          [Categorias serão carregadas dinamicamente]
+          [Categorias reais serão exibidas no preview e storefront]
         </p>
       )}
     </div>
@@ -629,103 +955,11 @@ function FeaturedProductsBlock({ title, productIds, isEditing }: any) {
   );
 }
 
-// Columns Block (for multi-column layouts)
-function ColumnsBlock({ children, columns, gap }: any) {
-  return (
-    <div 
-      className="grid"
-      style={{ 
-        gridTemplateColumns: `repeat(${columns || 2}, minmax(0, 1fr))`,
-        gap: `${gap || 16}px`
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// RichText Block
-function RichTextBlock({ content, align }: any) {
-  return (
-    <div 
-      className="prose prose-lg max-w-none"
-      style={{ textAlign: align || 'left' }}
-      dangerouslySetInnerHTML={{ __html: content || '<p>Conteúdo de texto formatado...</p>' }}
-    />
-  );
-}
-
-// FAQ Block
-function FAQBlock({ title, items, isEditing }: any) {
-  const faqItems = items || [
-    { question: 'Pergunta de exemplo 1?', answer: 'Resposta de exemplo 1.' },
-    { question: 'Pergunta de exemplo 2?', answer: 'Resposta de exemplo 2.' },
-  ];
-
-  return (
-    <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div className="space-y-4">
-        {faqItems.map((item: any, i: number) => (
-          <div key={i} className="border rounded-lg">
-            <div className="p-4 font-semibold bg-muted/50 rounded-t-lg">
-              {item.question}
-            </div>
-            <div className="p-4 text-muted-foreground">
-              {item.answer}
-            </div>
-          </div>
-        ))}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Configure as perguntas no painel lateral]
-        </p>
-      )}
-    </div>
-  );
-}
-
-// Testimonials Block
-function TestimonialsBlock({ title, items, isEditing }: any) {
-  const testimonials = items || [
-    { name: 'Cliente 1', text: 'Ótima experiência de compra!', rating: 5 },
-    { name: 'Cliente 2', text: 'Produtos de qualidade.', rating: 4 },
-    { name: 'Cliente 3', text: 'Entrega rápida e embalagem perfeita.', rating: 5 },
-  ];
-
-  return (
-    <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>}
-      <div className="grid md:grid-cols-3 gap-6">
-        {testimonials.map((item: any, i: number) => (
-          <div key={i} className="bg-card border rounded-lg p-6 text-center">
-            <div className="mb-3">
-              {'⭐'.repeat(item.rating || 5)}
-            </div>
-            <p className="text-muted-foreground mb-4 italic">"{item.text}"</p>
-            <p className="font-semibold">{item.name}</p>
-          </div>
-        ))}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Configure os depoimentos no painel lateral]
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ProductCard Block with dynamic product loading
 function ProductCardBlock({ productId, showPrice = true, showButton = true, isEditing }: any) {
-  const { currentTenant } = useAuth();
-  
   const { data: product, isLoading } = useQuery({
     queryKey: ['product-card', productId],
     queryFn: async () => {
       if (!productId || productId === '_auto') {
-        // Auto select first product
         const { data, error } = await supabase
           .from('products')
           .select('id, name, price, status')
@@ -781,14 +1015,12 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   );
 }
 
-// ProductDetails Block with dynamic product loading for preview
 function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
-  const { currentTenant } = useAuth();
-  
-  // Fetch example product for editor preview
   const { data: exampleProduct, isLoading } = useQuery({
-    queryKey: ['example-product', exampleProductId],
+    queryKey: ['example-product', exampleProductId, context?.productId],
     queryFn: async () => {
+      const productId = context?.productId || exampleProductId;
+      
       let query = supabase
         .from('products')
         .select(`
@@ -796,8 +1028,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           product_images (id, url, alt_text, is_primary, sort_order)
         `);
       
-      if (exampleProductId && exampleProductId !== '_auto') {
-        query = query.eq('id', exampleProductId);
+      if (productId && productId !== '_auto') {
+        query = query.eq('id', productId);
       } else {
         query = query.eq('status', 'active').limit(1);
       }
@@ -806,11 +1038,10 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
       if (error) return null;
       return data;
     },
-    enabled: isEditing,
+    enabled: isEditing || !!context?.productId,
   });
   
-  // Use context product for public view, example product for editor
-  const product = isEditing ? exampleProduct : context?.product;
+  const product = isEditing ? exampleProduct : context?.product || exampleProduct;
   const primaryImage = product?.product_images?.find((img: any) => img.is_primary) || product?.product_images?.[0];
 
   if (isLoading) {
@@ -846,7 +1077,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           </div>
         </div>
         <p className="text-center text-sm text-muted-foreground mt-4">
-          [Selecione um produto de exemplo para visualizar]
+          [Selecione um produto de exemplo para visualizar ou use o seletor no toolbar]
         </p>
       </div>
     );
@@ -888,7 +1119,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   );
 }
 
-// CartSummary Block
+// ========== CART / CHECKOUT BLOCKS ==========
+
 function CartSummaryBlock({ isEditing }: any) {
   return (
     <div className="py-8">
@@ -931,13 +1163,11 @@ function CartSummaryBlock({ isEditing }: any) {
   );
 }
 
-// CheckoutSteps Block
 function CheckoutStepsBlock({ isEditing }: any) {
   const steps = ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'];
   
   return (
     <div className="py-8">
-      {/* Steps Indicator */}
       <div className="flex justify-center mb-8">
         {steps.map((step, i) => (
           <div key={i} className="flex items-center">
@@ -955,7 +1185,6 @@ function CheckoutStepsBlock({ isEditing }: any) {
         ))}
       </div>
       
-      {/* Content */}
       {isEditing ? (
         <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
           [Formulário de checkout será renderizado aqui]
@@ -1010,24 +1239,70 @@ function CheckoutBlock({ isEditing }: any) {
           [Formulário de checkout será renderizado aqui]
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div className="bg-card border rounded-lg p-6">
-              <h2 className="font-semibold mb-4">Dados do Cliente</h2>
-              <div className="space-y-4">
-                <input type="text" placeholder="Nome completo" className="w-full p-2 border rounded bg-background" />
-                <input type="email" placeholder="E-mail" className="w-full p-2 border rounded bg-background" />
-                <input type="tel" placeholder="Telefone" className="w-full p-2 border rounded bg-background" />
-              </div>
-            </div>
-          </div>
-          <div className="bg-card border rounded-lg p-6">
-            <h2 className="font-semibold mb-4">Resumo do Pedido</h2>
-            <div className="text-muted-foreground">
-              Carrinho vazio
-            </div>
-          </div>
+        <div className="text-center py-12 text-muted-foreground">
+          Seu carrinho está vazio
         </div>
+      )}
+    </div>
+  );
+}
+
+function FAQBlock({ title, items, isEditing }: any) {
+  const faqItems = items || [
+    { question: 'Pergunta de exemplo 1?', answer: 'Resposta de exemplo 1.' },
+    { question: 'Pergunta de exemplo 2?', answer: 'Resposta de exemplo 2.' },
+  ];
+
+  return (
+    <div className="py-8">
+      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
+      <div className="space-y-4">
+        {faqItems.map((item: any, i: number) => (
+          <div key={i} className="border rounded-lg">
+            <div className="p-4 font-semibold bg-muted/50 rounded-t-lg">
+              {item.question}
+            </div>
+            <div className="p-4 text-muted-foreground">
+              {item.answer}
+            </div>
+          </div>
+        ))}
+      </div>
+      {isEditing && (
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          [Configure as perguntas no painel lateral]
+        </p>
+      )}
+    </div>
+  );
+}
+
+function TestimonialsBlock({ title, items, isEditing }: any) {
+  const testimonials = items || [
+    { name: 'Cliente 1', content: 'Ótima experiência de compra!', rating: 5 },
+    { name: 'Cliente 2', content: 'Produtos de qualidade.', rating: 4 },
+    { name: 'Cliente 3', content: 'Entrega rápida e embalagem perfeita.', rating: 5 },
+  ];
+
+  return (
+    <div className="py-8">
+      {title && <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>}
+      <div className="grid md:grid-cols-3 gap-6">
+        {testimonials.map((item: any, i: number) => (
+          <div key={i} className="bg-card border rounded-lg p-6 text-center">
+            <div className="mb-3">
+              {'⭐'.repeat(item.rating || 5)}
+            </div>
+            <p className="text-muted-foreground mb-4 italic">"{item.content || item.text}"</p>
+            <p className="font-semibold">{item.name}</p>
+            {item.role && <p className="text-sm text-muted-foreground">{item.role}</p>}
+          </div>
+        ))}
+      </div>
+      {isEditing && (
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          [Configure os depoimentos no painel lateral]
+        </p>
       )}
     </div>
   );

@@ -15,6 +15,9 @@ interface BuilderCanvasProps {
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
   onAddBlock?: (type: string, parentId: string, index: number) => void;
+  onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
+  onDuplicateBlock?: (blockId: string) => void;
+  onDeleteBlock?: (blockId: string) => void;
   isPreviewMode?: boolean;
 }
 
@@ -26,12 +29,15 @@ const viewportSizes: Record<ViewportSize, { width: string; label: string; icon: 
   mobile: { width: '375px', label: 'Mobile', icon: Smartphone },
 };
 
-export function BuilderCanvas({
-  content,
-  context,
-  selectedBlockId,
-  onSelectBlock,
+export function BuilderCanvas({ 
+  content, 
+  context, 
+  selectedBlockId, 
+  onSelectBlock, 
   onAddBlock,
+  onMoveBlock,
+  onDuplicateBlock,
+  onDeleteBlock,
   isPreviewMode = false,
 }: BuilderCanvasProps) {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
@@ -94,6 +100,9 @@ export function BuilderCanvas({
               isEditing={!isPreviewMode}
               onSelect={onSelectBlock}
               onAddBlock={onAddBlock}
+              onMoveBlock={onMoveBlock}
+              onDuplicateBlock={onDuplicateBlock}
+              onDeleteBlock={onDeleteBlock}
             />
           </div>
         </div>
