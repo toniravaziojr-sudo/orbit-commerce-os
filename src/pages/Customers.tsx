@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Users, Plus, Search, Download, Tag, Filter } from 'lucide-react';
+import { Users, Plus, Search, Download, Tag, Upload } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,16 +15,18 @@ import { StatCard } from '@/components/ui/stat-card';
 import { CustomerList } from '@/components/customers/CustomerList';
 import { CustomerForm } from '@/components/customers/CustomerForm';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
+import { CustomerImport } from '@/components/customers/CustomerImport';
 import { useCustomers, useCustomerTags, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
 
 export default function Customers() {
   const [formOpen, setFormOpen] = useState(false);
   const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer, refetch } = useCustomers();
   const { tags, createTag, deleteTag } = useCustomerTags();
 
   // Filter customers
@@ -97,6 +99,10 @@ export default function Customers() {
         description="Base de clientes com histórico, tags e segmentação"
         actions={
           <div className="flex gap-3">
+            <Button variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              Importar
+            </Button>
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar
@@ -213,6 +219,13 @@ export default function Customers() {
         onCreateTag={(data) => createTag.mutate(data)}
         onDeleteTag={(id) => deleteTag.mutate(id)}
         isLoading={createTag.isPending}
+      />
+
+      {/* Import Modal */}
+      <CustomerImport
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onSuccess={() => refetch()}
       />
     </div>
   );
