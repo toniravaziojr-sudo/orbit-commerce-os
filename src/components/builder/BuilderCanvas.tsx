@@ -14,7 +14,7 @@ interface BuilderCanvasProps {
   context: BlockRenderContext;
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
-  onAddBlock?: (type: string) => void;
+  onAddBlock?: (type: string, parentId: string, index: number) => void;
   isPreviewMode?: boolean;
 }
 
@@ -93,6 +93,7 @@ export function BuilderCanvas({
               isSelected={selectedBlockId === content.id}
               isEditing={!isPreviewMode}
               onSelect={onSelectBlock}
+              onAddBlock={onAddBlock}
             />
           </div>
         </div>

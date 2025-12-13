@@ -42,9 +42,15 @@ import {
   ArrowLeft,
   ExternalLink,
   ChevronRight,
+  Package,
+  FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface BuilderToolbarProps {
   pageTitle: string;
@@ -66,6 +72,11 @@ interface BuilderToolbarProps {
   onSettings?: () => void;
   onBack: () => void;
   onPageChange?: (pageType: string) => void;
+  // NEW: Example selectors
+  exampleProductId?: string;
+  exampleCategoryId?: string;
+  onExampleProductChange?: (productId: string) => void;
+  onExampleCategoryChange?: (categoryId: string) => void;
 }
 
 const pageTypeLabels: Record<string, string> = {
@@ -96,8 +107,49 @@ export function BuilderToolbar({
   onViewHistory,
   onBack,
   onPageChange,
+  exampleProductId,
+  exampleCategoryId,
+  onExampleProductChange,
+  onExampleCategoryChange,
 }: BuilderToolbarProps) {
   const navigate = useNavigate();
+  const { currentTenant } = useAuth();
+
+  // Fetch products for Product template
+  const { data: products, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['builder-example-products', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, sku')
+        .eq('tenant_id', currentTenant.id)
+        .eq('status', 'active')
+        .order('name')
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentTenant?.id && pageType === 'product',
+  });
+
+  // Fetch categories for Category template
+  const { data: categories, isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['builder-example-categories', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true)
+        .order('name')
+        .limit(50);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentTenant?.id && pageType === 'category',
+  });
 
   // Build preview URL based on page type
   const getPreviewUrl = () => {
@@ -165,6 +217,68 @@ export function BuilderToolbar({
             <SelectItem value="checkout">💳 Checkout</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Example Product Selector - Only for Product template */}
+        {pageType === 'product' && onExampleProductChange && (
+          <>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-muted-foreground" />
+              {isLoadingProducts ? (
+                <Skeleton className="h-9 w-[180px]" />
+              ) : (
+                <Select value={exampleProductId || ''} onValueChange={onExampleProductChange}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Produto exemplo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {products?.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                    {(!products || products.length === 0) && (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Nenhum produto encontrado
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Example Category Selector - Only for Category template */}
+        {pageType === 'category' && onExampleCategoryChange && (
+          <>
+            <Separator orientation="vertical" className="h-6" />
+            <div className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+              {isLoadingCategories ? (
+                <Skeleton className="h-9 w-[180px]" />
+              ) : (
+                <Select value={exampleCategoryId || ''} onValueChange={onExampleCategoryChange}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Categoria exemplo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories?.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                    {(!categories || categories.length === 0) && (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Nenhuma categoria encontrada
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Dirty indicator */}
         {isDirty && (

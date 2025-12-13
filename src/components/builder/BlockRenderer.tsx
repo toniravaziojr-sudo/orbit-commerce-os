@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { AddBlockButton } from './AddBlockButton';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -15,6 +16,7 @@ interface BlockRendererProps {
   isSelected?: boolean;
   isEditing?: boolean;
   onSelect?: (id: string) => void;
+  onAddBlock?: (type: string, parentId: string, index: number) => void;
 }
 
 export function BlockRenderer({ 
@@ -22,7 +24,8 @@ export function BlockRenderer({
   context, 
   isSelected = false,
   isEditing = false,
-  onSelect 
+  onSelect,
+  onAddBlock,
 }: BlockRendererProps) {
   const definition = blockRegistry.get(node.type);
   
@@ -41,19 +44,62 @@ export function BlockRenderer({
     }
   };
 
-  // Render children if block can have them
+  // Render children with "+" buttons between them
   const renderChildren = () => {
-    if (!node.children?.length) return null;
+    if (!node.children?.length) {
+      // Empty container - show add button
+      if (definition.canHaveChildren && isEditing && onAddBlock) {
+        return (
+          <div className="py-4 group">
+            <AddBlockButton
+              parentId={node.id}
+              index={0}
+              onAddBlock={onAddBlock}
+              className="opacity-40"
+            />
+          </div>
+        );
+      }
+      return null;
+    }
     
-    return node.children.map((child) => (
-      <BlockRenderer
-        key={child.id}
-        node={child}
-        context={context}
-        isEditing={isEditing}
-        onSelect={onSelect}
-      />
-    ));
+    return (
+      <>
+        {node.children.map((child, index) => (
+          <div key={child.id} className="group/block">
+            {/* Add block button before first child */}
+            {index === 0 && isEditing && onAddBlock && definition.canHaveChildren && (
+              <div className="py-1">
+                <AddBlockButton
+                  parentId={node.id}
+                  index={0}
+                  onAddBlock={onAddBlock}
+                />
+              </div>
+            )}
+            
+            <BlockRenderer
+              node={child}
+              context={context}
+              isEditing={isEditing}
+              onSelect={onSelect}
+              onAddBlock={onAddBlock}
+            />
+            
+            {/* Add block button after each child */}
+            {isEditing && onAddBlock && definition.canHaveChildren && (
+              <div className="py-1">
+                <AddBlockButton
+                  parentId={node.id}
+                  index={index + 1}
+                  onAddBlock={onAddBlock}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </>
+    );
   };
 
   // Get component based on block type
