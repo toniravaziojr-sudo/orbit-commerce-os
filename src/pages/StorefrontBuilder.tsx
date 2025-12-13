@@ -184,7 +184,7 @@ export default function StorefrontBuilder() {
                   <CardContent className="pt-0">
                     <div className="flex gap-2">
                       <Button
-                        onClick={() => navigate(`/admin/storefront/builder?edit=${pageType}`)}
+                        onClick={() => navigate(`/storefront/builder?edit=${pageType}`)}
                         className="flex-1"
                         size="sm"
                       >
