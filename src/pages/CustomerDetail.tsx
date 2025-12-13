@@ -14,7 +14,9 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Bell
+  Bell,
+  Package,
+  ExternalLink
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomerNotes, useCustomerAddresses, type Customer, type CustomerNote, type CustomerAddress } from '@/hooks/useCustomers';
 import { CustomerForm } from '@/components/customers/CustomerForm';
+import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { toast } from 'sonner';
 
 const statusConfig = {
@@ -89,6 +92,7 @@ export default function CustomerDetail() {
   
   const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(id);
   const { addresses, isLoading: addressesLoading } = useCustomerAddresses(id);
+  const { orders, isLoading: ordersLoading } = useCustomerOrders(id);
 
   useEffect(() => {
     async function fetchCustomer() {
@@ -280,8 +284,12 @@ export default function CustomerDetail() {
 
         {/* Tabs Section */}
         <div className="lg:col-span-2">
-          <Tabs defaultValue="addresses" className="space-y-4">
+          <Tabs defaultValue="orders" className="space-y-4">
             <TabsList>
+              <TabsTrigger value="orders" className="gap-2">
+                <Package className="h-4 w-4" />
+                Pedidos ({orders.length})
+              </TabsTrigger>
               <TabsTrigger value="addresses" className="gap-2">
                 <MapPin className="h-4 w-4" />
                 Endereços ({addresses.length})
@@ -295,6 +303,62 @@ export default function CustomerDetail() {
                 Notificações
               </TabsTrigger>
             </TabsList>
+
+            {/* Orders Tab */}
+            <TabsContent value="orders" className="space-y-4">
+              {ordersLoading ? (
+                <Skeleton className="h-32" />
+              ) : orders.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum pedido encontrado</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                orders.map((order) => (
+                  <Card key={order.id} className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate(`/orders/${order.id}`)}>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-1">
+                            <span className="font-medium">{order.order_number}</span>
+                            <Badge variant={
+                              order.status === 'delivered' ? 'default' :
+                              order.status === 'cancelled' ? 'destructive' :
+                              order.status === 'shipped' || order.status === 'in_transit' ? 'default' :
+                              'secondary'
+                            }>
+                              {order.status === 'pending' && 'Pendente'}
+                              {order.status === 'awaiting_payment' && 'Aguardando Pgto'}
+                              {order.status === 'paid' && 'Pago'}
+                              {order.status === 'processing' && 'Em Separação'}
+                              {order.status === 'shipped' && 'Enviado'}
+                              {order.status === 'in_transit' && 'Em Trânsito'}
+                              {order.status === 'delivered' && 'Entregue'}
+                              {order.status === 'cancelled' && 'Cancelado'}
+                              {order.status === 'returned' && 'Devolvido'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDateTime(order.created_at)}
+                          </p>
+                        </div>
+                        <div className="text-right flex items-center gap-4">
+                          <div>
+                            <p className="font-medium">{formatCurrency(order.total)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {order.items_count} {order.items_count === 1 ? 'item' : 'itens'}
+                            </p>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
 
             {/* Addresses Tab */}
             <TabsContent value="addresses" className="space-y-4">
