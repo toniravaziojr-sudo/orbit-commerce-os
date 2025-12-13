@@ -19,7 +19,7 @@ interface PreviewTemplateResult {
 }
 
 export function usePreviewTemplate(tenantSlug: string, pageType: PageType): PreviewTemplateResult {
-  const { user, currentTenant } = useAuth();
+  const { user } = useAuth();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['preview-template', tenantSlug, pageType, user?.id],
@@ -118,6 +118,145 @@ export function usePreviewTemplate(tenantSlug: string, pageType: PageType): Prev
   return {
     content: data?.content || getDefaultTemplate(pageType),
     isDefault: data?.isDefault ?? true,
+    isLoading,
+    error: error as Error | null,
+    canPreview: data?.canPreview ?? false,
+  };
+}
+
+// Preview hook for institutional pages
+interface PreviewPageTemplateResult {
+  content: BlockNode | null;
+  isLoading: boolean;
+  error: Error | null;
+  canPreview: boolean;
+  pageTitle: string | null;
+}
+
+export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): PreviewPageTemplateResult {
+  const { user } = useAuth();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['preview-page-template', tenantSlug, pageSlug, user?.id],
+    queryFn: async () => {
+      if (!user) {
+        throw new Error('Authentication required for preview');
+      }
+
+      // First get the tenant ID from slug
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single();
+
+      if (tenantError || !tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Check if user belongs to this tenant
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('tenant_id', tenant.id)
+        .single();
+
+      if (!userRole) {
+        throw new Error('Access denied: not a member of this store');
+      }
+
+      // Get the page
+      const { data: page, error: pageError } = await supabase
+        .from('store_pages')
+        .select('id, title, draft_version, published_version, content')
+        .eq('tenant_id', tenant.id)
+        .eq('slug', pageSlug)
+        .single();
+
+      if (pageError || !page) {
+        throw new Error('Page not found');
+      }
+
+      // Use draft_version first, fallback to published_version
+      const versionToUse = page.draft_version || page.published_version;
+
+      if (versionToUse) {
+        const { data: version, error: versionError } = await supabase
+          .from('store_page_versions')
+          .select('content')
+          .eq('tenant_id', tenant.id)
+          .eq('entity_type', 'page')
+          .eq('page_id', page.id)
+          .eq('version', versionToUse)
+          .single();
+
+        if (!versionError && version) {
+          return {
+            content: version.content as unknown as BlockNode,
+            pageTitle: page.title,
+            canPreview: true,
+          };
+        }
+      }
+
+      // Fallback to legacy content migration
+      if (page.content) {
+        const legacyText = typeof page.content === 'object' && page.content !== null && 'text' in page.content
+          ? (page.content as { text: string }).text
+          : '';
+        
+        if (legacyText) {
+          const defaultTemplate = getDefaultTemplate('institutional');
+          const updateContent = (node: BlockNode): BlockNode => {
+            if (node.type === 'RichText') {
+              return {
+                ...node,
+                props: {
+                  ...node.props,
+                  content: `<h1>${page.title}</h1>${legacyText.split('\n').filter(Boolean).map(p => `<p>${p}</p>`).join('')}`,
+                },
+              };
+            }
+            if (node.children) {
+              return {
+                ...node,
+                children: node.children.map(updateContent),
+              };
+            }
+            return node;
+          };
+          return {
+            content: updateContent(defaultTemplate),
+            pageTitle: page.title,
+            canPreview: true,
+          };
+        }
+      }
+
+      return {
+        content: getDefaultTemplate('institutional'),
+        pageTitle: page.title,
+        canPreview: true,
+      };
+    },
+    enabled: !!tenantSlug && !!pageSlug && !!user,
+    staleTime: 1000 * 30,
+  });
+
+  if (!user) {
+    return {
+      content: null,
+      isLoading: false,
+      error: new Error('Authentication required for preview'),
+      canPreview: false,
+      pageTitle: null,
+    };
+  }
+
+  return {
+    content: data?.content || null,
+    pageTitle: data?.pageTitle || null,
     isLoading,
     error: error as Error | null,
     canPreview: data?.canPreview ?? false,
