@@ -41,6 +41,7 @@ import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
 import StorefrontHome from "@/pages/storefront/StorefrontHome";
 import StorefrontCategory from "@/pages/storefront/StorefrontCategory";
 import StorefrontProduct from "@/pages/storefront/StorefrontProduct";
+import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import StorefrontCart from "@/pages/storefront/StorefrontCart";
 import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
 
@@ -63,6 +64,7 @@ const App = () => (
               <Route index element={<StorefrontHome />} />
               <Route path="c/:categorySlug" element={<StorefrontCategory />} />
               <Route path="p/:productSlug" element={<StorefrontProduct />} />
+              <Route path="page/:pageSlug" element={<StorefrontPage />} />
               <Route path="cart" element={<StorefrontCart />} />
               <Route path="checkout" element={<StorefrontCheckout />} />
             </Route>
