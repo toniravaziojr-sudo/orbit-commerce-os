@@ -77,7 +77,7 @@ export default function StorefrontSettings() {
       <PageHeader
         title="Configurações da Loja"
         description="Configure a aparência e informações da sua loja online"
-        action={
+        actions={
           <div className="flex gap-2">
             <a href={previewUrl} target="_blank" rel="noopener noreferrer">
               <Button variant="outline"><Eye className="mr-2 h-4 w-4" />Preview</Button>
