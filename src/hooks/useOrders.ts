@@ -455,11 +455,48 @@ export function useOrderDetails(orderId: string | undefined) {
     },
   });
 
+  const updateTrackingCode = useMutation({
+    mutationFn: async ({ orderId, trackingCode, carrier }: { orderId: string; trackingCode: string; carrier?: string }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const updateData: Record<string, unknown> = { tracking_code: trackingCode };
+      if (carrier) {
+        updateData.shipping_carrier = carrier;
+      }
+
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Add history
+      await supabase.from('order_history').insert({
+        order_id: orderId,
+        author_id: user?.id,
+        action: 'tracking_updated',
+        description: `Código de rastreio atualizado: ${trackingCode}${carrier ? ` (${carrier})` : ''}`,
+        new_value: { tracking_code: trackingCode, shipping_carrier: carrier },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      toast.success('Código de rastreio atualizado!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar código de rastreio:', error);
+      toast.error('Erro ao atualizar código de rastreio');
+    },
+  });
+
   return {
     order: orderQuery.data,
     items: itemsQuery.data ?? [],
     history: historyQuery.data ?? [],
     isLoading: orderQuery.isLoading || itemsQuery.isLoading,
     addNote,
+    updateTrackingCode,
   };
 }
