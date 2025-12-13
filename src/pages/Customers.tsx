@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { Users, Plus, Search, Download, Tag, Upload } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Plus, Search, Download, Tag, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,41 +19,53 @@ import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager'
 import { CustomerImport } from '@/components/customers/CustomerImport';
 import { useCustomers, useCustomerTags, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
 
+const PAGE_SIZE = 50;
+
 export default function Customers() {
+  const navigate = useNavigate();
   const [formOpen, setFormOpen] = useState(false);
   const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer, refetch } = useCustomers();
+  // Debounce search
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+    // Simple debounce
+    setTimeout(() => {
+      setDebouncedSearch(value);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+  };
+
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+    setCurrentPage(1); // Reset to first page on filter change
+  };
+
+  const { 
+    customers, 
+    totalCount, 
+    isLoading, 
+    createCustomer, 
+    updateCustomer, 
+    deleteCustomer, 
+    refetch 
+  } = useCustomers({
+    page: currentPage,
+    pageSize: PAGE_SIZE,
+    search: debouncedSearch,
+    status: statusFilter,
+  });
+
   const { tags, createTag, deleteTag } = useCustomerTags();
 
-  // Filter customers
-  const filteredCustomers = useMemo(() => {
-    return customers.filter((customer) => {
-      const matchesSearch =
-        !searchQuery ||
-        customer.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.phone?.includes(searchQuery);
-
-      const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [customers, searchQuery, statusFilter]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const active = customers.filter((c) => c.status === 'active').length;
-    const totalSpent = customers.reduce((acc, c) => acc + c.total_spent, 0);
-    const totalOrders = customers.reduce((acc, c) => acc + c.total_orders, 0);
-    const avgTicket = totalOrders > 0 ? totalSpent / totalOrders : 0;
-
-    return { total: customers.length, active, totalSpent, avgTicket };
-  }, [customers]);
+  // Pagination calculations
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const handleAddNew = () => {
     setSelectedCustomer(null);
@@ -65,8 +78,7 @@ export default function Customers() {
   };
 
   const handleView = (customer: Customer) => {
-    // TODO: Navigate to customer detail page
-    console.log('View customer:', customer);
+    navigate(`/customers/${customer.id}`);
   };
 
   const handleSubmit = (data: CustomerFormData) => {
@@ -119,23 +131,23 @@ export default function Customers() {
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
           title="Total de Clientes"
-          value={stats.total.toString()}
+          value={totalCount.toString()}
           icon={Users}
         />
         <StatCard
-          title="Clientes Ativos"
-          value={stats.active.toString()}
+          title="Exibindo"
+          value={`${customers.length} de ${totalCount}`}
           icon={Users}
-          trend={{ value: Math.round((stats.active / (stats.total || 1)) * 100), label: 'do total' }}
+          description={`Página ${currentPage} de ${totalPages || 1}`}
         />
         <StatCard
-          title="Faturamento Total"
-          value={formatCurrency(stats.totalSpent)}
+          title="Página Atual"
+          value={currentPage.toString()}
           icon={Users}
         />
         <StatCard
-          title="Ticket Médio"
-          value={formatCurrency(stats.avgTicket)}
+          title="Por Página"
+          value={PAGE_SIZE.toString()}
           icon={Users}
         />
       </div>
@@ -150,11 +162,11 @@ export default function Customers() {
                 placeholder="Buscar por nome, email ou telefone..."
                 className="pl-9"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
             <div className="flex gap-3">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -183,22 +195,76 @@ export default function Customers() {
         <CardHeader>
           <CardTitle className="text-lg font-semibold">
             Base de Clientes
-            {filteredCustomers.length > 0 && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({filteredCustomers.length} {filteredCustomers.length === 1 ? 'cliente' : 'clientes'})
-              </span>
-            )}
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              ({totalCount} {totalCount === 1 ? 'cliente' : 'clientes'})
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <CustomerList
-            customers={filteredCustomers}
+            customers={customers}
             isLoading={isLoading}
             onView={handleView}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAddNew={handleAddNew}
           />
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * PAGE_SIZE) + 1} a {Math.min(currentPage * PAGE_SIZE, totalCount)} de {totalCount} clientes
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1 || isLoading}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Anterior
+                </Button>
+                <div className="flex items-center gap-1">
+                  {/* Page numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <Button
+                        key={pageNum}
+                        variant={currentPage === pageNum ? 'default' : 'outline'}
+                        size="sm"
+                        className="w-9"
+                        onClick={() => setCurrentPage(pageNum)}
+                        disabled={isLoading}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages || isLoading}
+                >
+                  Próximo
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
