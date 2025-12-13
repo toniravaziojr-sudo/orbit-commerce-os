@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
+import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -233,6 +234,33 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
             placeholder="[]"
             rows={4}
             className="font-mono text-xs"
+          />
+        );
+
+      case 'product':
+        return (
+          <ProductSelector
+            value={(value as string) || ''}
+            onChange={onChange}
+            placeholder={schema.placeholder}
+          />
+        );
+
+      case 'category':
+        return (
+          <CategorySelector
+            value={(value as string) || ''}
+            onChange={onChange}
+            placeholder={schema.placeholder}
+          />
+        );
+
+      case 'menu':
+        return (
+          <MenuSelector
+            value={(value as string) || ''}
+            onChange={onChange}
+            placeholder={schema.placeholder}
           />
         );
 

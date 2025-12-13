@@ -10,3 +10,4 @@ export { BlockTree } from './BlockTree';
 export { BlockRenderer } from './BlockRenderer';
 export { PropsEditor } from './PropsEditor';
 export { VersionHistoryDialog } from './VersionHistoryDialog';
+export { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';

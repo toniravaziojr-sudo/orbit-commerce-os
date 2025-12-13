@@ -203,7 +203,7 @@ const blockDefinitions: BlockDefinition[] = [
     },
     propsSchema: {
       menuId: {
-        type: 'string',
+        type: 'menu',
         label: 'Menu',
         placeholder: 'Selecione um menu',
       },
@@ -238,7 +238,7 @@ const blockDefinitions: BlockDefinition[] = [
     },
     propsSchema: {
       menuId: {
-        type: 'string',
+        type: 'menu',
         label: 'Menu',
         placeholder: 'Selecione um menu',
       },
@@ -598,9 +598,9 @@ const blockDefinitions: BlockDefinition[] = [
         ],
       },
       categoryId: {
-        type: 'string',
-        label: 'Categoria (se aplicável)',
-        placeholder: 'ID da categoria',
+        type: 'category',
+        label: 'Categoria (se fonte = Categoria)',
+        placeholder: 'Selecione uma categoria',
       },
       columns: {
         type: 'select',
@@ -639,9 +639,9 @@ const blockDefinitions: BlockDefinition[] = [
     },
     propsSchema: {
       productId: {
-        type: 'string',
+        type: 'product',
         label: 'Produto',
-        placeholder: 'ID do produto',
+        placeholder: 'Selecione um produto',
       },
       showPrice: {
         type: 'boolean',
@@ -662,12 +662,18 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'ecommerce',
     icon: 'ShoppingBag',
     defaultProps: {
+      exampleProductId: '',
       showGallery: true,
       showDescription: true,
       showVariants: true,
       showStock: true,
     },
     propsSchema: {
+      exampleProductId: {
+        type: 'product',
+        label: 'Produto de Exemplo',
+        placeholder: 'Para pré-visualização no editor',
+      },
       showGallery: {
         type: 'boolean',
         label: 'Mostrar Galeria',
