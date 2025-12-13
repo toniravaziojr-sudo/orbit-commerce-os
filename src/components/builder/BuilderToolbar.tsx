@@ -22,12 +22,14 @@ import {
   RotateCcw,
   History,
   Settings,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BuilderToolbarProps {
   pageTitle: string;
   pageType: string;
+  tenantSlug?: string;
   isDirty: boolean;
   isPreviewMode: boolean;
   canUndo: boolean;
@@ -48,6 +50,7 @@ interface BuilderToolbarProps {
 export function BuilderToolbar({
   pageTitle,
   pageType,
+  tenantSlug,
   isDirty,
   isPreviewMode,
   canUndo,
@@ -64,6 +67,32 @@ export function BuilderToolbar({
   onSettings,
   onBack,
 }: BuilderToolbarProps) {
+  // Build preview URL based on page type
+  const getPreviewUrl = () => {
+    if (!tenantSlug) return null;
+    const baseUrl = `/store/${tenantSlug}`;
+    switch (pageType) {
+      case 'home':
+        return `${baseUrl}?preview=1`;
+      case 'category':
+        return `${baseUrl}/c/exemplo?preview=1`;
+      case 'product':
+        return `${baseUrl}/p/exemplo?preview=1`;
+      case 'cart':
+        return `${baseUrl}/cart?preview=1`;
+      case 'checkout':
+        return `${baseUrl}/checkout?preview=1`;
+      default:
+        return `${baseUrl}?preview=1`;
+    }
+  };
+
+  const handleOpenPreview = () => {
+    const url = getPreviewUrl();
+    if (url) {
+      window.open(url, '_blank');
+    }
+  };
   return (
     <div className="h-14 flex items-center justify-between px-4 bg-background border-b">
       {/* Left: Back & Title */}
@@ -126,6 +155,18 @@ export function BuilderToolbar({
             </>
           )}
         </Button>
+
+        {tenantSlug && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpenPreview}
+            title="Abrir preview em nova aba"
+          >
+            <ExternalLink className="h-4 w-4 mr-1" />
+            Abrir
+          </Button>
+        )}
 
         <Button
           variant="outline"
