@@ -49,6 +49,10 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
 
+            {/* Public storefront routes */}
+            <Route path="/store/:tenantSlug" element={<StoreFront />} />
+            <Route path="/store/:tenantSlug/checkout" element={<Checkout />} />
+
             {/* Protected route without tenant requirement */}
             <Route
               path="/create-store"
