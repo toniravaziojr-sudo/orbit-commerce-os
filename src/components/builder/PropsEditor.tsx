@@ -11,7 +11,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Trash2, Copy, ChevronUp, ChevronDown } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { Trash2, Copy, Settings2 } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 
 interface PropsEditorProps {
@@ -20,8 +21,6 @@ interface PropsEditorProps {
   onChange: (props: Record<string, unknown>) => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
   canDelete?: boolean;
 }
 
@@ -31,72 +30,69 @@ export function PropsEditor({
   onChange,
   onDelete,
   onDuplicate,
-  onMoveUp,
-  onMoveDown,
   canDelete = true,
 }: PropsEditorProps) {
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...props, [key]: value });
   };
 
+  const propsEntries = Object.entries(definition.propsSchema);
+
   return (
-    <div className="h-full flex flex-col bg-card border-l">
-      <div className="p-3 border-b">
-        <div className="flex items-center justify-between">
+    <div className="h-full flex flex-col border-l">
+      {/* Header */}
+      <div className="p-4 border-b bg-muted/30">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">{definition.icon}</span>
           <div>
-            <h3 className="font-semibold text-sm flex items-center gap-2">
-              <span>{definition.icon}</span>
-              {definition.label}
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">{definition.type}</p>
-          </div>
-          <div className="flex gap-1">
-            {onMoveUp && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveUp}>
-                <ChevronUp className="h-4 w-4" />
-              </Button>
-            )}
-            {onMoveDown && (
-              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onMoveDown}>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            )}
+            <h3 className="font-semibold text-sm">{definition.label}</h3>
+            <p className="text-xs text-muted-foreground">Propriedades do bloco</p>
           </div>
         </div>
       </div>
 
+      {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-4">
-          {Object.entries(definition.propsSchema).map(([key, schema]) => (
-            <PropField
-              key={key}
-              name={key}
-              schema={schema}
-              value={props[key] ?? schema.defaultValue}
-              onChange={(value) => handleChange(key, value)}
-            />
-          ))}
-
-          {Object.keys(definition.propsSchema).length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Este bloco não possui propriedades editáveis.
-            </p>
+        <div className="p-4 space-y-4">
+          {propsEntries.length > 0 ? (
+            propsEntries.map(([key, schema]) => (
+              <PropField
+                key={key}
+                name={key}
+                schema={schema}
+                value={props[key] ?? schema.defaultValue}
+                onChange={(value) => handleChange(key, value)}
+              />
+            ))
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Este bloco não possui propriedades editáveis.</p>
+            </div>
           )}
         </div>
       </ScrollArea>
 
-      <div className="p-3 border-t flex gap-2">
-        {onDuplicate && (
-          <Button variant="outline" size="sm" className="flex-1" onClick={onDuplicate}>
-            <Copy className="h-4 w-4 mr-1" />
-            Duplicar
-          </Button>
-        )}
-        {onDelete && canDelete && definition.isRemovable !== false && (
-          <Button variant="destructive" size="sm" className="flex-1" onClick={onDelete}>
-            <Trash2 className="h-4 w-4 mr-1" />
-            Remover
-          </Button>
+      {/* Actions */}
+      <div className="p-4 border-t bg-muted/30">
+        <div className="flex gap-2">
+          {onDuplicate && (
+            <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={onDuplicate}>
+              <Copy className="h-4 w-4" />
+              Duplicar
+            </Button>
+          )}
+          {onDelete && canDelete && definition.isRemovable !== false && (
+            <Button variant="destructive" size="sm" className="flex-1 gap-1" onClick={onDelete}>
+              <Trash2 className="h-4 w-4" />
+              Remover
+            </Button>
+          )}
+        </div>
+        {definition.isRemovable === false && (
+          <p className="text-xs text-muted-foreground mt-2 text-center">
+            Este bloco não pode ser removido
+          </p>
         )}
       </div>
     </div>
@@ -119,12 +115,13 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={schema.placeholder}
+            className="h-9"
           />
         );
 
       case 'number':
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Slider
               value={[Number(value) || schema.min || 0]}
               onValueChange={([v]) => onChange(v)}
@@ -139,23 +136,26 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
               onChange={(e) => onChange(Number(e.target.value))}
               min={schema.min}
               max={schema.max}
-              className="w-16"
+              className="w-16 h-9"
             />
           </div>
         );
 
       case 'boolean':
         return (
-          <Switch
-            checked={Boolean(value)}
-            onCheckedChange={onChange}
-          />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">{schema.label}</span>
+            <Switch
+              checked={Boolean(value)}
+              onCheckedChange={onChange}
+            />
+          </div>
         );
 
       case 'select':
         return (
           <Select value={value as string} onValueChange={onChange}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9">
               <SelectValue placeholder="Selecionar..." />
             </SelectTrigger>
             <SelectContent>
@@ -175,13 +175,13 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
               type="color"
               value={(value as string) || '#000000'}
               onChange={(e) => onChange(e.target.value)}
-              className="w-10 h-8 rounded border cursor-pointer"
+              className="w-10 h-9 rounded border cursor-pointer"
             />
             <Input
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               placeholder="#000000"
-              className="flex-1"
+              className="flex-1 h-9 font-mono text-sm"
             />
           </div>
         );
@@ -193,9 +193,10 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               placeholder="URL da imagem"
+              className="h-9"
             />
             {value && (
-              <div className="relative aspect-video bg-muted rounded overflow-hidden">
+              <div className="relative aspect-video bg-muted rounded-md overflow-hidden border">
                 <img
                   src={value as string}
                   alt="Preview"
@@ -216,11 +217,11 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
             onChange={(e) => onChange(e.target.value)}
             placeholder={schema.placeholder}
             rows={4}
+            className="resize-none"
           />
         );
 
       case 'array':
-        // Simplified array handling - just show as JSON for now
         return (
           <Textarea
             value={JSON.stringify(value || [], null, 2)}
@@ -233,7 +234,7 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
             }}
             placeholder="[]"
             rows={4}
-            className="font-mono text-xs"
+            className="font-mono text-xs resize-none"
           />
         );
 
@@ -269,16 +270,26 @@ function PropField({ name, schema, value, onChange }: PropFieldProps) {
           <Input
             value={String(value || '')}
             onChange={(e) => onChange(e.target.value)}
+            className="h-9"
           />
         );
     }
   };
 
+  // Boolean has its own layout with label inside
+  if (schema.type === 'boolean') {
+    return (
+      <div className="py-2 border-b border-border/50">
+        {renderField()}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs font-medium">
+      <Label className="text-xs font-medium flex items-center gap-1">
         {schema.label}
-        {schema.required && <span className="text-destructive ml-1">*</span>}
+        {schema.required && <span className="text-destructive">*</span>}
       </Label>
       {renderField()}
     </div>

@@ -16,7 +16,6 @@ import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, LayoutGrid } from 'lucide-react';
 
@@ -39,8 +38,6 @@ export function VisualBuilder({
 }: VisualBuilderProps) {
   const navigate = useNavigate();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
-  const [showPalette, setShowPalette] = useState(true);
-  const [showInspector, setShowInspector] = useState(true);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
 
@@ -87,7 +84,7 @@ export function VisualBuilder({
   const handleAddBlock = useCallback((type: string) => {
     const parentId = store.selectedBlockId || 'root';
     store.addBlock(type, parentId);
-    toast.success(`Bloco ${blockRegistry[type]?.label || type} adicionado`);
+    toast.success(`Bloco "${blockRegistry[type]?.label || type}" adicionado`);
   }, [store]);
 
   // Determine entity type based on pageType
@@ -119,7 +116,7 @@ export function VisualBuilder({
         content: store.content,
       });
       store.markClean();
-      toast.success('Página publicada!');
+      toast.success('Página publicada com sucesso!');
     } catch (error) {
       toast.error('Erro ao publicar página');
     }
@@ -152,6 +149,9 @@ export function VisualBuilder({
 
   // Handle reset to default
   const handleReset = useCallback(() => {
+    if (!confirm('Isso irá resetar todo o conteúdo para o template padrão. Continuar?')) {
+      return;
+    }
     const defaultContent = getDefaultTemplate(pageType);
     store.setContent(defaultContent);
     toast.success('Conteúdo resetado para o padrão');
@@ -160,7 +160,6 @@ export function VisualBuilder({
   // Handle moving block (from tree drag and drop)
   const handleMoveBlock = useCallback((blockId: string, newParentId: string, newIndex: number) => {
     store.moveBlock(blockId, newParentId, newIndex);
-    toast.success('Bloco movido');
   }, [store]);
 
   // Go back
@@ -170,19 +169,20 @@ export function VisualBuilder({
         return;
       }
     }
-    navigate('/admin/storefront');
+    navigate('/admin/storefront/builder');
   }, [navigate, store.isDirty]);
 
   const pageTypeLabels: Record<string, string> = {
     home: 'Página Inicial',
-    category: 'Página de Categoria',
-    product: 'Página de Produto',
+    category: 'Categoria',
+    product: 'Produto',
     cart: 'Carrinho',
     checkout: 'Checkout',
+    institutional: pageTitle || 'Página',
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-muted/30">
       {/* Toolbar */}
       <BuilderToolbar
         pageTitle={pageTypeLabels[pageType] || pageType}
@@ -207,20 +207,20 @@ export function VisualBuilder({
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Block Palette + Tree */}
-        {!isPreviewMode && showPalette && (
-          <div className="w-64 flex-shrink-0 border-r bg-card flex flex-col">
+        {!isPreviewMode && (
+          <div className="w-64 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             <Tabs value={leftTab} onValueChange={(v) => setLeftTab(v as 'blocks' | 'tree')} className="flex flex-col h-full">
-              <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2 py-0 h-10">
+              <TabsList className="w-full justify-start rounded-none border-b bg-background px-2 py-0 h-11">
                 <TabsTrigger 
                   value="blocks" 
-                  className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  className="gap-1.5 data-[state=active]:bg-primary/10 rounded-md px-3"
                 >
                   <LayoutGrid className="h-4 w-4" />
                   <span>Blocos</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="tree" 
-                  className="gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                  className="gap-1.5 data-[state=active]:bg-primary/10 rounded-md px-3"
                 >
                   <Layers className="h-4 w-4" />
                   <span>Estrutura</span>
@@ -250,30 +250,32 @@ export function VisualBuilder({
             context={context}
             selectedBlockId={store.selectedBlockId}
             onSelectBlock={store.selectBlock}
+            onAddBlock={handleAddBlock}
             isPreviewMode={isPreviewMode}
           />
         </div>
 
         {/* Right Sidebar - Props Editor */}
-        {!isPreviewMode && showInspector && store.selectedBlock && store.selectedBlockDefinition && (
-          <div className="w-72 flex-shrink-0">
-            <PropsEditor
-              definition={store.selectedBlockDefinition}
-              props={store.selectedBlock.props}
-              onChange={handlePropsChange}
-              onDelete={handleDeleteBlock}
-              onDuplicate={handleDuplicateBlock}
-              canDelete={store.selectedBlockDefinition.isRemovable !== false}
-            />
-          </div>
-        )}
-
-        {/* Empty state when no block selected */}
-        {!isPreviewMode && showInspector && !store.selectedBlock && (
-          <div className="w-72 flex-shrink-0 bg-card border-l flex items-center justify-center p-6">
-            <div className="text-center text-muted-foreground">
-              <p className="text-sm">Selecione um bloco para editar suas propriedades</p>
-            </div>
+        {!isPreviewMode && (
+          <div className="w-80 flex-shrink-0 bg-background shadow-sm">
+            {store.selectedBlock && store.selectedBlockDefinition ? (
+              <PropsEditor
+                definition={store.selectedBlockDefinition}
+                props={store.selectedBlock.props}
+                onChange={handlePropsChange}
+                onDelete={handleDeleteBlock}
+                onDuplicate={handleDuplicateBlock}
+                canDelete={store.selectedBlockDefinition.isRemovable !== false}
+              />
+            ) : (
+              <div className="h-full flex items-center justify-center p-6 border-l">
+                <div className="text-center text-muted-foreground">
+                  <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm font-medium">Nenhum bloco selecionado</p>
+                  <p className="text-xs mt-1">Clique em um bloco no canvas para editar suas propriedades</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
