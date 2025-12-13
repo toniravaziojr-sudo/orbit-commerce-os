@@ -17,7 +17,7 @@ export interface BlockNode {
 
 export interface BlockPropsSchema {
   [key: string]: {
-    type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'image' | 'richtext' | 'array';
+    type: 'string' | 'number' | 'boolean' | 'select' | 'color' | 'image' | 'richtext' | 'array' | 'product' | 'category' | 'menu';
     label: string;
     defaultValue?: unknown;
     options?: { label: string; value: string }[];

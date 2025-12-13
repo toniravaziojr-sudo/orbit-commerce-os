@@ -5,6 +5,9 @@
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -186,12 +189,31 @@ function ColumnBlock({ children, span }: any) {
   );
 }
 
-// Header/Footer Blocks
-function HeaderBlock({ context, isEditing }: any) {
-  const { settings, headerMenu } = context;
+// Header/Footer Blocks with dynamic menu support
+function HeaderBlock({ menuId, showSearch = true, showCart = true, sticky, context, isEditing }: any) {
+  const { currentTenant } = useAuth();
+  const { settings } = context || {};
+  
+  const { data: menuItems } = useQuery({
+    queryKey: ['menu-items', menuId],
+    queryFn: async () => {
+      if (!menuId) return [];
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('id, label, url, item_type, ref_id, sort_order')
+        .eq('menu_id', menuId)
+        .order('sort_order');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!menuId,
+  });
+  
+  // Use context menu as fallback
+  const displayItems = menuItems || context?.headerMenu || [];
   
   return (
-    <header className="bg-background border-b">
+    <header className={cn("bg-background border-b", sticky && "sticky top-0 z-50")}>
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           {settings?.logo_url ? (
@@ -201,22 +223,54 @@ function HeaderBlock({ context, isEditing }: any) {
           )}
         </div>
         <nav className="hidden md:flex items-center gap-6">
-          {headerMenu?.map((item: any) => (
-            <a key={item.id} href={item.url || '#'} className="text-sm hover:text-primary">
-              {item.label}
-            </a>
-          ))}
+          {displayItems.length > 0 ? (
+            displayItems.map((item: any) => (
+              <a key={item.id} href={item.url || '#'} className="text-sm hover:text-primary transition-colors">
+                {item.label}
+              </a>
+            ))
+          ) : (
+            isEditing && (
+              <span className="text-sm text-muted-foreground">[Selecione um menu]</span>
+            )
+          )}
         </nav>
-        <div className="flex items-center gap-4">
-          <button className="p-2 hover:bg-muted rounded">🛒</button>
+        <div className="flex items-center gap-2">
+          {showSearch && (
+            <button className="p-2 hover:bg-muted rounded">
+              🔍
+            </button>
+          )}
+          {showCart && (
+            <button className="p-2 hover:bg-muted rounded">
+              🛒
+            </button>
+          )}
         </div>
       </div>
     </header>
   );
 }
 
-function FooterBlock({ context }: any) {
-  const { settings, footerMenu } = context;
+function FooterBlock({ menuId, showSocial = true, copyrightText, context, isEditing }: any) {
+  const { settings } = context || {};
+  
+  const { data: menuItems } = useQuery({
+    queryKey: ['menu-items', menuId],
+    queryFn: async () => {
+      if (!menuId) return [];
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('id, label, url, item_type, ref_id, sort_order')
+        .eq('menu_id', menuId)
+        .order('sort_order');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!menuId,
+  });
+  
+  const displayItems = menuItems || context?.footerMenu || [];
   
   return (
     <footer className="bg-muted/50 border-t mt-auto">
@@ -231,33 +285,50 @@ function FooterBlock({ context }: any) {
           <div>
             <h4 className="font-semibold mb-3">Links</h4>
             <ul className="space-y-2">
-              {footerMenu?.map((item: any) => (
-                <li key={item.id}>
-                  <a href={item.url || '#'} className="text-sm text-muted-foreground hover:text-foreground">
-                    {item.label}
-                  </a>
-                </li>
-              ))}
+              {displayItems.length > 0 ? (
+                displayItems.map((item: any) => (
+                  <li key={item.id}>
+                    <a href={item.url || '#'} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                      {item.label}
+                    </a>
+                  </li>
+                ))
+              ) : (
+                isEditing && (
+                  <li className="text-sm text-muted-foreground">[Selecione um menu]</li>
+                )
+              )}
             </ul>
           </div>
-          <div>
-            <h4 className="font-semibold mb-3">Redes Sociais</h4>
-            <div className="flex gap-4">
-              {settings?.social_instagram && <a href={settings.social_instagram}>Instagram</a>}
-              {settings?.social_facebook && <a href={settings.social_facebook}>Facebook</a>}
+          {showSocial && (
+            <div>
+              <h4 className="font-semibold mb-3">Redes Sociais</h4>
+              <div className="flex gap-4 text-sm">
+                {settings?.social_instagram && (
+                  <a href={settings.social_instagram} className="hover:text-primary">Instagram</a>
+                )}
+                {settings?.social_facebook && (
+                  <a href={settings.social_facebook} className="hover:text-primary">Facebook</a>
+                )}
+                {!settings?.social_instagram && !settings?.social_facebook && isEditing && (
+                  <span className="text-muted-foreground">[Configure nas configurações]</span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           <div>
             <h4 className="font-semibold mb-3">Contato</h4>
-            {settings?.social_whatsapp && (
-              <a href={`https://wa.me/${settings.social_whatsapp}`} className="text-sm">
+            {settings?.social_whatsapp ? (
+              <a href={`https://wa.me/${settings.social_whatsapp}`} className="text-sm hover:text-primary">
                 WhatsApp
               </a>
+            ) : (
+              isEditing && <span className="text-sm text-muted-foreground">[Configure WhatsApp]</span>
             )}
           </div>
         </div>
         <div className="mt-8 pt-8 border-t text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} {settings?.store_name}. Todos os direitos reservados.
+          {copyrightText || `© ${new Date().getFullYear()} ${settings?.store_name || 'Loja'}. Todos os direitos reservados.`}
         </div>
       </div>
     </footer>
@@ -600,27 +671,119 @@ function TestimonialsBlock({ title, items, isEditing }: any) {
   );
 }
 
-// ProductCard Block
-function ProductCardBlock({ productId, isEditing }: any) {
+// ProductCard Block with dynamic product loading
+function ProductCardBlock({ productId, showPrice = true, showButton = true, isEditing }: any) {
+  const { currentTenant } = useAuth();
+  
+  const { data: product, isLoading } = useQuery({
+    queryKey: ['product-card', productId],
+    queryFn: async () => {
+      if (!productId || productId === '_auto') {
+        // Auto select first product
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, name, price, status')
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+        if (error) return null;
+        return data;
+      }
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, price, status')
+        .eq('id', productId)
+        .single();
+      if (error) return null;
+      return data;
+    },
+    enabled: !!productId || isEditing,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="bg-card border rounded-lg p-4 animate-pulse">
+        <div className="aspect-square bg-muted rounded mb-3" />
+        <div className="h-4 bg-muted rounded mb-2" />
+        <div className="h-4 bg-muted rounded w-1/2" />
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-card border rounded-lg p-4">
-      <div className="aspect-square bg-muted rounded mb-3" />
-      <h3 className="font-medium truncate">Produto</h3>
-      <p className="text-primary font-bold">R$ 99,90</p>
-      {isEditing && (
+    <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
+      <div className="aspect-square bg-muted rounded mb-3 flex items-center justify-center text-muted-foreground">
+        📦
+      </div>
+      <h3 className="font-medium truncate">{product?.name || 'Produto'}</h3>
+      {showPrice && (
+        <p className="text-primary font-bold">
+          R$ {(product?.price || 99.90).toFixed(2).replace('.', ',')}
+        </p>
+      )}
+      {showButton && (
+        <button className="w-full mt-2 bg-primary text-primary-foreground py-2 rounded text-sm hover:bg-primary/90">
+          Comprar
+        </button>
+      )}
+      {isEditing && !product && (
         <p className="text-xs text-muted-foreground mt-2">
-          [ID: {productId || 'Não selecionado'}]
+          [Selecione um produto]
         </p>
       )}
     </div>
   );
 }
 
-// ProductDetails Block (for product template)
-function ProductDetailsBlock({ context, isEditing }: any) {
-  const product = context?.product;
+// ProductDetails Block with dynamic product loading for preview
+function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
+  const { currentTenant } = useAuth();
+  
+  // Fetch example product for editor preview
+  const { data: exampleProduct, isLoading } = useQuery({
+    queryKey: ['example-product', exampleProductId],
+    queryFn: async () => {
+      let query = supabase
+        .from('products')
+        .select(`
+          id, name, price, description, stock_quantity, status,
+          product_images (id, url, alt_text, is_primary, sort_order)
+        `);
+      
+      if (exampleProductId && exampleProductId !== '_auto') {
+        query = query.eq('id', exampleProductId);
+      } else {
+        query = query.eq('status', 'active').limit(1);
+      }
+      
+      const { data, error } = await query.single();
+      if (error) return null;
+      return data;
+    },
+    enabled: isEditing,
+  });
+  
+  // Use context product for public view, example product for editor
+  const product = isEditing ? exampleProduct : context?.product;
+  const primaryImage = product?.product_images?.find((img: any) => img.is_primary) || product?.product_images?.[0];
 
-  if (isEditing && !product) {
+  if (isLoading) {
+    return (
+      <div className="py-8 animate-pulse">
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="aspect-square bg-muted rounded-lg" />
+          <div className="space-y-4">
+            <div className="h-8 bg-muted rounded w-3/4" />
+            <div className="h-6 bg-muted rounded w-1/4" />
+            <div className="h-20 bg-muted rounded" />
+            <div className="h-12 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!product && isEditing) {
     return (
       <div className="py-8">
         <div className="grid md:grid-cols-2 gap-8">
@@ -646,21 +809,30 @@ function ProductDetailsBlock({ context, isEditing }: any) {
   return (
     <div className="py-8">
       <div className="grid md:grid-cols-2 gap-8">
-        <div className="aspect-square bg-muted rounded-lg overflow-hidden">
-          {product?.images?.[0]?.url ? (
-            <img src={product.images[0].url} alt={product.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              Sem imagem
-            </div>
-          )}
-        </div>
+        {showGallery && (
+          <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+            {primaryImage?.url ? (
+              <img src={primaryImage.url} alt={product?.name} className="w-full h-full object-cover" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                Sem imagem
+              </div>
+            )}
+          </div>
+        )}
         <div className="space-y-4">
           <h1 className="text-3xl font-bold">{product?.name || 'Produto'}</h1>
           <p className="text-2xl text-primary font-bold">
             R$ {(product?.price || 0).toFixed(2).replace('.', ',')}
           </p>
-          <p className="text-muted-foreground">{product?.description || ''}</p>
+          {showDescription && product?.description && (
+            <p className="text-muted-foreground">{product.description}</p>
+          )}
+          {showStock && (
+            <p className="text-sm text-muted-foreground">
+              Estoque: {product?.stock_quantity || 0} unidades
+            </p>
+          )}
           <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90">
             Adicionar ao Carrinho
           </button>
