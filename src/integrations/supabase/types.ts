@@ -71,6 +71,328 @@ export type Database = {
           },
         ]
       }
+      customer_addresses: {
+        Row: {
+          city: string
+          complement: string | null
+          country: string
+          created_at: string
+          customer_id: string
+          id: string
+          is_default: boolean | null
+          label: string
+          neighborhood: string
+          number: string
+          postal_code: string
+          recipient_name: string
+          reference: string | null
+          state: string
+          street: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          complement?: string | null
+          country?: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_default?: boolean | null
+          label?: string
+          neighborhood: string
+          number: string
+          postal_code: string
+          recipient_name: string
+          reference?: string | null
+          state: string
+          street: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          complement?: string | null
+          country?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_default?: boolean | null
+          label?: string
+          neighborhood?: string
+          number?: string
+          postal_code?: string
+          recipient_name?: string
+          reference?: string | null
+          state?: string
+          street?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_addresses_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_notes: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          customer_id: string
+          id: string
+          is_pinned: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          is_pinned?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          is_pinned?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_notes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_notifications: {
+        Row: {
+          channel: string
+          clicked_at: string | null
+          content: string | null
+          created_at: string
+          customer_id: string
+          delivered_at: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          metadata: Json | null
+          opened_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string | null
+          template_id: string | null
+          type: string
+        }
+        Insert: {
+          channel: string
+          clicked_at?: string | null
+          content?: string | null
+          created_at?: string
+          customer_id: string
+          delivered_at?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_id?: string | null
+          type: string
+        }
+        Update: {
+          channel?: string
+          clicked_at?: string | null
+          content?: string | null
+          created_at?: string
+          customer_id?: string
+          delivered_at?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          metadata?: Json | null
+          opened_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string | null
+          template_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_notifications_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_tag_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          customer_id: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          customer_id: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          customer_id?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tag_assignments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "customer_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          tenant_id: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          tenant_id: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          accepts_marketing: boolean | null
+          auth_user_id: string | null
+          average_ticket: number | null
+          birth_date: string | null
+          cpf: string | null
+          created_at: string
+          email: string
+          email_verified: boolean | null
+          full_name: string
+          gender: string | null
+          id: string
+          last_order_at: string | null
+          loyalty_points: number | null
+          loyalty_tier: string | null
+          phone: string | null
+          phone_verified: boolean | null
+          status: string
+          tenant_id: string
+          total_orders: number | null
+          total_spent: number | null
+          updated_at: string
+        }
+        Insert: {
+          accepts_marketing?: boolean | null
+          auth_user_id?: string | null
+          average_ticket?: number | null
+          birth_date?: string | null
+          cpf?: string | null
+          created_at?: string
+          email: string
+          email_verified?: boolean | null
+          full_name: string
+          gender?: string | null
+          id?: string
+          last_order_at?: string | null
+          loyalty_points?: number | null
+          loyalty_tier?: string | null
+          phone?: string | null
+          phone_verified?: boolean | null
+          status?: string
+          tenant_id: string
+          total_orders?: number | null
+          total_spent?: number | null
+          updated_at?: string
+        }
+        Update: {
+          accepts_marketing?: boolean | null
+          auth_user_id?: string | null
+          average_ticket?: number | null
+          birth_date?: string | null
+          cpf?: string | null
+          created_at?: string
+          email?: string
+          email_verified?: boolean | null
+          full_name?: string
+          gender?: string | null
+          id?: string
+          last_order_at?: string | null
+          loyalty_points?: number | null
+          loyalty_tier?: string | null
+          phone?: string | null
+          phone_verified?: boolean | null
+          status?: string
+          tenant_id?: string
+          total_orders?: number | null
+          total_spent?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           category_id: string
