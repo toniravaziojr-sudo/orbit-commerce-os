@@ -91,16 +91,10 @@ export default function CustomerDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [editOpen, setEditOpen] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const [ordersPage, setOrdersPage] = useState(1);
-  const ordersPageSize = 5;
   
   const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(id);
   const { addresses, isLoading: addressesLoading } = useCustomerAddresses(id);
-  const { orders, totalCount: ordersTotalCount, isLoading: ordersLoading } = useCustomerOrders(id, { 
-    page: ordersPage, 
-    pageSize: ordersPageSize 
-  });
-  const ordersTotalPages = Math.ceil(ordersTotalCount / ordersPageSize);
+  const { orders, isLoading: ordersLoading } = useCustomerOrders(id);
 
   useEffect(() => {
     async function fetchCustomer() {
@@ -296,7 +290,7 @@ export default function CustomerDetail() {
             <TabsList>
               <TabsTrigger value="orders" className="gap-2">
                 <Package className="h-4 w-4" />
-                Pedidos ({ordersTotalCount})
+                Pedidos ({orders.length})
               </TabsTrigger>
               <TabsTrigger value="addresses" className="gap-2">
                 <MapPin className="h-4 w-4" />
@@ -365,33 +359,6 @@ export default function CustomerDetail() {
                     </CardContent>
                   </Card>
                 ))
-              )}
-              
-              {/* Orders Pagination */}
-              {ordersTotalPages > 1 && (
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-sm text-muted-foreground">
-                    Página {ordersPage} de {ordersTotalPages}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setOrdersPage(p => Math.max(1, p - 1))}
-                      disabled={ordersPage === 1 || ordersLoading}
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setOrdersPage(p => Math.min(ordersTotalPages, p + 1))}
-                      disabled={ordersPage === ordersTotalPages || ordersLoading}
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
               )}
             </TabsContent>
 

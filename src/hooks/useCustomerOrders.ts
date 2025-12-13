@@ -10,35 +10,18 @@ export interface CustomerOrder {
   items_count: number;
 }
 
-interface UseCustomerOrdersOptions {
-  page?: number;
-  pageSize?: number;
-}
-
-export function useCustomerOrders(customerId: string | undefined, options: UseCustomerOrdersOptions = {}) {
-  const { page = 1, pageSize = 10 } = options;
-
+export function useCustomerOrders(customerId: string | undefined) {
   const ordersQuery = useQuery({
-    queryKey: ['customer-orders', customerId, page, pageSize],
+    queryKey: ['customer-orders', customerId],
     queryFn: async () => {
-      if (!customerId) return { orders: [], totalCount: 0 };
+      if (!customerId) return [];
 
-      // Get total count
-      const { count } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('customer_id', customerId);
-
-      // Fetch orders for this customer with pagination
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-
+      // Fetch orders for this customer
       const { data: orders, error } = await supabase
         .from('orders')
         .select('id, order_number, status, total, created_at')
         .eq('customer_id', customerId)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching customer orders:', error);
@@ -48,29 +31,25 @@ export function useCustomerOrders(customerId: string | undefined, options: UseCu
       // Fetch item counts for each order
       const ordersWithCounts: CustomerOrder[] = await Promise.all(
         (orders || []).map(async (order) => {
-          const { count: itemCount } = await supabase
+          const { count } = await supabase
             .from('order_items')
             .select('*', { count: 'exact', head: true })
             .eq('order_id', order.id);
 
           return {
             ...order,
-            items_count: itemCount || 0,
+            items_count: count || 0,
           };
         })
       );
 
-      return {
-        orders: ordersWithCounts,
-        totalCount: count || 0,
-      };
+      return ordersWithCounts;
     },
     enabled: !!customerId,
   });
 
   return {
-    orders: ordersQuery.data?.orders || [],
-    totalCount: ordersQuery.data?.totalCount || 0,
+    orders: ordersQuery.data || [],
     isLoading: ordersQuery.isLoading,
     error: ordersQuery.error,
   };
