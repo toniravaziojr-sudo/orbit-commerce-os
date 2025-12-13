@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { StoreHeader } from "@/components/store/StoreHeader";
+import { StoreHero } from "@/components/store/StoreHero";
+import { StoreCategoryList } from "@/components/store/StoreCategoryList";
 import { StoreProductGrid } from "@/components/store/StoreProductGrid";
 import { StoreFooter } from "@/components/store/StoreFooter";
 import { CartDrawer } from "@/components/store/CartDrawer";
@@ -15,9 +17,11 @@ interface StoreSettings {
   logo_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
+  accent_color: string | null;
   social_whatsapp: string | null;
   social_instagram: string | null;
   social_facebook: string | null;
+  is_published: boolean | null;
 }
 
 interface Tenant {
@@ -59,13 +63,12 @@ export default function StoreFront() {
 
         setTenant(tenantData);
 
-        // Buscar configurações da loja
+        // Buscar configurações da loja (não exigir is_published para permitir preview)
         const { data: settingsData } = await supabase
           .from("store_settings")
           .select("*")
           .eq("tenant_id", tenantData.id)
-          .eq("is_published", true)
-          .single();
+          .maybeSingle();
 
         setSettings(settingsData);
       } catch (err) {
@@ -103,7 +106,8 @@ export default function StoreFront() {
         <div className="h-16 border-b">
           <Skeleton className="h-full w-full" />
         </div>
-        <div className="container mx-auto py-8">
+        <Skeleton className="h-64 w-full" />
+        <div className="container mx-auto py-8 px-4">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, i) => (
               <Skeleton key={i} className="h-64 rounded-lg" />
@@ -129,33 +133,53 @@ export default function StoreFront() {
     );
   }
 
+  const storeName = settings?.store_name || tenant.name;
+
   return (
     <div 
       className="min-h-screen bg-background flex flex-col"
       style={{
         "--store-primary": settings?.primary_color || "#6366f1",
         "--store-secondary": settings?.secondary_color || "#8b5cf6",
+        "--store-accent": settings?.accent_color || "#f59e0b",
       } as React.CSSProperties}
     >
       <StoreHeader
-        storeName={settings?.store_name || tenant.name}
+        storeName={storeName}
         logoUrl={settings?.logo_url}
         cartItemCount={cartItemCount}
         onCartClick={() => setCartOpen(true)}
       />
 
+      {/* Hero Banner */}
+      <StoreHero
+        storeName={storeName}
+        storeDescription={settings?.store_description}
+        primaryColor={settings?.primary_color}
+      />
+
       <main className="flex-1">
         <div className="container mx-auto px-4 py-8">
-          <StoreProductGrid 
+          {/* Categories */}
+          <StoreCategoryList 
             tenantId={tenant.id} 
-            tenantSlug={tenantSlug!}
-            onAddToCart={updateCartCount}
+            tenantSlug={tenantSlug!} 
           />
+
+          {/* Products Section */}
+          <section id="products-section" className="py-8">
+            <h2 className="text-2xl font-bold mb-6">Nossos Produtos</h2>
+            <StoreProductGrid 
+              tenantId={tenant.id} 
+              tenantSlug={tenantSlug!}
+              onAddToCart={updateCartCount}
+            />
+          </section>
         </div>
       </main>
 
       <StoreFooter
-        storeName={settings?.store_name || tenant.name}
+        storeName={storeName}
         whatsapp={settings?.social_whatsapp}
         instagram={settings?.social_instagram}
         facebook={settings?.social_facebook}
