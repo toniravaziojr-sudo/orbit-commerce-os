@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { TenantSwitcher } from "./TenantSwitcher";
 
 interface NavItem {
   title: string;
@@ -93,20 +94,14 @@ export function AppSidebar() {
         collapsed ? "w-[72px]" : "w-64"
       )}
     >
-      {/* Logo */}
+      {/* Logo & Tenant Switcher */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-          <Command className="h-5 w-5 text-primary-foreground" />
-        </div>
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-sidebar-primary-foreground">
-              Central de
-            </span>
-            <span className="text-xs font-medium text-sidebar-muted">
-              Comando
-            </span>
+        {collapsed ? (
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <Command className="h-5 w-5 text-primary-foreground" />
           </div>
+        ) : (
+          <TenantSwitcher />
         )}
       </div>
 

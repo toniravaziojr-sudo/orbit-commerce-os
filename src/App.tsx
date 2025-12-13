@@ -3,6 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 
 // Pages
@@ -20,6 +22,9 @@ import Finance from "@/pages/Finance";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
+import Auth from "@/pages/Auth";
+import CreateStore from "@/pages/CreateStore";
+import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,25 +35,49 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/executions" element={<Executions />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/customers" element={<Customers />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/media" element={<Media />} />
-            <Route path="/campaigns" element={<Campaigns />} />
-            <Route path="/integrations" element={<Integrations />} />
-            <Route path="/finance" element={<Finance />} />
-            <Route path="/fiscal" element={<Fiscal />} />
-            <Route path="/purchases" element={<Purchases />} />
-            <Route path="/settings" element={<Settings />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+            {/* Protected route without tenant requirement */}
+            <Route
+              path="/create-store"
+              element={
+                <ProtectedRoute requireTenant={false}>
+                  <CreateStore />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Protected routes with tenant requirement */}
+            <Route
+              element={
+                <ProtectedRoute>
+                  <AppShell />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/executions" element={<Executions />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/products" element={<Products />} />
+              <Route path="/customers" element={<Customers />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/support" element={<Support />} />
+              <Route path="/media" element={<Media />} />
+              <Route path="/campaigns" element={<Campaigns />} />
+              <Route path="/integrations" element={<Integrations />} />
+              <Route path="/finance" element={<Finance />} />
+              <Route path="/fiscal" element={<Fiscal />} />
+              <Route path="/purchases" element={<Purchases />} />
+              <Route path="/settings" element={<Settings />} />
+            </Route>
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
