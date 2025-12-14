@@ -2,11 +2,13 @@
 // PUBLIC TEMPLATE RENDERER - Renders published builder content
 // =============================================
 
+import { useMemo } from 'react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Eye, Lock, AlertTriangle } from 'lucide-react';
+import { applyGlobalLayout, usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 
 interface PublicTemplateRendererProps {
   content: BlockNode;
@@ -15,6 +17,7 @@ interface PublicTemplateRendererProps {
   error?: Error | null;
   isPreviewMode?: boolean;
   canPreview?: boolean;
+  isCheckout?: boolean;
 }
 
 export function PublicTemplateRenderer({
@@ -24,7 +27,17 @@ export function PublicTemplateRenderer({
   error,
   isPreviewMode = false,
   canPreview = true,
+  isCheckout = false,
 }: PublicTemplateRendererProps) {
+  // Fetch global layout
+  const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
+
+  // Apply global layout to content (replace Header/Footer with global versions)
+  const finalContent = useMemo(() => {
+    if (!content || !globalLayout) return content;
+    return applyGlobalLayout(content, globalLayout, isCheckout);
+  }, [content, globalLayout, isCheckout]);
+
   // Show access denied for preview without auth
   if (isPreviewMode && !canPreview) {
     return (
@@ -56,7 +69,7 @@ export function PublicTemplateRenderer({
   }
 
   // Show loading state
-  if (isLoading) {
+  if (isLoading || layoutLoading) {
     return (
       <div className="min-h-screen">
         <Skeleton className="h-16 w-full mb-0" />
@@ -84,7 +97,7 @@ export function PublicTemplateRenderer({
       )}
       
       <BlockRenderer
-        node={content}
+        node={finalContent}
         context={context}
         isEditing={false}
       />

@@ -18,6 +18,11 @@ import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, LayoutGrid } from 'lucide-react';
+import { 
+  useGlobalLayoutForEditor, 
+  applyGlobalLayout, 
+  extractHeaderFooter 
+} from '@/hooks/useGlobalLayoutIntegration';
 
 interface VisualBuilderProps {
   tenantId: string;
@@ -45,19 +50,48 @@ export function VisualBuilder({
   const [exampleProductId, setExampleProductId] = useState<string>('');
   const [exampleCategoryId, setExampleCategoryId] = useState<string>('');
 
+  // Check if this is checkout page (uses separate header/footer)
+  const isCheckoutPage = pageType === 'checkout';
+
+  // Global layout integration
+  const { 
+    globalLayout, 
+    isLoading: layoutLoading,
+    updateGlobalHeader,
+    updateGlobalFooter,
+    updateCheckoutHeader,
+    updateCheckoutFooter,
+    migrateFromHome,
+  } = useGlobalLayoutForEditor(tenantId);
+
+  // Run migration on first load if needed
+  useEffect(() => {
+    if (globalLayout?.needsMigration && !layoutLoading) {
+      migrateFromHome.mutate();
+    }
+  }, [globalLayout?.needsMigration, layoutLoading]);
+
   // Get initial content from prop or default template
   const startingContent = useMemo(() => 
     initialContent || getDefaultTemplate(pageType),
     [initialContent, pageType]
   );
 
-  // Builder store for state management
-  const store = useBuilderStore(startingContent);
+  // Apply global layout to initial content for display (non-checkout pages)
+  const contentWithGlobalLayout = useMemo(() => {
+    if (!globalLayout || isCheckoutPage) return startingContent;
+    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage);
+  }, [startingContent, globalLayout, isCheckoutPage]);
 
-  // Sync content when template changes (e.g. navigating between page types)
+  // Builder store for state management
+  const store = useBuilderStore(contentWithGlobalLayout);
+
+  // Sync content when template or global layout changes
   useEffect(() => {
-    store.setContent(startingContent);
-  }, [pageType, startingContent]);
+    if (!layoutLoading) {
+      store.setContent(contentWithGlobalLayout);
+    }
+  }, [pageType, contentWithGlobalLayout, layoutLoading]);
 
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
@@ -124,40 +158,98 @@ export function VisualBuilder({
   // Determine entity type based on pageType
   const entityType = (pageType === 'institutional' || pageType === 'landing_page') ? 'page' : 'template';
 
-  // Check if this is checkout page (uses separate header/footer)
-  const isCheckoutPage = pageType === 'checkout';
-
-  // Handle saving draft
+  // Handle saving draft - also save global Header/Footer if changed
   const handleSave = useCallback(async () => {
     try {
+      // Extract Header/Footer from current content
+      const { header, footer } = extractHeaderFooter(store.content);
+      
+      // Save to global layout (non-checkout) or checkout layout
+      if (header) {
+        if (isCheckoutPage) {
+          await updateCheckoutHeader.mutateAsync(header);
+        } else {
+          await updateGlobalHeader.mutateAsync(header);
+        }
+      }
+      if (footer) {
+        if (isCheckoutPage) {
+          await updateCheckoutFooter.mutateAsync(footer);
+        } else {
+          await updateGlobalFooter.mutateAsync(footer);
+        }
+      }
+
+      // Save the page content (without Header/Footer for non-checkout, or with them for checkout)
+      // For non-checkout pages, we strip Header/Footer from saved content since they're global
+      let contentToSave = store.content;
+      if (!isCheckoutPage && store.content.children) {
+        contentToSave = {
+          ...store.content,
+          children: store.content.children.filter(
+            child => child.type !== 'Header' && child.type !== 'Footer'
+          ),
+        };
+      }
+
       await saveDraft.mutateAsync({
         entityType,
         pageType: entityType === 'template' ? pageType : undefined,
         pageId: entityType === 'page' ? pageId : undefined,
-        content: store.content,
+        content: contentToSave,
       });
       store.markClean();
       toast.success('Rascunho salvo!');
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, entityType, pageType, pageId, store]);
+  }, [saveDraft, entityType, pageType, pageId, store, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
 
   // Handle publishing
   const handlePublish = useCallback(async () => {
     try {
+      // Extract Header/Footer from current content
+      const { header, footer } = extractHeaderFooter(store.content);
+      
+      // Save to global layout (non-checkout) or checkout layout
+      if (header) {
+        if (isCheckoutPage) {
+          await updateCheckoutHeader.mutateAsync(header);
+        } else {
+          await updateGlobalHeader.mutateAsync(header);
+        }
+      }
+      if (footer) {
+        if (isCheckoutPage) {
+          await updateCheckoutFooter.mutateAsync(footer);
+        } else {
+          await updateGlobalFooter.mutateAsync(footer);
+        }
+      }
+
+      // Save the page content (without Header/Footer for non-checkout)
+      let contentToSave = store.content;
+      if (!isCheckoutPage && store.content.children) {
+        contentToSave = {
+          ...store.content,
+          children: store.content.children.filter(
+            child => child.type !== 'Header' && child.type !== 'Footer'
+          ),
+        };
+      }
+
       await publish.mutateAsync({
         entityType,
         pageType: entityType === 'template' ? pageType : undefined,
         pageId: entityType === 'page' ? pageId : undefined,
-        content: store.content,
+        content: contentToSave,
       });
       store.markClean();
       toast.success('Página publicada com sucesso!');
     } catch (error) {
       toast.error('Erro ao publicar página');
     }
-  }, [publish, entityType, pageType, pageId, store]);
+  }, [publish, entityType, pageType, pageId, store, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
 
   // Handle deleting selected block
   const handleDeleteBlock = useCallback(() => {
