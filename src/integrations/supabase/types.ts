@@ -1376,6 +1376,7 @@ export type Database = {
           id: string
           is_homepage: boolean | null
           is_published: boolean | null
+          page_overrides: Json | null
           published_version: number | null
           seo_description: string | null
           seo_title: string | null
@@ -1394,6 +1395,7 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
@@ -1412,6 +1414,7 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
@@ -1567,6 +1570,7 @@ export type Database = {
           created_at: string
           draft_version: number | null
           id: string
+          page_overrides: Json | null
           page_type: string
           published_version: number | null
           tenant_id: string
@@ -1576,6 +1580,7 @@ export type Database = {
           created_at?: string
           draft_version?: number | null
           id?: string
+          page_overrides?: Json | null
           page_type: string
           published_version?: number | null
           tenant_id: string
@@ -1585,6 +1590,7 @@ export type Database = {
           created_at?: string
           draft_version?: number | null
           id?: string
+          page_overrides?: Json | null
           page_type?: string
           published_version?: number | null
           tenant_id?: string
