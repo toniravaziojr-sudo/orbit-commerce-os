@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buildMenuItemUrl as buildMenuUrl } from '@/lib/publicUrls';
 
 export default function PageBuilder() {
   const { pageId } = useParams();
@@ -80,24 +81,10 @@ export default function PageBuilder() {
     enabled: !!currentTenant?.id,
   });
 
-  // Helper to build menu item URL
+  // Helper to build menu item URL using centralized utility
   const buildMenuItemUrl = (item: any): string => {
-    const baseUrl = currentTenant ? `/store/${currentTenant.slug}` : '';
-    
-    if (item.item_type === 'external' && item.url) {
-      return item.url;
-    }
-    if (item.item_type === 'category' && item.ref_id) {
-      const category = categoriesData?.find(c => c.id === item.ref_id);
-      return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
-    }
-    if (item.item_type === 'page' && item.ref_id) {
-      const page = pagesData?.find(p => p.id === item.ref_id);
-      if (page) {
-        return `${baseUrl}/page/${page.slug}`;
-      }
-    }
-    return item.url || baseUrl;
+    if (!currentTenant) return '';
+    return buildMenuUrl(currentTenant.slug, item, categoriesData || [], pagesData || []);
   };
 
   if (isLoading) {

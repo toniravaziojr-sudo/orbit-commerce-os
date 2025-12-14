@@ -46,6 +46,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getPreviewUrlForEditor } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -151,24 +152,26 @@ export function BuilderToolbar({
     enabled: !!currentTenant?.id && pageType === 'category',
   });
 
-  // Build preview URL based on page type
+  // Build preview URL based on page type and selected example
   const getPreviewUrl = () => {
     if (!tenantSlug) return null;
-    const baseUrl = `/store/${tenantSlug}`;
-    switch (pageType) {
-      case 'home':
-        return `${baseUrl}?preview=1`;
-      case 'category':
-        return `${baseUrl}/c/exemplo?preview=1`;
-      case 'product':
-        return `${baseUrl}/p/exemplo?preview=1`;
-      case 'cart':
-        return `${baseUrl}/cart?preview=1`;
-      case 'checkout':
-        return `${baseUrl}/checkout?preview=1`;
-      default:
-        return `${baseUrl}?preview=1`;
+    
+    // For product/category, use the selected example's slug if available
+    if (pageType === 'product' && exampleProductId) {
+      const product = products?.find(p => p.id === exampleProductId);
+      if (product) {
+        // We need to fetch the slug - for now use ID as fallback
+        return getPreviewUrlForEditor(tenantSlug, pageType, product.id);
+      }
     }
+    if (pageType === 'category' && exampleCategoryId) {
+      const category = categories?.find(c => c.id === exampleCategoryId);
+      if (category?.slug) {
+        return getPreviewUrlForEditor(tenantSlug, pageType, category.slug);
+      }
+    }
+    
+    return getPreviewUrlForEditor(tenantSlug, pageType);
   };
 
   const handleOpenPreview = () => {

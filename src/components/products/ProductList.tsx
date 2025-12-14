@@ -34,6 +34,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface ProductListProps {
   onCreateProduct: () => void;
@@ -285,7 +286,11 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
-                          onClick={() => window.open(`/store/${currentTenant?.slug}/p/${product.slug}?preview=1`, '_blank')}
+                          onClick={() => {
+                            const url = currentTenant ? getPublicProductUrl(currentTenant.slug, product.slug, true) : null;
+                            if (url) window.open(url, '_blank');
+                          }}
+                          disabled={!product.slug}
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           Visualizar

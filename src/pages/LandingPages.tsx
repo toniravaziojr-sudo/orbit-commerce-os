@@ -22,6 +22,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLandingPages } from '@/hooks/useLandingPages';
+import { getPublicLandingUrl } from '@/lib/publicUrls';
 
 export default function LandingPages() {
   const navigate = useNavigate();
@@ -227,9 +228,9 @@ export default function LandingPages() {
                       >
                         <LayoutTemplate className="h-4 w-4" />
                       </Button>
-                      {page.is_published && (
+                      {page.is_published && currentTenant && (
                         <a 
-                          href={`/store/${currentTenant?.slug}/lp/${page.slug}`} 
+                          href={getPublicLandingUrl(currentTenant.slug, page.slug) || '#'} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >

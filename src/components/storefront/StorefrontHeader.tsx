@@ -9,6 +9,7 @@ import { useCart } from '@/hooks/useCart';
 import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buildMenuItemUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl, getStoreBaseUrl } from '@/lib/publicUrls';
 import type { MenuItem } from '@/hooks/useStorefront';
 import { cn } from '@/lib/utils';
 
@@ -122,25 +123,18 @@ export function StorefrontHeader() {
     return () => { if (frameId) cancelAnimationFrame(frameId); };
   }, [noticeEnabled, noticeAnimation]);
 
-  const baseUrl = `/store/${tenantSlug}`;
+  // Use centralized URL builder
+  const baseUrl = getStoreBaseUrl(tenantSlug || '');
   const menuItems = headerMenu?.items || [];
 
   const getMenuItemUrl = (item: MenuItem): string => {
-    if (item.item_type === 'external' && item.url) {
-      return item.url;
-    }
-    if (item.item_type === 'category' && item.ref_id) {
-      const category = categories?.find(c => c.id === item.ref_id);
-      return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
-    }
-    if (item.item_type === 'page' && item.ref_id) {
-      const page = pagesData?.find(p => p.id === item.ref_id);
-      if (page) {
-        return `${baseUrl}/page/${page.slug}`;
-      }
-      return baseUrl;
-    }
-    return baseUrl;
+    if (!tenantSlug) return '/';
+    return buildMenuItemUrl(
+      tenantSlug,
+      { item_type: item.item_type, url: item.url, ref_id: item.ref_id },
+      categories?.map(c => ({ id: c.id, slug: c.slug })) || [],
+      pagesData || []
+    );
   };
 
   const primaryColor = storeSettings?.primary_color || '#6366f1';
