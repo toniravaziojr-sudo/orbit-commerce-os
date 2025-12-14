@@ -184,7 +184,7 @@ export function BuilderToolbar({
         return;
       }
     }
-    navigate(`/admin/storefront/builder?edit=${newPageType}`);
+    navigate(`/storefront/builder?edit=${newPageType}`);
   };
 
   return (
