@@ -148,6 +148,25 @@ export function useBuilderStore(initialContent?: BlockNode) {
     pushHistory(newContent);
   }, [state.content, pushHistory]);
 
+  // Toggle block visibility
+  const toggleBlockHidden = useCallback((blockId: string) => {
+    const block = findBlockById(state.content, blockId);
+    if (!block) return;
+
+    const newContent = updateBlockProps(state.content, blockId, {});
+    // Need to toggle hidden on the block node itself, not props
+    const toggleHiddenInTree = (node: BlockNode): BlockNode => {
+      if (node.id === blockId) {
+        return { ...node, hidden: !node.hidden };
+      }
+      if (node.children) {
+        return { ...node, children: node.children.map(toggleHiddenInTree) };
+      }
+      return node;
+    };
+    pushHistory(toggleHiddenInTree(state.content));
+  }, [state.content, pushHistory]);
+
   // Undo
   const undo = useCallback(() => {
     setState(prev => {
@@ -199,6 +218,7 @@ export function useBuilderStore(initialContent?: BlockNode) {
     removeBlock: removeBlockById,
     moveBlock: moveBlockById,
     duplicateBlock: duplicateBlockById,
+    toggleHidden: toggleBlockHidden,
     undo,
     redo,
   };

@@ -18,6 +18,7 @@ interface BuilderCanvasProps {
   onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
   onDuplicateBlock?: (blockId: string) => void;
   onDeleteBlock?: (blockId: string) => void;
+  onToggleHidden?: (blockId: string) => void;
   isPreviewMode?: boolean;
 }
 
@@ -38,6 +39,7 @@ export function BuilderCanvas({
   onMoveBlock,
   onDuplicateBlock,
   onDeleteBlock,
+  onToggleHidden,
   isPreviewMode = false,
 }: BuilderCanvasProps) {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
@@ -103,6 +105,7 @@ export function BuilderCanvas({
               onMoveBlock={onMoveBlock}
               onDuplicateBlock={onDuplicateBlock}
               onDeleteBlock={onDeleteBlock}
+              onToggleHidden={onToggleHidden}
             />
           </div>
         </div>

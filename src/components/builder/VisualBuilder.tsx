@@ -210,6 +210,14 @@ export function VisualBuilder({
     toast.success('Bloco removido');
   }, [store]);
 
+  // Handle toggling block visibility (for quick actions)
+  const handleToggleHidden = useCallback((blockId: string) => {
+    store.toggleHidden(blockId);
+    const { findBlockById } = require('@/lib/builder/utils');
+    const block = findBlockById(store.content, blockId);
+    toast.success(block?.hidden ? 'Bloco ocultado' : 'Bloco visível');
+  }, [store]);
+
   // Scroll to block in canvas
   const handleScrollToBlock = useCallback((blockId: string) => {
     const element = document.querySelector(`[data-block-id="${blockId}"]`);
@@ -315,6 +323,7 @@ export function VisualBuilder({
             onMoveBlock={handleMoveBlockByDirection}
             onDuplicateBlock={handleDuplicateBlockById}
             onDeleteBlock={handleDeleteBlockById}
+            onToggleHidden={handleToggleHidden}
             isPreviewMode={isPreviewMode}
           />
         </div>
