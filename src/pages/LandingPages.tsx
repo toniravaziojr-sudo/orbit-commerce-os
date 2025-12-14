@@ -16,7 +16,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy, Menu as MenuIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy, Menu as MenuIcon, Search, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLandingPages } from '@/hooks/useLandingPages';
@@ -39,6 +41,12 @@ export default function LandingPages() {
     status: 'draft' as 'draft' | 'published',
     show_in_menu: false,
     menu_label: '',
+    // SEO fields
+    meta_title: '',
+    meta_description: '',
+    meta_image_url: '',
+    no_index: false,
+    canonical_url: '',
   });
 
   const resetForm = () => {
@@ -46,7 +54,10 @@ export default function LandingPages() {
   };
 
   const resetEditForm = () => {
-    setEditFormData({ title: '', slug: '', status: 'draft', show_in_menu: false, menu_label: '' });
+    setEditFormData({ 
+      title: '', slug: '', status: 'draft', show_in_menu: false, menu_label: '',
+      meta_title: '', meta_description: '', meta_image_url: '', no_index: false, canonical_url: '',
+    });
     setEditingPage(null);
   };
 
@@ -69,6 +80,12 @@ export default function LandingPages() {
       status: page.status || (page.is_published ? 'published' : 'draft'),
       show_in_menu: page.show_in_menu || false,
       menu_label: page.menu_label || '',
+      // SEO fields
+      meta_title: page.meta_title || '',
+      meta_description: page.meta_description || '',
+      meta_image_url: page.meta_image_url || '',
+      no_index: page.no_index || false,
+      canonical_url: page.canonical_url || '',
     });
     setIsEditDialogOpen(true);
   };
@@ -84,6 +101,12 @@ export default function LandingPages() {
       is_published: editFormData.status === 'published',
       show_in_menu: editFormData.show_in_menu,
       menu_label: editFormData.menu_label || null,
+      // SEO fields
+      meta_title: editFormData.meta_title || null,
+      meta_description: editFormData.meta_description || null,
+      meta_image_url: editFormData.meta_image_url || null,
+      no_index: editFormData.no_index,
+      canonical_url: editFormData.canonical_url || null,
     });
     setIsEditDialogOpen(false);
     resetEditForm();
@@ -245,13 +268,6 @@ export default function LandingPages() {
               ))}
               {(!landingPages || landingPages.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    Nenhuma landing page criada. Clique em "Nova Landing Page" para começar.
-                  </TableCell>
-                </TableRow>
-              )}
-              {(!landingPages || landingPages.length === 0) && (
-                <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Nenhuma landing page criada. Clique em "Nova Landing Page" para começar.
                   </TableCell>
@@ -277,26 +293,28 @@ export default function LandingPages() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) resetEditForm(); }}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Landing Page</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div>
-              <Label>Nome *</Label>
-              <Input 
-                value={editFormData.title} 
-                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} 
-                placeholder="Ex: Black Friday 2024"
-              />
-            </div>
-            <div>
-              <Label>Slug (URL)</Label>
-              <Input 
-                value={editFormData.slug} 
-                onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value })} 
-                placeholder="black-friday-2024"
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nome *</Label>
+                <Input 
+                  value={editFormData.title} 
+                  onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} 
+                  placeholder="Ex: Black Friday 2024"
+                />
+              </div>
+              <div>
+                <Label>Slug (URL)</Label>
+                <Input 
+                  value={editFormData.slug} 
+                  onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value })} 
+                  placeholder="black-friday-2024"
+                />
+              </div>
             </div>
             
             <div>
@@ -311,6 +329,80 @@ export default function LandingPages() {
                   <SelectItem value="published">Publicado</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* SEO Section */}
+            <div className="border-t pt-4">
+              <Collapsible defaultOpen>
+                <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium w-full">
+                  <Search className="h-4 w-4" />
+                  SEO
+                  <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4 space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Meta Título</Label>
+                      <span className="text-xs text-muted-foreground">{editFormData.meta_title.length}/60</span>
+                    </div>
+                    <Input 
+                      value={editFormData.meta_title} 
+                      onChange={(e) => setEditFormData({ ...editFormData, meta_title: e.target.value })}
+                      placeholder={editFormData.title ? `${editFormData.title} | Loja` : 'Título para mecanismos de busca'}
+                    />
+                    {editFormData.meta_title.length > 60 && (
+                      <p className="text-xs text-yellow-600 mt-1">Recomendado: até 60 caracteres</p>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label>Meta Descrição</Label>
+                      <span className="text-xs text-muted-foreground">{editFormData.meta_description.length}/160</span>
+                    </div>
+                    <Textarea 
+                      value={editFormData.meta_description} 
+                      onChange={(e) => setEditFormData({ ...editFormData, meta_description: e.target.value })}
+                      placeholder="Descrição para mecanismos de busca"
+                      className="min-h-[80px]"
+                    />
+                    {editFormData.meta_description.length > 160 && (
+                      <p className="text-xs text-yellow-600 mt-1">Recomendado: até 160 caracteres</p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-2">
+                      <ImageIcon className="h-4 w-4" />
+                      Imagem OG (Open Graph)
+                    </Label>
+                    <Input 
+                      value={editFormData.meta_image_url} 
+                      onChange={(e) => setEditFormData({ ...editFormData, meta_image_url: e.target.value })}
+                      placeholder="https://..."
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Imagem exibida ao compartilhar nas redes sociais
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm">Não indexar (noindex)</Label>
+                      <p className="text-xs text-muted-foreground">Impede que buscadores indexem esta página</p>
+                    </div>
+                    <Switch
+                      checked={editFormData.no_index}
+                      onCheckedChange={(v) => setEditFormData({ ...editFormData, no_index: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label>URL Canônica (opcional)</Label>
+                    <Input 
+                      value={editFormData.canonical_url} 
+                      onChange={(e) => setEditFormData({ ...editFormData, canonical_url: e.target.value })}
+                      placeholder="https://... (usa URL atual se vazio)"
+                    />
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             </div>
 
             {/* Menu Section */}

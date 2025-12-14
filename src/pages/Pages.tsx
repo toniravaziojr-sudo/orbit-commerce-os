@@ -13,7 +13,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon, Search, Image as ImageIcon } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Json } from '@/integrations/supabase/types';
@@ -34,12 +36,19 @@ export default function Pages() {
     seo_description: '',
     show_in_menu: false,
     menu_label: '',
+    // SEO fields
+    meta_title: '',
+    meta_description: '',
+    meta_image_url: '',
+    no_index: false,
+    canonical_url: '',
   });
 
   const resetForm = () => {
     setFormData({
       title: '', slug: '', content: '', status: 'draft', seo_title: '', seo_description: '',
       show_in_menu: false, menu_label: '',
+      meta_title: '', meta_description: '', meta_image_url: '', no_index: false, canonical_url: '',
     });
     setEditingPage(null);
   };
@@ -59,6 +68,12 @@ export default function Pages() {
       seo_description: page.seo_description || '',
       show_in_menu: page.show_in_menu || false,
       menu_label: page.menu_label || '',
+      // SEO fields
+      meta_title: page.meta_title || '',
+      meta_description: page.meta_description || '',
+      meta_image_url: page.meta_image_url || '',
+      no_index: page.no_index || false,
+      canonical_url: page.canonical_url || '',
     });
     setIsDialogOpen(true);
   };
@@ -81,6 +96,12 @@ export default function Pages() {
         seo_description: formData.seo_description || null,
         show_in_menu: formData.show_in_menu,
         menu_label: formData.menu_label || null,
+        // SEO fields
+        meta_title: formData.meta_title || null,
+        meta_description: formData.meta_description || null,
+        meta_image_url: formData.meta_image_url || null,
+        no_index: formData.no_index,
+        canonical_url: formData.canonical_url || null,
       };
       await updatePage.mutateAsync(updateData);
       setIsDialogOpen(false);
@@ -166,51 +187,77 @@ export default function Pages() {
                   </div>
                 </div>
                 
-                {!editingPage && (
-                  <div className="pt-2 border rounded-lg p-3 bg-muted/50">
-                    <p className="text-sm text-muted-foreground">
-                      Será criada usando o template <strong>Página Neutra</strong>. Após criar, você será redirecionado para o editor visual.
-                    </p>
-                  </div>
-                )}
-
-                {editingPage && (
-                  <div>
-                    <Label>Status</Label>
-                    <Select 
-                      value={formData.status} 
-                      onValueChange={(v: 'draft' | 'published') => setFormData({ ...formData, status: v })}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="draft">Rascunho</SelectItem>
-                        <SelectItem value="published">Publicado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-
                 <div className="border-t pt-4">
-                  <p className="text-sm font-medium mb-3">SEO</p>
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Meta Título</Label>
-                      <Input 
-                        value={formData.seo_title} 
-                        onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })}
-                        placeholder="Título para mecanismos de busca"
-                      />
-                    </div>
-                    <div>
-                      <Label>Meta Descrição</Label>
-                      <Textarea 
-                        value={formData.seo_description} 
-                        onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })}
-                        placeholder="Descrição para mecanismos de busca"
-                        className="min-h-[80px]"
-                      />
-                    </div>
-                  </div>
+                  <Collapsible defaultOpen={!!editingPage}>
+                    <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium w-full">
+                      <Search className="h-4 w-4" />
+                      SEO
+                      <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 [&[data-state=open]]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label>Meta Título</Label>
+                          <span className="text-xs text-muted-foreground">{formData.meta_title.length}/60</span>
+                        </div>
+                        <Input 
+                          value={formData.meta_title} 
+                          onChange={(e) => setFormData({ ...formData, meta_title: e.target.value })}
+                          placeholder={formData.title ? `${formData.title} | Loja` : 'Título para mecanismos de busca'}
+                        />
+                        {formData.meta_title.length > 60 && (
+                          <p className="text-xs text-yellow-600 mt-1">Recomendado: até 60 caracteres</p>
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <Label>Meta Descrição</Label>
+                          <span className="text-xs text-muted-foreground">{formData.meta_description.length}/160</span>
+                        </div>
+                        <Textarea 
+                          value={formData.meta_description} 
+                          onChange={(e) => setFormData({ ...formData, meta_description: e.target.value })}
+                          placeholder="Descrição para mecanismos de busca"
+                          className="min-h-[80px]"
+                        />
+                        {formData.meta_description.length > 160 && (
+                          <p className="text-xs text-yellow-600 mt-1">Recomendado: até 160 caracteres</p>
+                        )}
+                      </div>
+                      <div>
+                        <Label className="flex items-center gap-2">
+                          <ImageIcon className="h-4 w-4" />
+                          Imagem OG (Open Graph)
+                        </Label>
+                        <Input 
+                          value={formData.meta_image_url} 
+                          onChange={(e) => setFormData({ ...formData, meta_image_url: e.target.value })}
+                          placeholder="https://..."
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Imagem exibida ao compartilhar nas redes sociais
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">Não indexar (noindex)</Label>
+                          <p className="text-xs text-muted-foreground">Impede que buscadores indexem esta página</p>
+                        </div>
+                        <Switch
+                          checked={formData.no_index}
+                          onCheckedChange={(v) => setFormData({ ...formData, no_index: v })}
+                        />
+                      </div>
+                      <div>
+                        <Label>URL Canônica (opcional)</Label>
+                        <Input 
+                          value={formData.canonical_url} 
+                          onChange={(e) => setFormData({ ...formData, canonical_url: e.target.value })}
+                          placeholder="https://... (usa URL atual se vazio)"
+                        />
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
 
                 {/* Menu Section */}
