@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Save, Image as ImageIcon } from 'lucide-react';
+import { X, Save, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { validateSlug, generateSlug as generateSlugUtil } from '@/lib/slugValidation';
 
 interface CategoryFormProps {
   formData: {
@@ -42,14 +43,13 @@ export function CategoryForm({
   // Filter out the current category and its children from parent options
   const availableParents = parentCategories.filter(c => c.id !== editingCategoryId);
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
+  // Use centralized slug generation utility
+  const handleGenerateSlug = (name: string) => generateSlugUtil(name);
+  
+  // Validate slug in real-time
+  const slugValidation = validateSlug(formData.slug);
+  const isSlugValid = slugValidation.isValid;
+  const slugError = slugValidation.error;
 
   return (
     <Card>
@@ -74,7 +74,7 @@ export function CategoryForm({
               onChange({
                 ...formData,
                 name,
-                slug: formData.slug || generateSlug(name),
+                slug: formData.slug || handleGenerateSlug(name),
               });
             }}
             placeholder="Nome da categoria"
@@ -82,16 +82,24 @@ export function CategoryForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="slug">Slug</Label>
+          <Label htmlFor="slug">Slug *</Label>
           <Input
             id="slug"
             value={formData.slug}
-            onChange={(e) => onChange({ ...formData, slug: e.target.value })}
+            onChange={(e) => onChange({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })}
             placeholder="slug-da-categoria"
+            className={!isSlugValid && formData.slug ? 'border-destructive' : ''}
           />
-          <p className="text-xs text-muted-foreground">
-            Usado na URL: /c/{formData.slug || 'slug'}
-          </p>
+          {!isSlugValid && formData.slug ? (
+            <p className="text-xs text-destructive flex items-center gap-1">
+              <AlertCircle className="h-3 w-3" />
+              {slugError}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Usado na URL: /c/{formData.slug || 'slug'}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -195,7 +203,7 @@ export function CategoryForm({
           <Button variant="outline" onClick={onClose} className="flex-1">
             Cancelar
           </Button>
-          <Button onClick={onSubmit} disabled={!formData.name || isLoading} className="flex-1">
+          <Button onClick={onSubmit} disabled={!formData.name || !isSlugValid || isLoading} className="flex-1">
             <Save className="h-4 w-4 mr-2" />
             {isEditing ? 'Salvar' : 'Criar'}
           </Button>
