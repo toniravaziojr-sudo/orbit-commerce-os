@@ -472,6 +472,9 @@ export function VisualBuilder({
                   isHomePage={isHomePage}
                   isCheckoutPage={isCheckoutPage}
                   blockType={store.selectedBlock.type as 'Header' | 'Footer'}
+                  tenantId={tenantId}
+                  pageType={pageType}
+                  pageId={pageId}
                 />
               ) : (
                 <PropsEditor

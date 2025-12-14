@@ -7,9 +7,13 @@ import { BlockDefinition } from '@/lib/builder/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Globe, Settings, Info } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Globe, Settings, Info, RotateCcw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PropsEditor } from './PropsEditor';
+import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
+import { toast } from 'sonner';
 
 interface HeaderFooterPropsEditorProps {
   definition: BlockDefinition;
@@ -21,6 +25,10 @@ interface HeaderFooterPropsEditorProps {
   isHomePage: boolean;
   isCheckoutPage: boolean;
   blockType: 'Header' | 'Footer';
+  // For page overrides
+  tenantId: string;
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageId?: string;
 }
 
 export function HeaderFooterPropsEditor({
@@ -33,7 +41,49 @@ export function HeaderFooterPropsEditor({
   isHomePage,
   isCheckoutPage,
   blockType,
+  tenantId,
+  pageType,
+  pageId,
 }: HeaderFooterPropsEditorProps) {
+  // Fetch page overrides
+  const { 
+    overrides, 
+    isLoading, 
+    updateHeaderOverrides,
+    clearHeaderOverride,
+  } = usePageOverrides({ tenantId, pageType, pageId });
+
+  // Get global notice enabled value from props
+  const globalNoticeEnabled = Boolean(props.noticeEnabled);
+  
+  // Check if there's an override
+  const hasNoticeOverride = overrides?.header?.noticeEnabled !== undefined;
+  
+  // Get effective value (override > global)
+  const effectiveNoticeEnabled = hasNoticeOverride 
+    ? Boolean(overrides.header?.noticeEnabled) 
+    : globalNoticeEnabled;
+
+  // Handle toggle change
+  const handleNoticeToggle = async (checked: boolean) => {
+    try {
+      await updateHeaderOverrides.mutateAsync({ noticeEnabled: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
+  // Handle revert to global
+  const handleRevertToGlobal = async () => {
+    try {
+      await clearHeaderOverride.mutateAsync('noticeEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
   // Checkout pages have their own separate header/footer, show full editor
   if (isCheckoutPage) {
     return (
@@ -112,23 +162,78 @@ export function HeaderFooterPropsEditor({
           <Separator />
 
           {/* Page-specific overrides section */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Settings className="h-4 w-4" />
-              Configurações desta página
-            </div>
+          {blockType === 'Header' && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Settings className="h-4 w-4" />
+                Configurações desta página
+              </div>
 
-            {/* Placeholder for future overrides */}
+              {/* Notice Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="notice-toggle" className="text-sm font-medium">
+                      Exibir Aviso Geral
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasNoticeOverride 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando configuração global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="notice-toggle"
+                    checked={effectiveNoticeEnabled}
+                    onCheckedChange={handleNoticeToggle}
+                    disabled={isLoading || updateHeaderOverrides.isPending}
+                  />
+                </div>
+
+                {/* Show revert button if there's an override */}
+                {hasNoticeOverride && (
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleRevertToGlobal}
+                      disabled={clearHeaderOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Reverter para global
+                    </Button>
+                  </div>
+                )}
+
+                {/* Show global status indicator */}
+                {!hasNoticeOverride && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="h-2 w-2 rounded-full bg-primary/50" />
+                    Global: {globalNoticeEnabled ? 'Ativado' : 'Desativado'}
+                  </div>
+                )}
+              </div>
+
+              {/* Info about more options coming */}
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center">
+                <Info className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50" />
+                <p className="text-xs text-muted-foreground">
+                  Mais opções de personalização em breve
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Footer has no overrides yet */}
+          {blockType === 'Footer' && (
             <div className="rounded-lg border border-dashed border-muted-foreground/30 p-6 text-center">
               <Info className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">
-                Em breve: opções para personalizar o {blockType === 'Header' ? 'cabeçalho' : 'rodapé'} apenas nesta página.
-              </p>
-              <p className="text-xs text-muted-foreground/70 mt-1">
-                Por exemplo: exibir/ocultar o aviso geral
+                Em breve: opções para personalizar o rodapé apenas nesta página.
               </p>
             </div>
-          </div>
+          )}
 
           <Separator />
 
@@ -142,7 +247,6 @@ export function HeaderFooterPropsEditor({
               size="sm"
               className="gap-2"
               onClick={() => {
-                // Navigate to home page editor
                 window.location.href = '/storefront/builder?edit=home';
               }}
             >
