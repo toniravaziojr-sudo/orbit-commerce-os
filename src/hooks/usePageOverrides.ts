@@ -10,8 +10,13 @@ export interface HeaderOverrides {
   noticeEnabled?: boolean;
 }
 
+export interface FooterOverrides {
+  noticeEnabled?: boolean;
+}
+
 export interface PageOverrides {
   header?: HeaderOverrides;
+  footer?: FooterOverrides;
 }
 
 interface UsePageOverridesParams {
@@ -94,6 +99,42 @@ export function usePageOverrides({ tenantId, pageType, pageId }: UsePageOverride
     },
   });
 
+  // Update footer overrides
+  const updateFooterOverrides = useMutation({
+    mutationFn: async (footerOverrides: FooterOverrides) => {
+      const newOverrides: PageOverrides = {
+        ...(overrides || {}),
+        footer: {
+          ...(overrides?.footer || {}),
+          ...footerOverrides,
+        },
+      };
+
+      if (isTemplate) {
+        const { error } = await supabase
+          .from('storefront_page_templates')
+          .update({ page_overrides: newOverrides as unknown as Json })
+          .eq('tenant_id', tenantId)
+          .eq('page_type', pageType);
+
+        if (error) throw error;
+      } else {
+        if (!pageId) throw new Error('pageId required for page overrides');
+        const { error } = await supabase
+          .from('store_pages')
+          .update({ page_overrides: newOverrides as unknown as Json })
+          .eq('id', pageId);
+
+        if (error) throw error;
+      }
+
+      return newOverrides;
+    },
+    onSuccess: (newOverrides) => {
+      queryClient.setQueryData(queryKey, newOverrides);
+    },
+  });
+
   // Clear a specific header override (revert to global)
   const clearHeaderOverride = useMutation({
     mutationFn: async (key: keyof HeaderOverrides) => {
@@ -135,19 +176,71 @@ export function usePageOverrides({ tenantId, pageType, pageId }: UsePageOverride
     },
   });
 
+  // Clear a specific footer override (revert to global)
+  const clearFooterOverride = useMutation({
+    mutationFn: async (key: keyof FooterOverrides) => {
+      const currentFooter = overrides?.footer || {};
+      const { [key]: _, ...rest } = currentFooter;
+      
+      const newOverrides: PageOverrides = {
+        ...(overrides || {}),
+        footer: Object.keys(rest).length > 0 ? rest : undefined,
+      };
+
+      // Clean up empty footer object
+      if (!newOverrides.footer || Object.keys(newOverrides.footer).length === 0) {
+        delete newOverrides.footer;
+      }
+
+      if (isTemplate) {
+        const { error } = await supabase
+          .from('storefront_page_templates')
+          .update({ page_overrides: newOverrides as unknown as Json })
+          .eq('tenant_id', tenantId)
+          .eq('page_type', pageType);
+
+        if (error) throw error;
+      } else {
+        if (!pageId) throw new Error('pageId required for page overrides');
+        const { error } = await supabase
+          .from('store_pages')
+          .update({ page_overrides: newOverrides as unknown as Json })
+          .eq('id', pageId);
+
+        if (error) throw error;
+      }
+
+      return newOverrides;
+    },
+    onSuccess: (newOverrides) => {
+      queryClient.setQueryData(queryKey, newOverrides);
+    },
+  });
+
   return {
     overrides: overrides || {},
     isLoading,
     updateHeaderOverrides,
     clearHeaderOverride,
-    // Helper to get effective notice enabled state
-    getEffectiveNoticeEnabled: (globalNoticeEnabled: boolean): boolean => {
+    updateFooterOverrides,
+    clearFooterOverride,
+    // Helper to get effective header notice enabled state
+    getEffectiveHeaderNoticeEnabled: (globalNoticeEnabled: boolean): boolean => {
       const override = overrides?.header?.noticeEnabled;
       return override !== undefined ? override : globalNoticeEnabled;
     },
-    // Check if there's an override for notice
-    hasNoticeOverride: (): boolean => {
+    // Check if there's a header notice override
+    hasHeaderNoticeOverride: (): boolean => {
       return overrides?.header?.noticeEnabled !== undefined;
+    },
+    // Helper to get effective footer notice enabled state
+    getEffectiveFooterNoticeEnabled: (globalNoticeEnabled: boolean): boolean => {
+      const override = overrides?.footer?.noticeEnabled;
+      return override !== undefined ? override : globalNoticeEnabled;
+    },
+    // Check if there's a footer notice override
+    hasFooterNoticeOverride: (): boolean => {
+      return overrides?.footer?.noticeEnabled !== undefined;
     },
   };
 }

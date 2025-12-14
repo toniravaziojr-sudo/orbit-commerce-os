@@ -271,21 +271,24 @@ export function HeaderFooterPropsEditor({
     isLoading, 
     updateHeaderOverrides,
     clearHeaderOverride,
+    updateFooterOverrides,
+    clearFooterOverride,
   } = usePageOverrides({ tenantId, pageType, pageId });
 
+  // === HEADER OVERRIDES ===
   // Get global notice enabled value from props
-  const globalNoticeEnabled = Boolean(props.noticeEnabled);
+  const globalHeaderNoticeEnabled = Boolean(props.noticeEnabled);
   
   // Check if there's an override
-  const hasNoticeOverride = overrides?.header?.noticeEnabled !== undefined;
+  const hasHeaderNoticeOverride = overrides?.header?.noticeEnabled !== undefined;
   
   // Get effective value (override > global)
-  const effectiveNoticeEnabled = hasNoticeOverride 
+  const effectiveHeaderNoticeEnabled = hasHeaderNoticeOverride 
     ? Boolean(overrides.header?.noticeEnabled) 
-    : globalNoticeEnabled;
+    : globalHeaderNoticeEnabled;
 
   // Handle toggle change - only creates override, never modifies global
-  const handleNoticeToggle = async (checked: boolean) => {
+  const handleHeaderNoticeToggle = async (checked: boolean) => {
     try {
       await updateHeaderOverrides.mutateAsync({ noticeEnabled: checked });
       toast.success('Configuração salva');
@@ -295,9 +298,41 @@ export function HeaderFooterPropsEditor({
   };
 
   // Handle revert to global - removes override
-  const handleRevertToGlobal = async () => {
+  const handleHeaderRevertToGlobal = async () => {
     try {
       await clearHeaderOverride.mutateAsync('noticeEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // === FOOTER OVERRIDES ===
+  // Get global footer notice enabled value from props
+  const globalFooterNoticeEnabled = Boolean(props.noticeEnabled);
+  
+  // Check if there's an override for footer
+  const hasFooterNoticeOverride = overrides?.footer?.noticeEnabled !== undefined;
+  
+  // Get effective value for footer (override > global)
+  const effectiveFooterNoticeEnabled = hasFooterNoticeOverride 
+    ? Boolean(overrides.footer?.noticeEnabled) 
+    : globalFooterNoticeEnabled;
+
+  // Handle footer toggle change - only creates override, never modifies global
+  const handleFooterNoticeToggle = async (checked: boolean) => {
+    try {
+      await updateFooterOverrides.mutateAsync({ noticeEnabled: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
+  // Handle footer revert to global - removes override
+  const handleFooterRevertToGlobal = async () => {
+    try {
+      await clearFooterOverride.mutateAsync('noticeEnabled');
       toast.success('Revertido para configuração global');
     } catch (error) {
       toast.error('Erro ao reverter configuração');
@@ -758,7 +793,150 @@ export function HeaderFooterPropsEditor({
   }
 
   // =========================================
-  // HOME: Footer - use default PropsEditor
+  // HOME: Footer - Global configuration with sections
+  // =========================================
+  if (isHomePage && blockType === 'Footer') {
+    return (
+      <div className="h-full flex flex-col border-l">
+        {/* Header with Global indicator */}
+        <div className="p-4 border-b bg-primary/5">
+          <div className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                {definition.label}
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                  Configuração Global
+                </Badge>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Afeta todas as páginas (exceto Checkout)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-2">
+            {/* === CORES DO RODAPÉ === */}
+            <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Cores do Rodapé</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <ColorInput
+                  label="Cor de Fundo"
+                  value={(props.footerBgColor as string) || ''}
+                  onChange={(v) => updateProp('footerBgColor', v)}
+                />
+                <ColorInput
+                  label="Cor do Texto"
+                  value={(props.footerTextColor as string) || ''}
+                  onChange={(v) => updateProp('footerTextColor', v)}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === CONFIGURAÇÕES GERAIS === */}
+            <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Configurações Gerais</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Redes Sociais</Label>
+                    <p className="text-xs text-muted-foreground">Exibe links das redes sociais</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showSocial ?? true)}
+                    onCheckedChange={(v) => updateProp('showSocial', v)}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Texto de Copyright</Label>
+                  <Input
+                    value={(props.copyrightText as string) || ''}
+                    onChange={(e) => updateProp('copyrightText', e.target.value)}
+                    placeholder="Ex: © 2024 Minha Loja. Todos os direitos reservados."
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === BARRA SUPERIOR DO RODAPÉ (AVISO GERAL) === */}
+            <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Barra Superior do Rodapé</span>
+                    {props.noticeEnabled && (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Exibir Barra Superior</Label>
+                  <Switch
+                    checked={Boolean(props.noticeEnabled)}
+                    onCheckedChange={(v) => updateProp('noticeEnabled', v)}
+                  />
+                </div>
+                
+                {props.noticeEnabled && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Texto do Aviso</Label>
+                      <Input
+                        value={(props.noticeText as string) || ''}
+                        onChange={(e) => updateProp('noticeText', e.target.value)}
+                        placeholder="Ex: Inscreva-se e receba 10% de desconto!"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <ColorInput
+                      label="Cor de Fundo"
+                      value={(props.noticeBgColor as string) || '#1e40af'}
+                      onChange={(v) => updateProp('noticeBgColor', v)}
+                    />
+                    <ColorInput
+                      label="Cor do Texto"
+                      value={(props.noticeTextColor as string) || '#ffffff'}
+                      onChange={(v) => updateProp('noticeTextColor', v)}
+                    />
+                  </>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  // =========================================
+  // HOME: Other block types - use default PropsEditor
   // =========================================
   if (isHomePage) {
     return (
@@ -831,7 +1009,7 @@ export function HeaderFooterPropsEditor({
 
           <Separator />
 
-          {/* Page-specific overrides section - Header only */}
+          {/* Page-specific overrides section - Header */}
           {blockType === 'Header' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium">
@@ -843,35 +1021,35 @@ export function HeaderFooterPropsEditor({
               <div className="rounded-lg border bg-background p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label htmlFor="notice-toggle" className="text-sm font-medium">
+                    <Label htmlFor="header-notice-toggle" className="text-sm font-medium">
                       Exibir Aviso Geral
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      {hasNoticeOverride 
+                      {hasHeaderNoticeOverride 
                         ? 'Usando configuração desta página' 
                         : 'Herdando do global'}
                     </p>
                   </div>
                   <Switch
-                    id="notice-toggle"
-                    checked={effectiveNoticeEnabled}
-                    onCheckedChange={handleNoticeToggle}
+                    id="header-notice-toggle"
+                    checked={effectiveHeaderNoticeEnabled}
+                    onCheckedChange={handleHeaderNoticeToggle}
                     disabled={isLoading || updateHeaderOverrides.isPending}
                   />
                 </div>
 
                 {/* Inheritance indicator when no override */}
-                {!hasNoticeOverride && (
+                {!hasHeaderNoticeOverride && (
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
                     <span className="text-xs text-primary">
-                      Herdando do global: {globalNoticeEnabled ? 'Ativado' : 'Desativado'}
+                      Herdando do global: {globalHeaderNoticeEnabled ? 'Ativado' : 'Desativado'}
                     </span>
                   </div>
                 )}
 
                 {/* Override indicator when override exists */}
-                {hasNoticeOverride && (
+                {hasHeaderNoticeOverride && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
                       <AlertCircle className="h-3 w-3 text-amber-600" />
@@ -884,7 +1062,7 @@ export function HeaderFooterPropsEditor({
                       variant="ghost"
                       size="sm"
                       className="w-full gap-2 text-muted-foreground hover:text-foreground"
-                      onClick={handleRevertToGlobal}
+                      onClick={handleHeaderRevertToGlobal}
                       disabled={clearHeaderOverride.isPending}
                     >
                       <RotateCcw className="h-3 w-3" />
@@ -893,24 +1071,71 @@ export function HeaderFooterPropsEditor({
                   </div>
                 )}
               </div>
-
-              {/* Info about more options coming */}
-              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 text-center">
-                <Info className="h-6 w-6 mx-auto mb-2 text-muted-foreground/50" />
-                <p className="text-xs text-muted-foreground">
-                  Mais opções de personalização em breve
-                </p>
-              </div>
             </div>
           )}
 
-          {/* Footer has no overrides yet */}
+          {/* Page-specific overrides section - Footer */}
           {blockType === 'Footer' && (
-            <div className="rounded-lg border border-dashed border-muted-foreground/30 p-6 text-center">
-              <Info className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">
-                Em breve: opções para personalizar o rodapé apenas nesta página.
-              </p>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Settings className="h-4 w-4" />
+                Personalizações desta página
+              </div>
+
+              {/* Notice Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="footer-notice-toggle" className="text-sm font-medium">
+                      Exibir Aviso Geral do Rodapé
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasFooterNoticeOverride 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="footer-notice-toggle"
+                    checked={effectiveFooterNoticeEnabled}
+                    onCheckedChange={handleFooterNoticeToggle}
+                    disabled={isLoading || updateFooterOverrides.isPending}
+                  />
+                </div>
+
+                {/* Inheritance indicator when no override */}
+                {!hasFooterNoticeOverride && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: {globalFooterNoticeEnabled ? 'Ativado' : 'Desativado'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Override indicator when override exists */}
+                {hasFooterNoticeOverride && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleFooterRevertToGlobal}
+                      disabled={clearFooterOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
