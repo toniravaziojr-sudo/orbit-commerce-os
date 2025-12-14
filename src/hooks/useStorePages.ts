@@ -43,6 +43,7 @@ export function useStorePages() {
         .from('store_pages')
         .select('*')
         .eq('tenant_id', currentTenant!.id)
+        .neq('type', 'landing_page') // Exclude landing pages from institutional pages list
         .order('created_at', { ascending: false });
 
       if (error) throw error;
