@@ -31,6 +31,7 @@ interface VisualBuilderProps {
   pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
   pageId?: string;
   pageTitle?: string;
+  pageSlug?: string; // For institutional/landing pages
   initialContent?: BlockNode;
   context: BlockRenderContext;
 }
@@ -40,6 +41,7 @@ export function VisualBuilder({
   pageType,
   pageId,
   pageTitle,
+  pageSlug,
   initialContent,
   context,
 }: VisualBuilderProps) {
@@ -391,6 +393,7 @@ export function VisualBuilder({
         pageTitle={pageTypeLabels[pageType] || pageType}
         pageType={pageType}
         tenantSlug={context.tenantSlug}
+        pageSlug={pageSlug}
         isDirty={store.isDirty}
         isPreviewMode={isPreviewMode}
         canUndo={store.canUndo}

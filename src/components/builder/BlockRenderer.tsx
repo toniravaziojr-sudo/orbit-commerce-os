@@ -1119,16 +1119,47 @@ function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
   );
 }
 
-function RichTextBlock({ content, align }: any) {
+function RichTextBlock({ content, align, context }: any) {
+  // Replace template placeholders with context data
+  const replacePlaceholders = (text: string): string => {
+    if (!text) return '';
+    
+    let result = text;
+    
+    // Replace category placeholders
+    if (context?.category) {
+      result = result.replace(/\{\{category\.name\}\}/g, context.category.name || '');
+      result = result.replace(/\{\{category\.description\}\}/g, context.category.description || '');
+      result = result.replace(/\{\{category\.id\}\}/g, context.category.id || '');
+    }
+    
+    // Replace product placeholders
+    if (context?.product) {
+      result = result.replace(/\{\{product\.name\}\}/g, context.product.name || '');
+      result = result.replace(/\{\{product\.description\}\}/g, context.product.description || '');
+      result = result.replace(/\{\{product\.price\}\}/g, context.product.price?.toString() || '');
+    }
+    
+    // Replace store placeholders
+    if (context?.settings) {
+      result = result.replace(/\{\{store\.name\}\}/g, context.settings.store_name || '');
+    }
+    
+    return result;
+  };
+  
   // Convert markdown-like content to HTML
   const processContent = (text: string): string => {
     if (!text) return '<p>Conteúdo de texto formatado...</p>';
     
+    // First replace placeholders
+    let processed = replacePlaceholders(text);
+    
     // If already HTML, return as is
-    if (text.includes('<')) return text;
+    if (processed.includes('<')) return processed;
     
     // Simple markdown conversion
-    let html = text
+    let html = processed
       .replace(/^### (.*$)/gim, '<h3>$1</h3>')
       .replace(/^## (.*$)/gim, '<h2>$1</h2>')
       .replace(/^# (.*$)/gim, '<h1>$1</h1>')
@@ -1488,35 +1519,62 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 }
 
 function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
+  // First check if we have product from context (public page)
+  const contextProduct = context?.product;
+  
   const { data: exampleProduct, isLoading } = useQuery({
-    queryKey: ['example-product', exampleProductId, context?.productId],
+    queryKey: ['example-product-details', exampleProductId],
     queryFn: async () => {
-      const productId = context?.productId || exampleProductId;
+      if (!exampleProductId || exampleProductId === '_auto') {
+        // Auto-select first active product
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            id, name, price, description, stock_quantity, status,
+            product_images (id, url, alt_text, is_primary, sort_order)
+          `)
+          .eq('status', 'active')
+          .limit(1)
+          .single();
+        if (error) return null;
+        return data;
+      }
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('products')
         .select(`
           id, name, price, description, stock_quantity, status,
           product_images (id, url, alt_text, is_primary, sort_order)
-        `);
-      
-      if (productId && productId !== '_auto') {
-        query = query.eq('id', productId);
-      } else {
-        query = query.eq('status', 'active').limit(1);
-      }
-      
-      const { data, error } = await query.single();
+        `)
+        .eq('id', exampleProductId)
+        .single();
       if (error) return null;
       return data;
     },
-    enabled: isEditing || !!context?.productId,
+    enabled: isEditing || !contextProduct,
   });
   
-  const product = isEditing ? exampleProduct : context?.product || exampleProduct;
-  const primaryImage = product?.product_images?.find((img: any) => img.is_primary) || product?.product_images?.[0];
+  // Use context product if available (public page), otherwise use example product (editor)
+  const product = contextProduct || exampleProduct;
+  
+  // Get primary image - for context products, images come from context.product.images
+  // For example products, images come from product_images relation
+  let primaryImage: { url: string; alt?: string } | undefined;
+  
+  if (contextProduct?.images?.length) {
+    // From public context - already processed
+    primaryImage = contextProduct.images.find((img: any) => img.is_primary) || contextProduct.images[0];
+  } else if (product?.product_images?.length) {
+    // From database query
+    const sortedImages = [...product.product_images].sort((a: any, b: any) => {
+      if (a.is_primary) return -1;
+      if (b.is_primary) return 1;
+      return (a.sort_order || 0) - (b.sort_order || 0);
+    });
+    primaryImage = sortedImages[0];
+  }
 
-  if (isLoading) {
+  if (isLoading && isEditing) {
     return (
       <div className="py-8 animate-pulse">
         <div className="grid md:grid-cols-2 gap-8">
@@ -1555,13 +1613,19 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
     );
   }
 
+  const productName = product?.name || 'Produto';
+  const productPrice = product?.price || 0;
+  const productDescription = product?.description || product?.short_description;
+  const productStock = product?.stock_quantity ?? 0;
+  const allowBackorder = product?.allow_backorder ?? false;
+
   return (
     <div className="py-8">
       <div className="grid md:grid-cols-2 gap-8">
         {showGallery && (
           <div className="aspect-square bg-muted rounded-lg overflow-hidden">
             {primaryImage?.url ? (
-              <img src={primaryImage.url} alt={product?.name} className="w-full h-full object-cover" />
+              <img src={primaryImage.url} alt={primaryImage.alt || productName} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                 Sem imagem
@@ -1570,16 +1634,16 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           </div>
         )}
         <div className="space-y-4">
-          <h1 className="text-3xl font-bold">{product?.name || 'Produto'}</h1>
+          <h1 className="text-3xl font-bold">{productName}</h1>
           <p className="text-2xl text-primary font-bold">
-            R$ {(product?.price || 0).toFixed(2).replace('.', ',')}
+            R$ {productPrice.toFixed(2).replace('.', ',')}
           </p>
-          {showDescription && product?.description && (
-            <p className="text-muted-foreground">{product.description}</p>
+          {showDescription && productDescription && (
+            <p className="text-muted-foreground">{productDescription}</p>
           )}
           {showStock && (
             <p className="text-sm text-muted-foreground">
-              Estoque: {product?.stock_quantity || 0} unidades
+              Estoque: {productStock} unidades
             </p>
           )}
           <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90">

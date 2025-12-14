@@ -43,6 +43,12 @@ export function ProductGridBlock({
 }: ProductGridBlockProps) {
   const { tenantSlug } = context;
 
+  // Resolve category ID - use context.category.id if source is 'category' and categoryId is a placeholder
+  const effectiveCategoryId = 
+    source === 'category' 
+      ? (categoryId && !categoryId.includes('{{') ? categoryId : context?.category?.id)
+      : categoryId;
+
   // Fetch tenant first to get tenantId
   const { data: tenant } = useQuery({
     queryKey: ['tenant-by-slug', tenantSlug],
@@ -62,7 +68,7 @@ export function ProductGridBlock({
 
   // Fetch products based on source
   const { data: products, isLoading } = useQuery({
-    queryKey: ['builder-products', tenantId, source, categoryId, limit],
+    queryKey: ['builder-products', tenantId, source, effectiveCategoryId, limit],
     queryFn: async () => {
       if (!tenantId) return [];
 
@@ -75,24 +81,44 @@ export function ProductGridBlock({
 
       if (source === 'featured') {
         query = query.eq('is_featured', true);
-      } else if (source === 'category' && categoryId) {
+      } else if (source === 'category' && effectiveCategoryId) {
         // Need to join with product_categories
         const { data: productCategories } = await supabase
           .from('product_categories')
-          .select('product_id')
-          .eq('category_id', categoryId);
+          .select('product_id, position')
+          .eq('category_id', effectiveCategoryId)
+          .order('position', { ascending: true });
 
         if (!productCategories?.length) return [];
         
         const productIds = productCategories.map(pc => pc.product_id);
-        query = query.in('id', productIds);
+        const positionMap = new Map(productCategories.map(pc => [pc.product_id, pc.position]));
+        
+        const { data: prods, error } = await supabase
+          .from('products')
+          .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
+          .eq('tenant_id', tenantId)
+          .eq('status', 'active')
+          .in('id', productIds)
+          .limit(limit);
+        
+        if (error) throw error;
+        
+        // Sort by position from product_categories
+        const sortedProducts = (prods || []).sort((a, b) => {
+          const posA = positionMap.get(a.id) ?? 999999;
+          const posB = positionMap.get(b.id) ?? 999999;
+          return posA - posB;
+        });
+        
+        return sortedProducts as Product[];
       }
 
       const { data, error } = await query.order('created_at', { ascending: false });
       if (error) throw error;
       return data as Product[];
     },
-    enabled: !!tenantId,
+    enabled: !!tenantId && (source !== 'category' || !!effectiveCategoryId),
   });
 
   const getProductImage = (product: Product) => {

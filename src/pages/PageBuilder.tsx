@@ -137,6 +137,7 @@ export default function PageBuilder() {
       pageType={pageType}
       pageId={pageId}
       pageTitle={page.title}
+      pageSlug={page.slug}
       initialContent={draftVersion?.content}
       context={context}
     />
