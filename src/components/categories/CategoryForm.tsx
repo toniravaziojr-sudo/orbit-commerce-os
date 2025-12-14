@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Save, Image as ImageIcon, AlertCircle } from 'lucide-react';
-import { validateSlug, generateSlug as generateSlugUtil } from '@/lib/slugValidation';
+import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
 
 interface CategoryFormProps {
   formData: {
@@ -47,7 +47,7 @@ export function CategoryForm({
   const handleGenerateSlug = (name: string) => generateSlugUtil(name);
   
   // Validate slug in real-time
-  const slugValidation = validateSlug(formData.slug);
+  const slugValidation = validateSlugFormat(formData.slug);
   const isSlugValid = slugValidation.isValid;
   const slugError = slugValidation.error;
 
