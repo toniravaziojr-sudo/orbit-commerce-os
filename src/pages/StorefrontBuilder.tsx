@@ -290,7 +290,7 @@ export default function StorefrontBuilder() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => window.open(`/store/${currentTenant?.slug}`, '_blank')}
+                                  onClick={() => window.open(getPublicHomeUrl(currentTenant?.slug || ''), '_blank')}
                                 >
                                   <ExternalLink className="h-4 w-4" />
                                 </Button>
