@@ -13,12 +13,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon, Search, Image as ImageIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon, Search, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { getPublicPageUrl } from '@/lib/publicUrls';
+import { validateSlug, generateSlug } from '@/lib/slugValidation';
 import type { Json } from '@/integrations/supabase/types';
 
 export default function Pages() {
@@ -179,12 +180,23 @@ export default function Pages() {
                     />
                   </div>
                   <div>
-                    <Label>Slug</Label>
+                    <Label>Slug *</Label>
                     <Input 
                       value={formData.slug} 
-                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })} 
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
                       placeholder="sobre-nos (gerado automaticamente)"
+                      className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
                     />
+                    {!validateSlug(formData.slug).isValid && formData.slug ? (
+                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {validateSlug(formData.slug).error}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Usado na URL: /page/{formData.slug || 'slug'}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
