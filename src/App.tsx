@@ -104,6 +104,7 @@ const App = () => (
               <Route path="/pages" element={<Pages />} />
               <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
               <Route path="/landing-pages" element={<LandingPages />} />
+              <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />

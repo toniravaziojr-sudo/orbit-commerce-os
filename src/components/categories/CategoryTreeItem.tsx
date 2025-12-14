@@ -46,7 +46,9 @@ export function CategoryTreeItem({
     transition,
   };
 
-  const handlePreview = () => {
+  const handlePreview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (currentTenant && category.slug) {
       const url = getPublicCategoryUrl(currentTenant.slug, category.slug, true);
       if (url) window.open(url, '_blank');

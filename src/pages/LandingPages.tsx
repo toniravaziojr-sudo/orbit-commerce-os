@@ -67,9 +67,9 @@ export default function LandingPages() {
     const newPage = await createLandingPage.mutateAsync({ title: formData.title, slug });
     setIsDialogOpen(false);
     resetForm();
-    // Navigate to builder after creation
+    // Navigate to builder after creation - use landing-pages route
     if (newPage?.id) {
-      navigate(`/pages/${newPage.id}/builder`);
+      navigate(`/landing-pages/${newPage.id}/builder`);
     }
   };
 
@@ -235,7 +235,7 @@ export default function LandingPages() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        onClick={() => navigate(`/pages/${page.id}/builder`)}
+                        onClick={() => navigate(`/landing-pages/${page.id}/builder`)}
                         title="Editar no Builder Visual"
                       >
                         <LayoutTemplate className="h-4 w-4" />
