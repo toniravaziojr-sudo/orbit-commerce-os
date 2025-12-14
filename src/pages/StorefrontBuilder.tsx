@@ -16,6 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Pencil, Eye, CheckCircle2, Clock, ExternalLink, HelpCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Tooltip,
   TooltipContent,
@@ -47,6 +49,36 @@ export default function StorefrontBuilder() {
     'draft'
   );
 
+  // Fetch header menu for editor context
+  const { data: headerMenuData } = useQuery({
+    queryKey: ['editor-header-menu', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return null;
+      
+      // First find the header menu
+      const { data: menu, error: menuError } = await supabase
+        .from('menus')
+        .select('id')
+        .eq('tenant_id', currentTenant.id)
+        .eq('location', 'header')
+        .maybeSingle();
+      
+      if (menuError || !menu) return null;
+      
+      // Then fetch menu items
+      const { data: items, error: itemsError } = await supabase
+        .from('menu_items')
+        .select('id, label, url, item_type, ref_id, sort_order')
+        .eq('menu_id', menu.id)
+        .order('sort_order');
+      
+      if (itemsError) return null;
+      
+      return items || [];
+    },
+    enabled: !!currentTenant?.id && !!editingPageType,
+  });
+
   // If editing a specific page type, show the builder
   if (editingPageType && currentTenant) {
     const context: BlockRenderContext = {
@@ -57,6 +89,12 @@ export default function StorefrontBuilder() {
         logo_url: storeSettings?.logo_url || undefined,
         primary_color: storeSettings?.primary_color || undefined,
       },
+      // Include header menu in editor context
+      headerMenu: headerMenuData?.map(item => ({
+        id: item.id,
+        label: item.label,
+        url: item.url || '#',
+      })) || [],
     };
 
     if (templateLoading) {
