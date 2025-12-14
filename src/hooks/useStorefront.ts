@@ -240,26 +240,35 @@ export function usePublicCategory(tenantSlug: string, categorySlug: string) {
   const { data: products, isLoading: productsLoading } = useQuery({
     queryKey: ['public-category-products', category?.id],
     queryFn: async () => {
-      // First get product IDs from product_categories
+      // Get product IDs with position from product_categories, ordered by position
       const { data: productCategories, error: pcError } = await supabase
         .from('product_categories')
-        .select('product_id')
-        .eq('category_id', category!.id);
+        .select('product_id, position')
+        .eq('category_id', category!.id)
+        .order('position', { ascending: true });
 
       if (pcError) throw pcError;
       if (!productCategories?.length) return [];
 
       const productIds = productCategories.map(pc => pc.product_id);
+      const positionMap = new Map(productCategories.map(pc => [pc.product_id, pc.position]));
 
       const { data: products, error } = await supabase
         .from('products')
         .select('*, product_images(*)')
         .in('id', productIds)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false });
+        .eq('status', 'active');
 
       if (error) throw error;
-      return products;
+
+      // Sort products by position from product_categories
+      const sortedProducts = (products || []).sort((a, b) => {
+        const posA = positionMap.get(a.id) ?? 999999;
+        const posB = positionMap.get(b.id) ?? 999999;
+        return posA - posB;
+      });
+
+      return sortedProducts;
     },
     enabled: !!category?.id,
   });
