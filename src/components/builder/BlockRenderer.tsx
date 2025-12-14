@@ -354,7 +354,7 @@ function ColumnsBlock({
 
 // ========== HEADER / FOOTER ==========
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 function HeaderBlock({ 
   menuId, 
@@ -366,34 +366,56 @@ function HeaderBlock({
   noticeText = '',
   noticeBgColor = '#1e40af',
   noticeTextColor = '#ffffff',
-      noticeAnimation = 'fade',
-      // Notice action props
-      noticeActionEnabled = false,
-      noticeActionType = 'link',
-      noticeActionLabel = '',
-      noticeActionUrl = '',
-      noticeActionTarget = '_self',
-      noticeActionTextColor = '',
-      context, 
-      isEditing 
-    }: any) {
-      const { settings } = context || {};
-      const [isVisible, setIsVisible] = useState(false);
-      
-      // Animation: start hidden, become visible after mount
-      useEffect(() => {
-        if (noticeEnabled && noticeAnimation !== 'none') {
-          // Start animation after component mounts
-          const timer = requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setIsVisible(true);
-            });
-          });
-          return () => cancelAnimationFrame(timer);
-        } else if (noticeEnabled && noticeAnimation === 'none') {
-          setIsVisible(true);
-        }
-      }, [noticeEnabled, noticeAnimation]);
+  noticeAnimation = 'fade',
+  // Notice action props
+  noticeActionEnabled = false,
+  noticeActionType = 'link',
+  noticeActionLabel = '',
+  noticeActionUrl = '',
+  noticeActionTarget = '_self',
+  noticeActionTextColor = '',
+  context, 
+  isEditing 
+}: any) {
+  const { settings } = context || {};
+  const noticeRef = useRef<HTMLDivElement>(null);
+  const [animationState, setAnimationState] = useState<'initial' | 'animating' | 'done'>('initial');
+  
+  // Animation: trigger on mount only
+  useEffect(() => {
+    if (!noticeEnabled) {
+      setAnimationState('initial');
+      return;
+    }
+    
+    if (noticeAnimation === 'none') {
+      setAnimationState('done');
+      return;
+    }
+    
+    // Reset for animation
+    setAnimationState('initial');
+    
+    // Use double RAF to ensure browser has painted initial state
+    let frameId: number;
+    const startAnimation = () => {
+      frameId = requestAnimationFrame(() => {
+        frameId = requestAnimationFrame(() => {
+          setAnimationState('animating');
+          // After animation completes, mark as done
+          setTimeout(() => {
+            setAnimationState('done');
+          }, 300);
+        });
+      });
+    };
+    
+    startAnimation();
+    
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+    };
+  }, [noticeEnabled, noticeAnimation]);
   
   const { data: menuItems } = useQuery({
     queryKey: ['menu-items', menuId],
@@ -412,37 +434,33 @@ function HeaderBlock({
   
   const displayItems = menuItems || context?.headerMenu || [];
   
-  // Animation styles - applied on initial render
-      const getAnimationStyles = (): React.CSSProperties => {
-        // In editing mode, always show fully
-        if (isEditing) {
-          return { opacity: 1, transform: 'translateY(0)' };
-        }
-        
-        // No animation - always visible
-        if (noticeAnimation === 'none') {
-          return { opacity: 1, transform: 'translateY(0)' };
-        }
-        
-        const baseTransition = 'opacity 250ms ease-out, transform 250ms ease-out';
-        
-        if (noticeAnimation === 'fade') {
-          return {
-            opacity: isVisible ? 1 : 0,
-            transition: baseTransition,
-          };
-        }
-        
-        if (noticeAnimation === 'slide') {
-          return {
-            opacity: isVisible ? 1 : 0,
-            transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
-            transition: baseTransition,
-          };
-        }
-        
-        return { opacity: 1 };
+  // Get animation styles based on state
+  const getNoticeAnimationStyles = (): React.CSSProperties => {
+    // No animation
+    if (noticeAnimation === 'none') {
+      return { opacity: 1, transform: 'translateY(0)' };
+    }
+    
+    const isAnimated = animationState === 'animating' || animationState === 'done';
+    const transition = animationState === 'animating' ? 'opacity 250ms ease-out, transform 250ms ease-out' : 'none';
+    
+    if (noticeAnimation === 'fade') {
+      return {
+        opacity: isAnimated ? 1 : 0,
+        transition,
       };
+    }
+    
+    if (noticeAnimation === 'slide') {
+      return {
+        opacity: isAnimated ? 1 : 0,
+        transform: isAnimated ? 'translateY(0)' : 'translateY(-100%)',
+        transition,
+      };
+    }
+    
+    return { opacity: 1 };
+  };
       
       // Check if action is valid (has URL and label)
   const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
@@ -518,7 +536,7 @@ function HeaderBlock({
           style={{ 
             backgroundColor: noticeBgColor || '#1e40af',
             color: noticeTextColor || '#ffffff',
-            ...getAnimationStyles(),
+            ...getNoticeAnimationStyles(),
           }}
         >
           <span>{noticeText || (isEditing ? '[Digite o texto do aviso]' : '')}</span>
