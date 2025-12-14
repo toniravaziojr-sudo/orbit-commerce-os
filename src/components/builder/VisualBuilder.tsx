@@ -14,6 +14,7 @@ import { BuilderCanvas } from './BuilderCanvas';
 import { BlockPalette } from './BlockPalette';
 import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
+import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -50,8 +51,9 @@ export function VisualBuilder({
   const [exampleProductId, setExampleProductId] = useState<string>('');
   const [exampleCategoryId, setExampleCategoryId] = useState<string>('');
 
-  // Check if this is checkout page (uses separate header/footer)
+  // Check page context for Header/Footer governance
   const isCheckoutPage = pageType === 'checkout';
+  const isHomePage = pageType === 'home';
 
   // Global layout integration
   const { 
@@ -158,27 +160,33 @@ export function VisualBuilder({
   // Determine entity type based on pageType
   const entityType = (pageType === 'institutional' || pageType === 'landing_page') ? 'page' : 'template';
 
-  // Handle saving draft - also save global Header/Footer if changed
+  // Handle saving draft - save global Header/Footer ONLY from Home page
   const handleSave = useCallback(async () => {
     try {
       // Extract Header/Footer from current content
       const { header, footer } = extractHeaderFooter(store.content);
       
-      // Save to global layout (non-checkout) or checkout layout
-      if (header) {
-        if (isCheckoutPage) {
-          await updateCheckoutHeader.mutateAsync(header);
-        } else {
+      // GOVERNANCE: Only save global Header/Footer from Home page
+      // Checkout has its own separate layout
+      // Other pages CANNOT modify global layout
+      if (isHomePage) {
+        // Home page: save to global layout
+        if (header) {
           await updateGlobalHeader.mutateAsync(header);
         }
-      }
-      if (footer) {
-        if (isCheckoutPage) {
-          await updateCheckoutFooter.mutateAsync(footer);
-        } else {
+        if (footer) {
           await updateGlobalFooter.mutateAsync(footer);
         }
+      } else if (isCheckoutPage) {
+        // Checkout: save to checkout-specific layout
+        if (header) {
+          await updateCheckoutHeader.mutateAsync(header);
+        }
+        if (footer) {
+          await updateCheckoutFooter.mutateAsync(footer);
+        }
       }
+      // Other pages: DO NOT save Header/Footer to global (blocked by governance)
 
       // Save the page content (without Header/Footer for non-checkout, or with them for checkout)
       // For non-checkout pages, we strip Header/Footer from saved content since they're global
@@ -203,29 +211,31 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, entityType, pageType, pageId, store, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
+  }, [saveDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
 
-  // Handle publishing
+  // Handle publishing - same governance as save
   const handlePublish = useCallback(async () => {
     try {
       // Extract Header/Footer from current content
       const { header, footer } = extractHeaderFooter(store.content);
       
-      // Save to global layout (non-checkout) or checkout layout
-      if (header) {
-        if (isCheckoutPage) {
-          await updateCheckoutHeader.mutateAsync(header);
-        } else {
+      // GOVERNANCE: Only save global Header/Footer from Home page
+      if (isHomePage) {
+        if (header) {
           await updateGlobalHeader.mutateAsync(header);
         }
-      }
-      if (footer) {
-        if (isCheckoutPage) {
-          await updateCheckoutFooter.mutateAsync(footer);
-        } else {
+        if (footer) {
           await updateGlobalFooter.mutateAsync(footer);
         }
+      } else if (isCheckoutPage) {
+        if (header) {
+          await updateCheckoutHeader.mutateAsync(header);
+        }
+        if (footer) {
+          await updateCheckoutFooter.mutateAsync(footer);
+        }
       }
+      // Other pages: DO NOT save Header/Footer to global (blocked by governance)
 
       // Save the page content (without Header/Footer for non-checkout)
       let contentToSave = store.content;
@@ -249,7 +259,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao publicar página');
     }
-  }, [publish, entityType, pageType, pageId, store, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
+  }, [publish, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
 
   // Handle deleting selected block
   const handleDeleteBlock = useCallback(() => {
@@ -450,14 +460,29 @@ export function VisualBuilder({
         {!isPreviewMode && (
           <div className="w-80 flex-shrink-0 bg-background shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
-              <PropsEditor
-                definition={store.selectedBlockDefinition}
-                props={store.selectedBlock.props}
-                onChange={handlePropsChange}
-                onDelete={handleDeleteBlock}
-                onDuplicate={handleDuplicateBlock}
-                canDelete={store.selectedBlockDefinition.isRemovable !== false}
-              />
+              // Use specialized editor for Header/Footer blocks (governance)
+              store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
+                <HeaderFooterPropsEditor
+                  definition={store.selectedBlockDefinition}
+                  props={store.selectedBlock.props}
+                  onChange={handlePropsChange}
+                  onDelete={handleDeleteBlock}
+                  onDuplicate={handleDuplicateBlock}
+                  canDelete={store.selectedBlockDefinition.isRemovable !== false}
+                  isHomePage={isHomePage}
+                  isCheckoutPage={isCheckoutPage}
+                  blockType={store.selectedBlock.type as 'Header' | 'Footer'}
+                />
+              ) : (
+                <PropsEditor
+                  definition={store.selectedBlockDefinition}
+                  props={store.selectedBlock.props}
+                  onChange={handlePropsChange}
+                  onDelete={handleDeleteBlock}
+                  onDuplicate={handleDuplicateBlock}
+                  canDelete={store.selectedBlockDefinition.isRemovable !== false}
+                />
+              )
             ) : (
               <div className="h-full flex items-center justify-center p-6 border-l">
                 <div className="text-center text-muted-foreground">
