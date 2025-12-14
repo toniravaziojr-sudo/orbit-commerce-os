@@ -69,6 +69,7 @@ function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
           return {
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
+            pageId: page.id,
           };
         }
       }
@@ -78,12 +79,14 @@ function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
         return {
           content: page.content as unknown as BlockNode,
           pageTitle: page.title,
+          pageId: page.id,
         };
       }
 
       return {
         content: getDefaultTemplate('institutional'),
         pageTitle: page.title,
+        pageId: page.id,
       };
     },
     enabled: !!tenantSlug && !!pageSlug,
@@ -186,6 +189,8 @@ export default function StorefrontLandingPage() {
       error={error}
       isPreviewMode={isPreviewMode}
       canPreview={true}
+      pageType="landing_page"
+      pageId={pageData.pageId}
     />
   );
 }

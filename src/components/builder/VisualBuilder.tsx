@@ -24,6 +24,7 @@ import {
   applyGlobalLayout, 
   extractHeaderFooter 
 } from '@/hooks/useGlobalLayoutIntegration';
+import { usePageOverrides } from '@/hooks/usePageOverrides';
 
 interface VisualBuilderProps {
   tenantId: string;
@@ -66,6 +67,13 @@ export function VisualBuilder({
     migrateFromHome,
   } = useGlobalLayoutForEditor(tenantId);
 
+  // Page overrides for non-home/non-checkout pages
+  const { overrides: pageOverrides, isLoading: overridesLoading } = usePageOverrides({
+    tenantId,
+    pageType,
+    pageId,
+  });
+
   // Run migration on first load if needed
   useEffect(() => {
     if (globalLayout?.needsMigration && !layoutLoading) {
@@ -80,20 +88,23 @@ export function VisualBuilder({
   );
 
   // Apply global layout to initial content for display (non-checkout pages)
+  // Also apply page overrides for non-home pages
   const contentWithGlobalLayout = useMemo(() => {
     if (!globalLayout || isCheckoutPage) return startingContent;
-    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage);
-  }, [startingContent, globalLayout, isCheckoutPage]);
+    // For home page, no overrides; for other pages, apply overrides
+    const overridesToApply = isHomePage ? null : pageOverrides;
+    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply);
+  }, [startingContent, globalLayout, isCheckoutPage, isHomePage, pageOverrides]);
 
   // Builder store for state management
   const store = useBuilderStore(contentWithGlobalLayout);
 
   // Sync content when template or global layout changes
   useEffect(() => {
-    if (!layoutLoading) {
+    if (!layoutLoading && !overridesLoading) {
       store.setContent(contentWithGlobalLayout);
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading]);
+  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading]);
 
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);

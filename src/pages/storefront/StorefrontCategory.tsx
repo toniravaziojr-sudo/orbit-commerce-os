@@ -82,6 +82,7 @@ export default function StorefrontCategory() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      pageType="category"
     />
   );
 }

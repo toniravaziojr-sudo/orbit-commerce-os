@@ -97,6 +97,7 @@ export default function StorefrontProduct() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      pageType="product"
     />
   );
 }

@@ -60,6 +60,7 @@ export default function StorefrontHome() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      pageType="home"
     />
   );
 }

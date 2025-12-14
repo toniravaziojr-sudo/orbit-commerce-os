@@ -118,6 +118,8 @@ export default function StorefrontPage() {
       error={pageData.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      pageType="institutional"
+      pageId={pageData.pageId}
     />
   );
 }
