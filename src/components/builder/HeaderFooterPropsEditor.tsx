@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, GripVertical, ArrowUp, ArrowDown, User, Tag } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -306,6 +306,8 @@ export function HeaderFooterPropsEditor({
     menuColors: false,
     categories: false,
     contact: false,
+    customerArea: false,
+    promos: false,
     general: false,
     notice: false,
   });
@@ -710,6 +712,115 @@ export function HeaderFooterPropsEditor({
                     </>
                   )}
                 </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === ÁREA DO CLIENTE === */}
+            <Collapsible open={openSections.customerArea} onOpenChange={() => toggleSection('customerArea')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Área do Cliente</span>
+                    {props.customerAreaEnabled && (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.customerArea ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Exibir "Minhas compras"</Label>
+                    <p className="text-xs text-muted-foreground">Link para consulta de pedidos</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.customerAreaEnabled)}
+                    onCheckedChange={(v) => updateProp('customerAreaEnabled', v)}
+                  />
+                </div>
+                
+                {props.customerAreaEnabled && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Texto do link</Label>
+                    <Input
+                      value={(props.customerAreaLabel as string) || 'Minhas compras'}
+                      onChange={(e) => updateProp('customerAreaLabel', e.target.value)}
+                      placeholder="Ex: Minhas compras"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === PROMOÇÕES EM DESTAQUE === */}
+            <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-amber-500" />
+                    <span className="font-medium">Promoções em Destaque</span>
+                    {props.featuredPromosEnabled && (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Exibir link de Promoções</Label>
+                    <p className="text-xs text-muted-foreground">Link destacado no menu</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.featuredPromosEnabled)}
+                    onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
+                  />
+                </div>
+                
+                {props.featuredPromosEnabled && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Texto do link</Label>
+                      <Input
+                        value={(props.featuredPromosLabel as string) || 'Promoções'}
+                        onChange={(e) => updateProp('featuredPromosLabel', e.target.value)}
+                        placeholder="Ex: Promoções"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    
+                    <ColorInput
+                      label="Cor do texto"
+                      value={(props.featuredPromosTextColor as string) || '#d97706'}
+                      onChange={(v) => updateProp('featuredPromosTextColor', v)}
+                      placeholder="Ex: #d97706 (dourado)"
+                    />
+                    
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Slug da página de promoções</Label>
+                      <Input
+                        value={(props.featuredPromosPageSlug as string) || ''}
+                        onChange={(e) => updateProp('featuredPromosPageSlug', e.target.value)}
+                        placeholder="Ex: promocoes"
+                        className="h-9 text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        A página deve existir em "Páginas" com este slug
+                      </p>
+                      {props.featuredPromosEnabled && !(props.featuredPromosPageSlug as string)?.trim() && (
+                        <p className="text-xs text-amber-600">⚠️ Defina o slug para exibir o link</p>
+                      )}
+                    </div>
+                  </>
+                )}
               </CollapsibleContent>
             </Collapsible>
 

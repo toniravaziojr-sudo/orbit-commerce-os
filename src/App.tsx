@@ -47,6 +47,7 @@ import StorefrontPage from "@/pages/storefront/StorefrontPage";
 import StorefrontLandingPage from "@/pages/storefront/StorefrontLandingPage";
 import StorefrontCart from "@/pages/storefront/StorefrontCart";
 import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
+import StorefrontMyOrders from "@/pages/storefront/StorefrontMyOrders";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
               <Route path="cart" element={<StorefrontCart />} />
               <Route path="checkout" element={<StorefrontCheckout />} />
+              <Route path="minhas-compras" element={<StorefrontMyOrders />} />
             </Route>
 
             {/* Protected route without tenant requirement */}
