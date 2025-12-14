@@ -134,26 +134,23 @@ export function useSaveDraft() {
       const { entityType, pageId, pageType, content } = params;
       if (!currentTenant?.id) throw new Error('No tenant');
 
-      let currentDraftVersion = 0;
+      // Get the MAX version from store_page_versions directly to avoid conflicts
+      let maxVersionQuery = supabase
+        .from('store_page_versions')
+        .select('version')
+        .eq('tenant_id', currentTenant.id)
+        .eq('entity_type', entityType)
+        .order('version', { ascending: false })
+        .limit(1);
 
       if (entityType === 'template' && pageType) {
-        const { data: template } = await supabase
-          .from('storefront_page_templates')
-          .select('draft_version')
-          .eq('tenant_id', currentTenant.id)
-          .eq('page_type', pageType)
-          .single();
-        currentDraftVersion = template?.draft_version || 0;
+        maxVersionQuery = maxVersionQuery.eq('page_type', pageType);
       } else if (entityType === 'page' && pageId) {
-        const { data: page } = await supabase
-          .from('store_pages')
-          .select('draft_version')
-          .eq('id', pageId)
-          .single();
-        currentDraftVersion = page?.draft_version || 0;
+        maxVersionQuery = maxVersionQuery.eq('page_id', pageId);
       }
 
-      const newVersion = currentDraftVersion + 1;
+      const { data: maxVersionData } = await maxVersionQuery.maybeSingle();
+      const newVersion = (maxVersionData?.version || 0) + 1;
 
       const { error: insertError } = await supabase
         .from('store_page_versions')
@@ -215,46 +212,42 @@ export function usePublish() {
       const { entityType, pageId, pageType, content } = params;
       if (!currentTenant?.id) throw new Error('No tenant');
 
-      let currentPublishedVersion = 0;
+      // Archive any currently published version
+      if (entityType === 'template' && pageType) {
+        await supabase
+          .from('store_page_versions')
+          .update({ status: 'archived' })
+          .eq('tenant_id', currentTenant.id)
+          .eq('entity_type', entityType)
+          .eq('status', 'published')
+          .eq('page_type', pageType);
+      } else if (entityType === 'page' && pageId) {
+        await supabase
+          .from('store_page_versions')
+          .update({ status: 'archived' })
+          .eq('tenant_id', currentTenant.id)
+          .eq('entity_type', entityType)
+          .eq('status', 'published')
+          .eq('page_id', pageId);
+      }
+
+      // Get the MAX version from store_page_versions directly to avoid conflicts
+      let maxVersionQuery = supabase
+        .from('store_page_versions')
+        .select('version')
+        .eq('tenant_id', currentTenant.id)
+        .eq('entity_type', entityType)
+        .order('version', { ascending: false })
+        .limit(1);
 
       if (entityType === 'template' && pageType) {
-        const { data: template } = await supabase
-          .from('storefront_page_templates')
-          .select('published_version')
-          .eq('tenant_id', currentTenant.id)
-          .eq('page_type', pageType)
-          .single();
-        currentPublishedVersion = template?.published_version || 0;
+        maxVersionQuery = maxVersionQuery.eq('page_type', pageType);
       } else if (entityType === 'page' && pageId) {
-        const { data: page } = await supabase
-          .from('store_pages')
-          .select('published_version')
-          .eq('id', pageId)
-          .single();
-        currentPublishedVersion = page?.published_version || 0;
+        maxVersionQuery = maxVersionQuery.eq('page_id', pageId);
       }
 
-      const newVersion = currentPublishedVersion + 1;
-
-      if (currentPublishedVersion > 0) {
-        if (entityType === 'template' && pageType) {
-          await supabase
-            .from('store_page_versions')
-            .update({ status: 'archived' })
-            .eq('tenant_id', currentTenant.id)
-            .eq('entity_type', entityType)
-            .eq('status', 'published')
-            .eq('page_type', pageType);
-        } else if (entityType === 'page' && pageId) {
-          await supabase
-            .from('store_page_versions')
-            .update({ status: 'archived' })
-            .eq('tenant_id', currentTenant.id)
-            .eq('entity_type', entityType)
-            .eq('status', 'published')
-            .eq('page_id', pageId);
-        }
-      }
+      const { data: maxVersionData } = await maxVersionQuery.maybeSingle();
+      const newVersion = (maxVersionData?.version || 0) + 1;
 
       const { error: insertError } = await supabase
         .from('store_page_versions')

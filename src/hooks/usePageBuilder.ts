@@ -190,21 +190,30 @@ export function usePageBuilder(pageId: string | undefined) {
     mutationFn: async (content: BlockNode) => {
       if (!pageId || !currentTenant?.id) throw new Error('Missing page or tenant');
       
-      const nextVersion = (draftVersion?.version || 0) + 1;
+      // Get MAX version number from the versions table directly
+      const { data: maxVersion } = await supabase
+        .from('store_page_versions')
+        .select('version')
+        .eq('tenant_id', currentTenant.id)
+        .eq('entity_type', 'page')
+        .eq('page_id', pageId)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      const nextVersion = (maxVersion?.version || 0) + 1;
       
       // Create new draft version
       const { data, error } = await supabase
         .from('store_page_versions')
-        .upsert({
+        .insert({
           tenant_id: currentTenant.id,
           entity_type: 'page',
           page_id: pageId,
-          version: draftVersion?.id === 'new' ? 1 : nextVersion,
+          version: nextVersion,
           status: 'draft',
           content: content as unknown as Json,
           created_by: user?.id || null,
-        }, {
-          onConflict: 'tenant_id,entity_type,page_id,version',
         })
         .select()
         .single();
@@ -246,7 +255,7 @@ export function usePageBuilder(pageId: string | undefined) {
         .eq('page_id', pageId)
         .eq('status', 'published');
       
-      // Get next version number
+      // Get MAX version number from the versions table directly
       const { data: maxVersion } = await supabase
         .from('store_page_versions')
         .select('version')
@@ -255,7 +264,7 @@ export function usePageBuilder(pageId: string | undefined) {
         .eq('page_id', pageId)
         .order('version', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       
       const nextVersion = (maxVersion?.version || 0) + 1;
       

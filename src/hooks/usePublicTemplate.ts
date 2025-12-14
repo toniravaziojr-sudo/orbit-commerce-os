@@ -156,7 +156,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
           .eq('page_id', page.id)
           .eq('version', page.published_version)
           .eq('status', 'published')
-          .single();
+          .maybeSingle();
 
         if (!versionError && version) {
           return {

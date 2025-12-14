@@ -191,7 +191,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
           .eq('entity_type', 'page')
           .eq('page_id', page.id)
           .eq('version', versionToUse)
-          .single();
+          .maybeSingle();
 
         if (!versionError && version) {
           return {
