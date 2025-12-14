@@ -131,6 +131,7 @@ interface PreviewPageTemplateResult {
   error: Error | null;
   canPreview: boolean;
   pageTitle: string | null;
+  pageId: string | null;
 }
 
 export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): PreviewPageTemplateResult {
@@ -195,6 +196,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
           return {
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
+            pageId: page.id,
             canPreview: true,
           };
         }
@@ -229,6 +231,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
           return {
             content: updateContent(defaultTemplate),
             pageTitle: page.title,
+            pageId: page.id,
             canPreview: true,
           };
         }
@@ -237,6 +240,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
       return {
         content: getDefaultTemplate('institutional'),
         pageTitle: page.title,
+        pageId: page.id,
         canPreview: true,
       };
     },
@@ -251,12 +255,14 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
       error: new Error('Authentication required for preview'),
       canPreview: false,
       pageTitle: null,
+      pageId: null,
     };
   }
 
   return {
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
+    pageId: data?.pageId || null,
     isLoading,
     error: error as Error | null,
     canPreview: data?.canPreview ?? false,

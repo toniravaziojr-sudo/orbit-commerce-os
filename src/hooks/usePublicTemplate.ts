@@ -93,6 +93,7 @@ interface PublicPageTemplateResult {
   isLoading: boolean;
   error: Error | null;
   pageTitle: string | null;
+  pageId: string | null;
 }
 
 export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): PublicPageTemplateResult {
@@ -143,6 +144,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
           return {
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
+            pageId: page.id,
           };
         }
       }
@@ -177,6 +179,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
           return {
             content: updateContent(defaultTemplate),
             pageTitle: page.title,
+            pageId: page.id,
           };
         }
       }
@@ -186,6 +189,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
       return {
         content: defaultTemplate,
         pageTitle: page.title,
+        pageId: page.id,
       };
     },
     enabled: !!tenantSlug && !!pageSlug,
@@ -195,6 +199,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
   return {
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
+    pageId: data?.pageId || null,
     isLoading,
     error: error as Error | null,
   };

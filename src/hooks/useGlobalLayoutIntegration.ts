@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
+import { PageOverrides } from '@/hooks/usePageOverrides';
 
 // Default configs
 const defaultHeaderConfig: BlockNode = {
@@ -53,7 +54,7 @@ const defaultCheckoutFooterConfig: BlockNode = {
   },
 };
 
-interface GlobalLayoutData {
+export interface GlobalLayoutData {
   header_config: BlockNode;
   footer_config: BlockNode;
   checkout_header_config: BlockNode;
@@ -66,11 +67,17 @@ interface GlobalLayoutData {
  * Applies global Header/Footer to a content tree.
  * For non-checkout pages: replaces page's Header/Footer with global.
  * For checkout pages: uses checkout-specific config.
+ * 
+ * @param content - The page content tree
+ * @param globalLayout - Global layout configuration
+ * @param isCheckout - Whether this is a checkout page
+ * @param pageOverrides - Optional page-specific overrides
  */
 export function applyGlobalLayout(
   content: BlockNode,
   globalLayout: GlobalLayoutData | null,
-  isCheckout: boolean
+  isCheckout: boolean,
+  pageOverrides?: PageOverrides | null
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
@@ -91,11 +98,26 @@ export function applyGlobalLayout(
     child => child.type !== 'Header' && child.type !== 'Footer'
   );
 
+  // Apply page overrides to header (only for non-checkout pages)
+  let finalHeaderConfig = { ...headerConfig };
+  if (!isCheckout && pageOverrides?.header) {
+    // Apply notice enabled override
+    if (pageOverrides.header.noticeEnabled !== undefined) {
+      finalHeaderConfig = {
+        ...finalHeaderConfig,
+        props: {
+          ...finalHeaderConfig.props,
+          noticeEnabled: pageOverrides.header.noticeEnabled,
+        },
+      };
+    }
+  }
+
   // Add global Header at the beginning and Footer at the end
   return {
     ...content,
     children: [
-      { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
+      { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
       ...filteredChildren,
       { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' },
     ],

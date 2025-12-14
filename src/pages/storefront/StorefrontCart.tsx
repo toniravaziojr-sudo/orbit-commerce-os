@@ -77,6 +77,7 @@ export default function StorefrontCart() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      pageType="cart"
     />
   );
 }

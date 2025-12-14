@@ -3,12 +3,15 @@
 // =============================================
 
 import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Eye, Lock, AlertTriangle } from 'lucide-react';
 import { applyGlobalLayout, usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
+import { supabase } from '@/integrations/supabase/client';
+import { PageOverrides } from '@/hooks/usePageOverrides';
 
 interface PublicTemplateRendererProps {
   content: BlockNode;
@@ -18,6 +21,9 @@ interface PublicTemplateRendererProps {
   isPreviewMode?: boolean;
   canPreview?: boolean;
   isCheckout?: boolean;
+  // For page overrides
+  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageId?: string; // For institutional/landing_page
 }
 
 export function PublicTemplateRenderer({
@@ -28,15 +34,57 @@ export function PublicTemplateRenderer({
   isPreviewMode = false,
   canPreview = true,
   isCheckout = false,
+  pageType = 'home',
+  pageId,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
 
-  // Apply global layout to content (replace Header/Footer with global versions)
+  // Fetch page overrides
+  const isTemplate = !['institutional', 'landing_page'].includes(pageType);
+  const { data: pageOverrides, isLoading: overridesLoading } = useQuery({
+    queryKey: ['public-page-overrides', context.tenantSlug, pageType, pageId],
+    queryFn: async () => {
+      // Get tenant ID from slug
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', context.tenantSlug)
+        .single();
+
+      if (!tenant) return null;
+
+      if (isTemplate) {
+        // Fetch from storefront_page_templates
+        const { data } = await supabase
+          .from('storefront_page_templates')
+          .select('page_overrides')
+          .eq('tenant_id', tenant.id)
+          .eq('page_type', pageType)
+          .maybeSingle();
+
+        return (data?.page_overrides as PageOverrides) || null;
+      } else {
+        // Fetch from store_pages
+        if (!pageId) return null;
+        const { data } = await supabase
+          .from('store_pages')
+          .select('page_overrides')
+          .eq('id', pageId)
+          .maybeSingle();
+
+        return (data?.page_overrides as PageOverrides) || null;
+      }
+    },
+    enabled: !!context.tenantSlug && pageType !== 'home' && pageType !== 'checkout',
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Apply global layout to content with page overrides
   const finalContent = useMemo(() => {
     if (!content || !globalLayout) return content;
-    return applyGlobalLayout(content, globalLayout, isCheckout);
-  }, [content, globalLayout, isCheckout]);
+    return applyGlobalLayout(content, globalLayout, isCheckout, pageOverrides);
+  }, [content, globalLayout, isCheckout, pageOverrides]);
 
   // Show access denied for preview without auth
   if (isPreviewMode && !canPreview) {
@@ -69,7 +117,7 @@ export function PublicTemplateRenderer({
   }
 
   // Show loading state
-  if (isLoading || layoutLoading) {
+  if (isLoading || layoutLoading || overridesLoading) {
     return (
       <div className="min-h-screen">
         <Skeleton className="h-16 w-full mb-0" />
