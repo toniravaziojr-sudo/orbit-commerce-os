@@ -118,13 +118,14 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Tenant not found');
       }
 
-      // Get the page with SEO fields
+      // Get the page with SEO fields - filter by type 'institutional' only
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
         .select('id, title, published_version, is_published, content, type, meta_title, meta_description, meta_image_url, no_index, canonical_url')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
-        .single();
+        .eq('type', 'institutional')
+        .maybeSingle();
 
       if (pageError || !page) {
         throw new Error('Page not found');

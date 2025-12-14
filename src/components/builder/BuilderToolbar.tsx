@@ -390,7 +390,11 @@ export function BuilderToolbar({
         {/* Publish with confirmation */}
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button size="sm" disabled={isPublishing} className="gap-1">
+            <Button 
+              size="sm" 
+              disabled={isPublishing || (pageType === 'category' && !effectiveCategoryId) || (pageType === 'product' && !effectiveProductId)} 
+              className="gap-1"
+            >
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">
                 {isPublishing ? 'Publicando...' : 'Publicar'}

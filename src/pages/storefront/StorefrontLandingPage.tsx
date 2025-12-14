@@ -14,11 +14,15 @@ import { FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
+import { useAuth } from '@/hooks/useAuth';
 
 // Hook specifically for landing pages - validates type = 'landing_page'
-function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
+// Supports preview mode for unpublished pages when user is authenticated
+function usePublicLandingPage(tenantSlug: string, pageSlug: string, isPreviewMode: boolean) {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ['public-landing-page', tenantSlug, pageSlug],
+    queryKey: ['public-landing-page', tenantSlug, pageSlug, isPreviewMode, user?.id],
     queryFn: async () => {
       // Get the tenant ID from slug
       const { data: tenant, error: tenantError } = await supabase
@@ -34,7 +38,7 @@ function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
       // Get the page - MUST be type = 'landing_page'
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, published_version, is_published, content, type')
+        .select('id, title, published_version, draft_version, is_published, content, type')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
         .eq('type', 'landing_page') // Critical: only landing pages
@@ -49,9 +53,58 @@ function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
         return null;
       }
 
-      // Page must be published
+      // In preview mode, check if user has access to this tenant
+      if (isPreviewMode && user) {
+        const { data: userRole } = await supabase
+          .from('user_roles')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('tenant_id', tenant.id)
+          .maybeSingle();
+        
+        // User has access - use draft version first
+        if (userRole) {
+          const versionToUse = page.draft_version || page.published_version;
+          
+          if (versionToUse) {
+            const { data: version, error: versionError } = await supabase
+              .from('store_page_versions')
+              .select('content')
+              .eq('tenant_id', tenant.id)
+              .eq('entity_type', 'page')
+              .eq('page_id', page.id)
+              .eq('version', versionToUse)
+              .maybeSingle();
+
+            if (!versionError && version) {
+              return {
+                content: version.content as unknown as BlockNode,
+                pageTitle: page.title,
+                pageId: page.id,
+              };
+            }
+          }
+          
+          // Fallback to content field
+          if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
+            return {
+              content: page.content as unknown as BlockNode,
+              pageTitle: page.title,
+              pageId: page.id,
+            };
+          }
+
+          return {
+            content: getDefaultTemplate('institutional'),
+            pageTitle: page.title,
+            pageId: page.id,
+          };
+        }
+      }
+
+      // Public access - Page must be published
       if (!page.is_published) {
-        throw new Error('Page not published');
+        return null; // Return null instead of throwing to show proper 404
       }
 
       // If has published version, use it
@@ -101,7 +154,7 @@ export default function StorefrontLandingPage() {
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '');
+  const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '', isPreviewMode);
 
   // Loading state
   if (pageLoading || storeLoading) {

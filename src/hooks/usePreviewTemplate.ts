@@ -167,13 +167,14 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
         throw new Error('Access denied: not a member of this store');
       }
 
-      // Get the page
+      // Get the page - filter by type to get correct content per page (institutional only)
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, draft_version, published_version, content')
+        .select('id, title, draft_version, published_version, content, type')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
-        .single();
+        .eq('type', 'institutional')
+        .maybeSingle();
 
       if (pageError || !page) {
         throw new Error('Page not found');
@@ -235,6 +236,118 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
             canPreview: true,
           };
         }
+      }
+
+      return {
+        content: getDefaultTemplate('institutional'),
+        pageTitle: page.title,
+        pageId: page.id,
+        canPreview: true,
+      };
+    },
+    enabled: !!tenantSlug && !!pageSlug && !!user,
+    staleTime: 1000 * 30,
+  });
+
+  if (!user) {
+    return {
+      content: null,
+      isLoading: false,
+      error: new Error('Authentication required for preview'),
+      canPreview: false,
+      pageTitle: null,
+      pageId: null,
+    };
+  }
+
+  return {
+    content: data?.content || null,
+    pageTitle: data?.pageTitle || null,
+    pageId: data?.pageId || null,
+    isLoading,
+    error: error as Error | null,
+    canPreview: data?.canPreview ?? false,
+  };
+}
+
+// Preview hook for landing pages
+export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: string): PreviewPageTemplateResult {
+  const { user } = useAuth();
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['preview-landing-page-template', tenantSlug, pageSlug, user?.id],
+    queryFn: async () => {
+      if (!user) {
+        throw new Error('Authentication required for preview');
+      }
+
+      // First get the tenant ID from slug
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single();
+
+      if (tenantError || !tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Check if user belongs to this tenant
+      const { data: userRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('tenant_id', tenant.id)
+        .single();
+
+      if (!userRole) {
+        throw new Error('Access denied: not a member of this store');
+      }
+
+      // Get the page - must be landing_page type
+      const { data: page, error: pageError } = await supabase
+        .from('store_pages')
+        .select('id, title, draft_version, published_version, content, type')
+        .eq('tenant_id', tenant.id)
+        .eq('slug', pageSlug)
+        .eq('type', 'landing_page')
+        .maybeSingle();
+
+      if (pageError || !page) {
+        throw new Error('Landing page not found');
+      }
+
+      // Use draft_version first, fallback to published_version
+      const versionToUse = page.draft_version || page.published_version;
+
+      if (versionToUse) {
+        const { data: version, error: versionError } = await supabase
+          .from('store_page_versions')
+          .select('content')
+          .eq('tenant_id', tenant.id)
+          .eq('entity_type', 'page')
+          .eq('page_id', page.id)
+          .eq('version', versionToUse)
+          .maybeSingle();
+
+        if (!versionError && version) {
+          return {
+            content: version.content as unknown as BlockNode,
+            pageTitle: page.title,
+            pageId: page.id,
+            canPreview: true,
+          };
+        }
+      }
+
+      // Fallback to content field
+      if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
+        return {
+          content: page.content as unknown as BlockNode,
+          pageTitle: page.title,
+          pageId: page.id,
+          canPreview: true,
+        };
       }
 
       return {
