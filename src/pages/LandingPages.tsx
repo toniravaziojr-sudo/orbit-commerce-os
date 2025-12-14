@@ -14,7 +14,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy, Menu as MenuIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLandingPages } from '@/hooks/useLandingPages';
@@ -22,16 +24,30 @@ import { useLandingPages } from '@/hooks/useLandingPages';
 export default function LandingPages() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
-  const { landingPages, isLoading, createLandingPage, deleteLandingPage, duplicateLandingPage } = useLandingPages();
+  const { landingPages, isLoading, createLandingPage, updateLandingPage, deleteLandingPage, duplicateLandingPage } = useLandingPages();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingPage, setEditingPage] = useState<any>(null);
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
   });
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    slug: '',
+    status: 'draft' as 'draft' | 'published',
+    show_in_menu: false,
+    menu_label: '',
+  });
 
   const resetForm = () => {
     setFormData({ title: '', slug: '' });
+  };
+
+  const resetEditForm = () => {
+    setEditFormData({ title: '', slug: '', status: 'draft', show_in_menu: false, menu_label: '' });
+    setEditingPage(null);
   };
 
   const handleSubmit = async () => {
@@ -43,6 +59,34 @@ export default function LandingPages() {
     if (newPage?.id) {
       navigate(`/pages/${newPage.id}/builder`);
     }
+  };
+
+  const handleEdit = (page: any) => {
+    setEditingPage(page);
+    setEditFormData({
+      title: page.title,
+      slug: page.slug,
+      status: page.status || (page.is_published ? 'published' : 'draft'),
+      show_in_menu: page.show_in_menu || false,
+      menu_label: page.menu_label || '',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editingPage) return;
+    const slug = editFormData.slug || editFormData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    await updateLandingPage.mutateAsync({
+      id: editingPage.id,
+      title: editFormData.title,
+      slug,
+      status: editFormData.status,
+      is_published: editFormData.status === 'published',
+      show_in_menu: editFormData.show_in_menu,
+      menu_label: editFormData.menu_label || null,
+    });
+    setIsEditDialogOpen(false);
+    resetEditForm();
   };
 
   const handleDelete = async () => {
@@ -120,6 +164,7 @@ export default function LandingPages() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>URL</TableHead>
+                <TableHead>Menu</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-40">Ações</TableHead>
               </TableRow>
@@ -134,6 +179,16 @@ export default function LandingPages() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">/lp/{page.slug}</TableCell>
+                  <TableCell>
+                    {page.show_in_menu ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        <MenuIcon className="h-3 w-3 mr-1" />
+                        No menu
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={page.is_published ? 'default' : 'secondary'}>
                       {page.is_published ? 'Publicado' : 'Rascunho'}
@@ -163,6 +218,14 @@ export default function LandingPages() {
                       <Button 
                         variant="ghost" 
                         size="icon" 
+                        onClick={() => handleEdit(page)} 
+                        title="Editar Metadados"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
                         onClick={() => handleDuplicate(page.id)} 
                         title="Duplicar"
                       >
@@ -187,6 +250,13 @@ export default function LandingPages() {
                   </TableCell>
                 </TableRow>
               )}
+              {(!landingPages || landingPages.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    Nenhuma landing page criada. Clique em "Nova Landing Page" para começar.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -204,6 +274,85 @@ export default function LandingPages() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) resetEditForm(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Landing Page</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label>Nome *</Label>
+              <Input 
+                value={editFormData.title} 
+                onChange={(e) => setEditFormData({ ...editFormData, title: e.target.value })} 
+                placeholder="Ex: Black Friday 2024"
+              />
+            </div>
+            <div>
+              <Label>Slug (URL)</Label>
+              <Input 
+                value={editFormData.slug} 
+                onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value })} 
+                placeholder="black-friday-2024"
+              />
+            </div>
+            
+            <div>
+              <Label>Status</Label>
+              <Select 
+                value={editFormData.status} 
+                onValueChange={(v: 'draft' | 'published') => setEditFormData({ ...editFormData, status: v })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Rascunho</SelectItem>
+                  <SelectItem value="published">Publicado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Menu Section */}
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                <MenuIcon className="h-4 w-4" />
+                Menu
+              </p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">Exibir no menu</Label>
+                    <p className="text-xs text-muted-foreground">Permite adicionar esta página nos menus</p>
+                  </div>
+                  <Switch
+                    checked={editFormData.show_in_menu}
+                    onCheckedChange={(v) => setEditFormData({ ...editFormData, show_in_menu: v })}
+                  />
+                </div>
+                
+                {editFormData.show_in_menu && (
+                  <div>
+                    <Label>Título no menu (opcional)</Label>
+                    <Input 
+                      value={editFormData.menu_label} 
+                      onChange={(e) => setEditFormData({ ...editFormData, menu_label: e.target.value })}
+                      placeholder={editFormData.title || 'Usa o nome da página'}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Se vazio, usa o nome da página
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Button onClick={handleEditSubmit} disabled={!editFormData.title || updateLandingPage.isPending} className="w-full">
+              {updateLandingPage.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

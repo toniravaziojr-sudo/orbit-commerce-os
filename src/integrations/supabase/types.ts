@@ -1376,10 +1376,13 @@ export type Database = {
           id: string
           is_homepage: boolean | null
           is_published: boolean | null
+          menu_label: string | null
+          menu_order: number | null
           page_overrides: Json | null
           published_version: number | null
           seo_description: string | null
           seo_title: string | null
+          show_in_menu: boolean | null
           slug: string
           status: string | null
           tenant_id: string
@@ -1395,10 +1398,13 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          menu_label?: string | null
+          menu_order?: number | null
           page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
+          show_in_menu?: boolean | null
           slug: string
           status?: string | null
           tenant_id: string
@@ -1414,10 +1420,13 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          menu_label?: string | null
+          menu_order?: number | null
           page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null
           seo_title?: string | null
+          show_in_menu?: boolean | null
           slug?: string
           status?: string | null
           tenant_id?: string
