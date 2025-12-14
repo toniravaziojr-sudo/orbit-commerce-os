@@ -66,14 +66,14 @@ export function CategoryTreeItem({
       )}
       {...attributes}
     >
-      {/* Drag handle */}
-      <button
+      {/* Drag handle - only this element has drag listeners */}
+      <div
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
         aria-label="Arrastar categoria"
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </button>
+      </div>
 
       {/* Indentation */}
       {depth > 0 && (
@@ -119,17 +119,36 @@ export function CategoryTreeItem({
         {category.is_active ? 'Ativa' : 'Inativa'}
       </Badge>
 
-      {/* Actions */}
+      {/* Actions - using onPointerDown to bypass drag handlers */}
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {category.is_active && category.slug && (
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePreview} title="Visualizar">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-8 w-8" 
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={handlePreview} 
+            title="Visualizar"
+          >
             <Eye className="h-4 w-4" />
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-8 w-8" 
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onEdit}
+        >
           <Pencil className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onDelete}>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-8 w-8" 
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={onDelete}
+        >
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </div>

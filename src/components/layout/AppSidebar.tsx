@@ -103,14 +103,16 @@ export function AppSidebar() {
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     
-    // Special handling for pages routes to avoid conflicts
-    if (href === "/pages") {
-      // Only match /pages, not /pages/:id/builder (which could be landing pages)
-      return location.pathname === "/pages" || 
-        (location.pathname.startsWith("/pages/") && !location.pathname.includes("/landing-pages"));
-    }
+    // Special handling for landing pages - must check BEFORE pages
     if (href === "/landing-pages") {
-      return location.pathname.startsWith("/landing-pages");
+      return location.pathname === "/landing-pages" || 
+        location.pathname.startsWith("/landing-pages/");
+    }
+    
+    // Special handling for pages routes to avoid conflicts with landing pages
+    if (href === "/pages") {
+      return location.pathname === "/pages" || 
+        location.pathname.startsWith("/pages/");
     }
     
     return location.pathname.startsWith(href);
