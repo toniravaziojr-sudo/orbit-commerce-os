@@ -298,6 +298,12 @@ const blockDefinitions: BlockDefinition[] = [
       showPhone: false,
       phoneNumber: '',
       phoneLabel: '',
+      // Categorias no cabeçalho
+      showCategoriesMenu: false,
+      categoriesMenuLabel: 'Categorias',
+      featuredCategoriesEnabled: false,
+      featuredCategoryIds: [],
+      featuredCategoriesLabel: 'Destaques',
       // Barra Superior (Aviso Geral)
       noticeEnabled: false,
       noticeText: '',
@@ -406,6 +412,33 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto do Telefone (opcional)',
         placeholder: 'Ex: Atendimento',
+      },
+      // === CATEGORIAS NO CABEÇALHO ===
+      showCategoriesMenu: {
+        type: 'boolean',
+        label: 'Mostrar menu Categorias',
+        defaultValue: false,
+      },
+      categoriesMenuLabel: {
+        type: 'string',
+        label: 'Texto do menu Categorias',
+        defaultValue: 'Categorias',
+        placeholder: 'Ex: Categorias',
+      },
+      featuredCategoriesEnabled: {
+        type: 'boolean',
+        label: 'Exibir categorias em destaque',
+        defaultValue: false,
+      },
+      featuredCategoryIds: {
+        type: 'categoryList',
+        label: 'Categorias em destaque',
+      },
+      featuredCategoriesLabel: {
+        type: 'string',
+        label: 'Título das categorias em destaque',
+        defaultValue: 'Destaques',
+        placeholder: 'Ex: Destaques',
       },
       // === BARRA SUPERIOR (AVISO GERAL) ===
       noticeEnabled: {

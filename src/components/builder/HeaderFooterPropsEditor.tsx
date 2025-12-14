@@ -12,12 +12,15 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PropsEditor } from './PropsEditor';
 import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -80,6 +83,209 @@ function ColorInput({
   );
 }
 
+// Categories section for global header config
+function CategoriesSection({ 
+  props, 
+  updateProp,
+  tenantId,
+  openSections,
+  toggleSection,
+}: { 
+  props: Record<string, unknown>; 
+  updateProp: (key: string, value: unknown) => void;
+  tenantId: string;
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+}) {
+  // Fetch categories for selection
+  const { data: categories, isLoading } = useQuery({
+    queryKey: ['admin-categories', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug, is_active')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('sort_order');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
+
+  const featuredCategoryIds = (props.featuredCategoryIds as string[]) || [];
+  
+  const toggleFeaturedCategory = (categoryId: string) => {
+    const current = [...featuredCategoryIds];
+    const index = current.indexOf(categoryId);
+    if (index > -1) {
+      current.splice(index, 1);
+    } else {
+      current.push(categoryId);
+    }
+    updateProp('featuredCategoryIds', current);
+  };
+
+  const moveFeaturedCategory = (categoryId: string, direction: 'up' | 'down') => {
+    const current = [...featuredCategoryIds];
+    const index = current.indexOf(categoryId);
+    if (index === -1) return;
+    
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= current.length) return;
+    
+    [current[index], current[newIndex]] = [current[newIndex], current[index]];
+    updateProp('featuredCategoryIds', current);
+  };
+
+  const featuredCategories = featuredCategoryIds
+    .map(id => (categories || []).find(c => c.id === id))
+    .filter(Boolean);
+
+  return (
+    <Collapsible open={openSections.categories} onOpenChange={() => toggleSection('categories')}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+          <div className="flex items-center gap-2">
+            <Grid3X3 className="h-4 w-4 text-primary" />
+            <span className="font-medium">Categorias</span>
+            {(props.showCategoriesMenu || props.featuredCategoriesEnabled) && (
+              <Badge variant="secondary" className="text-xs">Ativo</Badge>
+            )}
+          </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.categories ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-4 space-y-4">
+        {/* Menu Categorias Agrupadas */}
+        <div className="rounded-lg border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Grid3X3 className="h-4 w-4 text-purple-600" />
+              <Label className="text-xs font-medium">Menu Categorias</Label>
+            </div>
+            <Switch
+              checked={Boolean(props.showCategoriesMenu)}
+              onCheckedChange={(v) => updateProp('showCategoriesMenu', v)}
+            />
+          </div>
+          
+          {props.showCategoriesMenu && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Texto do menu</Label>
+              <Input
+                value={(props.categoriesMenuLabel as string) || 'Categorias'}
+                onChange={(e) => updateProp('categoriesMenuLabel', e.target.value)}
+                placeholder="Ex: Categorias"
+                className="h-9 text-sm"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Categorias em Destaque */}
+        <div className="rounded-lg border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Star className="h-4 w-4 text-amber-500" />
+              <Label className="text-xs font-medium">Categorias em Destaque</Label>
+            </div>
+            <Switch
+              checked={Boolean(props.featuredCategoriesEnabled)}
+              onCheckedChange={(v) => updateProp('featuredCategoriesEnabled', v)}
+            />
+          </div>
+          
+          {props.featuredCategoriesEnabled && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Título (opcional)</Label>
+                <Input
+                  value={(props.featuredCategoriesLabel as string) || ''}
+                  onChange={(e) => updateProp('featuredCategoriesLabel', e.target.value)}
+                  placeholder="Ex: Destaques"
+                  className="h-9 text-sm"
+                />
+              </div>
+              
+              {/* Selected categories with ordering */}
+              {featuredCategories.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Ordem de exibição</Label>
+                  <div className="space-y-1 border rounded-lg p-2">
+                    {featuredCategories.map((cat: any, idx) => (
+                      <div key={cat.id} className="flex items-center justify-between bg-muted/50 rounded px-2 py-1.5">
+                        <span className="text-xs">{cat.name}</span>
+                        <div className="flex items-center gap-0.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            disabled={idx === 0}
+                            onClick={() => moveFeaturedCategory(cat.id, 'up')}
+                          >
+                            <ArrowUp className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            disabled={idx === featuredCategories.length - 1}
+                            onClick={() => moveFeaturedCategory(cat.id, 'down')}
+                          >
+                            <ArrowDown className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive"
+                            onClick={() => toggleFeaturedCategory(cat.id)}
+                          >
+                            ✕
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Category selection */}
+              <div className="space-y-1.5">
+                <Label className="text-xs">Selecionar categorias</Label>
+                {isLoading ? (
+                  <p className="text-xs text-muted-foreground">Carregando...</p>
+                ) : categories && categories.length > 0 ? (
+                  <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-1">
+                    {categories.map((cat: any) => {
+                      const isSelected = featuredCategoryIds.includes(cat.id);
+                      return (
+                        <label 
+                          key={cat.id} 
+                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleFeaturedCategory(cat.id)}
+                          />
+                          <span className="text-xs">{cat.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhuma categoria disponível</p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function HeaderFooterPropsEditor({
   definition,
   props,
@@ -98,6 +304,7 @@ export function HeaderFooterPropsEditor({
     style: true,
     colors: false,
     menuColors: false,
+    categories: false,
     contact: false,
     general: false,
     notice: false,
@@ -395,6 +602,17 @@ export function HeaderFooterPropsEditor({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            <Separator />
+
+            {/* === CATEGORIAS NO CABEÇALHO === */}
+            <CategoriesSection 
+              props={props}
+              updateProp={updateProp}
+              tenantId={tenantId}
+              openSections={openSections}
+              toggleSection={toggleSection}
+            />
 
             <Separator />
 
