@@ -33,8 +33,12 @@ import { ProductImageManager } from './ProductImageManager';
 const productSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
   sku: z.string().min(1, 'SKU é obrigatório').max(100),
-  slug: z.string().min(2, 'Slug deve ter no mínimo 2 caracteres').max(200)
-    .regex(/^[a-z0-9-]+$/, 'Slug deve conter apenas letras minúsculas, números e hífens'),
+  slug: z.string().min(1, 'Slug é obrigatório').max(200)
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$|^[a-z0-9]$/, 'Slug deve conter apenas letras minúsculas, números e hífens (sem espaços ou caracteres especiais)')
+    .refine(
+      (slug) => !['admin', 'api', 'auth', 'cart', 'checkout', 'store', 'login', 'logout', 'register', 'signup', 'settings', 'profile', 'dashboard', 'null', 'undefined', 'new', 'edit', 'delete', 'create'].includes(slug),
+      { message: 'Este slug é reservado e não pode ser usado' }
+    ),
   description: z.string().max(10000).nullable().optional(),
   short_description: z.string().max(500).nullable().optional(),
   cost_price: z.coerce.number().min(0).nullable().optional(),
