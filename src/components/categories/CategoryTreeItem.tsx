@@ -3,8 +3,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { Category } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, GripVertical, Pencil, Trash2, FolderOpen, Folder } from 'lucide-react';
+import { ChevronRight, ChevronDown, GripVertical, Pencil, Trash2, FolderOpen, Folder, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getPublicCategoryUrl } from '@/lib/publicUrls';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CategoryTreeItemProps {
   category: Category;
@@ -29,6 +31,8 @@ export function CategoryTreeItem({
   isOver,
   isDragging,
 }: CategoryTreeItemProps) {
+  const { currentTenant } = useAuth();
+  
   const {
     attributes,
     listeners,
@@ -40,6 +44,13 @@ export function CategoryTreeItem({
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+  };
+
+  const handlePreview = () => {
+    if (currentTenant && category.slug) {
+      const url = getPublicCategoryUrl(currentTenant.slug, category.slug, true);
+      if (url) window.open(url, '_blank');
+    }
   };
 
   return (
@@ -108,6 +119,11 @@ export function CategoryTreeItem({
 
       {/* Actions */}
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {category.is_active && category.slug && (
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handlePreview} title="Visualizar">
+            <Eye className="h-4 w-4" />
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
         </Button>

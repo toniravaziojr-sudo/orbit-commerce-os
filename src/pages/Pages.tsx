@@ -18,6 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { getPublicPageUrl } from '@/lib/publicUrls';
 import type { Json } from '@/integrations/supabase/types';
 
 export default function Pages() {
@@ -356,9 +357,9 @@ export default function Pages() {
                       >
                         <LayoutTemplate className="h-4 w-4" />
                       </Button>
-                      {page.is_published && (
+                      {page.is_published && currentTenant && (
                         <a 
-                          href={`/store/${currentTenant?.slug}/page/${page.slug}`} 
+                          href={getPublicPageUrl(currentTenant.slug, page.slug) || '#'} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >

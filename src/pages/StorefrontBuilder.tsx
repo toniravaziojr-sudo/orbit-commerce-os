@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { buildMenuItemUrl, getPreviewUrlForEditor, getPublicHomeUrl } from '@/lib/publicUrls';
 import {
   Tooltip,
   TooltipContent,
@@ -108,24 +109,10 @@ export default function StorefrontBuilder() {
     enabled: !!currentTenant?.id && !!editingPageType,
   });
 
-  // Helper to build menu item URL
-  const buildMenuItemUrl = (item: any): string => {
-    const baseUrl = currentTenant ? `/store/${currentTenant.slug}` : '';
-    
-    if (item.item_type === 'external' && item.url) {
-      return item.url;
-    }
-    if (item.item_type === 'category' && item.ref_id) {
-      const category = categoriesData?.find(c => c.id === item.ref_id);
-      return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
-    }
-    if (item.item_type === 'page' && item.ref_id) {
-      const page = pagesData?.find(p => p.id === item.ref_id);
-      if (page) {
-        return `${baseUrl}/page/${page.slug}`;
-      }
-    }
-    return item.url || baseUrl;
+  // Helper to build menu item URL using centralized utility
+  const getMenuItemUrl = (item: any): string => {
+    if (!currentTenant) return '';
+    return buildMenuItemUrl(currentTenant.slug, item, categoriesData || [], pagesData || []);
   };
 
   // If editing a specific page type, show the builder
@@ -142,7 +129,7 @@ export default function StorefrontBuilder() {
       headerMenu: headerMenuData?.map(item => ({
         id: item.id,
         label: item.label,
-        url: buildMenuItemUrl(item),
+        url: getMenuItemUrl(item),
       })) || [],
     };
 
@@ -169,15 +156,7 @@ export default function StorefrontBuilder() {
 
   const getPreviewUrl = (pageType: PageType) => {
     if (!currentTenant) return '#';
-    const base = `/store/${currentTenant.slug}`;
-    switch (pageType) {
-      case 'home': return `${base}?preview=1`;
-      case 'category': return `${base}/c/exemplo?preview=1`;
-      case 'product': return `${base}/p/exemplo?preview=1`;
-      case 'cart': return `${base}/cart?preview=1`;
-      case 'checkout': return `${base}/checkout?preview=1`;
-      default: return `${base}?preview=1`;
-    }
+    return getPreviewUrlForEditor(currentTenant.slug, pageType);
   };
 
   // Otherwise, show the template list (management view)
