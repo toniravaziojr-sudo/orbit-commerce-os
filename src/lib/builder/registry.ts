@@ -291,15 +291,21 @@ const blockDefinitions: BlockDefinition[] = [
       menuTextColor: '',
       // Sticky mobile
       stickyOnMobile: true,
-      // Aviso Geral (notice bar)
+      // Contato no cabeçalho
+      showWhatsApp: false,
+      whatsAppNumber: '',
+      whatsAppLabel: '',
+      showPhone: false,
+      phoneNumber: '',
+      phoneLabel: '',
+      // Barra Superior (Aviso Geral)
       noticeEnabled: false,
       noticeText: '',
       noticeBgColor: '#1e40af',
       noticeTextColor: '#ffffff',
       noticeAnimation: 'fade',
-      // Aviso Geral action
+      // Barra Superior - ação
       noticeActionEnabled: false,
-      noticeActionType: 'link',
       noticeActionLabel: '',
       noticeActionUrl: '',
       noticeActionTarget: '_self',
@@ -370,15 +376,46 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Mostrar Carrinho',
         defaultValue: true,
       },
-      // === AVISO GERAL ===
+      // === CONTATO NO CABEÇALHO ===
+      showWhatsApp: {
+        type: 'boolean',
+        label: 'Mostrar WhatsApp',
+        defaultValue: false,
+      },
+      whatsAppNumber: {
+        type: 'string',
+        label: 'Número do WhatsApp',
+        placeholder: 'Ex: 5511999999999',
+      },
+      whatsAppLabel: {
+        type: 'string',
+        label: 'Texto do WhatsApp (opcional)',
+        placeholder: 'Ex: WhatsApp',
+      },
+      showPhone: {
+        type: 'boolean',
+        label: 'Mostrar Telefone',
+        defaultValue: false,
+      },
+      phoneNumber: {
+        type: 'string',
+        label: 'Número do Telefone',
+        placeholder: 'Ex: +55 (11) 99999-9999',
+      },
+      phoneLabel: {
+        type: 'string',
+        label: 'Texto do Telefone (opcional)',
+        placeholder: 'Ex: Atendimento',
+      },
+      // === BARRA SUPERIOR (AVISO GERAL) ===
       noticeEnabled: {
         type: 'boolean',
-        label: '📢 Exibir Aviso Geral',
+        label: 'Exibir Barra Superior',
         defaultValue: false,
       },
       noticeText: {
         type: 'string',
-        label: 'Texto do Aviso',
+        label: 'Texto',
         placeholder: 'Ex: Frete grátis em compras acima de R$199!',
       },
       noticeBgColor: {
@@ -401,20 +438,11 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Slide', value: 'slide' },
         ],
       },
-      // Aviso Geral action
+      // Barra Superior - ação
       noticeActionEnabled: {
         type: 'boolean',
-        label: '🔗 Exibir Ação (Link/Botão)',
+        label: 'Exibir Ação',
         defaultValue: false,
-      },
-      noticeActionType: {
-        type: 'select',
-        label: 'Tipo de Ação',
-        defaultValue: 'link',
-        options: [
-          { label: 'Link', value: 'link' },
-          { label: 'Botão', value: 'button' },
-        ],
       },
       noticeActionLabel: {
         type: 'string',
