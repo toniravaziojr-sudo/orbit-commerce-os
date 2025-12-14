@@ -46,10 +46,18 @@ export function VisualBuilder({
   const [exampleCategoryId, setExampleCategoryId] = useState<string>('');
 
   // Get initial content from prop or default template
-  const startingContent = initialContent || getDefaultTemplate(pageType);
+  const startingContent = useMemo(() => 
+    initialContent || getDefaultTemplate(pageType),
+    [initialContent, pageType]
+  );
 
   // Builder store for state management
   const store = useBuilderStore(startingContent);
+
+  // Sync content when template changes (e.g. navigating between page types)
+  useEffect(() => {
+    store.setContent(startingContent);
+  }, [pageType, startingContent]);
 
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
