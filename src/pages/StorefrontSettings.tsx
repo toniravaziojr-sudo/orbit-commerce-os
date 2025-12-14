@@ -119,7 +119,7 @@ export default function StorefrontSettings() {
               </p>
             </div>
           </div>
-          <Link to="/storefront/builder">
+          <Link to="/storefront/builder?edit=home">
             <Button>
               Abrir Editor
               <ArrowRight className="ml-2 h-4 w-4" />
