@@ -1,6 +1,7 @@
 // =============================================
 // HEADER/FOOTER PROPS EDITOR - Context-aware editing
 // Home: Full global config | Other pages: Page-specific overrides
+// Checkout: Separate layout (not synced with global)
 // =============================================
 
 import { BlockDefinition } from '@/lib/builder/types';
@@ -9,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Globe, Settings, Info, RotateCcw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PropsEditor } from './PropsEditor';
 import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
@@ -45,7 +47,7 @@ export function HeaderFooterPropsEditor({
   pageType,
   pageId,
 }: HeaderFooterPropsEditorProps) {
-  // Fetch page overrides
+  // Fetch page overrides (only for non-home, non-checkout pages)
   const { 
     overrides, 
     isLoading, 
@@ -64,7 +66,7 @@ export function HeaderFooterPropsEditor({
     ? Boolean(overrides.header?.noticeEnabled) 
     : globalNoticeEnabled;
 
-  // Handle toggle change
+  // Handle toggle change - only creates override, never modifies global
   const handleNoticeToggle = async (checked: boolean) => {
     try {
       await updateHeaderOverrides.mutateAsync({ noticeEnabled: checked });
@@ -74,7 +76,7 @@ export function HeaderFooterPropsEditor({
     }
   };
 
-  // Handle revert to global
+  // Handle revert to global - removes override
   const handleRevertToGlobal = async () => {
     try {
       await clearHeaderOverride.mutateAsync('noticeEnabled');
@@ -84,21 +86,48 @@ export function HeaderFooterPropsEditor({
     }
   };
 
-  // Checkout pages have their own separate header/footer, show full editor
+  // =========================================
+  // CHECKOUT: Separate layout (not global)
+  // =========================================
   if (isCheckoutPage) {
     return (
-      <PropsEditor
-        definition={definition}
-        props={props}
-        onChange={onChange}
-        onDelete={onDelete}
-        onDuplicate={onDuplicate}
-        canDelete={canDelete}
-      />
+      <div className="h-full flex flex-col border-l">
+        {/* Header with Checkout-specific indicator */}
+        <div className="p-4 border-b bg-amber-500/10">
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-amber-600" />
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                {definition.label}
+                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-300">
+                  Checkout
+                </Badge>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Layout separado do global (apenas checkout)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Full props editor for checkout config */}
+        <div className="flex-1 overflow-hidden">
+          <PropsEditor
+            definition={definition}
+            props={props}
+            onChange={onChange}
+            onDelete={onDelete}
+            onDuplicate={onDuplicate}
+            canDelete={canDelete}
+          />
+        </div>
+      </div>
     );
   }
 
-  // Home page: show full global configuration
+  // =========================================
+  // HOME: Global configuration
+  // =========================================
   if (isHomePage) {
     return (
       <div className="h-full flex flex-col border-l">
@@ -109,12 +138,12 @@ export function HeaderFooterPropsEditor({
             <div>
               <h3 className="font-semibold text-sm flex items-center gap-2">
                 {definition.label}
-                <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                  Global
-                </span>
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                  Configuração Global
+                </Badge>
               </h3>
               <p className="text-xs text-muted-foreground">
-                Configurações aplicadas em todas as páginas
+                Afeta todas as páginas (exceto Checkout)
               </p>
             </div>
           </div>
@@ -135,16 +164,25 @@ export function HeaderFooterPropsEditor({
     );
   }
 
-  // Other pages: show page-specific overrides panel (placeholder for now)
+  // =========================================
+  // OTHER PAGES: Page-specific overrides only
+  // =========================================
   return (
     <div className="h-full flex flex-col border-l">
       {/* Header */}
       <div className="p-4 border-b bg-muted/30">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{definition.icon}</span>
+          <Settings className="h-5 w-5 text-muted-foreground" />
           <div>
-            <h3 className="font-semibold text-sm">{definition.label}</h3>
-            <p className="text-xs text-muted-foreground">Opções desta página</p>
+            <h3 className="font-semibold text-sm flex items-center gap-2">
+              {definition.label}
+              <Badge variant="outline" className="bg-muted text-muted-foreground">
+                Opções desta página
+              </Badge>
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Não altera configuração global
+            </p>
           </div>
         </div>
       </div>
@@ -161,12 +199,12 @@ export function HeaderFooterPropsEditor({
 
           <Separator />
 
-          {/* Page-specific overrides section */}
+          {/* Page-specific overrides section - Header only */}
           {blockType === 'Header' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Settings className="h-4 w-4" />
-                Configurações desta página
+                Personalizações desta página
               </div>
 
               {/* Notice Toggle Override */}
@@ -179,7 +217,7 @@ export function HeaderFooterPropsEditor({
                     <p className="text-xs text-muted-foreground">
                       {hasNoticeOverride 
                         ? 'Usando configuração desta página' 
-                        : 'Herdando configuração global'}
+                        : 'Herdando do global'}
                     </p>
                   </div>
                   <Switch
@@ -190,9 +228,26 @@ export function HeaderFooterPropsEditor({
                   />
                 </div>
 
-                {/* Show revert button if there's an override */}
+                {/* Inheritance indicator when no override */}
+                {!hasNoticeOverride && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: {globalNoticeEnabled ? 'Ativado' : 'Desativado'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Override indicator when override exists */}
                 {hasNoticeOverride && (
-                  <div className="pt-2 border-t">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
                     <Button
                       variant="ghost"
                       size="sm"
@@ -201,16 +256,8 @@ export function HeaderFooterPropsEditor({
                       disabled={clearHeaderOverride.isPending}
                     >
                       <RotateCcw className="h-3 w-3" />
-                      Reverter para global
+                      Voltar ao global
                     </Button>
-                  </div>
-                )}
-
-                {/* Show global status indicator */}
-                {!hasNoticeOverride && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="h-2 w-2 rounded-full bg-primary/50" />
-                    Global: {globalNoticeEnabled ? 'Ativado' : 'Desativado'}
                   </div>
                 )}
               </div>
