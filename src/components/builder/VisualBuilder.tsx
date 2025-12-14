@@ -111,13 +111,21 @@ export function VisualBuilder({
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
 
-  // Build context with example data
-  const builderContext = useMemo<BlockRenderContext>(() => ({
-    ...context,
-    // Override with example IDs when editing Product/Category templates
-    ...(pageType === 'product' && exampleProductId ? { productId: exampleProductId, productSlug: exampleProductId } : {}),
-    ...(pageType === 'category' && exampleCategoryId ? { categoryId: exampleCategoryId, categorySlug: exampleCategoryId } : {}),
-  }), [context, pageType, exampleProductId, exampleCategoryId]);
+  // Build context with example data - include proper category object for builder
+  const builderContext = useMemo<BlockRenderContext>(() => {
+    const ctx = { ...context };
+    
+    // For Category template, add category context with the selected example
+    if (pageType === 'category' && exampleCategoryId) {
+      ctx.category = { 
+        id: exampleCategoryId, 
+        slug: '', // Slug not needed for ProductGridBlock, it uses id
+        name: '' 
+      };
+    }
+    
+    return ctx;
+  }, [context, pageType, exampleProductId, exampleCategoryId]);
 
   // Warn before leaving with unsaved changes
   useEffect(() => {

@@ -88,10 +88,11 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
   const [overId, setOverId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
+  // Use a higher distance threshold to prevent accidental drags when clicking buttons
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 15, // Increased from 8 to 15 to reduce accidental drags
       },
     }),
     useSensor(KeyboardSensor, {

@@ -26,7 +26,33 @@ export default function StorefrontPage() {
   const publicPage = usePublicPageTemplate(tenantSlug || '', pageSlug || '');
   const previewPage = usePreviewPageTemplate(tenantSlug || '', pageSlug || '');
   
+  // Select appropriate data based on mode
   const pageData = isPreviewMode ? previewPage : publicPage;
+
+  // Apply SEO meta tags (only for public pages with SEO fields)
+  useEffect(() => {
+    if (!pageData.isLoading && pageData.content && 'metaTitle' in pageData) {
+      const currentUrl = window.location.href;
+      const seo = getEffectiveSeo(
+        {
+          metaTitle: pageData.metaTitle,
+          metaDescription: pageData.metaDescription,
+          metaImageUrl: pageData.metaImageUrl,
+          noIndex: pageData.noIndex,
+          canonicalUrl: pageData.canonicalUrl,
+          title: pageData.pageTitle || undefined,
+          type: pageData.pageType,
+        },
+        {
+          storeName: storeSettings?.store_name,
+          storeDescription: storeSettings?.store_description,
+          logoUrl: storeSettings?.logo_url,
+        },
+        currentUrl
+      );
+      applySeoToDocument(seo);
+    }
+  }, [pageData, storeSettings]);
 
   // Loading state
   if (pageData.isLoading || storeLoading) {
@@ -73,31 +99,6 @@ export default function StorefrontPage() {
       />
     );
   }
-
-  // Apply SEO meta tags (only for public pages with SEO fields)
-  useEffect(() => {
-    if (!pageData.isLoading && pageData.content && 'metaTitle' in pageData) {
-      const currentUrl = window.location.href;
-      const seo = getEffectiveSeo(
-        {
-          metaTitle: pageData.metaTitle,
-          metaDescription: pageData.metaDescription,
-          metaImageUrl: pageData.metaImageUrl,
-          noIndex: pageData.noIndex,
-          canonicalUrl: pageData.canonicalUrl,
-          title: pageData.pageTitle || undefined,
-          type: pageData.pageType,
-        },
-        {
-          storeName: storeSettings?.store_name,
-          storeDescription: storeSettings?.store_description,
-          logoUrl: storeSettings?.logo_url,
-        },
-        currentUrl
-      );
-      applySeoToDocument(seo);
-    }
-  }, [pageData, storeSettings]);
 
   // Build context for block rendering
   const context: BlockRenderContext = {
