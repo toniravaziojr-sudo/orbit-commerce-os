@@ -29,15 +29,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, ArrowLeft, ImageIcon } from 'lucide-react';
 import { ProductImageManager } from './ProductImageManager';
+import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 
 const productSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
   sku: z.string().min(1, 'SKU é obrigatório').max(100),
   slug: z.string().min(1, 'Slug é obrigatório').max(200)
-    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$|^[a-z0-9]$/, 'Slug deve conter apenas letras minúsculas, números e hífens (sem espaços ou caracteres especiais)')
     .refine(
-      (slug) => !['admin', 'api', 'auth', 'cart', 'checkout', 'store', 'login', 'logout', 'register', 'signup', 'settings', 'profile', 'dashboard', 'null', 'undefined', 'new', 'edit', 'delete', 'create'].includes(slug),
-      { message: 'Este slug é reservado e não pode ser usado' }
+      (slug) => validateSlugFormat(slug).isValid,
+      (slug) => ({ message: validateSlugFormat(slug).error || 'Slug inválido' })
     ),
   description: z.string().max(10000).nullable().optional(),
   short_description: z.string().max(500).nullable().optional(),
@@ -139,16 +139,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
   const isLoading = createProduct.isPending || updateProduct.isPending;
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-  };
+  // Use centralized slug generation from slugPolicy
+  const generateSlug = generateSlugFromPolicy;
 
   const handleNameChange = (name: string) => {
     form.setValue('name', name);
