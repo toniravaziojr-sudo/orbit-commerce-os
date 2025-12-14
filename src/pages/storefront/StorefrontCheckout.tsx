@@ -76,6 +76,7 @@ export default function StorefrontCheckout() {
       error={template.error}
       isPreviewMode={isPreviewMode}
       canPreview={canPreview}
+      isCheckout={true}
     />
   );
 }
