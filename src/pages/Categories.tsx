@@ -3,10 +3,12 @@ import { useCategories, Category } from '@/hooks/useProducts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, FolderTree, Package } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryTree } from '@/components/categories/CategoryTree';
 import { CategoryForm } from '@/components/categories/CategoryForm';
+import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
 import { toast } from 'sonner';
 
 const emptyFormData = {
@@ -27,6 +29,7 @@ export default function Categories() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState(emptyFormData);
+  const [activeTab, setActiveTab] = useState<'details' | 'products'>('details');
 
   // All categories can be parents (for multiple levels)
   const parentCategories = useMemo(() => categories || [], [categories]);
@@ -35,6 +38,7 @@ export default function Categories() {
     setFormData(emptyFormData);
     setEditingCategory(null);
     setShowForm(false);
+    setActiveTab('details');
   };
 
   const handleCreate = () => {
@@ -139,7 +143,7 @@ export default function Categories() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Category Tree with Drag & Drop */}
         <div className="lg:col-span-1">
           <CategoryTree
@@ -150,22 +154,56 @@ export default function Categories() {
           />
         </div>
 
-        {/* Category Form */}
-        <div className="lg:col-span-1">
+        {/* Category Form / Products Manager */}
+        <div className="lg:col-span-2">
           {showForm ? (
-            <CategoryForm
-              formData={formData}
-              onChange={setFormData}
-              onSubmit={handleSubmit}
-              onClose={resetForm}
-              isEditing={!!editingCategory}
-              parentCategories={parentCategories}
-              editingCategoryId={editingCategory?.id}
-              isLoading={createCategory.isPending || updateCategory.isPending}
-            />
+            editingCategory ? (
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'products')}>
+                <TabsList className="mb-4">
+                  <TabsTrigger value="details" className="flex items-center gap-2">
+                    <FolderTree className="h-4 w-4" />
+                    Detalhes
+                  </TabsTrigger>
+                  <TabsTrigger value="products" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Produtos
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="details">
+                  <CategoryForm
+                    formData={formData}
+                    onChange={setFormData}
+                    onSubmit={handleSubmit}
+                    onClose={resetForm}
+                    isEditing={!!editingCategory}
+                    parentCategories={parentCategories}
+                    editingCategoryId={editingCategory?.id}
+                    isLoading={createCategory.isPending || updateCategory.isPending}
+                  />
+                </TabsContent>
+                <TabsContent value="products">
+                  <CategoryProductsManager
+                    categoryId={editingCategory.id}
+                    categoryName={editingCategory.name}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <CategoryForm
+                formData={formData}
+                onChange={setFormData}
+                onSubmit={handleSubmit}
+                onClose={resetForm}
+                isEditing={false}
+                parentCategories={parentCategories}
+                editingCategoryId={undefined}
+                isLoading={createCategory.isPending}
+              />
+            )
           ) : (
             <div className="flex items-center justify-center h-64 border-2 border-dashed rounded-lg">
               <div className="text-center">
+                <FolderTree className="h-12 w-12 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-muted-foreground mb-2">
                   Selecione uma categoria para editar
                 </p>
@@ -184,7 +222,8 @@ export default function Categories() {
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir categoria?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Os produtos vinculados a esta categoria não serão excluídos.
+              Esta ação não pode ser desfeita. Os produtos vinculados a esta categoria não serão excluídos,
+              apenas o vínculo será removido.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
