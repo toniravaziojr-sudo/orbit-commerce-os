@@ -83,8 +83,10 @@ function ColorInput({
   );
 }
 
-// Categories section for global header config
-function CategoriesSection({ 
+// Featured Category section - simplified (single category/page highlight)
+// NOTE: Main menu comes from Menu Builder (Menu de Categorias - Header)
+// This is the ONLY exception where user can pick a featured category/page
+function FeaturedCategorySection({ 
   props, 
   updateProp,
   tenantId,
@@ -98,7 +100,7 @@ function CategoriesSection({
   toggleSection: (key: string) => void;
 }) {
   // Fetch categories for selection
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading: loadingCategories } = useQuery({
     queryKey: ['admin-categories', tenantId],
     queryFn: async () => {
       if (!tenantId) return [];
@@ -114,173 +116,161 @@ function CategoriesSection({
     enabled: !!tenantId,
   });
 
-  const featuredCategoryIds = (props.featuredCategoryIds as string[]) || [];
-  
-  const toggleFeaturedCategory = (categoryId: string) => {
-    const current = [...featuredCategoryIds];
-    const index = current.indexOf(categoryId);
-    if (index > -1) {
-      current.splice(index, 1);
-    } else {
-      current.push(categoryId);
-    }
-    updateProp('featuredCategoryIds', current);
-  };
+  // Fetch pages for selection
+  const { data: pages, isLoading: loadingPages } = useQuery({
+    queryKey: ['admin-pages-for-featured', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('id, title, slug, type, is_published')
+        .eq('tenant_id', tenantId)
+        .in('type', ['institutional', 'landing_page'])
+        .order('title');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
 
-  const moveFeaturedCategory = (categoryId: string, direction: 'up' | 'down') => {
-    const current = [...featuredCategoryIds];
-    const index = current.indexOf(categoryId);
-    if (index === -1) return;
-    
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= current.length) return;
-    
-    [current[index], current[newIndex]] = [current[newIndex], current[index]];
-    updateProp('featuredCategoryIds', current);
-  };
+  const isLoading = loadingCategories || loadingPages;
+  const featuredType = (props.featuredCategoryType as string) || 'category';
+  const featuredId = (props.featuredCategoryId as string) || '';
+  const featuredLabel = (props.featuredCategoryLabel as string) || '';
 
-  const featuredCategories = featuredCategoryIds
-    .map(id => (categories || []).find(c => c.id === id))
-    .filter(Boolean);
+  // Get selected item name for display
+  const selectedCategory = categories?.find(c => c.id === featuredId);
+  const selectedPage = pages?.find(p => p.id === featuredId);
+  const selectedName = featuredType === 'category' ? selectedCategory?.name : selectedPage?.title;
 
   return (
-    <Collapsible open={openSections.categories} onOpenChange={() => toggleSection('categories')}>
+    <Collapsible open={openSections.featuredCategory} onOpenChange={() => toggleSection('featuredCategory')}>
       <CollapsibleTrigger asChild>
         <Button variant="ghost" className="w-full justify-between p-3 h-auto">
           <div className="flex items-center gap-2">
-            <Grid3X3 className="h-4 w-4 text-primary" />
-            <span className="font-medium">Categorias</span>
-            {(props.showCategoriesMenu || props.featuredCategoriesEnabled) && (
+            <Star className="h-4 w-4 text-amber-500" />
+            <span className="font-medium">Categoria em Destaque</span>
+            {props.featuredCategoryEnabled && (
               <Badge variant="secondary" className="text-xs">Ativo</Badge>
             )}
           </div>
-          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.categories ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.featuredCategory ? 'rotate-180' : ''}`} />
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="px-3 pb-4 space-y-4">
-        {/* Menu Categorias Agrupadas */}
-        <div className="rounded-lg border p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Grid3X3 className="h-4 w-4 text-purple-600" />
-              <Label className="text-xs font-medium">Menu Categorias</Label>
-            </div>
-            <Switch
-              checked={Boolean(props.showCategoriesMenu)}
-              onCheckedChange={(v) => updateProp('showCategoriesMenu', v)}
-            />
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs">Exibir link em destaque</Label>
+            <p className="text-xs text-muted-foreground">Link destacado no menu do header</p>
           </div>
-          
-          {Boolean(props.showCategoriesMenu) && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Texto do menu</Label>
-              <Input
-                value={(props.categoriesMenuLabel as string) || 'Categorias'}
-                onChange={(e) => updateProp('categoriesMenuLabel', e.target.value)}
-                placeholder="Ex: Categorias"
-                className="h-9 text-sm"
-              />
-            </div>
-          )}
+          <Switch
+            checked={Boolean(props.featuredCategoryEnabled)}
+            onCheckedChange={(v) => updateProp('featuredCategoryEnabled', v)}
+          />
         </div>
-
-        {/* Categorias em Destaque */}
-        <div className="rounded-lg border p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-amber-500" />
-              <Label className="text-xs font-medium">Categorias em Destaque</Label>
+        
+        {Boolean(props.featuredCategoryEnabled) && (
+          <>
+            {/* Type selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tipo de destaque</Label>
+              <Select
+                value={featuredType}
+                onValueChange={(v) => {
+                  updateProp('featuredCategoryType', v);
+                  updateProp('featuredCategoryId', ''); // Reset selection on type change
+                }}
+              >
+                <SelectTrigger className="w-full h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="category">Categoria</SelectItem>
+                  <SelectItem value="page">Página</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Switch
-              checked={Boolean(props.featuredCategoriesEnabled)}
-              onCheckedChange={(v) => updateProp('featuredCategoriesEnabled', v)}
-            />
-          </div>
-          
-          {Boolean(props.featuredCategoriesEnabled) && (
-            <>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Título (opcional)</Label>
-                <Input
-                  value={(props.featuredCategoriesLabel as string) || ''}
-                  onChange={(e) => updateProp('featuredCategoriesLabel', e.target.value)}
-                  placeholder="Ex: Destaques"
-                  className="h-9 text-sm"
-                />
-              </div>
-              
-              {/* Selected categories with ordering */}
-              {featuredCategories.length > 0 && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Ordem de exibição</Label>
-                  <div className="space-y-1 border rounded-lg p-2">
-                    {featuredCategories.map((cat: any, idx) => (
-                      <div key={cat.id} className="flex items-center justify-between bg-muted/50 rounded px-2 py-1.5">
-                        <span className="text-xs">{cat.name}</span>
-                        <div className="flex items-center gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            disabled={idx === 0}
-                            onClick={() => moveFeaturedCategory(cat.id, 'up')}
-                          >
-                            <ArrowUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            disabled={idx === featuredCategories.length - 1}
-                            onClick={() => moveFeaturedCategory(cat.id, 'down')}
-                          >
-                            <ArrowDown className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-destructive"
-                            onClick={() => toggleFeaturedCategory(cat.id)}
-                          >
-                            ✕
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              {/* Category selection */}
-              <div className="space-y-1.5">
-                <Label className="text-xs">Selecionar categorias</Label>
-                {isLoading ? (
-                  <p className="text-xs text-muted-foreground">Carregando...</p>
-                ) : categories && categories.length > 0 ? (
-                  <div className="max-h-40 overflow-y-auto border rounded-lg p-2 space-y-1">
-                    {categories.map((cat: any) => {
-                      const isSelected = featuredCategoryIds.includes(cat.id);
-                      return (
-                        <label 
-                          key={cat.id} 
-                          className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 cursor-pointer"
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => toggleFeaturedCategory(cat.id)}
-                          />
-                          <span className="text-xs">{cat.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
+
+            {/* Selection based on type */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                {featuredType === 'category' ? 'Selecionar categoria' : 'Selecionar página'}
+              </Label>
+              {isLoading ? (
+                <p className="text-xs text-muted-foreground">Carregando...</p>
+              ) : featuredType === 'category' ? (
+                categories && categories.length > 0 ? (
+                  <Select
+                    value={featuredId}
+                    onValueChange={(v) => updateProp('featuredCategoryId', v)}
+                  >
+                    <SelectTrigger className="w-full h-9 text-sm">
+                      <SelectValue placeholder="Selecione uma categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <p className="text-xs text-muted-foreground">Nenhuma categoria disponível</p>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                )
+              ) : (
+                pages && pages.length > 0 ? (
+                  <Select
+                    value={featuredId}
+                    onValueChange={(v) => updateProp('featuredCategoryId', v)}
+                  >
+                    <SelectTrigger className="w-full h-9 text-sm">
+                      <SelectValue placeholder="Selecione uma página" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pages.map((page) => (
+                        <SelectItem key={page.id} value={page.id}>
+                          {page.title}
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({page.type === 'landing_page' ? 'Landing' : 'Institucional'})
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Nenhuma página disponível</p>
+                )
+              )}
+              
+              {props.featuredCategoryEnabled && !featuredId && (
+                <p className="text-xs text-amber-600">⚠️ Selecione um item para exibir</p>
+              )}
+            </div>
+
+            {/* Custom label */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Texto personalizado (opcional)</Label>
+              <Input
+                value={featuredLabel}
+                onChange={(e) => updateProp('featuredCategoryLabel', e.target.value)}
+                placeholder={selectedName || 'Ex: Novidades'}
+                className="h-9 text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Deixe vazio para usar o nome original
+              </p>
+            </div>
+
+            {/* Color */}
+            <ColorInput
+              label="Cor do texto"
+              value={(props.featuredCategoryTextColor as string) || ''}
+              onChange={(v) => updateProp('featuredCategoryTextColor', v)}
+              placeholder="Padrão do header"
+            />
+          </>
+        )}
       </CollapsibleContent>
     </Collapsible>
   );
@@ -457,7 +447,7 @@ export function HeaderFooterPropsEditor({
     style: true,
     colors: false,
     menuColors: false,
-    categories: false,
+    featuredCategory: false,
     contact: false,
     customerArea: false,
     promos: false,
@@ -679,8 +669,10 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === CATEGORIAS NO CABEÇALHO === */}
-            <CategoriesSection 
+            {/* === CATEGORIA EM DESTAQUE === */}
+            {/* NOTE: O menu principal vem do Menu Builder (Menus > Menu Header). */}
+            {/* Esta seção é a ÚNICA exceção para destacar uma categoria/página específica. */}
+            <FeaturedCategorySection 
               props={props}
               updateProp={updateProp}
               tenantId={tenantId}
