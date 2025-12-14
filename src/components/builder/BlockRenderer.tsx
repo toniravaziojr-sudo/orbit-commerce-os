@@ -391,7 +391,8 @@ function HeaderBlock({
   featuredPromosEnabled = false,
   featuredPromosLabel = 'Promoções',
   featuredPromosTextColor = '#d97706',
-  featuredPromosPageSlug = '',
+  featuredPromosPageId = '',
+  featuredPromosPageSlug = '', // Legacy support
   // Notice bar props
   noticeEnabled = false,
   noticeText = '',
@@ -488,6 +489,25 @@ function HeaderBlock({
     },
     enabled: !!context?.tenantSlug && (showCategoriesMenu || featuredCategoriesEnabled),
   });
+  
+  // Fetch promo page by ID
+  const { data: promoPage } = useQuery({
+    queryKey: ['header-promo-page', featuredPromosPageId],
+    queryFn: async () => {
+      if (!featuredPromosPageId) return null;
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('id, slug, title, is_published')
+        .eq('id', featuredPromosPageId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!featuredPromosPageId && featuredPromosEnabled,
+  });
+  
+  // Effective promo slug: use fetched page or legacy slug
+  const effectivePromoSlug = promoPage?.slug || featuredPromosPageSlug || '';
   
   const displayItems = menuItems || context?.headerMenu || [];
   
@@ -851,20 +871,21 @@ function HeaderBlock({
     if (!featuredPromosEnabled && !isEditing) return null;
     
     const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
-    const hasValidPage = featuredPromosPageSlug && featuredPromosPageSlug.trim().length > 0;
+    const hasValidPage = effectivePromoSlug && effectivePromoSlug.trim().length > 0;
     
     // In editor, show warning if no page configured
     if (isEditing && featuredPromosEnabled && !hasValidPage) {
       return (
-        <span className="text-sm text-amber-500 opacity-70">[Promoções: defina o slug da página]</span>
+        <span className="text-sm text-amber-500 opacity-70">[Promoções: selecione uma página]</span>
       );
     }
     
+    // Don't render if no valid page AND not editing
     if (!hasValidPage && !isEditing) return null;
     
     return (
       <a
-        href={`${baseUrl}/page/${featuredPromosPageSlug}`}
+        href={`${baseUrl}/page/${effectivePromoSlug}`}
         className={cn(
           "text-sm font-medium hover:opacity-70 transition-opacity",
           !featuredPromosEnabled && isEditing && "opacity-40"

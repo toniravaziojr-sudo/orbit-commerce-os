@@ -311,7 +311,8 @@ const blockDefinitions: BlockDefinition[] = [
       featuredPromosEnabled: false,
       featuredPromosLabel: 'Promoções',
       featuredPromosTextColor: '#d97706',
-      featuredPromosPageSlug: '',
+      featuredPromosPageId: '',
+      featuredPromosPageSlug: '', // Legacy support
       // Barra Superior (Aviso Geral)
       noticeEnabled: false,
       noticeText: '',
@@ -478,11 +479,12 @@ const blockDefinitions: BlockDefinition[] = [
         defaultValue: '#d97706',
         placeholder: 'Ex: #d97706 (dourado)',
       },
-      featuredPromosPageSlug: {
+      featuredPromosPageId: {
         type: 'string',
-        label: 'Slug da página de promoções',
-        placeholder: 'Ex: promocoes',
+        label: 'Página de promoções',
+        placeholder: 'Selecione uma página',
       },
+      // Legacy prop - removed from schema as editor manages via ID now
       // === BARRA SUPERIOR (AVISO GERAL) ===
       noticeEnabled: {
         type: 'boolean',
