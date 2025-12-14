@@ -12,6 +12,7 @@ import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
+import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -670,11 +671,11 @@ function HeaderBlock({
   const renderCustomerArea = (textColor?: string) => {
     if (!customerAreaEnabled) return null;
     
-    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
+    const customerAreaUrl = context?.tenantSlug ? getPublicMyOrdersUrl(context.tenantSlug) : '/minhas-compras';
     
     return (
       <a
-        href={`${baseUrl}/minhas-compras`}
+        href={customerAreaUrl}
         className="text-sm hover:opacity-70 transition-opacity flex items-center gap-1"
         style={{ color: textColor || undefined }}
         onClick={(e) => isEditing && e.preventDefault()}
@@ -689,15 +690,18 @@ function HeaderBlock({
   const renderFeaturedPromos = (defaultTextColor?: string) => {
     if (!featuredPromosEnabled) return null;
     
-    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
     const hasValidPage = effectivePromoSlug && effectivePromoSlug.trim().length > 0;
     
     // Don't render if no valid page
     if (!hasValidPage) return null;
     
+    const promoUrl = context?.tenantSlug 
+      ? getPublicPageUrl(context.tenantSlug, effectivePromoSlug) || '#'
+      : '#';
+    
     return (
       <a
-        href={`${baseUrl}/page/${effectivePromoSlug}`}
+        href={promoUrl}
         className="text-sm font-medium hover:opacity-70 transition-opacity"
         style={{ color: featuredPromosTextColor || defaultTextColor || '#d97706' }}
         onClick={(e) => isEditing && e.preventDefault()}

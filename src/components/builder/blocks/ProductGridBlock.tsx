@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
@@ -172,7 +173,7 @@ export function ProductGridBlock({
       {products.map((product) => (
         <a
           key={product.id}
-          href={isEditing ? undefined : `/store/${tenantSlug}/p/${product.slug}`}
+          href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
           className={cn(
             'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
             isEditing && 'pointer-events-none'

@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { getPublicCategoryUrl } from '@/lib/publicUrls';
 
 interface CategoryListBlockProps {
   source?: 'all' | 'parent' | 'featured';
@@ -121,7 +122,7 @@ export function CategoryListBlock({
         {categories.map((category) => (
           <a
             key={category.id}
-            href={isEditing ? undefined : `/store/${tenantSlug}/c/${category.slug}`}
+            href={isEditing ? undefined : getPublicCategoryUrl(tenantSlug, category.slug) || undefined}
             className={cn(
               'flex items-center gap-3 p-3 bg-card rounded-lg border hover:bg-muted/50 transition-colors',
               isEditing && 'pointer-events-none'
@@ -155,7 +156,7 @@ export function CategoryListBlock({
       {categories.map((category) => (
         <a
           key={category.id}
-          href={isEditing ? undefined : `/store/${tenantSlug}/c/${category.slug}`}
+          href={isEditing ? undefined : getPublicCategoryUrl(tenantSlug, category.slug) || undefined}
           className={cn(
             'group block bg-card rounded-lg overflow-hidden border hover:shadow-md transition-shadow',
             isEditing && 'pointer-events-none'
