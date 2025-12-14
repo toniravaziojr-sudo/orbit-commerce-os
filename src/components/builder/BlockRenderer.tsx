@@ -378,6 +378,12 @@ function HeaderBlock({
   showPhone = false,
   phoneNumber = '',
   phoneLabel = '',
+  // Categories in header
+  showCategoriesMenu = false,
+  categoriesMenuLabel = 'Categorias',
+  featuredCategoriesEnabled = false,
+  featuredCategoryIds = [],
+  featuredCategoriesLabel = 'Destaques',
   // Notice bar props
   noticeEnabled = false,
   noticeText = '',
@@ -448,7 +454,47 @@ function HeaderBlock({
     enabled: !!menuId,
   });
   
+  // Fetch categories for the dropdown and featured list
+  const { data: allCategories } = useQuery({
+    queryKey: ['header-categories', context?.tenantSlug],
+    queryFn: async () => {
+      if (!context?.tenantSlug) return [];
+      // First get tenant id from slug
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', context.tenantSlug)
+        .maybeSingle();
+      
+      if (tenantError || !tenant) return [];
+      
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug, parent_id, is_active')
+        .eq('tenant_id', tenant.id)
+        .eq('is_active', true)
+        .order('sort_order');
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!context?.tenantSlug && (showCategoriesMenu || featuredCategoriesEnabled),
+  });
+  
   const displayItems = menuItems || context?.headerMenu || [];
+  
+  // Build categories for dropdown (top-level categories)
+  const topLevelCategories = (allCategories || []).filter((c: any) => !c.parent_id);
+  const getSubcategories = (parentId: string) => 
+    (allCategories || []).filter((c: any) => c.parent_id === parentId);
+  
+  // Get featured categories in order
+  const featuredCategories = (featuredCategoryIds || [])
+    .map((id: string) => (allCategories || []).find((c: any) => c.id === id))
+    .filter(Boolean);
+  
+  // Categories dropdown state
+  const [categoriesDropdownOpen, setCategoriesDropdownOpen] = useState(false);
   
   // Get animation styles based on state
   const getNoticeAnimationStyles = (): React.CSSProperties => {
@@ -650,6 +696,126 @@ function HeaderBlock({
     </div>
   );
   
+  // Render categories dropdown
+  const renderCategoriesMenu = (textColor?: string) => {
+    if (!showCategoriesMenu && !isEditing) return null;
+    
+    // If no categories, show placeholder in editor
+    if (topLevelCategories.length === 0) {
+      if (isEditing && showCategoriesMenu) {
+        return (
+          <span className="text-sm opacity-50">[Nenhuma categoria disponível]</span>
+        );
+      }
+      return null;
+    }
+    
+    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
+    
+    return (
+      <div 
+        className="relative"
+        onMouseEnter={() => setCategoriesDropdownOpen(true)}
+        onMouseLeave={() => setCategoriesDropdownOpen(false)}
+      >
+        <button
+          className={cn(
+            "text-sm font-medium hover:opacity-70 transition-opacity flex items-center gap-1",
+            !showCategoriesMenu && isEditing && "opacity-40"
+          )}
+          style={{ color: textColor || undefined }}
+          onClick={(e) => isEditing && e.preventDefault()}
+        >
+          {categoriesMenuLabel || 'Categorias'}
+          <span className="text-xs">▼</span>
+        </button>
+        
+        {/* Dropdown */}
+        {(categoriesDropdownOpen || isEditing) && (
+          <div 
+            className={cn(
+              "absolute top-full left-0 mt-1 bg-white border rounded-lg shadow-lg min-w-[200px] py-2 z-50",
+              !categoriesDropdownOpen && isEditing && "opacity-40"
+            )}
+          >
+            {topLevelCategories.map((cat: any) => {
+              const subs = getSubcategories(cat.id);
+              return (
+                <div key={cat.id} className="group relative">
+                  <a
+                    href={`${baseUrl}/c/${cat.slug}`}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
+                    onClick={(e) => isEditing && e.preventDefault()}
+                  >
+                    {cat.name}
+                    {subs.length > 0 && <span className="text-xs">›</span>}
+                  </a>
+                  
+                  {/* Subcategories */}
+                  {subs.length > 0 && (
+                    <div className="hidden group-hover:block absolute left-full top-0 bg-white border rounded-lg shadow-lg min-w-[180px] py-2">
+                      {subs.map((sub: any) => (
+                        <a
+                          key={sub.id}
+                          href={`${baseUrl}/c/${sub.slug}`}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={(e) => isEditing && e.preventDefault()}
+                        >
+                          {sub.name}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+  
+  // Render featured categories
+  const renderFeaturedCategories = (textColor?: string) => {
+    if (!featuredCategoriesEnabled && !isEditing) return null;
+    
+    // If no featured categories, show placeholder in editor
+    if (featuredCategories.length === 0) {
+      if (isEditing && featuredCategoriesEnabled) {
+        return (
+          <span className="text-sm opacity-50">[Selecione categorias em destaque]</span>
+        );
+      }
+      return null;
+    }
+    
+    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
+    
+    return (
+      <div className={cn(
+        "flex items-center gap-4 overflow-x-auto scrollbar-hide",
+        !featuredCategoriesEnabled && isEditing && "opacity-40"
+      )}>
+        {featuredCategoriesLabel && (
+          <span className="text-xs font-semibold uppercase tracking-wider opacity-70" style={{ color: textColor || undefined }}>
+            {featuredCategoriesLabel}:
+          </span>
+        )}
+        {featuredCategories.map((cat: any) => (
+          <a
+            key={cat.id}
+            href={`${baseUrl}/c/${cat.slug}`}
+            className="text-sm whitespace-nowrap hover:opacity-70 transition-opacity"
+            style={{ color: textColor || undefined }}
+            onClick={(e) => isEditing && e.preventDefault()}
+          >
+            {cat.name}
+          </a>
+        ))}
+      </div>
+    );
+  };
+  
   // Determine sticky classes based on device
   const stickyClasses = cn(
     // Desktop sticky
@@ -662,6 +828,9 @@ function HeaderBlock({
   
   // Check if we have any contact items to show
   const hasContactItems = isWhatsAppValid || isPhoneValid || ((showWhatsApp || showPhone) && isEditing);
+  
+  // Check if we have category items to show
+  const hasCategoryItems = (showCategoriesMenu && topLevelCategories.length > 0) || (featuredCategoriesEnabled && featuredCategories.length > 0) || (isEditing && (showCategoriesMenu || featuredCategoriesEnabled));
   
   return (
     <div className={stickyClasses}>
@@ -696,7 +865,9 @@ function HeaderBlock({
               )}
             </div>
             <nav className="hidden md:flex items-center gap-6">
+              {renderCategoriesMenu(headerTextColor)}
               {renderMenuItems(headerTextColor)}
+              {renderFeaturedCategories(headerTextColor)}
             </nav>
             <div className="flex items-center gap-4">
               {hasContactItems && (
@@ -722,13 +893,15 @@ function HeaderBlock({
               {renderIcons()}
             </div>
           </header>
-          {/* Menu bar below */}
+          {/* Menu bar below with categories */}
           <nav 
             className="hidden md:block border-b"
             style={menuBarStyles}
           >
             <div className="container mx-auto px-4 py-2 flex items-center gap-6">
+              {renderCategoriesMenu(menuTextColor || headerTextColor)}
               {renderMenuItems(menuTextColor || headerTextColor)}
+              {renderFeaturedCategories(menuTextColor || headerTextColor)}
             </div>
           </nav>
         </>
@@ -751,13 +924,15 @@ function HeaderBlock({
               </div>
             </div>
           </header>
-          {/* Menu bar below, centered */}
+          {/* Menu bar below, centered with categories */}
           <nav 
             className="hidden md:block border-b"
             style={menuBarStyles}
           >
             <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-6">
+              {renderCategoriesMenu(menuTextColor || headerTextColor)}
               {renderMenuItems(menuTextColor || headerTextColor)}
+              {renderFeaturedCategories(menuTextColor || headerTextColor)}
             </div>
           </nav>
         </>
