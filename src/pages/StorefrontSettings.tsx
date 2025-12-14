@@ -12,6 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ExternalLink, Eye, Save, Palette, ArrowRight } from 'lucide-react';
+import { getPublicHomeUrl } from '@/lib/publicUrls';
 
 export default function StorefrontSettings() {
   const { currentTenant } = useAuth();
@@ -62,7 +63,7 @@ export default function StorefrontSettings() {
     await togglePublish.mutateAsync(!settings?.is_published);
   };
 
-  const previewUrl = `/store/${currentTenant?.slug}?preview=1`;
+  const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
 
   if (isLoading) {
     return (
