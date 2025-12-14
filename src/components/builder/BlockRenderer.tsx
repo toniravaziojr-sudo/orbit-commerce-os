@@ -354,7 +354,19 @@ function ColumnsBlock({
 
 // ========== HEADER / FOOTER ==========
 
-function HeaderBlock({ menuId, showSearch = true, showCart = true, sticky, context, isEditing }: any) {
+function HeaderBlock({ 
+  menuId, 
+  showSearch = true, 
+  showCart = true, 
+  sticky, 
+  // Notice bar props
+  noticeEnabled = false,
+  noticeText = '',
+  noticeBgColor = '#1e40af',
+  noticeTextColor = '#ffffff',
+  context, 
+  isEditing 
+}: any) {
   const { settings } = context || {};
   
   const { data: menuItems } = useQuery({
@@ -375,42 +387,61 @@ function HeaderBlock({ menuId, showSearch = true, showCart = true, sticky, conte
   const displayItems = menuItems || context?.headerMenu || [];
   
   return (
-    <header className={cn("bg-background border-b", sticky && "sticky top-0 z-50")}>
-      <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          {settings?.logo_url ? (
-            <img src={settings.logo_url} alt={settings?.store_name} className="h-10" />
-          ) : (
-            <span className="text-xl font-bold">{settings?.store_name || 'Loja'}</span>
+    <div className={cn(sticky && "sticky top-0 z-50")}>
+      {/* Notice Bar (Aviso Geral) */}
+      {(noticeEnabled || isEditing) && (
+        <div 
+          className={cn(
+            "py-2 px-4 text-center text-sm",
+            !noticeEnabled && isEditing && "opacity-40"
           )}
+          style={{ 
+            backgroundColor: noticeBgColor || '#1e40af',
+            color: noticeTextColor || '#ffffff',
+          }}
+        >
+          {noticeText || (isEditing ? '[Digite o texto do aviso]' : '')}
         </div>
-        <nav className="hidden md:flex items-center gap-6">
-          {displayItems.length > 0 ? (
-            displayItems.map((item: any) => (
-              <a key={item.id} href={item.url || '#'} className="text-sm hover:text-primary transition-colors">
-                {item.label}
-              </a>
-            ))
-          ) : (
-            isEditing && (
-              <span className="text-sm text-muted-foreground">[Selecione um menu]</span>
-            )
-          )}
-        </nav>
-        <div className="flex items-center gap-2">
-          {showSearch && (
-            <button className="p-2 hover:bg-muted rounded">
-              🔍
-            </button>
-          )}
-          {showCart && (
-            <button className="p-2 hover:bg-muted rounded">
-              🛒
-            </button>
-          )}
+      )}
+      
+      {/* Main Header */}
+      <header className="bg-background border-b">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            {settings?.logo_url ? (
+              <img src={settings.logo_url} alt={settings?.store_name} className="h-10" />
+            ) : (
+              <span className="text-xl font-bold">{settings?.store_name || 'Loja'}</span>
+            )}
+          </div>
+          <nav className="hidden md:flex items-center gap-6">
+            {displayItems.length > 0 ? (
+              displayItems.map((item: any) => (
+                <a key={item.id} href={item.url || '#'} className="text-sm hover:text-primary transition-colors">
+                  {item.label}
+                </a>
+              ))
+            ) : (
+              isEditing && (
+                <span className="text-sm text-muted-foreground">[Selecione um menu]</span>
+              )
+            )}
+          </nav>
+          <div className="flex items-center gap-2">
+            {showSearch && (
+              <button className="p-2 hover:bg-muted rounded">
+                🔍
+              </button>
+            )}
+            {showCart && (
+              <button className="p-2 hover:bg-muted rounded">
+                🛒
+              </button>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </div>
   );
 }
 

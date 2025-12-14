@@ -281,8 +281,34 @@ const blockDefinitions: BlockDefinition[] = [
       showSearch: true,
       showCart: true,
       sticky: true,
+      // Aviso Geral (notice bar)
+      noticeEnabled: false,
+      noticeText: '',
+      noticeBgColor: '#1e40af',
+      noticeTextColor: '#ffffff',
     },
     propsSchema: {
+      // Aviso Geral section
+      noticeEnabled: {
+        type: 'boolean',
+        label: 'Exibir Aviso Geral',
+        defaultValue: false,
+      },
+      noticeText: {
+        type: 'string',
+        label: 'Texto do Aviso',
+        placeholder: 'Ex: Frete grátis em compras acima de R$199!',
+      },
+      noticeBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo do Aviso',
+        defaultValue: '#1e40af',
+      },
+      noticeTextColor: {
+        type: 'color',
+        label: 'Cor do Texto do Aviso',
+        defaultValue: '#ffffff',
+      },
       menuId: {
         type: 'menu',
         label: 'Menu',
