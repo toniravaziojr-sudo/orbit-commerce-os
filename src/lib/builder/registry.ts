@@ -298,12 +298,7 @@ const blockDefinitions: BlockDefinition[] = [
       showPhone: false,
       phoneNumber: '',
       phoneLabel: '',
-      // Categorias no cabeçalho
-      showCategoriesMenu: false,
-      categoriesMenuLabel: 'Categorias',
-      featuredCategoriesEnabled: false,
-      featuredCategoryIds: [],
-      featuredCategoriesLabel: 'Destaques',
+      // REMOVIDO: Categorias no cabeçalho (menu vem do Menu Builder)
       // Área do Cliente
       customerAreaEnabled: false,
       customerAreaLabel: 'Minhas compras',
@@ -422,33 +417,7 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Texto do Telefone (opcional)',
         placeholder: 'Ex: Atendimento',
       },
-      // === CATEGORIAS NO CABEÇALHO ===
-      showCategoriesMenu: {
-        type: 'boolean',
-        label: 'Mostrar menu Categorias',
-        defaultValue: false,
-      },
-      categoriesMenuLabel: {
-        type: 'string',
-        label: 'Texto do menu Categorias',
-        defaultValue: 'Categorias',
-        placeholder: 'Ex: Categorias',
-      },
-      featuredCategoriesEnabled: {
-        type: 'boolean',
-        label: 'Exibir categorias em destaque',
-        defaultValue: false,
-      },
-      featuredCategoryIds: {
-        type: 'categoryList',
-        label: 'Categorias em destaque',
-      },
-      featuredCategoriesLabel: {
-        type: 'string',
-        label: 'Título das categorias em destaque',
-        defaultValue: 'Destaques',
-        placeholder: 'Ex: Destaques',
-      },
+      // REMOVIDO: Categorias no cabeçalho (menu vem do Menu Builder)
       // === ÁREA DO CLIENTE ===
       customerAreaEnabled: {
         type: 'boolean',

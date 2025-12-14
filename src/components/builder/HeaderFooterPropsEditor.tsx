@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, ArrowUp, ArrowDown, User, Tag } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -83,198 +83,9 @@ function ColorInput({
   );
 }
 
-// Featured Category section - simplified (single category/page highlight)
-// NOTE: Main menu comes from Menu Builder (Menu de Categorias - Header)
-// This is the ONLY exception where user can pick a featured category/page
-function FeaturedCategorySection({ 
-  props, 
-  updateProp,
-  tenantId,
-  openSections,
-  toggleSection,
-}: { 
-  props: Record<string, unknown>; 
-  updateProp: (key: string, value: unknown) => void;
-  tenantId: string;
-  openSections: Record<string, boolean>;
-  toggleSection: (key: string) => void;
-}) {
-  // Fetch categories for selection
-  const { data: categories, isLoading: loadingCategories } = useQuery({
-    queryKey: ['admin-categories', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return [];
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, slug, is_active')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .order('sort_order');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
-  });
-
-  // Fetch pages for selection
-  const { data: pages, isLoading: loadingPages } = useQuery({
-    queryKey: ['admin-pages-for-featured', tenantId],
-    queryFn: async () => {
-      if (!tenantId) return [];
-      const { data, error } = await supabase
-        .from('store_pages')
-        .select('id, title, slug, type, is_published')
-        .eq('tenant_id', tenantId)
-        .in('type', ['institutional', 'landing_page'])
-        .order('title');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!tenantId,
-  });
-
-  const isLoading = loadingCategories || loadingPages;
-  const featuredType = (props.featuredCategoryType as string) || 'category';
-  const featuredId = (props.featuredCategoryId as string) || '';
-  const featuredLabel = (props.featuredCategoryLabel as string) || '';
-
-  // Get selected item name for display
-  const selectedCategory = categories?.find(c => c.id === featuredId);
-  const selectedPage = pages?.find(p => p.id === featuredId);
-  const selectedName = featuredType === 'category' ? selectedCategory?.name : selectedPage?.title;
-
-  return (
-    <Collapsible open={openSections.featuredCategory} onOpenChange={() => toggleSection('featuredCategory')}>
-      <CollapsibleTrigger asChild>
-        <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-          <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-500" />
-            <span className="font-medium">Categoria em Destaque</span>
-            {props.featuredCategoryEnabled && (
-              <Badge variant="secondary" className="text-xs">Ativo</Badge>
-            )}
-          </div>
-          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.featuredCategory ? 'rotate-180' : ''}`} />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="px-3 pb-4 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-xs">Exibir link em destaque</Label>
-            <p className="text-xs text-muted-foreground">Link destacado no menu do header</p>
-          </div>
-          <Switch
-            checked={Boolean(props.featuredCategoryEnabled)}
-            onCheckedChange={(v) => updateProp('featuredCategoryEnabled', v)}
-          />
-        </div>
-        
-        {Boolean(props.featuredCategoryEnabled) && (
-          <>
-            {/* Type selection */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tipo de destaque</Label>
-              <Select
-                value={featuredType}
-                onValueChange={(v) => {
-                  updateProp('featuredCategoryType', v);
-                  updateProp('featuredCategoryId', ''); // Reset selection on type change
-                }}
-              >
-                <SelectTrigger className="w-full h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="category">Categoria</SelectItem>
-                  <SelectItem value="page">Página</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Selection based on type */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">
-                {featuredType === 'category' ? 'Selecionar categoria' : 'Selecionar página'}
-              </Label>
-              {isLoading ? (
-                <p className="text-xs text-muted-foreground">Carregando...</p>
-              ) : featuredType === 'category' ? (
-                categories && categories.length > 0 ? (
-                  <Select
-                    value={featuredId}
-                    onValueChange={(v) => updateProp('featuredCategoryId', v)}
-                  >
-                    <SelectTrigger className="w-full h-9 text-sm">
-                      <SelectValue placeholder="Selecione uma categoria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Nenhuma categoria disponível</p>
-                )
-              ) : (
-                pages && pages.length > 0 ? (
-                  <Select
-                    value={featuredId}
-                    onValueChange={(v) => updateProp('featuredCategoryId', v)}
-                  >
-                    <SelectTrigger className="w-full h-9 text-sm">
-                      <SelectValue placeholder="Selecione uma página" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pages.map((page) => (
-                        <SelectItem key={page.id} value={page.id}>
-                          {page.title}
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({page.type === 'landing_page' ? 'Landing' : 'Institucional'})
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Nenhuma página disponível</p>
-                )
-              )}
-              
-              {props.featuredCategoryEnabled && !featuredId && (
-                <p className="text-xs text-amber-600">⚠️ Selecione um item para exibir</p>
-              )}
-            </div>
-
-            {/* Custom label */}
-            <div className="space-y-1.5">
-              <Label className="text-xs">Texto personalizado (opcional)</Label>
-              <Input
-                value={featuredLabel}
-                onChange={(e) => updateProp('featuredCategoryLabel', e.target.value)}
-                placeholder={selectedName || 'Ex: Novidades'}
-                className="h-9 text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Deixe vazio para usar o nome original
-              </p>
-            </div>
-
-            {/* Color */}
-            <ColorInput
-              label="Cor do texto"
-              value={(props.featuredCategoryTextColor as string) || ''}
-              onChange={(v) => updateProp('featuredCategoryTextColor', v)}
-              placeholder="Padrão do header"
-            />
-          </>
-        )}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
+// REMOVIDO: FeaturedCategorySection
+// O menu do header agora vem EXCLUSIVAMENTE do Menu Builder (Menus > Menu Header)
+// Nenhuma exceção para "Categoria em Destaque" - use o Menu Builder para isso
 
 // Promotions section for global header config
 function PromotionsSection({ 
@@ -447,7 +258,6 @@ export function HeaderFooterPropsEditor({
     style: true,
     colors: false,
     menuColors: false,
-    featuredCategory: false,
     contact: false,
     customerArea: false,
     promos: false,
@@ -667,20 +477,9 @@ export function HeaderFooterPropsEditor({
               </CollapsibleContent>
             </Collapsible>
 
-            <Separator />
 
-            {/* === CATEGORIA EM DESTAQUE === */}
-            {/* NOTE: O menu principal vem do Menu Builder (Menus > Menu Header). */}
-            {/* Esta seção é a ÚNICA exceção para destacar uma categoria/página específica. */}
-            <FeaturedCategorySection 
-              props={props}
-              updateProp={updateProp}
-              tenantId={tenantId}
-              openSections={openSections}
-              toggleSection={toggleSection}
-            />
+            {/* REMOVIDO: Categoria em Destaque - menu vem do Menu Builder */}
 
-            <Separator />
 
             {/* === CONTATO NO CABEÇALHO === */}
             <Collapsible open={openSections.contact} onOpenChange={() => toggleSection('contact')}>

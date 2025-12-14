@@ -54,12 +54,7 @@ export function StorefrontHeader() {
   const phoneNumber = String(headerConfig.phoneNumber || '');
   const phoneLabel = String(headerConfig.phoneLabel || '');
   
-  // Featured category/page props (single highlight)
-  const featuredCategoryEnabled = Boolean(headerConfig.featuredCategoryEnabled);
-  const featuredCategoryType = String(headerConfig.featuredCategoryType || 'category');
-  const featuredCategoryId = String(headerConfig.featuredCategoryId || '');
-  const featuredCategoryLabel = String(headerConfig.featuredCategoryLabel || '');
-  const featuredCategoryTextColor = String(headerConfig.featuredCategoryTextColor || '');
+  // REMOVIDO: Featured category/page props - menu vem do Menu Builder
   
   // Customer area props
   const customerAreaEnabled = Boolean(headerConfig.customerAreaEnabled);
@@ -86,20 +81,7 @@ export function StorefrontHeader() {
     enabled: !!featuredPromosPageId && featuredPromosEnabled,
   });
 
-  // Fetch featured page (for "Categoria em Destaque" when type is page)
-  const { data: featuredPage } = useQuery({
-    queryKey: ['storefront-featured-page', featuredCategoryId],
-    queryFn: async () => {
-      if (!featuredCategoryId || featuredCategoryType !== 'page') return null;
-      const { data } = await supabase
-        .from('store_pages')
-        .select('slug, title')
-        .eq('id', featuredCategoryId)
-        .maybeSingle();
-      return data;
-    },
-    enabled: featuredCategoryEnabled && featuredCategoryType === 'page' && !!featuredCategoryId,
-  });
+  // REMOVIDO: Fetch featured page (Categoria em Destaque) - menu vem do Menu Builder
 
   // Animation effect for notice bar
   useEffect(() => {
@@ -150,10 +132,7 @@ export function StorefrontHeader() {
   const normalizedPhone = phoneNumber?.replace(/[^\d+]/g, '') || '';
   const isPhoneValid = showPhone && normalizedPhone.length >= 8;
   
-  // Get featured category/page data
-  const featuredCategory = featuredCategoryEnabled && featuredCategoryType === 'category'
-    ? categories?.find(c => c.id === featuredCategoryId)
-    : null;
+  // REMOVIDO: featuredCategory - menu vem do Menu Builder
   
   // Get animation styles
   const getNoticeAnimationStyles = (): React.CSSProperties => {
@@ -245,26 +224,7 @@ export function StorefrontHeader() {
               </Link>
             ))}
             
-            {/* Featured Category/Page (single highlight) */}
-            {featuredCategoryEnabled && featuredCategoryId && (
-              featuredCategoryType === 'category' && featuredCategory ? (
-                <Link
-                  to={`${baseUrl}/c/${featuredCategory.slug}`}
-                  className="text-sm font-bold hover:opacity-80"
-                  style={{ color: featuredCategoryTextColor || headerTextColor || undefined }}
-                >
-                  {featuredCategoryLabel || featuredCategory.name}
-                </Link>
-              ) : featuredCategoryType === 'page' && featuredPage ? (
-                <Link
-                  to={`${baseUrl}/page/${featuredPage.slug}`}
-                  className="text-sm font-bold hover:opacity-80"
-                  style={{ color: featuredCategoryTextColor || headerTextColor || undefined }}
-                >
-                  {featuredCategoryLabel || featuredPage.title}
-                </Link>
-              ) : null
-            )}
+            {/* REMOVIDO: Featured Category/Page - menu vem do Menu Builder */}
             
             {/* Featured Promos */}
             {featuredPromosEnabled && promoPage?.slug && (
@@ -387,28 +347,7 @@ export function StorefrontHeader() {
                       </Link>
                     ))}
                     
-                    {/* Featured Category/Page (Mobile) */}
-                    {featuredCategoryEnabled && featuredCategoryId && (
-                      featuredCategoryType === 'category' && featuredCategory ? (
-                        <Link
-                          to={`${baseUrl}/c/${featuredCategory.slug}`}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="py-2 px-4 text-sm font-bold rounded-lg"
-                          style={{ color: featuredCategoryTextColor || undefined }}
-                        >
-                          {featuredCategoryLabel || featuredCategory.name}
-                        </Link>
-                      ) : featuredCategoryType === 'page' && featuredPage ? (
-                        <Link
-                          to={`${baseUrl}/page/${featuredPage.slug}`}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="py-2 px-4 text-sm font-bold rounded-lg"
-                          style={{ color: featuredCategoryTextColor || undefined }}
-                        >
-                          {featuredCategoryLabel || featuredPage.title}
-                        </Link>
-                      ) : null
-                    )}
+                    {/* REMOVIDO: Featured Category/Page (Mobile) - menu vem do Menu Builder */}
                     
                     {/* Featured Promos (Mobile) */}
                     {featuredPromosEnabled && promoPage?.slug && (
