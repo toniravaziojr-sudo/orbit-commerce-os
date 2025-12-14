@@ -12,7 +12,7 @@
  * - no consecutive hyphens
  * - doesn't start or end with hyphen
  */
-const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SLUG_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$|^[a-z0-9]$/;
 
 /**
  * Reserved slugs that cannot be used
@@ -54,8 +54,8 @@ export function validateSlug(slug: string | undefined | null): SlugValidationRes
 
   const trimmed = slug.trim();
 
-  if (trimmed.length < 2) {
-    return { isValid: false, error: 'Slug deve ter no mínimo 2 caracteres' };
+  if (trimmed.length < 1) {
+    return { isValid: false, error: 'Slug é obrigatório' };
   }
 
   if (trimmed.length > 200) {
