@@ -286,12 +286,21 @@ const blockDefinitions: BlockDefinition[] = [
       noticeText: '',
       noticeBgColor: '#1e40af',
       noticeTextColor: '#ffffff',
+      noticeAnimation: 'none',
+      // Aviso Geral action
+      noticeActionEnabled: false,
+      noticeActionType: 'link',
+      noticeActionLabel: '',
+      noticeActionUrl: '',
+      noticeActionTarget: '_self',
+      noticeActionTextColor: '',
+      noticeActionBgColor: '',
     },
     propsSchema: {
       // Aviso Geral section
       noticeEnabled: {
         type: 'boolean',
-        label: 'Exibir Aviso Geral',
+        label: '📢 Exibir Aviso Geral',
         defaultValue: false,
       },
       noticeText: {
@@ -301,13 +310,65 @@ const blockDefinitions: BlockDefinition[] = [
       },
       noticeBgColor: {
         type: 'color',
-        label: 'Cor de Fundo do Aviso',
+        label: 'Cor de Fundo',
         defaultValue: '#1e40af',
       },
       noticeTextColor: {
         type: 'color',
-        label: 'Cor do Texto do Aviso',
+        label: 'Cor do Texto',
         defaultValue: '#ffffff',
+      },
+      noticeAnimation: {
+        type: 'select',
+        label: 'Animação de Entrada',
+        defaultValue: 'none',
+        options: [
+          { label: 'Nenhuma', value: 'none' },
+          { label: 'Fade', value: 'fade' },
+          { label: 'Slide', value: 'slide' },
+        ],
+      },
+      // Aviso Geral action
+      noticeActionEnabled: {
+        type: 'boolean',
+        label: '🔗 Exibir Ação (Link/Botão)',
+        defaultValue: false,
+      },
+      noticeActionType: {
+        type: 'select',
+        label: 'Tipo de Ação',
+        defaultValue: 'link',
+        options: [
+          { label: 'Link', value: 'link' },
+          { label: 'Botão', value: 'button' },
+        ],
+      },
+      noticeActionLabel: {
+        type: 'string',
+        label: 'Texto da Ação',
+        placeholder: 'Ex: Saiba mais',
+      },
+      noticeActionUrl: {
+        type: 'string',
+        label: 'URL da Ação',
+        placeholder: 'Ex: /promocao',
+      },
+      noticeActionTarget: {
+        type: 'select',
+        label: 'Abrir em',
+        defaultValue: '_self',
+        options: [
+          { label: 'Mesma aba', value: '_self' },
+          { label: 'Nova aba', value: '_blank' },
+        ],
+      },
+      noticeActionTextColor: {
+        type: 'color',
+        label: 'Cor do Texto da Ação',
+      },
+      noticeActionBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo do Botão',
       },
       menuId: {
         type: 'menu',
