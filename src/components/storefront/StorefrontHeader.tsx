@@ -18,7 +18,6 @@ export function StorefrontHeader() {
   const { totalItems } = useCart(tenantSlug || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [categoriesDropdownOpen, setCategoriesDropdownOpen] = useState(false);
   const [animationState, setAnimationState] = useState<'initial' | 'animating' | 'done'>('initial');
   const noticeRef = useRef<HTMLDivElement>(null);
 
@@ -55,11 +54,12 @@ export function StorefrontHeader() {
   const phoneNumber = String(headerConfig.phoneNumber || '');
   const phoneLabel = String(headerConfig.phoneLabel || '');
   
-  // Categories menu props
-  const showCategoriesMenu = Boolean(headerConfig.showCategoriesMenu);
-  const categoriesMenuLabel = String(headerConfig.categoriesMenuLabel || 'Categorias');
-  const featuredCategoriesEnabled = Boolean(headerConfig.featuredCategoriesEnabled);
-  const featuredCategoryIds = (headerConfig.featuredCategoryIds as string[]) || [];
+  // Featured category/page props (single highlight)
+  const featuredCategoryEnabled = Boolean(headerConfig.featuredCategoryEnabled);
+  const featuredCategoryType = String(headerConfig.featuredCategoryType || 'category');
+  const featuredCategoryId = String(headerConfig.featuredCategoryId || '');
+  const featuredCategoryLabel = String(headerConfig.featuredCategoryLabel || '');
+  const featuredCategoryTextColor = String(headerConfig.featuredCategoryTextColor || '');
   
   // Customer area props
   const customerAreaEnabled = Boolean(headerConfig.customerAreaEnabled);
@@ -84,6 +84,21 @@ export function StorefrontHeader() {
       return data;
     },
     enabled: !!featuredPromosPageId && featuredPromosEnabled,
+  });
+
+  // Fetch featured page (for "Categoria em Destaque" when type is page)
+  const { data: featuredPage } = useQuery({
+    queryKey: ['storefront-featured-page', featuredCategoryId],
+    queryFn: async () => {
+      if (!featuredCategoryId || featuredCategoryType !== 'page') return null;
+      const { data } = await supabase
+        .from('store_pages')
+        .select('slug, title')
+        .eq('id', featuredCategoryId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: featuredCategoryEnabled && featuredCategoryType === 'page' && !!featuredCategoryId,
   });
 
   // Animation effect for notice bar
@@ -135,10 +150,10 @@ export function StorefrontHeader() {
   const normalizedPhone = phoneNumber?.replace(/[^\d+]/g, '') || '';
   const isPhoneValid = showPhone && normalizedPhone.length >= 8;
   
-  // Get featured categories
-  const featuredCategories = featuredCategoryIds
-    .map(id => categories?.find(c => c.id === id))
-    .filter(Boolean);
+  // Get featured category/page data
+  const featuredCategory = featuredCategoryEnabled && featuredCategoryType === 'category'
+    ? categories?.find(c => c.id === featuredCategoryId)
+    : null;
   
   // Get animation styles
   const getNoticeAnimationStyles = (): React.CSSProperties => {
@@ -218,47 +233,38 @@ export function StorefrontHeader() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-6">
-            {/* Categories Menu */}
-            {showCategoriesMenu && categories && categories.length > 0 && (
-              <div 
-                className="relative"
-                onMouseEnter={() => setCategoriesDropdownOpen(true)}
-                onMouseLeave={() => setCategoriesDropdownOpen(false)}
-              >
-                <button 
-                  className="text-sm font-medium hover:opacity-70 flex items-center gap-1"
-                  style={{ color: headerTextColor || undefined }}
-                >
-                  {categoriesMenuLabel}
-                  <span className="text-xs">▼</span>
-                </button>
-                {categoriesDropdownOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-white border rounded-lg shadow-lg min-w-[200px] py-2 z-50">
-                    {categories.filter(c => !c.parent_id).map((cat) => (
-                      <Link
-                        key={cat.id}
-                        to={`${baseUrl}/c/${cat.slug}`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      >
-                        {cat.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Featured Categories */}
-            {featuredCategoriesEnabled && featuredCategories.length > 0 && featuredCategories.map((cat: any) => (
+            {/* Menu Items (from Menu Builder) */}
+            {menuItems.map((item) => (
               <Link
-                key={cat.id}
-                to={`${baseUrl}/c/${cat.slug}`}
-                className="text-sm font-medium hover:opacity-70"
+                key={item.id}
+                to={getMenuItemUrl(item)}
+                className="text-sm font-medium hover:opacity-70 transition-colors"
                 style={{ color: headerTextColor || undefined }}
               >
-                {cat.name}
+                {item.label}
               </Link>
             ))}
+            
+            {/* Featured Category/Page (single highlight) */}
+            {featuredCategoryEnabled && featuredCategoryId && (
+              featuredCategoryType === 'category' && featuredCategory ? (
+                <Link
+                  to={`${baseUrl}/c/${featuredCategory.slug}`}
+                  className="text-sm font-bold hover:opacity-80"
+                  style={{ color: featuredCategoryTextColor || headerTextColor || undefined }}
+                >
+                  {featuredCategoryLabel || featuredCategory.name}
+                </Link>
+              ) : featuredCategoryType === 'page' && featuredPage ? (
+                <Link
+                  to={`${baseUrl}/page/${featuredPage.slug}`}
+                  className="text-sm font-bold hover:opacity-80"
+                  style={{ color: featuredCategoryTextColor || headerTextColor || undefined }}
+                >
+                  {featuredCategoryLabel || featuredPage.title}
+                </Link>
+              ) : null
+            )}
             
             {/* Menu Items */}
             {menuItems.map((item) => (
@@ -381,21 +387,39 @@ export function StorefrontHeader() {
 
                   {/* Mobile Navigation */}
                   <nav className="flex flex-col gap-2">
-                    {/* Mobile Categories */}
-                    {showCategoriesMenu && categories && categories.length > 0 && (
-                      <div className="border-b pb-2 mb-2">
-                        <p className="px-4 py-1 text-xs font-semibold text-gray-500 uppercase">{categoriesMenuLabel}</p>
-                        {categories.filter(c => !c.parent_id).map((cat) => (
-                          <Link
-                            key={cat.id}
-                            to={`${baseUrl}/c/${cat.slug}`}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg block"
-                          >
-                            {cat.name}
-                          </Link>
-                        ))}
-                      </div>
+                    {/* Menu Items (from Menu Builder) */}
+                    {menuItems.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={getMenuItemUrl(item)}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    
+                    {/* Featured Category/Page (Mobile) */}
+                    {featuredCategoryEnabled && featuredCategoryId && (
+                      featuredCategoryType === 'category' && featuredCategory ? (
+                        <Link
+                          to={`${baseUrl}/c/${featuredCategory.slug}`}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="py-2 px-4 text-sm font-bold rounded-lg"
+                          style={{ color: featuredCategoryTextColor || undefined }}
+                        >
+                          {featuredCategoryLabel || featuredCategory.name}
+                        </Link>
+                      ) : featuredCategoryType === 'page' && featuredPage ? (
+                        <Link
+                          to={`${baseUrl}/page/${featuredPage.slug}`}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="py-2 px-4 text-sm font-bold rounded-lg"
+                          style={{ color: featuredCategoryTextColor || undefined }}
+                        >
+                          {featuredCategoryLabel || featuredPage.title}
+                        </Link>
+                      ) : null
                     )}
                     
                     {/* Featured Promos (Mobile) */}
@@ -409,17 +433,6 @@ export function StorefrontHeader() {
                         {featuredPromosLabel}
                       </Link>
                     )}
-                    
-                    {menuItems.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={getMenuItemUrl(item)}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
                     
                     {/* Customer Area (Mobile) */}
                     {customerAreaEnabled && (
