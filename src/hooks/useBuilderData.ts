@@ -6,7 +6,7 @@ import type { BlockNode, PageVersion, StorefrontTemplate } from '@/lib/builder/t
 import type { Json } from '@/integrations/supabase/types';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page' | 'neutral';
 
 export function useStorefrontTemplates() {
   const { currentTenant } = useAuth();

@@ -54,10 +54,13 @@ export default function PageBuilder() {
     },
   };
 
+  // Determine page type from page data
+  const pageType = page.type === 'landing_page' ? 'landing_page' : 'institutional';
+
   return (
     <VisualBuilder
       tenantId={currentTenant.id}
-      pageType="institutional"
+      pageType={pageType}
       pageId={pageId}
       pageTitle={page.title}
       initialContent={draftVersion?.content}

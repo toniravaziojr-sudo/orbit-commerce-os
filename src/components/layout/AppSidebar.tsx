@@ -24,6 +24,7 @@ import {
   Store,
   FolderTree,
   Menu,
+  Rocket,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -64,6 +65,7 @@ const navigation: NavGroup[] = [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
+      { title: "Landing Pages", href: "/landing-pages", icon: Rocket },
     ],
   },
   {

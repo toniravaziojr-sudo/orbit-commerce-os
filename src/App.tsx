@@ -32,6 +32,7 @@ import Settings from "@/pages/Settings";
 import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
+import LandingPages from "@/pages/LandingPages";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="c/:categorySlug" element={<StorefrontCategory />} />
               <Route path="p/:productSlug" element={<StorefrontProduct />} />
               <Route path="page/:pageSlug" element={<StorefrontPage />} />
+              <Route path="lp/:pageSlug" element={<StorefrontPage />} />
               <Route path="cart" element={<StorefrontCart />} />
               <Route path="checkout" element={<StorefrontCheckout />} />
             </Route>
@@ -97,6 +99,7 @@ const App = () => (
               <Route path="/menus" element={<Menus />} />
               <Route path="/pages" element={<Pages />} />
               <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
+              <Route path="/landing-pages" element={<LandingPages />} />
               <Route path="/customers" element={<Customers />} />
               <Route path="/customers/:id" element={<CustomerDetail />} />
               <Route path="/notifications" element={<Notifications />} />
