@@ -131,7 +131,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Page not found');
       }
 
-      // Page must be published
+      // Page must be published for public access
       if (!page.is_published) {
         throw new Error('Page not published');
       }
@@ -146,19 +146,17 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         pageType: page.type,
       };
 
-      // If has published version, use it
+      // If has published version, get that version's content
       if (page.published_version) {
         const { data: version, error: versionError } = await supabase
           .from('store_page_versions')
           .select('content')
-          .eq('tenant_id', tenant.id)
-          .eq('entity_type', 'page')
           .eq('page_id', page.id)
           .eq('version', page.published_version)
           .eq('status', 'published')
           .maybeSingle();
 
-        if (!versionError && version) {
+        if (!versionError && version?.content) {
           return {
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
@@ -166,6 +164,16 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             ...seoData,
           };
         }
+      }
+
+      // Fallback: use page.content directly if it has builder format
+      if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
+        return {
+          content: page.content as unknown as BlockNode,
+          pageTitle: page.title,
+          pageId: page.id,
+          ...seoData,
+        };
       }
 
       // Fallback: try to migrate legacy content to builder format
@@ -176,7 +184,6 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         
         if (legacyText) {
           const defaultTemplate = getDefaultTemplate('institutional');
-          // Find the RichText block and update its content
           const updateContent = (node: BlockNode): BlockNode => {
             if (node.type === 'RichText') {
               return {

@@ -187,13 +187,11 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
         const { data: version, error: versionError } = await supabase
           .from('store_page_versions')
           .select('content')
-          .eq('tenant_id', tenant.id)
-          .eq('entity_type', 'page')
           .eq('page_id', page.id)
           .eq('version', versionToUse)
           .maybeSingle();
 
-        if (!versionError && version) {
+        if (!versionError && version?.content) {
           return {
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
@@ -201,6 +199,16 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
             canPreview: true,
           };
         }
+      }
+      
+      // Fallback: use page.content directly if it has builder format
+      if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
+        return {
+          content: page.content as unknown as BlockNode,
+          pageTitle: page.title,
+          pageId: page.id,
+          canPreview: true,
+        };
       }
 
       // Fallback to legacy content migration

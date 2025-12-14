@@ -46,13 +46,21 @@ export function CategoryTreeItem({
     transition,
   };
 
-  const handlePreview = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
+  const handlePreview = () => {
     if (currentTenant && category.slug) {
       const url = getPublicCategoryUrl(currentTenant.slug, category.slug, true);
-      if (url) window.open(url, '_blank');
+      if (url) {
+        window.open(url, '_blank');
+      }
     }
+  };
+
+  const handleEdit = () => {
+    onEdit();
+  };
+
+  const handleDelete = () => {
+    onDelete();
   };
 
   return (
@@ -66,7 +74,7 @@ export function CategoryTreeItem({
       )}
       {...attributes}
     >
-      {/* Drag handle - only this element has drag listeners */}
+      {/* Drag handle - ONLY this element gets drag listeners */}
       <div
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
@@ -83,8 +91,10 @@ export function CategoryTreeItem({
       {/* Expand/collapse button */}
       {hasChildren ? (
         <button
+          type="button"
           onClick={(e) => {
             e.stopPropagation();
+            e.preventDefault();
             onToggleExpand();
           }}
           className="p-1 hover:bg-muted rounded"
@@ -119,35 +129,37 @@ export function CategoryTreeItem({
         {category.is_active ? 'Ativa' : 'Inativa'}
       </Badge>
 
-      {/* Actions - using onPointerDown to bypass drag handlers */}
+      {/* Actions - completely isolated from DnD */}
       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {category.is_active && category.slug && (
           <Button 
+            type="button"
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8" 
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={handlePreview} 
+            className="h-8 w-8"
+            onClick={handlePreview}
             title="Visualizar"
           >
             <Eye className="h-4 w-4" />
           </Button>
         )}
         <Button 
+          type="button"
           variant="ghost" 
           size="icon" 
-          className="h-8 w-8" 
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onEdit}
+          className="h-8 w-8"
+          onClick={handleEdit}
+          title="Editar"
         >
           <Pencil className="h-4 w-4" />
         </Button>
         <Button 
+          type="button"
           variant="ghost" 
           size="icon" 
-          className="h-8 w-8" 
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={onDelete}
+          className="h-8 w-8"
+          onClick={handleDelete}
+          title="Excluir"
         >
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
