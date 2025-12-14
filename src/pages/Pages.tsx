@@ -349,25 +349,26 @@ export default function Pages() {
                   </TableCell>
                   <TableCell>
                     <div className="flex gap-1">
+                      {/* Preview button - always show if valid slug */}
+                      {currentTenant && page.slug && (
+                        <a 
+                          href={getPublicPageUrl(currentTenant.slug, page.slug, true) || '#'} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                        >
+                          <Button variant="outline" size="icon" title="Visualizar (Preview)">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </a>
+                      )}
                       <Button 
-                        variant="outline" 
+                        variant="ghost" 
                         size="icon" 
                         onClick={() => navigate(`/pages/${page.id}/builder`)}
                         title="Editar no Builder Visual"
                       >
                         <LayoutTemplate className="h-4 w-4" />
                       </Button>
-                      {page.is_published && currentTenant && (
-                        <a 
-                          href={getPublicPageUrl(currentTenant.slug, page.slug) || '#'} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                        >
-                          <Button variant="ghost" size="icon" title="Visualizar">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </a>
-                      )}
                       <Button variant="ghost" size="icon" onClick={() => handleEdit(page)} title="Editar Metadados">
                         <Pencil className="h-4 w-4" />
                       </Button>

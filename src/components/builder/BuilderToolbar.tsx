@@ -57,6 +57,7 @@ interface BuilderToolbarProps {
   pageTitle: string;
   pageType: string;
   tenantSlug?: string;
+  pageSlug?: string; // For institutional/landing pages
   isDirty: boolean;
   isPreviewMode: boolean;
   canUndo: boolean;
@@ -93,6 +94,7 @@ export function BuilderToolbar({
   pageTitle,
   pageType,
   tenantSlug,
+  pageSlug,
   isDirty,
   isPreviewMode,
   canUndo,
@@ -123,7 +125,7 @@ export function BuilderToolbar({
       if (!currentTenant?.id) return [];
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, sku')
+        .select('id, name, sku, slug')
         .eq('tenant_id', currentTenant.id)
         .eq('status', 'active')
         .order('name')
@@ -152,31 +154,40 @@ export function BuilderToolbar({
     enabled: !!currentTenant?.id && pageType === 'category',
   });
 
+  // Auto-select first product/category if none selected
+  const effectiveProductId = exampleProductId || (products?.length ? products[0].id : undefined);
+  const effectiveCategoryId = exampleCategoryId || (categories?.length ? categories[0].id : undefined);
+
   // Build preview URL based on page type and selected example with validation
   const getPreviewResult = () => {
     if (!tenantSlug) return { url: null, canPreview: false, reason: 'Tenant não definido' };
     
     // For product/category, use the selected example's slug if available
     if (pageType === 'product') {
-      if (!exampleProductId) {
-        return { url: null, canPreview: false, reason: 'Selecione um produto para visualizar' };
+      if (!effectiveProductId) {
+        return { url: null, canPreview: false, reason: 'Nenhum produto disponível para visualizar' };
       }
-      const product = products?.find(p => p.id === exampleProductId);
-      // We need the slug - for now products may not have slug in the list
-      // This is a simplified version, in production we should fetch the slug
-      if (product) {
-        return getPreviewUrlWithValidation(tenantSlug, pageType, product.id);
+      const product = products?.find(p => p.id === effectiveProductId);
+      if (product?.slug) {
+        return getPreviewUrlWithValidation(tenantSlug, pageType, product.slug);
       }
+      return { url: null, canPreview: false, reason: 'Produto sem slug definido' };
     }
     
     if (pageType === 'category') {
-      if (!exampleCategoryId) {
-        return { url: null, canPreview: false, reason: 'Selecione uma categoria para visualizar' };
+      if (!effectiveCategoryId) {
+        return { url: null, canPreview: false, reason: 'Nenhuma categoria disponível para visualizar' };
       }
-      const category = categories?.find(c => c.id === exampleCategoryId);
+      const category = categories?.find(c => c.id === effectiveCategoryId);
       if (category?.slug) {
         return getPreviewUrlWithValidation(tenantSlug, pageType, category.slug);
       }
+      return { url: null, canPreview: false, reason: 'Categoria sem slug definido' };
+    }
+    
+    // For institutional/landing pages, use the pageSlug prop
+    if (pageType === 'institutional' || pageType === 'landing_page') {
+      return getPreviewUrlWithValidation(tenantSlug, pageType, pageSlug);
     }
     
     return getPreviewUrlWithValidation(tenantSlug, pageType);
@@ -239,7 +250,10 @@ export function BuilderToolbar({
               {isLoadingProducts ? (
                 <Skeleton className="h-9 w-[180px]" />
               ) : (
-                <Select value={exampleProductId || ''} onValueChange={onExampleProductChange}>
+                <Select 
+                  value={effectiveProductId || ''} 
+                  onValueChange={onExampleProductChange}
+                >
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Produto exemplo" />
                   </SelectTrigger>
@@ -270,7 +284,10 @@ export function BuilderToolbar({
               {isLoadingCategories ? (
                 <Skeleton className="h-9 w-[180px]" />
               ) : (
-                <Select value={exampleCategoryId || ''} onValueChange={onExampleCategoryChange}>
+                <Select 
+                  value={effectiveCategoryId || ''} 
+                  onValueChange={onExampleCategoryChange}
+                >
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Categoria exemplo" />
                   </SelectTrigger>
