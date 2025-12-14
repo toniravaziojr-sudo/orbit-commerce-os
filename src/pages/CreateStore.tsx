@@ -11,13 +11,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { toast } from 'sonner';
 import { Loader2, Store, Sparkles } from 'lucide-react';
+import { validateSlugFormat, generateSlug } from '@/lib/slugPolicy';
 
 const createStoreSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
   slug: z.string()
-    .min(2, 'Slug deve ter no mínimo 2 caracteres')
     .max(50, 'Slug muito longo')
-    .regex(/^[a-z0-9-]+$/, 'Slug deve conter apenas letras minúsculas, números e hífens'),
+    .refine(
+      (slug) => validateSlugFormat(slug).isValid,
+      (slug) => ({ message: validateSlugFormat(slug).error || 'Slug inválido' })
+    ),
 });
 
 type CreateStoreFormData = z.infer<typeof createStoreSchema>;
@@ -32,17 +35,9 @@ export default function CreateStore() {
     defaultValues: { name: '', slug: '' },
   });
 
-  // Auto-generate slug from name
+  // Auto-generate slug from name using centralized policy
   const handleNameChange = (name: string) => {
-    const slug = name
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-      .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
-      .replace(/\s+/g, '-') // Substitui espaços por hífens
-      .replace(/-+/g, '-') // Remove hífens duplicados
-      .trim();
-    
+    const slug = generateSlug(name);
     form.setValue('slug', slug);
   };
 
