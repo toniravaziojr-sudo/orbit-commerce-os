@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, GripVertical, ArrowUp, ArrowDown, User, Tag } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, Grid3X3, Star, ArrowUp, ArrowDown, User, Tag } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -509,9 +509,6 @@ export function HeaderFooterPropsEditor({
     onChange({ ...props, [key]: value });
   };
 
-  // Check if current style uses "menu below"
-  const hasMenuBelow = props.headerStyle === 'logo_left_menu_below' || props.headerStyle === 'logo_center_menu_below';
-
   // Toggle section
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -582,52 +579,12 @@ export function HeaderFooterPropsEditor({
 
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-2">
-            {/* === ESTILO DO CABEÇALHO === */}
-            <Collapsible open={openSections.style} onOpenChange={() => toggleSection('style')}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Layout className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Estilo do Cabeçalho</span>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.style ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-xs">Layout</Label>
-                  <Select
-                    value={(props.headerStyle as string) || 'logo_left_menu_inline'}
-                    onValueChange={(v) => updateProp('headerStyle', v)}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="logo_left_menu_inline">Logo à esquerda, menu ao lado</SelectItem>
-                      <SelectItem value="logo_left_menu_below">Logo à esquerda, menu abaixo</SelectItem>
-                      <SelectItem value="logo_center_menu_below">Logo centralizado, menu abaixo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label className="text-xs">Menu</Label>
-                  <PropsEditor
-                    definition={{
-                      ...definition,
-                      propsSchema: {
-                        menuId: definition.propsSchema?.menuId,
-                      }
-                    }}
-                    props={{ menuId: props.menuId }}
-                    onChange={(p) => updateProp('menuId', p.menuId)}
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
-
-            <Separator />
+            {/* 
+              REMOVIDO: Estilo do Cabeçalho (headerStyle, menuId)
+              Motivo: StorefrontHeader.tsx usa layout fixo, não implementa variações de estilo.
+              A prop menuId é ignorada - o menu vem de usePublicStorefront().
+              Re-adicionar quando implementar layouts variáveis no StorefrontHeader.
+            */}
 
             {/* === CORES DO CABEÇALHO === */}
             <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
@@ -661,49 +618,11 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === CORES DO MENU (condicional) === */}
-            <Collapsible 
-              open={openSections.menuColors && hasMenuBelow} 
-              onOpenChange={() => hasMenuBelow && toggleSection('menuColors')}
-            >
-              <CollapsibleTrigger asChild disabled={!hasMenuBelow}>
-                <Button 
-                  variant="ghost" 
-                  className={`w-full justify-between p-3 h-auto ${!hasMenuBelow ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">Cores do Menu</span>
-                    {!hasMenuBelow && (
-                      <span className="text-xs text-muted-foreground ml-2">
-                        (apenas para estilos com menu abaixo)
-                      </span>
-                    )}
-                  </div>
-                  {hasMenuBelow && (
-                    <ChevronDown className={`h-4 w-4 transition-transform ${openSections.menuColors ? 'rotate-180' : ''}`} />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              {hasMenuBelow && (
-                <CollapsibleContent className="px-3 pb-4 space-y-4">
-                  <ColorInput
-                    label="Cor de Fundo do Menu"
-                    value={(props.menuBgColor as string) || ''}
-                    onChange={(v) => updateProp('menuBgColor', v)}
-                    placeholder="Mesmo do cabeçalho"
-                  />
-                  <ColorInput
-                    label="Cor do Texto do Menu"
-                    value={(props.menuTextColor as string) || ''}
-                    onChange={(v) => updateProp('menuTextColor', v)}
-                    placeholder="Mesmo do cabeçalho"
-                  />
-                </CollapsibleContent>
-              )}
-            </Collapsible>
-
-            <Separator />
+            {/* 
+              REMOVIDO: Cores do Menu
+              Motivo: StorefrontHeader.tsx não implementa menu separado com cores próprias.
+              Re-adicionar quando implementar estilos de layout variáveis.
+            */}
 
             {/* === CONFIGURAÇÕES GERAIS === */}
             <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
