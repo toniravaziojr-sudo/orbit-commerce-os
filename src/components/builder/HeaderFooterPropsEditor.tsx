@@ -171,7 +171,7 @@ function CategoriesSection({
             />
           </div>
           
-          {props.showCategoriesMenu && (
+          {Boolean(props.showCategoriesMenu) && (
             <div className="space-y-1.5">
               <Label className="text-xs">Texto do menu</Label>
               <Input
@@ -197,7 +197,7 @@ function CategoriesSection({
             />
           </div>
           
-          {props.featuredCategoriesEnabled && (
+          {Boolean(props.featuredCategoriesEnabled) && (
             <>
               <div className="space-y-1.5">
                 <Label className="text-xs">Título (opcional)</Label>
@@ -360,7 +360,7 @@ function PromotionsSection({
           />
         </div>
         
-        {props.featuredPromosEnabled && (
+        {Boolean(props.featuredPromosEnabled) && (
           <>
             <div className="space-y-1.5">
               <Label className="text-xs">Texto do link</Label>
