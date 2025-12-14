@@ -93,136 +93,153 @@ export default function StorefrontBuilder() {
     }
   };
 
-  // Otherwise, show the template list
+  // Otherwise, show the template list (management view)
   return (
     <TooltipProvider>
-      <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Construtor de Páginas</h1>
+            <h1 className="text-2xl font-bold">Gerenciador de Páginas</h1>
             <p className="text-muted-foreground">
-              Personalize as páginas da sua loja
+              Gerencie e personalize as páginas da sua loja
             </p>
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <HelpCircle className="h-4 w-4" />
-                Ajuda
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-xs">
-              <p className="text-sm">
-                Clique em "Editar" para personalizar cada página. 
-                Use o preview para visualizar e depois publique.
-              </p>
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex gap-2">
+            <Button onClick={() => navigate('/storefront/builder?edit=home')}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Abrir Editor
+            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="max-w-xs">
+                <p className="text-sm">
+                  Clique em "Abrir Editor" para editar páginas. 
+                  Use esta tela para gerenciar status e ver detalhes.
+                </p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </div>
 
         {templatesLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Card key={i}>
-                <CardHeader className="pb-3">
-                  <Skeleton className="h-5 w-24" />
-                  <Skeleton className="h-4 w-32 mt-1" />
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <Skeleton className="h-9 w-full" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-4 w-64 mt-1" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {(Object.keys(pageTypeInfo) as PageType[]).map((pageType) => {
-              const info = pageTypeInfo[pageType];
-              const template = templates?.find(t => t.page_type === pageType);
-              const hasPublished = !!template?.published_version;
-              const hasDraft = !!template?.draft_version;
-              const lastUpdated = template?.updated_at;
+          <Card>
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <span className="text-xl">🛒</span>
+                </div>
+                <div>
+                  <CardTitle className="text-lg">E-commerce (Páginas Padrão)</CardTitle>
+                  <CardDescription>
+                    Templates fixos do e-commerce — não podem ser excluídos
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="divide-y divide-border rounded-lg border">
+                {(Object.keys(pageTypeInfo) as PageType[]).map((pageType) => {
+                  const info = pageTypeInfo[pageType];
+                  const template = templates?.find(t => t.page_type === pageType);
+                  const hasPublished = !!template?.published_version;
+                  const hasDraft = !!template?.draft_version;
+                  const lastUpdated = template?.updated_at;
 
-              return (
-                <Card 
-                  key={pageType} 
-                  className="group hover:shadow-md transition-all hover:border-primary/30"
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{info.icon}</span>
+                  return (
+                    <div 
+                      key={pageType} 
+                      className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{info.icon}</span>
                         <div>
-                          <CardTitle className="text-base">{info.title}</CardTitle>
-                          <CardDescription className="text-xs">
+                          <p className="font-medium text-sm">{info.title}</p>
+                          <p className="text-xs text-muted-foreground">
                             {info.description}
-                          </CardDescription>
+                            {lastUpdated && (
+                              <span className="ml-2">
+                                · {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
-                      {hasPublished ? (
-                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Publicado
-                        </Badge>
-                      ) : hasDraft ? (
-                        <Badge variant="secondary" className="gap-1">
-                          <Clock className="h-3 w-3" />
-                          Rascunho
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-muted-foreground">
-                          Não editado
-                        </Badge>
-                      )}
-                    </div>
-                    {lastUpdated && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Atualizado {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                      </p>
-                    )}
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => navigate(`/storefront/builder?edit=${pageType}`)}
-                        className="flex-1"
-                        size="sm"
-                      >
-                        <Pencil className="h-4 w-4 mr-2" />
-                        Editar
-                      </Button>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
+                      <div className="flex items-center gap-3">
+                        {hasPublished ? (
+                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1 text-xs">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Publicado
+                          </Badge>
+                        ) : hasDraft ? (
+                          <Badge variant="secondary" className="gap-1 text-xs">
+                            <Clock className="h-3 w-3" />
+                            Rascunho
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground text-xs">
+                            Não editado
+                          </Badge>
+                        )}
+                        <div className="flex gap-1">
                           <Button
-                            variant="outline"
+                            onClick={() => navigate(`/storefront/builder?edit=${pageType}`)}
+                            variant="ghost"
                             size="sm"
-                            onClick={() => window.open(getPreviewUrl(pageType), '_blank')}
                           >
-                            <Eye className="h-4 w-4" />
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Prévia</TooltipContent>
-                      </Tooltip>
-                      {hasPublished && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(`/store/${currentTenant?.slug}`, '_blank')}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Ver publicado</TooltipContent>
-                        </Tooltip>
-                      )}
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => window.open(getPreviewUrl(pageType), '_blank')}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Prévia</TooltipContent>
+                          </Tooltip>
+                          {hasPublished && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.open(`/store/${currentTenant?.slug}`, '_blank')}
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Ver publicado</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
         )}
       </div>
     </TooltipProvider>

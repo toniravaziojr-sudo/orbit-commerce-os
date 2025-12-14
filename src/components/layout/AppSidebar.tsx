@@ -61,7 +61,7 @@ const navigation: NavGroup[] = [
   {
     label: "Loja Online",
     items: [
-      { title: "Configurações", href: "/storefront", icon: Store },
+      { title: "Loja Virtual", href: "/storefront", icon: Store },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
     ],
