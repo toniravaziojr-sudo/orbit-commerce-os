@@ -4,6 +4,7 @@ import { usePublicStorefront } from '@/hooks/useStorefront';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { MenuItem } from '@/hooks/useStorefront';
+import { getStoreBaseUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl } from '@/lib/publicUrls';
 
 export function StorefrontFooter() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -24,7 +25,7 @@ export function StorefrontFooter() {
     enabled: !!tenant?.id,
   });
 
-  const baseUrl = `/store/${tenantSlug}`;
+  const baseUrl = getStoreBaseUrl(tenantSlug || '');
   const menuItems = footerMenu?.items || [];
 
   const getMenuItemUrl = (item: MenuItem): string => {
@@ -33,12 +34,13 @@ export function StorefrontFooter() {
     }
     if (item.item_type === 'category' && item.ref_id) {
       const category = categories?.find(c => c.id === item.ref_id);
-      return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
+      return category ? getPublicCategoryUrl(tenantSlug || '', category.slug) || baseUrl : baseUrl;
     }
     if (item.item_type === 'page' && item.ref_id) {
       const page = pagesData?.find(p => p.id === item.ref_id);
       if (page) {
-        return `${baseUrl}/page/${page.slug}`;
+        const urlFn = page.type === 'landing_page' ? getPublicLandingUrl : getPublicPageUrl;
+        return urlFn(tenantSlug || '', page.slug) || baseUrl;
       }
       return baseUrl;
     }
@@ -133,7 +135,7 @@ export function StorefrontFooter() {
               {categories?.slice(0, 5).map((category) => (
                 <Link
                   key={category.id}
-                  to={`${baseUrl}/c/${category.slug}`}
+                  to={getPublicCategoryUrl(tenantSlug || '', category.slug) || baseUrl}
                   className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   {category.name}
