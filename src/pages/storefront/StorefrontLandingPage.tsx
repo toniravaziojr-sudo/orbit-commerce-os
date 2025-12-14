@@ -1,0 +1,191 @@
+// =============================================
+// STOREFRONT LANDING PAGE - Public landing page via Builder
+// Filters by type = 'landing_page' for security
+// =============================================
+
+import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { usePublicStorefront } from '@/hooks/useStorefront';
+import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Home, FileX } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+import { getDefaultTemplate } from '@/lib/builder/defaults';
+
+// Hook specifically for landing pages - validates type = 'landing_page'
+function usePublicLandingPage(tenantSlug: string, pageSlug: string) {
+  return useQuery({
+    queryKey: ['public-landing-page', tenantSlug, pageSlug],
+    queryFn: async () => {
+      // Get the tenant ID from slug
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .maybeSingle();
+
+      if (tenantError || !tenant) {
+        throw new Error('Tenant not found');
+      }
+
+      // Get the page - MUST be type = 'landing_page'
+      const { data: page, error: pageError } = await supabase
+        .from('store_pages')
+        .select('id, title, published_version, is_published, content, type')
+        .eq('tenant_id', tenant.id)
+        .eq('slug', pageSlug)
+        .eq('type', 'landing_page') // Critical: only landing pages
+        .maybeSingle();
+
+      if (pageError) {
+        throw pageError;
+      }
+
+      // Page not found or wrong type
+      if (!page) {
+        return null;
+      }
+
+      // Page must be published
+      if (!page.is_published) {
+        throw new Error('Page not published');
+      }
+
+      // If has published version, use it
+      if (page.published_version) {
+        const { data: version, error: versionError } = await supabase
+          .from('store_page_versions')
+          .select('content')
+          .eq('tenant_id', tenant.id)
+          .eq('entity_type', 'page')
+          .eq('page_id', page.id)
+          .eq('version', page.published_version)
+          .eq('status', 'published')
+          .maybeSingle();
+
+        if (!versionError && version) {
+          return {
+            content: version.content as unknown as BlockNode,
+            pageTitle: page.title,
+          };
+        }
+      }
+
+      // Fallback to content field or default template
+      if (page.content && typeof page.content === 'object' && 'type' in (page.content as object)) {
+        return {
+          content: page.content as unknown as BlockNode,
+          pageTitle: page.title,
+        };
+      }
+
+      return {
+        content: getDefaultTemplate('institutional'),
+        pageTitle: page.title,
+      };
+    },
+    enabled: !!tenantSlug && !!pageSlug,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+export default function StorefrontLandingPage() {
+  const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
+  const [searchParams] = useSearchParams();
+  const isPreviewMode = searchParams.get('preview') === '1';
+
+  const { storeSettings, headerMenu, footerMenu, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '');
+
+  // Loading state
+  if (pageLoading || storeLoading) {
+    return (
+      <div className="min-h-screen">
+        <Skeleton className="h-16 w-full" />
+        <div className="container mx-auto px-4 py-8">
+          <Skeleton className="h-8 w-64 mb-4" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4 mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
+  // Store not published (and not in preview mode)
+  if (!isPreviewMode && !isPublished) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Alert className="max-w-md">
+          <FileX className="h-4 w-4" />
+          <AlertTitle>Loja não disponível</AlertTitle>
+          <AlertDescription>
+            Esta loja não está publicada no momento.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // Page not found (either doesn't exist or is not a landing page)
+  if (!pageData) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <FileX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+        <h1 className="text-2xl font-bold mb-4">Página não encontrada</h1>
+        <p className="text-muted-foreground mb-6">
+          A landing page que você procura não existe ou não está publicada.
+        </p>
+        <Link 
+          to={`/store/${tenantSlug}`}
+          className="inline-flex items-center text-primary hover:underline"
+        >
+          <Home className="h-4 w-4 mr-2" />
+          Voltar para a loja
+        </Link>
+      </div>
+    );
+  }
+
+  // Build context for block rendering
+  const context: BlockRenderContext = {
+    tenantSlug: tenantSlug || '',
+    isPreview: isPreviewMode,
+    settings: {
+      store_name: storeSettings?.store_name || undefined,
+      logo_url: storeSettings?.logo_url || undefined,
+      primary_color: storeSettings?.primary_color || undefined,
+      social_instagram: storeSettings?.social_instagram || undefined,
+      social_facebook: storeSettings?.social_facebook || undefined,
+      social_whatsapp: storeSettings?.social_whatsapp || undefined,
+      store_description: storeSettings?.store_description || undefined,
+    },
+    headerMenu: headerMenu?.items?.map(item => ({
+      id: item.id,
+      label: item.label,
+      url: item.url || undefined,
+    })),
+    footerMenu: footerMenu?.items?.map(item => ({
+      id: item.id,
+      label: item.label,
+      url: item.url || undefined,
+    })),
+    page: {
+      title: pageData.pageTitle || '',
+      slug: pageSlug || '',
+    },
+  };
+
+  return (
+    <PublicTemplateRenderer
+      content={pageData.content}
+      context={context}
+      isLoading={false}
+      error={error}
+      isPreviewMode={isPreviewMode}
+      canPreview={true}
+    />
+  );
+}
