@@ -33,6 +33,7 @@ import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import LandingPages from "@/pages/LandingPages";
+import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -118,6 +119,7 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/storefront" element={<StorefrontSettings />} />
               <Route path="/storefront/builder" element={<StorefrontBuilder />} />
+              <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

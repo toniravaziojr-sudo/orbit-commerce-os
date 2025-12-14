@@ -3,13 +3,14 @@
 // Filters by type = 'landing_page' for security
 // =============================================
 
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Home, FileX } from 'lucide-react';
+import { FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
@@ -132,23 +133,14 @@ export default function StorefrontLandingPage() {
     );
   }
 
-  // Page not found (either doesn't exist or is not a landing page)
+  // Page not found (either doesn't exist or is not a landing page) - show 404, never redirect
   if (!pageData) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <FileX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-4">Página não encontrada</h1>
-        <p className="text-muted-foreground mb-6">
-          A landing page que você procura não existe ou não está publicada.
-        </p>
-        <Link 
-          to={`/store/${tenantSlug}`}
-          className="inline-flex items-center text-primary hover:underline"
-        >
-          <Home className="h-4 w-4 mr-2" />
-          Voltar para a loja
-        </Link>
-      </div>
+      <Storefront404 
+        tenantSlug={tenantSlug || ''} 
+        entityType="landing" 
+        entitySlug={pageSlug}
+      />
     );
   }
 

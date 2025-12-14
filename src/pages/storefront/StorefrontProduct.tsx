@@ -6,7 +6,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { usePublicProduct, usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
-import { PublicTemplateRenderer, TemplateEmptyState } from '@/components/storefront/PublicTemplateRenderer';
+import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontProduct() {
@@ -23,9 +24,15 @@ export default function StorefrontProduct() {
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
 
-  // If product not found and not loading
+  // If product not found and not loading - show 404, never redirect to home
   if (!product && !productLoading && !template.isLoading) {
-    return <TemplateEmptyState type="product" tenantSlug={tenantSlug || ''} />;
+    return (
+      <Storefront404 
+        tenantSlug={tenantSlug || ''} 
+        entityType="product" 
+        entitySlug={productSlug}
+      />
+    );
   }
 
   // Get product images sorted

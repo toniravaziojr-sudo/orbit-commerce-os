@@ -46,7 +46,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPreviewUrlForEditor } from '@/lib/publicUrls';
+import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -152,32 +152,41 @@ export function BuilderToolbar({
     enabled: !!currentTenant?.id && pageType === 'category',
   });
 
-  // Build preview URL based on page type and selected example
-  const getPreviewUrl = () => {
-    if (!tenantSlug) return null;
+  // Build preview URL based on page type and selected example with validation
+  const getPreviewResult = () => {
+    if (!tenantSlug) return { url: null, canPreview: false, reason: 'Tenant não definido' };
     
     // For product/category, use the selected example's slug if available
-    if (pageType === 'product' && exampleProductId) {
-      const product = products?.find(p => p.id === exampleProductId);
-      if (product) {
-        // We need to fetch the slug - for now use ID as fallback
-        return getPreviewUrlForEditor(tenantSlug, pageType, product.id);
+    if (pageType === 'product') {
+      if (!exampleProductId) {
+        return { url: null, canPreview: false, reason: 'Selecione um produto para visualizar' };
       }
-    }
-    if (pageType === 'category' && exampleCategoryId) {
-      const category = categories?.find(c => c.id === exampleCategoryId);
-      if (category?.slug) {
-        return getPreviewUrlForEditor(tenantSlug, pageType, category.slug);
+      const product = products?.find(p => p.id === exampleProductId);
+      // We need the slug - for now products may not have slug in the list
+      // This is a simplified version, in production we should fetch the slug
+      if (product) {
+        return getPreviewUrlWithValidation(tenantSlug, pageType, product.id);
       }
     }
     
-    return getPreviewUrlForEditor(tenantSlug, pageType);
+    if (pageType === 'category') {
+      if (!exampleCategoryId) {
+        return { url: null, canPreview: false, reason: 'Selecione uma categoria para visualizar' };
+      }
+      const category = categories?.find(c => c.id === exampleCategoryId);
+      if (category?.slug) {
+        return getPreviewUrlWithValidation(tenantSlug, pageType, category.slug);
+      }
+    }
+    
+    return getPreviewUrlWithValidation(tenantSlug, pageType);
   };
 
+  const previewResult = getPreviewResult();
+
   const handleOpenPreview = () => {
-    const url = getPreviewUrl();
-    if (url) {
-      window.open(url, '_blank');
+    if (previewResult.url) {
+      window.open(previewResult.url, '_blank');
     }
   };
 
@@ -330,13 +339,17 @@ export function BuilderToolbar({
           </span>
         </Button>
 
-        {/* Open in new tab */}
+        {/* Open in new tab - disabled if no valid preview URL */}
         {tenantSlug && (
           <Button
             variant="outline"
             size="icon"
             onClick={handleOpenPreview}
-            title="Abrir preview em nova aba"
+            disabled={!previewResult.canPreview}
+            title={previewResult.canPreview 
+              ? "Abrir preview em nova aba" 
+              : previewResult.reason || "Não é possível visualizar"
+            }
             className="h-9 w-9"
           >
             <ExternalLink className="h-4 w-4" />
