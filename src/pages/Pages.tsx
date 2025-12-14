@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import type { Json } from '@/integrations/supabase/types';
@@ -31,11 +32,14 @@ export default function Pages() {
     status: 'draft' as 'draft' | 'published',
     seo_title: '',
     seo_description: '',
+    show_in_menu: false,
+    menu_label: '',
   });
 
   const resetForm = () => {
     setFormData({
       title: '', slug: '', content: '', status: 'draft', seo_title: '', seo_description: '',
+      show_in_menu: false, menu_label: '',
     });
     setEditingPage(null);
   };
@@ -53,6 +57,8 @@ export default function Pages() {
       status: page.status || (page.is_published ? 'published' : 'draft'),
       seo_title: page.seo_title || '',
       seo_description: page.seo_description || '',
+      show_in_menu: page.show_in_menu || false,
+      menu_label: page.menu_label || '',
     });
     setIsDialogOpen(true);
   };
@@ -73,6 +79,8 @@ export default function Pages() {
         is_published: formData.status === 'published',
         seo_title: formData.seo_title || null,
         seo_description: formData.seo_description || null,
+        show_in_menu: formData.show_in_menu,
+        menu_label: formData.menu_label || null,
       };
       await updatePage.mutateAsync(updateData);
       setIsDialogOpen(false);
@@ -205,6 +213,42 @@ export default function Pages() {
                   </div>
                 </div>
 
+                {/* Menu Section */}
+                {editingPage && (
+                  <div className="border-t pt-4">
+                    <p className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <MenuIcon className="h-4 w-4" />
+                      Menu
+                    </p>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm">Exibir no menu</Label>
+                          <p className="text-xs text-muted-foreground">Permite adicionar esta página nos menus</p>
+                        </div>
+                        <Switch
+                          checked={formData.show_in_menu}
+                          onCheckedChange={(v) => setFormData({ ...formData, show_in_menu: v })}
+                        />
+                      </div>
+                      
+                      {formData.show_in_menu && (
+                        <div>
+                          <Label>Título no menu (opcional)</Label>
+                          <Input 
+                            value={formData.menu_label} 
+                            onChange={(e) => setFormData({ ...formData, menu_label: e.target.value })}
+                            placeholder={formData.title || 'Usa o título da página'}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Se vazio, usa o título da página
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <Button onClick={handleSubmit} disabled={!formData.title} className="w-full">
                   {editingPage ? 'Salvar Metadados' : 'Criar e Abrir Editor'}
                 </Button>
@@ -221,6 +265,7 @@ export default function Pages() {
               <TableRow>
                 <TableHead>Título</TableHead>
                 <TableHead>Slug</TableHead>
+                <TableHead>Menu</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-32">Ações</TableHead>
               </TableRow>
@@ -235,6 +280,16 @@ export default function Pages() {
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">/{page.slug}</TableCell>
+                  <TableCell>
+                    {page.show_in_menu ? (
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        <MenuIcon className="h-3 w-3 mr-1" />
+                        No menu
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge 
                       variant={page.is_published ? 'default' : 'secondary'}
@@ -277,7 +332,7 @@ export default function Pages() {
               ))}
               {(!pages || pages.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                     Nenhuma página criada. Clique em "Nova Página" para começar.
                   </TableCell>
                 </TableRow>

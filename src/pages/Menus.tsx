@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMenus, useMenuItems } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
+import { useLandingPages } from '@/hooks/useLandingPages';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,13 @@ export default function Menus() {
   const { menus, isLoading, createMenu } = useMenus();
   const { categories } = useCategories();
   const { pages } = useStorePages();
+  const { landingPages } = useLandingPages();
+  
+  // Combine institutional pages and landing pages that are available for menu
+  const allPages = [
+    ...(pages || []).map(p => ({ ...p, pageType: 'institutional' as const })),
+    ...(landingPages || []).map(p => ({ ...p, pageType: 'landing_page' as const })),
+  ];
   
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
@@ -300,14 +308,36 @@ export default function Menus() {
             {itemForm.item_type === 'page' && (
               <div>
                 <Label>Página</Label>
-                <Select value={itemForm.ref_id} onValueChange={(v) => setItemForm({ ...itemForm, ref_id: v })}>
+                <Select value={itemForm.ref_id} onValueChange={(v) => {
+                  const page = allPages.find(p => p.id === v);
+                  if (page) {
+                    // Auto-fill label with menu_label or title
+                    const suggestedLabel = page.menu_label || page.title;
+                    setItemForm({ ...itemForm, ref_id: v, label: itemForm.label || suggestedLabel });
+                  } else {
+                    setItemForm({ ...itemForm, ref_id: v });
+                  }
+                }}>
                   <SelectTrigger><SelectValue placeholder="Selecione uma página" /></SelectTrigger>
                   <SelectContent>
-                    {pages?.filter(p => p.is_published).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                    {allPages.filter(p => p.is_published).map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{p.menu_label || p.title}</span>
+                          {p.show_in_menu && (
+                            <span className="text-xs text-green-600">✓ Menu</span>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            ({p.pageType === 'landing_page' ? 'Landing' : 'Institucional'})
+                          </span>
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Páginas marcadas com ✓ foram configuradas para exibição no menu
+                </p>
               </div>
             )}
 

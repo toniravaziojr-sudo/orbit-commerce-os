@@ -20,6 +20,10 @@ export interface LandingPage {
   is_published: boolean;
   created_at: string;
   updated_at: string;
+  // Menu visibility fields
+  show_in_menu: boolean;
+  menu_label: string | null;
+  menu_order: number;
 }
 
 export function useLandingPages() {
@@ -137,10 +141,42 @@ export function useLandingPages() {
     },
   });
 
+  const updateLandingPage = useMutation({
+    mutationFn: async ({ id, ...formData }: { id: string; title?: string; slug?: string; status?: string; is_published?: boolean; show_in_menu?: boolean; menu_label?: string | null }) => {
+      if (!currentTenant?.id) throw new Error('No tenant');
+
+      const updateData: Record<string, unknown> = { ...formData };
+      
+      // Sync is_published with status
+      if (formData.status === 'published') {
+        updateData.is_published = true;
+      }
+
+      const { data, error } = await supabase
+        .from('store_pages')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['landing-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['store-pages'] });
+      toast({ title: 'Landing page atualizada!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao atualizar', description: error.message, variant: 'destructive' });
+    },
+  });
+
   return {
     landingPages,
     isLoading,
     createLandingPage,
+    updateLandingPage,
     deleteLandingPage,
     duplicateLandingPage,
   };

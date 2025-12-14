@@ -18,6 +18,10 @@ export interface StorePage {
   is_homepage: boolean;
   created_at: string;
   updated_at: string;
+  // Menu visibility fields
+  show_in_menu: boolean;
+  menu_label: string | null;
+  menu_order: number;
 }
 
 export type StorePageFormData = {
@@ -29,6 +33,10 @@ export type StorePageFormData = {
   seo_title?: string | null;
   seo_description?: string | null;
   is_published?: boolean;
+  // Menu visibility fields
+  show_in_menu?: boolean;
+  menu_label?: string | null;
+  menu_order?: number;
 };
 
 export function useStorePages() {
