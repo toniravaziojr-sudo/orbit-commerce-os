@@ -62,6 +62,20 @@ export function VisualBuilder({
     ...(pageType === 'category' && exampleCategoryId ? { categoryId: exampleCategoryId, categorySlug: exampleCategoryId } : {}),
   }), [context, pageType, exampleProductId, exampleCategoryId]);
 
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (store.isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [store.isDirty]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
