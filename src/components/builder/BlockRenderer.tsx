@@ -361,6 +361,16 @@ function HeaderBlock({
   showSearch = true, 
   showCart = true, 
   sticky, 
+  // Header style props (Yampi)
+  headerStyle = 'logo_left_menu_inline',
+  headerBgColor = '',
+  headerTextColor = '',
+  headerIconColor = '',
+  // Menu colors (for "menu below" styles)
+  menuBgColor = '',
+  menuTextColor = '',
+  // Sticky mobile
+  stickyOnMobile = true,
   // Notice bar props
   noticeEnabled = false,
   noticeText = '',
@@ -462,41 +472,41 @@ function HeaderBlock({
     return { opacity: 1 };
   };
       
-      // Check if action is valid (has URL and label)
+  // Check if action is valid (has URL and label)
   const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
   
   // Render action element (link or button)
   const renderAction = () => {
-        if (!isActionValid && !isEditing) return null;
-        
-        const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
-        
-        // Button type - simple underlined with different style
-        if (noticeActionType === 'button') {
-          if (!isActionValid && isEditing) {
-            return (
-              <span 
-                className="ml-2 px-2 py-0.5 text-xs opacity-50 border-b border-current"
-                style={{ color: actionTextColor }}
-              >
-                [Ação: configure label e URL]
-              </span>
-            );
-          }
-          
-          return (
-            <a
-              href={noticeActionUrl}
-              target={noticeActionTarget}
-              rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-              className="ml-2 px-2 py-0.5 text-xs font-semibold border-b border-current hover:opacity-80 transition-opacity"
-              style={{ color: actionTextColor }}
-              onClick={(e) => isEditing && e.preventDefault()}
-            >
-              {noticeActionLabel}
-            </a>
-          );
-        }
+    if (!isActionValid && !isEditing) return null;
+    
+    const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
+    
+    // Button type - simple underlined with different style
+    if (noticeActionType === 'button') {
+      if (!isActionValid && isEditing) {
+        return (
+          <span 
+            className="ml-2 px-2 py-0.5 text-xs opacity-50 border-b border-current"
+            style={{ color: actionTextColor }}
+          >
+            [Ação: configure label e URL]
+          </span>
+        );
+      }
+      
+      return (
+        <a
+          href={noticeActionUrl}
+          target={noticeActionTarget}
+          rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+          className="ml-2 px-2 py-0.5 text-xs font-semibold border-b border-current hover:opacity-80 transition-opacity"
+          style={{ color: actionTextColor }}
+          onClick={(e) => isEditing && e.preventDefault()}
+        >
+          {noticeActionLabel}
+        </a>
+      );
+    }
     
     // Link type
     if (!isActionValid && isEditing) {
@@ -523,9 +533,90 @@ function HeaderBlock({
       </a>
     );
   };
+
+  // Check if current style uses "menu below"
+  const hasMenuBelow = headerStyle === 'logo_left_menu_below' || headerStyle === 'logo_center_menu_below';
+  
+  // Compute header styles
+  const headerStyles: React.CSSProperties = {
+    backgroundColor: headerBgColor || undefined,
+    color: headerTextColor || undefined,
+  };
+  
+  // Compute menu bar styles (for "menu below" layouts)
+  const menuBarStyles: React.CSSProperties = hasMenuBelow ? {
+    backgroundColor: menuBgColor || headerBgColor || undefined,
+    color: menuTextColor || headerTextColor || undefined,
+  } : {};
+  
+  // Icon color style
+  const iconStyle: React.CSSProperties = {
+    color: headerIconColor || headerTextColor || undefined,
+  };
+  
+  // Render logo section
+  const renderLogo = () => (
+    <div className="flex items-center gap-4">
+      {settings?.logo_url ? (
+        <img src={settings.logo_url} alt={settings?.store_name} className="h-10" />
+      ) : (
+        <span className="text-xl font-bold" style={{ color: headerTextColor || undefined }}>
+          {settings?.store_name || 'Loja'}
+        </span>
+      )}
+    </div>
+  );
+  
+  // Render menu items
+  const renderMenuItems = (textColor?: string) => (
+    <>
+      {displayItems.length > 0 ? (
+        displayItems.map((item: any) => (
+          <a 
+            key={item.id} 
+            href={item.url || '#'} 
+            className="text-sm hover:opacity-70 transition-opacity"
+            style={{ color: textColor || undefined }}
+          >
+            {item.label}
+          </a>
+        ))
+      ) : (
+        isEditing && (
+          <span className="text-sm opacity-50">[Selecione um menu]</span>
+        )
+      )}
+    </>
+  );
+  
+  // Render icons (search, cart)
+  const renderIcons = () => (
+    <div className="flex items-center gap-2">
+      {showSearch && (
+        <button className="p-2 hover:opacity-70 rounded transition-opacity" style={iconStyle}>
+          🔍
+        </button>
+      )}
+      {showCart && (
+        <button className="p-2 hover:opacity-70 rounded transition-opacity" style={iconStyle}>
+          🛒
+        </button>
+      )}
+    </div>
+  );
+  
+  // Determine sticky classes based on device
+  const stickyClasses = cn(
+    // Desktop sticky
+    sticky && 'md:sticky md:top-0 md:z-50',
+    // Mobile sticky
+    stickyOnMobile && 'sticky top-0 z-50 md:relative md:z-auto',
+    // Both
+    sticky && stickyOnMobile && 'sticky top-0 z-50'
+  );
   
   return (
-    <div className={cn(sticky && "sticky top-0 z-50")}>
+    <div className={stickyClasses}>
       {/* Notice Bar (Aviso Geral) */}
       {(noticeEnabled || isEditing) && (
         <div 
@@ -544,43 +635,65 @@ function HeaderBlock({
         </div>
       )}
       
-      {/* Main Header */}
-      <header className="bg-background border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {settings?.logo_url ? (
-              <img src={settings.logo_url} alt={settings?.store_name} className="h-10" />
-            ) : (
-              <span className="text-xl font-bold">{settings?.store_name || 'Loja'}</span>
-            )}
+      {/* Main Header - Style: logo_left_menu_inline (default) */}
+      {headerStyle === 'logo_left_menu_inline' && (
+        <header className="border-b" style={headerStyles}>
+          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+            {renderLogo()}
+            <nav className="hidden md:flex items-center gap-6">
+              {renderMenuItems(headerTextColor)}
+            </nav>
+            {renderIcons()}
           </div>
-          <nav className="hidden md:flex items-center gap-6">
-            {displayItems.length > 0 ? (
-              displayItems.map((item: any) => (
-                <a key={item.id} href={item.url || '#'} className="text-sm hover:text-primary transition-colors">
-                  {item.label}
-                </a>
-              ))
-            ) : (
-              isEditing && (
-                <span className="text-sm text-muted-foreground">[Selecione um menu]</span>
-              )
-            )}
+        </header>
+      )}
+      
+      {/* Main Header - Style: logo_left_menu_below */}
+      {headerStyle === 'logo_left_menu_below' && (
+        <>
+          <header className="border-b" style={headerStyles}>
+            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+              {renderLogo()}
+              {renderIcons()}
+            </div>
+          </header>
+          {/* Menu bar below */}
+          <nav 
+            className="hidden md:block border-b"
+            style={menuBarStyles}
+          >
+            <div className="container mx-auto px-4 py-2 flex items-center gap-6">
+              {renderMenuItems(menuTextColor || headerTextColor)}
+            </div>
           </nav>
-          <div className="flex items-center gap-2">
-            {showSearch && (
-              <button className="p-2 hover:bg-muted rounded">
-                🔍
-              </button>
-            )}
-            {showCart && (
-              <button className="p-2 hover:bg-muted rounded">
-                🛒
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+        </>
+      )}
+      
+      {/* Main Header - Style: logo_center_menu_below */}
+      {headerStyle === 'logo_center_menu_below' && (
+        <>
+          <header className="border-b" style={headerStyles}>
+            <div className="container mx-auto px-4 py-4 flex flex-col items-center gap-2">
+              <div className="flex items-center justify-between w-full md:justify-center">
+                <div className="md:hidden" /> {/* Spacer for mobile */}
+                {renderLogo()}
+                <div className="md:absolute md:right-4">
+                  {renderIcons()}
+                </div>
+              </div>
+            </div>
+          </header>
+          {/* Menu bar below, centered */}
+          <nav 
+            className="hidden md:block border-b"
+            style={menuBarStyles}
+          >
+            <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-6">
+              {renderMenuItems(menuTextColor || headerTextColor)}
+            </div>
+          </nav>
+        </>
+      )}
     </div>
   );
 }

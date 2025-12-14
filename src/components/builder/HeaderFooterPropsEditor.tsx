@@ -11,11 +11,15 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PropsEditor } from './PropsEditor';
 import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
 import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface HeaderFooterPropsEditorProps {
   definition: BlockDefinition;
@@ -33,6 +37,49 @@ interface HeaderFooterPropsEditorProps {
   pageId?: string;
 }
 
+// Color input with hex
+function ColorInput({ 
+  value, 
+  onChange, 
+  label, 
+  placeholder = 'Padrão do tema' 
+}: { 
+  value: string; 
+  onChange: (v: string) => void; 
+  label: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex gap-2">
+        <input
+          type="color"
+          value={value || '#000000'}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-10 h-9 rounded border cursor-pointer"
+        />
+        <Input
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1 h-9 text-sm"
+        />
+        {value && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onChange('')}
+            className="h-9 px-2"
+          >
+            ✕
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function HeaderFooterPropsEditor({
   definition,
   props,
@@ -47,6 +94,14 @@ export function HeaderFooterPropsEditor({
   pageType,
   pageId,
 }: HeaderFooterPropsEditorProps) {
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    style: true,
+    colors: false,
+    menuColors: false,
+    general: false,
+    notice: false,
+  });
+
   // Fetch page overrides (only for non-home, non-checkout pages)
   const { 
     overrides, 
@@ -84,6 +139,19 @@ export function HeaderFooterPropsEditor({
     } catch (error) {
       toast.error('Erro ao reverter configuração');
     }
+  };
+
+  // Helper to update a single prop
+  const updateProp = (key: string, value: unknown) => {
+    onChange({ ...props, [key]: value });
+  };
+
+  // Check if current style uses "menu below"
+  const hasMenuBelow = props.headerStyle === 'logo_left_menu_below' || props.headerStyle === 'logo_center_menu_below';
+
+  // Toggle section
+  const toggleSection = (key: string) => {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   // =========================================
@@ -126,7 +194,350 @@ export function HeaderFooterPropsEditor({
   }
 
   // =========================================
-  // HOME: Global configuration
+  // HOME: Global configuration with sections
+  // =========================================
+  if (isHomePage && blockType === 'Header') {
+    return (
+      <div className="h-full flex flex-col border-l">
+        {/* Header with Global indicator */}
+        <div className="p-4 border-b bg-primary/5">
+          <div className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            <div>
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                {definition.label}
+                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                  Configuração Global
+                </Badge>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Afeta todas as páginas (exceto Checkout)
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1">
+          <div className="p-4 space-y-2">
+            {/* === ESTILO DO CABEÇALHO === */}
+            <Collapsible open={openSections.style} onOpenChange={() => toggleSection('style')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Layout className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Estilo do Cabeçalho</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.style ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Layout</Label>
+                  <Select
+                    value={(props.headerStyle as string) || 'logo_left_menu_inline'}
+                    onValueChange={(v) => updateProp('headerStyle', v)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="logo_left_menu_inline">Logo à esquerda, menu ao lado</SelectItem>
+                      <SelectItem value="logo_left_menu_below">Logo à esquerda, menu abaixo</SelectItem>
+                      <SelectItem value="logo_center_menu_below">Logo centralizado, menu abaixo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label className="text-xs">Menu</Label>
+                  <PropsEditor
+                    definition={{
+                      ...definition,
+                      propsSchema: {
+                        menuId: definition.propsSchema?.menuId,
+                      }
+                    }}
+                    props={{ menuId: props.menuId }}
+                    onChange={(p) => updateProp('menuId', p.menuId)}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === CORES DO CABEÇALHO === */}
+            <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Cores do Cabeçalho</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <ColorInput
+                  label="Cor de Fundo"
+                  value={(props.headerBgColor as string) || ''}
+                  onChange={(v) => updateProp('headerBgColor', v)}
+                />
+                <ColorInput
+                  label="Cor do Texto"
+                  value={(props.headerTextColor as string) || ''}
+                  onChange={(v) => updateProp('headerTextColor', v)}
+                />
+                <ColorInput
+                  label="Cor dos Ícones"
+                  value={(props.headerIconColor as string) || ''}
+                  onChange={(v) => updateProp('headerIconColor', v)}
+                />
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === CORES DO MENU (condicional) === */}
+            <Collapsible 
+              open={openSections.menuColors && hasMenuBelow} 
+              onOpenChange={() => hasMenuBelow && toggleSection('menuColors')}
+            >
+              <CollapsibleTrigger asChild disabled={!hasMenuBelow}>
+                <Button 
+                  variant="ghost" 
+                  className={`w-full justify-between p-3 h-auto ${!hasMenuBelow ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Palette className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">Cores do Menu</span>
+                    {!hasMenuBelow && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        (apenas para estilos com menu abaixo)
+                      </span>
+                    )}
+                  </div>
+                  {hasMenuBelow && (
+                    <ChevronDown className={`h-4 w-4 transition-transform ${openSections.menuColors ? 'rotate-180' : ''}`} />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+              {hasMenuBelow && (
+                <CollapsibleContent className="px-3 pb-4 space-y-4">
+                  <ColorInput
+                    label="Cor de Fundo do Menu"
+                    value={(props.menuBgColor as string) || ''}
+                    onChange={(v) => updateProp('menuBgColor', v)}
+                    placeholder="Mesmo do cabeçalho"
+                  />
+                  <ColorInput
+                    label="Cor do Texto do Menu"
+                    value={(props.menuTextColor as string) || ''}
+                    onChange={(v) => updateProp('menuTextColor', v)}
+                    placeholder="Mesmo do cabeçalho"
+                  />
+                </CollapsibleContent>
+              )}
+            </Collapsible>
+
+            <Separator />
+
+            {/* === CONFIGURAÇÕES GERAIS === */}
+            <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Configurações Gerais</span>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Fixar ao rolar (Mobile)</Label>
+                    <p className="text-xs text-muted-foreground">Mantém o cabeçalho visível no celular</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.stickyOnMobile ?? true)}
+                    onCheckedChange={(v) => updateProp('stickyOnMobile', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Fixo no Topo (Desktop)</Label>
+                    <p className="text-xs text-muted-foreground">Mantém o cabeçalho visível no desktop</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.sticky ?? true)}
+                    onCheckedChange={(v) => updateProp('sticky', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Busca</Label>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showSearch ?? true)}
+                    onCheckedChange={(v) => updateProp('showSearch', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Carrinho</Label>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showCart ?? true)}
+                    onCheckedChange={(v) => updateProp('showCart', v)}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === AVISO GERAL === */}
+            <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Bell className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Aviso Geral</span>
+                    {props.noticeEnabled && (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Exibir Aviso Geral</Label>
+                  <Switch
+                    checked={Boolean(props.noticeEnabled)}
+                    onCheckedChange={(v) => updateProp('noticeEnabled', v)}
+                  />
+                </div>
+                
+                {props.noticeEnabled && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Texto do Aviso</Label>
+                      <Input
+                        value={(props.noticeText as string) || ''}
+                        onChange={(e) => updateProp('noticeText', e.target.value)}
+                        placeholder="Ex: Frete grátis em compras acima de R$199!"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    <ColorInput
+                      label="Cor de Fundo"
+                      value={(props.noticeBgColor as string) || '#1e40af'}
+                      onChange={(v) => updateProp('noticeBgColor', v)}
+                    />
+                    <ColorInput
+                      label="Cor do Texto"
+                      value={(props.noticeTextColor as string) || '#ffffff'}
+                      onChange={(v) => updateProp('noticeTextColor', v)}
+                    />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Animação de Entrada</Label>
+                      <Select
+                        value={(props.noticeAnimation as string) || 'fade'}
+                        onValueChange={(v) => updateProp('noticeAnimation', v)}
+                      >
+                        <SelectTrigger className="w-full h-9">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhuma</SelectItem>
+                          <SelectItem value="fade">Fade</SelectItem>
+                          <SelectItem value="slide">Slide</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <Separator />
+
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs">Exibir Ação (Link/Botão)</Label>
+                      <Switch
+                        checked={Boolean(props.noticeActionEnabled)}
+                        onCheckedChange={(v) => updateProp('noticeActionEnabled', v)}
+                      />
+                    </div>
+
+                    {props.noticeActionEnabled && (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Tipo de Ação</Label>
+                          <Select
+                            value={(props.noticeActionType as string) || 'link'}
+                            onValueChange={(v) => updateProp('noticeActionType', v)}
+                          >
+                            <SelectTrigger className="w-full h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="link">Link</SelectItem>
+                              <SelectItem value="button">Botão</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Texto da Ação</Label>
+                          <Input
+                            value={(props.noticeActionLabel as string) || ''}
+                            onChange={(e) => updateProp('noticeActionLabel', e.target.value)}
+                            placeholder="Ex: Saiba mais"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">URL da Ação</Label>
+                          <Input
+                            value={(props.noticeActionUrl as string) || ''}
+                            onChange={(e) => updateProp('noticeActionUrl', e.target.value)}
+                            placeholder="Ex: /promocao"
+                            className="h-9 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Abrir em</Label>
+                          <Select
+                            value={(props.noticeActionTarget as string) || '_self'}
+                            onValueChange={(v) => updateProp('noticeActionTarget', v)}
+                          >
+                            <SelectTrigger className="w-full h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_self">Mesma aba</SelectItem>
+                              <SelectItem value="_blank">Nova aba</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <ColorInput
+                          label="Cor do Texto da Ação"
+                          value={(props.noticeActionTextColor as string) || ''}
+                          onChange={(v) => updateProp('noticeActionTextColor', v)}
+                          placeholder="Mesmo do texto do aviso"
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+        </ScrollArea>
+      </div>
+    );
+  }
+
+  // =========================================
+  // HOME: Footer - use default PropsEditor
   // =========================================
   if (isHomePage) {
     return (

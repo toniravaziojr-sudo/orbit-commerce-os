@@ -281,6 +281,16 @@ const blockDefinitions: BlockDefinition[] = [
       showSearch: true,
       showCart: true,
       sticky: true,
+      // Estilo do cabeçalho (Yampi)
+      headerStyle: 'logo_left_menu_inline',
+      headerBgColor: '',
+      headerTextColor: '',
+      headerIconColor: '',
+      // Cores do menu (para estilos "menu abaixo")
+      menuBgColor: '',
+      menuTextColor: '',
+      // Sticky mobile
+      stickyOnMobile: true,
       // Aviso Geral (notice bar)
       noticeEnabled: false,
       noticeText: '',
@@ -296,7 +306,71 @@ const blockDefinitions: BlockDefinition[] = [
       noticeActionTextColor: '',
     },
     propsSchema: {
-      // Aviso Geral section
+      // === ESTILO DO CABEÇALHO ===
+      headerStyle: {
+        type: 'select',
+        label: 'Estilo do Cabeçalho',
+        defaultValue: 'logo_left_menu_inline',
+        options: [
+          { label: 'Logo à esquerda, menu ao lado', value: 'logo_left_menu_inline' },
+          { label: 'Logo à esquerda, menu abaixo', value: 'logo_left_menu_below' },
+          { label: 'Logo centralizado, menu abaixo', value: 'logo_center_menu_below' },
+        ],
+      },
+      // === CORES DO CABEÇALHO ===
+      headerBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo',
+        placeholder: 'Padrão do tema',
+      },
+      headerTextColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        placeholder: 'Padrão do tema',
+      },
+      headerIconColor: {
+        type: 'color',
+        label: 'Cor dos Ícones',
+        placeholder: 'Padrão do tema',
+      },
+      // === CORES DO MENU (para estilos "menu abaixo") ===
+      menuBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo do Menu',
+        placeholder: 'Mesmo do cabeçalho',
+      },
+      menuTextColor: {
+        type: 'color',
+        label: 'Cor do Texto do Menu',
+        placeholder: 'Mesmo do cabeçalho',
+      },
+      // === CONFIGURAÇÕES GERAIS ===
+      stickyOnMobile: {
+        type: 'boolean',
+        label: 'Fixar ao rolar (Mobile)',
+        defaultValue: true,
+      },
+      sticky: {
+        type: 'boolean',
+        label: 'Fixo no Topo (Desktop)',
+        defaultValue: true,
+      },
+      menuId: {
+        type: 'menu',
+        label: 'Menu',
+        placeholder: 'Selecione um menu',
+      },
+      showSearch: {
+        type: 'boolean',
+        label: 'Mostrar Busca',
+        defaultValue: true,
+      },
+      showCart: {
+        type: 'boolean',
+        label: 'Mostrar Carrinho',
+        defaultValue: true,
+      },
+      // === AVISO GERAL ===
       noticeEnabled: {
         type: 'boolean',
         label: '📢 Exibir Aviso Geral',
@@ -364,26 +438,6 @@ const blockDefinitions: BlockDefinition[] = [
       noticeActionTextColor: {
         type: 'color',
         label: 'Cor do Texto da Ação',
-      },
-      menuId: {
-        type: 'menu',
-        label: 'Menu',
-        placeholder: 'Selecione um menu',
-      },
-      showSearch: {
-        type: 'boolean',
-        label: 'Mostrar Busca',
-        defaultValue: true,
-      },
-      showCart: {
-        type: 'boolean',
-        label: 'Mostrar Carrinho',
-        defaultValue: true,
-      },
-      sticky: {
-        type: 'boolean',
-        label: 'Fixo no Topo',
-        defaultValue: true,
       },
     },
     canHaveChildren: false,
