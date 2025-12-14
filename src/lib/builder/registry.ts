@@ -527,8 +527,27 @@ const blockDefinitions: BlockDefinition[] = [
       menuId: '',
       showSocial: true,
       copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+      // Cores do rodapé
+      footerBgColor: '',
+      footerTextColor: '',
+      // Barra Superior do Rodapé (Aviso Geral)
+      noticeEnabled: false,
+      noticeText: '',
+      noticeBgColor: '#1e40af',
+      noticeTextColor: '#ffffff',
     },
     propsSchema: {
+      // === CORES DO RODAPÉ ===
+      footerBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo',
+        placeholder: 'Padrão do tema',
+      },
+      footerTextColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        placeholder: 'Padrão do tema',
+      },
       menuId: {
         type: 'menu',
         label: 'Menu',
@@ -543,6 +562,27 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto de Copyright',
         defaultValue: '© 2024 Minha Loja. Todos os direitos reservados.',
+      },
+      // === BARRA SUPERIOR DO RODAPÉ (AVISO GERAL) ===
+      noticeEnabled: {
+        type: 'boolean',
+        label: 'Exibir Barra Superior',
+        defaultValue: false,
+      },
+      noticeText: {
+        type: 'string',
+        label: 'Texto',
+        placeholder: 'Ex: Inscreva-se e receba 10% de desconto!',
+      },
+      noticeBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo',
+        defaultValue: '#1e40af',
+      },
+      noticeTextColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        defaultValue: '#ffffff',
       },
     },
     canHaveChildren: false,
