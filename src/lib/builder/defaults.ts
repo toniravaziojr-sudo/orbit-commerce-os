@@ -394,6 +394,41 @@ export const defaultInstitutionalTemplate: BlockNode = {
   ],
 };
 
+// Default Neutral Page template (for institutional and landing pages)
+export const defaultNeutralPageTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('Container'),
+          type: 'Container',
+          props: {
+            maxWidth: 'md',
+            centered: true,
+          },
+          children: [
+            {
+              id: generateBlockId('RichText'),
+              type: 'RichText',
+              props: {
+                content: '<h1>Título da Página</h1><p>Conteúdo da página...</p>',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 // Get default template by page type
 export function getDefaultTemplate(pageType: string): BlockNode {
   switch (pageType) {
@@ -407,6 +442,9 @@ export function getDefaultTemplate(pageType: string): BlockNode {
       return JSON.parse(JSON.stringify(defaultCartTemplate));
     case 'checkout':
       return JSON.parse(JSON.stringify(defaultCheckoutTemplate));
+    case 'neutral':
+    case 'landing_page':
+      return JSON.parse(JSON.stringify(defaultNeutralPageTemplate));
     case 'institutional':
     default:
       return JSON.parse(JSON.stringify(defaultInstitutionalTemplate));

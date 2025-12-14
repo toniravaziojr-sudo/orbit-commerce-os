@@ -21,7 +21,7 @@ import { Layers, LayoutGrid } from 'lucide-react';
 
 interface VisualBuilderProps {
   tenantId: string;
-  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional';
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
   pageId?: string;
   pageTitle?: string;
   initialContent?: BlockNode;
@@ -122,7 +122,10 @@ export function VisualBuilder({
   }, [store]);
 
   // Determine entity type based on pageType
-  const entityType = pageType === 'institutional' ? 'page' : 'template';
+  const entityType = (pageType === 'institutional' || pageType === 'landing_page') ? 'page' : 'template';
+
+  // Check if this is checkout page (uses separate header/footer)
+  const isCheckoutPage = pageType === 'checkout';
 
   // Handle saving draft
   const handleSave = useCallback(async () => {
@@ -265,6 +268,7 @@ export function VisualBuilder({
     cart: 'Carrinho',
     checkout: 'Checkout',
     institutional: pageTitle || 'Página',
+    landing_page: pageTitle || 'Landing Page',
   };
 
   return (

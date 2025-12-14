@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import type { Json } from '@/integrations/supabase/types';
 
 export default function Pages() {
   const navigate = useNavigate();
@@ -57,24 +58,45 @@ export default function Pages() {
   };
 
   const handleSubmit = async () => {
-    const data = {
-      title: formData.title,
-      slug: formData.slug || formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
-      content: { text: formData.content },
-      status: formData.status,
-      is_published: formData.status === 'published',
-      seo_title: formData.seo_title || null,
-      seo_description: formData.seo_description || null,
-      type: 'institutional',
-    };
-
+    const slug = formData.slug || formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    
+    // Get the neutral template content
+    const { defaultNeutralPageTemplate } = await import('@/lib/builder/defaults');
+    
     if (editingPage) {
-      await updatePage.mutateAsync({ id: editingPage.id, ...data });
+      // When editing, don't overwrite content
+      const updateData = {
+        id: editingPage.id,
+        title: formData.title,
+        slug,
+        status: formData.status,
+        is_published: formData.status === 'published',
+        seo_title: formData.seo_title || null,
+        seo_description: formData.seo_description || null,
+      };
+      await updatePage.mutateAsync(updateData);
+      setIsDialogOpen(false);
+      resetForm();
     } else {
-      await createPage.mutateAsync(data);
+      const data = {
+        title: formData.title,
+        slug,
+        content: defaultNeutralPageTemplate as unknown as Json,
+        status: formData.status,
+        is_published: formData.status === 'published',
+        seo_title: formData.seo_title || null,
+        seo_description: formData.seo_description || null,
+        type: 'institutional',
+      };
+      const newPage = await createPage.mutateAsync(data);
+      // Navigate to builder after creation
+      if (newPage?.id) {
+        navigate(`/pages/${newPage.id}/builder`);
+        return;
+      }
+      setIsDialogOpen(false);
+      resetForm();
     }
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleDelete = async () => {
@@ -114,7 +136,7 @@ export default function Pages() {
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingPage ? 'Editar Página' : 'Nova Página'}</DialogTitle>
+                <DialogTitle>{editingPage ? 'Editar Metadados' : 'Nova Página Institucional'}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -136,29 +158,29 @@ export default function Pages() {
                   </div>
                 </div>
                 
-                <div>
-                  <Label>Conteúdo</Label>
-                  <Textarea 
-                    value={formData.content} 
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    placeholder="Escreva o conteúdo da página..."
-                    className="min-h-[200px]"
-                  />
-                </div>
+                {!editingPage && (
+                  <div className="pt-2 border rounded-lg p-3 bg-muted/50">
+                    <p className="text-sm text-muted-foreground">
+                      Será criada usando o template <strong>Página Neutra</strong>. Após criar, você será redirecionado para o editor visual.
+                    </p>
+                  </div>
+                )}
 
-                <div>
-                  <Label>Status</Label>
-                  <Select 
-                    value={formData.status} 
-                    onValueChange={(v: 'draft' | 'published') => setFormData({ ...formData, status: v })}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Rascunho</SelectItem>
-                      <SelectItem value="published">Publicado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {editingPage && (
+                  <div>
+                    <Label>Status</Label>
+                    <Select 
+                      value={formData.status} 
+                      onValueChange={(v: 'draft' | 'published') => setFormData({ ...formData, status: v })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Rascunho</SelectItem>
+                        <SelectItem value="published">Publicado</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="border-t pt-4">
                   <p className="text-sm font-medium mb-3">SEO</p>
@@ -184,7 +206,7 @@ export default function Pages() {
                 </div>
 
                 <Button onClick={handleSubmit} disabled={!formData.title} className="w-full">
-                  {editingPage ? 'Salvar' : 'Criar Página'}
+                  {editingPage ? 'Salvar Metadados' : 'Criar e Abrir Editor'}
                 </Button>
               </div>
             </DialogContent>

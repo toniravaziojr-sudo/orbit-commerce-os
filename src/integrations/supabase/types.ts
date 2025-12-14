@@ -1521,6 +1521,47 @@ export type Database = {
           },
         ]
       }
+      storefront_global_layout: {
+        Row: {
+          checkout_footer_config: Json
+          checkout_header_config: Json
+          created_at: string
+          footer_config: Json
+          header_config: Json
+          id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          checkout_footer_config?: Json
+          checkout_header_config?: Json
+          created_at?: string
+          footer_config?: Json
+          header_config?: Json
+          id?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          checkout_footer_config?: Json
+          checkout_header_config?: Json
+          created_at?: string
+          footer_config?: Json
+          header_config?: Json
+          id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_global_layout_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       storefront_page_templates: {
         Row: {
           created_at: string
