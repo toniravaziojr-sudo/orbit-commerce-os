@@ -90,40 +90,38 @@ export function PropsEditor({
       {/* Props */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {/* Header Notice Accordion */}
+          {/* Header Notice Accordion - FIRST, collapsed by default */}
           {isHeaderBlock && noticePropsEntries.length > 0 && (
-            <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
-              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">📢</span>
-                  <span className="font-medium text-sm">Aviso Geral</span>
-                </div>
-                <ChevronDown className={cn(
-                  "h-4 w-4 transition-transform duration-200",
-                  noticeOpen && "rotate-180"
-                )} />
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3 space-y-4">
-                {noticePropsEntries.map(([key, schema]) => (
-                  <PropField
-                    key={key}
-                    name={key}
-                    schema={schema}
-                    value={props[key] ?? schema.defaultValue}
-                    onChange={(value) => handleChange(key, value)}
-                    blockType={definition.type}
-                  />
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
+            <>
+              <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📢</span>
+                    <span className="font-medium text-sm">Aviso Geral</span>
+                  </div>
+                  <ChevronDown className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    noticeOpen && "rotate-180"
+                  )} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-3 pl-3 pr-1 space-y-4 border-l-2 border-muted ml-2 mt-2">
+                  {noticePropsEntries.map(([key, schema]) => (
+                    <PropField
+                      key={key}
+                      name={key}
+                      schema={schema}
+                      value={props[key] ?? schema.defaultValue}
+                      onChange={(value) => handleChange(key, value)}
+                      blockType={definition.type}
+                    />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+              <Separator className="my-4" />
+            </>
           )}
           
-          {/* Separator if we have notice props */}
-          {isHeaderBlock && noticePropsEntries.length > 0 && otherPropsEntries.length > 0 && (
-            <Separator className="my-4" />
-          )}
-          
-          {/* Other Props */}
+          {/* Header main props - AFTER the accordion */}
           {otherPropsEntries.length > 0 ? (
             otherPropsEntries.map(([key, schema]) => (
               <PropField
