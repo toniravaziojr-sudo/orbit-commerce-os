@@ -354,6 +354,8 @@ function ColumnsBlock({
 
 // ========== HEADER / FOOTER ==========
 
+import { useState, useEffect } from 'react';
+
 function HeaderBlock({ 
   menuId, 
   showSearch = true, 
@@ -364,10 +366,29 @@ function HeaderBlock({
   noticeText = '',
   noticeBgColor = '#1e40af',
   noticeTextColor = '#ffffff',
+  noticeAnimation = 'none',
+  // Notice action props
+  noticeActionEnabled = false,
+  noticeActionType = 'link',
+  noticeActionLabel = '',
+  noticeActionUrl = '',
+  noticeActionTarget = '_self',
+  noticeActionTextColor = '',
+  noticeActionBgColor = '',
   context, 
   isEditing 
 }: any) {
   const { settings } = context || {};
+  const [hasAnimated, setHasAnimated] = useState(false);
+  
+  // Animation runs only once on first render
+  useEffect(() => {
+    if (noticeEnabled && noticeAnimation !== 'none' && !hasAnimated) {
+      // Small delay to ensure animation is visible
+      const timer = setTimeout(() => setHasAnimated(true), 50);
+      return () => clearTimeout(timer);
+    }
+  }, [noticeEnabled, noticeAnimation, hasAnimated]);
   
   const { data: menuItems } = useQuery({
     queryKey: ['menu-items', menuId],
@@ -386,21 +407,115 @@ function HeaderBlock({
   
   const displayItems = menuItems || context?.headerMenu || [];
   
+  // Animation styles
+  const getAnimationStyles = (): React.CSSProperties => {
+    if (isEditing || noticeAnimation === 'none') {
+      return {};
+    }
+    
+    const baseTransition = 'opacity 250ms ease-out, transform 250ms ease-out';
+    
+    if (noticeAnimation === 'fade') {
+      return {
+        opacity: hasAnimated ? 1 : 0,
+        transition: baseTransition,
+      };
+    }
+    
+    if (noticeAnimation === 'slide') {
+      return {
+        opacity: hasAnimated ? 1 : 0,
+        transform: hasAnimated ? 'translateY(0)' : 'translateY(-100%)',
+        transition: baseTransition,
+      };
+    }
+    
+    return {};
+  };
+  
+  // Check if action is valid (has URL and label)
+  const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
+  
+  // Render action element (link or button)
+  const renderAction = () => {
+    if (!isActionValid && !isEditing) return null;
+    
+    const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
+    
+    if (noticeActionType === 'button') {
+      const buttonBgColor = noticeActionBgColor || 'rgba(255,255,255,0.2)';
+      
+      if (!isActionValid && isEditing) {
+        return (
+          <span 
+            className="ml-2 px-3 py-1 rounded text-xs opacity-50"
+            style={{ backgroundColor: buttonBgColor, color: actionTextColor }}
+          >
+            [Botão: configure label e URL]
+          </span>
+        );
+      }
+      
+      return (
+        <a
+          href={noticeActionUrl}
+          target={noticeActionTarget}
+          rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+          className="ml-2 px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity"
+          style={{ 
+            backgroundColor: buttonBgColor, 
+            color: actionTextColor,
+          }}
+          onClick={(e) => isEditing && e.preventDefault()}
+        >
+          {noticeActionLabel}
+        </a>
+      );
+    }
+    
+    // Link type
+    if (!isActionValid && isEditing) {
+      return (
+        <span 
+          className="ml-2 underline text-xs opacity-50"
+          style={{ color: actionTextColor }}
+        >
+          [Link: configure label e URL]
+        </span>
+      );
+    }
+    
+    return (
+      <a
+        href={noticeActionUrl}
+        target={noticeActionTarget}
+        rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+        className="ml-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
+        style={{ color: actionTextColor }}
+        onClick={(e) => isEditing && e.preventDefault()}
+      >
+        {noticeActionLabel}
+      </a>
+    );
+  };
+  
   return (
     <div className={cn(sticky && "sticky top-0 z-50")}>
       {/* Notice Bar (Aviso Geral) */}
       {(noticeEnabled || isEditing) && (
         <div 
           className={cn(
-            "py-2 px-4 text-center text-sm",
+            "py-2 px-4 text-center text-sm flex items-center justify-center flex-wrap gap-1",
             !noticeEnabled && isEditing && "opacity-40"
           )}
           style={{ 
             backgroundColor: noticeBgColor || '#1e40af',
             color: noticeTextColor || '#ffffff',
+            ...getAnimationStyles(),
           }}
         >
-          {noticeText || (isEditing ? '[Digite o texto do aviso]' : '')}
+          <span>{noticeText || (isEditing ? '[Digite o texto do aviso]' : '')}</span>
+          {(noticeActionEnabled || (isEditing && noticeEnabled)) && renderAction()}
         </div>
       )}
       
