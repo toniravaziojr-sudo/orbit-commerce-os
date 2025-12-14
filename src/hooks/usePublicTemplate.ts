@@ -94,6 +94,13 @@ interface PublicPageTemplateResult {
   error: Error | null;
   pageTitle: string | null;
   pageId: string | null;
+  // SEO fields
+  metaTitle: string | null;
+  metaDescription: string | null;
+  metaImageUrl: string | null;
+  noIndex: boolean;
+  canonicalUrl: string | null;
+  pageType: string | null;
 }
 
 export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): PublicPageTemplateResult {
@@ -111,10 +118,10 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Tenant not found');
       }
 
-      // Get the page
+      // Get the page with SEO fields
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, published_version, is_published, content')
+        .select('id, title, published_version, is_published, content, type, meta_title, meta_description, meta_image_url, no_index, canonical_url')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
         .single();
@@ -127,6 +134,16 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
       if (!page.is_published) {
         throw new Error('Page not published');
       }
+
+      // Prepare SEO data
+      const seoData = {
+        metaTitle: page.meta_title,
+        metaDescription: page.meta_description,
+        metaImageUrl: page.meta_image_url,
+        noIndex: page.no_index || false,
+        canonicalUrl: page.canonical_url,
+        pageType: page.type,
+      };
 
       // If has published version, use it
       if (page.published_version) {
@@ -145,6 +162,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
+            ...seoData,
           };
         }
       }
@@ -180,6 +198,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             content: updateContent(defaultTemplate),
             pageTitle: page.title,
             pageId: page.id,
+            ...seoData,
           };
         }
       }
@@ -190,6 +209,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         content: defaultTemplate,
         pageTitle: page.title,
         pageId: page.id,
+        ...seoData,
       };
     },
     enabled: !!tenantSlug && !!pageSlug,
@@ -200,6 +220,12 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
     pageId: data?.pageId || null,
+    metaTitle: data?.metaTitle || null,
+    metaDescription: data?.metaDescription || null,
+    metaImageUrl: data?.metaImageUrl || null,
+    noIndex: data?.noIndex || false,
+    canonicalUrl: data?.canonicalUrl || null,
+    pageType: data?.pageType || null,
     isLoading,
     error: error as Error | null,
   };

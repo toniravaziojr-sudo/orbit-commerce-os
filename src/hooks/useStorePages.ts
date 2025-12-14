@@ -22,6 +22,12 @@ export interface StorePage {
   show_in_menu: boolean;
   menu_label: string | null;
   menu_order: number;
+  // SEO fields
+  meta_title: string | null;
+  meta_description: string | null;
+  meta_image_url: string | null;
+  no_index: boolean | null;
+  canonical_url: string | null;
 }
 
 export type StorePageFormData = {

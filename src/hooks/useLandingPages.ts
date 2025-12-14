@@ -24,6 +24,12 @@ export interface LandingPage {
   show_in_menu: boolean;
   menu_label: string | null;
   menu_order: number;
+  // SEO fields
+  meta_title: string | null;
+  meta_description: string | null;
+  meta_image_url: string | null;
+  no_index: boolean | null;
+  canonical_url: string | null;
 }
 
 export function useLandingPages() {
@@ -142,7 +148,7 @@ export function useLandingPages() {
   });
 
   const updateLandingPage = useMutation({
-    mutationFn: async ({ id, ...formData }: { id: string; title?: string; slug?: string; status?: string; is_published?: boolean; show_in_menu?: boolean; menu_label?: string | null }) => {
+    mutationFn: async ({ id, ...formData }: { id: string; title?: string; slug?: string; status?: string; is_published?: boolean; show_in_menu?: boolean; menu_label?: string | null; meta_title?: string | null; meta_description?: string | null; meta_image_url?: string | null; no_index?: boolean | null; canonical_url?: string | null }) => {
       if (!currentTenant?.id) throw new Error('No tenant');
 
       const updateData: Record<string, unknown> = { ...formData };

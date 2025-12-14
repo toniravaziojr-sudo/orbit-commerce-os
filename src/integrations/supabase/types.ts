@@ -1370,6 +1370,7 @@ export type Database = {
       store_pages: {
         Row: {
           builder_enabled: boolean | null
+          canonical_url: string | null
           content: Json | null
           created_at: string
           draft_version: number | null
@@ -1378,6 +1379,10 @@ export type Database = {
           is_published: boolean | null
           menu_label: string | null
           menu_order: number | null
+          meta_description: string | null
+          meta_image_url: string | null
+          meta_title: string | null
+          no_index: boolean | null
           page_overrides: Json | null
           published_version: number | null
           seo_description: string | null
@@ -1392,6 +1397,7 @@ export type Database = {
         }
         Insert: {
           builder_enabled?: boolean | null
+          canonical_url?: string | null
           content?: Json | null
           created_at?: string
           draft_version?: number | null
@@ -1400,6 +1406,10 @@ export type Database = {
           is_published?: boolean | null
           menu_label?: string | null
           menu_order?: number | null
+          meta_description?: string | null
+          meta_image_url?: string | null
+          meta_title?: string | null
+          no_index?: boolean | null
           page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null
@@ -1414,6 +1424,7 @@ export type Database = {
         }
         Update: {
           builder_enabled?: boolean | null
+          canonical_url?: string | null
           content?: Json | null
           created_at?: string
           draft_version?: number | null
@@ -1422,6 +1433,10 @@ export type Database = {
           is_published?: boolean | null
           menu_label?: string | null
           menu_order?: number | null
+          meta_description?: string | null
+          meta_image_url?: string | null
+          meta_title?: string | null
+          no_index?: boolean | null
           page_overrides?: Json | null
           published_version?: number | null
           seo_description?: string | null

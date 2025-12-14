@@ -2,6 +2,7 @@
 // STOREFRONT PAGE - Public institutional page via Builder
 // =============================================
 
+import { useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicPageTemplate } from '@/hooks/usePublicTemplate';
@@ -11,6 +12,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Home, FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getEffectiveSeo, applySeoToDocument } from '@/lib/seo';
 
 export default function StorefrontPage() {
   const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
@@ -79,6 +81,31 @@ export default function StorefrontPage() {
       </div>
     );
   }
+
+  // Apply SEO meta tags (only for public pages with SEO fields)
+  useEffect(() => {
+    if (!pageData.isLoading && pageData.content && 'metaTitle' in pageData) {
+      const currentUrl = window.location.href;
+      const seo = getEffectiveSeo(
+        {
+          metaTitle: pageData.metaTitle,
+          metaDescription: pageData.metaDescription,
+          metaImageUrl: pageData.metaImageUrl,
+          noIndex: pageData.noIndex,
+          canonicalUrl: pageData.canonicalUrl,
+          title: pageData.pageTitle || undefined,
+          type: pageData.pageType,
+        },
+        {
+          storeName: storeSettings?.store_name,
+          storeDescription: storeSettings?.store_description,
+          logoUrl: storeSettings?.logo_url,
+        },
+        currentUrl
+      );
+      applySeoToDocument(seo);
+    }
+  }, [pageData, storeSettings]);
 
   // Build context for block rendering
   const context: BlockRenderContext = {
