@@ -3,14 +3,15 @@
 // =============================================
 
 import { useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicPageTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewPageTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Home, FileX } from 'lucide-react';
+import { FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getEffectiveSeo, applySeoToDocument } from '@/lib/seo';
 
@@ -62,23 +63,14 @@ export default function StorefrontPage() {
     ? ('canPreview' in pageData ? Boolean(pageData.canPreview) : true) 
     : true;
 
-  // Page not found
+  // Page not found - show 404, never redirect to home
   if (!pageData.content && !pageData.isLoading) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <FileX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-4">Página não encontrada</h1>
-        <p className="text-muted-foreground mb-6">
-          A página que você procura não existe ou não está publicada.
-        </p>
-        <Link 
-          to={`/store/${tenantSlug}`}
-          className="inline-flex items-center text-primary hover:underline"
-        >
-          <Home className="h-4 w-4 mr-2" />
-          Voltar para a loja
-        </Link>
-      </div>
+      <Storefront404 
+        tenantSlug={tenantSlug || ''} 
+        entityType="page" 
+        entitySlug={pageSlug}
+      />
     );
   }
 

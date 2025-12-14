@@ -6,7 +6,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { usePublicCategory, usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
-import { PublicTemplateRenderer, TemplateEmptyState } from '@/components/storefront/PublicTemplateRenderer';
+import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontCategory() {
@@ -23,9 +24,15 @@ export default function StorefrontCategory() {
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
 
-  // If category not found and not loading
+  // If category not found and not loading - show 404, never redirect to home
   if (!category && !categoryLoading && !template.isLoading) {
-    return <TemplateEmptyState type="category" tenantSlug={tenantSlug || ''} />;
+    return (
+      <Storefront404 
+        tenantSlug={tenantSlug || ''} 
+        entityType="category" 
+        entitySlug={categorySlug}
+      />
+    );
   }
 
   // Build context for block rendering with category data

@@ -3,10 +3,18 @@
 // Single source of truth for all public URL generation
 // =============================================
 
+import { hasValidSlug } from './slugValidation';
+
 /**
  * Get the base URL for a store
  */
 export function getStoreBaseUrl(tenantSlug: string): string {
+  if (!tenantSlug) {
+    if (import.meta.env.DEV) {
+      console.warn('[publicUrls] getStoreBaseUrl called without tenantSlug');
+    }
+    return '/store';
+  }
   return `/store/${tenantSlug}`;
 }
 
@@ -21,10 +29,15 @@ export function getPublicHomeUrl(tenantSlug: string, preview = false): string {
 /**
  * Get the public product URL
  * @param tenantSlug - The tenant slug
- * @param productSlug - The product slug/handle (required - if empty, returns null)
+ * @param productSlug - The product slug/handle (required - if empty/invalid, returns null)
  */
 export function getPublicProductUrl(tenantSlug: string, productSlug: string | undefined, preview = false): string | null {
-  if (!productSlug) return null;
+  if (!hasValidSlug(productSlug)) {
+    if (import.meta.env.DEV && productSlug !== undefined) {
+      console.warn(`[publicUrls] getPublicProductUrl: invalid slug "${productSlug}"`);
+    }
+    return null;
+  }
   const base = getStoreBaseUrl(tenantSlug);
   const url = `${base}/p/${productSlug}`;
   return preview ? `${url}?preview=1` : url;
@@ -33,10 +46,15 @@ export function getPublicProductUrl(tenantSlug: string, productSlug: string | un
 /**
  * Get the public category URL
  * @param tenantSlug - The tenant slug
- * @param categorySlug - The category slug (required - if empty, returns null)
+ * @param categorySlug - The category slug (required - if empty/invalid, returns null)
  */
 export function getPublicCategoryUrl(tenantSlug: string, categorySlug: string | undefined, preview = false): string | null {
-  if (!categorySlug) return null;
+  if (!hasValidSlug(categorySlug)) {
+    if (import.meta.env.DEV && categorySlug !== undefined) {
+      console.warn(`[publicUrls] getPublicCategoryUrl: invalid slug "${categorySlug}"`);
+    }
+    return null;
+  }
   const base = getStoreBaseUrl(tenantSlug);
   const url = `${base}/c/${categorySlug}`;
   return preview ? `${url}?preview=1` : url;
@@ -63,10 +81,15 @@ export function getPublicCheckoutUrl(tenantSlug: string, preview = false): strin
 /**
  * Get the public institutional page URL
  * @param tenantSlug - The tenant slug
- * @param pageSlug - The page slug (required - if empty, returns null)
+ * @param pageSlug - The page slug (required - if empty/invalid, returns null)
  */
 export function getPublicPageUrl(tenantSlug: string, pageSlug: string | undefined, preview = false): string | null {
-  if (!pageSlug) return null;
+  if (!hasValidSlug(pageSlug)) {
+    if (import.meta.env.DEV && pageSlug !== undefined) {
+      console.warn(`[publicUrls] getPublicPageUrl: invalid slug "${pageSlug}"`);
+    }
+    return null;
+  }
   const base = getStoreBaseUrl(tenantSlug);
   const url = `${base}/page/${pageSlug}`;
   return preview ? `${url}?preview=1` : url;
@@ -75,10 +98,15 @@ export function getPublicPageUrl(tenantSlug: string, pageSlug: string | undefine
 /**
  * Get the public landing page URL
  * @param tenantSlug - The tenant slug
- * @param landingSlug - The landing page slug (required - if empty, returns null)
+ * @param landingSlug - The landing page slug (required - if empty/invalid, returns null)
  */
 export function getPublicLandingUrl(tenantSlug: string, landingSlug: string | undefined, preview = false): string | null {
-  if (!landingSlug) return null;
+  if (!hasValidSlug(landingSlug)) {
+    if (import.meta.env.DEV && landingSlug !== undefined) {
+      console.warn(`[publicUrls] getPublicLandingUrl: invalid slug "${landingSlug}"`);
+    }
+    return null;
+  }
   const base = getStoreBaseUrl(tenantSlug);
   const url = `${base}/lp/${landingSlug}`;
   return preview ? `${url}?preview=1` : url;
@@ -119,7 +147,8 @@ export function buildMenuItemUrl(
   if (item.item_type === 'category' && item.ref_id && categories) {
     const category = categories.find(c => c.id === item.ref_id);
     if (category) {
-      return getPublicCategoryUrl(tenantSlug, category.slug) || baseUrl;
+      const url = getPublicCategoryUrl(tenantSlug, category.slug);
+      return url || baseUrl;
     }
   }
 
@@ -129,10 +158,12 @@ export function buildMenuItemUrl(
     if (page) {
       // Check if it's a landing page
       if (page.type === 'landing_page') {
-        return getPublicLandingUrl(tenantSlug, page.slug) || baseUrl;
+        const url = getPublicLandingUrl(tenantSlug, page.slug);
+        return url || baseUrl;
       }
       // Default to institutional page
-      return getPublicPageUrl(tenantSlug, page.slug) || baseUrl;
+      const url = getPublicPageUrl(tenantSlug, page.slug);
+      return url || baseUrl;
     }
   }
 
@@ -141,7 +172,16 @@ export function buildMenuItemUrl(
 }
 
 /**
- * Get preview URL for editor context
+ * Result type for getPreviewUrlForEditor
+ */
+export interface PreviewUrlResult {
+  url: string | null;
+  canPreview: boolean;
+  reason?: string;
+}
+
+/**
+ * Get preview URL for editor context with validation
  * @param tenantSlug - The tenant slug
  * @param pageType - The page type being edited
  * @param entitySlug - Optional slug of the specific entity (product/category/page)
@@ -151,22 +191,23 @@ export function getPreviewUrlForEditor(
   pageType: string,
   entitySlug?: string
 ): string {
+  // For pages that require slug, if no slug is provided, return home with warning
   switch (pageType) {
     case 'home':
       return getPublicHomeUrl(tenantSlug, true);
     case 'product':
-      // If we have a specific product slug, use it
       if (entitySlug) {
-        return getPublicProductUrl(tenantSlug, entitySlug, true) || getPublicHomeUrl(tenantSlug, true);
+        const url = getPublicProductUrl(tenantSlug, entitySlug, true);
+        if (url) return url;
       }
-      // Fallback: need a product selected
+      // No product selected - return home (toolbar should disable button)
       return getPublicHomeUrl(tenantSlug, true);
     case 'category':
-      // If we have a specific category slug, use it
       if (entitySlug) {
-        return getPublicCategoryUrl(tenantSlug, entitySlug, true) || getPublicHomeUrl(tenantSlug, true);
+        const url = getPublicCategoryUrl(tenantSlug, entitySlug, true);
+        if (url) return url;
       }
-      // Fallback: need a category selected
+      // No category selected - return home (toolbar should disable button)
       return getPublicHomeUrl(tenantSlug, true);
     case 'cart':
       return getPublicCartUrl(tenantSlug, true);
@@ -175,17 +216,73 @@ export function getPreviewUrlForEditor(
     case 'institutional':
     case 'page':
       if (entitySlug) {
-        return getPublicPageUrl(tenantSlug, entitySlug, true) || getPublicHomeUrl(tenantSlug, true);
+        const url = getPublicPageUrl(tenantSlug, entitySlug, true);
+        if (url) return url;
       }
       return getPublicHomeUrl(tenantSlug, true);
     case 'landing_page':
     case 'landing':
       if (entitySlug) {
-        return getPublicLandingUrl(tenantSlug, entitySlug, true) || getPublicHomeUrl(tenantSlug, true);
+        const url = getPublicLandingUrl(tenantSlug, entitySlug, true);
+        if (url) return url;
       }
       return getPublicHomeUrl(tenantSlug, true);
     default:
       return getPublicHomeUrl(tenantSlug, true);
+  }
+}
+
+/**
+ * Get preview URL with detailed result including validation status
+ */
+export function getPreviewUrlWithValidation(
+  tenantSlug: string,
+  pageType: string,
+  entitySlug?: string
+): PreviewUrlResult {
+  switch (pageType) {
+    case 'home':
+      return { url: getPublicHomeUrl(tenantSlug, true), canPreview: true };
+    case 'product':
+      if (!entitySlug) {
+        return { url: null, canPreview: false, reason: 'Selecione um produto para visualizar' };
+      }
+      const productUrl = getPublicProductUrl(tenantSlug, entitySlug, true);
+      return productUrl 
+        ? { url: productUrl, canPreview: true }
+        : { url: null, canPreview: false, reason: 'Slug de produto inválido' };
+    case 'category':
+      if (!entitySlug) {
+        return { url: null, canPreview: false, reason: 'Selecione uma categoria para visualizar' };
+      }
+      const categoryUrl = getPublicCategoryUrl(tenantSlug, entitySlug, true);
+      return categoryUrl 
+        ? { url: categoryUrl, canPreview: true }
+        : { url: null, canPreview: false, reason: 'Slug de categoria inválido' };
+    case 'cart':
+      return { url: getPublicCartUrl(tenantSlug, true), canPreview: true };
+    case 'checkout':
+      return { url: getPublicCheckoutUrl(tenantSlug, true), canPreview: true };
+    case 'institutional':
+    case 'page':
+      if (!entitySlug) {
+        return { url: null, canPreview: false, reason: 'Slug de página não definido' };
+      }
+      const pageUrl = getPublicPageUrl(tenantSlug, entitySlug, true);
+      return pageUrl 
+        ? { url: pageUrl, canPreview: true }
+        : { url: null, canPreview: false, reason: 'Slug de página inválido' };
+    case 'landing_page':
+    case 'landing':
+      if (!entitySlug) {
+        return { url: null, canPreview: false, reason: 'Slug de landing page não definido' };
+      }
+      const landingUrl = getPublicLandingUrl(tenantSlug, entitySlug, true);
+      return landingUrl 
+        ? { url: landingUrl, canPreview: true }
+        : { url: null, canPreview: false, reason: 'Slug de landing page inválido' };
+    default:
+      return { url: getPublicHomeUrl(tenantSlug, true), canPreview: true };
   }
 }
 
@@ -217,4 +314,51 @@ export function getPublishedUrlForEntity(
     default:
       return getPublicHomeUrl(tenantSlug, false);
   }
+}
+
+/**
+ * Diagnostic info for URL debugging
+ */
+export interface UrlDiagnostic {
+  entityType: string;
+  entityName: string;
+  entitySlug?: string;
+  publicUrl: string | null;
+  previewUrl: string | null;
+  status: 'valid' | 'invalid_slug' | 'missing_slug';
+  message?: string;
+}
+
+/**
+ * Generate diagnostic info for an entity
+ */
+export function diagnoseEntityUrl(
+  tenantSlug: string,
+  entityType: string,
+  entityName: string,
+  entitySlug?: string
+): UrlDiagnostic {
+  const publicUrl = getPublishedUrlForEntity(tenantSlug, entityType, entitySlug);
+  const previewResult = getPreviewUrlWithValidation(tenantSlug, entityType, entitySlug);
+
+  let status: UrlDiagnostic['status'] = 'valid';
+  let message: string | undefined;
+
+  if (!entitySlug && ['product', 'category', 'page', 'landing'].includes(entityType)) {
+    status = 'missing_slug';
+    message = 'Slug não definido';
+  } else if (!publicUrl && entitySlug) {
+    status = 'invalid_slug';
+    message = 'Slug inválido';
+  }
+
+  return {
+    entityType,
+    entityName,
+    entitySlug,
+    publicUrl,
+    previewUrl: previewResult.url,
+    status,
+    message,
+  };
 }
