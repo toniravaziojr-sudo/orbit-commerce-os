@@ -12,7 +12,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Layout, Smartphone, Bell, ChevronDown, Phone, MessageCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -98,6 +98,7 @@ export function HeaderFooterPropsEditor({
     style: true,
     colors: false,
     menuColors: false,
+    contact: false,
     general: false,
     notice: false,
   });
@@ -397,13 +398,112 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === AVISO GERAL === */}
+            {/* === CONTATO NO CABEÇALHO === */}
+            <Collapsible open={openSections.contact} onOpenChange={() => toggleSection('contact')}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Contato no Cabeçalho</span>
+                    {(props.showWhatsApp || props.showPhone) && (
+                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                    )}
+                  </div>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.contact ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="px-3 pb-4 space-y-4">
+                {/* WhatsApp */}
+                <div className="rounded-lg border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MessageCircle className="h-4 w-4 text-green-600" />
+                      <Label className="text-xs font-medium">WhatsApp</Label>
+                    </div>
+                    <Switch
+                      checked={Boolean(props.showWhatsApp)}
+                      onCheckedChange={(v) => updateProp('showWhatsApp', v)}
+                    />
+                  </div>
+                  
+                  {props.showWhatsApp && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Número (apenas dígitos)</Label>
+                        <Input
+                          value={(props.whatsAppNumber as string) || ''}
+                          onChange={(e) => updateProp('whatsAppNumber', e.target.value)}
+                          placeholder="Ex: 5511999999999"
+                          className="h-9 text-sm"
+                        />
+                        {props.showWhatsApp && !(props.whatsAppNumber as string)?.replace(/\D/g, '').length && (
+                          <p className="text-xs text-amber-600">⚠️ Informe o número para exibir</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Texto (opcional)</Label>
+                        <Input
+                          value={(props.whatsAppLabel as string) || ''}
+                          onChange={(e) => updateProp('whatsAppLabel', e.target.value)}
+                          placeholder="Ex: WhatsApp"
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Telefone */}
+                <div className="rounded-lg border p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-blue-600" />
+                      <Label className="text-xs font-medium">Telefone/Celular</Label>
+                    </div>
+                    <Switch
+                      checked={Boolean(props.showPhone)}
+                      onCheckedChange={(v) => updateProp('showPhone', v)}
+                    />
+                  </div>
+                  
+                  {props.showPhone && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Número</Label>
+                        <Input
+                          value={(props.phoneNumber as string) || ''}
+                          onChange={(e) => updateProp('phoneNumber', e.target.value)}
+                          placeholder="Ex: +55 (11) 99999-9999"
+                          className="h-9 text-sm"
+                        />
+                        {props.showPhone && !(props.phoneNumber as string)?.replace(/[^\d+]/g, '').length && (
+                          <p className="text-xs text-amber-600">⚠️ Informe o número para exibir</p>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Texto (opcional)</Label>
+                        <Input
+                          value={(props.phoneLabel as string) || ''}
+                          onChange={(e) => updateProp('phoneLabel', e.target.value)}
+                          placeholder="Ex: Atendimento"
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Separator />
+
+            {/* === BARRA SUPERIOR (AVISO GERAL) === */}
             <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-3 h-auto">
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Aviso Geral</span>
+                    <span className="font-medium">Barra Superior</span>
                     {props.noticeEnabled && (
                       <Badge variant="secondary" className="text-xs">Ativo</Badge>
                     )}
@@ -413,7 +513,7 @@ export function HeaderFooterPropsEditor({
               </CollapsibleTrigger>
               <CollapsibleContent className="px-3 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Exibir Aviso Geral</Label>
+                  <Label className="text-xs">Exibir Barra Superior</Label>
                   <Switch
                     checked={Boolean(props.noticeEnabled)}
                     onCheckedChange={(v) => updateProp('noticeEnabled', v)}
@@ -461,7 +561,7 @@ export function HeaderFooterPropsEditor({
                     <Separator />
 
                     <div className="flex items-center justify-between">
-                      <Label className="text-xs">Exibir Ação (Link/Botão)</Label>
+                      <Label className="text-xs">Exibir Ação</Label>
                       <Switch
                         checked={Boolean(props.noticeActionEnabled)}
                         onCheckedChange={(v) => updateProp('noticeActionEnabled', v)}
@@ -470,21 +570,6 @@ export function HeaderFooterPropsEditor({
 
                     {props.noticeActionEnabled && (
                       <>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Tipo de Ação</Label>
-                          <Select
-                            value={(props.noticeActionType as string) || 'link'}
-                            onValueChange={(v) => updateProp('noticeActionType', v)}
-                          >
-                            <SelectTrigger className="w-full h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="link">Link</SelectItem>
-                              <SelectItem value="button">Botão</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Texto da Ação</Label>
                           <Input

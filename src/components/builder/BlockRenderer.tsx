@@ -371,6 +371,13 @@ function HeaderBlock({
   menuTextColor = '',
   // Sticky mobile
   stickyOnMobile = true,
+  // Contact in header
+  showWhatsApp = false,
+  whatsAppNumber = '',
+  whatsAppLabel = '',
+  showPhone = false,
+  phoneNumber = '',
+  phoneLabel = '',
   // Notice bar props
   noticeEnabled = false,
   noticeText = '',
@@ -379,7 +386,6 @@ function HeaderBlock({
   noticeAnimation = 'fade',
   // Notice action props
   noticeActionEnabled = false,
-  noticeActionType = 'link',
   noticeActionLabel = '',
   noticeActionUrl = '',
   noticeActionTarget = '_self',
@@ -475,47 +481,19 @@ function HeaderBlock({
   // Check if action is valid (has URL and label)
   const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
   
-  // Render action element (link or button)
+  // Render action element (link style)
   const renderAction = () => {
     if (!isActionValid && !isEditing) return null;
     
     const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
     
-    // Button type - simple underlined with different style
-    if (noticeActionType === 'button') {
-      if (!isActionValid && isEditing) {
-        return (
-          <span 
-            className="ml-2 px-2 py-0.5 text-xs opacity-50 border-b border-current"
-            style={{ color: actionTextColor }}
-          >
-            [Ação: configure label e URL]
-          </span>
-        );
-      }
-      
-      return (
-        <a
-          href={noticeActionUrl}
-          target={noticeActionTarget}
-          rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-          className="ml-2 px-2 py-0.5 text-xs font-semibold border-b border-current hover:opacity-80 transition-opacity"
-          style={{ color: actionTextColor }}
-          onClick={(e) => isEditing && e.preventDefault()}
-        >
-          {noticeActionLabel}
-        </a>
-      );
-    }
-    
-    // Link type
     if (!isActionValid && isEditing) {
       return (
         <span 
           className="ml-2 underline text-xs opacity-50"
           style={{ color: actionTextColor }}
         >
-          [Link: configure label e URL]
+          [Ação: configure texto e URL]
         </span>
       );
     }
@@ -554,6 +532,14 @@ function HeaderBlock({
     color: headerIconColor || headerTextColor || undefined,
   };
   
+  // Normalize WhatsApp number (remove all non-digits)
+  const normalizedWhatsApp = whatsAppNumber?.replace(/\D/g, '') || '';
+  const isWhatsAppValid = showWhatsApp && normalizedWhatsApp.length >= 10;
+  
+  // Normalize phone number for tel: link
+  const normalizedPhone = phoneNumber?.replace(/[^\d+]/g, '') || '';
+  const isPhoneValid = showPhone && normalizedPhone.length >= 8;
+  
   // Render logo section
   const renderLogo = () => (
     <div className="flex items-center gap-4">
@@ -589,6 +575,65 @@ function HeaderBlock({
     </>
   );
   
+  // Render contact items (WhatsApp, Phone)
+  const renderContactItems = () => {
+    const items = [];
+    
+    // WhatsApp
+    if (isWhatsAppValid) {
+      items.push(
+        <a
+          key="whatsapp"
+          href={`https://wa.me/${normalizedWhatsApp}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1 text-sm hover:opacity-70 transition-opacity"
+          style={{ color: headerTextColor || undefined }}
+          onClick={(e) => isEditing && e.preventDefault()}
+        >
+          <span style={iconStyle}>📱</span>
+          <span className="hidden sm:inline">{whatsAppLabel || 'WhatsApp'}</span>
+        </a>
+      );
+    } else if (showWhatsApp && isEditing) {
+      items.push(
+        <span key="whatsapp-placeholder" className="text-xs opacity-50">
+          [WhatsApp: informe o número]
+        </span>
+      );
+    }
+    
+    // Phone
+    if (isPhoneValid) {
+      items.push(
+        <a
+          key="phone"
+          href={`tel:${normalizedPhone}`}
+          className="flex items-center gap-1 text-sm hover:opacity-70 transition-opacity"
+          style={{ color: headerTextColor || undefined }}
+          onClick={(e) => isEditing && e.preventDefault()}
+        >
+          <span style={iconStyle}>📞</span>
+          <span className="hidden sm:inline">{phoneLabel || phoneNumber}</span>
+        </a>
+      );
+    } else if (showPhone && isEditing) {
+      items.push(
+        <span key="phone-placeholder" className="text-xs opacity-50">
+          [Telefone: informe o número]
+        </span>
+      );
+    }
+    
+    if (items.length === 0) return null;
+    
+    return (
+      <div className="flex items-center gap-4">
+        {items}
+      </div>
+    );
+  };
+  
   // Render icons (search, cart)
   const renderIcons = () => (
     <div className="flex items-center gap-2">
@@ -615,9 +660,12 @@ function HeaderBlock({
     sticky && stickyOnMobile && 'sticky top-0 z-50'
   );
   
+  // Check if we have any contact items to show
+  const hasContactItems = isWhatsAppValid || isPhoneValid || ((showWhatsApp || showPhone) && isEditing);
+  
   return (
     <div className={stickyClasses}>
-      {/* Notice Bar (Aviso Geral) */}
+      {/* Notice Bar (Barra Superior) */}
       {(noticeEnabled || isEditing) && (
         <div 
           className={cn(
@@ -630,7 +678,7 @@ function HeaderBlock({
             ...getNoticeAnimationStyles(),
           }}
         >
-          <span>{noticeText || (isEditing ? '[Digite o texto do aviso]' : '')}</span>
+          <span>{noticeText || (isEditing ? '[Digite o texto da barra superior]' : '')}</span>
           {(noticeActionEnabled || (isEditing && noticeEnabled)) && renderAction()}
         </div>
       )}
@@ -639,11 +687,25 @@ function HeaderBlock({
       {headerStyle === 'logo_left_menu_inline' && (
         <header className="border-b" style={headerStyles}>
           <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            {renderLogo()}
+            <div className="flex items-center gap-6">
+              {renderLogo()}
+              {hasContactItems && (
+                <div className="hidden lg:flex">
+                  {renderContactItems()}
+                </div>
+              )}
+            </div>
             <nav className="hidden md:flex items-center gap-6">
               {renderMenuItems(headerTextColor)}
             </nav>
-            {renderIcons()}
+            <div className="flex items-center gap-4">
+              {hasContactItems && (
+                <div className="flex lg:hidden">
+                  {renderContactItems()}
+                </div>
+              )}
+              {renderIcons()}
+            </div>
           </div>
         </header>
       )}
@@ -653,7 +715,10 @@ function HeaderBlock({
         <>
           <header className="border-b" style={headerStyles}>
             <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              {renderLogo()}
+              <div className="flex items-center gap-6">
+                {renderLogo()}
+                {hasContactItems && renderContactItems()}
+              </div>
               {renderIcons()}
             </div>
           </header>
@@ -674,8 +739,11 @@ function HeaderBlock({
         <>
           <header className="border-b" style={headerStyles}>
             <div className="container mx-auto px-4 py-4 flex flex-col items-center gap-2">
-              <div className="flex items-center justify-between w-full md:justify-center">
-                <div className="md:hidden" /> {/* Spacer for mobile */}
+              <div className="flex items-center justify-between w-full md:justify-center relative">
+                {/* Contact items on the left */}
+                <div className="md:absolute md:left-4 flex items-center">
+                  {hasContactItems && renderContactItems()}
+                </div>
                 {renderLogo()}
                 <div className="md:absolute md:right-4">
                   {renderIcons()}
