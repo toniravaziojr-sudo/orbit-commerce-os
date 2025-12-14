@@ -352,7 +352,10 @@ const blockDefinitions: BlockDefinition[] = [
       textColor: '#ffffff',
       buttonText: 'Ver Produtos',
       buttonUrl: '/produtos',
-      buttonColor: '',
+      buttonColor: '#ffffff',
+      buttonTextColor: '',
+      buttonHoverBgColor: '',
+      buttonHoverTextColor: '',
       alignment: 'center',
       overlayOpacity: 50,
       height: 'md',
@@ -394,7 +397,20 @@ const blockDefinitions: BlockDefinition[] = [
       },
       buttonColor: {
         type: 'color',
-        label: 'Cor do Botão (vazio = tema)',
+        label: 'Cor de Fundo do Botão',
+        defaultValue: '#ffffff',
+      },
+      buttonTextColor: {
+        type: 'color',
+        label: 'Cor do Texto do Botão',
+      },
+      buttonHoverBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo (Hover)',
+      },
+      buttonHoverTextColor: {
+        type: 'color',
+        label: 'Cor do Texto (Hover)',
       },
       alignment: {
         type: 'select',
@@ -430,13 +446,18 @@ const blockDefinitions: BlockDefinition[] = [
   {
     type: 'Banner',
     label: 'Banner',
-    category: 'content',
+    category: 'media',
     icon: 'Megaphone',
     defaultProps: {
       imageUrl: '',
       altText: 'Banner promocional',
       linkUrl: '',
       aspectRatio: '16:9',
+      height: '',
+      objectFit: 'cover',
+      objectPosition: 'center',
+      rounded: 'md',
+      shadow: 'none',
     },
     propsSchema: {
       imageUrl: {
@@ -464,6 +485,58 @@ const blockDefinitions: BlockDefinition[] = [
           { label: '21:9', value: '21:9' },
         ],
       },
+      height: {
+        type: 'select',
+        label: 'Altura Fixa',
+        defaultValue: '',
+        options: [
+          { label: 'Usar Proporção', value: '' },
+          { label: '200px', value: '200px' },
+          { label: '300px', value: '300px' },
+          { label: '400px', value: '400px' },
+          { label: '50vh', value: '50vh' },
+        ],
+      },
+      objectFit: {
+        type: 'select',
+        label: 'Enquadramento',
+        defaultValue: 'cover',
+        options: [
+          { label: 'Cobrir', value: 'cover' },
+          { label: 'Conter', value: 'contain' },
+        ],
+      },
+      objectPosition: {
+        type: 'select',
+        label: 'Posição',
+        defaultValue: 'center',
+        options: [
+          { label: 'Centro', value: 'center' },
+          { label: 'Topo', value: 'top' },
+          { label: 'Baixo', value: 'bottom' },
+        ],
+      },
+      rounded: {
+        type: 'select',
+        label: 'Bordas',
+        defaultValue: 'md',
+        options: [
+          { label: 'Nenhum', value: 'none' },
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+        ],
+      },
+      shadow: {
+        type: 'select',
+        label: 'Sombra',
+        defaultValue: 'none',
+        options: [
+          { label: 'Nenhuma', value: 'none' },
+          { label: 'Pequena', value: 'sm' },
+          { label: 'Média', value: 'md' },
+        ],
+      },
     },
     canHaveChildren: false,
   },
@@ -487,13 +560,19 @@ const blockDefinitions: BlockDefinition[] = [
   {
     type: 'Image',
     label: 'Imagem',
-    category: 'content',
+    category: 'media',
     icon: 'ImageIcon',
     defaultProps: {
       src: '',
       alt: 'Imagem',
       width: 'full',
+      height: 'auto',
+      objectFit: 'cover',
+      objectPosition: 'center',
+      aspectRatio: 'auto',
       rounded: 'none',
+      shadow: 'none',
+      linkUrl: '',
     },
     propsSchema: {
       src: {
@@ -504,6 +583,11 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'Texto Alternativo',
         defaultValue: 'Imagem',
+      },
+      linkUrl: {
+        type: 'string',
+        label: 'Link (opcional)',
+        placeholder: 'URL de destino ao clicar',
       },
       width: {
         type: 'select',
@@ -516,6 +600,55 @@ const blockDefinitions: BlockDefinition[] = [
           { label: '100%', value: 'full' },
         ],
       },
+      height: {
+        type: 'select',
+        label: 'Altura',
+        defaultValue: 'auto',
+        options: [
+          { label: 'Automático', value: 'auto' },
+          { label: '200px', value: '200px' },
+          { label: '300px', value: '300px' },
+          { label: '400px', value: '400px' },
+          { label: '500px', value: '500px' },
+          { label: '50vh', value: '50vh' },
+          { label: '75vh', value: '75vh' },
+        ],
+      },
+      aspectRatio: {
+        type: 'select',
+        label: 'Proporção',
+        defaultValue: 'auto',
+        options: [
+          { label: 'Automático', value: 'auto' },
+          { label: '1:1 (Quadrado)', value: '1:1' },
+          { label: '4:3', value: '4:3' },
+          { label: '16:9', value: '16:9' },
+          { label: '21:9 (Ultra wide)', value: '21:9' },
+        ],
+      },
+      objectFit: {
+        type: 'select',
+        label: 'Enquadramento',
+        defaultValue: 'cover',
+        options: [
+          { label: 'Cobrir', value: 'cover' },
+          { label: 'Conter', value: 'contain' },
+          { label: 'Preencher', value: 'fill' },
+          { label: 'Nenhum', value: 'none' },
+        ],
+      },
+      objectPosition: {
+        type: 'select',
+        label: 'Posição',
+        defaultValue: 'center',
+        options: [
+          { label: 'Centro', value: 'center' },
+          { label: 'Topo', value: 'top' },
+          { label: 'Baixo', value: 'bottom' },
+          { label: 'Esquerda', value: 'left' },
+          { label: 'Direita', value: 'right' },
+        ],
+      },
       rounded: {
         type: 'select',
         label: 'Bordas',
@@ -526,6 +659,17 @@ const blockDefinitions: BlockDefinition[] = [
           { label: 'Médio', value: 'md' },
           { label: 'Grande', value: 'lg' },
           { label: 'Círculo', value: 'full' },
+        ],
+      },
+      shadow: {
+        type: 'select',
+        label: 'Sombra',
+        defaultValue: 'none',
+        options: [
+          { label: 'Nenhuma', value: 'none' },
+          { label: 'Pequena', value: 'sm' },
+          { label: 'Média', value: 'md' },
+          { label: 'Grande', value: 'lg' },
         ],
       },
     },
@@ -544,6 +688,10 @@ const blockDefinitions: BlockDefinition[] = [
       backgroundColor: '',
       textColor: '',
       borderRadius: 'md',
+      hoverBgColor: '',
+      hoverTextColor: '',
+      borderColor: '',
+      hoverBorderColor: '',
     },
     propsSchema: {
       text: {
@@ -579,11 +727,27 @@ const blockDefinitions: BlockDefinition[] = [
       },
       backgroundColor: {
         type: 'color',
-        label: 'Cor de Fundo (vazio = tema)',
+        label: 'Cor de Fundo',
       },
       textColor: {
         type: 'color',
-        label: 'Cor do Texto (vazio = tema)',
+        label: 'Cor do Texto',
+      },
+      hoverBgColor: {
+        type: 'color',
+        label: 'Cor de Fundo (Hover)',
+      },
+      hoverTextColor: {
+        type: 'color',
+        label: 'Cor do Texto (Hover)',
+      },
+      borderColor: {
+        type: 'color',
+        label: 'Cor da Borda',
+      },
+      hoverBorderColor: {
+        type: 'color',
+        label: 'Cor da Borda (Hover)',
       },
       borderRadius: {
         type: 'select',

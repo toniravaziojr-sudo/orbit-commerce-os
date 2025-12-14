@@ -23,6 +23,7 @@ interface BlockRendererProps {
   onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
   onDuplicateBlock?: (blockId: string) => void;
   onDeleteBlock?: (blockId: string) => void;
+  onToggleHidden?: (blockId: string) => void;
   siblingIndex?: number;
   siblingsCount?: number;
   parentId?: string;
@@ -38,6 +39,7 @@ export function BlockRenderer({
   onMoveBlock,
   onDuplicateBlock,
   onDeleteBlock,
+  onToggleHidden,
   siblingIndex = 0,
   siblingsCount = 1,
   parentId,
@@ -50,6 +52,11 @@ export function BlockRenderer({
         Bloco desconhecido: {node.type}
       </div>
     );
+  }
+
+  // Don't render hidden blocks in preview/public mode
+  if (node.hidden && !isEditing) {
+    return null;
   }
 
   const handleClick = (e: React.MouseEvent) => {
@@ -102,6 +109,7 @@ export function BlockRenderer({
               onMoveBlock={onMoveBlock}
               onDuplicateBlock={onDuplicateBlock}
               onDeleteBlock={onDeleteBlock}
+              onToggleHidden={onToggleHidden}
               siblingIndex={index}
               siblingsCount={node.children!.length}
               parentId={node.id}
@@ -137,13 +145,15 @@ export function BlockRenderer({
       className={cn(
         'relative transition-all group/block-actions',
         isEditing && 'cursor-pointer hover:outline hover:outline-2 hover:outline-primary/50',
-        isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20'
+        isSelected && isEditing && 'outline outline-2 outline-primary ring-2 ring-primary/20',
+        node.hidden && isEditing && 'opacity-40'
       )}
     >
       {/* Selected block label */}
       {isSelected && isEditing && (
-        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10">
+        <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10 flex items-center gap-1">
           {definition.label}
+          {node.hidden && <span className="text-xs">(oculto)</span>}
         </div>
       )}
       
@@ -153,12 +163,14 @@ export function BlockRenderer({
           blockId={node.id}
           blockType={node.type}
           isRemovable={isRemovable}
+          isHidden={node.hidden}
           canMoveUp={canMoveUp}
           canMoveDown={canMoveDown}
           onMoveUp={() => onMoveBlock?.(node.id, 'up')}
           onMoveDown={() => onMoveBlock?.(node.id, 'down')}
           onDuplicate={() => onDuplicateBlock?.(node.id)}
           onDelete={() => onDeleteBlock?.(node.id)}
+          onToggleHidden={() => onToggleHidden?.(node.id)}
         />
       )}
       
@@ -487,7 +499,22 @@ function FooterBlock({ menuId, showSocial = true, copyrightText, context, isEdit
 
 // ========== CONTENT BLOCKS ==========
 
-function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, backgroundColor, textColor, buttonColor, height = 'md', alignment = 'center', overlayOpacity = 50 }: any) {
+function HeroBlock({ 
+  title, 
+  subtitle, 
+  buttonText, 
+  buttonUrl, 
+  backgroundImage, 
+  backgroundColor, 
+  textColor, 
+  buttonColor, 
+  buttonTextColor,
+  buttonHoverBgColor,
+  buttonHoverTextColor,
+  height = 'md', 
+  alignment = 'center', 
+  overlayOpacity = 50 
+}: any) {
   const alignClass = {
     left: 'items-start text-left',
     center: 'items-center text-center',
@@ -500,6 +527,15 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
     lg: '500px',
     full: '100vh',
   };
+
+  // Generate unique ID for CSS custom properties
+  const btnId = `hero-btn-${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Calculate hover colors if not provided (darken base color)
+  const baseBgColor = buttonColor || '#ffffff';
+  const baseTextColor = buttonTextColor || (buttonColor ? '#ffffff' : (backgroundColor || '#6366f1'));
+  const hoverBg = buttonHoverBgColor || baseBgColor;
+  const hoverText = buttonHoverTextColor || baseTextColor;
 
   return (
     <div 
@@ -534,23 +570,41 @@ function HeroBlock({ title, subtitle, buttonText, buttonUrl, backgroundImage, ba
           </p>
         )}
         {buttonText && (
-          <a 
-            href={buttonUrl || '#'} 
-            className="inline-block px-8 py-3 rounded-lg font-semibold transition-colors hover:opacity-90"
-            style={{
-              backgroundColor: buttonColor || '#ffffff',
-              color: buttonColor ? '#ffffff' : (backgroundColor || 'hsl(var(--primary))'),
-            }}
-          >
-            {buttonText}
-          </a>
+          <>
+            <style>{`
+              .${btnId} {
+                background-color: ${baseBgColor};
+                color: ${baseTextColor};
+              }
+              .${btnId}:hover {
+                background-color: ${hoverBg};
+                color: ${hoverText};
+              }
+            `}</style>
+            <a 
+              href={buttonUrl || '#'} 
+              className={`${btnId} inline-block px-8 py-3 rounded-lg font-semibold transition-colors`}
+            >
+              {buttonText}
+            </a>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function BannerBlock({ imageUrl, altText, linkUrl, height, aspectRatio }: any) {
+function BannerBlock({ 
+  imageUrl, 
+  altText, 
+  linkUrl, 
+  height, 
+  aspectRatio, 
+  objectFit = 'cover',
+  objectPosition = 'center',
+  rounded = 'md',
+  shadow = 'none',
+}: any) {
   const aspectRatioMap: Record<string, string> = {
     '16:9': '56.25%',
     '4:3': '75%',
@@ -558,19 +612,38 @@ function BannerBlock({ imageUrl, altText, linkUrl, height, aspectRatio }: any) {
     '21:9': '42.86%',
   };
 
+  const roundedMap: Record<string, string> = {
+    none: '0',
+    sm: '0.25rem',
+    md: '0.5rem',
+    lg: '1rem',
+  };
+
+  const shadowMap: Record<string, string> = {
+    none: 'none',
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+  };
+
   const content = (
     <div 
-      className="w-full bg-muted overflow-hidden rounded-lg relative"
+      className="w-full bg-muted overflow-hidden relative"
       style={{ 
         paddingBottom: height ? undefined : aspectRatioMap[aspectRatio] || '56.25%',
         height: height || undefined,
+        borderRadius: roundedMap[rounded] || '0.5rem',
+        boxShadow: shadowMap[shadow] || 'none',
       }}
     >
       {imageUrl ? (
         <img 
           src={imageUrl} 
           alt={altText || 'Banner'} 
-          className="absolute inset-0 w-full h-full object-cover" 
+          className="absolute inset-0 w-full h-full" 
+          style={{
+            objectFit: objectFit || 'cover',
+            objectPosition: objectPosition || 'center',
+          }}
         />
       ) : (
         <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground">
@@ -633,7 +706,18 @@ function RichTextBlock({ content, align }: any) {
   );
 }
 
-function ImageBlock({ src, alt, width, height, objectFit, rounded }: any) {
+function ImageBlock({ 
+  src, 
+  alt, 
+  width, 
+  height, 
+  objectFit = 'cover',
+  objectPosition = 'center',
+  aspectRatio = 'auto',
+  rounded = 'none',
+  shadow = 'none',
+  linkUrl,
+}: any) {
   const widthMap: Record<string, string> = {
     '25': '25%',
     '50': '50%',
@@ -649,16 +733,40 @@ function ImageBlock({ src, alt, width, height, objectFit, rounded }: any) {
     'full': '9999px',
   };
 
-  return (
-    <div className="overflow-hidden" style={{ width: widthMap[width] || '100%' }}>
+  const shadowMap: Record<string, string> = {
+    none: 'none',
+    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+  };
+
+  const aspectRatioMap: Record<string, string> = {
+    'auto': 'auto',
+    '1:1': '1 / 1',
+    '4:3': '4 / 3',
+    '16:9': '16 / 9',
+    '21:9': '21 / 9',
+  };
+
+  const imageContent = (
+    <div 
+      className="overflow-hidden" 
+      style={{ 
+        width: widthMap[width] || '100%',
+        borderRadius: roundedMap[rounded] || '0',
+        boxShadow: shadowMap[shadow] || 'none',
+      }}
+    >
       {src ? (
         <img 
           src={src} 
           alt={alt || 'Imagem'} 
           style={{ 
             width: '100%',
-            height: height || 'auto',
+            height: height === 'auto' ? 'auto' : (height || 'auto'),
             objectFit: objectFit || 'cover',
+            objectPosition: objectPosition || 'center',
+            aspectRatio: aspectRatioMap[aspectRatio] || 'auto',
             borderRadius: roundedMap[rounded] || '0',
           }}
         />
@@ -672,16 +780,27 @@ function ImageBlock({ src, alt, width, height, objectFit, rounded }: any) {
       )}
     </div>
   );
+
+  if (linkUrl) {
+    return <a href={linkUrl}>{imageContent}</a>;
+  }
+
+  return imageContent;
 }
 
-function ButtonBlock({ text, url, variant, size, backgroundColor, textColor, borderRadius = 'md' }: any) {
-  const baseClasses = 'inline-block font-semibold transition-colors';
-  const variantClasses: Record<string, string> = {
-    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-    secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
-    outline: 'border border-primary text-primary hover:bg-primary hover:text-primary-foreground',
-    ghost: 'text-primary hover:bg-primary/10',
-  };
+function ButtonBlock({ 
+  text, 
+  url, 
+  variant, 
+  size, 
+  backgroundColor, 
+  textColor, 
+  borderRadius = 'md',
+  hoverBgColor,
+  hoverTextColor,
+  borderColor,
+  hoverBorderColor,
+}: any) {
   const sizeClasses: Record<string, string> = {
     sm: 'px-3 py-1.5 text-sm',
     md: 'px-4 py-2',
@@ -695,25 +814,56 @@ function ButtonBlock({ text, url, variant, size, backgroundColor, textColor, bor
     full: '9999px',
   };
 
-  // If custom colors provided, override variant styles
+  // Generate unique ID for CSS custom properties
+  const btnId = `btn-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Determine colors based on variant or custom
   const hasCustomStyles = backgroundColor || textColor;
+  
+  // Default variant colors
+  const variantColors: Record<string, { bg: string; text: string; border?: string }> = {
+    primary: { bg: 'hsl(var(--primary))', text: 'hsl(var(--primary-foreground))' },
+    secondary: { bg: 'hsl(var(--secondary))', text: 'hsl(var(--secondary-foreground))' },
+    outline: { bg: 'transparent', text: 'hsl(var(--primary))', border: 'hsl(var(--primary))' },
+    ghost: { bg: 'transparent', text: 'hsl(var(--primary))' },
+  };
+  
+  const variantStyle = variantColors[variant] || variantColors.primary;
+  const baseBg = backgroundColor || variantStyle.bg;
+  const baseText = textColor || variantStyle.text;
+  const baseBorder = borderColor || variantStyle.border || 'transparent';
+  const hoverBg = hoverBgColor || (hasCustomStyles ? baseBg : undefined);
+  const hoverText = hoverTextColor || (hasCustomStyles ? baseText : undefined);
+  const hoverBorder = hoverBorderColor || baseBorder;
 
   return (
-    <a 
-      href={url || '#'}
-      className={cn(
-        baseClasses,
-        !hasCustomStyles && (variantClasses[variant] || variantClasses.primary),
-        sizeClasses[size] || sizeClasses.md
-      )}
-      style={{
-        backgroundColor: backgroundColor || undefined,
-        color: textColor || undefined,
-        borderRadius: radiusMap[borderRadius] || '0.5rem',
-      }}
-    >
-      {text || 'Botão'}
-    </a>
+    <>
+      <style>{`
+        .${btnId} {
+          background-color: ${baseBg};
+          color: ${baseText};
+          border: 1px solid ${baseBorder};
+        }
+        .${btnId}:hover {
+          ${hoverBg ? `background-color: ${hoverBg};` : 'opacity: 0.9;'}
+          ${hoverText ? `color: ${hoverText};` : ''}
+          ${hoverBorder ? `border-color: ${hoverBorder};` : ''}
+        }
+      `}</style>
+      <a 
+        href={url || '#'}
+        className={cn(
+          btnId,
+          'inline-block font-semibold transition-colors',
+          sizeClasses[size] || sizeClasses.md
+        )}
+        style={{
+          borderRadius: radiusMap[borderRadius] || '0.5rem',
+        }}
+      >
+        {text || 'Botão'}
+      </a>
+    </>
   );
 }
 
@@ -828,26 +978,27 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   const { data: product, isLoading } = useQuery({
     queryKey: ['product-card', productId],
     queryFn: async () => {
-      if (!productId || productId === '_auto') {
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, name, price, status')
-          .eq('status', 'active')
-          .limit(1)
-          .single();
-        if (error) return null;
-        return data;
-      }
-      const { data, error } = await supabase
+      let query = supabase
         .from('products')
-        .select('id, name, price, status')
-        .eq('id', productId)
-        .single();
+        .select(`
+          id, name, price, status,
+          product_images (id, url, alt_text, is_primary, sort_order)
+        `);
+      
+      if (!productId || productId === '_auto') {
+        query = query.eq('status', 'active').limit(1);
+      } else {
+        query = query.eq('id', productId);
+      }
+      
+      const { data, error } = await query.single();
       if (error) return null;
       return data;
     },
     enabled: !!productId || isEditing,
   });
+
+  const primaryImage = product?.product_images?.find((img: any) => img.is_primary) || product?.product_images?.[0];
 
   if (isLoading) {
     return (
@@ -859,10 +1010,18 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
     );
   }
 
+  if (!product && !isEditing) {
+    return null;
+  }
+
   return (
     <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
-      <div className="aspect-square bg-muted rounded mb-3 flex items-center justify-center text-muted-foreground">
-        📦
+      <div className="aspect-square bg-muted rounded mb-3 flex items-center justify-center overflow-hidden">
+        {primaryImage?.url ? (
+          <img src={primaryImage.url} alt={product?.name} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-muted-foreground text-4xl">📦</span>
+        )}
       </div>
       <h3 className="font-medium truncate">{product?.name || 'Produto'}</h3>
       {showPrice && (
@@ -876,7 +1035,7 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
         </button>
       )}
       {isEditing && !product && (
-        <p className="text-xs text-muted-foreground mt-2">
+        <p className="text-xs text-muted-foreground mt-2 text-center">
           [Selecione um produto]
         </p>
       )}

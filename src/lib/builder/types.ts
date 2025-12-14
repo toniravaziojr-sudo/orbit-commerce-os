@@ -15,6 +15,7 @@ export interface BlockNode {
   type: string;
   props: Record<string, unknown>;
   children?: BlockNode[];
+  hidden?: boolean;
 }
 
 export interface BlockPropsSchema {
