@@ -286,7 +286,7 @@ const blockDefinitions: BlockDefinition[] = [
       noticeText: '',
       noticeBgColor: '#1e40af',
       noticeTextColor: '#ffffff',
-      noticeAnimation: 'none',
+      noticeAnimation: 'fade',
       // Aviso Geral action
       noticeActionEnabled: false,
       noticeActionType: 'link',
@@ -294,7 +294,6 @@ const blockDefinitions: BlockDefinition[] = [
       noticeActionUrl: '',
       noticeActionTarget: '_self',
       noticeActionTextColor: '',
-      noticeActionBgColor: '',
     },
     propsSchema: {
       // Aviso Geral section
@@ -321,7 +320,7 @@ const blockDefinitions: BlockDefinition[] = [
       noticeAnimation: {
         type: 'select',
         label: 'Animação de Entrada',
-        defaultValue: 'none',
+        defaultValue: 'fade',
         options: [
           { label: 'Nenhuma', value: 'none' },
           { label: 'Fade', value: 'fade' },
@@ -365,10 +364,6 @@ const blockDefinitions: BlockDefinition[] = [
       noticeActionTextColor: {
         type: 'color',
         label: 'Cor do Texto da Ação',
-      },
-      noticeActionBgColor: {
-        type: 'color',
-        label: 'Cor de Fundo do Botão',
       },
       menuId: {
         type: 'menu',

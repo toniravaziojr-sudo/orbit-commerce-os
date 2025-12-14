@@ -12,11 +12,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, Copy, Settings2 } from 'lucide-react';
+import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
 interface PropsEditorProps {
   definition: BlockDefinition;
@@ -27,6 +34,21 @@ interface PropsEditorProps {
   canDelete?: boolean;
 }
 
+// Define which props belong to the Header notice group
+const HEADER_NOTICE_PROPS = [
+  'noticeEnabled',
+  'noticeText',
+  'noticeBgColor',
+  'noticeTextColor',
+  'noticeAnimation',
+  'noticeActionEnabled',
+  'noticeActionType',
+  'noticeActionLabel',
+  'noticeActionUrl',
+  'noticeActionTarget',
+  'noticeActionTextColor',
+];
+
 export function PropsEditor({
   definition,
   props,
@@ -35,11 +57,22 @@ export function PropsEditor({
   onDuplicate,
   canDelete = true,
 }: PropsEditorProps) {
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  
   const handleChange = (key: string, value: unknown) => {
     onChange({ ...props, [key]: value });
   };
 
   const propsEntries = Object.entries(definition.propsSchema);
+  
+  // For Header block, separate notice props from other props
+  const isHeaderBlock = definition.type === 'Header';
+  const noticePropsEntries = isHeaderBlock 
+    ? propsEntries.filter(([key]) => HEADER_NOTICE_PROPS.includes(key))
+    : [];
+  const otherPropsEntries = isHeaderBlock
+    ? propsEntries.filter(([key]) => !HEADER_NOTICE_PROPS.includes(key))
+    : propsEntries;
 
   return (
     <div className="h-full flex flex-col border-l">
@@ -57,8 +90,42 @@ export function PropsEditor({
       {/* Props */}
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {propsEntries.length > 0 ? (
-            propsEntries.map(([key, schema]) => (
+          {/* Header Notice Accordion */}
+          {isHeaderBlock && noticePropsEntries.length > 0 && (
+            <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📢</span>
+                  <span className="font-medium text-sm">Aviso Geral</span>
+                </div>
+                <ChevronDown className={cn(
+                  "h-4 w-4 transition-transform duration-200",
+                  noticeOpen && "rotate-180"
+                )} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3 space-y-4">
+                {noticePropsEntries.map(([key, schema]) => (
+                  <PropField
+                    key={key}
+                    name={key}
+                    schema={schema}
+                    value={props[key] ?? schema.defaultValue}
+                    onChange={(value) => handleChange(key, value)}
+                    blockType={definition.type}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+          
+          {/* Separator if we have notice props */}
+          {isHeaderBlock && noticePropsEntries.length > 0 && otherPropsEntries.length > 0 && (
+            <Separator className="my-4" />
+          )}
+          
+          {/* Other Props */}
+          {otherPropsEntries.length > 0 ? (
+            otherPropsEntries.map(([key, schema]) => (
               <PropField
                 key={key}
                 name={key}
@@ -68,7 +135,7 @@ export function PropsEditor({
                 blockType={definition.type}
               />
             ))
-          ) : (
+          ) : !isHeaderBlock && (
             <div className="text-center py-6 text-muted-foreground">
               <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
               <p className="text-sm">Este bloco não possui propriedades editáveis.</p>

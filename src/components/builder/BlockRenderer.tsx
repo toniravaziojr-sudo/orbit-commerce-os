@@ -366,29 +366,34 @@ function HeaderBlock({
   noticeText = '',
   noticeBgColor = '#1e40af',
   noticeTextColor = '#ffffff',
-  noticeAnimation = 'none',
-  // Notice action props
-  noticeActionEnabled = false,
-  noticeActionType = 'link',
-  noticeActionLabel = '',
-  noticeActionUrl = '',
-  noticeActionTarget = '_self',
-  noticeActionTextColor = '',
-  noticeActionBgColor = '',
-  context, 
-  isEditing 
-}: any) {
-  const { settings } = context || {};
-  const [hasAnimated, setHasAnimated] = useState(false);
-  
-  // Animation runs only once on first render
-  useEffect(() => {
-    if (noticeEnabled && noticeAnimation !== 'none' && !hasAnimated) {
-      // Small delay to ensure animation is visible
-      const timer = setTimeout(() => setHasAnimated(true), 50);
-      return () => clearTimeout(timer);
-    }
-  }, [noticeEnabled, noticeAnimation, hasAnimated]);
+      noticeAnimation = 'fade',
+      // Notice action props
+      noticeActionEnabled = false,
+      noticeActionType = 'link',
+      noticeActionLabel = '',
+      noticeActionUrl = '',
+      noticeActionTarget = '_self',
+      noticeActionTextColor = '',
+      context, 
+      isEditing 
+    }: any) {
+      const { settings } = context || {};
+      const [isVisible, setIsVisible] = useState(false);
+      
+      // Animation: start hidden, become visible after mount
+      useEffect(() => {
+        if (noticeEnabled && noticeAnimation !== 'none') {
+          // Start animation after component mounts
+          const timer = requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setIsVisible(true);
+            });
+          });
+          return () => cancelAnimationFrame(timer);
+        } else if (noticeEnabled && noticeAnimation === 'none') {
+          setIsVisible(true);
+        }
+      }, [noticeEnabled, noticeAnimation]);
   
   const { data: menuItems } = useQuery({
     queryKey: ['menu-items', menuId],
@@ -407,71 +412,73 @@ function HeaderBlock({
   
   const displayItems = menuItems || context?.headerMenu || [];
   
-  // Animation styles
-  const getAnimationStyles = (): React.CSSProperties => {
-    if (isEditing || noticeAnimation === 'none') {
-      return {};
-    }
-    
-    const baseTransition = 'opacity 250ms ease-out, transform 250ms ease-out';
-    
-    if (noticeAnimation === 'fade') {
-      return {
-        opacity: hasAnimated ? 1 : 0,
-        transition: baseTransition,
+  // Animation styles - applied on initial render
+      const getAnimationStyles = (): React.CSSProperties => {
+        // In editing mode, always show fully
+        if (isEditing) {
+          return { opacity: 1, transform: 'translateY(0)' };
+        }
+        
+        // No animation - always visible
+        if (noticeAnimation === 'none') {
+          return { opacity: 1, transform: 'translateY(0)' };
+        }
+        
+        const baseTransition = 'opacity 250ms ease-out, transform 250ms ease-out';
+        
+        if (noticeAnimation === 'fade') {
+          return {
+            opacity: isVisible ? 1 : 0,
+            transition: baseTransition,
+          };
+        }
+        
+        if (noticeAnimation === 'slide') {
+          return {
+            opacity: isVisible ? 1 : 0,
+            transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
+            transition: baseTransition,
+          };
+        }
+        
+        return { opacity: 1 };
       };
-    }
-    
-    if (noticeAnimation === 'slide') {
-      return {
-        opacity: hasAnimated ? 1 : 0,
-        transform: hasAnimated ? 'translateY(0)' : 'translateY(-100%)',
-        transition: baseTransition,
-      };
-    }
-    
-    return {};
-  };
-  
-  // Check if action is valid (has URL and label)
+      
+      // Check if action is valid (has URL and label)
   const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
   
   // Render action element (link or button)
   const renderAction = () => {
-    if (!isActionValid && !isEditing) return null;
-    
-    const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
-    
-    if (noticeActionType === 'button') {
-      const buttonBgColor = noticeActionBgColor || 'rgba(255,255,255,0.2)';
-      
-      if (!isActionValid && isEditing) {
-        return (
-          <span 
-            className="ml-2 px-3 py-1 rounded text-xs opacity-50"
-            style={{ backgroundColor: buttonBgColor, color: actionTextColor }}
-          >
-            [Botão: configure label e URL]
-          </span>
-        );
-      }
-      
-      return (
-        <a
-          href={noticeActionUrl}
-          target={noticeActionTarget}
-          rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-          className="ml-2 px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity"
-          style={{ 
-            backgroundColor: buttonBgColor, 
-            color: actionTextColor,
-          }}
-          onClick={(e) => isEditing && e.preventDefault()}
-        >
-          {noticeActionLabel}
-        </a>
-      );
-    }
+        if (!isActionValid && !isEditing) return null;
+        
+        const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
+        
+        // Button type - simple underlined with different style
+        if (noticeActionType === 'button') {
+          if (!isActionValid && isEditing) {
+            return (
+              <span 
+                className="ml-2 px-2 py-0.5 text-xs opacity-50 border-b border-current"
+                style={{ color: actionTextColor }}
+              >
+                [Ação: configure label e URL]
+              </span>
+            );
+          }
+          
+          return (
+            <a
+              href={noticeActionUrl}
+              target={noticeActionTarget}
+              rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
+              className="ml-2 px-2 py-0.5 text-xs font-semibold border-b border-current hover:opacity-80 transition-opacity"
+              style={{ color: actionTextColor }}
+              onClick={(e) => isEditing && e.preventDefault()}
+            >
+              {noticeActionLabel}
+            </a>
+          );
+        }
     
     // Link type
     if (!isActionValid && isEditing) {
