@@ -16,13 +16,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy, Menu as MenuIcon, Search, Image as ImageIcon, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Rocket, Eye, LayoutTemplate, Copy, Menu as MenuIcon, Search, Image as ImageIcon, ChevronDown, AlertCircle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLandingPages } from '@/hooks/useLandingPages';
 import { getPublicLandingUrl } from '@/lib/publicUrls';
+import { validateSlug, generateSlug } from '@/lib/slugValidation';
 
 export default function LandingPages() {
   const navigate = useNavigate();
@@ -157,15 +158,23 @@ export default function LandingPages() {
                   />
                 </div>
                 <div>
-                  <Label>Slug (URL)</Label>
+                  <Label>Slug (URL) *</Label>
                   <Input 
                     value={formData.slug} 
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })} 
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
                     placeholder="black-friday-2024 (gerado automaticamente)"
+                    className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    A página ficará em: /store/{currentTenant?.slug}/lp/{formData.slug || formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') || 'slug'}
-                  </p>
+                  {!validateSlug(formData.slug).isValid && formData.slug ? (
+                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {validateSlug(formData.slug).error}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      A página ficará em: /store/{currentTenant?.slug}/lp/{formData.slug || generateSlug(formData.title) || 'slug'}
+                    </p>
+                  )}
                 </div>
                 <div className="pt-2 border-t">
                   <p className="text-sm text-muted-foreground">
@@ -310,12 +319,19 @@ export default function LandingPages() {
                 />
               </div>
               <div>
-                <Label>Slug (URL)</Label>
+                <Label>Slug (URL) *</Label>
                 <Input 
                   value={editFormData.slug} 
-                  onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value })} 
+                  onChange={(e) => setEditFormData({ ...editFormData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
                   placeholder="black-friday-2024"
+                  className={!validateSlug(editFormData.slug).isValid && editFormData.slug ? 'border-destructive' : ''}
                 />
+                {!validateSlug(editFormData.slug).isValid && editFormData.slug && (
+                  <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                    <AlertCircle className="h-3 w-3" />
+                    {validateSlug(editFormData.slug).error}
+                  </p>
+                )}
               </div>
             </div>
             
