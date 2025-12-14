@@ -1,11 +1,28 @@
 import { Link, useParams } from 'react-router-dom';
 import { Facebook, Instagram, MessageCircle } from 'lucide-react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import type { MenuItem } from '@/hooks/useStorefront';
 
 export function StorefrontFooter() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { storeSettings, footerMenu, categories } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, footerMenu, categories, tenant } = usePublicStorefront(tenantSlug || '');
+
+  // Fetch pages for resolving page menu item URLs
+  const { data: pagesData } = useQuery({
+    queryKey: ['storefront-pages', tenant?.id],
+    queryFn: async () => {
+      if (!tenant?.id) return [];
+      const { data } = await supabase
+        .from('store_pages')
+        .select('id, slug, type')
+        .eq('tenant_id', tenant.id)
+        .eq('is_published', true);
+      return data || [];
+    },
+    enabled: !!tenant?.id,
+  });
 
   const baseUrl = `/store/${tenantSlug}`;
   const menuItems = footerMenu?.items || [];
@@ -19,7 +36,11 @@ export function StorefrontFooter() {
       return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
     }
     if (item.item_type === 'page' && item.ref_id) {
-      return `${baseUrl}/page/${item.ref_id}`;
+      const page = pagesData?.find(p => p.id === item.ref_id);
+      if (page) {
+        return `${baseUrl}/page/${page.slug}`;
+      }
+      return baseUrl;
     }
     return baseUrl;
   };

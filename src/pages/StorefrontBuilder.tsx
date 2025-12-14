@@ -65,7 +65,7 @@ export default function StorefrontBuilder() {
       
       if (menuError || !menu) return null;
       
-      // Then fetch menu items
+      // Then fetch menu items with full info for proper URL generation
       const { data: items, error: itemsError } = await supabase
         .from('menu_items')
         .select('id, label, url, item_type, ref_id, sort_order')
@@ -79,6 +79,55 @@ export default function StorefrontBuilder() {
     enabled: !!currentTenant?.id && !!editingPageType,
   });
 
+  // Fetch categories for resolving category menu item URLs
+  const { data: categoriesData } = useQuery({
+    queryKey: ['editor-categories', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true);
+      return data || [];
+    },
+    enabled: !!currentTenant?.id && !!editingPageType,
+  });
+
+  // Fetch pages for resolving page menu item URLs
+  const { data: pagesData } = useQuery({
+    queryKey: ['editor-pages', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data } = await supabase
+        .from('store_pages')
+        .select('id, slug, type')
+        .eq('tenant_id', currentTenant.id);
+      return data || [];
+    },
+    enabled: !!currentTenant?.id && !!editingPageType,
+  });
+
+  // Helper to build menu item URL
+  const buildMenuItemUrl = (item: any): string => {
+    const baseUrl = currentTenant ? `/store/${currentTenant.slug}` : '';
+    
+    if (item.item_type === 'external' && item.url) {
+      return item.url;
+    }
+    if (item.item_type === 'category' && item.ref_id) {
+      const category = categoriesData?.find(c => c.id === item.ref_id);
+      return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
+    }
+    if (item.item_type === 'page' && item.ref_id) {
+      const page = pagesData?.find(p => p.id === item.ref_id);
+      if (page) {
+        return `${baseUrl}/page/${page.slug}`;
+      }
+    }
+    return item.url || baseUrl;
+  };
+
   // If editing a specific page type, show the builder
   if (editingPageType && currentTenant) {
     const context: BlockRenderContext = {
@@ -89,11 +138,11 @@ export default function StorefrontBuilder() {
         logo_url: storeSettings?.logo_url || undefined,
         primary_color: storeSettings?.primary_color || undefined,
       },
-      // Include header menu in editor context
+      // Include header menu in editor context (with resolved URLs)
       headerMenu: headerMenuData?.map(item => ({
         id: item.id,
         label: item.label,
-        url: item.url || '#',
+        url: buildMenuItemUrl(item),
       })) || [],
     };
 

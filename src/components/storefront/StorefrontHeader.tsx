@@ -14,12 +14,27 @@ import { cn } from '@/lib/utils';
 
 export function StorefrontHeader() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const { storeSettings, headerMenu, categories } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, categories, tenant } = usePublicStorefront(tenantSlug || '');
   const { totalItems } = useCart(tenantSlug || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [animationState, setAnimationState] = useState<'initial' | 'animating' | 'done'>('initial');
   const noticeRef = useRef<HTMLDivElement>(null);
+
+  // Fetch pages for resolving page menu item URLs (using slug instead of id)
+  const { data: pagesData } = useQuery({
+    queryKey: ['storefront-pages', tenant?.id],
+    queryFn: async () => {
+      if (!tenant?.id) return [];
+      const { data } = await supabase
+        .from('store_pages')
+        .select('id, slug, type')
+        .eq('tenant_id', tenant.id)
+        .eq('is_published', true);
+      return data || [];
+    },
+    enabled: !!tenant?.id,
+  });
 
   // Fetch global layout for header config
   const { data: globalLayout } = usePublicGlobalLayout(tenantSlug || '');
@@ -119,7 +134,11 @@ export function StorefrontHeader() {
       return category ? `${baseUrl}/c/${category.slug}` : baseUrl;
     }
     if (item.item_type === 'page' && item.ref_id) {
-      return `${baseUrl}/page/${item.ref_id}`;
+      const page = pagesData?.find(p => p.id === item.ref_id);
+      if (page) {
+        return `${baseUrl}/page/${page.slug}`;
+      }
+      return baseUrl;
     }
     return baseUrl;
   };
