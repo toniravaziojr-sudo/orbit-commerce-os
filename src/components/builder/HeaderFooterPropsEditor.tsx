@@ -286,6 +286,159 @@ function CategoriesSection({
   );
 }
 
+// Promotions section for global header config
+function PromotionsSection({ 
+  props, 
+  updateProp,
+  tenantId,
+  openSections,
+  toggleSection,
+}: { 
+  props: Record<string, unknown>; 
+  updateProp: (key: string, value: unknown) => void;
+  tenantId: string;
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+}) {
+  // Fetch pages for selection (institutional + landing_page)
+  const { data: pages, isLoading } = useQuery({
+    queryKey: ['admin-pages-for-promos', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('id, title, slug, type, is_published')
+        .eq('tenant_id', tenantId)
+        .in('type', ['institutional', 'landing_page'])
+        .order('title');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
+
+  const selectedPageId = (props.featuredPromosPageId as string) || '';
+  const selectedPage = pages?.find(p => p.id === selectedPageId);
+
+  // For backwards compatibility, if we have a slug but no ID, try to find by slug
+  const legacySlug = (props.featuredPromosPageSlug as string) || '';
+  const pageFromSlug = !selectedPageId && legacySlug ? pages?.find(p => p.slug === legacySlug) : null;
+  
+  // If we found page by slug, auto-migrate to ID
+  if (pageFromSlug && !selectedPageId) {
+    updateProp('featuredPromosPageId', pageFromSlug.id);
+  }
+
+  const effectivePageId = selectedPageId || pageFromSlug?.id || '';
+  const effectivePage = selectedPage || pageFromSlug;
+
+  const hasValidPage = Boolean(effectivePageId && effectivePage);
+
+  return (
+    <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-amber-500" />
+            <span className="font-medium">Promoções em Destaque</span>
+            {props.featuredPromosEnabled && (
+              <Badge variant="secondary" className="text-xs">Ativo</Badge>
+            )}
+          </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-xs">Exibir link de Promoções</Label>
+            <p className="text-xs text-muted-foreground">Link destacado no menu</p>
+          </div>
+          <Switch
+            checked={Boolean(props.featuredPromosEnabled)}
+            onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
+          />
+        </div>
+        
+        {props.featuredPromosEnabled && (
+          <>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Texto do link</Label>
+              <Input
+                value={(props.featuredPromosLabel as string) || 'Promoções'}
+                onChange={(e) => updateProp('featuredPromosLabel', e.target.value)}
+                placeholder="Ex: Promoções"
+                className="h-9 text-sm"
+              />
+            </div>
+            
+            <ColorInput
+              label="Cor do texto"
+              value={(props.featuredPromosTextColor as string) || '#d97706'}
+              onChange={(v) => updateProp('featuredPromosTextColor', v)}
+              placeholder="Ex: #d97706 (dourado)"
+            />
+            
+            <div className="space-y-1.5">
+              <Label className="text-xs">Página de destino</Label>
+              {isLoading ? (
+                <p className="text-xs text-muted-foreground">Carregando páginas...</p>
+              ) : pages && pages.length > 0 ? (
+                <Select
+                  value={effectivePageId}
+                  onValueChange={(v) => {
+                    updateProp('featuredPromosPageId', v);
+                    // Clear legacy slug
+                    if (props.featuredPromosPageSlug) {
+                      updateProp('featuredPromosPageSlug', '');
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-full h-9 text-sm">
+                    <SelectValue placeholder="Selecione uma página" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pages.map((page) => (
+                      <SelectItem key={page.id} value={page.id}>
+                        <span className="flex items-center gap-2">
+                          {page.title}
+                          <span className="text-xs text-muted-foreground">
+                            ({page.type === 'landing_page' ? 'Landing' : 'Institucional'})
+                          </span>
+                          {!page.is_published && (
+                            <span className="text-xs text-amber-600">(Rascunho)</span>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Alert className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Nenhuma página encontrada. Crie uma página institucional ou landing page primeiro.
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              {props.featuredPromosEnabled && !hasValidPage && pages && pages.length > 0 && (
+                <p className="text-xs text-amber-600">⚠️ Selecione uma página para exibir o link</p>
+              )}
+              
+              {effectivePage && (
+                <p className="text-xs text-muted-foreground">
+                  Link: /page/{effectivePage.slug}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export function HeaderFooterPropsEditor({
   definition,
   props,
@@ -760,69 +913,13 @@ export function HeaderFooterPropsEditor({
             <Separator />
 
             {/* === PROMOÇÕES EM DESTAQUE === */}
-            <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-amber-500" />
-                    <span className="font-medium">Promoções em Destaque</span>
-                    {props.featuredPromosEnabled && (
-                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
-                    )}
-                  </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Exibir link de Promoções</Label>
-                    <p className="text-xs text-muted-foreground">Link destacado no menu</p>
-                  </div>
-                  <Switch
-                    checked={Boolean(props.featuredPromosEnabled)}
-                    onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
-                  />
-                </div>
-                
-                {props.featuredPromosEnabled && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Texto do link</Label>
-                      <Input
-                        value={(props.featuredPromosLabel as string) || 'Promoções'}
-                        onChange={(e) => updateProp('featuredPromosLabel', e.target.value)}
-                        placeholder="Ex: Promoções"
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    
-                    <ColorInput
-                      label="Cor do texto"
-                      value={(props.featuredPromosTextColor as string) || '#d97706'}
-                      onChange={(v) => updateProp('featuredPromosTextColor', v)}
-                      placeholder="Ex: #d97706 (dourado)"
-                    />
-                    
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Slug da página de promoções</Label>
-                      <Input
-                        value={(props.featuredPromosPageSlug as string) || ''}
-                        onChange={(e) => updateProp('featuredPromosPageSlug', e.target.value)}
-                        placeholder="Ex: promocoes"
-                        className="h-9 text-sm"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        A página deve existir em "Páginas" com este slug
-                      </p>
-                      {props.featuredPromosEnabled && !(props.featuredPromosPageSlug as string)?.trim() && (
-                        <p className="text-xs text-amber-600">⚠️ Defina o slug para exibir o link</p>
-                      )}
-                    </div>
-                  </>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+            <PromotionsSection
+              props={props}
+              updateProp={updateProp}
+              tenantId={tenantId}
+              openSections={openSections}
+              toggleSection={toggleSection}
+            />
 
             <Separator />
 
