@@ -378,13 +378,7 @@ function HeaderBlock({
   showPhone = false,
   phoneNumber = '',
   phoneLabel = '',
-  // Categories in header
-  showCategoriesMenu = false,
-  categoriesMenuLabel = 'Categorias',
-  featuredCategoriesEnabled = false,
-  featuredCategoryIds = [],
-  featuredCategoriesLabel = 'Destaques',
-  // Customer Area
+  // Customer Area - only shows if enabled
   customerAreaEnabled = false,
   customerAreaLabel = 'Minhas compras',
   // Featured Promos
@@ -463,33 +457,6 @@ function HeaderBlock({
     enabled: !!menuId,
   });
   
-  // Fetch categories for the dropdown and featured list
-  const { data: allCategories } = useQuery({
-    queryKey: ['header-categories', context?.tenantSlug],
-    queryFn: async () => {
-      if (!context?.tenantSlug) return [];
-      // First get tenant id from slug
-      const { data: tenant, error: tenantError } = await supabase
-        .from('tenants')
-        .select('id')
-        .eq('slug', context.tenantSlug)
-        .maybeSingle();
-      
-      if (tenantError || !tenant) return [];
-      
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, name, slug, parent_id, is_active')
-        .eq('tenant_id', tenant.id)
-        .eq('is_active', true)
-        .order('sort_order');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!context?.tenantSlug && (showCategoriesMenu || featuredCategoriesEnabled),
-  });
-  
   // Fetch promo page by ID
   const { data: promoPage } = useQuery({
     queryKey: ['header-promo-page', featuredPromosPageId],
@@ -510,19 +477,6 @@ function HeaderBlock({
   const effectivePromoSlug = promoPage?.slug || featuredPromosPageSlug || '';
   
   const displayItems = menuItems || context?.headerMenu || [];
-  
-  // Build categories for dropdown (top-level categories)
-  const topLevelCategories = (allCategories || []).filter((c: any) => !c.parent_id);
-  const getSubcategories = (parentId: string) => 
-    (allCategories || []).filter((c: any) => c.parent_id === parentId);
-  
-  // Get featured categories in order
-  const featuredCategories = (featuredCategoryIds || [])
-    .map((id: string) => (allCategories || []).find((c: any) => c.id === id))
-    .filter(Boolean);
-  
-  // Categories dropdown state
-  const [categoriesDropdownOpen, setCategoriesDropdownOpen] = useState(false);
   
   // Get animation styles based on state
   const getNoticeAnimationStyles = (): React.CSSProperties => {
@@ -627,33 +581,27 @@ function HeaderBlock({
     </div>
   );
   
-  // Render menu items
+  // Render menu items - only show actual menu items, no placeholder
   const renderMenuItems = (textColor?: string) => (
     <>
-      {displayItems.length > 0 ? (
-        displayItems.map((item: any) => (
-          <a 
-            key={item.id} 
-            href={item.url || '#'} 
-            className="text-sm hover:opacity-70 transition-opacity"
-            style={{ color: textColor || undefined }}
-          >
-            {item.label}
-          </a>
-        ))
-      ) : (
-        isEditing && (
-          <span className="text-sm opacity-50">[Selecione um menu]</span>
-        )
-      )}
+      {displayItems.map((item: any) => (
+        <a 
+          key={item.id} 
+          href={item.url || '#'} 
+          className="text-sm hover:opacity-70 transition-opacity"
+          style={{ color: textColor || undefined }}
+        >
+          {item.label}
+        </a>
+      ))}
     </>
   );
   
-  // Render contact items (WhatsApp, Phone)
+  // Render contact items (WhatsApp, Phone) - only show valid items, no placeholders
   const renderContactItems = () => {
     const items = [];
     
-    // WhatsApp
+    // WhatsApp - only if valid
     if (isWhatsAppValid) {
       items.push(
         <a
@@ -669,15 +617,9 @@ function HeaderBlock({
           <span className="hidden sm:inline">{whatsAppLabel || 'WhatsApp'}</span>
         </a>
       );
-    } else if (showWhatsApp && isEditing) {
-      items.push(
-        <span key="whatsapp-placeholder" className="text-xs opacity-50">
-          [WhatsApp: informe o número]
-        </span>
-      );
     }
     
-    // Phone
+    // Phone - only if valid
     if (isPhoneValid) {
       items.push(
         <a
@@ -690,12 +632,6 @@ function HeaderBlock({
           <span style={iconStyle}>📞</span>
           <span className="hidden sm:inline">{phoneLabel || phoneNumber}</span>
         </a>
-      );
-    } else if (showPhone && isEditing) {
-      items.push(
-        <span key="phone-placeholder" className="text-xs opacity-50">
-          [Telefone: informe o número]
-        </span>
       );
     }
     
@@ -724,139 +660,22 @@ function HeaderBlock({
     </div>
   );
   
-  // Render categories dropdown
-  const renderCategoriesMenu = (textColor?: string) => {
-    if (!showCategoriesMenu && !isEditing) return null;
-    
-    // If no categories, show placeholder in editor
-    if (topLevelCategories.length === 0) {
-      if (isEditing && showCategoriesMenu) {
-        return (
-          <span className="text-sm opacity-50">[Nenhuma categoria disponível]</span>
-        );
-      }
-      return null;
-    }
-    
-    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
-    
-    return (
-      <div 
-        className="relative"
-        onMouseEnter={() => setCategoriesDropdownOpen(true)}
-        onMouseLeave={() => setCategoriesDropdownOpen(false)}
-      >
-        <button
-          className={cn(
-            "text-sm font-medium hover:opacity-70 transition-opacity flex items-center gap-1",
-            !showCategoriesMenu && isEditing && "opacity-40"
-          )}
-          style={{ color: textColor || undefined }}
-          onClick={(e) => isEditing && e.preventDefault()}
-        >
-          {categoriesMenuLabel || 'Categorias'}
-          <span className="text-xs">▼</span>
-        </button>
-        
-        {/* Dropdown */}
-        {(categoriesDropdownOpen || isEditing) && (
-          <div 
-            className={cn(
-              "absolute top-full left-0 mt-1 bg-white border rounded-lg shadow-lg min-w-[200px] py-2 z-50",
-              !categoriesDropdownOpen && isEditing && "opacity-40"
-            )}
-          >
-            {topLevelCategories.map((cat: any) => {
-              const subs = getSubcategories(cat.id);
-              return (
-                <div key={cat.id} className="group relative">
-                  <a
-                    href={`${baseUrl}/c/${cat.slug}`}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center justify-between"
-                    onClick={(e) => isEditing && e.preventDefault()}
-                  >
-                    {cat.name}
-                    {subs.length > 0 && <span className="text-xs">›</span>}
-                  </a>
-                  
-                  {/* Subcategories */}
-                  {subs.length > 0 && (
-                    <div className="hidden group-hover:block absolute left-full top-0 bg-white border rounded-lg shadow-lg min-w-[180px] py-2">
-                      {subs.map((sub: any) => (
-                        <a
-                          key={sub.id}
-                          href={`${baseUrl}/c/${sub.slug}`}
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                          onClick={(e) => isEditing && e.preventDefault()}
-                        >
-                          {sub.name}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    );
-  };
+  // REMOVIDO: renderCategoriesMenu - menu vem exclusivamente do Menu Builder
+  const renderCategoriesMenu = () => null;
   
-  // Render featured categories
-  const renderFeaturedCategories = (textColor?: string) => {
-    if (!featuredCategoriesEnabled && !isEditing) return null;
-    
-    // If no featured categories, show placeholder in editor
-    if (featuredCategories.length === 0) {
-      if (isEditing && featuredCategoriesEnabled) {
-        return (
-          <span className="text-sm opacity-50">[Selecione categorias em destaque]</span>
-        );
-      }
-      return null;
-    }
-    
-    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
-    
-    return (
-      <div className={cn(
-        "flex items-center gap-4 overflow-x-auto scrollbar-hide",
-        !featuredCategoriesEnabled && isEditing && "opacity-40"
-      )}>
-        {featuredCategoriesLabel && (
-          <span className="text-xs font-semibold uppercase tracking-wider opacity-70" style={{ color: textColor || undefined }}>
-            {featuredCategoriesLabel}:
-          </span>
-        )}
-        {featuredCategories.map((cat: any) => (
-          <a
-            key={cat.id}
-            href={`${baseUrl}/c/${cat.slug}`}
-            className="text-sm whitespace-nowrap hover:opacity-70 transition-opacity"
-            style={{ color: textColor || undefined }}
-            onClick={(e) => isEditing && e.preventDefault()}
-          >
-            {cat.name}
-          </a>
-        ))}
-      </div>
-    );
-  };
+  // REMOVIDO: renderFeaturedCategories - substitui por "Categoria em Destaque" única no painel
+  const renderFeaturedCategories = () => null;
   
-  // Render customer area link
+  // Render customer area link - only if enabled, no placeholder
   const renderCustomerArea = (textColor?: string) => {
-    if (!customerAreaEnabled && !isEditing) return null;
+    if (!customerAreaEnabled) return null;
     
     const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
     
     return (
       <a
         href={`${baseUrl}/minhas-compras`}
-        className={cn(
-          "text-sm hover:opacity-70 transition-opacity flex items-center gap-1",
-          !customerAreaEnabled && isEditing && "opacity-40"
-        )}
+        className="text-sm hover:opacity-70 transition-opacity flex items-center gap-1"
         style={{ color: textColor || undefined }}
         onClick={(e) => isEditing && e.preventDefault()}
       >
@@ -866,30 +685,20 @@ function HeaderBlock({
     );
   };
   
-  // Render featured promos link
+  // Render featured promos link - only if enabled and valid
   const renderFeaturedPromos = (defaultTextColor?: string) => {
-    if (!featuredPromosEnabled && !isEditing) return null;
+    if (!featuredPromosEnabled) return null;
     
     const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
     const hasValidPage = effectivePromoSlug && effectivePromoSlug.trim().length > 0;
     
-    // In editor, show warning if no page configured
-    if (isEditing && featuredPromosEnabled && !hasValidPage) {
-      return (
-        <span className="text-sm text-amber-500 opacity-70">[Promoções: selecione uma página]</span>
-      );
-    }
-    
-    // Don't render if no valid page AND not editing
-    if (!hasValidPage && !isEditing) return null;
+    // Don't render if no valid page
+    if (!hasValidPage) return null;
     
     return (
       <a
         href={`${baseUrl}/page/${effectivePromoSlug}`}
-        className={cn(
-          "text-sm font-medium hover:opacity-70 transition-opacity",
-          !featuredPromosEnabled && isEditing && "opacity-40"
-        )}
+        className="text-sm font-medium hover:opacity-70 transition-opacity"
         style={{ color: featuredPromosTextColor || defaultTextColor || '#d97706' }}
         onClick={(e) => isEditing && e.preventDefault()}
       >
@@ -908,29 +717,23 @@ function HeaderBlock({
     sticky && stickyOnMobile && 'sticky top-0 z-50'
   );
   
-  // Check if we have any contact items to show
-  const hasContactItems = isWhatsAppValid || isPhoneValid || ((showWhatsApp || showPhone) && isEditing);
-  
-  // Check if we have category items to show
-  const hasCategoryItems = (showCategoriesMenu && topLevelCategories.length > 0) || (featuredCategoriesEnabled && featuredCategories.length > 0) || (isEditing && (showCategoriesMenu || featuredCategoriesEnabled));
+  // Check if we have any valid contact items to show (no placeholders)
+  const hasContactItems = isWhatsAppValid || isPhoneValid;
   
   return (
     <div className={stickyClasses}>
-      {/* Notice Bar (Barra Superior) */}
-      {(noticeEnabled || isEditing) && (
+      {/* Notice Bar (Barra Superior) - only renders if enabled */}
+      {noticeEnabled && (
         <div 
-          className={cn(
-            "py-2 px-4 text-center text-sm flex items-center justify-center flex-wrap gap-1",
-            !noticeEnabled && isEditing && "opacity-40"
-          )}
+          className="py-2 px-4 text-center text-sm flex items-center justify-center flex-wrap gap-1"
           style={{ 
             backgroundColor: noticeBgColor || '#1e40af',
             color: noticeTextColor || '#ffffff',
             ...getNoticeAnimationStyles(),
           }}
         >
-          <span>{noticeText || (isEditing ? '[Digite o texto da barra superior]' : '')}</span>
-          {(noticeActionEnabled || (isEditing && noticeEnabled)) && renderAction()}
+          <span>{noticeText || ''}</span>
+          {noticeActionEnabled && renderAction()}
         </div>
       )}
       
@@ -947,9 +750,9 @@ function HeaderBlock({
               )}
             </div>
             <nav className="hidden md:flex items-center gap-6">
-              {renderCategoriesMenu(headerTextColor)}
+              {renderCategoriesMenu()}
               {renderMenuItems(headerTextColor)}
-              {renderFeaturedCategories(headerTextColor)}
+              {renderFeaturedCategories()}
               {renderFeaturedPromos(headerTextColor)}
               {renderCustomerArea(headerTextColor)}
             </nav>
@@ -983,9 +786,9 @@ function HeaderBlock({
             style={menuBarStyles}
           >
             <div className="container mx-auto px-4 py-2 flex items-center gap-6">
-              {renderCategoriesMenu(menuTextColor || headerTextColor)}
+              {renderCategoriesMenu()}
               {renderMenuItems(menuTextColor || headerTextColor)}
-              {renderFeaturedCategories(menuTextColor || headerTextColor)}
+              {renderFeaturedCategories()}
               {renderFeaturedPromos(menuTextColor || headerTextColor)}
               {renderCustomerArea(menuTextColor || headerTextColor)}
             </div>
@@ -1016,9 +819,9 @@ function HeaderBlock({
             style={menuBarStyles}
           >
             <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-6">
-              {renderCategoriesMenu(menuTextColor || headerTextColor)}
+              {renderCategoriesMenu()}
               {renderMenuItems(menuTextColor || headerTextColor)}
-              {renderFeaturedCategories(menuTextColor || headerTextColor)}
+              {renderFeaturedCategories()}
               {renderFeaturedPromos(menuTextColor || headerTextColor)}
               {renderCustomerArea(menuTextColor || headerTextColor)}
             </div>

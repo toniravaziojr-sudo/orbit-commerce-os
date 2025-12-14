@@ -266,18 +266,6 @@ export function StorefrontHeader() {
               ) : null
             )}
             
-            {/* Menu Items */}
-            {menuItems.map((item) => (
-              <Link
-                key={item.id}
-                to={getMenuItemUrl(item)}
-                className="text-sm font-medium hover:opacity-70 transition-colors"
-                style={{ color: headerTextColor || undefined }}
-              >
-                {item.label}
-              </Link>
-            ))}
-            
             {/* Featured Promos */}
             {featuredPromosEnabled && promoPage?.slug && (
               <Link
@@ -289,7 +277,7 @@ export function StorefrontHeader() {
               </Link>
             )}
             
-            {/* Customer Area */}
+            {/* Customer Area - only render if enabled */}
             {customerAreaEnabled && (
               <Link
                 to={`${baseUrl}/minhas-compras`}
