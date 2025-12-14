@@ -71,6 +71,8 @@ export interface Category {
   image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  seo_title: string | null;
+  seo_description: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -205,11 +207,16 @@ export function useCategories() {
     mutationFn: async (category: CategoryFormData) => {
       if (!currentTenant?.id) throw new Error('Nenhuma loja selecionada');
       
+      // Get max sort_order for siblings
+      const siblings = categoriesQuery.data?.filter(c => c.parent_id === category.parent_id) || [];
+      const maxOrder = siblings.reduce((max, c) => Math.max(max, c.sort_order || 0), -1);
+      
       const { data, error } = await supabase
         .from('categories')
         .insert({
           ...category,
           tenant_id: currentTenant.id,
+          sort_order: maxOrder + 1,
         })
         .select()
         .single();
@@ -272,6 +279,47 @@ export function useCategories() {
     },
   });
 
+  // Reorder categories with parent change support
+  const reorderCategories = useMutation({
+    mutationFn: async ({ 
+      categoryId, 
+      newParentId, 
+      orderedSiblingIds 
+    }: { 
+      categoryId: string; 
+      newParentId: string | null; 
+      orderedSiblingIds: string[];
+    }) => {
+      // Update parent_id if changed
+      const category = categoriesQuery.data?.find(c => c.id === categoryId);
+      if (category && category.parent_id !== newParentId) {
+        const { error: parentError } = await supabase
+          .from('categories')
+          .update({ parent_id: newParentId })
+          .eq('id', categoryId);
+
+        if (parentError) throw parentError;
+      }
+
+      // Update sort_order for all siblings
+      const updates = orderedSiblingIds.map((id, index) => 
+        supabase
+          .from('categories')
+          .update({ sort_order: index })
+          .eq('id', id)
+      );
+
+      await Promise.all(updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories', currentTenant?.id] });
+    },
+    onError: (error: Error) => {
+      console.error('Error reordering categories:', error);
+      toast.error('Erro ao reordenar categorias');
+    },
+  });
+
   return {
     categories: categoriesQuery.data ?? [],
     isLoading: categoriesQuery.isLoading,
@@ -279,5 +327,6 @@ export function useCategories() {
     createCategory,
     updateCategory,
     deleteCategory,
+    reorderCategories,
   };
 }
