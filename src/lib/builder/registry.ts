@@ -304,6 +304,14 @@ const blockDefinitions: BlockDefinition[] = [
       featuredCategoriesEnabled: false,
       featuredCategoryIds: [],
       featuredCategoriesLabel: 'Destaques',
+      // Área do Cliente
+      customerAreaEnabled: false,
+      customerAreaLabel: 'Minhas compras',
+      // Promoções em Destaque
+      featuredPromosEnabled: false,
+      featuredPromosLabel: 'Promoções',
+      featuredPromosTextColor: '#d97706',
+      featuredPromosPageSlug: '',
       // Barra Superior (Aviso Geral)
       noticeEnabled: false,
       noticeText: '',
@@ -439,6 +447,41 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Título das categorias em destaque',
         defaultValue: 'Destaques',
         placeholder: 'Ex: Destaques',
+      },
+      // === ÁREA DO CLIENTE ===
+      customerAreaEnabled: {
+        type: 'boolean',
+        label: 'Exibir "Minhas compras"',
+        defaultValue: false,
+      },
+      customerAreaLabel: {
+        type: 'string',
+        label: 'Texto do link',
+        defaultValue: 'Minhas compras',
+        placeholder: 'Ex: Minhas compras',
+      },
+      // === PROMOÇÕES EM DESTAQUE ===
+      featuredPromosEnabled: {
+        type: 'boolean',
+        label: 'Exibir link de Promoções',
+        defaultValue: false,
+      },
+      featuredPromosLabel: {
+        type: 'string',
+        label: 'Texto do link',
+        defaultValue: 'Promoções',
+        placeholder: 'Ex: Promoções',
+      },
+      featuredPromosTextColor: {
+        type: 'color',
+        label: 'Cor do texto',
+        defaultValue: '#d97706',
+        placeholder: 'Ex: #d97706 (dourado)',
+      },
+      featuredPromosPageSlug: {
+        type: 'string',
+        label: 'Slug da página de promoções',
+        placeholder: 'Ex: promocoes',
       },
       // === BARRA SUPERIOR (AVISO GERAL) ===
       noticeEnabled: {

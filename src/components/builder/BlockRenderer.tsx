@@ -384,6 +384,14 @@ function HeaderBlock({
   featuredCategoriesEnabled = false,
   featuredCategoryIds = [],
   featuredCategoriesLabel = 'Destaques',
+  // Customer Area
+  customerAreaEnabled = false,
+  customerAreaLabel = 'Minhas compras',
+  // Featured Promos
+  featuredPromosEnabled = false,
+  featuredPromosLabel = 'Promoções',
+  featuredPromosTextColor = '#d97706',
+  featuredPromosPageSlug = '',
   // Notice bar props
   noticeEnabled = false,
   noticeText = '',
@@ -816,6 +824,59 @@ function HeaderBlock({
     );
   };
   
+  // Render customer area link
+  const renderCustomerArea = (textColor?: string) => {
+    if (!customerAreaEnabled && !isEditing) return null;
+    
+    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
+    
+    return (
+      <a
+        href={`${baseUrl}/minhas-compras`}
+        className={cn(
+          "text-sm hover:opacity-70 transition-opacity flex items-center gap-1",
+          !customerAreaEnabled && isEditing && "opacity-40"
+        )}
+        style={{ color: textColor || undefined }}
+        onClick={(e) => isEditing && e.preventDefault()}
+      >
+        <span>👤</span>
+        {customerAreaLabel || 'Minhas compras'}
+      </a>
+    );
+  };
+  
+  // Render featured promos link
+  const renderFeaturedPromos = (defaultTextColor?: string) => {
+    if (!featuredPromosEnabled && !isEditing) return null;
+    
+    const baseUrl = context?.tenantSlug ? `/store/${context.tenantSlug}` : '';
+    const hasValidPage = featuredPromosPageSlug && featuredPromosPageSlug.trim().length > 0;
+    
+    // In editor, show warning if no page configured
+    if (isEditing && featuredPromosEnabled && !hasValidPage) {
+      return (
+        <span className="text-sm text-amber-500 opacity-70">[Promoções: defina o slug da página]</span>
+      );
+    }
+    
+    if (!hasValidPage && !isEditing) return null;
+    
+    return (
+      <a
+        href={`${baseUrl}/page/${featuredPromosPageSlug}`}
+        className={cn(
+          "text-sm font-medium hover:opacity-70 transition-opacity",
+          !featuredPromosEnabled && isEditing && "opacity-40"
+        )}
+        style={{ color: featuredPromosTextColor || defaultTextColor || '#d97706' }}
+        onClick={(e) => isEditing && e.preventDefault()}
+      >
+        {featuredPromosLabel || 'Promoções'}
+      </a>
+    );
+  };
+  
   // Determine sticky classes based on device
   const stickyClasses = cn(
     // Desktop sticky
@@ -868,6 +929,8 @@ function HeaderBlock({
               {renderCategoriesMenu(headerTextColor)}
               {renderMenuItems(headerTextColor)}
               {renderFeaturedCategories(headerTextColor)}
+              {renderFeaturedPromos(headerTextColor)}
+              {renderCustomerArea(headerTextColor)}
             </nav>
             <div className="flex items-center gap-4">
               {hasContactItems && (
@@ -902,6 +965,8 @@ function HeaderBlock({
               {renderCategoriesMenu(menuTextColor || headerTextColor)}
               {renderMenuItems(menuTextColor || headerTextColor)}
               {renderFeaturedCategories(menuTextColor || headerTextColor)}
+              {renderFeaturedPromos(menuTextColor || headerTextColor)}
+              {renderCustomerArea(menuTextColor || headerTextColor)}
             </div>
           </nav>
         </>
@@ -933,6 +998,8 @@ function HeaderBlock({
               {renderCategoriesMenu(menuTextColor || headerTextColor)}
               {renderMenuItems(menuTextColor || headerTextColor)}
               {renderFeaturedCategories(menuTextColor || headerTextColor)}
+              {renderFeaturedPromos(menuTextColor || headerTextColor)}
+              {renderCustomerArea(menuTextColor || headerTextColor)}
             </div>
           </nav>
         </>
