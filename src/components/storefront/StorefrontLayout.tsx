@@ -1,6 +1,4 @@
 import { Outlet, useParams } from 'react-router-dom';
-import { StorefrontHeader } from './StorefrontHeader';
-import { StorefrontFooter } from './StorefrontFooter';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
 
@@ -48,11 +46,9 @@ export function StorefrontLayout() {
           Modo de pré-visualização - Esta página não está publicada
         </div>
       )}
-      <StorefrontHeader />
       <main className="flex-1">
         <Outlet />
       </main>
-      <StorefrontFooter />
     </div>
   );
 }
