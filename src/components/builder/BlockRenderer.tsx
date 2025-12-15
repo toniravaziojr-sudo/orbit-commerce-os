@@ -600,6 +600,13 @@ function BannerBlock({
   shadow = 'none',
   context,
 }: any) {
+  // Defensive: ensure we have safe defaults
+  const safeAspectRatio = aspectRatio || '16:9';
+  const safeRounded = rounded || 'md';
+  const safeShadow = shadow || 'none';
+  const safeObjectFit = objectFit || 'cover';
+  const safeObjectPosition = objectPosition || 'center';
+
   const aspectRatioMap: Record<string, string> = {
     '16:9': '56.25%',
     '4:3': '75%',
@@ -620,8 +627,8 @@ function BannerBlock({
     md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
   };
 
-  // Use actual images
-  const desktopImage = imageDesktop || imageUrl;
+  // Use actual images with safe fallbacks
+  const desktopImage = imageDesktop || imageUrl || '';
   const mobileImage = imageMobile || desktopImage;
   
   // Builder mode: use context.viewport state; Storefront: use <picture>
@@ -632,10 +639,10 @@ function BannerBlock({
     <div 
       className="w-full bg-muted overflow-hidden relative"
       style={{ 
-        paddingBottom: height ? undefined : aspectRatioMap[aspectRatio] || '56.25%',
+        paddingBottom: height ? undefined : (aspectRatioMap[safeAspectRatio] || '56.25%'),
         height: height || undefined,
-        borderRadius: roundedMap[rounded] || '0.5rem',
-        boxShadow: shadowMap[shadow] || 'none',
+        borderRadius: roundedMap[safeRounded] || '0.5rem',
+        boxShadow: shadowMap[safeShadow] || 'none',
       }}
     >
       {desktopImage ? (
@@ -646,8 +653,8 @@ function BannerBlock({
             alt={altText || 'Banner'} 
             className="absolute inset-0 w-full h-full" 
             style={{
-              objectFit: objectFit || 'cover',
-              objectPosition: objectPosition || 'center',
+              objectFit: safeObjectFit,
+              objectPosition: safeObjectPosition,
             }}
           />
         ) : (
@@ -661,22 +668,26 @@ function BannerBlock({
               alt={altText || 'Banner'} 
               className="w-full h-full" 
               style={{
-                objectFit: objectFit || 'cover',
-                objectPosition: objectPosition || 'center',
+                objectFit: safeObjectFit,
+                objectPosition: safeObjectPosition,
               }}
             />
           </picture>
         )
       ) : (
-        <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground">
-          Banner Image
+        <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground bg-muted/50">
+          <div className="text-center">
+            <div className="text-2xl mb-1">🖼️</div>
+            <p className="text-sm">Configure a imagem do banner</p>
+          </div>
         </div>
       )}
     </div>
   );
 
-  if (linkUrl) {
-    return <a href={linkUrl}>{content}</a>;
+  // Safe link handling
+  if (linkUrl && typeof linkUrl === 'string' && linkUrl.trim()) {
+    return <a href={linkUrl} className="block">{content}</a>;
   }
 
   return content;

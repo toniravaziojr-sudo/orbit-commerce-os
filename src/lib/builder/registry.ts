@@ -1447,8 +1447,9 @@ const blockDefinitions: BlockDefinition[] = [
     propsSchema: {
       slides: {
         type: 'array',
-        label: 'Slides do Banner',
+        label: 'Slides do Carrossel',
         defaultValue: [],
+        helpText: 'Adicione slides com imagens para Desktop e Mobile',
       },
       autoplaySeconds: {
         type: 'number',
