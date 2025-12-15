@@ -11,6 +11,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
+import { ProductCarouselBlock as ProductCarouselBlockComponent } from './blocks/ProductCarouselBlock';
+import { FeaturedProductsBlock as FeaturedProductsBlockComponent } from './blocks/FeaturedProductsBlock';
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
@@ -885,25 +887,19 @@ function ProductGridBlock({ title, source, categoryId, columns = 4, limit = 8, s
   );
 }
 
-function ProductCarouselBlock({ title, limit = 6, isEditing }: any) {
+function ProductCarouselBlock({ title, source, categoryId, limit = 8, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
   return (
-    <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {Array.from({ length: limit }, (_, i) => (
-          <div key={i} className="flex-shrink-0 w-48 bg-card border rounded-lg p-4">
-            <div className="aspect-square bg-muted rounded mb-3" />
-            <h3 className="font-medium truncate">Produto {i + 1}</h3>
-            <p className="text-primary font-bold">R$ {(99.90 + i * 10).toFixed(2)}</p>
-          </div>
-        ))}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground">
-          [Carrossel de produtos dinâmico]
-        </p>
-      )}
-    </div>
+    <ProductCarouselBlockComponent
+      title={title}
+      source={source}
+      categoryId={categoryId}
+      limit={limit}
+      showPrice={showPrice}
+      showButton={showButton}
+      buttonText={buttonText}
+      context={context}
+      isEditing={isEditing}
+    />
   );
 }
 
@@ -925,25 +921,19 @@ function CategoryListBlock({ title, source, columns = 3, limit = 6, layout = 'gr
   );
 }
 
-function FeaturedProductsBlock({ title, productIds, isEditing }: any) {
+function FeaturedProductsBlock({ title, productIds, limit = 4, columns = 4, showPrice = true, showButton = true, buttonText = 'Ver produto', context, isEditing }: any) {
   return (
-    <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }, (_, i) => (
-          <div key={i} className="bg-card border rounded-lg p-4">
-            <div className="aspect-square bg-muted rounded mb-3" />
-            <h3 className="font-medium">Produto Destaque {i + 1}</h3>
-            <p className="text-primary font-bold">R$ {(199.90 + i * 50).toFixed(2)}</p>
-          </div>
-        ))}
-      </div>
-      {isEditing && (
-        <p className="text-center text-sm text-muted-foreground mt-4">
-          [Produtos em destaque - IDs: {productIds?.join(', ') || 'Nenhum selecionado'}]
-        </p>
-      )}
-    </div>
+    <FeaturedProductsBlockComponent
+      title={title}
+      productIds={productIds}
+      limit={limit}
+      columns={columns}
+      showPrice={showPrice}
+      showButton={showButton}
+      buttonText={buttonText}
+      context={context}
+      isEditing={isEditing}
+    />
   );
 }
 
