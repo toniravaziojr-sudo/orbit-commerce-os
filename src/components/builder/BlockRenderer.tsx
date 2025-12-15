@@ -14,6 +14,14 @@ import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductG
 import { ProductCarouselBlock as ProductCarouselBlockComponent } from './blocks/ProductCarouselBlock';
 import { FeaturedProductsBlock as FeaturedProductsBlockComponent } from './blocks/FeaturedProductsBlock';
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
+import { HeroBannerBlock as HeroBannerBlockComponent } from './blocks/HeroBannerBlock';
+import { CollectionSectionBlock as CollectionSectionBlockComponent } from './blocks/CollectionSectionBlock';
+import { InfoHighlightsBlock as InfoHighlightsBlockComponent } from './blocks/InfoHighlightsBlock';
+import { BannerProductsBlock as BannerProductsBlockComponent } from './blocks/BannerProductsBlock';
+import { YouTubeVideoBlock as YouTubeVideoBlockComponent } from './blocks/YouTubeVideoBlock';
+import { ReviewsBlock as ReviewsBlockComponent } from './blocks/ReviewsBlock';
+import { FeaturedCategoriesBlock as FeaturedCategoriesBlockComponent } from './blocks/FeaturedCategoriesBlock';
+import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBannersBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -193,7 +201,7 @@ export function BlockRenderer({
 
 // Block component implementations
 function getBlockComponent(type: string): React.ComponentType<any> {
-  const components: Record<string, React.ComponentType<any>> = {
+const components: Record<string, React.ComponentType<any>> = {
     Page: PageBlock,
     Section: SectionBlock,
     Container: ContainerBlock,
@@ -222,6 +230,15 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     CheckoutSteps: CheckoutStepsBlock,
     Cart: CartBlock,
     Checkout: CheckoutBlock,
+    // Essential blocks (8 novos)
+    HeroBanner: HeroBannerBlockWrapper,
+    CollectionSection: CollectionSectionBlockWrapper,
+    InfoHighlights: InfoHighlightsBlockWrapper,
+    BannerProducts: BannerProductsBlockWrapper,
+    YouTubeVideo: YouTubeVideoBlockWrapper,
+    Reviews: ReviewsBlockWrapper,
+    FeaturedCategories: FeaturedCategoriesBlockWrapper,
+    TextBanners: TextBannersBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -1330,4 +1347,38 @@ function TestimonialsBlock({ title, items, isEditing }: any) {
       )}
     </div>
   );
+}
+
+// ========== ESSENTIAL BLOCK WRAPPERS (8 novos) ==========
+
+function HeroBannerBlockWrapper({ context, ...props }: any) {
+  return <HeroBannerBlockComponent {...props} context={context} />;
+}
+
+function CollectionSectionBlockWrapper({ context, ...props }: any) {
+  return <CollectionSectionBlockComponent {...props} context={context} />;
+}
+
+function InfoHighlightsBlockWrapper({ context, ...props }: any) {
+  return <InfoHighlightsBlockComponent {...props} context={context} />;
+}
+
+function BannerProductsBlockWrapper({ context, ...props }: any) {
+  return <BannerProductsBlockComponent {...props} context={context} />;
+}
+
+function YouTubeVideoBlockWrapper({ context, ...props }: any) {
+  return <YouTubeVideoBlockComponent {...props} context={context} />;
+}
+
+function ReviewsBlockWrapper({ context, ...props }: any) {
+  return <ReviewsBlockComponent {...props} context={context} />;
+}
+
+function FeaturedCategoriesBlockWrapper({ context, ...props }: any) {
+  return <FeaturedCategoriesBlockComponent {...props} context={context} />;
+}
+
+function TextBannersBlockWrapper({ context, ...props }: any) {
+  return <TextBannersBlockComponent {...props} context={context} />;
 }
