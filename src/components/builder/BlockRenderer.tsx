@@ -211,7 +211,6 @@ const components: Record<string, React.ComponentType<any>> = {
     Header: HeaderBlock,
     Footer: FooterBlock,
     Hero: HeroBlock,
-    Banner: BannerBlock,
     Text: TextBlock,
     RichText: RichTextBlock,
     Image: ImageBlock,
@@ -584,113 +583,6 @@ function HeroBlock({
       </div>
     </div>
   );
-}
-
-function BannerBlock({ 
-  imageDesktop,
-  imageMobile,
-  imageUrl, // Legacy prop support
-  altText, 
-  linkUrl, 
-  height, 
-  aspectRatio, 
-  objectFit = 'cover',
-  objectPosition = 'center',
-  rounded = 'md',
-  shadow = 'none',
-  context,
-}: any) {
-  // Defensive: ensure we have safe defaults
-  const safeAspectRatio = aspectRatio || '16:9';
-  const safeRounded = rounded || 'md';
-  const safeShadow = shadow || 'none';
-  const safeObjectFit = objectFit || 'cover';
-  const safeObjectPosition = objectPosition || 'center';
-
-  const aspectRatioMap: Record<string, string> = {
-    '16:9': '56.25%',
-    '4:3': '75%',
-    '1:1': '100%',
-    '21:9': '42.86%',
-  };
-
-  const roundedMap: Record<string, string> = {
-    none: '0',
-    sm: '0.25rem',
-    md: '0.5rem',
-    lg: '1rem',
-  };
-
-  const shadowMap: Record<string, string> = {
-    none: 'none',
-    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-  };
-
-  // Use actual images with safe fallbacks
-  const desktopImage = imageDesktop || imageUrl || '';
-  const mobileImage = imageMobile || desktopImage;
-  
-  // Builder mode: use context.viewport state; Storefront: use <picture>
-  const isBuilderMode = context?.viewport !== undefined;
-  const isMobile = context?.viewport === 'mobile';
-
-  const content = (
-    <div 
-      className="w-full bg-muted overflow-hidden relative"
-      style={{ 
-        paddingBottom: height ? undefined : (aspectRatioMap[safeAspectRatio] || '56.25%'),
-        height: height || undefined,
-        borderRadius: roundedMap[safeRounded] || '0.5rem',
-        boxShadow: shadowMap[safeShadow] || 'none',
-      }}
-    >
-      {desktopImage ? (
-        isBuilderMode ? (
-          // Builder mode: select image based on viewport state
-          <img 
-            src={isMobile && mobileImage ? mobileImage : desktopImage}
-            alt={altText || 'Banner'} 
-            className="absolute inset-0 w-full h-full" 
-            style={{
-              objectFit: safeObjectFit,
-              objectPosition: safeObjectPosition,
-            }}
-          />
-        ) : (
-          // Storefront mode: use <picture> for real responsive
-          <picture className="absolute inset-0 w-full h-full">
-            {mobileImage && mobileImage !== desktopImage && (
-              <source media="(max-width: 767px)" srcSet={mobileImage} />
-            )}
-            <img 
-              src={desktopImage} 
-              alt={altText || 'Banner'} 
-              className="w-full h-full" 
-              style={{
-                objectFit: safeObjectFit,
-                objectPosition: safeObjectPosition,
-              }}
-            />
-          </picture>
-        )
-      ) : (
-        <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground bg-muted/50">
-          <div className="text-center">
-            <div className="text-2xl mb-1">🖼️</div>
-            <p className="text-sm">Configure a imagem do banner</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-  // Safe link handling
-  if (linkUrl && typeof linkUrl === 'string' && linkUrl.trim()) {
-    return <a href={linkUrl} className="block">{content}</a>;
-  }
-
-  return content;
 }
 
 function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
