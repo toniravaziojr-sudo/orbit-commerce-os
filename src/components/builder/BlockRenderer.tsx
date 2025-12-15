@@ -13,6 +13,7 @@ import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
+import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -837,9 +838,6 @@ function HeaderBlock({
 }
 
 function FooterBlock({ 
-  menuId, 
-  showSocial = true, 
-  copyrightText, 
   footerBgColor,
   footerTextColor,
   noticeEnabled,
@@ -849,100 +847,9 @@ function FooterBlock({
   context, 
   isEditing 
 }: any) {
-  const { settings } = context || {};
-  
-  const { data: menuItems } = useQuery({
-    queryKey: ['menu-items', menuId],
-    queryFn: async () => {
-      if (!menuId) return [];
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('id, label, url, item_type, ref_id, sort_order')
-        .eq('menu_id', menuId)
-        .order('sort_order');
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!menuId,
-  });
-  
-  const displayItems = menuItems || context?.footerMenu || [];
-  
-  // Notice bar (above footer content)
-  const renderNoticeBar = () => {
-    if (!noticeEnabled || !noticeText) return null;
-    
-    return (
-      <div
-        className="py-3 px-4 text-center text-sm"
-        style={{
-          backgroundColor: noticeBgColor || '#1e40af',
-          color: noticeTextColor || '#ffffff',
-        }}
-      >
-        {noticeText}
-      </div>
-    );
-  };
-  
-  const bgColor = footerBgColor || '';
-  const textColor = footerTextColor || '';
-  
-  return (
-    <footer className="mt-auto" style={{ backgroundColor: bgColor || undefined, color: textColor || undefined }}>
-      {renderNoticeBar()}
-      <div className={`border-t ${!bgColor ? 'bg-muted/50' : ''}`}>
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <h3 className="font-bold mb-4">{settings?.store_name || 'Loja'}</h3>
-              <p className="text-sm opacity-80">
-                {settings?.store_description || 'Sua loja online'}
-              </p>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-3">Links</h4>
-              <ul className="space-y-2">
-                {displayItems.length > 0 ? (
-                  displayItems.map((item: any) => (
-                    <li key={item.id}>
-                      <a href={item.url || '#'} className="text-sm opacity-80 hover:opacity-100 transition-opacity">
-                        {item.label}
-                      </a>
-                    </li>
-                  ))
-                ) : null}
-              </ul>
-            </div>
-            {showSocial && (
-              <div>
-                <h4 className="font-semibold mb-3">Redes Sociais</h4>
-                <div className="flex gap-4 text-sm">
-                  {settings?.social_instagram && (
-                    <a href={settings.social_instagram} className="hover:opacity-80">Instagram</a>
-                  )}
-                  {settings?.social_facebook && (
-                    <a href={settings.social_facebook} className="hover:opacity-80">Facebook</a>
-                  )}
-                </div>
-              </div>
-            )}
-            <div>
-              <h4 className="font-semibold mb-3">Contato</h4>
-              {settings?.social_whatsapp && (
-                <a href={`https://wa.me/${settings.social_whatsapp}`} className="text-sm hover:opacity-80">
-                  WhatsApp
-                </a>
-              )}
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t text-center text-sm opacity-70">
-            {copyrightText || `© ${new Date().getFullYear()} ${settings?.store_name || 'Loja'}. Todos os direitos reservados.`}
-          </div>
-        </div>
-      </div>
-    </footer>
-  );
+  // FooterBlock now renders the unified StorefrontFooterContent which uses store_settings
+  // Props like footerBgColor can be used for overrides in the future
+  return <StorefrontFooterContent context={context} isEditing={isEditing} />;
 }
 
 // ========== CONTENT BLOCKS ==========
