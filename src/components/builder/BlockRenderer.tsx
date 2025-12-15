@@ -60,9 +60,15 @@ export function BlockRenderer({
   const definition = blockRegistry.get(node.type);
   
   if (!definition) {
+    // In storefront/preview public mode: render nothing (fail-silent)
+    // In editor mode: show placeholder warning
+    if (!isEditing) {
+      return null;
+    }
     return (
-      <div className="p-4 bg-destructive/10 border border-destructive rounded text-destructive text-sm">
-        Bloco desconhecido: {node.type}
+      <div className="p-4 bg-amber-500/10 border border-amber-500 rounded text-amber-700 dark:text-amber-400 text-sm">
+        ⚠️ Bloco removido/legado: {node.type}
+        <p className="text-xs mt-1 opacity-75">Este bloco não existe mais. Remova-o para evitar problemas.</p>
       </div>
     );
   }
