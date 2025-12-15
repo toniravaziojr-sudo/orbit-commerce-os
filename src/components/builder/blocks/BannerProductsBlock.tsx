@@ -38,7 +38,12 @@ export function BannerProductsBlock({
   context,
   isEditing = false,
 }: BannerProductsBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (React rules)
+  const isMobileDevice = useIsMobile();
+  
+  // Determine mobile state: editor viewport override takes priority
+  const isMobile = context?.viewport === 'mobile' || 
+    (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && isMobileDevice);
   const imageUrl = isMobile && imageMobile ? imageMobile : imageDesktop;
 
   // Parse product IDs if provided

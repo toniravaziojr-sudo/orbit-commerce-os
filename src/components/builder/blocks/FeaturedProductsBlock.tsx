@@ -10,7 +10,9 @@ import { useBuilderProducts, getProductImage, formatProductPrice } from '@/hooks
 
 interface FeaturedProductsBlockProps {
   title?: string;
-  productIds?: string[]; // Specific product IDs to display
+  source?: 'manual' | 'category' | 'featured' | 'newest';
+  productIds?: string[] | string; // Array (new) or string (legacy)
+  categoryId?: string;
   limit?: number;
   columns?: number;
   showPrice?: boolean;
@@ -22,7 +24,9 @@ interface FeaturedProductsBlockProps {
 
 export function FeaturedProductsBlock({
   title,
+  source = 'manual',
   productIds = [],
+  categoryId,
   limit = 4,
   columns = 4,
   showPrice = true,
@@ -33,19 +37,28 @@ export function FeaturedProductsBlock({
 }: FeaturedProductsBlockProps) {
   const { tenantSlug } = context;
 
-  // Parse productIds if it's a string (from textarea input)
+  // Parse productIds: support both array (new) and string (legacy)
   const parsedProductIds = Array.isArray(productIds)
     ? productIds.filter(Boolean)
     : typeof productIds === 'string' && (productIds as string).trim()
       ? (productIds as string).split(/[,\n]/).map(id => id.trim()).filter(Boolean)
       : [];
 
-  // If productIds provided, fetch those; otherwise fallback to newest products
+  // Determine source based on props
+  const effectiveSource = source === 'manual' && parsedProductIds.length > 0 
+    ? 'all' 
+    : source === 'category' && categoryId 
+      ? 'category' 
+      : source === 'featured' 
+        ? 'featured' 
+        : 'newest';
+
   const { products, isLoading } = useBuilderProducts({
     tenantSlug,
-    source: parsedProductIds.length > 0 ? 'all' : 'newest',
-    productIds: parsedProductIds.length > 0 ? parsedProductIds : undefined,
-    limit: parsedProductIds.length > 0 ? parsedProductIds.length : limit,
+    source: effectiveSource as any,
+    categoryId: source === 'category' ? categoryId : undefined,
+    productIds: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds : undefined,
+    limit: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds.length : limit,
   });
 
   const gridCols = {
