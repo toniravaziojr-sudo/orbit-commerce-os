@@ -341,6 +341,17 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
           />
         );
 
+      case 'textarea':
+        return (
+          <Textarea
+            value={(value as string) || ''}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={schema.placeholder}
+            rows={4}
+            className="resize-none"
+          />
+        );
+
       default:
         return (
           <Input

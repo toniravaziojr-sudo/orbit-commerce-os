@@ -1,0 +1,141 @@
+// =============================================
+// FEATURED PRODUCTS BLOCK - Specific products or fallback to recent
+// =============================================
+
+import { BlockRenderContext } from '@/lib/builder/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { getPublicProductUrl } from '@/lib/publicUrls';
+import { useBuilderProducts, getProductImage, formatProductPrice } from '@/hooks/useBuilderProducts';
+
+interface FeaturedProductsBlockProps {
+  title?: string;
+  productIds?: string[]; // Specific product IDs to display
+  limit?: number;
+  columns?: number;
+  showPrice?: boolean;
+  showButton?: boolean;
+  buttonText?: string;
+  context: BlockRenderContext;
+  isEditing?: boolean;
+}
+
+export function FeaturedProductsBlock({
+  title,
+  productIds = [],
+  limit = 4,
+  columns = 4,
+  showPrice = true,
+  showButton = true,
+  buttonText = 'Ver produto',
+  context,
+  isEditing = false,
+}: FeaturedProductsBlockProps) {
+  const { tenantSlug } = context;
+
+  // Parse productIds if it's a string (from textarea input)
+  const parsedProductIds = Array.isArray(productIds)
+    ? productIds.filter(Boolean)
+    : typeof productIds === 'string' && (productIds as string).trim()
+      ? (productIds as string).split(/[,\n]/).map(id => id.trim()).filter(Boolean)
+      : [];
+
+  // If productIds provided, fetch those; otherwise fallback to newest products
+  const { products, isLoading } = useBuilderProducts({
+    tenantSlug,
+    source: parsedProductIds.length > 0 ? 'all' : 'newest',
+    productIds: parsedProductIds.length > 0 ? parsedProductIds : undefined,
+    limit: parsedProductIds.length > 0 ? parsedProductIds.length : limit,
+  });
+
+  const gridCols = {
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
+  }[columns] || 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+
+  if (isLoading) {
+    return (
+      <div className="py-8 px-4">
+        {title && <Skeleton className="h-8 w-48 mb-6" />}
+        <div className={cn('grid gap-4', gridCols)}>
+          {Array.from({ length: limit }).map((_, i) => (
+            <div key={i} className="space-y-3">
+              <Skeleton className="aspect-square w-full rounded-lg" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!products?.length) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        <p className="text-sm">Nenhum produto encontrado</p>
+        {isEditing && (
+          <p className="text-xs mt-1">
+            {parsedProductIds.length > 0
+              ? 'Os IDs informados não correspondem a produtos ativos'
+              : 'Adicione produtos na seção de Produtos do admin'}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-8 px-4">
+      {title && (
+        <h2 className="text-2xl font-bold mb-6 text-foreground">{title}</h2>
+      )}
+
+      <div className={cn('grid gap-4', gridCols)}>
+        {products.map((product) => (
+          <a
+            key={product.id}
+            href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+            className={cn(
+              'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+              isEditing && 'pointer-events-none'
+            )}
+          >
+            <div className="aspect-square overflow-hidden bg-muted">
+              <img
+                src={getProductImage(product)}
+                alt={product.name}
+                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+              />
+            </div>
+            <div className="p-3">
+              <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                {product.name}
+              </h3>
+              {showPrice && (
+                <div className="mt-1 flex items-center gap-2">
+                  {product.compare_at_price && product.compare_at_price > product.price && (
+                    <span className="text-xs text-muted-foreground line-through">
+                      {formatProductPrice(product.compare_at_price)}
+                    </span>
+                  )}
+                  <span className="text-sm font-semibold text-primary">
+                    {formatProductPrice(product.price)}
+                  </span>
+                </div>
+              )}
+              {showButton && (
+                <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                  {buttonText}
+                </button>
+              )}
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
