@@ -845,18 +845,38 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === CONFIGURAÇÕES GERAIS === */}
+            {/* === SEÇÕES DO RODAPÉ === */}
             <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-3 h-auto">
                   <div className="flex items-center gap-2">
                     <Settings className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Configurações Gerais</span>
+                    <span className="font-medium">Seções do Rodapé</span>
                   </div>
                   <ChevronDown className={`h-4 w-4 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="px-3 pb-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Logo</Label>
+                    <p className="text-xs text-muted-foreground">Exibe logo no rodapé</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showLogo ?? true)}
+                    onCheckedChange={(v) => updateProp('showLogo', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Atendimento (SAC)</Label>
+                    <p className="text-xs text-muted-foreground">Exibe seção de contato</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showSac ?? true)}
+                    onCheckedChange={(v) => updateProp('showSac', v)}
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="text-xs">Mostrar Redes Sociais</Label>
@@ -867,13 +887,14 @@ export function HeaderFooterPropsEditor({
                     onCheckedChange={(v) => updateProp('showSocial', v)}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Texto de Copyright</Label>
-                  <Input
-                    value={(props.copyrightText as string) || ''}
-                    onChange={(e) => updateProp('copyrightText', e.target.value)}
-                    placeholder="Ex: © 2024 Minha Loja. Todos os direitos reservados."
-                    className="h-9 text-sm"
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-xs">Mostrar Informações Legais</Label>
+                    <p className="text-xs text-muted-foreground">Exibe CNPJ, endereço, copyright</p>
+                  </div>
+                  <Switch
+                    checked={Boolean(props.showLegal ?? true)}
+                    onCheckedChange={(v) => updateProp('showLegal', v)}
                   />
                 </div>
               </CollapsibleContent>
@@ -881,52 +902,38 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === BARRA SUPERIOR DO RODAPÉ (AVISO GERAL) === */}
+            {/* === TEXTOS PERSONALIZADOS === */}
             <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-3 h-auto">
                   <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Barra Superior do Rodapé</span>
-                    {props.noticeEnabled && (
-                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
-                    )}
+                    <Info className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Textos Personalizados</span>
                   </div>
                   <ChevronDown className={`h-4 w-4 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
               <CollapsibleContent className="px-3 pb-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Exibir Barra Superior</Label>
-                  <Switch
-                    checked={Boolean(props.noticeEnabled)}
-                    onCheckedChange={(v) => updateProp('noticeEnabled', v)}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Título do SAC</Label>
+                  <Input
+                    value={(props.sacTitle as string) || ''}
+                    onChange={(e) => updateProp('sacTitle', e.target.value)}
+                    placeholder="Atendimento (SAC)"
+                    className="h-9 text-sm"
                   />
+                  <p className="text-xs text-muted-foreground">Deixe vazio para usar o padrão</p>
                 </div>
-                
-                {props.noticeEnabled && (
-                  <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Texto do Aviso</Label>
-                      <Input
-                        value={(props.noticeText as string) || ''}
-                        onChange={(e) => updateProp('noticeText', e.target.value)}
-                        placeholder="Ex: Inscreva-se e receba 10% de desconto!"
-                        className="h-9 text-sm"
-                      />
-                    </div>
-                    <ColorInput
-                      label="Cor de Fundo"
-                      value={(props.noticeBgColor as string) || '#1e40af'}
-                      onChange={(v) => updateProp('noticeBgColor', v)}
-                    />
-                    <ColorInput
-                      label="Cor do Texto"
-                      value={(props.noticeTextColor as string) || '#ffffff'}
-                      onChange={(v) => updateProp('noticeTextColor', v)}
-                    />
-                  </>
-                )}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Texto Legal Personalizado</Label>
+                  <textarea
+                    value={(props.legalTextOverride as string) || ''}
+                    onChange={(e) => updateProp('legalTextOverride', e.target.value)}
+                    placeholder="Deixe vazio para usar: © {ano} {nome}. Todos os direitos reservados. CNPJ: ..."
+                    className="w-full h-20 px-3 py-2 text-sm rounded-md border border-input bg-background resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">Substitui o texto legal padrão</p>
+                </div>
               </CollapsibleContent>
             </Collapsible>
           </div>
