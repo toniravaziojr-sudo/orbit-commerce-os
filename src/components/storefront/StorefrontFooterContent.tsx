@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getStoreBaseUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl } from '@/lib/publicUrls';
 import { getWhatsAppHref, getPhoneHref, getEmailHref, isValidWhatsApp, isValidPhone, isValidEmail } from '@/lib/contactHelpers';
-import { BlockRenderContext } from '@/lib/builder/types';
+import type { BlockNode } from '@/lib/builder/types';
 
 // TikTok icon component (not in lucide)
 function TikTokIcon({ className }: { className?: string }) {
@@ -29,16 +29,50 @@ interface Category {
   name: string;
 }
 
+/**
+ * Store Settings interface matching current database schema
+ */
+interface StoreSettingsData {
+  store_name: string | null;
+  store_description: string | null;
+  logo_url: string | null;
+  primary_color: string | null;
+  social_facebook: string | null;
+  social_instagram: string | null;
+  social_whatsapp: string | null;
+  social_tiktok: string | null;
+  social_youtube: string | null;
+  social_custom: Array<{ label: string; url: string; icon?: string }> | null;
+  business_legal_name: string | null;
+  business_cnpj: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_address: string | null;
+  contact_support_hours: string | null;
+}
+
 interface StorefrontFooterContentProps {
-  context: BlockRenderContext;
+  tenantSlug: string;
+  /** Footer config from global layout - has PRIORITY over store_settings */
+  footerConfig?: BlockNode | null;
   isEditing?: boolean;
 }
 
-export function StorefrontFooterContent({ context, isEditing }: StorefrontFooterContentProps) {
-  const tenantSlug = context?.tenantSlug || '';
-  const settings = context?.settings;
-
-  // Fetch store settings
+/**
+ * StorefrontFooterContent - Single source of truth for footer rendering
+ * 
+ * Data priority:
+ * 1. footerConfig (from storefront_global_layout) - when defined
+ * 2. store_settings - fallback for all fields
+ * 
+ * If footer is disabled (toggle OFF), parent should not render this component.
+ */
+export function StorefrontFooterContent({ 
+  tenantSlug, 
+  footerConfig,
+  isEditing = false 
+}: StorefrontFooterContentProps) {
+  // Fetch store settings as fallback data source
   const { data: storeSettings } = useQuery({
     queryKey: ['store-settings-footer', tenantSlug],
     queryFn: async () => {
@@ -53,17 +87,34 @@ export function StorefrontFooterContent({ context, isEditing }: StorefrontFooter
       
       const { data } = await supabase
         .from('store_settings')
-        .select('*')
+        .select(`
+          store_name,
+          store_description,
+          logo_url,
+          primary_color,
+          social_facebook,
+          social_instagram,
+          social_whatsapp,
+          social_tiktok,
+          social_youtube,
+          social_custom,
+          business_legal_name,
+          business_cnpj,
+          contact_phone,
+          contact_email,
+          contact_address,
+          contact_support_hours
+        `)
         .eq('tenant_id', tenant.id)
         .single();
       
-      return data;
+      return data as StoreSettingsData | null;
     },
     enabled: !!tenantSlug,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch categories
+  // Fetch categories for footer links
   const { data: categories } = useQuery({
     queryKey: ['categories-footer', tenantSlug],
     queryFn: async () => {
@@ -90,7 +141,7 @@ export function StorefrontFooterContent({ context, isEditing }: StorefrontFooter
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch footer menu
+  // Fetch footer menu items
   const { data: footerMenu } = useQuery({
     queryKey: ['footer-menu', tenantSlug],
     queryFn: async () => {
@@ -152,6 +203,7 @@ export function StorefrontFooterContent({ context, isEditing }: StorefrontFooter
   const baseUrl = getStoreBaseUrl(tenantSlug);
   const menuItems: MenuItem[] = footerMenu || [];
 
+  // Helper to resolve menu item URLs
   const getMenuItemUrl = (item: MenuItem): string => {
     if (item.item_type === 'external' && item.url) {
       return item.url;
@@ -171,40 +223,56 @@ export function StorefrontFooterContent({ context, isEditing }: StorefrontFooter
     return baseUrl;
   };
 
-  // Use store_settings from query - this is the primary source
-  // storeSettings has all the new fields we need
-  const effectiveSettings = storeSettings as Record<string, any> | null;
+  // ============================================
+  // DATA RESOLUTION: footerConfig > store_settings
+  // ============================================
+  const configProps = (footerConfig?.props || {}) as Record<string, unknown>;
   
-  const primaryColor = effectiveSettings?.primary_color || settings?.primary_color || '#6366f1';
+  // Type-safe helper to get string value
+  const getString = (configKey: string, settingsValue: string | null | undefined, fallback: string | null = null): string | null => {
+    const configValue = configProps[configKey];
+    if (typeof configValue === 'string' && configValue) return configValue;
+    return settingsValue || fallback;
+  };
   
-  // Contact info from store_settings
-  const whatsApp = effectiveSettings?.social_whatsapp || null;
-  const phone = effectiveSettings?.contact_phone || null;
-  const email = effectiveSettings?.contact_email || null;
-  const supportHours = effectiveSettings?.contact_support_hours || null;
-  const address = effectiveSettings?.contact_address || null;
+  // Primary color: config > settings > default
+  const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#6366f1') || '#6366f1';
   
-  // Business info
-  const storeName = effectiveSettings?.store_name || settings?.store_name || 'Loja';
-  const storeDescription = effectiveSettings?.store_description || settings?.store_description || null;
-  const legalName = effectiveSettings?.business_legal_name || null;
-  const cnpj = effectiveSettings?.business_cnpj || null;
-  const logoUrl = effectiveSettings?.logo_url || settings?.logo_url || null;
+  // Contact info: config > store_settings
+  const whatsApp = getString('whatsApp', storeSettings?.social_whatsapp);
+  const phone = getString('phone', storeSettings?.contact_phone);
+  const email = getString('email', storeSettings?.contact_email);
+  const supportHours = getString('supportHours', storeSettings?.contact_support_hours);
+  const address = getString('address', storeSettings?.contact_address);
   
-  // Social media
-  const socialFacebook = effectiveSettings?.social_facebook || settings?.social_facebook || null;
-  const socialInstagram = effectiveSettings?.social_instagram || settings?.social_instagram || null;
-  const socialTiktok = effectiveSettings?.social_tiktok || null;
-  const socialYoutube = effectiveSettings?.social_youtube || null;
-  const socialCustom: Array<{ label: string; url: string }> = effectiveSettings?.social_custom || [];
+  // Business info: config > store_settings
+  const storeName = getString('storeName', storeSettings?.store_name, 'Loja') || 'Loja';
+  const storeDescription = getString('storeDescription', storeSettings?.store_description);
+  const legalName = getString('legalName', storeSettings?.business_legal_name);
+  const cnpj = getString('cnpj', storeSettings?.business_cnpj);
+  const logoUrl = getString('logoUrl', storeSettings?.logo_url);
   
-  // Contact hrefs using helpers
+  // Social media: config > store_settings
+  const socialFacebook = getString('socialFacebook', storeSettings?.social_facebook);
+  const socialInstagram = getString('socialInstagram', storeSettings?.social_instagram);
+  const socialTiktok = getString('socialTiktok', storeSettings?.social_tiktok);
+  const socialYoutube = getString('socialYoutube', storeSettings?.social_youtube);
+  
+  // Social custom array: config > store_settings
+  const configSocialCustom = configProps.socialCustom;
+  const socialCustom: Array<{ label: string; url: string }> = 
+    Array.isArray(configSocialCustom) ? configSocialCustom : 
+    (storeSettings?.social_custom || []);
+  
+  // Generate contact hrefs using helpers
   const whatsAppHref = getWhatsAppHref(whatsApp);
   const phoneHref = getPhoneHref(phone);
   const emailHref = getEmailHref(email);
   
+  // Computed flags
   const hasContact = isValidWhatsApp(whatsApp) || isValidPhone(phone) || isValidEmail(email);
-  const hasSocialMedia = socialFacebook || socialInstagram || socialTiktok || socialYoutube || (socialCustom && socialCustom.length > 0);
+  const hasSocialMedia = socialFacebook || socialInstagram || socialTiktok || socialYoutube || 
+    (socialCustom && socialCustom.length > 0);
 
   return (
     <footer className="border-t bg-muted/30">
