@@ -34,7 +34,13 @@ export function HeroBannerBlock({
   context,
 }: HeroBannerBlockProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  const realIsMobile = useIsMobile();
+  
+  // Builder mode: use context.viewport state; Storefront: use real viewport
+  const isBuilderMode = context?.viewport !== undefined;
+  const isMobile = isBuilderMode 
+    ? context.viewport === 'mobile' 
+    : realIsMobile;
 
   // Autoplay
   useEffect(() => {
@@ -80,19 +86,29 @@ export function HeroBannerBlock({
       'relative overflow-hidden',
       bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
     )}>
-      {/* Banner Image - Uses <picture> for true responsive behavior */}
+      {/* Banner Image - Builder uses state-based selection; Storefront uses <picture> */}
       <div className="relative aspect-[21/9] md:aspect-[21/7]">
         {desktopImage ? (
-          <picture>
-            {mobileImage && mobileImage !== desktopImage && (
-              <source media="(max-width: 767px)" srcSet={mobileImage} />
-            )}
+          isBuilderMode ? (
+            // Builder mode: select image based on viewport state
             <img
-              src={desktopImage}
+              src={isMobile && mobileImage ? mobileImage : desktopImage}
               alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
               className="w-full h-full object-cover"
             />
-          </picture>
+          ) : (
+            // Storefront mode: use <picture> for real responsive behavior
+            <picture>
+              {mobileImage && mobileImage !== desktopImage && (
+                <source media="(max-width: 767px)" srcSet={mobileImage} />
+              )}
+              <img
+                src={desktopImage}
+                alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
+                className="w-full h-full object-cover"
+              />
+            </picture>
+          )
         ) : (
           <div className="w-full h-full bg-muted/30 flex items-center justify-center">
             <ImageIcon className="h-12 w-12 text-muted-foreground/50" />
