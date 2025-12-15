@@ -7,6 +7,7 @@ export interface StoreSettings {
   id: string;
   tenant_id: string;
   store_name: string | null;
+  store_description: string | null;
   logo_url: string | null;
   favicon_url: string | null;
   primary_color: string | null;
@@ -18,6 +19,9 @@ export interface StoreSettings {
   social_facebook: string | null;
   social_instagram: string | null;
   social_whatsapp: string | null;
+  social_tiktok: string | null;
+  social_youtube: string | null;
+  social_custom: Array<{ label: string; url: string; icon?: string }> | null;
   seo_title: string | null;
   seo_description: string | null;
   seo_keywords: string[] | null;
@@ -25,7 +29,14 @@ export interface StoreSettings {
   facebook_pixel_id: string | null;
   custom_css: string | null;
   custom_scripts: string | null;
-  store_description: string | null;
+  // Business info
+  business_legal_name: string | null;
+  business_cnpj: string | null;
+  // Contact info
+  contact_phone: string | null;
+  contact_email: string | null;
+  contact_address: string | null;
+  contact_support_hours: string | null;
   created_at: string;
   updated_at: string;
 }
