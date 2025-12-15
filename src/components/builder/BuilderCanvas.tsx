@@ -1,5 +1,5 @@
 // =============================================
-// BUILDER CANVAS - Preview area for blocks
+// BUILDER CANVAS - Preview area for blocks with DnD support
 // =============================================
 
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
@@ -7,7 +7,8 @@ import { BlockRenderer } from './BlockRenderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Monitor, Tablet, Smartphone } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
+import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
 
 interface BuilderCanvasProps {
   content: BlockNode;
@@ -43,6 +44,49 @@ export function BuilderCanvas({
   isPreviewMode = false,
 }: BuilderCanvasProps) {
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  // Droppable for the canvas
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'canvas-drop-area',
+    data: {
+      type: 'canvas',
+      parentId: content.id,
+    },
+  });
+
+  // Handle drag end from palette
+  useDndMonitor({
+    onDragEnd: useCallback((event: DragEndEvent) => {
+      const { active, over } = event;
+      
+      if (!over || !onAddBlock) return;
+      
+      // Check if dragging from palette
+      const blockType = active.data.current?.blockType;
+      if (!blockType) return;
+      
+      // Determine drop target
+      const overData = over.data.current;
+      const parentId = overData?.parentId || content.id;
+      const index = overData?.index ?? (content.children?.length || 0);
+      
+      // Add block via same action as "+" button
+      onAddBlock(blockType, parentId, index);
+      setDropIndex(null);
+    }, [onAddBlock, content]),
+    onDragOver: useCallback((event: any) => {
+      const { over } = event;
+      if (over?.data.current?.index !== undefined) {
+        setDropIndex(over.data.current.index);
+      } else {
+        setDropIndex(null);
+      }
+    }, []),
+    onDragCancel: useCallback(() => {
+      setDropIndex(null);
+    }, []),
+  });
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     // Deselect if clicking on canvas background
@@ -80,7 +124,11 @@ export function BuilderCanvas({
       {/* Canvas Area */}
       <ScrollArea className="flex-1 bg-muted/50">
         <div 
-          className="min-h-full p-4 sm:p-6 flex justify-center"
+          ref={setNodeRef}
+          className={cn(
+            "min-h-full p-4 sm:p-6 flex justify-center",
+            isOver && "bg-primary/5"
+          )}
           onClick={handleCanvasClick}
         >
           <div
@@ -118,7 +166,7 @@ export function BuilderCanvas({
             {selectedBlockId ? (
               <>Bloco selecionado: <code className="bg-muted px-1 py-0.5 rounded">{selectedBlockId}</code></>
             ) : (
-              'Clique em um bloco para editar'
+              'Arraste blocos do menu ou clique para editar'
             )}
           </span>
           <span className="flex items-center gap-1">

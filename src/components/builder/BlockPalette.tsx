@@ -8,13 +8,15 @@ import { BlockCategory, BlockDefinition } from '@/lib/builder/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Search, ChevronDown, ChevronRight, GripVertical, Plus } from 'lucide-react';
+import { Search, GripVertical, Plus } from 'lucide-react';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { useDraggable } from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 
 interface BlockPaletteProps {
   onAddBlock: (type: string) => void;
@@ -118,10 +120,53 @@ const visibleBlockTypes = new Set([
   'Divider',
 ]);
 
+// Draggable block item component
+function DraggableBlockItem({ 
+  block, 
+  onAddBlock 
+}: { 
+  block: BlockDefinition & { type: string };
+  onAddBlock: (type: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette-${block.type}`,
+    data: {
+      blockType: block.type,
+      fromPalette: true,
+    },
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      onClick={() => onAddBlock(block.type)}
+      className={cn(
+        'flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-background cursor-grab',
+        'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
+        'transition-all duration-150 group active:cursor-grabbing',
+        isDragging && 'opacity-50 border-primary shadow-lg z-50'
+      )}
+      title={`Arraste para adicionar "${block.label}" ou clique`}
+    >
+      <GripVertical className="h-4 w-4 text-muted-foreground/50 group-hover:text-muted-foreground" />
+      <span className="text-sm font-medium flex-1 truncate">
+        {block.label}
+      </span>
+      <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+    </div>
+  );
+}
+
 export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
   const [search, setSearch] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<string[]>(['banners', 'products']);
-  const [draggedType, setDraggedType] = useState<string | null>(null);
 
   // Group blocks by new category structure
   const blocksByCategory = useMemo(() => {
@@ -174,23 +219,6 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     return matching;
   }, [search, blocksByCategory, expandedCategories]);
 
-  // Handle drag start
-  const handleDragStart = (e: React.DragEvent, blockType: string) => {
-    e.dataTransfer.setData('blockType', blockType);
-    e.dataTransfer.effectAllowed = 'copy';
-    setDraggedType(blockType);
-    
-    // Set a custom drag image (optional)
-    const dragEl = e.currentTarget as HTMLElement;
-    if (dragEl) {
-      e.dataTransfer.setDragImage(dragEl, 20, 20);
-    }
-  };
-
-  const handleDragEnd = () => {
-    setDraggedType(null);
-  };
-
   const categoryOrder: EssentialCategory[] = [
     'banners',
     'products',
@@ -242,29 +270,11 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
                 <AccordionContent className="pt-1 pb-2">
                   <div className="space-y-1">
                     {blocks.map((block) => (
-                      <div
+                      <DraggableBlockItem
                         key={block.type}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, block.type)}
-                        onDragEnd={handleDragEnd}
-                        onClick={() => onAddBlock(block.type)}
-                        className={cn(
-                          'flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-background cursor-grab',
-                          'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
-                          'transition-all duration-150 group active:cursor-grabbing',
-                          draggedType === block.type && 'opacity-50 border-primary'
-                        )}
-                        title={`Arraste para adicionar "${block.label}" ou clique`}
-                      >
-                        <GripVertical className="h-4 w-4 text-muted-foreground/50 group-hover:text-muted-foreground" />
-                        <span className="text-lg group-hover:scale-110 transition-transform">
-                          {block.icon}
-                        </span>
-                        <span className="text-sm font-medium flex-1 truncate">
-                          {block.label}
-                        </span>
-                        <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
+                        block={block}
+                        onAddBlock={onAddBlock}
+                      />
                     ))}
                   </div>
                 </AccordionContent>

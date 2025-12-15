@@ -25,6 +25,7 @@ import {
   extractHeaderFooter 
 } from '@/hooks/useGlobalLayoutIntegration';
 import { usePageOverrides } from '@/hooks/usePageOverrides';
+import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
 interface VisualBuilderProps {
   tenantId: string;
@@ -394,7 +395,34 @@ export function VisualBuilder({
     landing_page: pageTitle || 'Landing Page',
   };
 
+  // DnD sensors
+  const mouseSensor = useSensor(MouseSensor, {
+    activationConstraint: { distance: 10 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 250, tolerance: 5 },
+  });
+  const sensors = useSensors(mouseSensor, touchSensor);
+
+  // Dragging state for overlay
+  const [draggingBlockType, setDraggingBlockType] = useState<string | null>(null);
+
   return (
+    <DndContext 
+      sensors={sensors}
+      onDragStart={(event) => {
+        const blockType = event.active.data.current?.blockType;
+        if (blockType) {
+          setDraggingBlockType(blockType);
+        }
+      }}
+      onDragEnd={() => {
+        setDraggingBlockType(null);
+      }}
+      onDragCancel={() => {
+        setDraggingBlockType(null);
+      }}
+    >
     <div className="h-screen flex flex-col bg-muted/30">
       {/* Toolbar */}
       <BuilderToolbar
@@ -530,6 +558,16 @@ export function VisualBuilder({
         pageType={entityType === 'template' ? pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' : undefined}
         onRestore={(content) => store.setContent(content)}
       />
+
+      {/* Drag Overlay */}
+      <DragOverlay>
+        {draggingBlockType && (
+          <div className="bg-primary text-primary-foreground px-3 py-2 rounded-md shadow-lg text-sm font-medium">
+            {blockRegistry.get(draggingBlockType)?.label || draggingBlockType}
+          </div>
+        )}
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }

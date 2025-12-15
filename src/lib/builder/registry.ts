@@ -1406,6 +1406,416 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: false,
   },
+
+  // ========== ESSENTIAL BLOCKS (8 novos) ==========
+  {
+    type: 'HeroBanner',
+    label: 'Banner Principal',
+    category: 'media',
+    icon: 'Image',
+    defaultProps: {
+      slides: [],
+      autoplaySeconds: 5,
+      bannerWidth: 'full',
+      showArrows: true,
+      showDots: true,
+    },
+    propsSchema: {
+      slides: {
+        type: 'array',
+        label: 'Slides do Banner',
+        defaultValue: [],
+      },
+      autoplaySeconds: {
+        type: 'number',
+        label: 'Tempo de Autoplay (segundos)',
+        defaultValue: 5,
+        min: 0,
+        max: 30,
+      },
+      bannerWidth: {
+        type: 'select',
+        label: 'Largura do Banner',
+        defaultValue: 'full',
+        options: [
+          { label: 'Largura Total', value: 'full' },
+          { label: 'Contido', value: 'contained' },
+        ],
+      },
+      showArrows: {
+        type: 'boolean',
+        label: 'Mostrar Setas',
+        defaultValue: true,
+      },
+      showDots: {
+        type: 'boolean',
+        label: 'Mostrar Indicadores',
+        defaultValue: true,
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'CollectionSection',
+    label: 'Categoria/Coleção',
+    category: 'ecommerce',
+    icon: 'LayoutGrid',
+    defaultProps: {
+      title: 'Coleção',
+      categoryId: '',
+      displayStyle: 'grid',
+      limit: 8,
+      columns: 4,
+      mobileColumns: 2,
+      showViewAll: true,
+      viewAllText: 'Ver todos',
+      showPrice: true,
+      showButton: true,
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título da Seção',
+        defaultValue: 'Coleção',
+      },
+      categoryId: {
+        type: 'category',
+        label: 'Categoria',
+        placeholder: 'Selecione uma categoria',
+      },
+      displayStyle: {
+        type: 'select',
+        label: 'Estilo de Exibição',
+        defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
+      },
+      limit: {
+        type: 'number',
+        label: 'Quantidade de Produtos',
+        defaultValue: 8,
+        min: 4,
+        max: 24,
+      },
+      columns: {
+        type: 'select',
+        label: 'Colunas (Desktop)',
+        defaultValue: '4',
+        options: [
+          { label: '3', value: '3' },
+          { label: '4', value: '4' },
+          { label: '5', value: '5' },
+        ],
+      },
+      mobileColumns: {
+        type: 'select',
+        label: 'Colunas (Mobile)',
+        defaultValue: '2',
+        options: [
+          { label: '1', value: '1' },
+          { label: '2', value: '2' },
+        ],
+      },
+      showViewAll: {
+        type: 'boolean',
+        label: 'Mostrar "Ver todos"',
+        defaultValue: true,
+      },
+      viewAllText: {
+        type: 'string',
+        label: 'Texto do Link',
+        defaultValue: 'Ver todos',
+      },
+      showPrice: {
+        type: 'boolean',
+        label: 'Mostrar Preço',
+        defaultValue: true,
+      },
+      showButton: {
+        type: 'boolean',
+        label: 'Mostrar Botão',
+        defaultValue: true,
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'InfoHighlights',
+    label: 'Destaques Informativos',
+    category: 'content',
+    icon: 'Award',
+    defaultProps: {
+      items: [
+        { icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
+        { icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
+        { icon: 'Shield', title: 'Compra Segura', description: 'Seus dados protegidos' },
+      ],
+      layout: 'horizontal',
+      iconColor: '',
+      textColor: '',
+    },
+    propsSchema: {
+      items: {
+        type: 'array',
+        label: 'Itens',
+        defaultValue: [],
+      },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'horizontal',
+        options: [
+          { label: 'Horizontal', value: 'horizontal' },
+          { label: 'Vertical', value: 'vertical' },
+        ],
+      },
+      iconColor: {
+        type: 'color',
+        label: 'Cor dos Ícones',
+        placeholder: 'Padrão do tema',
+      },
+      textColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        placeholder: 'Padrão do tema',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'BannerProducts',
+    label: 'Banner + Produtos',
+    category: 'ecommerce',
+    icon: 'Layers',
+    defaultProps: {
+      title: 'Oferta Especial',
+      description: '',
+      imageDesktop: '',
+      imageMobile: '',
+      productIds: [],
+      categoryId: '',
+      limit: 4,
+      showCta: false,
+      ctaText: 'Ver mais',
+      ctaUrl: '',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'Oferta Especial',
+      },
+      description: {
+        type: 'string',
+        label: 'Descrição',
+        placeholder: 'Descrição opcional',
+      },
+      imageDesktop: {
+        type: 'image',
+        label: 'Imagem Desktop',
+        placeholder: 'URL da imagem desktop',
+      },
+      imageMobile: {
+        type: 'image',
+        label: 'Imagem Mobile',
+        placeholder: 'URL da imagem mobile (opcional)',
+      },
+      productIds: {
+        type: 'textarea',
+        label: 'IDs dos Produtos (um por linha)',
+        placeholder: 'IDs específicos ou deixe vazio para usar categoria',
+      },
+      categoryId: {
+        type: 'category',
+        label: 'Categoria (fallback)',
+        placeholder: 'Usado se nenhum ID for informado',
+      },
+      limit: {
+        type: 'number',
+        label: 'Limite de Produtos',
+        defaultValue: 4,
+        min: 2,
+        max: 8,
+      },
+      showCta: {
+        type: 'boolean',
+        label: 'Mostrar CTA',
+        defaultValue: false,
+      },
+      ctaText: {
+        type: 'string',
+        label: 'Texto do CTA',
+        defaultValue: 'Ver mais',
+      },
+      ctaUrl: {
+        type: 'string',
+        label: 'URL do CTA',
+        placeholder: 'Link do botão',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'YouTubeVideo',
+    label: 'Vídeo (YouTube)',
+    category: 'media',
+    icon: 'Youtube',
+    defaultProps: {
+      title: '',
+      youtubeUrl: '',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título (opcional)',
+        placeholder: 'Título da seção',
+      },
+      youtubeUrl: {
+        type: 'string',
+        label: 'URL do YouTube',
+        placeholder: 'https://www.youtube.com/watch?v=...',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'Reviews',
+    label: 'Avaliações',
+    category: 'content',
+    icon: 'Star',
+    defaultProps: {
+      title: 'O que nossos clientes dizem',
+      reviews: [
+        { name: 'Maria S.', rating: 5, text: 'Produto excelente, entrega rápida!' },
+        { name: 'João P.', rating: 5, text: 'Superou minhas expectativas.' },
+      ],
+      visibleCount: 3,
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'O que nossos clientes dizem',
+      },
+      reviews: {
+        type: 'array',
+        label: 'Avaliações',
+        defaultValue: [],
+      },
+      visibleCount: {
+        type: 'number',
+        label: 'Quantidade Visível',
+        defaultValue: 3,
+        min: 1,
+        max: 10,
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'FeaturedCategories',
+    label: 'Categorias em Destaque',
+    category: 'ecommerce',
+    icon: 'Grid3x3',
+    defaultProps: {
+      title: 'Categorias',
+      categoryIds: [],
+      showName: true,
+      mobileStyle: 'grid',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'Categorias',
+      },
+      categoryIds: {
+        type: 'textarea',
+        label: 'IDs das Categorias (um por linha)',
+        placeholder: 'IDs das categorias ou deixe vazio para todas',
+      },
+      showName: {
+        type: 'boolean',
+        label: 'Exibir Nome',
+        defaultValue: true,
+      },
+      mobileStyle: {
+        type: 'select',
+        label: 'Estilo Mobile',
+        defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'TextBanners',
+    label: 'Texto + Banners',
+    category: 'content',
+    icon: 'FileText',
+    defaultProps: {
+      title: '',
+      text: '',
+      imageDesktop: '',
+      imageMobile: '',
+      showCta: false,
+      ctaText: 'Saiba mais',
+      ctaUrl: '',
+      imagePosition: 'right',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        placeholder: 'Título da seção',
+      },
+      text: {
+        type: 'textarea',
+        label: 'Texto',
+        placeholder: 'Conteúdo do texto',
+      },
+      imageDesktop: {
+        type: 'image',
+        label: 'Imagem Desktop',
+        placeholder: 'URL da imagem desktop',
+      },
+      imageMobile: {
+        type: 'image',
+        label: 'Imagem Mobile',
+        placeholder: 'URL da imagem mobile (opcional)',
+      },
+      imagePosition: {
+        type: 'select',
+        label: 'Posição da Imagem',
+        defaultValue: 'right',
+        options: [
+          { label: 'Direita', value: 'right' },
+          { label: 'Esquerda', value: 'left' },
+        ],
+      },
+      showCta: {
+        type: 'boolean',
+        label: 'Mostrar CTA',
+        defaultValue: false,
+      },
+      ctaText: {
+        type: 'string',
+        label: 'Texto do CTA',
+        defaultValue: 'Saiba mais',
+      },
+      ctaUrl: {
+        type: 'string',
+        label: 'URL do CTA',
+        placeholder: 'Link do botão',
+      },
+    },
+    canHaveChildren: false,
+  },
 ];
 
 // Registry class
