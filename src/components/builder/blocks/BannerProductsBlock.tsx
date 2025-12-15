@@ -21,6 +21,7 @@ interface BannerProductsBlockProps {
   ctaText?: string;
   ctaUrl?: string;
   context?: BlockRenderContext;
+  isEditing?: boolean;
 }
 
 export function BannerProductsBlock({
@@ -35,6 +36,7 @@ export function BannerProductsBlock({
   ctaText = 'Ver mais',
   ctaUrl = '#',
   context,
+  isEditing = false,
 }: BannerProductsBlockProps) {
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
   const imageUrl = isMobile && imageMobile ? imageMobile : imageDesktop;
@@ -104,12 +106,13 @@ export function BannerProductsBlock({
             isMobile ? 'grid-cols-2' : 'grid-cols-2'
           )}>
           {products.slice(0, 4).map((product) => {
-              const imageUrl = getProductImage(product);
+              const productImageUrl = getProductImage(product);
+              const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
               return (
               <div key={product.id} className="group">
                 <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden mb-2 relative">
                   <img
-                    src={imageUrl}
+                    src={productImageUrl}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
@@ -121,9 +124,13 @@ export function BannerProductsBlock({
                   )}
                 </div>
                 <h3 className="font-medium text-sm line-clamp-2 text-primary hover:underline">
-                  <Link to={`/store/${context?.tenantSlug}/product/${product.slug}`}>
-                    {product.name}
-                  </Link>
+                  {isEditing ? (
+                    <span className="cursor-default">{product.name}</span>
+                  ) : (
+                    <Link to={productUrl}>
+                      {product.name}
+                    </Link>
+                  )}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
                   {product.compare_at_price && product.compare_at_price > product.price && (
@@ -142,7 +149,7 @@ export function BannerProductsBlock({
         </div>
 
         {/* CTA */}
-        {ctaEnabled && ctaText && (
+        {ctaEnabled && ctaText && !isEditing && (
           <div className="mt-6 text-center">
             <Link
               to={ctaUrl}
@@ -150,6 +157,13 @@ export function BannerProductsBlock({
             >
               {ctaText}
             </Link>
+          </div>
+        )}
+        {ctaEnabled && ctaText && isEditing && (
+          <div className="mt-6 text-center">
+            <span className="inline-flex items-center justify-center px-6 py-3 bg-primary text-primary-foreground rounded-md font-medium cursor-default">
+              {ctaText}
+            </span>
           </div>
         )}
       </div>

@@ -24,6 +24,7 @@ interface CollectionSectionBlockProps {
   showButton?: boolean;
   buttonText?: string;
   context?: BlockRenderContext;
+  isEditing?: boolean;
 }
 
 export function CollectionSectionBlock({
@@ -35,9 +36,10 @@ export function CollectionSectionBlock({
   mobileColumns = 2,
   showViewAll = true,
   showPrice = true,
-  showButton = true,
+  showButton = false,
   buttonText = 'Ver produto',
   context,
+  isEditing = false,
 }: CollectionSectionBlockProps) {
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
   
@@ -96,6 +98,8 @@ export function CollectionSectionBlock({
 
   const ProductCard = ({ product }: { product: typeof products[0] }) => {
     const imageUrl = getProductImage(product);
+    const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
+    
     return (
       <div className="group">
         <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden mb-3">
@@ -119,12 +123,18 @@ export function CollectionSectionBlock({
         </div>
       )}
       {showButton && (
-        <Link
-          to={`/store/${context?.tenantSlug}/product/${product.slug}`}
-          className="block w-full text-center py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
-        >
-          {buttonText}
-        </Link>
+        isEditing ? (
+          <span className="block w-full text-center py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium cursor-default">
+            {buttonText}
+          </span>
+        ) : (
+          <Link
+            to={productUrl}
+            className="block w-full text-center py-2 px-4 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            {buttonText}
+          </Link>
+        )
       )}
     </div>
     );
@@ -136,13 +146,18 @@ export function CollectionSectionBlock({
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <h2 className="text-2xl font-bold">{title}</h2>
-          {showViewAll && categorySlug && (
+          {showViewAll && categorySlug && !isEditing && (
             <Link 
               to={viewAllUrl}
               className="text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
             >
               Ver todos <ChevronRight className="h-4 w-4" />
             </Link>
+          )}
+          {showViewAll && categorySlug && isEditing && (
+            <span className="text-muted-foreground flex items-center gap-1 cursor-default">
+              Ver todos <ChevronRight className="h-4 w-4" />
+            </span>
           )}
         </div>
 
