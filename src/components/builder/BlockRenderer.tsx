@@ -412,6 +412,7 @@ function HeaderBlock({
       totalCartItems={0}
       isEditing={isEditing}
       tenantId={settings?.tenant_id}
+      viewportOverride={context.viewport}
     />
   );
 }

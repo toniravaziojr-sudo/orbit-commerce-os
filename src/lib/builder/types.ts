@@ -132,6 +132,9 @@ export interface BlockRenderContext {
   tenantSlug: string;
   isPreview: boolean;
   
+  // Viewport override for builder (forces mobile/tablet/desktop layout)
+  viewport?: 'desktop' | 'tablet' | 'mobile';
+  
   // Store settings
   settings?: StoreSettingsContext;
   
