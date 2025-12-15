@@ -1358,16 +1358,16 @@ function HeroBannerBlockWrapper({ context, ...props }: any) {
   return <HeroBannerBlockComponent {...props} context={context} />;
 }
 
-function CollectionSectionBlockWrapper({ context, ...props }: any) {
-  return <CollectionSectionBlockComponent {...props} context={context} />;
+function CollectionSectionBlockWrapper({ context, isEditing, ...props }: any) {
+  return <CollectionSectionBlockComponent {...props} context={context} isEditing={isEditing} />;
 }
 
 function InfoHighlightsBlockWrapper({ context, ...props }: any) {
   return <InfoHighlightsBlockComponent {...props} context={context} />;
 }
 
-function BannerProductsBlockWrapper({ context, ...props }: any) {
-  return <BannerProductsBlockComponent {...props} context={context} />;
+function BannerProductsBlockWrapper({ context, isEditing, ...props }: any) {
+  return <BannerProductsBlockComponent {...props} context={context} isEditing={isEditing} />;
 }
 
 function YouTubeVideoBlockWrapper({ context, ...props }: any) {
