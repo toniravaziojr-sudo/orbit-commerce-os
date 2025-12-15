@@ -7,8 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Plus, Trash2, ChevronUp, ChevronDown, GripVertical, ImageIcon } from 'lucide-react';
-import { ImageUploader } from './ImageUploader';
-
+import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 export interface BannerSlide {
   id: string;
   imageDesktop: string;
@@ -108,10 +107,11 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
           {/* Desktop Image */}
           <div className="space-y-1.5">
             <Label className="text-xs">Imagem Desktop</Label>
-            <ImageUploader
+            <ImageUploaderWithLibrary
               value={slide.imageDesktop || ''}
               onChange={(url) => updateSlide(index, 'imageDesktop', url)}
               placeholder="Imagem principal do banner"
+              variant="desktop"
             />
             <p className="text-xs text-muted-foreground">Recomendado: 1920×700px (proporção 21:7)</p>
           </div>
@@ -119,10 +119,11 @@ export function BannerSlidesEditor({ slides = [], onChange }: BannerSlidesEditor
           {/* Mobile Image */}
           <div className="space-y-1.5">
             <Label className="text-xs">Imagem Mobile</Label>
-            <ImageUploader
+            <ImageUploaderWithLibrary
               value={slide.imageMobile || ''}
               onChange={(url) => updateSlide(index, 'imageMobile', url)}
               placeholder="Opcional - usa Desktop se vazio"
+              variant="mobile"
             />
             <p className="text-xs text-muted-foreground">Recomendado: 1080×1350px (proporção 4:5)</p>
           </div>

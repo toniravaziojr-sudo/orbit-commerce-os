@@ -18,6 +18,7 @@ import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
+import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import {
   Collapsible,
   CollapsibleContent,
@@ -304,7 +305,30 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
           </div>
         );
 
-      case 'image':
+      case 'image': {
+        // Check if field name indicates desktop or mobile variant
+        const isDesktopField = name.toLowerCase().includes('desktop');
+        const isMobileField = name.toLowerCase().includes('mobile');
+        const variant = isMobileField ? 'mobile' : 'desktop';
+        
+        // Use ImageUploaderWithLibrary for desktop/mobile image fields
+        if (isDesktopField || isMobileField) {
+          return (
+            <div className="space-y-1.5">
+              <ImageUploaderWithLibrary
+                value={(value as string) || ''}
+                onChange={(url) => onChange(url)}
+                placeholder={`Imagem ${variant === 'desktop' ? 'Desktop' : 'Mobile'}`}
+                variant={variant}
+              />
+              {schema.helpText && (
+                <p className="text-xs text-muted-foreground">{schema.helpText}</p>
+              )}
+            </div>
+          );
+        }
+        
+        // Default image uploader for other image fields
         return (
           <div className="space-y-1.5">
             <ImageUploader
@@ -317,6 +341,7 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
             )}
           </div>
         );
+      }
 
       case 'richtext':
         return (
