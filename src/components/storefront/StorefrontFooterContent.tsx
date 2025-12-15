@@ -312,20 +312,20 @@ export function StorefrontFooterContent({
       className="border-t bg-muted/30"
       style={footerStyle}
     >
-      <div className="container mx-auto px-4 py-12">
+      <div className="container mx-auto px-4 py-8 md:py-12">
         {/* Logo - First item, centered (respects showLogo toggle) */}
         {showLogo && (
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-6 md:mb-8">
             <Link to={baseUrl} onClick={e => isEditing && e.preventDefault()}>
               {logoUrl ? (
                 <img
                   src={logoUrl}
                   alt={storeName}
-                  className="h-12 max-w-[200px] object-contain"
+                  className="h-10 md:h-12 max-w-[160px] md:max-w-[200px] object-contain"
                 />
               ) : (
                 <span
-                  className="text-2xl font-bold"
+                  className="text-xl md:text-2xl font-bold"
                   style={{ color: footerTextColor || primaryColor }}
                 >
                   {storeName}
@@ -335,7 +335,7 @@ export function StorefrontFooterContent({
           </div>
         )}
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
           {/* Atendimento (SAC) - respects showSac toggle */}
           {showSac && hasContact && (
             <div className="text-center md:text-left">
@@ -502,7 +502,7 @@ export function StorefrontFooterContent({
 
         {/* Legal info / Copyright - respects showLegal toggle */}
         {showLegal && (
-          <div className="border-t mt-8 pt-8 text-center">
+          <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 text-center">
             {/* Custom legal text override OR default content */}
             {legalTextOverride ? (
               <p className="text-sm text-muted-foreground" style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}>

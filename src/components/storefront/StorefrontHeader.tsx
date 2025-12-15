@@ -183,9 +183,9 @@ export function StorefrontHeader() {
   return (
     <header 
       className={cn(
-        "z-50 w-full border-b shadow-sm",
-        sticky && "sticky top-0",
-        stickyOnMobile ? "sticky md:relative" : ""
+        "z-50 w-full border-b shadow-sm relative",
+        sticky && "md:sticky md:top-0",
+        stickyOnMobile && "sticky top-0"
       )}
       style={{ ...headerStyles, backgroundColor: headerBgColor || 'white' }}
     >
@@ -217,17 +217,153 @@ export function StorefrontHeader() {
 
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between gap-4">
-          {/* Logo */}
-          <Link to={baseUrl} className="flex items-center gap-2">
+          {/* Mobile: Menu hamburger on left */}
+          <div className="flex items-center md:hidden">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" style={iconStyle} />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[300px]">
+                <div className="flex flex-col gap-4 mt-8">
+                  {/* Mobile Search */}
+                  {showSearch && (
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                      <Input
+                        type="search"
+                        placeholder="Buscar produtos..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  )}
+
+                  {/* Mobile Navigation */}
+                  <nav className="flex flex-col gap-1">
+                    {menuItems.map((item) => (
+                      <Link
+                        key={item.id}
+                        to={getMenuItemUrl(item)}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                    
+                    {/* Featured Promos (Mobile) */}
+                    {featuredPromosEnabled && promoPage?.slug && (
+                      <Link
+                        to={`${baseUrl}/page/${promoPage.slug}`}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="py-3 px-4 text-sm font-bold rounded-lg"
+                        style={{ color: featuredPromosTextColor }}
+                      >
+                        {featuredPromosLabel}
+                      </Link>
+                    )}
+                    
+                    {/* Customer Area (Mobile) */}
+                    {customerAreaEnabled && (
+                      <Link
+                        to={`${baseUrl}/minhas-compras`}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-2"
+                      >
+                        <User className="h-4 w-4" />
+                        {customerAreaLabel}
+                      </Link>
+                    )}
+                  </nav>
+                    
+                  {/* Contact Section (Mobile Drawer) - only if any contact enabled */}
+                  {(isWhatsAppValid || isPhoneValidFlag || isEmailValid) && (
+                    <div className="border-t pt-4 mt-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 px-4">Contato</p>
+                      <div className="flex flex-col gap-1">
+                        {isWhatsAppValid && whatsAppHref && (
+                          <a
+                            href={whatsAppHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                          >
+                            <MessageCircle className="h-5 w-5 text-green-600" />
+                            {whatsAppLabel || 'WhatsApp'}
+                          </a>
+                        )}
+                        {isPhoneValidFlag && phoneHref && (
+                          <a
+                            href={phoneHref}
+                            className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                          >
+                            <Phone className="h-5 w-5 text-blue-600" />
+                            {phoneLabel || phoneNumber}
+                          </a>
+                        )}
+                        {isEmailValid && emailHref && (
+                          <a
+                            href={emailHref}
+                            className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-3"
+                          >
+                            <Mail className="h-5 w-5 text-red-600" />
+                            Email
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Social Media Section (Mobile Drawer) - only if any social enabled */}
+                  {(socialFacebook || socialInstagram) && (
+                    <div className="border-t pt-4 mt-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase mb-3 px-4">Redes Sociais</p>
+                      <div className="flex gap-4 px-4">
+                        {socialFacebook && (
+                          <a 
+                            href={socialFacebook} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-2 hover:bg-muted rounded-lg"
+                          >
+                            <Facebook className="h-6 w-6 text-blue-600" />
+                          </a>
+                        )}
+                        {socialInstagram && (
+                          <a 
+                            href={socialInstagram} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="p-2 hover:bg-muted rounded-lg"
+                          >
+                            <Instagram className="h-6 w-6 text-pink-600" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+
+          {/* Logo - Centered on mobile, left on desktop */}
+          <Link 
+            to={baseUrl} 
+            className="flex items-center gap-2 absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
+          >
             {storeSettings?.logo_url ? (
               <img
                 src={storeSettings.logo_url}
                 alt={storeSettings?.store_name || 'Loja'}
-                className="h-10 max-w-[160px] object-contain"
+                className="h-10 max-w-[140px] md:max-w-[160px] object-contain"
               />
             ) : (
               <span
-                className="text-xl font-bold"
+                className="text-lg md:text-xl font-bold"
                 style={{ color: headerTextColor || primaryColor }}
               >
                 {storeSettings?.store_name || 'Loja'}
@@ -348,7 +484,7 @@ export function StorefrontHeader() {
             </div>
           )}
 
-          {/* Actions */}
+          {/* Actions - Cart on right for mobile */}
           <div className="flex items-center gap-2">
             {showCart && (
               <Link to={`${baseUrl}/cart`}>
@@ -365,123 +501,6 @@ export function StorefrontHeader() {
                 </Button>
               </Link>
             )}
-
-            {/* Mobile Menu */}
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild className="md:hidden">
-                <Button variant="ghost" size="icon">
-                  <Menu className="h-5 w-5" style={iconStyle} />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[300px]">
-                <div className="flex flex-col gap-4 mt-8">
-                  {/* Mobile Search */}
-                  {showSearch && (
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <Input
-                        type="search"
-                        placeholder="Buscar produtos..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  )}
-
-                  {/* Mobile Navigation */}
-                  <nav className="flex flex-col gap-2">
-                    {/* Menu Items (from Menu Builder) */}
-                    {menuItems.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={getMenuItemUrl(item)}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg"
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                    
-                    {/* REMOVIDO: Featured Category/Page (Mobile) - menu vem do Menu Builder */}
-                    
-                    {/* Featured Promos (Mobile) */}
-                    {featuredPromosEnabled && promoPage?.slug && (
-                      <Link
-                        to={`${baseUrl}/page/${promoPage.slug}`}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="py-2 px-4 text-sm font-bold rounded-lg"
-                        style={{ color: featuredPromosTextColor }}
-                      >
-                        {featuredPromosLabel}
-                      </Link>
-                    )}
-                    
-                    {/* Customer Area (Mobile) */}
-                    {customerAreaEnabled && (
-                      <Link
-                        to={`${baseUrl}/minhas-compras`}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-                      >
-                        <User className="h-4 w-4" />
-                        {customerAreaLabel}
-                      </Link>
-                    )}
-                    
-                    {/* Contact (Mobile) */}
-                    {(isWhatsAppValid || isPhoneValidFlag || isEmailValid) && (
-                      <div className="border-t pt-2 mt-2">
-                        {isWhatsAppValid && whatsAppHref && (
-                          <a
-                            href={whatsAppHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-                          >
-                            <MessageCircle className="h-4 w-4 text-green-600" />
-                            {whatsAppLabel || 'WhatsApp'}
-                          </a>
-                        )}
-                        {isPhoneValidFlag && phoneHref && (
-                          <a
-                            href={phoneHref}
-                            className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-                          >
-                            <Phone className="h-4 w-4 text-blue-600" />
-                            {phoneLabel || phoneNumber}
-                          </a>
-                        )}
-                        {isEmailValid && emailHref && (
-                          <a
-                            href={emailHref}
-                            className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
-                          >
-                            <Mail className="h-4 w-4 text-red-600" />
-                            Email
-                          </a>
-                        )}
-                        {/* Social Media (Mobile) */}
-                        {(socialFacebook || socialInstagram) && (
-                          <div className="flex gap-4 px-4 py-2 mt-2">
-                            {socialFacebook && (
-                              <a href={socialFacebook} target="_blank" rel="noopener noreferrer">
-                                <Facebook className="h-5 w-5 text-blue-600" />
-                              </a>
-                            )}
-                            {socialInstagram && (
-                              <a href={socialInstagram} target="_blank" rel="noopener noreferrer">
-                                <Instagram className="h-5 w-5 text-pink-600" />
-                              </a>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </nav>
-                </div>
-              </SheetContent>
-            </Sheet>
           </div>
         </div>
       </div>
