@@ -99,7 +99,10 @@ export function useBuilderStore(initialContent?: BlockNode) {
   // Add a new block
   const addBlock = useCallback((type: string, parentId?: string, index?: number) => {
     const definition = blockRegistry.get(type);
-    if (!definition) return;
+    if (!definition) {
+      console.warn(`Block type "${type}" not found in registry`);
+      return;
+    }
 
     const newBlock: BlockNode = {
       id: `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -108,7 +111,8 @@ export function useBuilderStore(initialContent?: BlockNode) {
       children: definition.canHaveChildren ? [] : undefined,
     };
 
-    const targetParentId = parentId || 'root';
+    // Use content's root id instead of hardcoded 'root'
+    const targetParentId = parentId || state.content.id;
     const newContent = addBlockChild(state.content, targetParentId, newBlock, index);
     pushHistory(newContent);
     selectBlock(newBlock.id);

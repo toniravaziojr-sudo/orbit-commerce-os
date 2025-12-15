@@ -174,7 +174,8 @@ export function VisualBuilder({
 
   // Handle adding a new block (with optional parent and index for canvas insertion)
   const handleAddBlock = useCallback((type: string, parentId?: string, index?: number) => {
-    const targetParentId = parentId || store.selectedBlockId || 'root';
+    // Use provided parentId, or selected block, or root content id as fallback
+    const targetParentId = parentId || store.selectedBlockId || store.content.id;
     store.addBlock(type, targetParentId, index);
     toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
   }, [store]);
