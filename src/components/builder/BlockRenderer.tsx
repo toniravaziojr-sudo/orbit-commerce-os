@@ -760,7 +760,9 @@ function RichTextBlock({ content, align, context }: any) {
 }
 
 function ImageBlock({ 
-  src, 
+  imageDesktop,
+  imageMobile,
+  src, // Legacy support
   alt, 
   width, 
   height, 
@@ -770,6 +772,7 @@ function ImageBlock({
   rounded = 'none',
   shadow = 'none',
   linkUrl,
+  context,
 }: any) {
   const widthMap: Record<string, string> = {
     '25': '25%',
@@ -801,6 +804,14 @@ function ImageBlock({
     '21:9': '21 / 9',
   };
 
+  // Use actual images (with legacy fallback)
+  const desktopImage = imageDesktop || src;
+  const mobileImage = imageMobile || desktopImage;
+  
+  // Builder mode: use context.viewport state; Storefront: use <picture>
+  const isBuilderMode = context?.viewport !== undefined;
+  const isMobile = context?.viewport === 'mobile';
+
   const imageContent = (
     <div 
       className="overflow-hidden" 
@@ -810,19 +821,41 @@ function ImageBlock({
         boxShadow: shadowMap[shadow] || 'none',
       }}
     >
-      {src ? (
-        <img 
-          src={src} 
-          alt={alt || 'Imagem'} 
-          style={{ 
-            width: '100%',
-            height: height === 'auto' ? 'auto' : (height || 'auto'),
-            objectFit: objectFit || 'cover',
-            objectPosition: objectPosition || 'center',
-            aspectRatio: aspectRatioMap[aspectRatio] || 'auto',
-            borderRadius: roundedMap[rounded] || '0',
-          }}
-        />
+      {desktopImage ? (
+        isBuilderMode ? (
+          // Builder mode: select image based on viewport state
+          <img 
+            src={isMobile && mobileImage ? mobileImage : desktopImage} 
+            alt={alt || 'Imagem'} 
+            style={{ 
+              width: '100%',
+              height: height === 'auto' ? 'auto' : (height || 'auto'),
+              objectFit: objectFit || 'cover',
+              objectPosition: objectPosition || 'center',
+              aspectRatio: aspectRatioMap[aspectRatio] || 'auto',
+              borderRadius: roundedMap[rounded] || '0',
+            }}
+          />
+        ) : (
+          // Storefront mode: use <picture> for real responsive
+          <picture>
+            {mobileImage && mobileImage !== desktopImage && (
+              <source media="(max-width: 767px)" srcSet={mobileImage} />
+            )}
+            <img 
+              src={desktopImage} 
+              alt={alt || 'Imagem'} 
+              style={{ 
+                width: '100%',
+                height: height === 'auto' ? 'auto' : (height || 'auto'),
+                objectFit: objectFit || 'cover',
+                objectPosition: objectPosition || 'center',
+                aspectRatio: aspectRatioMap[aspectRatio] || 'auto',
+                borderRadius: roundedMap[rounded] || '0',
+              }}
+            />
+          </picture>
+        )
       ) : (
         <div 
           className="bg-muted h-48 flex items-center justify-center text-muted-foreground"
