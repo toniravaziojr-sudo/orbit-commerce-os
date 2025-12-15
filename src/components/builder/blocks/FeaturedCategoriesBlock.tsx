@@ -1,0 +1,202 @@
+// =============================================
+// FEATURED CATEGORIES BLOCK - Category showcase with images
+// =============================================
+
+import { useState, useCallback, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import { ChevronLeft, ChevronRight, ImageIcon, Loader2 } from 'lucide-react';
+import { BlockRenderContext } from '@/lib/builder/types';
+import { useIsMobile } from '@/hooks/use-mobile';
+import useEmblaCarousel from 'embla-carousel-react';
+import { supabase } from '@/integrations/supabase/client';
+import { Link } from 'react-router-dom';
+import { getPublicCategoryUrl } from '@/lib/publicUrls';
+
+interface CategoryItem {
+  id: string;
+  name: string;
+  slug: string;
+  image_url?: string;
+  imageDesktop?: string;
+  imageMobile?: string;
+}
+
+interface FeaturedCategoriesBlockProps {
+  title?: string;
+  categoryIds?: string[];
+  mobileStyle?: 'carousel' | 'grid';
+  showName?: boolean;
+  context?: BlockRenderContext;
+}
+
+export function FeaturedCategoriesBlock({
+  title = 'Categorias',
+  categoryIds = [],
+  mobileStyle = 'carousel',
+  showName = true,
+  context,
+}: FeaturedCategoriesBlockProps) {
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    align: 'start',
+    containScroll: 'trimSnaps',
+    slidesToScroll: isMobile ? 3 : 6,
+  });
+
+  const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
+  const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
+
+  // Fetch categories
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setIsLoading(true);
+        let query = supabase
+          .from('categories')
+          .select('id, name, slug, image_url')
+          .eq('is_active', true);
+
+        if (categoryIds.length > 0) {
+          query = query.in('id', categoryIds);
+        } else {
+          query = query.limit(8);
+        }
+
+        const { data, error } = await query.order('sort_order', { ascending: true });
+
+        if (error) throw error;
+        setCategories(data || []);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+        setCategories([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, [categoryIds]);
+
+  if (isLoading) {
+    return (
+      <section className="py-8">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (categories.length === 0) {
+    return (
+      <section className="py-8">
+        <div className="max-w-7xl mx-auto px-4">
+          {title && (
+            <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>
+          )}
+          <div className="text-center py-8 text-muted-foreground">
+            <p>Nenhuma categoria encontrada</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const CategoryCard = ({ category }: { category: CategoryItem }) => {
+    const imageUrl = isMobile && category.imageMobile 
+      ? category.imageMobile 
+      : (category.imageDesktop || category.image_url);
+
+    return (
+      <Link 
+        to={getPublicCategoryUrl(context?.tenantSlug || '', category.slug)}
+        className="group flex flex-col items-center"
+      >
+        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={category.name}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+            </div>
+          )}
+        </div>
+        {showName && (
+          <span className="text-sm font-medium text-center mt-1 group-hover:text-primary transition-colors">
+            {category.name}
+          </span>
+        )}
+      </Link>
+    );
+  };
+
+  const useCarousel = isMobile && mobileStyle === 'carousel';
+
+  return (
+    <section className="py-8">
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold">{title}</h2>
+          {useCarousel && categories.length > 6 && (
+            <div className="flex gap-2">
+              <button
+                onClick={scrollPrev}
+                className="p-2 rounded-full border hover:bg-muted transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={scrollNext}
+                className="p-2 rounded-full border hover:bg-muted transition-colors"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Categories */}
+        {useCarousel ? (
+          <div className="overflow-hidden" ref={emblaRef}>
+            <div className="flex gap-6">
+              {categories.map((category) => (
+                <div key={category.id} className="flex-shrink-0">
+                  <CategoryCard category={category} />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className={cn(
+            'grid gap-6 justify-items-center',
+            isMobile 
+              ? 'grid-cols-3' 
+              : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7'
+          )}>
+            {categories.map((category) => (
+              <CategoryCard key={category.id} category={category} />
+            ))}
+          </div>
+        )}
+
+        {/* Dots indicator for carousel */}
+        {useCarousel && categories.length > 1 && (
+          <div className="flex justify-center gap-1.5 mt-4">
+            <span className="w-2 h-2 rounded-full bg-primary" />
+            <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
