@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { Search, ShoppingCart, Menu, Phone, MessageCircle, User } from 'lucide-react';
+import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,17 @@ import { useCart } from '@/hooks/useCart';
 import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { buildMenuItemUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl, getStoreBaseUrl } from '@/lib/publicUrls';
+import { buildMenuItemUrl, getStoreBaseUrl } from '@/lib/publicUrls';
 import type { MenuItem } from '@/hooks/useStorefront';
 import { cn } from '@/lib/utils';
+import { 
+  getWhatsAppHref, 
+  getPhoneHref, 
+  getEmailHref,
+  isValidWhatsApp,
+  isValidPhone,
+  isValidEmail
+} from '@/lib/contactHelpers';
 
 export function StorefrontHeader() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -62,15 +70,15 @@ export function StorefrontHeader() {
   const noticeActionTarget = String(headerConfig.noticeActionTarget || '_self') as '_self' | '_blank';
   const noticeActionTextColor = String(headerConfig.noticeActionTextColor || '');
   
-  // Contact props
+  // Contact props - with fallback to store_settings
   const showWhatsApp = Boolean(headerConfig.showWhatsApp);
-  const whatsAppNumber = String(headerConfig.whatsAppNumber || '');
+  const whatsAppNumber = String(headerConfig.whatsAppNumber || storeSettings?.social_whatsapp || '');
   const whatsAppLabel = String(headerConfig.whatsAppLabel || '');
   const showPhone = Boolean(headerConfig.showPhone);
-  const phoneNumber = String(headerConfig.phoneNumber || '');
+  const phoneNumber = String(headerConfig.phoneNumber || storeSettings?.contact_phone || '');
   const phoneLabel = String(headerConfig.phoneLabel || '');
-  
-  // REMOVIDO: Featured category/page props - menu vem do Menu Builder
+  const showEmail = Boolean(headerConfig.showEmail);
+  const emailAddress = String(headerConfig.emailAddress || storeSettings?.contact_email || '');
   
   // Customer area props
   const customerAreaEnabled = Boolean(headerConfig.customerAreaEnabled);
@@ -81,6 +89,10 @@ export function StorefrontHeader() {
   const featuredPromosLabel = String(headerConfig.featuredPromosLabel || 'Promoções');
   const featuredPromosTextColor = String(headerConfig.featuredPromosTextColor || '#d97706');
   const featuredPromosPageId = String(headerConfig.featuredPromosPageId || '');
+  
+  // Social media - from store_settings
+  const socialFacebook = storeSettings?.social_facebook || null;
+  const socialInstagram = storeSettings?.social_instagram || null;
 
   // Fetch promo page
   const { data: promoPage } = useQuery({
@@ -139,13 +151,13 @@ export function StorefrontHeader() {
 
   const primaryColor = storeSettings?.primary_color || '#6366f1';
   
-  // Normalize phone numbers
-  const normalizedWhatsApp = whatsAppNumber?.replace(/\D/g, '') || '';
-  const isWhatsAppValid = showWhatsApp && normalizedWhatsApp.length >= 10;
-  const normalizedPhone = phoneNumber?.replace(/[^\d+]/g, '') || '';
-  const isPhoneValid = showPhone && normalizedPhone.length >= 8;
-  
-  // REMOVIDO: featuredCategory - menu vem do Menu Builder
+  // Use helper functions for validation
+  const whatsAppHref = getWhatsAppHref(whatsAppNumber);
+  const phoneHref = getPhoneHref(phoneNumber);
+  const emailHref = getEmailHref(emailAddress);
+  const isWhatsAppValid = showWhatsApp && isValidWhatsApp(whatsAppNumber);
+  const isPhoneValidFlag = showPhone && isValidPhone(phoneNumber);
+  const isEmailValid = showEmail && isValidEmail(emailAddress);
   
   // Get animation styles
   const getNoticeAnimationStyles = (): React.CSSProperties => {
@@ -265,9 +277,9 @@ export function StorefrontHeader() {
 
           {/* Contact Items */}
           <div className="hidden lg:flex items-center gap-4">
-            {isWhatsAppValid && (
+            {isWhatsAppValid && whatsAppHref && (
               <a
-                href={`https://wa.me/${normalizedWhatsApp}`}
+                href={whatsAppHref}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-sm hover:opacity-70"
@@ -277,14 +289,45 @@ export function StorefrontHeader() {
                 <span>{whatsAppLabel || 'WhatsApp'}</span>
               </a>
             )}
-            {isPhoneValid && (
+            {isPhoneValidFlag && phoneHref && (
               <a
-                href={`tel:${normalizedPhone}`}
+                href={phoneHref}
                 className="flex items-center gap-1 text-sm hover:opacity-70"
                 style={{ color: headerTextColor || undefined }}
               >
                 <Phone className="h-4 w-4" style={iconStyle} />
                 <span>{phoneLabel || phoneNumber}</span>
+              </a>
+            )}
+            {isEmailValid && emailHref && (
+              <a
+                href={emailHref}
+                className="flex items-center gap-1 text-sm hover:opacity-70"
+                style={{ color: headerTextColor || undefined }}
+              >
+                <Mail className="h-4 w-4" style={iconStyle} />
+                <span>Email</span>
+              </a>
+            )}
+            {/* Social Media Icons */}
+            {socialFacebook && (
+              <a
+                href={socialFacebook}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-70"
+              >
+                <Facebook className="h-4 w-4" style={iconStyle} />
+              </a>
+            )}
+            {socialInstagram && (
+              <a
+                href={socialInstagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:opacity-70"
+              >
+                <Instagram className="h-4 w-4" style={iconStyle} />
               </a>
             )}
           </div>
@@ -387,11 +430,11 @@ export function StorefrontHeader() {
                     )}
                     
                     {/* Contact (Mobile) */}
-                    {(isWhatsAppValid || isPhoneValid) && (
+                    {(isWhatsAppValid || isPhoneValidFlag || isEmailValid) && (
                       <div className="border-t pt-2 mt-2">
-                        {isWhatsAppValid && (
+                        {isWhatsAppValid && whatsAppHref && (
                           <a
-                            href={`https://wa.me/${normalizedWhatsApp}`}
+                            href={whatsAppHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
@@ -400,14 +443,38 @@ export function StorefrontHeader() {
                             {whatsAppLabel || 'WhatsApp'}
                           </a>
                         )}
-                        {isPhoneValid && (
+                        {isPhoneValidFlag && phoneHref && (
                           <a
-                            href={`tel:${normalizedPhone}`}
+                            href={phoneHref}
                             className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
                           >
                             <Phone className="h-4 w-4 text-blue-600" />
                             {phoneLabel || phoneNumber}
                           </a>
+                        )}
+                        {isEmailValid && emailHref && (
+                          <a
+                            href={emailHref}
+                            className="py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg flex items-center gap-2"
+                          >
+                            <Mail className="h-4 w-4 text-red-600" />
+                            Email
+                          </a>
+                        )}
+                        {/* Social Media (Mobile) */}
+                        {(socialFacebook || socialInstagram) && (
+                          <div className="flex gap-4 px-4 py-2 mt-2">
+                            {socialFacebook && (
+                              <a href={socialFacebook} target="_blank" rel="noopener noreferrer">
+                                <Facebook className="h-5 w-5 text-blue-600" />
+                              </a>
+                            )}
+                            {socialInstagram && (
+                              <a href={socialInstagram} target="_blank" rel="noopener noreferrer">
+                                <Instagram className="h-5 w-5 text-pink-600" />
+                              </a>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
