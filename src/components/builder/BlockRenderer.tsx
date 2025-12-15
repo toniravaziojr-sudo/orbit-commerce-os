@@ -14,6 +14,7 @@ import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductG
 import { CategoryListBlock as CategoryListBlockComponent } from './blocks/CategoryListBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
+import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -357,484 +358,58 @@ function ColumnsBlock({
 
 // ========== HEADER / FOOTER ==========
 
-import { useState, useEffect, useRef } from 'react';
-
-function HeaderBlock({ 
-  menuId, 
-  showSearch = true, 
-  showCart = true, 
-  sticky, 
-  // Header style props (Yampi)
-  headerStyle = 'logo_left_menu_inline',
-  headerBgColor = '',
-  headerTextColor = '',
-  headerIconColor = '',
-  // Menu colors (for "menu below" styles)
-  menuBgColor = '',
-  menuTextColor = '',
-  // Sticky mobile
-  stickyOnMobile = true,
-  // Contact in header
-  showWhatsApp = false,
-  whatsAppNumber = '',
-  whatsAppLabel = '',
-  showPhone = false,
-  phoneNumber = '',
-  phoneLabel = '',
-  // Customer Area - only shows if enabled
-  customerAreaEnabled = false,
-  customerAreaLabel = 'Minhas compras',
-  // Featured Promos
-  featuredPromosEnabled = false,
-  featuredPromosLabel = 'Promoções',
-  featuredPromosTextColor = '#d97706',
-  featuredPromosPageId = '',
-  featuredPromosPageSlug = '', // Legacy support
-  // Notice bar props
-  noticeEnabled = false,
-  noticeText = '',
-  noticeBgColor = '#1e40af',
-  noticeTextColor = '#ffffff',
-  noticeAnimation = 'fade',
-  // Notice action props
-  noticeActionEnabled = false,
-  noticeActionLabel = '',
-  noticeActionUrl = '',
-  noticeActionTarget = '_self',
-  noticeActionTextColor = '',
+function HeaderBlock({
   context, 
-  isEditing 
+  isEditing,
+  block
 }: any) {
-  const { settings } = context || {};
-  const noticeRef = useRef<HTMLDivElement>(null);
-  const [animationState, setAnimationState] = useState<'initial' | 'animating' | 'done'>('initial');
+  const { settings, headerMenu, categories, tenantSlug } = context || {};
   
-  // Animation: trigger on mount only
-  useEffect(() => {
-    if (!noticeEnabled) {
-      setAnimationState('initial');
-      return;
-    }
-    
-    if (noticeAnimation === 'none') {
-      setAnimationState('done');
-      return;
-    }
-    
-    // Reset for animation
-    setAnimationState('initial');
-    
-    // Use double RAF to ensure browser has painted initial state
-    let frameId: number;
-    const startAnimation = () => {
-      frameId = requestAnimationFrame(() => {
-        frameId = requestAnimationFrame(() => {
-          setAnimationState('animating');
-          // After animation completes, mark as done
-          setTimeout(() => {
-            setAnimationState('done');
-          }, 300);
-        });
-      });
-    };
-    
-    startAnimation();
-    
-    return () => {
-      if (frameId) cancelAnimationFrame(frameId);
-    };
-  }, [noticeEnabled, noticeAnimation]);
-  
-  const { data: menuItems } = useQuery({
-    queryKey: ['menu-items', menuId],
+  // Fetch pages for menu item URL resolution
+  const { data: pagesData } = useQuery({
+    queryKey: ['header-pages-for-menu', settings?.tenant_id],
     queryFn: async () => {
-      if (!menuId) return [];
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('id, label, url, item_type, ref_id, sort_order')
-        .eq('menu_id', menuId)
-        .order('sort_order');
-      if (error) throw error;
+      if (!settings?.tenant_id) return [];
+      const { data } = await supabase
+        .from('store_pages')
+        .select('id, slug, type')
+        .eq('tenant_id', settings.tenant_id)
+        .eq('is_published', true);
       return data || [];
     },
-    enabled: !!menuId,
+    enabled: !!settings?.tenant_id,
   });
   
-  // Fetch promo page by ID
-  const { data: promoPage } = useQuery({
-    queryKey: ['header-promo-page', featuredPromosPageId],
-    queryFn: async () => {
-      if (!featuredPromosPageId) return null;
-      const { data, error } = await supabase
-        .from('store_pages')
-        .select('id, slug, title, is_published')
-        .eq('id', featuredPromosPageId)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!featuredPromosPageId && featuredPromosEnabled,
-  });
-  
-  // Effective promo slug: use fetched page or legacy slug
-  const effectivePromoSlug = promoPage?.slug || featuredPromosPageSlug || '';
-  
-  const displayItems = menuItems || context?.headerMenu || [];
-  
-  // Get animation styles based on state
-  const getNoticeAnimationStyles = (): React.CSSProperties => {
-    // No animation
-    if (noticeAnimation === 'none') {
-      return { opacity: 1, transform: 'translateY(0)' };
-    }
-    
-    const isAnimated = animationState === 'animating' || animationState === 'done';
-    const transition = animationState === 'animating' ? 'opacity 250ms ease-out, transform 250ms ease-out' : 'none';
-    
-    if (noticeAnimation === 'fade') {
-      return {
-        opacity: isAnimated ? 1 : 0,
-        transition,
-      };
-    }
-    
-    if (noticeAnimation === 'slide') {
-      return {
-        opacity: isAnimated ? 1 : 0,
-        transform: isAnimated ? 'translateY(0)' : 'translateY(-100%)',
-        transition,
-      };
-    }
-    
-    return { opacity: 1 };
-  };
-      
-  // Check if action is valid (has URL and label)
-  const isActionValid = noticeActionEnabled && noticeActionLabel && noticeActionUrl;
-  
-  // Render action element (link style)
-  const renderAction = () => {
-    if (!isActionValid && !isEditing) return null;
-    
-    const actionTextColor = noticeActionTextColor || noticeTextColor || '#ffffff';
-    
-    if (!isActionValid && isEditing) {
-      return (
-        <span 
-          className="ml-2 underline text-xs opacity-50"
-          style={{ color: actionTextColor }}
-        >
-          [Ação: configure texto e URL]
-        </span>
-      );
-    }
-    
-    return (
-      <a
-        href={noticeActionUrl}
-        target={noticeActionTarget}
-        rel={noticeActionTarget === '_blank' ? 'noopener noreferrer' : undefined}
-        className="ml-2 underline text-xs font-medium hover:opacity-80 transition-opacity"
-        style={{ color: actionTextColor }}
-        onClick={(e) => isEditing && e.preventDefault()}
-      >
-        {noticeActionLabel}
-      </a>
-    );
-  };
-
-  // Check if current style uses "menu below"
-  const hasMenuBelow = headerStyle === 'logo_left_menu_below' || headerStyle === 'logo_center_menu_below';
-  
-  // Compute header styles
-  const headerStyles: React.CSSProperties = {
-    backgroundColor: headerBgColor || undefined,
-    color: headerTextColor || undefined,
+  // Create a headerConfig object with the block's props
+  const headerConfig = {
+    ...block,
+    props: block?.props || {},
   };
   
-  // Compute menu bar styles (for "menu below" layouts)
-  const menuBarStyles: React.CSSProperties = hasMenuBelow ? {
-    backgroundColor: menuBgColor || headerBgColor || undefined,
-    color: menuTextColor || headerTextColor || undefined,
-  } : {};
-  
-  // Icon color style
-  const iconStyle: React.CSSProperties = {
-    color: headerIconColor || headerTextColor || undefined,
-  };
-  
-  // Normalize WhatsApp number (remove all non-digits)
-  const normalizedWhatsApp = whatsAppNumber?.replace(/\D/g, '') || '';
-  const isWhatsAppValid = showWhatsApp && normalizedWhatsApp.length >= 10;
-  
-  // Normalize phone number for tel: link
-  const normalizedPhone = phoneNumber?.replace(/[^\d+]/g, '') || '';
-  const isPhoneValid = showPhone && normalizedPhone.length >= 8;
-  
-  // Render logo section
-  const renderLogo = () => (
-    <div className="flex items-center gap-4">
-      {settings?.logo_url ? (
-        <img src={settings.logo_url} alt={settings?.store_name} className="h-10" />
-      ) : (
-        <span className="text-xl font-bold" style={{ color: headerTextColor || undefined }}>
-          {settings?.store_name || 'Loja'}
-        </span>
-      )}
-    </div>
-  );
-  
-  // Render menu items - only show actual menu items, no placeholder
-  const renderMenuItems = (textColor?: string) => (
-    <>
-      {displayItems.map((item: any) => (
-        <a 
-          key={item.id} 
-          href={item.url || '#'} 
-          className="text-sm hover:opacity-70 transition-opacity"
-          style={{ color: textColor || undefined }}
-        >
-          {item.label}
-        </a>
-      ))}
-    </>
-  );
-  
-  // Render contact items (WhatsApp, Phone) - only show valid items, no placeholders
-  const renderContactItems = () => {
-    const items = [];
-    
-    // WhatsApp - only if valid
-    if (isWhatsAppValid) {
-      items.push(
-        <a
-          key="whatsapp"
-          href={`https://wa.me/${normalizedWhatsApp}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm hover:opacity-70 transition-opacity"
-          style={{ color: headerTextColor || undefined }}
-          onClick={(e) => isEditing && e.preventDefault()}
-        >
-          <span style={iconStyle}>📱</span>
-          <span className="hidden sm:inline">{whatsAppLabel || 'WhatsApp'}</span>
-        </a>
-      );
-    }
-    
-    // Phone - only if valid
-    if (isPhoneValid) {
-      items.push(
-        <a
-          key="phone"
-          href={`tel:${normalizedPhone}`}
-          className="flex items-center gap-1 text-sm hover:opacity-70 transition-opacity"
-          style={{ color: headerTextColor || undefined }}
-          onClick={(e) => isEditing && e.preventDefault()}
-        >
-          <span style={iconStyle}>📞</span>
-          <span className="hidden sm:inline">{phoneLabel || phoneNumber}</span>
-        </a>
-      );
-    }
-    
-    if (items.length === 0) return null;
-    
-    return (
-      <div className="flex items-center gap-4">
-        {items}
-      </div>
-    );
-  };
-  
-  // Render icons (search, cart)
-  const renderIcons = () => (
-    <div className="flex items-center gap-2">
-      {showSearch && (
-        <button className="p-2 hover:opacity-70 rounded transition-opacity" style={iconStyle}>
-          🔍
-        </button>
-      )}
-      {showCart && (
-        <button className="p-2 hover:opacity-70 rounded transition-opacity" style={iconStyle}>
-          🛒
-        </button>
-      )}
-    </div>
-  );
-  
-  // REMOVIDO: renderCategoriesMenu - menu vem exclusivamente do Menu Builder
-  const renderCategoriesMenu = () => null;
-  
-  // REMOVIDO: renderFeaturedCategories - substitui por "Categoria em Destaque" única no painel
-  const renderFeaturedCategories = () => null;
-  
-  // Render customer area link - only if enabled, no placeholder
-  const renderCustomerArea = (textColor?: string) => {
-    if (!customerAreaEnabled) return null;
-    
-    const customerAreaUrl = context?.tenantSlug ? getPublicMyOrdersUrl(context.tenantSlug) : '/minhas-compras';
-    
-    return (
-      <a
-        href={customerAreaUrl}
-        className="text-sm hover:opacity-70 transition-opacity flex items-center gap-1"
-        style={{ color: textColor || undefined }}
-        onClick={(e) => isEditing && e.preventDefault()}
-      >
-        <span>👤</span>
-        {customerAreaLabel || 'Minhas compras'}
-      </a>
-    );
-  };
-  
-  // Render featured promos link - only if enabled and valid
-  const renderFeaturedPromos = (defaultTextColor?: string) => {
-    if (!featuredPromosEnabled) return null;
-    
-    const hasValidPage = effectivePromoSlug && effectivePromoSlug.trim().length > 0;
-    
-    // Don't render if no valid page
-    if (!hasValidPage) return null;
-    
-    const promoUrl = context?.tenantSlug 
-      ? getPublicPageUrl(context.tenantSlug, effectivePromoSlug) || '#'
-      : '#';
-    
-    return (
-      <a
-        href={promoUrl}
-        className="text-sm font-medium hover:opacity-70 transition-opacity"
-        style={{ color: featuredPromosTextColor || defaultTextColor || '#d97706' }}
-        onClick={(e) => isEditing && e.preventDefault()}
-      >
-        {featuredPromosLabel || 'Promoções'}
-      </a>
-    );
-  };
-  
-  // Determine sticky classes based on device
-  const stickyClasses = cn(
-    // Desktop sticky
-    sticky && 'md:sticky md:top-0 md:z-50',
-    // Mobile sticky
-    stickyOnMobile && 'sticky top-0 z-50 md:relative md:z-auto',
-    // Both
-    sticky && stickyOnMobile && 'sticky top-0 z-50'
-  );
-  
-  // Check if we have any valid contact items to show (no placeholders)
-  const hasContactItems = isWhatsAppValid || isPhoneValid;
+  // Map context settings to expected format
+  const storeSettings = settings ? {
+    logo_url: settings.logo_url,
+    store_name: settings.store_name,
+    primary_color: settings.primary_color,
+    social_whatsapp: settings.social_whatsapp,
+    contact_phone: settings.contact_phone,
+    contact_email: settings.contact_email,
+    social_facebook: settings.social_facebook,
+    social_instagram: settings.social_instagram,
+  } : null;
   
   return (
-    <div className={stickyClasses}>
-      {/* Notice Bar (Barra Superior) - only renders if enabled */}
-      {noticeEnabled && (
-        <div 
-          className="py-2 px-4 text-center text-sm flex items-center justify-center flex-wrap gap-1"
-          style={{ 
-            backgroundColor: noticeBgColor || '#1e40af',
-            color: noticeTextColor || '#ffffff',
-            ...getNoticeAnimationStyles(),
-          }}
-        >
-          <span>{noticeText || ''}</span>
-          {noticeActionEnabled && renderAction()}
-        </div>
-      )}
-      
-      {/* Main Header - Style: logo_left_menu_inline (default) */}
-      {headerStyle === 'logo_left_menu_inline' && (
-        <header className="border-b" style={headerStyles}>
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              {renderLogo()}
-              {hasContactItems && (
-                <div className="hidden lg:flex">
-                  {renderContactItems()}
-                </div>
-              )}
-            </div>
-            <nav className="hidden md:flex items-center gap-6">
-              {renderCategoriesMenu()}
-              {renderMenuItems(headerTextColor)}
-              {renderFeaturedCategories()}
-              {renderFeaturedPromos(headerTextColor)}
-              {renderCustomerArea(headerTextColor)}
-            </nav>
-            <div className="flex items-center gap-4">
-              {hasContactItems && (
-                <div className="flex lg:hidden">
-                  {renderContactItems()}
-                </div>
-              )}
-              {renderIcons()}
-            </div>
-          </div>
-        </header>
-      )}
-      
-      {/* Main Header - Style: logo_left_menu_below */}
-      {headerStyle === 'logo_left_menu_below' && (
-        <>
-          <header className="border-b" style={headerStyles}>
-            <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                {renderLogo()}
-                {hasContactItems && renderContactItems()}
-              </div>
-              {renderIcons()}
-            </div>
-          </header>
-          {/* Menu bar below with categories */}
-          <nav 
-            className="hidden md:block border-b"
-            style={menuBarStyles}
-          >
-            <div className="container mx-auto px-4 py-2 flex items-center gap-6">
-              {renderCategoriesMenu()}
-              {renderMenuItems(menuTextColor || headerTextColor)}
-              {renderFeaturedCategories()}
-              {renderFeaturedPromos(menuTextColor || headerTextColor)}
-              {renderCustomerArea(menuTextColor || headerTextColor)}
-            </div>
-          </nav>
-        </>
-      )}
-      
-      {/* Main Header - Style: logo_center_menu_below */}
-      {headerStyle === 'logo_center_menu_below' && (
-        <>
-          <header className="border-b" style={headerStyles}>
-            <div className="container mx-auto px-4 py-4 flex flex-col items-center gap-2">
-              <div className="flex items-center justify-between w-full md:justify-center relative">
-                {/* Contact items on the left */}
-                <div className="md:absolute md:left-4 flex items-center">
-                  {hasContactItems && renderContactItems()}
-                </div>
-                {renderLogo()}
-                <div className="md:absolute md:right-4">
-                  {renderIcons()}
-                </div>
-              </div>
-            </div>
-          </header>
-          {/* Menu bar below, centered with categories */}
-          <nav 
-            className="hidden md:block border-b"
-            style={menuBarStyles}
-          >
-            <div className="container mx-auto px-4 py-2 flex items-center justify-center gap-6">
-              {renderCategoriesMenu()}
-              {renderMenuItems(menuTextColor || headerTextColor)}
-              {renderFeaturedCategories()}
-              {renderFeaturedPromos(menuTextColor || headerTextColor)}
-              {renderCustomerArea(menuTextColor || headerTextColor)}
-            </div>
-          </nav>
-        </>
-      )}
-    </div>
+    <StorefrontHeaderContent 
+      tenantSlug={tenantSlug || ''} 
+      headerConfig={headerConfig}
+      storeSettings={storeSettings}
+      menuItems={headerMenu?.items || []}
+      categories={categories || []}
+      pagesData={pagesData || []}
+      totalCartItems={0}
+      isEditing={isEditing}
+      tenantId={settings?.tenant_id}
+    />
   );
 }
 
