@@ -1,0 +1,163 @@
+import { useState, useRef } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface ImageUploadProps {
+  label: string;
+  value: string | null;
+  onChange: (url: string | null) => void;
+  onUpload: (file: File) => Promise<string | null>;
+  accept?: string;
+  className?: string;
+  description?: string;
+}
+
+export function ImageUpload({
+  label,
+  value,
+  onChange,
+  onUpload,
+  accept = 'image/png,image/jpeg,image/webp',
+  className,
+  description,
+}: ImageUploadProps) {
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (file: File) => {
+    if (!file) return;
+    
+    // Validar tipo
+    const validTypes = accept.split(',').map(t => t.trim());
+    if (!validTypes.some(t => file.type === t || file.type.startsWith(t.replace('*', '')))) {
+      return;
+    }
+    
+    // Validar tamanho (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      const url = await onUpload(file);
+      if (url) {
+        onChange(url);
+      }
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragOver(false);
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileSelect(file);
+  };
+
+  const handleRemove = () => {
+    onChange(null);
+    if (inputRef.current) {
+      inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className={cn('space-y-2', className)}>
+      <Label>{label}</Label>
+      {description && (
+        <p className="text-xs text-muted-foreground">{description}</p>
+      )}
+      
+      <div
+        className={cn(
+          'border-2 border-dashed rounded-lg p-4 transition-colors',
+          dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25',
+          isUploading && 'opacity-50 pointer-events-none'
+        )}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+      >
+        {value ? (
+          <div className="flex items-center gap-4">
+            <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+              <img
+                src={value}
+                alt={label}
+                className="w-full h-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{label}</p>
+              <p className="text-xs text-muted-foreground truncate">{value}</p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={handleRemove}
+              className="shrink-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-4">
+            {isUploading ? (
+              <div className="animate-pulse">
+                <Upload className="h-8 w-8 text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground text-center">
+                  Arraste uma imagem ou clique para selecionar
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => inputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Selecionar arquivo
+                </Button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      
+      <Input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        onChange={handleInputChange}
+        className="hidden"
+      />
+    </div>
+  );
+}
