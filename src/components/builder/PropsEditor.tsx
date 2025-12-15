@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
+import { ProductMultiSelect } from './ProductMultiSelect';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
@@ -125,16 +126,26 @@ export function PropsEditor({
           
           {/* Header main props - AFTER the accordion */}
           {otherPropsEntries.length > 0 ? (
-            otherPropsEntries.map(([key, schema]) => (
-              <PropField
-                key={key}
-                name={key}
-                schema={schema}
-                value={props[key] ?? schema.defaultValue}
-                onChange={(value) => handleChange(key, value)}
-                blockType={definition.type}
-              />
-            ))
+            otherPropsEntries.map(([key, schema]) => {
+              // Check showWhen condition
+              if (schema.showWhen) {
+                const shouldShow = Object.entries(schema.showWhen).every(
+                  ([propKey, expectedValue]) => props[propKey] === expectedValue
+                );
+                if (!shouldShow) return null;
+              }
+              return (
+                <PropField
+                  key={key}
+                  name={key}
+                  schema={schema}
+                  value={props[key] ?? schema.defaultValue}
+                  onChange={(value) => handleChange(key, value)}
+                  blockType={definition.type}
+                  allProps={props}
+                />
+              );
+            })
           ) : !isHeaderBlock && (
             <div className="text-center py-6 text-muted-foreground">
               <Settings2 className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -176,9 +187,10 @@ interface PropFieldProps {
   value: unknown;
   onChange: (value: unknown) => void;
   blockType?: string;
+  allProps?: Record<string, unknown>;
 }
 
-function PropField({ name, schema, value, onChange, blockType }: PropFieldProps) {
+function PropField({ name, schema, value, onChange, blockType, allProps }: PropFieldProps) {
   const renderField = () => {
     // Special handling for array fields based on block type and field name
     if (schema.type === 'array') {
@@ -389,6 +401,15 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
             placeholder={schema.placeholder}
             rows={4}
             className="resize-none"
+          />
+        );
+
+      case 'productMultiSelect':
+        return (
+          <ProductMultiSelect
+            value={Array.isArray(value) ? value : []}
+            onChange={(ids) => onChange(ids)}
+            maxItems={schema.max || 12}
           />
         );
 
