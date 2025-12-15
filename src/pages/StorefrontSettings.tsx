@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useStoreSettings } from '@/hooks/useStoreSettings';
+import { useStoreSettings, type CustomSocialLink } from '@/hooks/useStoreSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -8,59 +8,121 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ExternalLink, Eye, Save, Palette, ArrowRight } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { ImageUpload } from '@/components/settings/ImageUpload';
+import { CustomSocialLinks } from '@/components/settings/CustomSocialLinks';
+import { 
+  ExternalLink, 
+  Eye, 
+  Save, 
+  Palette, 
+  ArrowRight,
+  Building2,
+  Phone,
+  Share2,
+  Mail,
+  MapPin,
+  Clock,
+  Facebook,
+  Instagram,
+  Youtube
+} from 'lucide-react';
 import { getPublicHomeUrl } from '@/lib/publicUrls';
 
 export default function StorefrontSettings() {
   const { currentTenant } = useAuth();
-  const { settings, isLoading, upsertSettings, togglePublish } = useStoreSettings();
+  const { settings, isLoading, upsertSettings, togglePublish, uploadAsset } = useStoreSettings();
+  
+  // Form state
   const [formData, setFormData] = useState({
-    store_name: '',
-    store_description: '',
+    // Informações do negócio
+    business_legal_name: '',
+    store_name: '', // Nome Fantasia
+    store_description: '', // Descrição curta
+    business_cnpj: '',
     logo_url: '',
     favicon_url: '',
+    // Informações de contato
+    contact_phone: '',
+    contact_email: '',
+    contact_address: '',
+    contact_support_hours: '',
+    social_whatsapp: '',
+    // Redes sociais
+    social_facebook: '',
+    social_instagram: '',
+    social_tiktok: '',
+    social_youtube: '',
+    social_custom: [] as CustomSocialLink[],
+    // Cores do tema
     primary_color: '#6366f1',
     secondary_color: '#8b5cf6',
     accent_color: '#f59e0b',
-    social_facebook: '',
-    social_instagram: '',
-    social_whatsapp: '',
   });
+  
   const [hasChanges, setHasChanges] = useState(false);
 
   // Load settings into form when available
-  useState(() => {
+  useEffect(() => {
     if (settings) {
       setFormData({
+        business_legal_name: settings.business_legal_name || '',
         store_name: settings.store_name || '',
         store_description: settings.store_description || '',
+        business_cnpj: settings.business_cnpj || '',
         logo_url: settings.logo_url || '',
         favicon_url: settings.favicon_url || '',
+        contact_phone: settings.contact_phone || '',
+        contact_email: settings.contact_email || '',
+        contact_address: settings.contact_address || '',
+        contact_support_hours: settings.contact_support_hours || '',
+        social_whatsapp: settings.social_whatsapp || '',
+        social_facebook: settings.social_facebook || '',
+        social_instagram: settings.social_instagram || '',
+        social_tiktok: settings.social_tiktok || '',
+        social_youtube: settings.social_youtube || '',
+        social_custom: settings.social_custom || [],
         primary_color: settings.primary_color || '#6366f1',
         secondary_color: settings.secondary_color || '#8b5cf6',
         accent_color: settings.accent_color || '#f59e0b',
-        social_facebook: settings.social_facebook || '',
-        social_instagram: settings.social_instagram || '',
-        social_whatsapp: settings.social_whatsapp || '',
       });
+      setHasChanges(false);
     }
-  });
+  }, [settings]);
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | CustomSocialLink[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     setHasChanges(true);
   };
 
   const handleSave = async () => {
-    await upsertSettings.mutateAsync(formData);
+    await upsertSettings.mutateAsync({
+      ...formData,
+      social_custom: formData.social_custom as unknown as import('@/integrations/supabase/types').Json,
+    });
     setHasChanges(false);
   };
 
   const handleTogglePublish = async () => {
     await togglePublish.mutateAsync(!settings?.is_published);
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    const url = await uploadAsset(file, 'logo');
+    if (url) {
+      handleChange('logo_url', url);
+    }
+    return url;
+  };
+
+  const handleFaviconUpload = async (file: File) => {
+    const url = await uploadAsset(file, 'favicon');
+    if (url) {
+      handleChange('favicon_url', url);
+    }
+    return url;
   };
 
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
@@ -70,19 +132,23 @@ export default function StorefrontSettings() {
       <div className="p-6 space-y-4">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <PageHeader
         title="Configurações da Loja"
-        description="Configure a aparência e informações da sua loja online"
+        description="Configure as informações, contato, redes sociais e aparência da sua loja"
         actions={
           <div className="flex gap-2">
             <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline"><Eye className="mr-2 h-4 w-4" />Preview</Button>
+              <Button variant="outline">
+                <Eye className="mr-2 h-4 w-4" />
+                Preview
+              </Button>
             </a>
             <Button onClick={handleTogglePublish} variant={settings?.is_published ? 'destructive' : 'default'}>
               {settings?.is_published ? 'Despublicar' : 'Publicar Loja'}
@@ -129,70 +195,305 @@ export default function StorefrontSettings() {
         </CardContent>
       </Card>
 
-      {/* General Info */}
+      {/* 1. Informações do Negócio */}
       <Card>
         <CardHeader>
-          <CardTitle>Informações Gerais</CardTitle>
-          <CardDescription>Informações básicas da sua loja</CardDescription>
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Informações do Negócio</CardTitle>
+          </div>
+          <CardDescription>Dados da empresa e identidade visual</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div><Label>Nome da Loja</Label><Input value={formData.store_name} onChange={(e) => handleChange('store_name', e.target.value)} placeholder="Nome da sua loja" /></div>
-          <div><Label>Descrição</Label><Textarea value={formData.store_description} onChange={(e) => handleChange('store_description', e.target.value)} placeholder="Breve descrição da sua loja" /></div>
-          <div><Label>URL do Logo</Label><Input value={formData.logo_url} onChange={(e) => handleChange('logo_url', e.target.value)} placeholder="https://..." /></div>
-          <div><Label>URL do Favicon</Label><Input value={formData.favicon_url} onChange={(e) => handleChange('favicon_url', e.target.value)} placeholder="https://..." /></div>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="business_legal_name">Razão Social</Label>
+              <Input
+                id="business_legal_name"
+                value={formData.business_legal_name}
+                onChange={(e) => handleChange('business_legal_name', e.target.value)}
+                placeholder="Razão social da empresa"
+              />
+            </div>
+            <div>
+              <Label htmlFor="store_name">Nome Fantasia (Nome da Loja)</Label>
+              <Input
+                id="store_name"
+                value={formData.store_name}
+                onChange={(e) => handleChange('store_name', e.target.value)}
+                placeholder="Nome que aparecerá para os clientes"
+              />
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="store_description">Descrição Curta</Label>
+            <Textarea
+              id="store_description"
+              value={formData.store_description}
+              onChange={(e) => handleChange('store_description', e.target.value)}
+              placeholder="Breve descrição da sua loja (aparece no rodapé e SEO)"
+              rows={3}
+            />
+          </div>
+          
+          <div className="max-w-xs">
+            <Label htmlFor="business_cnpj">CNPJ</Label>
+            <Input
+              id="business_cnpj"
+              value={formData.business_cnpj}
+              onChange={(e) => handleChange('business_cnpj', e.target.value)}
+              placeholder="00.000.000/0000-00"
+            />
+          </div>
+          
+          <Separator />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ImageUpload
+              label="Logo"
+              description="Recomendado: PNG ou SVG transparente, max 2MB"
+              value={formData.logo_url}
+              onChange={(url) => handleChange('logo_url', url || '')}
+              onUpload={handleLogoUpload}
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            />
+            
+            <ImageUpload
+              label="Favicon"
+              description="Ícone da aba do navegador, 32x32px ou 64x64px"
+              value={formData.favicon_url}
+              onChange={(url) => handleChange('favicon_url', url || '')}
+              onUpload={handleFaviconUpload}
+              accept="image/png,image/x-icon,image/webp"
+            />
+          </div>
         </CardContent>
       </Card>
 
-      {/* Colors */}
+      {/* 2. Informações de Contato */}
       <Card>
         <CardHeader>
-          <CardTitle>Cores</CardTitle>
-          <CardDescription>Defina as cores da sua loja</CardDescription>
+          <div className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Informações de Contato</CardTitle>
+          </div>
+          <CardDescription>Canais de atendimento e localização</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="contact_phone" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Telefone Fixo
+              </Label>
+              <Input
+                id="contact_phone"
+                value={formData.contact_phone}
+                onChange={(e) => handleChange('contact_phone', e.target.value)}
+                placeholder="(11) 3000-0000"
+              />
+            </div>
+            <div>
+              <Label htmlFor="social_whatsapp" className="flex items-center gap-2">
+                WhatsApp
+              </Label>
+              <Input
+                id="social_whatsapp"
+                value={formData.social_whatsapp}
+                onChange={(e) => handleChange('social_whatsapp', e.target.value)}
+                placeholder="5511999999999"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Formato: código do país + DDD + número (sem espaços)
+              </p>
+            </div>
+          </div>
+          
+          <div>
+            <Label htmlFor="contact_email" className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              E-mail
+            </Label>
+            <Input
+              id="contact_email"
+              type="email"
+              value={formData.contact_email}
+              onChange={(e) => handleChange('contact_email', e.target.value)}
+              placeholder="contato@sualoja.com.br"
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="contact_address" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Endereço
+            </Label>
+            <Textarea
+              id="contact_address"
+              value={formData.contact_address}
+              onChange={(e) => handleChange('contact_address', e.target.value)}
+              placeholder="Rua, número, bairro - Cidade/UF"
+              rows={2}
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="contact_support_hours" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Horário de Atendimento
+            </Label>
+            <Input
+              id="contact_support_hours"
+              value={formData.contact_support_hours}
+              onChange={(e) => handleChange('contact_support_hours', e.target.value)}
+              placeholder="De segunda a sexta, das 9h às 18h"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 3. Redes Sociais */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Share2 className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Redes Sociais</CardTitle>
+          </div>
+          <CardDescription>Links para suas redes sociais</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="social_facebook" className="flex items-center gap-2">
+                <Facebook className="h-4 w-4" />
+                Facebook
+              </Label>
+              <Input
+                id="social_facebook"
+                value={formData.social_facebook}
+                onChange={(e) => handleChange('social_facebook', e.target.value)}
+                placeholder="https://facebook.com/sualoja"
+              />
+            </div>
+            <div>
+              <Label htmlFor="social_instagram" className="flex items-center gap-2">
+                <Instagram className="h-4 w-4" />
+                Instagram
+              </Label>
+              <Input
+                id="social_instagram"
+                value={formData.social_instagram}
+                onChange={(e) => handleChange('social_instagram', e.target.value)}
+                placeholder="https://instagram.com/sualoja"
+              />
+            </div>
+            <div>
+              <Label htmlFor="social_tiktok">TikTok</Label>
+              <Input
+                id="social_tiktok"
+                value={formData.social_tiktok}
+                onChange={(e) => handleChange('social_tiktok', e.target.value)}
+                placeholder="https://tiktok.com/@sualoja"
+              />
+            </div>
+            <div>
+              <Label htmlFor="social_youtube" className="flex items-center gap-2">
+                <Youtube className="h-4 w-4" />
+                YouTube
+              </Label>
+              <Input
+                id="social_youtube"
+                value={formData.social_youtube}
+                onChange={(e) => handleChange('social_youtube', e.target.value)}
+                placeholder="https://youtube.com/@sualoja"
+              />
+            </div>
+          </div>
+          
+          <Separator />
+          
+          <CustomSocialLinks
+            value={formData.social_custom}
+            onChange={(links) => handleChange('social_custom', links)}
+          />
+        </CardContent>
+      </Card>
+
+      {/* 4. Cores do Tema */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Palette className="h-5 w-5 text-muted-foreground" />
+            <CardTitle>Cores Padrões do Tema</CardTitle>
+          </div>
+          <CardDescription>Cores principais usadas na sua loja</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
               <Label>Cor Primária</Label>
               <div className="flex gap-2 mt-1">
-                <Input type="color" value={formData.primary_color} onChange={(e) => handleChange('primary_color', e.target.value)} className="w-12 h-10 p-1" />
-                <Input value={formData.primary_color} onChange={(e) => handleChange('primary_color', e.target.value)} />
+                <Input
+                  type="color"
+                  value={formData.primary_color}
+                  onChange={(e) => handleChange('primary_color', e.target.value)}
+                  className="w-14 h-10 p-1 cursor-pointer"
+                />
+                <Input
+                  value={formData.primary_color}
+                  onChange={(e) => handleChange('primary_color', e.target.value)}
+                  placeholder="#6366f1"
+                />
               </div>
             </div>
             <div>
               <Label>Cor Secundária</Label>
               <div className="flex gap-2 mt-1">
-                <Input type="color" value={formData.secondary_color} onChange={(e) => handleChange('secondary_color', e.target.value)} className="w-12 h-10 p-1" />
-                <Input value={formData.secondary_color} onChange={(e) => handleChange('secondary_color', e.target.value)} />
+                <Input
+                  type="color"
+                  value={formData.secondary_color}
+                  onChange={(e) => handleChange('secondary_color', e.target.value)}
+                  className="w-14 h-10 p-1 cursor-pointer"
+                />
+                <Input
+                  value={formData.secondary_color}
+                  onChange={(e) => handleChange('secondary_color', e.target.value)}
+                  placeholder="#8b5cf6"
+                />
               </div>
             </div>
             <div>
               <Label>Cor de Destaque</Label>
               <div className="flex gap-2 mt-1">
-                <Input type="color" value={formData.accent_color} onChange={(e) => handleChange('accent_color', e.target.value)} className="w-12 h-10 p-1" />
-                <Input value={formData.accent_color} onChange={(e) => handleChange('accent_color', e.target.value)} />
+                <Input
+                  type="color"
+                  value={formData.accent_color}
+                  onChange={(e) => handleChange('accent_color', e.target.value)}
+                  className="w-14 h-10 p-1 cursor-pointer"
+                />
+                <Input
+                  value={formData.accent_color}
+                  onChange={(e) => handleChange('accent_color', e.target.value)}
+                  placeholder="#f59e0b"
+                />
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Social */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Redes Sociais</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div><Label>Facebook</Label><Input value={formData.social_facebook} onChange={(e) => handleChange('social_facebook', e.target.value)} placeholder="https://facebook.com/..." /></div>
-          <div><Label>Instagram</Label><Input value={formData.social_instagram} onChange={(e) => handleChange('social_instagram', e.target.value)} placeholder="https://instagram.com/..." /></div>
-          <div><Label>WhatsApp</Label><Input value={formData.social_whatsapp} onChange={(e) => handleChange('social_whatsapp', e.target.value)} placeholder="5511999999999" /></div>
-        </CardContent>
-      </Card>
-
       {/* Save Button */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={!hasChanges || upsertSettings.isPending}>
+      <div className="flex justify-end sticky bottom-6">
+        <Button 
+          onClick={handleSave} 
+          disabled={!hasChanges || upsertSettings.isPending}
+          size="lg"
+          className="shadow-lg"
+        >
           <Save className="mr-2 h-4 w-4" />
-          Salvar Alterações
+          {upsertSettings.isPending ? 'Salvando...' : 'Salvar Alterações'}
+          {hasChanges && <Badge variant="secondary" className="ml-2">Não salvo</Badge>}
         </Button>
       </div>
     </div>

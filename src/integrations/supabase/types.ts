@@ -1465,6 +1465,12 @@ export type Database = {
       store_settings: {
         Row: {
           accent_color: string | null
+          business_cnpj: string | null
+          business_legal_name: string | null
+          contact_address: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          contact_support_hours: string | null
           created_at: string
           custom_css: string | null
           custom_scripts: string | null
@@ -1481,9 +1487,12 @@ export type Database = {
           seo_description: string | null
           seo_keywords: string[] | null
           seo_title: string | null
+          social_custom: Json | null
           social_facebook: string | null
           social_instagram: string | null
+          social_tiktok: string | null
           social_whatsapp: string | null
+          social_youtube: string | null
           store_description: string | null
           store_name: string | null
           tenant_id: string
@@ -1491,6 +1500,12 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          business_cnpj?: string | null
+          business_legal_name?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          contact_support_hours?: string | null
           created_at?: string
           custom_css?: string | null
           custom_scripts?: string | null
@@ -1507,9 +1522,12 @@ export type Database = {
           seo_description?: string | null
           seo_keywords?: string[] | null
           seo_title?: string | null
+          social_custom?: Json | null
           social_facebook?: string | null
           social_instagram?: string | null
+          social_tiktok?: string | null
           social_whatsapp?: string | null
+          social_youtube?: string | null
           store_description?: string | null
           store_name?: string | null
           tenant_id: string
@@ -1517,6 +1535,12 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          business_cnpj?: string | null
+          business_legal_name?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          contact_support_hours?: string | null
           created_at?: string
           custom_css?: string | null
           custom_scripts?: string | null
@@ -1533,9 +1557,12 @@ export type Database = {
           seo_description?: string | null
           seo_keywords?: string[] | null
           seo_title?: string | null
+          social_custom?: Json | null
           social_facebook?: string | null
           social_instagram?: string | null
+          social_tiktok?: string | null
           social_whatsapp?: string | null
+          social_youtube?: string | null
           store_description?: string | null
           store_name?: string | null
           tenant_id?: string
