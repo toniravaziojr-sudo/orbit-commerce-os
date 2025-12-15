@@ -180,6 +180,7 @@ export function BlockRenderer({
         {...node.props} 
         context={context}
         isEditing={isEditing}
+        block={node}
       >
         {renderChildren()}
       </BlockComponent>
@@ -843,11 +844,17 @@ function FooterBlock({
   block
 }: any) {
   // FooterBlock now renders the unified StorefrontFooterContent
-  // Passes the block as footerConfig for priority resolution: config > store_settings
+  // Create a footerConfig object with the block's props directly accessible
+  // This ensures the toggle props (showLogo, showSac, etc.) are read correctly
+  const footerConfig = {
+    ...block,
+    props: block?.props || {},
+  };
+  
   return (
     <StorefrontFooterContent 
       tenantSlug={context?.tenantSlug || ''} 
-      footerConfig={block}
+      footerConfig={footerConfig}
       isEditing={isEditing} 
     />
   );
