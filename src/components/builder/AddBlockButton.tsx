@@ -1,5 +1,5 @@
 // =============================================
-// ADD BLOCK BUTTON - Button to add blocks between sections
+// ADD BLOCK BUTTON - Button to add blocks between sections + Drop Target
 // =============================================
 
 import { useState } from 'react';
@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { blockRegistry } from '@/lib/builder/registry';
 import { cn } from '@/lib/utils';
+import { useDroppable } from '@dnd-kit/core';
 
 interface AddBlockButtonProps {
   parentId: string;
@@ -32,6 +33,16 @@ export function AddBlockButton({
 }: AddBlockButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Make this button a droppable target for DnD
+  const { setNodeRef, isOver } = useDroppable({
+    id: `drop-zone-${parentId}-${index}`,
+    data: {
+      type: 'drop-zone',
+      parentId,
+      index,
+    },
+  });
 
   // Get all available blocks from registry
   const allBlocks = blockRegistry.getAll();
@@ -67,8 +78,10 @@ export function AddBlockButton({
   const categoryLabels: Record<string, string> = {
     layout: 'Layout',
     content: 'Conteúdo',
+    media: 'Mídia',
     ecommerce: 'E-commerce',
     'header-footer': 'Cabeçalho/Rodapé',
+    utilities: 'Utilidades',
     outros: 'Outros',
   };
 
@@ -79,63 +92,77 @@ export function AddBlockButton({
   };
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn(
-            'h-6 w-full opacity-0 hover:opacity-100 transition-opacity',
-            'border border-dashed border-primary/30 hover:border-primary',
-            'bg-primary/5 hover:bg-primary/10',
-            'text-primary/60 hover:text-primary',
-            'group-hover:opacity-60',
-            className
-          )}
-        >
-          <Plus className="h-3 w-3 mr-1" />
-          <span className="text-xs">Adicionar bloco</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="center" side="bottom">
-        <div className="p-2 border-b">
-          <Input
-            placeholder="Buscar bloco..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="h-8"
-            autoFocus
-          />
-        </div>
-        <ScrollArea className="h-[280px]">
-          <div className="p-2 space-y-3">
-            {Object.entries(groupedBlocks).map(([category, blocks]) => (
-              <div key={category}>
-                <div className="text-xs font-medium text-muted-foreground mb-1 px-1">
-                  {categoryLabels[category] || category}
-                </div>
-                <div className="space-y-0.5">
-                  {blocks.map((block) => (
-                    <button
-                      key={block.type}
-                      onClick={() => handleAddBlock(block.type)}
-                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-left"
-                    >
-                      <span className="text-base opacity-70">{block.icon}</span>
-                      <span>{block.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {Object.keys(groupedBlocks).length === 0 && (
-              <div className="text-center py-4 text-muted-foreground text-sm">
-                Nenhum bloco encontrado
-              </div>
+    <div 
+      ref={setNodeRef}
+      className={cn(
+        'relative transition-all',
+        isOver && 'py-2'
+      )}
+    >
+      {/* Visual drop indicator when dragging over */}
+      {isOver && (
+        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1 bg-primary rounded-full animate-pulse" />
+      )}
+      
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'h-6 w-full opacity-0 hover:opacity-100 transition-opacity',
+              'border border-dashed border-primary/30 hover:border-primary',
+              'bg-primary/5 hover:bg-primary/10',
+              'text-primary/60 hover:text-primary',
+              'group-hover:opacity-60',
+              isOver && 'opacity-100 border-primary bg-primary/20',
+              className
             )}
+          >
+            <Plus className="h-3 w-3 mr-1" />
+            <span className="text-xs">Adicionar bloco</span>
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-72 p-0" align="center" side="bottom">
+          <div className="p-2 border-b">
+            <Input
+              placeholder="Buscar bloco..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8"
+              autoFocus
+            />
           </div>
-        </ScrollArea>
-      </PopoverContent>
-    </Popover>
+          <ScrollArea className="h-[280px]">
+            <div className="p-2 space-y-3">
+              {Object.entries(groupedBlocks).map(([category, blocks]) => (
+                <div key={category}>
+                  <div className="text-xs font-medium text-muted-foreground mb-1 px-1">
+                    {categoryLabels[category] || category}
+                  </div>
+                  <div className="space-y-0.5">
+                    {blocks.map((block) => (
+                      <button
+                        key={block.type}
+                        onClick={() => handleAddBlock(block.type)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-sm hover:bg-muted transition-colors text-left"
+                      >
+                        <span className="text-base opacity-70">{block.icon}</span>
+                        <span>{block.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {Object.keys(groupedBlocks).length === 0 && (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  Nenhum bloco encontrado
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }

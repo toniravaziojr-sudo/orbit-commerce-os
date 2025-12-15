@@ -501,24 +501,32 @@ function HeroBlock({
   const hoverBg = buttonHoverBgColor || baseBgColor;
   const hoverText = buttonHoverTextColor || baseTextColor;
 
-  // Determine which image to use based on viewport
-  const isMobile = context?.viewport === 'mobile';
-  const effectiveImage = isMobile 
-    ? (imageMobile || imageDesktop || backgroundImage) 
-    : (imageDesktop || backgroundImage);
+  // Use actual images for responsive display with <picture>
+  const desktopImage = imageDesktop || backgroundImage;
+  const mobileImage = imageMobile || desktopImage;
 
   return (
     <div 
-      className="relative flex items-center justify-center"
+      className="relative flex items-center justify-center overflow-hidden"
       style={{ 
-        backgroundColor: effectiveImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
-        backgroundImage: effectiveImage ? `url(${effectiveImage})` : undefined,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+        backgroundColor: desktopImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
         minHeight: heightMap[height] || '400px',
       }}
     >
-      {effectiveImage && (
+      {/* Background Image using <picture> for true responsive */}
+      {desktopImage && (
+        <picture className="absolute inset-0 w-full h-full">
+          {mobileImage && mobileImage !== desktopImage && (
+            <source media="(max-width: 767px)" srcSet={mobileImage} />
+          )}
+          <img 
+            src={desktopImage} 
+            alt="" 
+            className="w-full h-full object-cover"
+          />
+        </picture>
+      )}
+      {desktopImage && (
         <div 
           className="absolute inset-0 bg-black" 
           style={{ opacity: overlayOpacity / 100 }} 
@@ -598,11 +606,9 @@ function BannerBlock({
     md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
   };
 
-  // Determine which image to use based on viewport
-  const isMobile = context?.viewport === 'mobile';
-  const effectiveImage = isMobile 
-    ? (imageMobile || imageDesktop || imageUrl) 
-    : (imageDesktop || imageUrl);
+  // Use actual images with <picture> for true responsive
+  const desktopImage = imageDesktop || imageUrl;
+  const mobileImage = imageMobile || desktopImage;
 
   const content = (
     <div 
@@ -614,16 +620,21 @@ function BannerBlock({
         boxShadow: shadowMap[shadow] || 'none',
       }}
     >
-      {effectiveImage ? (
-        <img 
-          src={effectiveImage} 
-          alt={altText || 'Banner'} 
-          className="absolute inset-0 w-full h-full" 
-          style={{
-            objectFit: objectFit || 'cover',
-            objectPosition: objectPosition || 'center',
-          }}
-        />
+      {desktopImage ? (
+        <picture className="absolute inset-0 w-full h-full">
+          {mobileImage && mobileImage !== desktopImage && (
+            <source media="(max-width: 767px)" srcSet={mobileImage} />
+          )}
+          <img 
+            src={desktopImage} 
+            alt={altText || 'Banner'} 
+            className="w-full h-full" 
+            style={{
+              objectFit: objectFit || 'cover',
+              objectPosition: objectPosition || 'center',
+            }}
+          />
+        </picture>
       ) : (
         <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground">
           Banner Image

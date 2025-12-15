@@ -29,6 +29,7 @@ export interface BlockPropsSchema {
     min?: number;
     max?: number;
     itemType?: 'string' | 'category'; // For array types
+    helpText?: string; // Help text / recommended sizes hint
   };
 }
 

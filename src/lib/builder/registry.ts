@@ -623,11 +623,13 @@ const blockDefinitions: BlockDefinition[] = [
       imageDesktop: {
         type: 'image',
         label: 'Imagem Desktop',
+        helpText: 'Recomendado: 1920×700px (proporção ~16:6)',
       },
       imageMobile: {
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'Opcional - usa Desktop se vazio',
+        helpText: 'Recomendado: 1080×1350px (proporção 4:5)',
       },
       backgroundColor: {
         type: 'color',
@@ -718,11 +720,13 @@ const blockDefinitions: BlockDefinition[] = [
       imageDesktop: {
         type: 'image',
         label: 'Imagem Desktop',
+        helpText: 'Recomendado: 1200×500px (proporção 16:9)',
       },
       imageMobile: {
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'Opcional - usa Desktop se vazio',
+        helpText: 'Recomendado: 1080×1350px (proporção 4:5)',
       },
       altText: {
         type: 'string',
@@ -1725,11 +1729,13 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'image',
         label: 'Imagem Desktop',
         placeholder: 'URL da imagem desktop',
+        helpText: 'Recomendado: 600×400px (proporção 3:2)',
       },
       imageMobile: {
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'URL da imagem mobile (opcional)',
+        helpText: 'Recomendado: 400×500px (proporção 4:5)',
       },
       productIds: {
         type: 'textarea',
@@ -1892,11 +1898,13 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'image',
         label: 'Imagem Desktop',
         placeholder: 'URL da imagem desktop',
+        helpText: 'Recomendado: 800×600px (proporção 4:3)',
       },
       imageMobile: {
         type: 'image',
         label: 'Imagem Mobile',
         placeholder: 'URL da imagem mobile (opcional)',
+        helpText: 'Recomendado: 600×800px (proporção 3:4)',
       },
       imagePosition: {
         type: 'select',

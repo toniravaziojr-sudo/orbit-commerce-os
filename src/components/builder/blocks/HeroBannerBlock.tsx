@@ -72,23 +72,27 @@ export function HeroBannerBlock({
   }
 
   const currentSlide = slides[currentIndex];
-  const imageUrl = isMobile && currentSlide?.imageMobile 
-    ? currentSlide.imageMobile 
-    : currentSlide?.imageDesktop;
+  const desktopImage = currentSlide?.imageDesktop;
+  const mobileImage = currentSlide?.imageMobile || desktopImage;
 
   const content = (
     <div className={cn(
       'relative overflow-hidden',
       bannerWidth === 'full' ? 'w-full' : 'max-w-7xl mx-auto'
     )}>
-      {/* Banner Image */}
+      {/* Banner Image - Uses <picture> for true responsive behavior */}
       <div className="relative aspect-[21/9] md:aspect-[21/7]">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
-            className="w-full h-full object-cover"
-          />
+        {desktopImage ? (
+          <picture>
+            {mobileImage && mobileImage !== desktopImage && (
+              <source media="(max-width: 767px)" srcSet={mobileImage} />
+            )}
+            <img
+              src={desktopImage}
+              alt={currentSlide?.altText || `Banner ${currentIndex + 1}`}
+              className="w-full h-full object-cover"
+            />
+          </picture>
         ) : (
           <div className="w-full h-full bg-muted/30 flex items-center justify-center">
             <ImageIcon className="h-12 w-12 text-muted-foreground/50" />
