@@ -15,7 +15,7 @@ export default function StorefrontCategory() {
   const [searchParams] = useSearchParams();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { category, products, isLoading: categoryLoading } = usePublicCategory(tenantSlug || '', categorySlug || '');
   
   // Use preview hook if in preview mode, otherwise use public hook
@@ -36,7 +36,7 @@ export default function StorefrontCategory() {
   }
 
   // Build context for block rendering with category data
-  const context: BlockRenderContext = {
+  const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     settings: {
@@ -47,17 +47,24 @@ export default function StorefrontCategory() {
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
       store_description: storeSettings?.store_description || undefined,
-    },
+      contact_phone: storeSettings?.contact_phone,
+      contact_email: storeSettings?.contact_email,
+      tenant_id: storeSettings?.tenant_id,
+    } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
       label: item.label,
       url: item.url || undefined,
-    })),
+      item_type: item.item_type,
+      ref_id: item.ref_id || undefined,
+      sort_order: item.sort_order,
+    })) as any,
     footerMenu: footerMenu?.items?.map(item => ({
       id: item.id,
       label: item.label,
       url: item.url || undefined,
     })),
+    categories: allCategories?.map(c => ({ id: c.id, slug: c.slug })),
     // Category-specific context
     category: category ? {
       id: category.id,
