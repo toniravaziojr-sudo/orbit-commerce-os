@@ -44,19 +44,24 @@ export function FeaturedProductsBlock({
       ? (productIds as string).split(/[,\n]/).map(id => id.trim()).filter(Boolean)
       : [];
 
+  // Check if categoryId is valid (not empty, not "_auto")
+  const validCategoryId = categoryId && categoryId !== '_auto' && categoryId.trim() !== '';
+
   // Determine source based on props
   const effectiveSource = source === 'manual' && parsedProductIds.length > 0 
     ? 'all' 
-    : source === 'category' && categoryId 
+    : source === 'category' && validCategoryId 
       ? 'category' 
       : source === 'featured' 
         ? 'featured' 
-        : 'newest';
+        : source === 'category' && !validCategoryId
+          ? 'none' // Category mode but no category selected
+          : 'newest';
 
   const { products, isLoading } = useBuilderProducts({
     tenantSlug,
-    source: effectiveSource as any,
-    categoryId: source === 'category' ? categoryId : undefined,
+    source: effectiveSource === 'none' ? 'newest' : effectiveSource as any,
+    categoryId: source === 'category' && validCategoryId ? categoryId : undefined,
     productIds: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds : undefined,
     limit: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds.length : limit,
   });
@@ -86,15 +91,26 @@ export function FeaturedProductsBlock({
     );
   }
 
+  // Show message when category mode is selected but no category chosen
+  if (source === 'category' && !validCategoryId) {
+    return (
+      <div className="py-8 text-center text-muted-foreground">
+        <p className="text-sm">Selecione uma categoria nas propriedades do bloco</p>
+      </div>
+    );
+  }
+
   if (!products?.length) {
     return (
       <div className="py-8 text-center text-muted-foreground">
         <p className="text-sm">Nenhum produto encontrado</p>
         {isEditing && (
           <p className="text-xs mt-1">
-            {parsedProductIds.length > 0
-              ? 'Os IDs informados não correspondem a produtos ativos'
-              : 'Adicione produtos na seção de Produtos do admin'}
+            {source === 'category'
+              ? 'Esta categoria não possui produtos'
+              : parsedProductIds.length > 0
+                ? 'Os IDs informados não correspondem a produtos ativos'
+                : 'Adicione produtos na seção de Produtos do admin'}
           </p>
         )}
       </div>

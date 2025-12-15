@@ -88,7 +88,6 @@ export function CategorySelector({ value, onChange, placeholder = 'Selecione uma
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-60">
-        <SelectItem value="_auto">Automático (primeira ativa)</SelectItem>
         {categories?.map((category) => (
           <SelectItem key={category.id} value={category.id}>
             {category.name}
