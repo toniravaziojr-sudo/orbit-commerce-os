@@ -465,7 +465,9 @@ function HeroBlock({
   subtitle, 
   buttonText, 
   buttonUrl, 
-  backgroundImage, 
+  imageDesktop,
+  imageMobile,
+  backgroundImage, // Legacy prop support
   backgroundColor, 
   textColor, 
   buttonColor, 
@@ -474,7 +476,8 @@ function HeroBlock({
   buttonHoverTextColor,
   height = 'md', 
   alignment = 'center', 
-  overlayOpacity = 50 
+  overlayOpacity = 50,
+  context,
 }: any) {
   const alignClass = {
     left: 'items-start text-left',
@@ -498,18 +501,24 @@ function HeroBlock({
   const hoverBg = buttonHoverBgColor || baseBgColor;
   const hoverText = buttonHoverTextColor || baseTextColor;
 
+  // Determine which image to use based on viewport
+  const isMobile = context?.viewport === 'mobile';
+  const effectiveImage = isMobile 
+    ? (imageMobile || imageDesktop || backgroundImage) 
+    : (imageDesktop || backgroundImage);
+
   return (
     <div 
       className="relative flex items-center justify-center"
       style={{ 
-        backgroundColor: backgroundImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
-        backgroundImage: backgroundImage ? `url(${backgroundImage})` : undefined,
+        backgroundColor: effectiveImage ? undefined : (backgroundColor || 'hsl(var(--primary))'),
+        backgroundImage: effectiveImage ? `url(${effectiveImage})` : undefined,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         minHeight: heightMap[height] || '400px',
       }}
     >
-      {backgroundImage && (
+      {effectiveImage && (
         <div 
           className="absolute inset-0 bg-black" 
           style={{ opacity: overlayOpacity / 100 }} 
@@ -556,7 +565,9 @@ function HeroBlock({
 }
 
 function BannerBlock({ 
-  imageUrl, 
+  imageDesktop,
+  imageMobile,
+  imageUrl, // Legacy prop support
   altText, 
   linkUrl, 
   height, 
@@ -565,6 +576,7 @@ function BannerBlock({
   objectPosition = 'center',
   rounded = 'md',
   shadow = 'none',
+  context,
 }: any) {
   const aspectRatioMap: Record<string, string> = {
     '16:9': '56.25%',
@@ -586,6 +598,12 @@ function BannerBlock({
     md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
   };
 
+  // Determine which image to use based on viewport
+  const isMobile = context?.viewport === 'mobile';
+  const effectiveImage = isMobile 
+    ? (imageMobile || imageDesktop || imageUrl) 
+    : (imageDesktop || imageUrl);
+
   const content = (
     <div 
       className="w-full bg-muted overflow-hidden relative"
@@ -596,9 +614,9 @@ function BannerBlock({
         boxShadow: shadowMap[shadow] || 'none',
       }}
     >
-      {imageUrl ? (
+      {effectiveImage ? (
         <img 
-          src={imageUrl} 
+          src={effectiveImage} 
           alt={altText || 'Banner'} 
           className="absolute inset-0 w-full h-full" 
           style={{

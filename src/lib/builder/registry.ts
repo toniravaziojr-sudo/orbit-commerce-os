@@ -595,7 +595,8 @@ const blockDefinitions: BlockDefinition[] = [
     defaultProps: {
       title: 'Bem-vindo à Nossa Loja',
       subtitle: 'Descubra produtos incríveis',
-      backgroundImage: '',
+      imageDesktop: '',
+      imageMobile: '',
       backgroundColor: '#6366f1',
       textColor: '#ffffff',
       buttonText: 'Ver Produtos',
@@ -619,9 +620,14 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Subtítulo',
         defaultValue: 'Descubra produtos incríveis',
       },
-      backgroundImage: {
+      imageDesktop: {
         type: 'image',
-        label: 'Imagem de Fundo',
+        label: 'Imagem Desktop',
+      },
+      imageMobile: {
+        type: 'image',
+        label: 'Imagem Mobile',
+        placeholder: 'Opcional - usa Desktop se vazio',
       },
       backgroundColor: {
         type: 'color',
@@ -687,6 +693,109 @@ const blockDefinitions: BlockDefinition[] = [
         defaultValue: 50,
         min: 0,
         max: 100,
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'Banner',
+    label: 'Banner',
+    category: 'media',
+    icon: 'Megaphone',
+    defaultProps: {
+      imageDesktop: '',
+      imageMobile: '',
+      altText: 'Banner promocional',
+      linkUrl: '',
+      aspectRatio: '16:9',
+      height: '',
+      objectFit: 'cover',
+      objectPosition: 'center',
+      rounded: 'md',
+      shadow: 'none',
+    },
+    propsSchema: {
+      imageDesktop: {
+        type: 'image',
+        label: 'Imagem Desktop',
+      },
+      imageMobile: {
+        type: 'image',
+        label: 'Imagem Mobile',
+        placeholder: 'Opcional - usa Desktop se vazio',
+      },
+      altText: {
+        type: 'string',
+        label: 'Texto Alternativo',
+        defaultValue: 'Banner promocional',
+      },
+      linkUrl: {
+        type: 'string',
+        label: 'Link',
+        placeholder: 'URL de destino',
+      },
+      aspectRatio: {
+        type: 'select',
+        label: 'Proporção',
+        defaultValue: '16:9',
+        options: [
+          { label: '16:9', value: '16:9' },
+          { label: '4:3', value: '4:3' },
+          { label: '1:1', value: '1:1' },
+          { label: '21:9', value: '21:9' },
+        ],
+      },
+      height: {
+        type: 'select',
+        label: 'Altura Fixa',
+        defaultValue: '',
+        options: [
+          { label: 'Usar Proporção', value: '' },
+          { label: '200px', value: '200px' },
+          { label: '300px', value: '300px' },
+          { label: '400px', value: '400px' },
+          { label: '50vh', value: '50vh' },
+        ],
+      },
+      objectFit: {
+        type: 'select',
+        label: 'Enquadramento',
+        defaultValue: 'cover',
+        options: [
+          { label: 'Cobrir', value: 'cover' },
+          { label: 'Conter', value: 'contain' },
+        ],
+      },
+      objectPosition: {
+        type: 'select',
+        label: 'Posição',
+        defaultValue: 'center',
+        options: [
+          { label: 'Centro', value: 'center' },
+          { label: 'Topo', value: 'top' },
+          { label: 'Baixo', value: 'bottom' },
+        ],
+      },
+      rounded: {
+        type: 'select',
+        label: 'Bordas',
+        defaultValue: 'md',
+        options: [
+          { label: 'Nenhum', value: 'none' },
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+        ],
+      },
+      shadow: {
+        type: 'select',
+        label: 'Sombra',
+        defaultValue: 'none',
+        options: [
+          { label: 'Nenhuma', value: 'none' },
+          { label: 'Pequena', value: 'sm' },
+          { label: 'Média', value: 'md' },
+        ],
       },
     },
     canHaveChildren: false,
