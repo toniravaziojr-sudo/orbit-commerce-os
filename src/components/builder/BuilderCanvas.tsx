@@ -97,7 +97,7 @@ export function BuilderCanvas({
           >
             <BlockRenderer
               node={content}
-              context={context}
+              context={{ ...context, viewport }}
               isSelected={selectedBlockId === content.id}
               isEditing={!isPreviewMode}
               onSelect={onSelectBlock}
