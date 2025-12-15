@@ -296,11 +296,16 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
 
       case 'image':
         return (
-          <ImageUploader
-            value={(value as string) || ''}
-            onChange={(url) => onChange(url)}
-            placeholder="Arraste uma imagem ou clique para selecionar"
-          />
+          <div className="space-y-1.5">
+            <ImageUploader
+              value={(value as string) || ''}
+              onChange={(url) => onChange(url)}
+              placeholder="Arraste uma imagem ou clique para selecionar"
+            />
+            {schema.helpText && (
+              <p className="text-xs text-muted-foreground">{schema.helpText}</p>
+            )}
+          </div>
         );
 
       case 'richtext':
