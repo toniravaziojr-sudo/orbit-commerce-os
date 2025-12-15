@@ -36,6 +36,9 @@ export function HeroBannerBlock({
   const [currentIndex, setCurrentIndex] = useState(0);
   const realIsMobile = useIsMobile();
   
+  // Defensive: ensure slides is always an array
+  const safeSlides = Array.isArray(slides) ? slides : [];
+  
   // Builder mode: use context.viewport state; Storefront: use real viewport
   const isBuilderMode = context?.viewport !== undefined;
   const isMobile = isBuilderMode 
@@ -44,25 +47,32 @@ export function HeroBannerBlock({
 
   // Autoplay
   useEffect(() => {
-    if (slides.length <= 1 || !autoplaySeconds) return;
+    if (safeSlides.length <= 1 || !autoplaySeconds) return;
     
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % slides.length);
+      setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
     }, autoplaySeconds * 1000);
 
     return () => clearInterval(interval);
-  }, [slides.length, autoplaySeconds]);
+  }, [safeSlides.length, autoplaySeconds]);
+
+  // Reset index if it's out of bounds
+  useEffect(() => {
+    if (currentIndex >= safeSlides.length && safeSlides.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [safeSlides.length, currentIndex]);
 
   const goToPrev = useCallback(() => {
-    setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
-  }, [slides.length]);
+    setCurrentIndex((prev) => (prev - 1 + safeSlides.length) % safeSlides.length);
+  }, [safeSlides.length]);
 
   const goToNext = useCallback(() => {
-    setCurrentIndex((prev) => (prev + 1) % slides.length);
-  }, [slides.length]);
+    setCurrentIndex((prev) => (prev + 1) % safeSlides.length);
+  }, [safeSlides.length]);
 
   // Empty state
-  if (slides.length === 0) {
+  if (safeSlides.length === 0) {
     return (
       <div className={cn(
         'relative bg-muted/30 flex items-center justify-center',
@@ -77,7 +87,8 @@ export function HeroBannerBlock({
     );
   }
 
-  const currentSlide = slides[currentIndex];
+  // Safe access to current slide
+  const currentSlide = safeSlides[currentIndex] || safeSlides[0];
   const desktopImage = currentSlide?.imageDesktop;
   const mobileImage = currentSlide?.imageMobile || desktopImage;
 
@@ -117,7 +128,7 @@ export function HeroBannerBlock({
       </div>
 
       {/* Navigation Arrows */}
-      {showArrows && slides.length > 1 && (
+      {showArrows && safeSlides.length > 1 && (
         <>
           <button
             onClick={goToPrev}
@@ -137,9 +148,9 @@ export function HeroBannerBlock({
       )}
 
       {/* Dots */}
-      {showDots && slides.length > 1 && (
+      {showDots && safeSlides.length > 1 && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-          {slides.map((_, idx) => (
+          {safeSlides.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrentIndex(idx)}

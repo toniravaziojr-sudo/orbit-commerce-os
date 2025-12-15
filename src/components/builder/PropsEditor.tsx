@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
+import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
 import {
@@ -194,6 +195,15 @@ function PropField({ name, schema, value, onChange, blockType }: PropFieldProps)
         return (
           <TestimonialsEditor
             items={(value as { name: string; content: string; role?: string; avatar?: string; rating?: number }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // HeroBanner slides
+      if (blockType === 'HeroBanner' && name === 'slides') {
+        return (
+          <BannerSlidesEditor
+            slides={(value as BannerSlide[]) || []}
             onChange={onChange}
           />
         );
