@@ -838,18 +838,19 @@ function HeaderBlock({
 }
 
 function FooterBlock({ 
-  footerBgColor,
-  footerTextColor,
-  noticeEnabled,
-  noticeText,
-  noticeBgColor,
-  noticeTextColor,
   context, 
-  isEditing 
+  isEditing,
+  block
 }: any) {
-  // FooterBlock now renders the unified StorefrontFooterContent which uses store_settings
-  // Props like footerBgColor can be used for overrides in the future
-  return <StorefrontFooterContent context={context} isEditing={isEditing} />;
+  // FooterBlock now renders the unified StorefrontFooterContent
+  // Passes the block as footerConfig for priority resolution: config > store_settings
+  return (
+    <StorefrontFooterContent 
+      tenantSlug={context?.tenantSlug || ''} 
+      footerConfig={block}
+      isEditing={isEditing} 
+    />
+  );
 }
 
 // ========== CONTENT BLOCKS ==========
