@@ -501,9 +501,13 @@ function HeroBlock({
   const hoverBg = buttonHoverBgColor || baseBgColor;
   const hoverText = buttonHoverTextColor || baseTextColor;
 
-  // Use actual images for responsive display with <picture>
+  // Use actual images for responsive display
   const desktopImage = imageDesktop || backgroundImage;
   const mobileImage = imageMobile || desktopImage;
+  
+  // Builder mode: use context.viewport state; Storefront: use <picture>
+  const isBuilderMode = context?.viewport !== undefined;
+  const isMobile = context?.viewport === 'mobile';
 
   return (
     <div 
@@ -513,18 +517,28 @@ function HeroBlock({
         minHeight: heightMap[height] || '400px',
       }}
     >
-      {/* Background Image using <picture> for true responsive */}
+      {/* Background Image */}
       {desktopImage && (
-        <picture className="absolute inset-0 w-full h-full">
-          {mobileImage && mobileImage !== desktopImage && (
-            <source media="(max-width: 767px)" srcSet={mobileImage} />
-          )}
+        isBuilderMode ? (
+          // Builder mode: select image based on viewport state
           <img 
-            src={desktopImage} 
+            src={isMobile && mobileImage ? mobileImage : desktopImage}
             alt="" 
-            className="w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
           />
-        </picture>
+        ) : (
+          // Storefront mode: use <picture> for real responsive
+          <picture className="absolute inset-0 w-full h-full">
+            {mobileImage && mobileImage !== desktopImage && (
+              <source media="(max-width: 767px)" srcSet={mobileImage} />
+            )}
+            <img 
+              src={desktopImage} 
+              alt="" 
+              className="w-full h-full object-cover"
+            />
+          </picture>
+        )
       )}
       {desktopImage && (
         <div 
@@ -606,9 +620,13 @@ function BannerBlock({
     md: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
   };
 
-  // Use actual images with <picture> for true responsive
+  // Use actual images
   const desktopImage = imageDesktop || imageUrl;
   const mobileImage = imageMobile || desktopImage;
+  
+  // Builder mode: use context.viewport state; Storefront: use <picture>
+  const isBuilderMode = context?.viewport !== undefined;
+  const isMobile = context?.viewport === 'mobile';
 
   const content = (
     <div 
@@ -621,20 +639,34 @@ function BannerBlock({
       }}
     >
       {desktopImage ? (
-        <picture className="absolute inset-0 w-full h-full">
-          {mobileImage && mobileImage !== desktopImage && (
-            <source media="(max-width: 767px)" srcSet={mobileImage} />
-          )}
+        isBuilderMode ? (
+          // Builder mode: select image based on viewport state
           <img 
-            src={desktopImage} 
+            src={isMobile && mobileImage ? mobileImage : desktopImage}
             alt={altText || 'Banner'} 
-            className="w-full h-full" 
+            className="absolute inset-0 w-full h-full" 
             style={{
               objectFit: objectFit || 'cover',
               objectPosition: objectPosition || 'center',
             }}
           />
-        </picture>
+        ) : (
+          // Storefront mode: use <picture> for real responsive
+          <picture className="absolute inset-0 w-full h-full">
+            {mobileImage && mobileImage !== desktopImage && (
+              <source media="(max-width: 767px)" srcSet={mobileImage} />
+            )}
+            <img 
+              src={desktopImage} 
+              alt={altText || 'Banner'} 
+              className="w-full h-full" 
+              style={{
+                objectFit: objectFit || 'cover',
+                objectPosition: objectPosition || 'center',
+              }}
+            />
+          </picture>
+        )
       ) : (
         <div className="absolute inset-0 w-full h-full flex items-center justify-center text-muted-foreground">
           Banner Image
