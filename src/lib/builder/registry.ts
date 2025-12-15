@@ -524,19 +524,52 @@ const blockDefinitions: BlockDefinition[] = [
     category: 'header-footer',
     icon: 'PanelBottom',
     defaultProps: {
-      menuId: '',
+      // Seções (toggles)
+      showLogo: true,
+      showSac: true,
       showSocial: true,
-      copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+      showLegal: true,
+      // Conteúdo (override opcional)
+      sacTitle: 'Atendimento (SAC)',
+      legalTextOverride: '',
       // Cores do rodapé
       footerBgColor: '',
       footerTextColor: '',
-      // Barra Superior do Rodapé (Aviso Geral)
-      noticeEnabled: false,
-      noticeText: '',
-      noticeBgColor: '#1e40af',
-      noticeTextColor: '#ffffff',
     },
     propsSchema: {
+      // === SEÇÕES ===
+      showLogo: {
+        type: 'boolean',
+        label: 'Mostrar Logo',
+        defaultValue: true,
+      },
+      showSac: {
+        type: 'boolean',
+        label: 'Mostrar Atendimento (SAC)',
+        defaultValue: true,
+      },
+      showSocial: {
+        type: 'boolean',
+        label: 'Mostrar Redes Sociais',
+        defaultValue: true,
+      },
+      showLegal: {
+        type: 'boolean',
+        label: 'Mostrar Informações Legais',
+        defaultValue: true,
+      },
+      // === CONTEÚDO ===
+      sacTitle: {
+        type: 'string',
+        label: 'Título do SAC',
+        defaultValue: 'Atendimento (SAC)',
+        placeholder: 'Ex: Atendimento ao Cliente',
+      },
+      legalTextOverride: {
+        type: 'string',
+        label: 'Texto Legal Personalizado',
+        placeholder: 'Deixe vazio para usar dados da loja (CNPJ, endereço, etc.)',
+      },
       // === CORES DO RODAPÉ ===
       footerBgColor: {
         type: 'color',
@@ -547,42 +580,6 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'color',
         label: 'Cor do Texto',
         placeholder: 'Padrão do tema',
-      },
-      menuId: {
-        type: 'menu',
-        label: 'Menu',
-        placeholder: 'Selecione um menu',
-      },
-      showSocial: {
-        type: 'boolean',
-        label: 'Mostrar Redes Sociais',
-        defaultValue: true,
-      },
-      copyrightText: {
-        type: 'string',
-        label: 'Texto de Copyright',
-        defaultValue: '© 2024 Minha Loja. Todos os direitos reservados.',
-      },
-      // === BARRA SUPERIOR DO RODAPÉ (AVISO GERAL) ===
-      noticeEnabled: {
-        type: 'boolean',
-        label: 'Exibir Barra Superior',
-        defaultValue: false,
-      },
-      noticeText: {
-        type: 'string',
-        label: 'Texto',
-        placeholder: 'Ex: Inscreva-se e receba 10% de desconto!',
-      },
-      noticeBgColor: {
-        type: 'color',
-        label: 'Cor de Fundo',
-        defaultValue: '#1e40af',
-      },
-      noticeTextColor: {
-        type: 'color',
-        label: 'Cor do Texto',
-        defaultValue: '#ffffff',
       },
     },
     canHaveChildren: false,
