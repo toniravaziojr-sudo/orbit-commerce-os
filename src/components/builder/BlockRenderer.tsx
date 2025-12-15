@@ -398,12 +398,15 @@ function HeaderBlock({
     social_instagram: settings.social_instagram,
   } : null;
   
+  // headerMenu comes as array directly from context (not { items: [...] })
+  const menuItems = Array.isArray(headerMenu) ? headerMenu : (headerMenu?.items || []);
+  
   return (
     <StorefrontHeaderContent 
       tenantSlug={tenantSlug || ''} 
       headerConfig={headerConfig}
       storeSettings={storeSettings}
-      menuItems={headerMenu?.items || []}
+      menuItems={menuItems}
       categories={categories || []}
       pagesData={pagesData || []}
       totalCartItems={0}

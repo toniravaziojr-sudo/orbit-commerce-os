@@ -153,7 +153,7 @@ export default function StorefrontLandingPage() {
   const [searchParams] = useSearchParams();
   const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { data: pageData, isLoading: pageLoading, error } = usePublicLandingPage(tenantSlug || '', pageSlug || '', isPreviewMode);
 
   // Loading state
@@ -198,7 +198,7 @@ export default function StorefrontLandingPage() {
   }
 
   // Build context for block rendering
-  const context: BlockRenderContext = {
+  const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
     settings: {
@@ -209,17 +209,24 @@ export default function StorefrontLandingPage() {
       social_facebook: storeSettings?.social_facebook || undefined,
       social_whatsapp: storeSettings?.social_whatsapp || undefined,
       store_description: storeSettings?.store_description || undefined,
-    },
+      contact_phone: storeSettings?.contact_phone,
+      contact_email: storeSettings?.contact_email,
+      tenant_id: storeSettings?.tenant_id,
+    } as any,
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
       label: item.label,
       url: item.url || undefined,
-    })),
+      item_type: item.item_type,
+      ref_id: item.ref_id || undefined,
+      sort_order: item.sort_order,
+    })) as any,
     footerMenu: footerMenu?.items?.map(item => ({
       id: item.id,
       label: item.label,
       url: item.url || undefined,
     })),
+    categories: categories?.map(c => ({ id: c.id, slug: c.slug })),
     page: {
       title: pageData.pageTitle || '',
       slug: pageSlug || '',

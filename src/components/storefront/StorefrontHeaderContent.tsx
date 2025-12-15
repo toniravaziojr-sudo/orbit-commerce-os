@@ -3,7 +3,7 @@ import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook,
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl, getStoreBaseUrl, getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
@@ -278,9 +278,9 @@ export function StorefrontHeaderContent({
                   <Menu className="h-5 w-5" style={iconStyle} />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="w-[300px] z-[100]">
+              <SheetContent side="left" className="w-[300px] z-[100]" aria-describedby={undefined}>
+                <SheetTitle className="sr-only">Menu de navegação</SheetTitle>
                 <div className="flex flex-col gap-4 mt-8">
-                  {/* Mobile Search */}
                   {showSearch && (
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
