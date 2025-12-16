@@ -15,7 +15,7 @@ interface BannerProductsBlockProps {
   imageDesktop?: string;
   imageMobile?: string;
   source?: 'manual' | 'category';
-  productIds?: string[] | string; // Array (new) or string (legacy)
+  productIds?: string[] | string;
   categoryId?: string;
   limit?: number;
   showCta?: boolean;
@@ -40,25 +40,21 @@ export function BannerProductsBlock({
   context,
   isEditing = false,
 }: BannerProductsBlockProps) {
-  // Hook must be called unconditionally (React rules)
   const isMobileDevice = useIsMobile();
   
-  // Determine mobile state: editor viewport override takes priority
   const isMobile = context?.viewport === 'mobile' || 
     (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && isMobileDevice);
   const imageUrl = isMobile && imageMobile ? imageMobile : imageDesktop;
 
-  // Parse product IDs if provided - support both array and string (legacy)
+  // Parse product IDs
   const productIdArray = Array.isArray(productIds)
     ? productIds.filter(Boolean)
     : typeof productIds === 'string' && productIds.trim()
       ? productIds.split(/[\n,]/).map(id => id.trim()).filter(Boolean)
       : [];
 
-  // Check if categoryId is valid
   const validCategoryId = categoryId && categoryId.trim() !== '';
 
-  // Determine actual source for the query
   const effectiveSource = source === 'manual' && productIdArray.length > 0
     ? 'all'
     : source === 'category' && validCategoryId
@@ -73,9 +69,20 @@ export function BannerProductsBlock({
     limit,
   });
 
-  // Show empty state when source is configured but no data available yet
   const showEmptyState = (source === 'manual' && productIdArray.length === 0) ||
     (source === 'category' && !validCategoryId);
+
+  // Get actual products to display
+  const displayProducts = products.slice(0, limit);
+  const productCount = displayProducts.length;
+
+  // Determine grid class based on product count for proper filling
+  const getProductGridClass = () => {
+    if (productCount === 1) return 'grid-cols-1 grid-rows-1';
+    if (productCount === 2) return 'grid-cols-1 grid-rows-2';
+    if (productCount === 3) return 'grid-cols-2 grid-rows-2';
+    return 'grid-cols-2 grid-rows-2'; // 4+
+  };
 
   if (isLoading) {
     return (
@@ -105,7 +112,7 @@ export function BannerProductsBlock({
           'grid gap-4',
           isMobile ? 'grid-cols-1' : 'grid-cols-2'
         )}>
-          {/* Banner */}
+          {/* Banner - aspect ratio drives the height */}
           <div className="aspect-[4/5] bg-muted/30 rounded-lg overflow-hidden">
             {imageUrl ? (
               <img
@@ -123,26 +130,42 @@ export function BannerProductsBlock({
             )}
           </div>
 
-          {/* Products Grid */}
+          {/* Products Grid - matches banner height */}
           <div className={cn(
-            'grid gap-4',
-            isMobile ? 'grid-cols-2' : 'grid-cols-2'
+            'grid gap-3',
+            isMobile ? 'grid-cols-2' : getProductGridClass(),
+            !isMobile && 'aspect-[4/5]' // Match banner aspect ratio on desktop
           )}>
             {showEmptyState ? (
-              <div className="col-span-2 flex items-center justify-center py-8">
+              <div className="col-span-2 row-span-2 flex items-center justify-center">
                 <p className="text-muted-foreground text-sm text-center">
                   {source === 'manual' 
                     ? 'Selecione produtos nas propriedades do bloco'
                     : 'Selecione uma categoria nas propriedades do bloco'}
                 </p>
               </div>
-            ) : products.length > 0 ? (
-              products.slice(0, limit).map((product) => {
+            ) : productCount > 0 ? (
+              displayProducts.map((product, index) => {
                 const productImageUrl = getProductImage(product);
                 const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
+                
+                // For 3 products, make the 3rd span full width
+                const isLastOfThree = productCount === 3 && index === 2;
+                
                 return (
-                  <div key={product.id} className="group">
-                    <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden mb-2 relative">
+                  <div 
+                    key={product.id} 
+                    className={cn(
+                      'group flex flex-col bg-card rounded-lg overflow-hidden border',
+                      isLastOfThree && 'col-span-2',
+                      // Single product takes all space
+                      productCount === 1 && 'row-span-1',
+                      // Two products each take half
+                      productCount === 2 && 'row-span-1'
+                    )}
+                  >
+                    {/* Product image fills available space */}
+                    <div className="flex-1 min-h-0 bg-muted/30 overflow-hidden relative">
                       <img
                         src={productImageUrl}
                         alt={product.name}
@@ -155,30 +178,31 @@ export function BannerProductsBlock({
                         </span>
                       )}
                     </div>
-                    <h3 className="font-medium text-sm line-clamp-2 text-primary hover:underline">
-                      {isEditing ? (
-                        <span className="cursor-default">{product.name}</span>
-                      ) : (
-                        <Link to={productUrl}>
-                          {product.name}
-                        </Link>
-                      )}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {product.compare_at_price && product.compare_at_price > product.price && (
-                        <span className="text-xs text-muted-foreground line-through">
-                          {formatProductPrice(product.compare_at_price)}
+                    {/* Product info - fixed height */}
+                    <div className="p-2 flex-shrink-0">
+                      <h3 className="font-medium text-xs line-clamp-1 text-primary hover:underline">
+                        {isEditing ? (
+                          <span className="cursor-default">{product.name}</span>
+                        ) : (
+                          <Link to={productUrl}>{product.name}</Link>
+                        )}
+                      </h3>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        {product.compare_at_price && product.compare_at_price > product.price && (
+                          <span className="text-[10px] text-muted-foreground line-through">
+                            {formatProductPrice(product.compare_at_price)}
+                          </span>
+                        )}
+                        <span className="font-semibold text-xs">
+                          {formatProductPrice(product.price)}
                         </span>
-                      )}
-                      <span className="font-semibold">
-                        {formatProductPrice(product.price)}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 );
               })
             ) : (
-              <div className="col-span-2 flex items-center justify-center py-8">
+              <div className="col-span-2 row-span-2 flex items-center justify-center">
                 <p className="text-muted-foreground text-sm">
                   {source === 'category' 
                     ? 'Nenhum produto nesta categoria' 

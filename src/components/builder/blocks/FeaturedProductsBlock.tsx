@@ -1,5 +1,5 @@
 // =============================================
-// FEATURED PRODUCTS BLOCK - Specific products or fallback to recent
+// FEATURED PRODUCTS BLOCK - Manual product selection only
 // =============================================
 
 import { BlockRenderContext } from '@/lib/builder/types';
@@ -10,9 +10,7 @@ import { useBuilderProducts, getProductImage, formatProductPrice } from '@/hooks
 
 interface FeaturedProductsBlockProps {
   title?: string;
-  source?: 'manual' | 'category' | 'featured' | 'newest';
   productIds?: string[] | string; // Array (new) or string (legacy)
-  categoryId?: string;
   limit?: number;
   columns?: number;
   showPrice?: boolean;
@@ -24,9 +22,7 @@ interface FeaturedProductsBlockProps {
 
 export function FeaturedProductsBlock({
   title,
-  source = 'manual',
   productIds = [],
-  categoryId,
   limit = 4,
   columns = 4,
   showPrice = true,
@@ -44,30 +40,13 @@ export function FeaturedProductsBlock({
       ? (productIds as string).split(/[,\n]/).map(id => id.trim()).filter(Boolean)
       : [];
 
-  // Check if categoryId is valid (not empty)
-  const validCategoryId = categoryId && categoryId.trim() !== '';
-
-  // Determine effective source for the query
-  const effectiveSource = source === 'manual' && parsedProductIds.length > 0 
-    ? 'all' 
-    : source === 'category' && validCategoryId 
-      ? 'category' 
-      : source === 'featured' 
-        ? 'featured' 
-        : source === 'newest'
-          ? 'newest'
-          : 'newest'; // Default fallback
-
-  // Show empty state message when source needs configuration
-  const needsConfiguration = (source === 'manual' && parsedProductIds.length === 0) ||
-    (source === 'category' && !validCategoryId);
+  const hasProducts = parsedProductIds.length > 0;
 
   const { products, isLoading } = useBuilderProducts({
     tenantSlug,
-    source: needsConfiguration ? 'newest' : effectiveSource,
-    categoryId: source === 'category' && validCategoryId ? categoryId : undefined,
-    productIds: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds : undefined,
-    limit: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds.length : limit,
+    source: hasProducts ? 'all' : 'newest',
+    productIds: hasProducts ? parsedProductIds : undefined,
+    limit: hasProducts ? parsedProductIds.length : limit,
   });
 
   const gridCols = {
@@ -95,15 +74,11 @@ export function FeaturedProductsBlock({
     );
   }
 
-  // Show message when source needs configuration
-  if (needsConfiguration) {
+  // Show message when no products selected
+  if (!hasProducts) {
     return (
       <div className="py-8 text-center text-muted-foreground">
-        <p className="text-sm">
-          {source === 'manual' 
-            ? 'Selecione produtos nas propriedades do bloco'
-            : 'Selecione uma categoria nas propriedades do bloco'}
-        </p>
+        <p className="text-sm">Selecione produtos nas propriedades do bloco</p>
       </div>
     );
   }
@@ -114,11 +89,7 @@ export function FeaturedProductsBlock({
         <p className="text-sm">Nenhum produto encontrado</p>
         {isEditing && (
           <p className="text-xs mt-1">
-            {source === 'category'
-              ? 'Esta categoria não possui produtos'
-              : parsedProductIds.length > 0
-                ? 'Os IDs informados não correspondem a produtos ativos'
-                : 'Adicione produtos na seção de Produtos do admin'}
+            Os IDs informados não correspondem a produtos ativos
           </p>
         )}
       </div>

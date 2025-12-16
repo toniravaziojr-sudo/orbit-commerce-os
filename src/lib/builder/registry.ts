@@ -1159,9 +1159,7 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'Star',
     defaultProps: {
       title: 'Produtos em Destaque',
-      source: 'manual',
       productIds: [],
-      categoryId: '',
       limit: 4,
       columns: 4,
       showPrice: true,
@@ -1174,31 +1172,13 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Título',
         defaultValue: 'Produtos em Destaque',
       },
-      source: {
-        type: 'select',
-        label: 'Fonte dos Produtos',
-        defaultValue: 'manual',
-        options: [
-          { label: 'Selecionados (manual)', value: 'manual' },
-          { label: 'Categoria', value: 'category' },
-          { label: 'Destaques', value: 'featured' },
-          { label: 'Mais recentes', value: 'newest' },
-        ],
-      },
       productIds: {
         type: 'productMultiSelect',
         label: 'Produtos',
-        showWhen: { source: 'manual' },
-      },
-      categoryId: {
-        type: 'category',
-        label: 'Categoria',
-        placeholder: 'Selecione uma categoria',
-        showWhen: { source: 'category' },
       },
       limit: {
         type: 'number',
-        label: 'Limite',
+        label: 'Limite de Produtos',
         defaultValue: 4,
         min: 1,
         max: 12,
