@@ -1,6 +1,22 @@
 // =============================================
 // PUBLIC TEMPLATE RENDERER - Renders published builder content
 // =============================================
+//
+// SLOTS RENDERING ORDER (anti-regression pattern):
+// ================================================
+// This renderer is the ONLY place where slots should be rendered.
+// The fixed order is:
+//
+//   1. Header (from global layout)
+//   2. afterHeaderSlot (e.g., category banner) - context.afterHeaderSlot
+//   3. Content (page blocks from template)
+//   4. afterContentSlot (e.g., related products, reviews) - context.afterContentSlot
+//   5. Footer (from global layout)
+//
+// IMPORTANT: Never insert content by children index in PageBlock or BlockRenderer.
+// Slots must be passed via BlockRenderContext and rendered HERE at fixed positions.
+// This prevents layout regressions (e.g., banner appearing below footer).
+//
 
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';

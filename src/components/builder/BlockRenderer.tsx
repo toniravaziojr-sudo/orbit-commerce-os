@@ -267,6 +267,16 @@ function FallbackBlock({ children }: { children?: React.ReactNode }) {
 
 // ========== LAYOUT BLOCKS ==========
 
+/**
+ * PageBlock - Root container for page content
+ * 
+ * IMPORTANT: This block renders children directly without manipulation.
+ * DO NOT insert content by children index here.
+ * 
+ * For injecting content at specific positions (e.g., after header, before footer),
+ * use slots (afterHeaderSlot, afterContentSlot) passed via BlockRenderContext
+ * and rendered in PublicTemplateRenderer.tsx.
+ */
 function PageBlock({ children, backgroundColor }: any) {
   return (
     <div 

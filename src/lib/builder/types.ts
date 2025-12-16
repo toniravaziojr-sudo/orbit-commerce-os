@@ -133,7 +133,26 @@ export interface StoreSettingsContext {
   store_description?: string;
 }
 
-// Context data passed to blocks during rendering
+/**
+ * Context data passed to blocks during rendering
+ * 
+ * SLOTS ARCHITECTURE (anti-regression pattern):
+ * =============================================
+ * Slots are used to inject content at FIXED positions in the page layout.
+ * They are rendered in PublicTemplateRenderer.tsx in this order:
+ * 
+ *   1. Header
+ *   2. afterHeaderSlot (e.g., category banner)
+ *   3. Content (page blocks)
+ *   4. afterContentSlot (e.g., related products, reviews, buy together)
+ *   5. Footer
+ * 
+ * IMPORTANT: Never insert slot content by children index in PageBlock.
+ * Slots must be rendered at the renderer level (PublicTemplateRenderer),
+ * NOT by manipulating BlockNode.children array positions.
+ * 
+ * This prevents layout regressions where content appears in wrong positions.
+ */
 export interface BlockRenderContext {
   tenantSlug: string;
   isPreview: boolean;
@@ -141,10 +160,18 @@ export interface BlockRenderContext {
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';
   
-  // Slot to render after header (e.g., category banner)
+  /**
+   * Slot rendered immediately after Header, before main content.
+   * Use for: category banners, promotional bars, etc.
+   * Rendered in PublicTemplateRenderer, NOT in PageBlock.
+   */
   afterHeaderSlot?: React.ReactNode;
   
-  // Slot to render after main content (e.g., related products, reviews)
+  /**
+   * Slot rendered after main content, before Footer.
+   * Use for: related products, reviews, buy together sections, etc.
+   * Rendered in PublicTemplateRenderer, NOT in PageBlock.
+   */
   afterContentSlot?: React.ReactNode;
   
   // Store settings
