@@ -35,10 +35,31 @@ export default function StorefrontCategory() {
     );
   }
 
+  // Build category banner component for afterHeaderSlot
+  const bannerDesktop = category?.banner_desktop_url;
+  const bannerMobile = category?.banner_mobile_url;
+  const categoryBannerSlot = (bannerDesktop || bannerMobile) ? (
+    <picture>
+      {bannerMobile && (
+        <source media="(max-width: 767px)" srcSet={bannerMobile} />
+      )}
+      {bannerDesktop && (
+        <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+      )}
+      <img
+        src={bannerDesktop || bannerMobile}
+        alt={`Banner ${category?.name || 'Categoria'}`}
+        className="w-full h-auto object-cover"
+      />
+    </picture>
+  ) : undefined;
+
   // Build context for block rendering with category data
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
+    // Pass category banner via afterHeaderSlot
+    afterHeaderSlot: categoryBannerSlot,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
