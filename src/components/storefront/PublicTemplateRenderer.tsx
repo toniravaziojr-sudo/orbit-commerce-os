@@ -2,14 +2,14 @@
 // PUBLIC TEMPLATE RENDERER - Renders published builder content
 // =============================================
 
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Eye, Lock, AlertTriangle } from 'lucide-react';
-import { applyGlobalLayout, usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
+import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { supabase } from '@/integrations/supabase/client';
 import { PageOverrides } from '@/hooks/usePageOverrides';
 
@@ -24,8 +24,6 @@ interface PublicTemplateRendererProps {
   // For page overrides
   pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
   pageId?: string; // For institutional/landing_page
-  // Optional slot to render after header (e.g., category banner)
-  afterHeaderSlot?: React.ReactNode;
 }
 
 export function PublicTemplateRenderer({
@@ -38,7 +36,6 @@ export function PublicTemplateRenderer({
   isCheckout = false,
   pageType = 'home',
   pageId,
-  afterHeaderSlot,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
@@ -83,11 +80,69 @@ export function PublicTemplateRenderer({
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Apply global layout to content with page overrides
+  // Get afterHeaderSlot from context (e.g., category banner)
+  const afterHeaderSlot = context.afterHeaderSlot;
+
+  // Build final content with global layout applied
   const finalContent = useMemo(() => {
     if (!content || !globalLayout) return content;
-    return applyGlobalLayout(content, globalLayout, isCheckout, pageOverrides);
-  }, [content, globalLayout, isCheckout, pageOverrides]);
+
+    const headerConfig = isCheckout 
+      ? globalLayout.checkout_header_config 
+      : globalLayout.header_config;
+    const footerConfig = isCheckout 
+      ? globalLayout.checkout_footer_config 
+      : globalLayout.footer_config;
+
+    // If content has no children, return as is
+    if (!content.children || content.children.length === 0) {
+      return content;
+    }
+
+    // Filter out existing Header/Footer blocks
+    const filteredChildren = content.children.filter(
+      child => child.type !== 'Header' && child.type !== 'Footer'
+    );
+
+    // Apply page overrides to header (only for non-checkout pages)
+    let finalHeaderConfig = { ...headerConfig };
+    if (!isCheckout && pageOverrides?.header) {
+      if (pageOverrides.header.noticeEnabled !== undefined) {
+        finalHeaderConfig = {
+          ...finalHeaderConfig,
+          props: {
+            ...finalHeaderConfig.props,
+            noticeEnabled: pageOverrides.header.noticeEnabled,
+          },
+        };
+      }
+    }
+
+    // Build children array: Header → afterHeaderSlot placeholder → Content → Footer
+    const finalChildren: BlockNode[] = [
+      { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
+    ];
+
+    // Add afterHeaderSlot as a special wrapper block if provided
+    if (afterHeaderSlot) {
+      finalChildren.push({
+        id: 'after-header-slot',
+        type: 'AfterHeaderSlot',
+        props: {},
+      });
+    }
+
+    // Add content blocks
+    finalChildren.push(...filteredChildren);
+
+    // Add footer
+    finalChildren.push({ ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' });
+
+    return {
+      ...content,
+      children: finalChildren,
+    };
+  }, [content, globalLayout, isCheckout, pageOverrides, afterHeaderSlot]);
 
   // Show access denied for preview without auth
   if (isPreviewMode && !canPreview) {
