@@ -69,7 +69,6 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'VideoUpload': 'content',
   
   // Social Proof
-  'Reviews': 'social-proof',
   'Testimonials': 'social-proof',
   
   // Info
@@ -107,7 +106,6 @@ const visibleBlockTypes = new Set([
   'YouTubeVideo',
   'VideoUpload',
   // Social Proof
-  'Reviews',
   'Testimonials',
   // Info
   'InfoHighlights',
