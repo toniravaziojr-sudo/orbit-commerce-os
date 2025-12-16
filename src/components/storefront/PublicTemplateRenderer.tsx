@@ -80,8 +80,9 @@ export function PublicTemplateRenderer({
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
-  // Get afterHeaderSlot from context (e.g., category banner)
+  // Get slots from context
   const afterHeaderSlot = context.afterHeaderSlot;
+  const afterContentSlot = context.afterContentSlot;
 
   // Build final content with global layout applied - but WITHOUT the afterHeaderSlot in the tree
   // The afterHeaderSlot will be rendered separately between header and content
@@ -230,7 +231,14 @@ export function PublicTemplateRenderer({
           ) : null}
         </div>
 
-        {/* 4. FOOTER - always rendered last */}
+        {/* 4. AFTER CONTENT SLOT - rendered after main content (e.g., related products, reviews) */}
+        {afterContentSlot && (
+          <div className="w-full">
+            {afterContentSlot}
+          </div>
+        )}
+
+        {/* 5. FOOTER - always rendered last */}
         {footerNode && (
           <BlockRenderer
             node={footerNode}

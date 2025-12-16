@@ -1072,6 +1072,12 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 }
 
 function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
+  // Determine if mobile based on viewport context (Builder) or default to responsive CSS
+  const viewportOverride = context?.viewport;
+  const isMobileView = viewportOverride === 'mobile';
+  const isTabletView = viewportOverride === 'tablet';
+  const isDesktopView = viewportOverride === 'desktop' || !viewportOverride;
+  
   // First check if we have product from context (public page)
   const contextProduct = context?.product;
   
@@ -1127,11 +1133,28 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
     primaryImage = sortedImages[0];
   }
 
+  // Responsive layout classes based on viewport
+  const gridClasses = viewportOverride 
+    ? (isMobileView ? 'flex flex-col gap-6' : 'grid grid-cols-2 gap-8')
+    : 'flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-8';
+  
+  const imageClasses = viewportOverride
+    ? (isMobileView ? 'w-full aspect-square' : 'aspect-square')
+    : 'w-full aspect-square';
+  
+  const titleClasses = viewportOverride
+    ? (isMobileView ? 'text-2xl' : 'text-3xl')
+    : 'text-2xl md:text-3xl';
+  
+  const priceClasses = viewportOverride
+    ? (isMobileView ? 'text-xl' : 'text-2xl')
+    : 'text-xl md:text-2xl';
+
   if (isLoading && isEditing) {
     return (
-      <div className="py-8 animate-pulse">
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="aspect-square bg-muted rounded-lg" />
+      <div className="py-6 md:py-8 px-4">
+        <div className={gridClasses}>
+          <div className={`${imageClasses} bg-muted rounded-lg animate-pulse`} />
           <div className="space-y-4">
             <div className="h-8 bg-muted rounded w-3/4" />
             <div className="h-6 bg-muted rounded w-1/4" />
@@ -1145,21 +1168,21 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
 
   if (!product && isEditing) {
     return (
-      <div className="py-8">
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+      <div className="py-6 md:py-8 px-4">
+        <div className={gridClasses}>
+          <div className={`${imageClasses} bg-muted rounded-lg flex items-center justify-center text-muted-foreground`}>
             [Imagem do Produto]
           </div>
           <div className="space-y-4">
-            <h1 className="text-3xl font-bold">[Nome do Produto]</h1>
-            <p className="text-2xl text-primary font-bold">[Preço]</p>
-            <p className="text-muted-foreground">[Descrição do produto será exibida aqui]</p>
-            <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg">
+            <h1 className={`${titleClasses} font-bold`}>[Nome do Produto]</h1>
+            <p className={`${priceClasses} text-primary font-bold`}>[Preço]</p>
+            <p className="text-muted-foreground text-sm md:text-base">[Descrição do produto será exibida aqui]</p>
+            <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg text-base font-semibold">
               Adicionar ao Carrinho
             </button>
           </div>
         </div>
-        <p className="text-center text-sm text-muted-foreground mt-4">
+        <p className="text-center text-xs md:text-sm text-muted-foreground mt-4">
           [Selecione um produto de exemplo para visualizar ou use o seletor no toolbar]
         </p>
       </div>
@@ -1173,33 +1196,35 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   const allowBackorder = product?.allow_backorder ?? false;
 
   return (
-    <div className="py-8">
-      <div className="grid md:grid-cols-2 gap-8">
+    <div className="py-6 md:py-8 px-4">
+      <div className={gridClasses}>
         {showGallery && (
-          <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+          <div className={`${imageClasses} bg-muted rounded-lg overflow-hidden`}>
             {primaryImage?.url ? (
               <img src={primaryImage.url} alt={primaryImage.alt || productName} className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                Sem imagem
+                <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
               </div>
             )}
           </div>
         )}
         <div className="space-y-4">
-          <h1 className="text-3xl font-bold">{productName}</h1>
-          <p className="text-2xl text-primary font-bold">
+          <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
+          <p className={`${priceClasses} text-primary font-bold`}>
             R$ {productPrice.toFixed(2).replace('.', ',')}
           </p>
           {showDescription && productDescription && (
-            <p className="text-muted-foreground">{productDescription}</p>
+            <p className="text-muted-foreground text-sm md:text-base leading-relaxed">{productDescription}</p>
           )}
           {showStock && (
             <p className="text-sm text-muted-foreground">
               Estoque: {productStock} unidades
             </p>
           )}
-          <button className="w-full bg-primary text-primary-foreground py-3 rounded-lg font-semibold hover:bg-primary/90">
+          <button className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-base hover:bg-primary/90 transition-colors">
             Adicionar ao Carrinho
           </button>
         </div>

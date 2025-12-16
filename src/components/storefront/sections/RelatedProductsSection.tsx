@@ -5,6 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Link2 } from 'lucide-react';
+import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface RelatedProductsSectionProps {
   productId: string;
@@ -66,7 +67,7 @@ export function RelatedProductsSection({ productId, tenantSlug }: RelatedProduct
           return (
             <a
               key={product.id}
-              href={`/store/${tenantSlug}/product/${product.slug}`}
+              href={getPublicProductUrl(tenantSlug, product.slug) || '#'}
               className="group block bg-card rounded-lg overflow-hidden border hover:border-primary/50 transition-colors"
             >
               {/* Image */}
