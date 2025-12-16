@@ -264,35 +264,54 @@ function PageBlock({ children, backgroundColor, context }: any) {
   const bannerMobile = context?.category?.banner_mobile_url;
   const categoryName = context?.category?.name || 'Categoria';
 
+  // Convert children to array to manipulate order
+  const childArray = React.Children.toArray(children);
+  
+  // Find the position after Header - we'll render banner before the second child (index 1)
+  // This ensures: Header -> Banner -> Content -> Footer
+  const renderCategoryBanner = () => {
+    if (!categoryBanner) return null;
+    return (
+      <div className="w-full" key="category-banner">
+        <picture>
+          {bannerMobile && (
+            <source media="(max-width: 767px)" srcSet={bannerMobile} />
+          )}
+          {bannerDesktop && (
+            <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+          )}
+          <img
+            src={bannerDesktop || bannerMobile}
+            alt={`Banner ${categoryName}`}
+            className="w-full h-auto object-cover"
+          />
+        </picture>
+      </div>
+    );
+  };
+
+  // Build the final children array with banner in correct position
+  const finalChildren: React.ReactNode[] = [];
+  childArray.forEach((child, index) => {
+    // Add first child (Header)
+    if (index === 0) {
+      finalChildren.push(child);
+      // Add banner right after header (before any other content)
+      const banner = renderCategoryBanner();
+      if (banner) {
+        finalChildren.push(banner);
+      }
+    } else {
+      finalChildren.push(child);
+    }
+  });
+
   return (
     <div 
       className="min-h-screen"
       style={{ backgroundColor: backgroundColor || 'transparent' }}
     >
-      {/* Render children - Header is typically first child */}
-      {React.Children.map(children, (child, index) => (
-        <>
-          {child}
-          {/* After first child (Header), render the category banner if available */}
-          {index === 0 && categoryBanner && (
-            <div className="w-full">
-              <picture>
-                {bannerMobile && (
-                  <source media="(max-width: 767px)" srcSet={bannerMobile} />
-                )}
-                {bannerDesktop && (
-                  <source media="(min-width: 768px)" srcSet={bannerDesktop} />
-                )}
-                <img
-                  src={bannerDesktop || bannerMobile}
-                  alt={`Banner ${categoryName}`}
-                  className="w-full h-auto object-cover"
-                />
-              </picture>
-            </div>
-          )}
-        </>
-      ))}
+      {finalChildren}
     </div>
   );
 }
