@@ -33,8 +33,18 @@ export function VideoUploadBlock({
   const desktopVideo = videoDesktop;
   const mobileVideo = videoMobile || videoDesktop; // Fallback to desktop if no mobile
   
-  // No video configured
+  // No video configured - show placeholder in builder, nothing in public
   if (!desktopVideo && !mobileVideo) {
+    if (isBuilderMode) {
+      return (
+        <div className="w-full aspect-video bg-muted/30 flex items-center justify-center min-h-[180px] border-2 border-dashed border-muted-foreground/20 rounded-lg">
+          <div className="text-center">
+            <VideoIcon className="h-12 w-12 text-muted-foreground/40 mx-auto mb-2" />
+            <p className="text-sm text-muted-foreground/60">Adicione um vídeo</p>
+          </div>
+        </div>
+      );
+    }
     return null;
   }
 

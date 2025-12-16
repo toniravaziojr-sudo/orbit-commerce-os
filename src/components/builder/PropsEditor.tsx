@@ -21,6 +21,7 @@ import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
+import { VideoUploaderWithLibrary } from './VideoUploaderWithLibrary';
 import {
   Collapsible,
   CollapsibleContent,
@@ -357,14 +358,14 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
       }
 
       case 'video': {
-        // Video upload support - reuse image uploader with library
+        // Video upload support - use dedicated video uploader
         const isDesktopField = name.toLowerCase().includes('desktop');
         const isMobileField = name.toLowerCase().includes('mobile');
         const variant = isMobileField ? 'mobile' : 'desktop';
         
         return (
           <div className="space-y-1.5">
-            <ImageUploaderWithLibrary
+            <VideoUploaderWithLibrary
               value={(value as string) || ''}
               onChange={(url) => onChange(url)}
               placeholder={`Vídeo ${variant === 'desktop' ? 'Desktop' : 'Mobile'}`}
