@@ -2,7 +2,6 @@
 // INFO HIGHLIGHTS BLOCK - Icons with text (Frete, Pagamento, Segurança, etc.)
 // =============================================
 
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { BlockRenderContext } from '@/lib/builder/types';
@@ -15,11 +14,23 @@ import {
   Gift,
   Award,
   ThumbsUp,
+  Star,
+  Heart,
+  Package,
+  Zap,
+  CheckCircle,
+  ShoppingBag,
+  Percent,
+  MapPin,
+  Mail,
+  HelpCircle,
+  Info,
+  AlertCircle,
   LucideIcon
 } from 'lucide-react';
 
 interface HighlightItem {
-  id: string;
+  id?: string;
   icon: string;
   title: string;
   description?: string;
@@ -35,20 +46,52 @@ interface InfoHighlightsBlockProps {
 
 // Icon mapping
 const iconMap: Record<string, LucideIcon> = {
+  Truck: Truck,
   truck: Truck,
+  CreditCard: CreditCard,
   credit_card: CreditCard,
+  Shield: Shield,
   shield: Shield,
+  Clock: Clock,
   clock: Clock,
+  Phone: Phone,
   phone: Phone,
+  Gift: Gift,
   gift: Gift,
+  Award: Award,
   award: Award,
+  ThumbsUp: ThumbsUp,
   thumbs_up: ThumbsUp,
+  Star: Star,
+  star: Star,
+  Heart: Heart,
+  heart: Heart,
+  Package: Package,
+  package: Package,
+  Zap: Zap,
+  zap: Zap,
+  CheckCircle: CheckCircle,
+  check_circle: CheckCircle,
+  ShoppingBag: ShoppingBag,
+  shopping_bag: ShoppingBag,
+  Percent: Percent,
+  percent: Percent,
+  MapPin: MapPin,
+  map_pin: MapPin,
+  Mail: Mail,
+  mail: Mail,
+  HelpCircle: HelpCircle,
+  help_circle: HelpCircle,
+  Info: Info,
+  info: Info,
+  AlertCircle: AlertCircle,
+  alert_circle: AlertCircle,
 };
 
 const defaultItems: HighlightItem[] = [
-  { id: '1', icon: 'truck', title: 'Envio rápido e garantido', description: 'para todo Brasil' },
-  { id: '2', icon: 'credit_card', title: 'Parcele suas compras', description: 'com cartão de crédito' },
-  { id: '3', icon: 'shield', title: 'Loja confiável', description: 'com tecnologia 100% segura' },
+  { id: '1', icon: 'Truck', title: 'Envio rápido e garantido', description: 'para todo Brasil' },
+  { id: '2', icon: 'CreditCard', title: 'Parcele suas compras', description: 'com cartão de crédito' },
+  { id: '3', icon: 'Shield', title: 'Loja confiável', description: 'com tecnologia 100% segura' },
 ];
 
 export function InfoHighlightsBlock({
@@ -74,12 +117,12 @@ export function InfoHighlightsBlock({
             ? 'flex-row justify-center items-center flex-wrap' 
             : 'flex-col items-start'
         )}>
-          {items.map((item) => {
+          {items.map((item, index) => {
             const IconComponent = iconMap[item.icon] || Shield;
             
             return (
               <div 
-                key={item.id}
+                key={item.id || index}
                 className={cn(
                   'flex items-center gap-3',
                   effectiveLayout === 'horizontal' ? 'flex-1 min-w-[200px] justify-center' : 'w-full'
@@ -87,14 +130,14 @@ export function InfoHighlightsBlock({
               >
                 <div 
                   className="flex-shrink-0 p-2 rounded-full bg-background"
-                  style={{ color: iconColor }}
+                  style={{ color: iconColor || undefined }}
                 >
                   <IconComponent className="h-5 w-5" />
                 </div>
                 <div>
                   <p 
                     className="font-medium text-sm"
-                    style={{ color: textColor }}
+                    style={{ color: textColor || undefined }}
                   >
                     {item.title}
                   </p>

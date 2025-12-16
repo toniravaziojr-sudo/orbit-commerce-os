@@ -1032,6 +1032,11 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Perguntas',
         defaultValue: [],
       },
+      allowMultiple: {
+        type: 'boolean',
+        label: 'Permitir múltiplas abertas',
+        defaultValue: false,
+      },
     },
     canHaveChildren: false,
   },
@@ -1545,9 +1550,9 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'Award',
     defaultProps: {
       items: [
-        { icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
-        { icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
-        { icon: 'Shield', title: 'Compra Segura', description: 'Seus dados protegidos' },
+        { id: '1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
+        { id: '2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
+        { id: '3', icon: 'Shield', title: 'Compra Segura', description: 'Seus dados protegidos' },
       ],
       layout: 'horizontal',
       iconColor: '',

@@ -16,7 +16,7 @@ import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
-import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
+import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
@@ -210,6 +210,15 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
         return (
           <TestimonialsEditor
             items={(value as { name: string; content: string; role?: string; avatar?: string; rating?: number }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // InfoHighlights items
+      if (blockType === 'InfoHighlights' && name === 'items') {
+        return (
+          <InfoHighlightsEditor
+            items={(value as { id?: string; icon: string; title: string; description?: string }[]) || []}
             onChange={onChange}
           />
         );
