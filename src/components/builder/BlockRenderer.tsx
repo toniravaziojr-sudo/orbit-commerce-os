@@ -3,6 +3,7 @@
 // =============================================
 
 import React from 'react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { cn } from '@/lib/utils';
@@ -1328,7 +1329,7 @@ function CheckoutBlock({ isEditing }: any) {
   );
 }
 
-function FAQBlock({ title, items, isEditing }: any) {
+function FAQBlock({ title, items, isEditing, allowMultiple = false }: any) {
   const faqItems = items || [
     { question: 'Pergunta de exemplo 1?', answer: 'Resposta de exemplo 1.' },
     { question: 'Pergunta de exemplo 2?', answer: 'Resposta de exemplo 2.' },
@@ -1337,19 +1338,19 @@ function FAQBlock({ title, items, isEditing }: any) {
   return (
     <div className="py-8">
       {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
-      <div className="space-y-4">
+      <Accordion type={allowMultiple ? "multiple" : "single"} collapsible className="w-full space-y-2">
         {faqItems.map((item: any, i: number) => (
-          <div key={i} className="border rounded-lg">
-            <div className="p-4 font-semibold bg-muted/50 rounded-t-lg">
+          <AccordionItem key={i} value={`item-${i}`} className="border rounded-lg px-4">
+            <AccordionTrigger className="text-left font-semibold hover:no-underline">
               {item.question}
-            </div>
-            <div className="p-4 text-muted-foreground">
+            </AccordionTrigger>
+            <AccordionContent className="text-muted-foreground pb-4">
               {item.answer}
-            </div>
-          </div>
+            </AccordionContent>
+          </AccordionItem>
         ))}
-      </div>
-      {isEditing && (
+      </Accordion>
+      {isEditing && faqItems.length === 0 && (
         <p className="text-center text-sm text-muted-foreground mt-4">
           [Configure as perguntas no painel lateral]
         </p>
