@@ -1702,6 +1702,9 @@ const blockDefinitions: BlockDefinition[] = [
       autoplay: false,
       loop: false,
       muted: false,
+      aspectRatio: 'auto',
+      aspectRatioCustom: '',
+      objectFit: 'contain',
     },
     propsSchema: {
       videoDesktop: {
@@ -1713,6 +1716,37 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'video',
         label: 'Vídeo Mobile',
         placeholder: 'Opcional - usa Desktop se vazio',
+      },
+      aspectRatio: {
+        type: 'select',
+        label: 'Proporção',
+        defaultValue: 'auto',
+        options: [
+          { label: 'Auto (detectar)', value: 'auto' },
+          { label: '16:9 (Horizontal)', value: '16/9' },
+          { label: '9:16 (Vertical)', value: '9/16' },
+          { label: '4:3 (Clássico)', value: '4/3' },
+          { label: '1:1 (Quadrado)', value: '1/1' },
+          { label: '4:5 (Instagram)', value: '4/5' },
+          { label: '21:9 (Ultrawide)', value: '21/9' },
+          { label: 'Personalizado', value: 'custom' },
+        ],
+      },
+      aspectRatioCustom: {
+        type: 'string',
+        label: 'Proporção Personalizada',
+        placeholder: 'Ex: 3/4 ou 1.5',
+        helpText: 'Use formato X/Y ou número decimal',
+      },
+      objectFit: {
+        type: 'select',
+        label: 'Encaixe',
+        defaultValue: 'contain',
+        options: [
+          { label: 'Mostrar inteiro (contain)', value: 'contain' },
+          { label: 'Preencher (cover)', value: 'cover' },
+          { label: 'Esticar (fill)', value: 'fill' },
+        ],
       },
       controls: {
         type: 'boolean',
