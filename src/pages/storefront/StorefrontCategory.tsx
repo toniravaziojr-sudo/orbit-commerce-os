@@ -72,6 +72,8 @@ export default function StorefrontCategory() {
       slug: category.slug,
       description: category.description || undefined,
       image_url: category.image_url || undefined,
+      banner_desktop_url: category.banner_desktop_url || undefined,
+      banner_mobile_url: category.banner_mobile_url || undefined,
     } : undefined,
     products: products?.map(p => ({
       id: p.id,

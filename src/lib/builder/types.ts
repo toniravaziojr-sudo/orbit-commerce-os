@@ -103,6 +103,8 @@ export interface CategoryContext {
   slug: string;
   description?: string;
   image_url?: string;
+  banner_desktop_url?: string;
+  banner_mobile_url?: string;
 }
 
 // Cart item for cart/checkout pages

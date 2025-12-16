@@ -2,6 +2,7 @@
 // BLOCK RENDERER - Renders blocks recursively
 // =============================================
 
+import React from 'react';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { cn } from '@/lib/utils';
@@ -256,13 +257,42 @@ function FallbackBlock({ children }: { children?: React.ReactNode }) {
 
 // ========== LAYOUT BLOCKS ==========
 
-function PageBlock({ children, backgroundColor }: any) {
+function PageBlock({ children, backgroundColor, context }: any) {
+  // Check if we have a category banner to render
+  const categoryBanner = context?.category?.banner_desktop_url || context?.category?.banner_mobile_url;
+  const bannerDesktop = context?.category?.banner_desktop_url;
+  const bannerMobile = context?.category?.banner_mobile_url;
+  const categoryName = context?.category?.name || 'Categoria';
+
   return (
     <div 
       className="min-h-screen"
       style={{ backgroundColor: backgroundColor || 'transparent' }}
     >
-      {children}
+      {/* Render children - Header is typically first child */}
+      {React.Children.map(children, (child, index) => (
+        <>
+          {child}
+          {/* After first child (Header), render the category banner if available */}
+          {index === 0 && categoryBanner && (
+            <div className="w-full">
+              <picture>
+                {bannerMobile && (
+                  <source media="(max-width: 767px)" srcSet={bannerMobile} />
+                )}
+                {bannerDesktop && (
+                  <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+                )}
+                <img
+                  src={bannerDesktop || bannerMobile}
+                  alt={`Banner ${categoryName}`}
+                  className="w-full h-auto object-cover"
+                />
+              </picture>
+            </div>
+          )}
+        </>
+      ))}
     </div>
   );
 }
