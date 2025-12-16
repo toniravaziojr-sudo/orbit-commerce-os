@@ -2,6 +2,8 @@
 // BUILDER TYPES - Core type definitions
 // =============================================
 
+import React from 'react';
+
 export type BlockCategory = 
   | 'layout'
   | 'header-footer'
@@ -138,6 +140,9 @@ export interface BlockRenderContext {
   
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';
+  
+  // Slot to render after header (e.g., category banner)
+  afterHeaderSlot?: React.ReactNode;
   
   // Store settings
   settings?: StoreSettingsContext;
