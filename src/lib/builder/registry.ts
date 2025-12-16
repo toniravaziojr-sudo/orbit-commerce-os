@@ -1653,7 +1653,7 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'Grid3x3',
     defaultProps: {
       title: 'Categorias',
-      categoryIds: [],
+      items: [],
       showName: true,
       mobileStyle: 'grid',
     },
@@ -1663,10 +1663,10 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Título',
         defaultValue: 'Categorias',
       },
-      categoryIds: {
-        type: 'textarea',
-        label: 'IDs das Categorias (um por linha)',
-        placeholder: 'IDs das categorias ou deixe vazio para todas',
+      items: {
+        type: 'categoryMultiSelect',
+        label: 'Categorias',
+        max: 12,
       },
       showName: {
         type: 'boolean',

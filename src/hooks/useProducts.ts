@@ -73,6 +73,8 @@ export interface Category {
   is_active: boolean;
   seo_title: string | null;
   seo_description: string | null;
+  banner_desktop_url: string | null;
+  banner_mobile_url: string | null;
   created_at: string;
   updated_at: string;
 }
