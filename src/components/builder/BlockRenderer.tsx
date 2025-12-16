@@ -23,6 +23,7 @@ import { YouTubeVideoBlock as YouTubeVideoBlockComponent } from './blocks/YouTub
 import { ReviewsBlock as ReviewsBlockComponent } from './blocks/ReviewsBlock';
 import { FeaturedCategoriesBlock as FeaturedCategoriesBlockComponent } from './blocks/FeaturedCategoriesBlock';
 import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBannersBlock';
+import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -245,6 +246,7 @@ const components: Record<string, React.ComponentType<any>> = {
     Reviews: ReviewsBlockWrapper,
     FeaturedCategories: FeaturedCategoriesBlockWrapper,
     TextBanners: TextBannersBlockWrapper,
+    VideoUpload: VideoUploadBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -608,7 +610,17 @@ function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
   );
 }
 
-function RichTextBlock({ content, align, context }: any) {
+function RichTextBlock({ content, align, fontFamily, fontSize, fontWeight, context }: any) {
+  // Font size map
+  const fontSizeMap: Record<string, string> = {
+    xs: '0.75rem',
+    sm: '0.875rem',
+    base: '1rem',
+    lg: '1.125rem',
+    xl: '1.25rem',
+    '2xl': '1.5rem',
+  };
+
   // Replace template placeholders with context data
   const replacePlaceholders = (text: string): string => {
     if (!text) return '';
@@ -664,7 +676,12 @@ function RichTextBlock({ content, align, context }: any) {
   return (
     <div 
       className="prose prose-lg max-w-none"
-      style={{ textAlign: align || 'left' }}
+      style={{ 
+        textAlign: align || 'left',
+        fontFamily: fontFamily || 'inherit',
+        fontSize: fontSizeMap[fontSize] || fontSizeMap.base,
+        fontWeight: fontWeight || 'normal',
+      }}
       dangerouslySetInnerHTML={{ __html: processContent(content) }}
     />
   );
@@ -790,6 +807,9 @@ function ButtonBlock({
   url, 
   variant, 
   size, 
+  alignment = 'left',
+  fontFamily,
+  fontWeight = 'semibold',
   backgroundColor, 
   textColor, 
   borderRadius = 'md',
@@ -810,6 +830,19 @@ function ButtonBlock({
     lg: '1rem',
     full: '9999px',
   };
+
+  const fontWeightMap: Record<string, string> = {
+    normal: '400',
+    '500': '500',
+    semibold: '600',
+    bold: '700',
+  };
+
+  const alignmentClass = {
+    left: 'justify-start',
+    center: 'justify-center',
+    right: 'justify-end',
+  }[alignment] || 'justify-start';
 
   // Generate unique ID for CSS custom properties
   const btnId = `btn-${Math.random().toString(36).substr(2, 9)}`;
@@ -834,7 +867,7 @@ function ButtonBlock({
   const hoverBorder = hoverBorderColor || baseBorder;
 
   return (
-    <>
+    <div className={cn('flex', alignmentClass)}>
       <style>{`
         .${btnId} {
           background-color: ${baseBg};
@@ -851,16 +884,18 @@ function ButtonBlock({
         href={url || '#'}
         className={cn(
           btnId,
-          'inline-block font-semibold transition-colors',
+          'inline-block transition-colors',
           sizeClasses[size] || sizeClasses.md
         )}
         style={{
           borderRadius: radiusMap[borderRadius] || '0.5rem',
+          fontFamily: fontFamily || 'inherit',
+          fontWeight: fontWeightMap[fontWeight] || '600',
         }}
       >
         {text || 'Botão'}
       </a>
-    </>
+    </div>
   );
 }
 
@@ -1386,4 +1421,8 @@ function FeaturedCategoriesBlockWrapper({ context, ...props }: any) {
 
 function TextBannersBlockWrapper({ context, ...props }: any) {
   return <TextBannersBlockComponent {...props} context={context} />;
+}
+
+function VideoUploadBlockWrapper({ context, ...props }: any) {
+  return <VideoUploadBlockComponent {...props} context={context} />;
 }
