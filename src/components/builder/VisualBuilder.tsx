@@ -19,6 +19,7 @@ import { PropsEditor } from './PropsEditor';
 import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
+import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, LayoutGrid } from 'lucide-react';
@@ -63,9 +64,13 @@ export function VisualBuilder({
   const isCheckoutPage = pageType === 'checkout';
   const isHomePage = pageType === 'home';
   const isCategoryPage = pageType === 'category';
+  const isProductPage = pageType === 'product';
 
   // Category settings for category template
   const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId);
+
+  // Product settings for product template
+  const { settings: productSettings, setSettings: setProductSettings } = useProductSettings(tenantId);
 
   // Fetch full category data (including banners) when editing category template
   const { data: selectedCategory } = useQuery({
@@ -533,6 +538,15 @@ export function VisualBuilder({
                 tenantId={tenantId}
                 settings={categorySettings}
                 onChange={setCategorySettings}
+              />
+            )}
+            
+            {/* Product Settings Panel - Only for Product template */}
+            {isProductPage && (
+              <ProductSettingsPanel
+                tenantId={tenantId}
+                settings={productSettings}
+                onChange={setProductSettings}
               />
             )}
             

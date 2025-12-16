@@ -27,8 +27,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon, Link2 } from 'lucide-react';
 import { ProductImageManager } from './ProductImageManager';
+import { RelatedProductsSelect } from './RelatedProductsSelect';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 
 const productSchema = z.object({
@@ -210,7 +211,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="basic">Básico</TabsTrigger>
               <TabsTrigger value="images" disabled={!isEditing}>
                 <ImageIcon className="h-4 w-4 mr-1" />
@@ -218,6 +219,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               </TabsTrigger>
               <TabsTrigger value="pricing">Preços</TabsTrigger>
               <TabsTrigger value="inventory">Estoque</TabsTrigger>
+              <TabsTrigger value="related" disabled={!isEditing}>
+                <Link2 className="h-4 w-4 mr-1" />
+                Relacionados
+              </TabsTrigger>
               <TabsTrigger value="seo">SEO</TabsTrigger>
             </TabsList>
 
@@ -725,6 +730,23 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="related" className="space-y-4 mt-4">
+              {isEditing && product ? (
+                <RelatedProductsSelect productId={product.id} />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Produtos Relacionados</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground text-sm">
+                      Salve o produto primeiro para configurar produtos relacionados
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="seo" className="space-y-4 mt-4">

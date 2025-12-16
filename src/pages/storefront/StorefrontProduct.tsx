@@ -3,11 +3,16 @@
 // =============================================
 
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { usePublicProduct, usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { Storefront404 } from '@/components/storefront/Storefront404';
+import { BuyTogetherSection } from '@/components/storefront/sections/BuyTogetherSection';
+import { RelatedProductsSection } from '@/components/storefront/sections/RelatedProductsSection';
+import { ProductReviewsSection } from '@/components/storefront/sections/ProductReviewsSection';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontProduct() {
@@ -23,6 +28,35 @@ export default function StorefrontProduct() {
   const previewTemplate = usePreviewTemplate(tenantSlug || '', 'product');
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
+
+  // Fetch product settings (page_overrides)
+  const { data: productSettings } = useQuery({
+    queryKey: ['product-template-settings', tenantSlug],
+    queryFn: async () => {
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug)
+        .single();
+      
+      if (!tenant) return null;
+      
+      const { data } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenant.id)
+        .eq('page_type', 'product')
+        .maybeSingle();
+      
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return overrides?.productSettings as {
+        showRelatedProducts?: boolean;
+        showBuyTogether?: boolean;
+        showReviews?: boolean;
+      } | null;
+    },
+    enabled: !!tenantSlug,
+  });
 
   // If product not found and not loading - show 404, never redirect to home
   if (!product && !productLoading && !template.isLoading) {
@@ -103,10 +137,29 @@ export default function StorefrontProduct() {
     ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
     : true;
 
+  // Build product sections slot based on settings
+  const showBuyTogether = productSettings?.showBuyTogether !== false;
+  const showRelatedProducts = productSettings?.showRelatedProducts !== false;
+  const showReviews = productSettings?.showReviews !== false;
+  
+  const productSectionsSlot = product ? (
+    <div className="container mx-auto px-4">
+      {showBuyTogether && (
+        <BuyTogetherSection productId={product.id} tenantSlug={tenantSlug || ''} />
+      )}
+      {showRelatedProducts && (
+        <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug || ''} />
+      )}
+      {showReviews && (
+        <ProductReviewsSection productId={product.id} />
+      )}
+    </div>
+  ) : null;
+
   return (
     <PublicTemplateRenderer
       content={template.content}
-      context={context}
+      context={{...context, afterContentSlot: productSectionsSlot}}
       isLoading={template.isLoading || storeLoading || productLoading}
       error={template.error}
       isPreviewMode={isPreviewMode}
