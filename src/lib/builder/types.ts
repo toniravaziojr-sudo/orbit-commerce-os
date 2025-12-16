@@ -144,6 +144,9 @@ export interface BlockRenderContext {
   // Slot to render after header (e.g., category banner)
   afterHeaderSlot?: React.ReactNode;
   
+  // Slot to render after main content (e.g., related products, reviews)
+  afterContentSlot?: React.ReactNode;
+  
   // Store settings
   settings?: StoreSettingsContext;
   
