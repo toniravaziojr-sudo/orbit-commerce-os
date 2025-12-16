@@ -24,6 +24,8 @@ interface PublicTemplateRendererProps {
   // For page overrides
   pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
   pageId?: string; // For institutional/landing_page
+  // Optional slot to render after header (e.g., category banner)
+  afterHeaderSlot?: React.ReactNode;
 }
 
 export function PublicTemplateRenderer({
@@ -36,6 +38,7 @@ export function PublicTemplateRenderer({
   isCheckout = false,
   pageType = 'home',
   pageId,
+  afterHeaderSlot,
 }: PublicTemplateRendererProps) {
   // Fetch global layout
   const { data: globalLayout, isLoading: layoutLoading } = usePublicGlobalLayout(context.tenantSlug);
