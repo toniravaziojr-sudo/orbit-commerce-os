@@ -1533,6 +1533,7 @@ const blockDefinitions: BlockDefinition[] = [
       description: '',
       imageDesktop: '',
       imageMobile: '',
+      source: 'manual',
       productIds: [],
       categoryId: '',
       limit: 4,
@@ -1563,15 +1564,25 @@ const blockDefinitions: BlockDefinition[] = [
         placeholder: 'URL da imagem mobile (opcional)',
         helpText: 'Recomendado: 400×500px (proporção 4:5)',
       },
+      source: {
+        type: 'select',
+        label: 'Fonte dos Produtos',
+        defaultValue: 'manual',
+        options: [
+          { label: 'Selecionados (manual)', value: 'manual' },
+          { label: 'Categoria', value: 'category' },
+        ],
+      },
       productIds: {
-        type: 'textarea',
-        label: 'IDs dos Produtos (um por linha)',
-        placeholder: 'IDs específicos ou deixe vazio para usar categoria',
+        type: 'productMultiSelect',
+        label: 'Produtos',
+        showWhen: { source: 'manual' },
       },
       categoryId: {
         type: 'category',
-        label: 'Categoria (fallback)',
-        placeholder: 'Usado se nenhum ID for informado',
+        label: 'Categoria',
+        placeholder: 'Selecione uma categoria',
+        showWhen: { source: 'category' },
       },
       limit: {
         type: 'number',

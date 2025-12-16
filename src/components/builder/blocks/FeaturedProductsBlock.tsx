@@ -44,23 +44,27 @@ export function FeaturedProductsBlock({
       ? (productIds as string).split(/[,\n]/).map(id => id.trim()).filter(Boolean)
       : [];
 
-  // Check if categoryId is valid (not empty, not "_auto")
-  const validCategoryId = categoryId && categoryId !== '_auto' && categoryId.trim() !== '';
+  // Check if categoryId is valid (not empty)
+  const validCategoryId = categoryId && categoryId.trim() !== '';
 
-  // Determine source based on props
+  // Determine effective source for the query
   const effectiveSource = source === 'manual' && parsedProductIds.length > 0 
     ? 'all' 
     : source === 'category' && validCategoryId 
       ? 'category' 
       : source === 'featured' 
         ? 'featured' 
-        : source === 'category' && !validCategoryId
-          ? 'none' // Category mode but no category selected
-          : 'newest';
+        : source === 'newest'
+          ? 'newest'
+          : 'newest'; // Default fallback
+
+  // Show empty state message when source needs configuration
+  const needsConfiguration = (source === 'manual' && parsedProductIds.length === 0) ||
+    (source === 'category' && !validCategoryId);
 
   const { products, isLoading } = useBuilderProducts({
     tenantSlug,
-    source: effectiveSource === 'none' ? 'newest' : effectiveSource as any,
+    source: needsConfiguration ? 'newest' : effectiveSource,
     categoryId: source === 'category' && validCategoryId ? categoryId : undefined,
     productIds: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds : undefined,
     limit: source === 'manual' && parsedProductIds.length > 0 ? parsedProductIds.length : limit,
@@ -91,11 +95,15 @@ export function FeaturedProductsBlock({
     );
   }
 
-  // Show message when category mode is selected but no category chosen
-  if (source === 'category' && !validCategoryId) {
+  // Show message when source needs configuration
+  if (needsConfiguration) {
     return (
       <div className="py-8 text-center text-muted-foreground">
-        <p className="text-sm">Selecione uma categoria nas propriedades do bloco</p>
+        <p className="text-sm">
+          {source === 'manual' 
+            ? 'Selecione produtos nas propriedades do bloco'
+            : 'Selecione uma categoria nas propriedades do bloco'}
+        </p>
       </div>
     );
   }
