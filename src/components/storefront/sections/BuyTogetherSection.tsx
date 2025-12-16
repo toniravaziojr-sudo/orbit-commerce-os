@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface BuyTogetherSectionProps {
   productId: string;
@@ -100,7 +101,7 @@ export function BuyTogetherSection({ productId, tenantSlug }: BuyTogetherSection
           
           <div className="flex-1 min-w-0">
             <a 
-              href={`/store/${tenantSlug}/product/${suggestedProduct.slug}`}
+              href={getPublicProductUrl(tenantSlug, suggestedProduct.slug) || '#'}
               className="font-medium hover:underline line-clamp-2"
             >
               {suggestedProduct.name}
