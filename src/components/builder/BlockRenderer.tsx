@@ -245,8 +245,6 @@ const components: Record<string, React.ComponentType<any>> = {
     Reviews: ReviewsBlockWrapper,
     FeaturedCategories: FeaturedCategoriesBlockWrapper,
     TextBanners: TextBannersBlockWrapper,
-    // Special slot block for category banner etc.
-    AfterHeaderSlot: AfterHeaderSlotBlock,
   };
 
   return components[type] || FallbackBlock;
@@ -270,12 +268,6 @@ function PageBlock({ children, backgroundColor }: any) {
   );
 }
 
-// Special block for afterHeaderSlot - renders content passed via context
-function AfterHeaderSlotBlock({ context }: { context?: BlockRenderContext }) {
-  const slot = context?.afterHeaderSlot;
-  if (!slot) return null;
-  return <div className="w-full">{slot}</div>;
-}
 
 function SectionBlock({ 
   children, 

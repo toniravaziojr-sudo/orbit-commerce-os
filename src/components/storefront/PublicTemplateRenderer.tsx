@@ -83,9 +83,12 @@ export function PublicTemplateRenderer({
   // Get afterHeaderSlot from context (e.g., category banner)
   const afterHeaderSlot = context.afterHeaderSlot;
 
-  // Build final content with global layout applied
-  const finalContent = useMemo(() => {
-    if (!content || !globalLayout) return content;
+  // Build final content with global layout applied - but WITHOUT the afterHeaderSlot in the tree
+  // The afterHeaderSlot will be rendered separately between header and content
+  const { headerNode, contentNodes, footerNode } = useMemo(() => {
+    if (!content || !globalLayout) {
+      return { headerNode: null, contentNodes: [], footerNode: null };
+    }
 
     const headerConfig = isCheckout 
       ? globalLayout.checkout_header_config 
@@ -94,12 +97,16 @@ export function PublicTemplateRenderer({
       ? globalLayout.checkout_footer_config 
       : globalLayout.footer_config;
 
-    // If content has no children, return as is
+    // If content has no children, return empty
     if (!content.children || content.children.length === 0) {
-      return content;
+      return { 
+        headerNode: { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' }, 
+        contentNodes: [], 
+        footerNode: { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } 
+      };
     }
 
-    // Filter out existing Header/Footer blocks
+    // Filter out existing Header/Footer blocks from content
     const filteredChildren = content.children.filter(
       child => child.type !== 'Header' && child.type !== 'Footer'
     );
@@ -118,31 +125,12 @@ export function PublicTemplateRenderer({
       }
     }
 
-    // Build children array: Header → afterHeaderSlot placeholder → Content → Footer
-    const finalChildren: BlockNode[] = [
-      { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
-    ];
-
-    // Add afterHeaderSlot as a special wrapper block if provided
-    if (afterHeaderSlot) {
-      finalChildren.push({
-        id: 'after-header-slot',
-        type: 'AfterHeaderSlot',
-        props: {},
-      });
-    }
-
-    // Add content blocks
-    finalChildren.push(...filteredChildren);
-
-    // Add footer
-    finalChildren.push({ ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' });
-
     return {
-      ...content,
-      children: finalChildren,
+      headerNode: { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
+      contentNodes: filteredChildren,
+      footerNode: { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' },
     };
-  }, [content, globalLayout, isCheckout, pageOverrides, afterHeaderSlot]);
+  }, [content, globalLayout, isCheckout, pageOverrides]);
 
   // Show access denied for preview without auth
   if (isPreviewMode && !canPreview) {
@@ -192,6 +180,14 @@ export function PublicTemplateRenderer({
     );
   }
 
+  // Create a wrapper content for the middle section (without header/footer)
+  const middleContent: BlockNode = {
+    id: 'page-content-wrapper',
+    type: 'Page',
+    props: {},
+    children: contentNodes,
+  };
+
   return (
     <>
       {/* Preview Mode Banner */}
@@ -202,11 +198,47 @@ export function PublicTemplateRenderer({
         </div>
       )}
       
-      <BlockRenderer
-        node={finalContent}
-        context={context}
-        isEditing={false}
-      />
+      {/* Page container */}
+      <div className="min-h-screen flex flex-col">
+        {/* 1. HEADER - rendered first */}
+        {headerNode && (
+          <BlockRenderer
+            node={headerNode}
+            context={context}
+            isEditing={false}
+          />
+        )}
+
+        {/* 2. AFTER HEADER SLOT - rendered immediately after header (e.g., category banner) */}
+        {afterHeaderSlot && (
+          <div className="w-full">
+            {afterHeaderSlot}
+          </div>
+        )}
+
+        {/* 3. CONTENT - rendered after the slot */}
+        <div className="flex-1">
+          {contentNodes.length > 0 ? (
+            contentNodes.map((node) => (
+              <BlockRenderer
+                key={node.id}
+                node={node}
+                context={context}
+                isEditing={false}
+              />
+            ))
+          ) : null}
+        </div>
+
+        {/* 4. FOOTER - always rendered last */}
+        {footerNode && (
+          <BlockRenderer
+            node={footerNode}
+            context={context}
+            isEditing={false}
+          />
+        )}
+      </div>
     </>
   );
 }
