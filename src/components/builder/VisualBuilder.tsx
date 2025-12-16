@@ -136,39 +136,50 @@ export function VisualBuilder({
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
 
-  // Build category banner component for afterHeaderSlot (only if showBanner is enabled)
+  // Build category header slot (banner + name) for afterHeaderSlot
   // Use context.viewport to determine which image to show in the editor
-  const categoryBannerSlot = useMemo(() => {
-    if (!isCategoryPage || !selectedCategory || categorySettings.showBanner === false) return undefined;
+  const categoryHeaderSlot = useMemo(() => {
+    if (!isCategoryPage || !selectedCategory) return undefined;
+    
+    const showBanner = categorySettings.showBanner !== false;
+    const showName = categorySettings.showCategoryName !== false;
     
     const bannerDesktop = selectedCategory.banner_desktop_url;
     const bannerMobile = selectedCategory.banner_mobile_url;
-    
-    if (!bannerDesktop && !bannerMobile) return undefined;
+    const hasBanner = showBanner && (bannerDesktop || bannerMobile);
 
     // In editor, use lifted viewport state to pick the correct image
     const isMobileView = canvasViewport === 'mobile';
     
     // Determine which image to show based on viewport
-    // Fallback: mobile falls back to desktop, desktop falls back to mobile
     const imageToShow = isMobileView
       ? (bannerMobile || bannerDesktop)
       : (bannerDesktop || bannerMobile);
     
-    if (!imageToShow) return undefined;
+    // If nothing to show, return undefined
+    if (!hasBanner && !showName) return undefined;
     
     return (
-      <img
-        src={imageToShow}
-        alt={`Banner ${selectedCategory.name || 'Categoria'}`}
-        className="w-full h-auto object-cover"
-      />
+      <div className="w-full">
+        {hasBanner && imageToShow && (
+          <img
+            src={imageToShow}
+            alt={`Banner ${selectedCategory.name || 'Categoria'}`}
+            className="w-full h-auto object-cover"
+          />
+        )}
+        {showName && selectedCategory.name && (
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground px-4 py-6 text-center bg-background">
+            {selectedCategory.name}
+          </h1>
+        )}
+      </div>
     );
-  }, [isCategoryPage, selectedCategory, categorySettings.showBanner, canvasViewport]);
+  }, [isCategoryPage, selectedCategory, categorySettings.showBanner, categorySettings.showCategoryName, canvasViewport]);
 
   // Build context with example data - include proper category object for builder
   const builderContext = useMemo<BlockRenderContext>(() => {
-    const ctx = { ...context };
+    const ctx = { ...context, viewport: canvasViewport };
     
     // For Category template, add category context with the selected example
     if (pageType === 'category' && selectedCategory) {
@@ -181,12 +192,12 @@ export function VisualBuilder({
         banner_desktop_url: selectedCategory.banner_desktop_url || undefined,
         banner_mobile_url: selectedCategory.banner_mobile_url || undefined,
       };
-      // Add banner slot
-      ctx.afterHeaderSlot = categoryBannerSlot;
+      // Add category header slot (banner + name)
+      ctx.afterHeaderSlot = categoryHeaderSlot;
     }
     
     return ctx;
-  }, [context, pageType, selectedCategory, categoryBannerSlot]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport]);
 
   // Warn before leaving with unsaved changes
   useEffect(() => {

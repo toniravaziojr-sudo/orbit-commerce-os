@@ -42,7 +42,11 @@ export function ProductGridBlock({
   context,
   isEditing = false,
 }: ProductGridBlockProps) {
-  const { tenantSlug } = context;
+  const { tenantSlug, viewport } = context;
+  
+  // Determine if mobile based on viewport context (for builder) or default to responsive CSS
+  const isMobileViewport = viewport === 'mobile';
+  const isTabletViewport = viewport === 'tablet';
 
   // Resolve category ID - use context.category.id if source is 'category' and categoryId is a placeholder
   const effectiveCategoryId = 
@@ -134,14 +138,41 @@ export function ProductGridBlock({
     }).format(price);
   };
 
-  const gridCols = {
-    1: 'grid-cols-1',
-    2: 'grid-cols-1 sm:grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-    6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
-  }[columns] || 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4';
+  // Compute grid columns based on viewport context or responsive fallback
+  const getGridCols = () => {
+    // If viewport is set (in builder), use explicit values
+    if (viewport) {
+      if (isMobileViewport) {
+        // Mobile: 2 columns max, 1 for small column counts
+        return columns <= 2 ? 'grid-cols-1' : 'grid-cols-2';
+      }
+      if (isTabletViewport) {
+        // Tablet: intermediate
+        return columns <= 2 ? 'grid-cols-2' : 'grid-cols-3';
+      }
+      // Desktop: use configured columns
+      return {
+        1: 'grid-cols-1',
+        2: 'grid-cols-2',
+        3: 'grid-cols-3',
+        4: 'grid-cols-4',
+        5: 'grid-cols-5',
+        6: 'grid-cols-6',
+      }[columns] || 'grid-cols-4';
+    }
+    
+    // Fallback to responsive CSS classes for public storefront
+    return {
+      1: 'grid-cols-1',
+      2: 'grid-cols-2 sm:grid-cols-2',
+      3: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
+      4: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
+      5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+      6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
+    }[columns] || 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4';
+  };
+
+  const gridCols = getGridCols();
 
   if (isLoading) {
     return (
