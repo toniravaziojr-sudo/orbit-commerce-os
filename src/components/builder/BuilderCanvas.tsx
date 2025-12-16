@@ -21,6 +21,8 @@ interface BuilderCanvasProps {
   onDeleteBlock?: (blockId: string) => void;
   onToggleHidden?: (blockId: string) => void;
   isPreviewMode?: boolean;
+  viewport?: ViewportSize;
+  onViewportChange?: (viewport: ViewportSize) => void;
 }
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
@@ -42,9 +44,20 @@ export function BuilderCanvas({
   onDeleteBlock,
   onToggleHidden,
   isPreviewMode = false,
+  viewport: controlledViewport,
+  onViewportChange,
 }: BuilderCanvasProps) {
-  const [viewport, setViewport] = useState<ViewportSize>('desktop');
+  const [internalViewport, setInternalViewport] = useState<ViewportSize>('desktop');
+  const viewport = controlledViewport ?? internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const handleViewportChange = (newViewport: ViewportSize) => {
+    if (onViewportChange) {
+      onViewportChange(newViewport);
+    } else {
+      setInternalViewport(newViewport);
+    }
+  };
 
   // Droppable for the canvas
   const { setNodeRef, isOver } = useDroppable({
@@ -104,7 +117,7 @@ export function BuilderCanvas({
             ([size, { icon: Icon, label }]) => (
               <button
                 key={size}
-                onClick={() => setViewport(size)}
+                onClick={() => handleViewportChange(size)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
                   viewport === size
