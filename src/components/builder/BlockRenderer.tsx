@@ -1329,15 +1329,17 @@ function CheckoutBlock({ isEditing }: any) {
   );
 }
 
-function FAQBlock({ title, items, isEditing, allowMultiple = false }: any) {
+function FAQBlock({ title, items, isEditing, allowMultiple = false, titleAlign = 'left' }: any) {
   const faqItems = items || [
     { question: 'Pergunta de exemplo 1?', answer: 'Resposta de exemplo 1.' },
     { question: 'Pergunta de exemplo 2?', answer: 'Resposta de exemplo 2.' },
   ];
 
+  const alignClass = titleAlign === 'center' ? 'text-center' : titleAlign === 'right' ? 'text-right' : 'text-left';
+
   return (
     <div className="py-8">
-      {title && <h2 className="text-2xl font-bold mb-6">{title}</h2>}
+      {title && <h2 className={`text-2xl font-bold mb-6 ${alignClass}`}>{title}</h2>}
       <Accordion type={allowMultiple ? "multiple" : "single"} collapsible className="w-full space-y-2">
         {faqItems.map((item: any, i: number) => (
           <AccordionItem key={i} value={`item-${i}`} className="border rounded-lg px-4">
