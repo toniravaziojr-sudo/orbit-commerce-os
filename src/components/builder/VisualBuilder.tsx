@@ -53,6 +53,7 @@ export function VisualBuilder({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   
   // Example selectors state (for Product/Category templates)
   const [exampleProductId, setExampleProductId] = useState<string>('');
@@ -136,6 +137,7 @@ export function VisualBuilder({
   const { saveDraft, publish } = useBuilderData(tenantId);
 
   // Build category banner component for afterHeaderSlot (only if showBanner is enabled)
+  // Use context.viewport to determine which image to show in the editor
   const categoryBannerSlot = useMemo(() => {
     if (!isCategoryPage || !selectedCategory || categorySettings.showBanner === false) return undefined;
     
@@ -143,23 +145,26 @@ export function VisualBuilder({
     const bannerMobile = selectedCategory.banner_mobile_url;
     
     if (!bannerDesktop && !bannerMobile) return undefined;
+
+    // In editor, use lifted viewport state to pick the correct image
+    const isMobileView = canvasViewport === 'mobile';
+    
+    // Determine which image to show based on viewport
+    // Fallback: mobile falls back to desktop, desktop falls back to mobile
+    const imageToShow = isMobileView
+      ? (bannerMobile || bannerDesktop)
+      : (bannerDesktop || bannerMobile);
+    
+    if (!imageToShow) return undefined;
     
     return (
-      <picture>
-        {bannerMobile && (
-          <source media="(max-width: 767px)" srcSet={bannerMobile} />
-        )}
-        {bannerDesktop && (
-          <source media="(min-width: 768px)" srcSet={bannerDesktop} />
-        )}
-        <img
-          src={bannerDesktop || bannerMobile || ''}
-          alt={`Banner ${selectedCategory.name || 'Categoria'}`}
-          className="w-full h-auto object-cover"
-        />
-      </picture>
+      <img
+        src={imageToShow}
+        alt={`Banner ${selectedCategory.name || 'Categoria'}`}
+        className="w-full h-auto object-cover"
+      />
     );
-  }, [isCategoryPage, selectedCategory, categorySettings.showBanner]);
+  }, [isCategoryPage, selectedCategory, categorySettings.showBanner, canvasViewport]);
 
   // Build context with example data - include proper category object for builder
   const builderContext = useMemo<BlockRenderContext>(() => {
@@ -568,6 +573,8 @@ export function VisualBuilder({
             onDeleteBlock={handleDeleteBlockById}
             onToggleHidden={handleToggleHidden}
             isPreviewMode={isPreviewMode}
+            viewport={canvasViewport}
+            onViewportChange={setCanvasViewport}
           />
         </div>
 
