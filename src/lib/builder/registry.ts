@@ -1027,6 +1027,16 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Título',
         defaultValue: 'Perguntas Frequentes',
       },
+      titleAlign: {
+        type: 'select',
+        label: 'Alinhamento do título',
+        options: [
+          { value: 'left', label: 'Esquerda' },
+          { value: 'center', label: 'Centro' },
+          { value: 'right', label: 'Direita' },
+        ],
+        defaultValue: 'left',
+      },
       items: {
         type: 'array',
         label: 'Perguntas',
