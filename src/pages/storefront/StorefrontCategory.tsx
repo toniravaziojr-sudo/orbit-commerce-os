@@ -3,12 +3,19 @@
 // =============================================
 
 import { useParams, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { usePublicCategory, usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
+import { supabase } from '@/integrations/supabase/client';
+
+interface CategorySettings {
+  showCategoryName?: boolean;
+  showBanner?: boolean;
+}
 
 export default function StorefrontCategory() {
   const { tenantSlug, categorySlug } = useParams<{ tenantSlug: string; categorySlug: string }>();
@@ -17,6 +24,31 @@ export default function StorefrontCategory() {
 
   const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { category, products, isLoading: categoryLoading } = usePublicCategory(tenantSlug || '', categorySlug || '');
+  
+  // Fetch category settings from page_overrides
+  const { data: categorySettings } = useQuery({
+    queryKey: ['category-settings', tenantSlug],
+    queryFn: async () => {
+      const { data: tenant } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenantSlug || '')
+        .single();
+      
+      if (!tenant) return { showCategoryName: true, showBanner: true };
+      
+      const { data } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenant.id)
+        .eq('page_type', 'category')
+        .maybeSingle();
+      
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return (overrides?.categorySettings as CategorySettings) || { showCategoryName: true, showBanner: true };
+    },
+    enabled: !!tenantSlug,
+  });
   
   // Use preview hook if in preview mode, otherwise use public hook
   const publicTemplate = usePublicTemplate(tenantSlug || '', 'category');
@@ -35,31 +67,44 @@ export default function StorefrontCategory() {
     );
   }
 
-  // Build category banner component for afterHeaderSlot
+  // Build category header slot (banner + name) based on settings
+  const showBanner = categorySettings?.showBanner !== false;
+  const showName = categorySettings?.showCategoryName !== false;
   const bannerDesktop = category?.banner_desktop_url;
   const bannerMobile = category?.banner_mobile_url;
-  const categoryBannerSlot = (bannerDesktop || bannerMobile) ? (
-    <picture>
-      {bannerMobile && (
-        <source media="(max-width: 767px)" srcSet={bannerMobile} />
+  const hasBanner = showBanner && (bannerDesktop || bannerMobile);
+
+  const categoryHeaderSlot = (hasBanner || (showName && category?.name)) ? (
+    <div className="w-full">
+      {hasBanner && (
+        <picture>
+          {bannerMobile && (
+            <source media="(max-width: 767px)" srcSet={bannerMobile} />
+          )}
+          {bannerDesktop && (
+            <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+          )}
+          <img
+            src={bannerDesktop || bannerMobile}
+            alt={`Banner ${category?.name || 'Categoria'}`}
+            className="w-full h-auto object-cover"
+          />
+        </picture>
       )}
-      {bannerDesktop && (
-        <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+      {showName && category?.name && (
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground px-4 py-6 text-center bg-background">
+          {category.name}
+        </h1>
       )}
-      <img
-        src={bannerDesktop || bannerMobile}
-        alt={`Banner ${category?.name || 'Categoria'}`}
-        className="w-full h-auto object-cover"
-      />
-    </picture>
+    </div>
   ) : undefined;
 
   // Build context for block rendering with category data
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
-    // Pass category banner via afterHeaderSlot
-    afterHeaderSlot: categoryBannerSlot,
+    // Pass category header (banner + name) via afterHeaderSlot
+    afterHeaderSlot: categoryHeaderSlot,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
