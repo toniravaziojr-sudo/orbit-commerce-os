@@ -14,6 +14,7 @@ interface BannerProductsBlockProps {
   description?: string;
   imageDesktop?: string;
   imageMobile?: string;
+  source?: 'manual' | 'category';
   productIds?: string[] | string; // Array (new) or string (legacy)
   categoryId?: string;
   limit?: number;
@@ -29,6 +30,7 @@ export function BannerProductsBlock({
   description = '',
   imageDesktop,
   imageMobile,
+  source = 'manual',
   productIds,
   categoryId,
   limit = 4,
@@ -46,20 +48,34 @@ export function BannerProductsBlock({
     (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && isMobileDevice);
   const imageUrl = isMobile && imageMobile ? imageMobile : imageDesktop;
 
-  // Parse product IDs if provided - support both array and string
+  // Parse product IDs if provided - support both array and string (legacy)
   const productIdArray = Array.isArray(productIds)
     ? productIds.filter(Boolean)
     : typeof productIds === 'string' && productIds.trim()
       ? productIds.split(/[\n,]/).map(id => id.trim()).filter(Boolean)
       : [];
 
+  // Check if categoryId is valid
+  const validCategoryId = categoryId && categoryId.trim() !== '';
+
+  // Determine actual source for the query
+  const effectiveSource = source === 'manual' && productIdArray.length > 0
+    ? 'all'
+    : source === 'category' && validCategoryId
+      ? 'category'
+      : 'newest';
+
   const { products, isLoading } = useBuilderProducts({
     tenantSlug: context?.tenantSlug || '',
-    source: productIdArray.length > 0 ? 'all' : (categoryId ? 'category' : 'newest'),
-    categoryId: productIdArray.length === 0 ? categoryId : undefined,
-    productIds: productIdArray.length > 0 ? productIdArray : undefined,
+    source: effectiveSource,
+    categoryId: source === 'category' && validCategoryId ? categoryId : undefined,
+    productIds: source === 'manual' && productIdArray.length > 0 ? productIdArray : undefined,
     limit,
   });
+
+  // Show empty state when source is configured but no data available yet
+  const showEmptyState = (source === 'manual' && productIdArray.length === 0) ||
+    (source === 'category' && !validCategoryId);
 
   if (isLoading) {
     return (
@@ -112,8 +128,16 @@ export function BannerProductsBlock({
             'grid gap-4',
             isMobile ? 'grid-cols-2' : 'grid-cols-2'
           )}>
-            {products.length > 0 ? (
-              products.slice(0, 4).map((product) => {
+            {showEmptyState ? (
+              <div className="col-span-2 flex items-center justify-center py-8">
+                <p className="text-muted-foreground text-sm text-center">
+                  {source === 'manual' 
+                    ? 'Selecione produtos nas propriedades do bloco'
+                    : 'Selecione uma categoria nas propriedades do bloco'}
+                </p>
+              </div>
+            ) : products.length > 0 ? (
+              products.slice(0, limit).map((product) => {
                 const productImageUrl = getProductImage(product);
                 const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
                 return (
@@ -156,7 +180,9 @@ export function BannerProductsBlock({
             ) : (
               <div className="col-span-2 flex items-center justify-center py-8">
                 <p className="text-muted-foreground text-sm">
-                  {isEditing ? 'Configure a fonte de produtos' : 'Nenhum produto disponível'}
+                  {source === 'category' 
+                    ? 'Nenhum produto nesta categoria' 
+                    : 'Nenhum produto disponível'}
                 </p>
               </div>
             )}

@@ -58,39 +58,46 @@ export function useBuilderProducts({
 }: UseBuilderProductsOptions) {
   const { data: tenantId, isLoading: tenantLoading } = useTenantId(tenantSlug);
 
+  // Determine if query should be enabled
+  const hasProductIds = productIds && productIds.length > 0;
+  const hasCategoryId = source === 'category' && !!categoryId;
+  const isOtherSource = source !== 'category' || hasProductIds;
+  const queryEnabled = !!tenantId && (isOtherSource || hasCategoryId);
+
   const productsQuery = useQuery({
-    queryKey: ['builder-products', tenantId, source, categoryId, limit, productIds],
+    queryKey: ['builder-products', tenantId, source, categoryId, limit, productIds?.join(',')],
     queryFn: async () => {
       if (!tenantId) return [];
 
-      // If productIds is provided, fetch those specific products
-      if (productIds && productIds.length > 0) {
+      // Priority 1: If productIds is provided, fetch those specific products
+      if (hasProductIds) {
         const { data, error } = await supabase
           .from('products')
           .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
           .eq('tenant_id', tenantId)
           .eq('status', 'active')
-          .in('id', productIds);
+          .in('id', productIds!);
 
         if (error) throw error;
 
         // Preserve order from productIds
         const productMap = new Map((data || []).map(p => [p.id, p]));
-        const orderedProducts = productIds
+        const orderedProducts = productIds!
           .map(id => productMap.get(id))
           .filter(Boolean) as BuilderProduct[];
 
         return orderedProducts;
       }
 
-      // Category source - needs join with product_categories
+      // Priority 2: Category source - needs join with product_categories
       if (source === 'category' && categoryId) {
-        const { data: productCategories } = await supabase
+        const { data: productCategories, error: pcError } = await supabase
           .from('product_categories')
           .select('product_id, position')
           .eq('category_id', categoryId)
           .order('position', { ascending: true });
 
+        if (pcError) throw pcError;
         if (!productCategories?.length) return [];
 
         const productIdsList = productCategories.map(pc => pc.product_id);
@@ -116,7 +123,7 @@ export function useBuilderProducts({
         return sortedProducts as BuilderProduct[];
       }
 
-      // All other sources
+      // Priority 3: All other sources (featured, newest, all)
       let query = supabase
         .from('products')
         .select('id, name, slug, price, compare_at_price, is_featured, product_images(url, is_primary)')
@@ -128,18 +135,14 @@ export function useBuilderProducts({
         query = query.eq('is_featured', true);
       }
 
-      // Order by created_at for newest, or default ordering
-      if (source === 'newest') {
-        query = query.order('created_at', { ascending: false });
-      } else {
-        query = query.order('created_at', { ascending: false });
-      }
+      query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
       if (error) throw error;
       return (data || []) as BuilderProduct[];
     },
-    enabled: !!tenantId && (source !== 'category' || !!categoryId || (productIds && productIds.length > 0)),
+    enabled: queryEnabled,
+    staleTime: 0, // Always refetch on key change
   });
 
   return {
