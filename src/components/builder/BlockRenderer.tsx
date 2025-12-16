@@ -136,6 +136,13 @@ export function BlockRenderer({
               siblingsCount={node.children!.length}
               parentId={node.id}
             />
+
+            {/* Render afterHeaderSlot after Header block (e.g., category banner) */}
+            {child.type === 'Header' && context.afterHeaderSlot && (
+              <div className="w-full">
+                {context.afterHeaderSlot}
+              </div>
+            )}
             
             {/* Add block button after each child */}
             {isEditing && onAddBlock && definition.canHaveChildren && (
