@@ -4,6 +4,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
 import { useBuilderData } from '@/hooks/useBuilderData';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
@@ -16,6 +18,7 @@ import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
 import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
+import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, LayoutGrid } from 'lucide-react';
@@ -58,6 +61,26 @@ export function VisualBuilder({
   // Check page context for Header/Footer governance
   const isCheckoutPage = pageType === 'checkout';
   const isHomePage = pageType === 'home';
+  const isCategoryPage = pageType === 'category';
+
+  // Category settings for category template
+  const { settings: categorySettings, setSettings: setCategorySettings } = useCategorySettings(tenantId);
+
+  // Fetch full category data (including banners) when editing category template
+  const { data: selectedCategory } = useQuery({
+    queryKey: ['builder-category-full', exampleCategoryId],
+    queryFn: async () => {
+      if (!exampleCategoryId) return null;
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug, description, image_url, banner_desktop_url, banner_mobile_url')
+        .eq('id', exampleCategoryId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!exampleCategoryId && isCategoryPage,
+  });
 
   // Global layout integration
   const { 
@@ -112,21 +135,53 @@ export function VisualBuilder({
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
 
+  // Build category banner component for afterHeaderSlot (only if showBanner is enabled)
+  const categoryBannerSlot = useMemo(() => {
+    if (!isCategoryPage || !selectedCategory || categorySettings.showBanner === false) return undefined;
+    
+    const bannerDesktop = selectedCategory.banner_desktop_url;
+    const bannerMobile = selectedCategory.banner_mobile_url;
+    
+    if (!bannerDesktop && !bannerMobile) return undefined;
+    
+    return (
+      <picture>
+        {bannerMobile && (
+          <source media="(max-width: 767px)" srcSet={bannerMobile} />
+        )}
+        {bannerDesktop && (
+          <source media="(min-width: 768px)" srcSet={bannerDesktop} />
+        )}
+        <img
+          src={bannerDesktop || bannerMobile || ''}
+          alt={`Banner ${selectedCategory.name || 'Categoria'}`}
+          className="w-full h-auto object-cover"
+        />
+      </picture>
+    );
+  }, [isCategoryPage, selectedCategory, categorySettings.showBanner]);
+
   // Build context with example data - include proper category object for builder
   const builderContext = useMemo<BlockRenderContext>(() => {
     const ctx = { ...context };
     
     // For Category template, add category context with the selected example
-    if (pageType === 'category' && exampleCategoryId) {
+    if (pageType === 'category' && selectedCategory) {
       ctx.category = { 
-        id: exampleCategoryId, 
-        slug: '', // Slug not needed for ProductGridBlock, it uses id
-        name: '' 
+        id: selectedCategory.id, 
+        name: selectedCategory.name,
+        slug: selectedCategory.slug,
+        description: selectedCategory.description || undefined,
+        image_url: selectedCategory.image_url || undefined,
+        banner_desktop_url: selectedCategory.banner_desktop_url || undefined,
+        banner_mobile_url: selectedCategory.banner_mobile_url || undefined,
       };
+      // Add banner slot
+      ctx.afterHeaderSlot = categoryBannerSlot;
     }
     
     return ctx;
-  }, [context, pageType, exampleProductId, exampleCategoryId]);
+  }, [context, pageType, selectedCategory, categoryBannerSlot]);
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -456,6 +511,15 @@ export function VisualBuilder({
         {/* Left Sidebar - Block Palette + Tree */}
         {!isPreviewMode && (
           <div className="w-64 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+            {/* Category Settings Panel - Only for Category template */}
+            {isCategoryPage && (
+              <CategorySettingsPanel
+                tenantId={tenantId}
+                settings={categorySettings}
+                onChange={setCategorySettings}
+              />
+            )}
+            
             <Tabs value={leftTab} onValueChange={(v) => setLeftTab(v as 'blocks' | 'tree')} className="flex flex-col h-full">
               <TabsList className="w-full justify-start rounded-none border-b bg-background px-2 py-0 h-11">
                 <TabsTrigger 
