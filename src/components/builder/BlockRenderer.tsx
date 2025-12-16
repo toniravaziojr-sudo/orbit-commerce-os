@@ -245,6 +245,8 @@ const components: Record<string, React.ComponentType<any>> = {
     Reviews: ReviewsBlockWrapper,
     FeaturedCategories: FeaturedCategoriesBlockWrapper,
     TextBanners: TextBannersBlockWrapper,
+    // Special slot block for category banner etc.
+    AfterHeaderSlot: AfterHeaderSlotBlock,
   };
 
   return components[type] || FallbackBlock;
@@ -257,35 +259,22 @@ function FallbackBlock({ children }: { children?: React.ReactNode }) {
 
 // ========== LAYOUT BLOCKS ==========
 
-function PageBlock({ children, backgroundColor, context }: any) {
-  // afterHeaderSlot is passed via context for things like category banners
-  const afterHeaderSlot = context?.afterHeaderSlot;
-
-  // Convert children to array to insert afterHeaderSlot in correct position
-  const childArray = React.Children.toArray(children);
-  
-  // Build the final children array with afterHeaderSlot after first child (Header)
-  const finalChildren: React.ReactNode[] = [];
-  childArray.forEach((child, index) => {
-    finalChildren.push(child);
-    // After first child (Header), insert the afterHeaderSlot
-    if (index === 0 && afterHeaderSlot) {
-      finalChildren.push(
-        <div key="after-header-slot" className="w-full">
-          {afterHeaderSlot}
-        </div>
-      );
-    }
-  });
-
+function PageBlock({ children, backgroundColor }: any) {
   return (
     <div 
-      className="min-h-screen"
-      style={{ backgroundColor: backgroundColor || 'transparent' }}
+      className="min-h-screen flex flex-col"
+      style={{ backgroundColor }}
     >
-      {finalChildren}
+      {children}
     </div>
   );
+}
+
+// Special block for afterHeaderSlot - renders content passed via context
+function AfterHeaderSlotBlock({ context }: { context?: BlockRenderContext }) {
+  const slot = context?.afterHeaderSlot;
+  if (!slot) return null;
+  return <div className="w-full">{slot}</div>;
 }
 
 function SectionBlock({ 
