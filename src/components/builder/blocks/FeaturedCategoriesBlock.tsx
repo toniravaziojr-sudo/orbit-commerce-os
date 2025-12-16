@@ -12,32 +12,41 @@ import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { getPublicCategoryUrl } from '@/lib/publicUrls';
 
-interface CategoryItem {
+interface CategoryItemConfig {
+  categoryId: string;
+  miniImageDesktop?: string;
+  miniImageMobile?: string;
+}
+
+interface CategoryData {
   id: string;
   name: string;
   slug: string;
   image_url?: string;
-  imageDesktop?: string;
-  imageMobile?: string;
 }
 
 interface FeaturedCategoriesBlockProps {
   title?: string;
+  items?: CategoryItemConfig[];
+  // Legacy support
   categoryIds?: string[];
   mobileStyle?: 'carousel' | 'grid';
   showName?: boolean;
   context?: BlockRenderContext;
+  isEditing?: boolean;
 }
 
 export function FeaturedCategoriesBlock({
   title = 'Categorias',
+  items = [],
   categoryIds = [],
   mobileStyle = 'carousel',
   showName = true,
   context,
+  isEditing = false,
 }: FeaturedCategoriesBlockProps) {
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
-  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categories, setCategories] = useState<(CategoryData & { config?: CategoryItemConfig })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -49,18 +58,26 @@ export function FeaturedCategoriesBlock({
   const scrollPrev = useCallback(() => emblaApi?.scrollPrev(), [emblaApi]);
   const scrollNext = useCallback(() => emblaApi?.scrollNext(), [emblaApi]);
 
+  // Normalize items - support both new format (items) and legacy (categoryIds)
+  const normalizedItems: CategoryItemConfig[] = items.length > 0 
+    ? items 
+    : categoryIds.map(id => ({ categoryId: id }));
+
   // Fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         setIsLoading(true);
+        
+        const categoryIdsToFetch = normalizedItems.map(item => item.categoryId).filter(Boolean);
+        
         let query = supabase
           .from('categories')
           .select('id, name, slug, image_url')
           .eq('is_active', true);
 
-        if (categoryIds.length > 0) {
-          query = query.in('id', categoryIds);
+        if (categoryIdsToFetch.length > 0) {
+          query = query.in('id', categoryIdsToFetch);
         } else {
           query = query.limit(8);
         }
@@ -68,7 +85,23 @@ export function FeaturedCategoriesBlock({
         const { data, error } = await query.order('sort_order', { ascending: true });
 
         if (error) throw error;
-        setCategories(data || []);
+        
+        // Merge category data with config (mini images)
+        const mergedData = (data || []).map(cat => {
+          const config = normalizedItems.find(item => item.categoryId === cat.id);
+          return { ...cat, config };
+        });
+        
+        // Maintain order from items array
+        if (categoryIdsToFetch.length > 0) {
+          mergedData.sort((a, b) => {
+            const indexA = categoryIdsToFetch.indexOf(a.id);
+            const indexB = categoryIdsToFetch.indexOf(b.id);
+            return indexA - indexB;
+          });
+        }
+        
+        setCategories(mergedData);
       } catch (error) {
         console.error('Error fetching categories:', error);
         setCategories([]);
@@ -78,7 +111,7 @@ export function FeaturedCategoriesBlock({
     };
 
     fetchCategories();
-  }, [categoryIds]);
+  }, [JSON.stringify(normalizedItems)]);
 
   if (isLoading) {
     return (
@@ -100,23 +133,23 @@ export function FeaturedCategoriesBlock({
             <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>
           )}
           <div className="text-center py-8 text-muted-foreground">
-            <p>Nenhuma categoria encontrada</p>
+            <p>Selecione categorias nas propriedades do bloco</p>
           </div>
         </div>
       </section>
     );
   }
 
-  const CategoryCard = ({ category }: { category: CategoryItem }) => {
-    const imageUrl = isMobile && category.imageMobile 
-      ? category.imageMobile 
-      : (category.imageDesktop || category.image_url);
+  const CategoryCard = ({ category }: { category: CategoryData & { config?: CategoryItemConfig } }) => {
+    // Priority: mini image (viewport-aware) > category.image_url > placeholder
+    const miniImage = isMobile && category.config?.miniImageMobile 
+      ? category.config.miniImageMobile 
+      : (category.config?.miniImageDesktop || null);
+    
+    const imageUrl = miniImage || category.image_url;
 
-    return (
-      <Link 
-        to={getPublicCategoryUrl(context?.tenantSlug || '', category.slug)}
-        className="group flex flex-col items-center"
-      >
+    const cardContent = (
+      <>
         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
           {imageUrl ? (
             <img
@@ -135,6 +168,24 @@ export function FeaturedCategoriesBlock({
             {category.name}
           </span>
         )}
+      </>
+    );
+
+    // In editor mode, don't use Link to prevent navigation
+    if (isEditing) {
+      return (
+        <div className="group flex flex-col items-center cursor-pointer">
+          {cardContent}
+        </div>
+      );
+    }
+
+    return (
+      <Link 
+        to={getPublicCategoryUrl(context?.tenantSlug || '', category.slug)}
+        className="group flex flex-col items-center"
+      >
+        {cardContent}
       </Link>
     );
   };

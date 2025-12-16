@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { ProductMultiSelect } from './ProductMultiSelect';
+import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
 import { FAQEditor, TestimonialsEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
@@ -409,6 +410,15 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           <ProductMultiSelect
             value={Array.isArray(value) ? value : []}
             onChange={(ids) => onChange(ids)}
+            maxItems={schema.max || 12}
+          />
+        );
+
+      case 'categoryMultiSelect':
+        return (
+          <CategoryMultiSelect
+            value={Array.isArray(value) ? value : []}
+            onChange={(items) => onChange(items)}
             maxItems={schema.max || 12}
           />
         );

@@ -119,6 +119,8 @@ export type Database = {
       }
       categories: {
         Row: {
+          banner_desktop_url: string | null
+          banner_mobile_url: string | null
           created_at: string
           description: string | null
           id: string
@@ -134,6 +136,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          banner_desktop_url?: string | null
+          banner_mobile_url?: string | null
           created_at?: string
           description?: string | null
           id?: string
@@ -149,6 +153,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          banner_desktop_url?: string | null
+          banner_mobile_url?: string | null
           created_at?: string
           description?: string | null
           id?: string

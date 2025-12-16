@@ -6,8 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Save, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, Save, Image as ImageIcon, AlertCircle, Upload, Loader2 } from 'lucide-react';
 import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
+import { useState, useRef } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 interface CategoryFormProps {
   formData: {
@@ -20,6 +23,8 @@ interface CategoryFormProps {
     sort_order: number;
     seo_title: string;
     seo_description: string;
+    banner_desktop_url: string;
+    banner_mobile_url: string;
   };
   onChange: (data: CategoryFormProps['formData']) => void;
   onSubmit: () => void;
@@ -28,6 +33,103 @@ interface CategoryFormProps {
   parentCategories: Category[];
   editingCategoryId?: string;
   isLoading?: boolean;
+}
+
+function ImageUploadField({ 
+  label, 
+  value, 
+  onChange, 
+  placeholder,
+  helpText,
+}: { 
+  label: string; 
+  value: string; 
+  onChange: (url: string) => void; 
+  placeholder: string;
+  helpText?: string;
+}) {
+  const { currentTenant } = useAuth();
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileSelect = async (file: File) => {
+    if (!currentTenant?.id) return;
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const timestamp = Date.now();
+      const fileName = `${currentTenant.id}/categories/${timestamp}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+
+      onChange(urlData.publicUrl);
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <div className="flex gap-2">
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="flex-1"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+        >
+          {isUploading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Upload className="h-4 w-4" />
+          )}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFileSelect(file);
+          }}
+        />
+      </div>
+      {value && (
+        <div className="h-20 w-full rounded border overflow-hidden bg-muted">
+          <img
+            src={value}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+      {helpText && <p className="text-xs text-muted-foreground">{helpText}</p>}
+    </div>
+  );
 }
 
 export function CategoryForm({
@@ -134,7 +236,7 @@ export function CategoryForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="image_url">Imagem</Label>
+          <Label htmlFor="image_url">Imagem (miniatura)</Label>
           <div className="flex gap-2">
             <Input
               id="image_url"
@@ -154,6 +256,27 @@ export function CategoryForm({
                 />
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Banner section */}
+        <div className="border-t pt-4 mt-4">
+          <h4 className="font-medium mb-3 text-sm text-muted-foreground">Banner da Categoria</h4>
+          <div className="space-y-4">
+            <ImageUploadField
+              label="Banner Desktop"
+              value={formData.banner_desktop_url || ''}
+              onChange={(url) => onChange({ ...formData, banner_desktop_url: url })}
+              placeholder="URL do banner desktop"
+              helpText="Recomendado: 1920×400px"
+            />
+            <ImageUploadField
+              label="Banner Mobile"
+              value={formData.banner_mobile_url || ''}
+              onChange={(url) => onChange({ ...formData, banner_mobile_url: url })}
+              placeholder="URL do banner mobile"
+              helpText="Recomendado: 768×300px"
+            />
           </div>
         </div>
 

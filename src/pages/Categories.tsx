@@ -21,6 +21,8 @@ const emptyFormData = {
   sort_order: 0,
   seo_title: '',
   seo_description: '',
+  banner_desktop_url: '',
+  banner_mobile_url: '',
 };
 
 export default function Categories() {
@@ -58,6 +60,8 @@ export default function Categories() {
       sort_order: category.sort_order || 0,
       seo_title: category.seo_title || '',
       seo_description: category.seo_description || '',
+      banner_desktop_url: (category as any).banner_desktop_url || '',
+      banner_mobile_url: (category as any).banner_mobile_url || '',
     });
     setShowForm(true);
   };
