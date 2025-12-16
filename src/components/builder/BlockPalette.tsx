@@ -65,8 +65,8 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   // Content
   'RichText': 'content',
   'Button': 'content',
-  'TextBanners': 'content',
   'YouTubeVideo': 'content',
+  'VideoUpload': 'content',
   
   // Social Proof
   'Reviews': 'social-proof',
@@ -104,8 +104,8 @@ const visibleBlockTypes = new Set([
   // Content
   'RichText',
   'Button',
-  'TextBanners',
   'YouTubeVideo',
+  'VideoUpload',
   // Social Proof
   'Reviews',
   'Testimonials',

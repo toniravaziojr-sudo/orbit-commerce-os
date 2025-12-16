@@ -1,12 +1,12 @@
 // =============================================
-// RICH TEXT EDITOR - Simple markdown editor with preview
+// RICH TEXT EDITOR - Visual/HTML editor with functional toolbar
 // =============================================
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bold, Italic, Link, List, Eye, Edit2 } from 'lucide-react';
+import { Bold, Italic, Link, List, AlignLeft, AlignCenter, AlignRight, Eye, Code } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface RichTextEditorProps {
@@ -15,66 +15,142 @@ interface RichTextEditorProps {
   placeholder?: string;
 }
 
-export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+// Whitelist of allowed HTML tags and attributes for security
+const ALLOWED_TAGS = ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'span', 'div'];
+const ALLOWED_ATTRIBUTES = ['href', 'target', 'class', 'style'];
 
-  // Simple markdown to HTML conversion
-  const markdownToHtml = (markdown: string): string => {
-    if (!markdown) return '';
+function sanitizeHtml(html: string): string {
+  if (!html) return '';
+  
+  // Create a DOM parser
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  
+  // Recursive function to sanitize nodes
+  function sanitizeNode(node: Node): Node | null {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return node;
+    }
     
-    let html = markdown
-      // Headers
-      .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-      .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-      // Bold
-      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-      // Italic
-      .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-      // Links
-      .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" class="text-primary underline">$1</a>')
-      // Unordered lists
-      .replace(/^\- (.*$)/gim, '<li>$1</li>')
-      // Line breaks
-      .replace(/\n/gim, '<br />');
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const element = node as Element;
+      const tagName = element.tagName.toLowerCase();
+      
+      // Remove disallowed tags (but keep their text content)
+      if (!ALLOWED_TAGS.includes(tagName)) {
+        const fragment = document.createDocumentFragment();
+        Array.from(element.childNodes).forEach(child => {
+          const sanitized = sanitizeNode(child);
+          if (sanitized) fragment.appendChild(sanitized);
+        });
+        return fragment;
+      }
+      
+      // Clone the element and remove disallowed attributes
+      const clone = document.createElement(tagName);
+      Array.from(element.attributes).forEach(attr => {
+        if (ALLOWED_ATTRIBUTES.includes(attr.name.toLowerCase())) {
+          // Additional check for href to prevent javascript:
+          if (attr.name === 'href' && attr.value.toLowerCase().startsWith('javascript:')) {
+            return;
+          }
+          clone.setAttribute(attr.name, attr.value);
+        }
+      });
+      
+      // Recursively sanitize children
+      Array.from(element.childNodes).forEach(child => {
+        const sanitized = sanitizeNode(child);
+        if (sanitized) clone.appendChild(sanitized);
+      });
+      
+      return clone;
+    }
+    
+    return null;
+  }
+  
+  const fragment = document.createDocumentFragment();
+  Array.from(doc.body.childNodes).forEach(node => {
+    const sanitized = sanitizeNode(node);
+    if (sanitized) fragment.appendChild(sanitized);
+  });
+  
+  const container = document.createElement('div');
+  container.appendChild(fragment);
+  return container.innerHTML;
+}
 
-    // Wrap consecutive li tags in ul
-    html = html.replace(/(<li>.*<\/li>(<br \/>)?)+/gim, (match) => {
-      return '<ul class="list-disc pl-4 my-2">' + match.replace(/<br \/>/g, '') + '</ul>';
-    });
+export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorProps) {
+  const [mode, setMode] = useState<'visual' | 'html'>('visual');
+  const editorRef = useRef<HTMLDivElement>(null);
+  const [htmlValue, setHtmlValue] = useState(value || '');
 
-    return html;
+  // Sync HTML value when switching modes
+  const handleModeChange = (newMode: 'visual' | 'html') => {
+    if (newMode === 'html' && editorRef.current) {
+      setHtmlValue(editorRef.current.innerHTML);
+    } else if (newMode === 'visual') {
+      // When switching to visual, update the contenteditable with sanitized HTML
+      if (editorRef.current) {
+        editorRef.current.innerHTML = sanitizeHtml(htmlValue);
+      }
+    }
+    setMode(newMode);
   };
 
-  const insertMarkdown = (prefix: string, suffix: string = '') => {
-    const textarea = document.querySelector('textarea[data-richtext]') as HTMLTextAreaElement;
-    if (!textarea) return;
+  // Handle contenteditable changes
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      const sanitized = sanitizeHtml(editorRef.current.innerHTML);
+      onChange(sanitized);
+    }
+  }, [onChange]);
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = value.substring(start, end);
-    const newText = value.substring(0, start) + prefix + selectedText + suffix + value.substring(end);
-    
-    onChange(newText);
-    
-    // Restore cursor position
-    setTimeout(() => {
-      textarea.focus();
-      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
-    }, 0);
+  // Handle HTML textarea changes
+  const handleHtmlChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    setHtmlValue(newValue);
+    onChange(sanitizeHtml(newValue));
+  };
+
+  // Execute formatting command
+  const execCommand = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+    handleInput();
+  };
+
+  // Format buttons
+  const formatBold = () => execCommand('bold');
+  const formatItalic = () => execCommand('italic');
+  const formatUnorderedList = () => execCommand('insertUnorderedList');
+  const formatLink = () => {
+    const url = prompt('Digite a URL do link:', 'https://');
+    if (url) {
+      execCommand('createLink', url);
+    }
+  };
+  const formatAlign = (alignment: 'left' | 'center' | 'right') => {
+    const alignCommand = {
+      left: 'justifyLeft',
+      center: 'justifyCenter',
+      right: 'justifyRight',
+    }[alignment];
+    execCommand(alignCommand);
   };
 
   return (
     <div className="border rounded-lg overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-1 p-2 bg-muted/30 border-b">
+      <div className="flex items-center gap-1 p-2 bg-muted/30 border-b flex-wrap">
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => insertMarkdown('**', '**')}
-          title="Negrito"
+          onClick={formatBold}
+          title="Negrito (Ctrl+B)"
+          disabled={mode === 'html'}
         >
           <Bold className="h-4 w-4" />
         </Button>
@@ -83,8 +159,9 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => insertMarkdown('*', '*')}
-          title="Itálico"
+          onClick={formatItalic}
+          title="Itálico (Ctrl+I)"
+          disabled={mode === 'html'}
         >
           <Italic className="h-4 w-4" />
         </Button>
@@ -93,8 +170,9 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => insertMarkdown('[', '](url)')}
-          title="Link"
+          onClick={formatLink}
+          title="Inserir Link"
+          disabled={mode === 'html'}
         >
           <Link className="h-4 w-4" />
         </Button>
@@ -103,42 +181,98 @@ export function RichTextEditor({ value, onChange, placeholder }: RichTextEditorP
           variant="ghost"
           size="icon"
           className="h-7 w-7"
-          onClick={() => insertMarkdown('- ')}
+          onClick={formatUnorderedList}
           title="Lista"
+          disabled={mode === 'html'}
         >
           <List className="h-4 w-4" />
         </Button>
 
+        <div className="w-px h-5 bg-border mx-1" />
+
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => formatAlign('left')}
+          title="Alinhar à Esquerda"
+          disabled={mode === 'html'}
+        >
+          <AlignLeft className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => formatAlign('center')}
+          title="Centralizar"
+          disabled={mode === 'html'}
+        >
+          <AlignCenter className="h-4 w-4" />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => formatAlign('right')}
+          title="Alinhar à Direita"
+          disabled={mode === 'html'}
+        >
+          <AlignRight className="h-4 w-4" />
+        </Button>
+
         <div className="flex-1" />
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'edit' | 'preview')}>
-          <TabsList className="h-7">
-            <TabsTrigger value="edit" className="h-6 text-xs gap-1 px-2">
-              <Edit2 className="h-3 w-3" />
-              Editar
-            </TabsTrigger>
-            <TabsTrigger value="preview" className="h-6 text-xs gap-1 px-2">
-              <Eye className="h-3 w-3" />
-              Preview
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Mode Toggle */}
+        <div className="flex border rounded-md overflow-hidden">
+          <Button
+            type="button"
+            variant={mode === 'visual' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 text-xs gap-1 px-2 rounded-none"
+            onClick={() => handleModeChange('visual')}
+          >
+            <Eye className="h-3 w-3" />
+            Visual
+          </Button>
+          <Button
+            type="button"
+            variant={mode === 'html' ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-7 text-xs gap-1 px-2 rounded-none"
+            onClick={() => handleModeChange('html')}
+          >
+            <Code className="h-3 w-3" />
+            HTML
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
       <div className="min-h-[120px]">
-        {activeTab === 'edit' ? (
-          <Textarea
-            data-richtext
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder || 'Digite seu conteúdo...\n\n**negrito** *itálico* [link](url)\n- item de lista'}
-            className="border-0 rounded-none resize-none min-h-[120px] focus-visible:ring-0"
+        {mode === 'visual' ? (
+          <div
+            ref={editorRef}
+            contentEditable
+            onInput={handleInput}
+            onBlur={handleInput}
+            className={cn(
+              'p-3 min-h-[120px] focus:outline-none',
+              'prose prose-sm max-w-none',
+              '[&_*]:outline-none'
+            )}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(value) || '' }}
+            data-placeholder={placeholder || 'Digite seu conteúdo...'}
           />
         ) : (
-          <div 
-            className="p-3 prose prose-sm max-w-none min-h-[120px]"
-            dangerouslySetInnerHTML={{ __html: markdownToHtml(value) || '<p class="text-muted-foreground">Nenhum conteúdo</p>' }}
+          <Textarea
+            value={htmlValue}
+            onChange={handleHtmlChange}
+            placeholder="<p>Digite HTML aqui...</p>"
+            className="border-0 rounded-none resize-none min-h-[120px] focus-visible:ring-0 font-mono text-sm"
           />
         )}
       </div>

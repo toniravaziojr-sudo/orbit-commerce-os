@@ -356,6 +356,27 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
         );
       }
 
+      case 'video': {
+        // Video upload support - reuse image uploader with library
+        const isDesktopField = name.toLowerCase().includes('desktop');
+        const isMobileField = name.toLowerCase().includes('mobile');
+        const variant = isMobileField ? 'mobile' : 'desktop';
+        
+        return (
+          <div className="space-y-1.5">
+            <ImageUploaderWithLibrary
+              value={(value as string) || ''}
+              onChange={(url) => onChange(url)}
+              placeholder={`Vídeo ${variant === 'desktop' ? 'Desktop' : 'Mobile'}`}
+              variant={variant}
+            />
+            {schema.helpText && (
+              <p className="text-xs text-muted-foreground">{schema.helpText}</p>
+            )}
+          </div>
+        );
+      }
+
       case 'richtext':
         return (
           <RichTextEditor
