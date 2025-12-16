@@ -33,6 +33,8 @@ import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import LandingPages from "@/pages/LandingPages";
+import BuyTogether from "@/pages/BuyTogether";
+import Reviews from "@/pages/Reviews";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
@@ -111,6 +113,8 @@ const App = () => (
               <Route path="/support" element={<Support />} />
               <Route path="/media" element={<Media />} />
               <Route path="/campaigns" element={<Campaigns />} />
+              <Route path="/buy-together" element={<BuyTogether />} />
+              <Route path="/reviews" element={<Reviews />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/finance" element={<Finance />} />
               <Route path="/payments" element={<Payments />} />

@@ -25,6 +25,8 @@ import {
   FolderTree,
   Menu,
   Rocket,
+  Star,
+  Gift,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -69,17 +71,19 @@ const navigation: NavGroup[] = [
     ],
   },
   {
+    label: "Marketing",
+    items: [
+      { title: "Compre Junto", href: "/buy-together", icon: Gift },
+      { title: "Avaliações", href: "/reviews", icon: Star },
+      { title: "Mídias", href: "/media", icon: Image },
+      { title: "Campanhas", href: "/campaigns", icon: Megaphone },
+    ],
+  },
+  {
     label: "Comunicação",
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare },
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
-      { title: "Mídias", href: "/media", icon: Image },
-      { title: "Campanhas", href: "/campaigns", icon: Megaphone },
     ],
   },
   {
