@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -55,7 +56,7 @@ export default function Reviews() {
   const { currentTenant, user } = useAuth();
   const currentTenantId = currentTenant?.id;
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('pending');
   const [productFilter, setProductFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -77,7 +78,7 @@ export default function Reviews() {
 
   // Fetch reviews
   const { data: reviews = [], isLoading } = useQuery({
-    queryKey: ['product-reviews', currentTenantId, statusFilter, productFilter],
+    queryKey: ['product-reviews', currentTenantId, activeTab, productFilter],
     queryFn: async () => {
       if (!currentTenantId) return [];
       
@@ -90,8 +91,8 @@ export default function Reviews() {
         .eq('tenant_id', currentTenantId)
         .order('created_at', { ascending: false });
 
-      if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+      if (activeTab !== 'all') {
+        query = query.eq('status', activeTab);
       }
       if (productFilter !== 'all') {
         query = query.eq('product_id', productFilter);
@@ -106,7 +107,7 @@ export default function Reviews() {
 
   // Update status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status, productId }: { id: string; status: string; productId: string }) => {
       const updateData: any = { status };
       if (status === 'approved') {
         updateData.approved_at = new Date().toISOString();
@@ -118,9 +119,14 @@ export default function Reviews() {
         .update(updateData)
         .eq('id', id);
       if (error) throw error;
+      return { productId };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['product-reviews'] });
+      // Also invalidate product ratings to update stars on product pages
+      queryClient.invalidateQueries({ queryKey: ['product-rating', data.productId] });
+      queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
+      queryClient.invalidateQueries({ queryKey: ['product-reviews-public', data.productId] });
       toast.success('Status atualizado');
     },
     onError: () => {
@@ -226,48 +232,49 @@ export default function Reviews() {
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Buscar por nome, conteúdo..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
+      {/* Tabs + Filters */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          <TabsList>
+            <TabsTrigger value="pending" className="relative">
+              Pendentes
+              {stats.pending > 0 && (
+                <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5">
+                  {stats.pending}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="approved">Aprovadas</TabsTrigger>
+            <TabsTrigger value="rejected">Rejeitadas</TabsTrigger>
+            <TabsTrigger value="all">Todas</TabsTrigger>
+          </TabsList>
+          
+          <div className="flex-1 min-w-[200px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome, conteúdo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="pending">Pendentes</SelectItem>
-                <SelectItem value="approved">Aprovadas</SelectItem>
-                <SelectItem value="rejected">Rejeitadas</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={productFilter} onValueChange={setProductFilter}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Produto" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os produtos</SelectItem>
-                {products.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
-        </CardContent>
-      </Card>
+          
+          <Select value={productFilter} onValueChange={setProductFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Produto" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os produtos</SelectItem>
+              {products.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
       {/* Reviews Table */}
       <Card>
@@ -344,7 +351,7 @@ export default function Reviews() {
                         <DropdownMenuContent align="end">
                           {review.status !== 'approved' && (
                             <DropdownMenuItem
-                              onClick={() => updateStatusMutation.mutate({ id: review.id, status: 'approved' })}
+                              onClick={() => updateStatusMutation.mutate({ id: review.id, status: 'approved', productId: review.product_id })}
                             >
                               <Check className="h-4 w-4 mr-2 text-green-600" />
                               Aprovar
@@ -352,7 +359,7 @@ export default function Reviews() {
                           )}
                           {review.status !== 'rejected' && (
                             <DropdownMenuItem
-                              onClick={() => updateStatusMutation.mutate({ id: review.id, status: 'rejected' })}
+                              onClick={() => updateStatusMutation.mutate({ id: review.id, status: 'rejected', productId: review.product_id })}
                             >
                               <X className="h-4 w-4 mr-2 text-red-600" />
                               Rejeitar
@@ -379,6 +386,7 @@ export default function Reviews() {
           )}
         </CardContent>
       </Card>
+      </Tabs>
     </div>
   );
 }
