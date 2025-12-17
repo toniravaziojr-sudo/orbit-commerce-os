@@ -1201,7 +1201,9 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
 
   const productName = product?.name || 'Produto';
   const productPrice = product?.price || 0;
-  const productDescription = product?.description || product?.short_description;
+  // Use short_description in hero section; full description goes in afterContentSlot
+  const productShortDescription = product?.short_description || 
+    (product?.description ? product.description.substring(0, 200) + (product.description.length > 200 ? '...' : '') : '');
   const productStock = product?.stock_quantity ?? 0;
   const allowBackorder = product?.allow_backorder ?? false;
 
@@ -1226,8 +1228,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           <p className={`${priceClasses} text-primary font-bold`}>
             R$ {productPrice.toFixed(2).replace('.', ',')}
           </p>
-          {showDescription && productDescription && (
-            <p className="text-muted-foreground text-sm md:text-base leading-relaxed">{productDescription}</p>
+          {showDescription && productShortDescription && (
+            <p className="text-muted-foreground text-sm md:text-base leading-relaxed">{productShortDescription}</p>
           )}
           {showStock && (
             <p className="text-sm text-muted-foreground">
