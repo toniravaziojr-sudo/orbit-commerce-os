@@ -1924,6 +1924,57 @@ const blockDefinitions: BlockDefinition[] = [
     },
     canHaveChildren: false,
   },
+  // ========== ESSENTIAL ECOMMERCE BLOCKS (non-removable) ==========
+  {
+    type: 'Cart',
+    label: 'Carrinho',
+    category: 'ecommerce',
+    icon: 'ShoppingCart',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+    isRemovable: false,
+  },
+  {
+    type: 'Checkout',
+    label: 'Checkout',
+    category: 'ecommerce',
+    icon: 'CreditCard',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+    isRemovable: false,
+  },
+  {
+    type: 'ThankYou',
+    label: 'Confirmação de Pedido',
+    category: 'ecommerce',
+    icon: 'CheckCircle',
+    defaultProps: {
+      showTimeline: true,
+      showWhatsApp: true,
+      whatsAppNumber: '',
+    },
+    propsSchema: {
+      showTimeline: {
+        type: 'boolean',
+        label: 'Mostrar Próximos Passos',
+        defaultValue: true,
+      },
+      showWhatsApp: {
+        type: 'boolean',
+        label: 'Mostrar WhatsApp',
+        defaultValue: true,
+      },
+      whatsAppNumber: {
+        type: 'string',
+        label: 'Número do WhatsApp',
+        placeholder: 'Ex: +55 11 99999-9999',
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: false,
+  },
   // ========== ACCOUNT BLOCKS (essential, non-removable) ==========
   {
     type: 'AccountHub',

@@ -59,19 +59,27 @@ export const ESSENTIAL_BLOCKS_BY_PAGE_TYPE: Record<string, EssentialBlockConfig>
     },
   },
   cart: {
-    essentialTypes: ['Header', 'Footer', 'CartSummary'],
+    essentialTypes: ['Header', 'Footer', 'Cart'],
     reasons: {
       'Header': 'O cabeçalho é essencial para navegação',
       'Footer': 'O rodapé é essencial para informações da loja',
-      'CartSummary': 'O resumo do carrinho é essencial para exibir os itens',
+      'Cart': 'O carrinho é essencial para exibir os itens',
     },
   },
   checkout: {
-    essentialTypes: ['Header', 'Footer', 'CheckoutSteps'],
+    essentialTypes: ['Header', 'Footer', 'Checkout'],
     reasons: {
       'Header': 'O cabeçalho é essencial para navegação',
       'Footer': 'O rodapé é essencial para informações da loja',
-      'CheckoutSteps': 'As etapas do checkout são essenciais para o fluxo de compra',
+      'Checkout': 'O checkout é essencial para o fluxo de compra',
+    },
+  },
+  thank_you: {
+    essentialTypes: ['Header', 'Footer', 'ThankYou'],
+    reasons: {
+      'Header': 'O cabeçalho é essencial para navegação',
+      'Footer': 'O rodapé é essencial para informações da loja',
+      'ThankYou': 'A confirmação de pedido é essencial para informar o cliente',
     },
   },
   // Institutional and landing pages have no essential blocks besides Header/Footer
