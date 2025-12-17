@@ -48,8 +48,12 @@ export function MiniCartDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col w-full sm:max-w-md">
-        <SheetHeader className="border-b pb-4">
+      <SheetContent 
+        className="flex flex-col w-full sm:max-w-md p-0"
+        side="right"
+      >
+        {/* Header - fixed */}
+        <SheetHeader className="border-b p-4 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-5 w-5" />
@@ -58,9 +62,10 @@ export function MiniCartDrawer({
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto py-4">
+        {/* Items - scrollable */}
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
               <ShoppingCart className="h-12 w-12 mb-4 opacity-50" />
               <p>Seu carrinho está vazio</p>
             </div>
@@ -78,9 +83,10 @@ export function MiniCartDrawer({
           )}
         </div>
 
-        {/* Summary */}
-        {items.length > 0 && (
-          <div className="border-t pt-4 space-y-4">
+        {/* Footer - fixed at bottom */}
+        <div className="border-t p-4 flex-shrink-0 space-y-4 bg-background">
+          {/* Summary */}
+          {items.length > 0 && (
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
@@ -97,33 +103,33 @@ export function MiniCartDrawer({
                 <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* CTAs */}
-        <div className="space-y-2 pt-4">
-          <Button 
-            onClick={handleCheckout}
-            disabled={items.length === 0}
-            className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
-          >
-            Iniciar Compra
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleGoToCart}
-            disabled={items.length === 0}
-            className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
-          >
-            Ir para o Carrinho
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={handleContinueShopping}
-            className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
-          >
-            Continuar Comprando
-          </Button>
+          {/* CTAs */}
+          <div className="space-y-2">
+            <Button 
+              onClick={handleCheckout}
+              disabled={items.length === 0}
+              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+            >
+              Iniciar Compra
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleGoToCart}
+              disabled={items.length === 0}
+              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+            >
+              Ir para o Carrinho
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={handleContinueShopping}
+              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+            >
+              Continuar Comprando
+            </Button>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
