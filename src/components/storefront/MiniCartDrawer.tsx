@@ -4,6 +4,7 @@
 // Reflects same Conversion configs as /cart (benefit/shipping)
 // =============================================
 
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Sheet,
@@ -12,9 +13,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2 } from 'lucide-react';
 import { useCart, CartItem } from '@/contexts/CartContext';
-import { useBenefit } from '@/contexts/StorefrontConfigContext';
+import { useBenefit, useShipping } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
@@ -34,7 +36,7 @@ export function MiniCartDrawer({
   isPreview,
 }: MiniCartDrawerProps) {
   const navigate = useNavigate();
-  const { items, shipping, updateQuantity, removeItem } = useCart();
+  const { items, shipping, subtotal, updateQuantity, removeItem, setShippingCep, setShippingOptions, selectShipping } = useCart();
 
   // Use centralized totals calculation
   const totals = calculateCartTotals({
@@ -91,6 +93,15 @@ export function MiniCartDrawer({
               onRemove={() => removeItem(item.id)}
             />
           ))}
+          
+          {/* Shipping Calculator - Same state as /cart */}
+          <MiniCartShipping 
+            subtotal={subtotal}
+            shipping={shipping}
+            setShippingCep={setShippingCep}
+            setShippingOptions={setShippingOptions}
+            selectShipping={selectShipping}
+          />
         </div>
       )}
     </div>
@@ -107,23 +118,19 @@ export function MiniCartDrawer({
             <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
           </div>
           
-          {/* Shipping status - same as /cart */}
-          <div className="flex justify-between text-muted-foreground text-xs">
+          {/* Shipping status */}
+          <div className="flex justify-between">
             <span>Frete:</span>
             {shipping.selected ? (
-              <span className="text-foreground">{formatCurrency(totals.shippingTotal)}</span>
+              shipping.selected.isFree ? (
+                <span className="text-green-600 font-medium">Grátis</span>
+              ) : (
+                <span className="font-medium">{formatCurrency(totals.shippingTotal)}</span>
+              )
             ) : (
-              <span>A calcular no carrinho</span>
+              <span className="text-muted-foreground text-xs">Calcule acima</span>
             )}
           </div>
-          
-          {/* Selected shipping info */}
-          {shipping.selected && (
-            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
-              <Truck className="h-3 w-3 inline mr-1" />
-              {shipping.selected.label} • {shipping.selected.deliveryDays} dia(s)
-            </div>
-          )}
           
           <div className="flex justify-between text-base font-bold pt-2 border-t">
             <span>Total:</span>
@@ -231,6 +238,148 @@ function MiniCartBenefitBar({ subtotal }: { subtotal: number }) {
           '--progress-background': config.progressColor 
         } as React.CSSProperties}
       />
+    </div>
+  );
+}
+
+// Compact Shipping Calculator for MiniCart - uses same CartContext state
+function MiniCartShipping({ 
+  subtotal, 
+  shipping, 
+  setShippingCep, 
+  setShippingOptions, 
+  selectShipping 
+}: {
+  subtotal: number;
+  shipping: { cep: string; options: any[]; selected: any | null };
+  setShippingCep: (cep: string) => void;
+  setShippingOptions: (options: any[]) => void;
+  selectShipping: (option: any) => void;
+}) {
+  const { quote, isLoading: configLoading } = useShipping();
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const formatCep = (value: string): string => {
+    const digits = value.replace(/\D/g, '').slice(0, 8);
+    if (digits.length > 5) {
+      return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+    }
+    return digits;
+  };
+
+  const handleCepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatCep(e.target.value);
+    setShippingCep(formatted);
+    setError(null);
+  };
+
+  const handleCalculate = async () => {
+    const cepDigits = shipping.cep.replace(/\D/g, '');
+    if (cepDigits.length !== 8) {
+      setError('CEP inválido');
+      return;
+    }
+
+    setIsCalculating(true);
+    setError(null);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 400));
+      const options = quote(cepDigits, subtotal);
+      
+      if (options.length === 0) {
+        setError('CEP não encontrado');
+        setShippingOptions([]);
+      } else {
+        setShippingOptions(options);
+        // Auto-select first option
+        selectShipping(options[0]);
+      }
+    } catch (err) {
+      setError('Erro ao calcular');
+      setShippingOptions([]);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  if (configLoading) return null;
+
+  return (
+    <div className="border rounded-lg p-3 space-y-3">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Truck className="h-4 w-4 text-muted-foreground" />
+        <span>Calcular frete</span>
+      </div>
+
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          placeholder="00000-000"
+          value={shipping.cep}
+          onChange={handleCepChange}
+          maxLength={9}
+          className="font-mono text-sm h-9"
+        />
+        <Button
+          onClick={handleCalculate}
+          disabled={isCalculating || shipping.cep.replace(/\D/g, '').length < 8}
+          variant="outline"
+          size="sm"
+          className="h-9 px-3"
+        >
+          {isCalculating ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            'Calcular'
+          )}
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive">{error}</p>
+      )}
+
+      {/* Shipping options */}
+      {shipping.options.length > 0 && (
+        <div className="space-y-2">
+          {shipping.options.map((option, index) => (
+            <button
+              key={index}
+              onClick={() => selectShipping(option)}
+              className={`w-full flex items-center justify-between p-2 text-xs border rounded transition-colors ${
+                shipping.selected?.label === option.label 
+                  ? 'border-primary bg-primary/5' 
+                  : 'hover:bg-muted/50'
+              }`}
+            >
+              <div className="text-left">
+                <p className="font-medium">{option.label}</p>
+                <p className="text-muted-foreground">{option.deliveryDays} dia(s)</p>
+              </div>
+              {option.isFree ? (
+                <span className="font-semibold text-green-600">Grátis</span>
+              ) : (
+                <span className="font-semibold">
+                  R$ {option.price.toFixed(2).replace('.', ',')}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Selected shipping summary */}
+      {shipping.selected && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 flex items-center gap-1">
+          <Check className="h-3 w-3 text-green-600" />
+          <span>
+            {shipping.selected.label} • {shipping.selected.deliveryDays} dia(s)
+            {shipping.selected.isFree ? ' • Grátis' : ` • R$ ${shipping.selected.price.toFixed(2).replace('.', ',')}`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
