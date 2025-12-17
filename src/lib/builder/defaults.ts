@@ -278,19 +278,9 @@ export const defaultCartTemplate: BlockNode = {
       },
       children: [
         {
-          id: generateBlockId('RichText'),
-          type: 'RichText',
-          props: {
-            content: '<h1>Seu Carrinho</h1>',
-          },
-        },
-        {
-          id: generateBlockId('CartSummary'),
-          type: 'CartSummary',
-          props: {
-            showThumbnails: true,
-            showQuantityControls: true,
-          },
+          id: generateBlockId('Cart'),
+          type: 'Cart',
+          props: {},
         },
       ],
     },
@@ -340,11 +330,9 @@ export const defaultCheckoutTemplate: BlockNode = {
       },
       children: [
         {
-          id: generateBlockId('CheckoutSteps'),
-          type: 'CheckoutSteps',
-          props: {
-            steps: ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'],
-          },
+          id: generateBlockId('Checkout'),
+          type: 'Checkout',
+          props: {},
         },
       ],
     },
