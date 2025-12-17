@@ -73,12 +73,6 @@ function ProductCTAs({
   tenantSlug,
   isPreview,
   isEditing,
-  quantity,
-  setQuantity,
-  isAddingToCart,
-  setIsAddingToCart,
-  addedFeedback,
-  setAddedFeedback,
   openMiniCartOnAdd,
   onOpenMiniCart,
 }: {
@@ -92,53 +86,84 @@ function ProductCTAs({
   tenantSlug: string;
   isPreview?: boolean;
   isEditing?: boolean;
-  quantity: number;
-  setQuantity: (q: number) => void;
-  isAddingToCart: boolean;
-  setIsAddingToCart: (v: boolean) => void;
-  addedFeedback: boolean;
-  setAddedFeedback: (v: boolean) => void;
   openMiniCartOnAdd?: boolean;
   onOpenMiniCart?: () => void;
 }) {
   const navigate = useNavigate();
-  const { addItem } = useCart(tenantSlug);
+  const { items, addItem, updateQuantity } = useCart(tenantSlug);
+  
+  // Find if product already in cart
+  const cartItem = items.find(i => i.product_id === productId);
+  const cartQuantity = cartItem?.quantity || 0;
+  
+  // Local quantity state (for new items not yet in cart)
+  const [localQuantity, setLocalQuantity] = React.useState(1);
+  
+  // State for UI feedback
+  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
+  const [addedFeedback, setAddedFeedback] = React.useState(false);
   
   const isOutOfStock = productStock <= 0 && !allowBackorder;
   const maxQuantity = allowBackorder ? 999 : productStock;
+  
+  // Effective quantity: use cart quantity if in cart, else local
+  const quantity = cartQuantity > 0 ? cartQuantity : localQuantity;
+  
+  // Update quantity (either cart or local)
+  const handleQuantityChange = React.useCallback((newQty: number) => {
+    if (newQty < 1 || newQty > maxQuantity) return;
+    
+    if (cartItem) {
+      // Product is in cart - update cart directly
+      updateQuantity(cartItem.id, newQty);
+    } else {
+      // Product not in cart - update local state
+      setLocalQuantity(newQty);
+    }
+  }, [cartItem, maxQuantity, updateQuantity]);
   
   const handleAddToCart = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
     
     setIsAddingToCart(true);
     
-    // Add item to cart
-    addItem({
-      product_id: productId,
-      name: productName,
-      sku: productSku,
-      price: productPrice,
-      quantity: quantity,
-      image_url: imageUrl,
-    });
-    
-    // Show feedback
-    setTimeout(() => {
-      setIsAddingToCart(false);
-      setAddedFeedback(true);
-      toast.success('Produto adicionado ao carrinho!');
-      
-      // Open mini cart if enabled
-      if (openMiniCartOnAdd && onOpenMiniCart) {
-        onOpenMiniCart();
-      }
-      
-      // Reset feedback after 2 seconds
+    if (cartItem) {
+      // Already in cart - just open mini cart
       setTimeout(() => {
-        setAddedFeedback(false);
-      }, 2000);
-    }, 300);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, setIsAddingToCart, setAddedFeedback, openMiniCartOnAdd, onOpenMiniCart]);
+        setIsAddingToCart(false);
+        if (openMiniCartOnAdd && onOpenMiniCart) {
+          onOpenMiniCart();
+        }
+      }, 100);
+    } else {
+      // Add item to cart with selected quantity
+      addItem({
+        product_id: productId,
+        name: productName,
+        sku: productSku,
+        price: productPrice,
+        quantity: localQuantity,
+        image_url: imageUrl,
+      });
+      
+      // Show feedback
+      setTimeout(() => {
+        setIsAddingToCart(false);
+        setAddedFeedback(true);
+        toast.success('Produto adicionado ao carrinho!');
+        
+        // Open mini cart if enabled
+        if (openMiniCartOnAdd && onOpenMiniCart) {
+          onOpenMiniCart();
+        }
+        
+        // Reset feedback after 2 seconds
+        setTimeout(() => {
+          setAddedFeedback(false);
+        }, 2000);
+      }, 300);
+    }
+  }, [productId, productName, productSku, productPrice, localQuantity, imageUrl, isOutOfStock, isAddingToCart, cartItem, addItem, openMiniCartOnAdd, onOpenMiniCart]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
@@ -166,11 +191,11 @@ function ProductCTAs({
   }, [productName]);
   
   const decrementQuantity = () => {
-    if (quantity > 1) setQuantity(quantity - 1);
+    handleQuantityChange(quantity - 1);
   };
   
   const incrementQuantity = () => {
-    if (quantity < maxQuantity) setQuantity(quantity + 1);
+    handleQuantityChange(quantity + 1);
   };
 
   return (
@@ -1323,11 +1348,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
   
   // State for selected image in gallery
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
-  // State for quantity
-  const [quantity, setQuantity] = React.useState(1);
-  // State for add to cart feedback
-  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
-  const [addedFeedback, setAddedFeedback] = React.useState(false);
   // State for mini cart drawer
   const [miniCartOpen, setMiniCartOpen] = React.useState(false);
   
@@ -1589,12 +1609,6 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
             tenantSlug={tenantSlug}
             isPreview={context?.isPreview}
             isEditing={isEditing}
-            quantity={quantity}
-            setQuantity={setQuantity}
-            isAddingToCart={isAddingToCart}
-            setIsAddingToCart={setIsAddingToCart}
-            addedFeedback={addedFeedback}
-            setAddedFeedback={setAddedFeedback}
             openMiniCartOnAdd={openMiniCartOnAdd}
             onOpenMiniCart={() => setMiniCartOpen(true)}
           />
