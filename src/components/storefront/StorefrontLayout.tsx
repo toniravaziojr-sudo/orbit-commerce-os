@@ -10,6 +10,31 @@ export function StorefrontLayout() {
   // Check for preview mode
   const isPreview = new URLSearchParams(window.location.search).get('preview') === '1';
 
+  // CartProvider wraps EVERYTHING to persist state across navigation and loading states
+  return (
+    <CartProvider tenantSlug={tenantSlug || ''}>
+      <StorefrontLayoutContent
+        tenant={tenant}
+        isLoading={isLoading}
+        isPublished={isPublished}
+        isPreview={isPreview}
+      />
+    </CartProvider>
+  );
+}
+
+// Inner component to handle loading/error states while keeping CartProvider always mounted
+function StorefrontLayoutContent({
+  tenant,
+  isLoading,
+  isPublished,
+  isPreview,
+}: {
+  tenant: any;
+  isLoading: boolean;
+  isPublished: boolean;
+  isPreview: boolean;
+}) {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -41,17 +66,15 @@ export function StorefrontLayout() {
   }
 
   return (
-    <CartProvider tenantSlug={tenantSlug || ''}>
-      <div className="min-h-screen flex flex-col bg-white">
-        {isPreview && (
-          <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
-            Modo de pré-visualização - Esta página não está publicada
-          </div>
-        )}
-        <main className="flex-1">
-          <Outlet />
-        </main>
-      </div>
-    </CartProvider>
+    <div className="min-h-screen flex flex-col bg-white">
+      {isPreview && (
+        <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+          Modo de pré-visualização - Esta página não está publicada
+        </div>
+      )}
+      <main className="flex-1">
+        <Outlet />
+      </main>
+    </div>
   );
 }
