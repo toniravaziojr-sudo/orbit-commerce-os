@@ -6,12 +6,17 @@
 /**
  * Generates a WhatsApp link from a phone number
  * Strips non-digits and creates wa.me URL
+ * Optionally includes a pre-filled message
  */
-export function getWhatsAppHref(number: string | null | undefined): string | null {
+export function getWhatsAppHref(number: string | null | undefined, message?: string): string | null {
   if (!number) return null;
   const digits = number.replace(/\D/g, '');
   if (digits.length < 10) return null;
-  return `https://wa.me/${digits}`;
+  const baseUrl = `https://wa.me/${digits}`;
+  if (message) {
+    return `${baseUrl}?text=${encodeURIComponent(message)}`;
+  }
+  return baseUrl;
 }
 
 /**

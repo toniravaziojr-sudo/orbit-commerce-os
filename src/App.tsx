@@ -53,6 +53,9 @@ import StorefrontCart from "@/pages/storefront/StorefrontCart";
 import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
 import StorefrontThankYou from "@/pages/storefront/StorefrontThankYou";
 import StorefrontMyOrders from "@/pages/storefront/StorefrontMyOrders";
+import StorefrontAccount from "@/pages/storefront/StorefrontAccount";
+import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
+import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +82,10 @@ const App = () => (
               <Route path="checkout" element={<StorefrontCheckout />} />
               <Route path="obrigado" element={<StorefrontThankYou />} />
               <Route path="minhas-compras" element={<StorefrontMyOrders />} />
+              {/* Customer Account routes */}
+              <Route path="conta" element={<StorefrontAccount />} />
+              <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
+              <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
             </Route>
 
             {/* Protected route without tenant requirement */}
