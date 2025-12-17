@@ -215,7 +215,7 @@ export function BuilderToolbar({
         
         {/* Page Selector */}
         <Select value={pageType} onValueChange={handlePageChange}>
-          <SelectTrigger className="w-[160px] h-9 font-medium">
+          <SelectTrigger className="w-[180px] h-9 font-medium">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -224,6 +224,10 @@ export function BuilderToolbar({
             <SelectItem value="product">📦 Produto</SelectItem>
             <SelectItem value="cart">🛒 Carrinho</SelectItem>
             <SelectItem value="checkout">💳 Checkout</SelectItem>
+            <SelectItem value="thank_you">✅ Obrigado</SelectItem>
+            <SelectItem value="account">👤 Minha Conta</SelectItem>
+            <SelectItem value="account_orders">📋 Pedidos</SelectItem>
+            <SelectItem value="account_order_detail">📄 Pedido</SelectItem>
           </SelectContent>
         </Select>
 

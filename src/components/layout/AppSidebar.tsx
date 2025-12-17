@@ -121,6 +121,13 @@ export function AppSidebar() {
         location.pathname.startsWith("/pages/");
     }
     
+    // Special handling for /storefront - only exact match, not children
+    // This prevents /storefront from highlighting when on /storefront/conversao
+    if (href === "/storefront") {
+      return location.pathname === "/storefront" || 
+        location.pathname.startsWith("/storefront/builder");
+    }
+    
     return location.pathname.startsWith(href);
   };
 
