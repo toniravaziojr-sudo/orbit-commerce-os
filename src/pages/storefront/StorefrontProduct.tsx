@@ -182,14 +182,14 @@ export default function StorefrontProduct() {
         </div>
       )}
       
-      {/* Related Products Section */}
-      {showRelatedProducts && (
-        <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug || ''} />
-      )}
-      
       {/* Reviews Section */}
       {showReviews && (
         <ProductReviewsSection productId={product.id} />
+      )}
+      
+      {/* Related Products Section - LAST (before footer) */}
+      {showRelatedProducts && (
+        <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug || ''} />
       )}
     </div>
   ) : null;

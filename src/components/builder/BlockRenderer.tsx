@@ -25,9 +25,12 @@ import { ReviewsBlock as ReviewsBlockComponent } from './blocks/ReviewsBlock';
 import { FeaturedCategoriesBlock as FeaturedCategoriesBlockComponent } from './blocks/FeaturedCategoriesBlock';
 import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBannersBlock';
 import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
-import { getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
+import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
+import { BuyTogetherSection } from '@/components/storefront/sections/BuyTogetherSection';
+import { RelatedProductsSection } from '@/components/storefront/sections/RelatedProductsSection';
+import { ProductReviewsSection } from '@/components/storefront/sections/ProductReviewsSection';
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -1240,8 +1243,22 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
     ? Math.round((1 - productPrice / productCompareAtPrice) * 100) 
     : 0;
 
+  // Get tenant slug from context
+  const tenantSlug = context?.tenantSlug || '';
+
+  // Build current product data for BuyTogether section (Editor mode)
+  const currentProductData = product ? {
+    id: product.id,
+    name: productName,
+    price: productPrice,
+    compare_at_price: productCompareAtPrice || undefined,
+    sku: product.sku || 'SKU',
+    images: allImages,
+  } : undefined;
+
   return (
     <div className="py-6 md:py-8 px-4">
+      {/* Main Product Section */}
       <div className={gridClasses}>
         {/* Gallery Section */}
         {showGallery && (
@@ -1320,6 +1337,35 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           </button>
         </div>
       </div>
+
+      {/* Additional Sections - Rendered in Editor to show full page structure */}
+      {isEditing && product && (
+        <div className="mt-8 space-y-8">
+          {/* Buy Together Section */}
+          <BuyTogetherSection 
+            productId={product.id} 
+            tenantSlug={tenantSlug}
+            currentProduct={currentProductData}
+          />
+          
+          {/* Full Description */}
+          {showDescription && product.description && (
+            <div className="py-8 border-t">
+              <h2 className="text-xl md:text-2xl font-bold mb-4">Descrição</h2>
+              <div 
+                className="prose prose-sm md:prose max-w-none text-muted-foreground"
+                dangerouslySetInnerHTML={{ __html: product.description }}
+              />
+            </div>
+          )}
+          
+          {/* Reviews Section */}
+          <ProductReviewsSection productId={product.id} />
+          
+          {/* Related Products Section */}
+          <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug} />
+        </div>
+      )}
     </div>
   );
 }
