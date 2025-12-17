@@ -15,7 +15,6 @@ import { useState } from 'react';
 interface BuyTogetherSectionProps {
   productId: string;
   tenantSlug: string;
-  // Current product data for display
   currentProduct?: {
     id: string;
     name: string;
@@ -24,9 +23,10 @@ interface BuyTogetherSectionProps {
     sku: string;
     images?: { url: string; alt?: string }[];
   };
+  viewportOverride?: 'desktop' | 'tablet' | 'mobile';
 }
 
-export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: BuyTogetherSectionProps) {
+export function BuyTogetherSection({ productId, tenantSlug, currentProduct, viewportOverride }: BuyTogetherSectionProps) {
   const { addItem } = useCart(tenantSlug);
   const [isAdding, setIsAdding] = useState(false);
 
@@ -50,7 +50,6 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: Bu
       
       if (error || !data) return null;
       
-      // Fetch suggested product
       const { data: suggestedProduct, error: productError } = await supabase
         .from('products')
         .select(`
@@ -77,16 +76,13 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: Bu
 
   const suggestedProduct = rule.suggestedProduct;
   
-  // Get primary images
   const currentProductImage = currentProduct.images?.[0]?.url;
   const suggestedProductImage = suggestedProduct.product_images?.find((img: any) => img.is_primary)?.url 
     || suggestedProduct.product_images?.[0]?.url;
 
-  // Calculate prices
   const currentPrice = currentProduct.price;
   const suggestedOriginalPrice = suggestedProduct.price;
   
-  // Apply discount to suggested product
   let suggestedDiscountedPrice = suggestedOriginalPrice;
   if (rule.discount_type === 'percentage' && rule.discount_value) {
     suggestedDiscountedPrice = suggestedOriginalPrice * (1 - rule.discount_value / 100);
@@ -94,22 +90,18 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: Bu
     suggestedDiscountedPrice = suggestedOriginalPrice - rule.discount_value;
   }
   
-  // Total prices
   const totalOriginal = currentPrice + suggestedOriginalPrice;
   const totalDiscounted = currentPrice + suggestedDiscountedPrice;
   const savings = totalOriginal - totalDiscounted;
   const hasDiscount = savings > 0;
 
-  // Format price
   const formatPrice = (price: number) => {
     return price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
 
-  // Handle adding both items to cart
   const handleAddTogether = async () => {
     setIsAdding(true);
     try {
-      // Add current product
       addItem({
         product_id: currentProduct.id,
         name: currentProduct.name,
@@ -119,7 +111,6 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: Bu
         image_url: currentProductImage,
       });
 
-      // Add suggested product with discounted price
       addItem({
         product_id: suggestedProduct.id,
         name: suggestedProduct.name,
@@ -137,209 +128,160 @@ export function BuyTogetherSection({ productId, tenantSlug, currentProduct }: Bu
     }
   };
 
+  // Determine layout mode
+  const isMobileLayout = viewportOverride 
+    ? (viewportOverride === 'mobile' || viewportOverride === 'tablet')
+    : false; // Default to desktop for CSS-based responsive
+  const isDesktopLayout = viewportOverride 
+    ? viewportOverride === 'desktop'
+    : false;
+
+  // Product Card Component
+  const ProductCard = ({ 
+    image, 
+    name, 
+    price, 
+    originalPrice, 
+    showDiscount = false,
+    linkUrl
+  }: { 
+    image?: string; 
+    name: string; 
+    price: number; 
+    originalPrice?: number;
+    showDiscount?: boolean;
+    linkUrl?: string;
+  }) => (
+    <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1 min-w-0">
+      <div className="w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+        {image ? (
+          <img src={image} alt={name} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+            Sem imagem
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        {linkUrl ? (
+          <a href={linkUrl} className="font-medium hover:underline line-clamp-2 text-sm">
+            {name}
+          </a>
+        ) : (
+          <p className="font-medium line-clamp-2 text-sm">{name}</p>
+        )}
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {showDiscount && originalPrice && originalPrice > price && (
+            <span className="text-xs text-muted-foreground line-through">
+              {formatPrice(originalPrice)}
+            </span>
+          )}
+          <span className="text-primary font-bold">{formatPrice(price)}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Price Summary Component  
+  const PriceSummary = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <div className={`flex flex-col items-center gap-2 ${isMobile ? 'pt-4 border-t border-border w-full' : 'pl-4 border-l border-border min-w-[160px]'}`}>
+      {hasDiscount && (
+        <div className="text-center">
+          <p className="text-xs text-muted-foreground">Preço Total:</p>
+          <p className="text-sm text-muted-foreground line-through">
+            {formatPrice(totalOriginal)}
+          </p>
+        </div>
+      )}
+      <div className="text-center">
+        <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
+        <p className="text-xl md:text-2xl font-bold text-primary">
+          {formatPrice(totalDiscounted)}
+        </p>
+      </div>
+      {hasDiscount && (
+        <p className="text-sm text-green-600 font-medium">
+          Economize {formatPrice(savings)}
+        </p>
+      )}
+      <Button 
+        onClick={handleAddTogether} 
+        disabled={isAdding}
+        className={isMobile ? 'w-full mt-2' : 'w-full mt-2'}
+        size="lg"
+      >
+        {isAdding ? 'Adicionando...' : 'Adquirir oferta'}
+      </Button>
+    </div>
+  );
+
   return (
-    <section className="py-6 md:py-8">
+    <section className="py-6 md:py-8 border-t">
       <h2 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2">
         <ShoppingCart className="h-5 w-5" />
         {rule.title || 'Compre junto e economize'}
       </h2>
       
       <div className="bg-muted/30 rounded-lg p-4 md:p-6">
+        {/* 
+          Layout Strategy:
+          - When viewportOverride exists (Builder mode): render only the matching layout
+          - When no viewportOverride (public/preview): render both with CSS responsive classes
+        */}
+        
         {/* Desktop Layout */}
-        <div className="hidden md:flex items-center gap-6">
-          {/* Current Product Card */}
-          <div className="flex-1 flex items-center gap-4 p-4 bg-background rounded-lg border">
-            <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              {currentProductImage ? (
-                <img
-                  src={currentProductImage}
-                  alt={currentProduct.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                  Sem imagem
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium line-clamp-2 text-sm">{currentProduct.name}</p>
-              <p className="text-primary font-bold text-lg mt-1">
-                {formatPrice(currentPrice)}
-              </p>
-            </div>
-          </div>
-
-          {/* Plus Sign */}
-          <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10 flex-shrink-0">
-            <Plus className="h-6 w-6 text-primary" />
-          </div>
-
-          {/* Suggested Product Card */}
-          <div className="flex-1 flex items-center gap-4 p-4 bg-background rounded-lg border">
-            <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              {suggestedProductImage ? (
-                <img
-                  src={suggestedProductImage}
-                  alt={suggestedProduct.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                  Sem imagem
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <a 
-                href={getPublicProductUrl(tenantSlug, suggestedProduct.slug) || '#'}
-                className="font-medium hover:underline line-clamp-2 text-sm"
-              >
-                {suggestedProduct.name}
-              </a>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {hasDiscount && (
-                  <span className="text-xs text-muted-foreground line-through">
-                    {formatPrice(suggestedOriginalPrice)}
-                  </span>
-                )}
-                <span className="text-primary font-bold text-lg">
-                  {formatPrice(suggestedDiscountedPrice)}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Price Summary & CTA */}
-          <div className="flex flex-col items-center gap-2 pl-6 border-l border-border min-w-[180px]">
-            {hasDiscount && (
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">Preço Total:</p>
-                <p className="text-sm text-muted-foreground line-through">
-                  {formatPrice(totalOriginal)}
-                </p>
-              </div>
-            )}
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
-              <p className="text-2xl font-bold text-primary">
-                {formatPrice(totalDiscounted)}
-              </p>
-            </div>
-            {hasDiscount && (
-              <p className="text-sm text-green-600 font-medium">
-                Economize {formatPrice(savings)}
-              </p>
-            )}
-            <Button 
-              onClick={handleAddTogether} 
-              disabled={isAdding}
-              className="w-full mt-2"
-              size="lg"
-            >
-              {isAdding ? 'Adicionando...' : 'Adquirir oferta'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile Layout */}
-        <div className="flex flex-col gap-4 md:hidden">
-          {/* Current Product Card */}
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border">
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              {currentProductImage ? (
-                <img
-                  src={currentProductImage}
-                  alt={currentProduct.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                  Sem imagem
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium line-clamp-2 text-sm">{currentProduct.name}</p>
-              <p className="text-primary font-bold mt-1">
-                {formatPrice(currentPrice)}
-              </p>
-            </div>
-          </div>
-
-          {/* Plus Sign */}
-          <div className="flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+        {(isDesktopLayout || !viewportOverride) && (
+          <div className={viewportOverride ? 'flex items-center gap-4' : 'hidden md:flex items-center gap-4'}>
+            <ProductCard 
+              image={currentProductImage}
+              name={currentProduct.name}
+              price={currentPrice}
+            />
+            
+            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 flex-shrink-0">
               <Plus className="h-5 w-5 text-primary" />
             </div>
+            
+            <ProductCard 
+              image={suggestedProductImage}
+              name={suggestedProduct.name}
+              price={suggestedDiscountedPrice}
+              originalPrice={suggestedOriginalPrice}
+              showDiscount={hasDiscount}
+              linkUrl={getPublicProductUrl(tenantSlug, suggestedProduct.slug) || undefined}
+            />
+            
+            <PriceSummary />
           </div>
+        )}
 
-          {/* Suggested Product Card */}
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border">
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              {suggestedProductImage ? (
-                <img
-                  src={suggestedProductImage}
-                  alt={suggestedProduct.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                  Sem imagem
-                </div>
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <a 
-                href={getPublicProductUrl(tenantSlug, suggestedProduct.slug) || '#'}
-                className="font-medium hover:underline line-clamp-2 text-sm"
-              >
-                {suggestedProduct.name}
-              </a>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {hasDiscount && (
-                  <span className="text-xs text-muted-foreground line-through">
-                    {formatPrice(suggestedOriginalPrice)}
-                  </span>
-                )}
-                <span className="text-primary font-bold">
-                  {formatPrice(suggestedDiscountedPrice)}
-                </span>
+        {/* Mobile Layout */}
+        {(isMobileLayout || !viewportOverride) && (
+          <div className={viewportOverride ? 'flex flex-col gap-3' : 'flex flex-col gap-3 md:hidden'}>
+            <ProductCard 
+              image={currentProductImage}
+              name={currentProduct.name}
+              price={currentPrice}
+            />
+            
+            <div className="flex items-center justify-center py-1">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <Plus className="h-4 w-4 text-primary" />
               </div>
             </div>
+            
+            <ProductCard 
+              image={suggestedProductImage}
+              name={suggestedProduct.name}
+              price={suggestedDiscountedPrice}
+              originalPrice={suggestedOriginalPrice}
+              showDiscount={hasDiscount}
+              linkUrl={getPublicProductUrl(tenantSlug, suggestedProduct.slug) || undefined}
+            />
+            
+            <PriceSummary isMobile />
           </div>
-
-          {/* Price Summary & CTA */}
-          <div className="flex flex-col items-center gap-2 pt-4 border-t border-border">
-            {hasDiscount && (
-              <div className="text-center">
-                <p className="text-xs text-muted-foreground">Preço Total:</p>
-                <p className="text-sm text-muted-foreground line-through">
-                  {formatPrice(totalOriginal)}
-                </p>
-              </div>
-            )}
-            <div className="text-center">
-              <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
-              <p className="text-2xl font-bold text-primary">
-                {formatPrice(totalDiscounted)}
-              </p>
-            </div>
-            {hasDiscount && (
-              <p className="text-sm text-green-600 font-medium">
-                Economize {formatPrice(savings)}
-              </p>
-            )}
-            <Button 
-              onClick={handleAddTogether} 
-              disabled={isAdding}
-              className="w-full mt-2"
-              size="lg"
-            >
-              {isAdding ? 'Adicionando...' : 'Adquirir oferta'}
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
     </section>
   );

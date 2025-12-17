@@ -31,6 +31,7 @@ interface ProductPageSectionsProps {
   showBuyTogether?: boolean;
   showReviews?: boolean;
   showRelatedProducts?: boolean;
+  viewportOverride?: 'desktop' | 'tablet' | 'mobile';
 }
 
 /**
@@ -51,6 +52,7 @@ export function ProductPageSections({
   showBuyTogether = true,
   showReviews = true,
   showRelatedProducts = true,
+  viewportOverride,
 }: ProductPageSectionsProps) {
   const hasFullDescription = product.description && product.description.trim().length > 0;
 
@@ -83,6 +85,7 @@ export function ProductPageSections({
           productId={product.id} 
           tenantSlug={tenantSlug}
           currentProduct={currentProductData}
+          viewportOverride={viewportOverride}
         />
       )}
 

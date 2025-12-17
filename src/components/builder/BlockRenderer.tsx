@@ -1344,6 +1344,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           showBuyTogether={true}
           showReviews={true}
           showRelatedProducts={true}
+          viewportOverride={viewportOverride}
         />
       )}
     </div>
