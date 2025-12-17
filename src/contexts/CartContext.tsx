@@ -11,6 +11,19 @@ export interface CartItem {
   image_url?: string;
 }
 
+export interface ShippingOption {
+  price: number;
+  deliveryDays: number;
+  label: string;
+  isFree: boolean;
+}
+
+export interface CartShipping {
+  cep: string;
+  options: ShippingOption[];
+  selected: ShippingOption | null;
+}
+
 interface CartContextType {
   items: CartItem[];
   isLoading: boolean;
@@ -20,6 +33,12 @@ interface CartContextType {
   clearCart: () => void;
   subtotal: number;
   totalItems: number;
+  // Shipping
+  shipping: CartShipping;
+  setShippingCep: (cep: string) => void;
+  setShippingOptions: (options: ShippingOption[]) => void;
+  selectShipping: (option: ShippingOption | null) => void;
+  total: number;
 }
 
 const CartContext = createContext<CartContextType | null>(null);
@@ -34,6 +53,11 @@ interface CartProviderProps {
 export function CartProvider({ children, tenantSlug }: CartProviderProps) {
   const storageKey = `${CART_STORAGE_KEY}_${tenantSlug}`;
   const [items, setItems] = useState<CartItem[]>([]);
+  const [shipping, setShipping] = useState<CartShipping>({
+    cep: '',
+    options: [],
+    selected: null,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const hasHydrated = useRef(false);
   const currentStorageKey = useRef(storageKey);
@@ -51,8 +75,16 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setItems(parsed);
+        if (parsed && typeof parsed === 'object') {
+          if (Array.isArray(parsed.items)) {
+            setItems(parsed.items);
+          } else if (Array.isArray(parsed)) {
+            // Legacy format - just items array
+            setItems(parsed);
+          }
+          if (parsed.shipping) {
+            setShipping(parsed.shipping);
+          }
         }
       }
     } catch (error) {
@@ -65,9 +97,9 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
   // Save cart to localStorage - only after hydration complete
   useEffect(() => {
     if (!isLoading && hasHydrated.current) {
-      localStorage.setItem(storageKey, JSON.stringify(items));
+      localStorage.setItem(storageKey, JSON.stringify({ items, shipping }));
     }
-  }, [items, storageKey, isLoading]);
+  }, [items, shipping, storageKey, isLoading]);
 
   const addItem = useCallback((item: Omit<CartItem, 'id'>) => {
     if (!item.product_id) {
@@ -109,10 +141,25 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
 
   const clearCart = useCallback(() => {
     setItems([]);
+    setShipping({ cep: '', options: [], selected: null });
+  }, []);
+
+  // Shipping functions
+  const setShippingCep = useCallback((cep: string) => {
+    setShipping(prev => ({ ...prev, cep }));
+  }, []);
+
+  const setShippingOptions = useCallback((options: ShippingOption[]) => {
+    setShipping(prev => ({ ...prev, options, selected: options[0] || null }));
+  }, []);
+
+  const selectShipping = useCallback((option: ShippingOption | null) => {
+    setShipping(prev => ({ ...prev, selected: option }));
   }, []);
 
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
+  const total = subtotal + (shipping.selected?.price || 0);
 
   return (
     <CartContext.Provider value={{
@@ -124,6 +171,11 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
       clearCart,
       subtotal,
       totalItems,
+      shipping,
+      setShippingCep,
+      setShippingOptions,
+      selectShipping,
+      total,
     }}>
       {children}
     </CartContext.Provider>
@@ -140,6 +192,11 @@ const emptyCart: CartContextType = {
   clearCart: () => {},
   subtotal: 0,
   totalItems: 0,
+  shipping: { cep: '', options: [], selected: null },
+  setShippingCep: () => {},
+  setShippingOptions: () => {},
+  selectShipping: () => {},
+  total: 0,
 };
 
 export function useCart() {
