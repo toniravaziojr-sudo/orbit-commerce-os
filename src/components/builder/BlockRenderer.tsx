@@ -36,6 +36,7 @@ import { RatingSummary } from '@/components/storefront/RatingSummary';
 import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { CartContent } from '@/components/storefront/cart/CartContent';
 import { CheckoutContent } from '@/components/storefront/checkout/CheckoutContent';
+import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { useProductRating } from '@/hooks/useProductRating';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, Loader2, Check, MessageCircle, ShoppingCart, X } from 'lucide-react';
@@ -1702,8 +1703,8 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
     );
   }
 
-  // Public/Preview mode: render full CheckoutContent component (same as CheckoutBlock)
-  return <CheckoutContent tenantId={tenantId} />;
+  // Public/Preview mode: render step-by-step wizard
+  return <CheckoutStepWizard tenantId={tenantId} />;
 }
 
 function CartBlock({ isEditing, context }: any) {
@@ -1742,8 +1743,8 @@ function CheckoutBlock({ isEditing, context }: any) {
     );
   }
 
-  // Public/Preview mode: render full CheckoutContent component
-  return <CheckoutContent tenantId={tenantId} />;
+  // Public/Preview mode: render step-by-step wizard
+  return <CheckoutStepWizard tenantId={tenantId} />;
 }
 
 function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp = true, whatsAppNumber = '' }: any) {

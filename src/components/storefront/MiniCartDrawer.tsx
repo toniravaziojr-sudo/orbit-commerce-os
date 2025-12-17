@@ -1,6 +1,7 @@
 // =============================================
 // MINI CART DRAWER - Opens when adding to cart
 // Uses ResponsiveDrawerLayout for anti-regression mobile CSS
+// Reflects same Conversion configs as /cart (benefit/shipping)
 // =============================================
 
 import { useNavigate } from 'react-router-dom';
@@ -11,11 +12,13 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, X, ShoppingCart } from 'lucide-react';
+import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift } from 'lucide-react';
 import { useCart, CartItem } from '@/contexts/CartContext';
+import { useBenefit } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
+import { Progress } from '@/components/ui/progress';
 
 interface MiniCartDrawerProps {
   open: boolean;
@@ -76,6 +79,10 @@ export function MiniCartDrawer({
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Benefit Progress Bar - Same as /cart */}
+          <MiniCartBenefitBar subtotal={totals.subtotal} />
+          
+          {/* Cart Items */}
           {items.map((item) => (
             <CartItemRow
               key={item.id}
@@ -99,10 +106,25 @@ export function MiniCartDrawer({
             <span>Subtotal:</span>
             <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
           </div>
+          
+          {/* Shipping status - same as /cart */}
           <div className="flex justify-between text-muted-foreground text-xs">
             <span>Frete:</span>
-            <span>{totals.shippingTotal > 0 ? formatCurrency(totals.shippingTotal) : 'A calcular'}</span>
+            {shipping.selected ? (
+              <span className="text-foreground">{formatCurrency(totals.shippingTotal)}</span>
+            ) : (
+              <span>A calcular no carrinho</span>
+            )}
           </div>
+          
+          {/* Selected shipping info */}
+          {shipping.selected && (
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+              <Truck className="h-3 w-3 inline mr-1" />
+              {shipping.selected.label} • {shipping.selected.deliveryDays} dia(s)
+            </div>
+          )}
+          
           <div className="flex justify-between text-base font-bold pt-2 border-t">
             <span>Total:</span>
             <span>{formatCurrency(totals.grandTotal)}</span>
@@ -151,6 +173,65 @@ export function MiniCartDrawer({
         />
       </SheetContent>
     </Sheet>
+  );
+}
+
+// Mini Benefit Progress Bar - Compact version for drawer
+function MiniCartBenefitBar({ subtotal }: { subtotal: number }) {
+  const { config, getProgress, isLoading } = useBenefit();
+
+  if (isLoading) return null;
+
+  const { enabled, progress, remaining, achieved, label } = getProgress(subtotal);
+
+  if (!enabled) return null;
+
+  const Icon = config.mode === 'gift' ? Gift : Truck;
+
+  return (
+    <div 
+      className="p-3 rounded-lg border text-sm mb-2"
+      style={{ 
+        backgroundColor: achieved ? `${config.progressColor}10` : 'hsl(var(--muted))',
+        borderColor: achieved ? config.progressColor : 'hsl(var(--border))'
+      }}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div 
+          className="p-1.5 rounded-full"
+          style={{ backgroundColor: achieved ? config.progressColor : 'hsl(var(--muted-foreground) / 0.2)' }}
+        >
+          {achieved ? (
+            <Check className="h-3 w-3 text-white" />
+          ) : (
+            <Icon className="h-3 w-3 text-muted-foreground" />
+          )}
+        </div>
+        <div className="flex-1 text-xs">
+          {achieved ? (
+            <p className="font-semibold" style={{ color: config.progressColor }}>
+              {label}
+            </p>
+          ) : (
+            <p>
+              Faltam{' '}
+              <span className="font-semibold">
+                R$ {remaining.toFixed(2).replace('.', ',')}
+              </span>{' '}
+              para {label.toLowerCase()}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <Progress 
+        value={progress} 
+        className="h-1.5"
+        style={{ 
+          '--progress-background': config.progressColor 
+        } as React.CSSProperties}
+      />
+    </div>
   );
 }
 
