@@ -86,9 +86,9 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
           <p>Ainda não há avaliações para este produto.</p>
           <p className="text-sm mt-1">Seja o primeiro a avaliar!</p>
           
-          {/* Review Form for empty state */}
+          {/* Review Form for empty state - centered */}
           {effectiveTenantId && (
-            <div className="mt-4 max-w-md mx-auto text-left">
+            <div className="mt-4 max-w-md mx-auto">
               <ReviewForm 
                 productId={productId} 
                 tenantId={effectiveTenantId}
@@ -135,9 +135,9 @@ export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSec
             ))}
           </div>
           
-          {/* Review Form after existing reviews */}
+          {/* Review Form after existing reviews - centered */}
           {effectiveTenantId && (
-            <div className="mt-6">
+            <div className="mt-6 flex justify-center">
               <ReviewForm 
                 productId={productId} 
                 tenantId={effectiveTenantId}

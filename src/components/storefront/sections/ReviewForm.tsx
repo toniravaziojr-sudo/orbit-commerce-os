@@ -42,9 +42,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
         throw new Error('Comentário deve ter entre 10 e 2000 caracteres');
       }
 
-      // Check for preview mode - auto-approve in preview
-      const isPreview = window.location.search.includes('preview=1');
-      
+      // All reviews go to pending - requires admin approval
       const { error } = await supabase
         .from('product_reviews')
         .insert({
@@ -55,19 +53,12 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
           title: title.trim() || null,
           content: content.trim(),
           rating,
-          status: isPreview ? 'approved' : 'pending', // Auto-approve in preview mode for testing
+          status: 'pending', // Always pending - requires admin approval
         });
 
       if (error) throw error;
     },
     onSuccess: () => {
-      const isPreview = window.location.search.includes('preview=1');
-      
-      // Invalidate queries to refresh reviews and ratings
-      queryClient.invalidateQueries({ queryKey: ['product-reviews-public', productId] });
-      queryClient.invalidateQueries({ queryKey: ['product-rating', productId] });
-      queryClient.invalidateQueries({ queryKey: ['product-ratings-batch'] });
-      
       // Reset form
       setRating(0);
       setName('');
@@ -76,11 +67,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
       setContent('');
       setIsOpen(false);
       
-      if (isPreview) {
-        toast.success('Avaliação enviada e aprovada automaticamente (modo preview)');
-      } else {
-        toast.success('Sua avaliação foi enviada e está em análise');
-      }
+      toast.success('Sua avaliação foi enviada e está pendente de aprovação');
       
       onSuccess?.();
     },
@@ -96,13 +83,14 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
 
   if (!isOpen) {
     return (
-      <Button
-        variant="outline"
-        onClick={() => setIsOpen(true)}
-        className="mt-4"
-      >
-        Escrever uma avaliação
-      </Button>
+      <div className="flex justify-center mt-4">
+        <Button
+          variant="outline"
+          onClick={() => setIsOpen(true)}
+        >
+          Escrever uma avaliação
+        </Button>
+      </div>
     );
   }
 
