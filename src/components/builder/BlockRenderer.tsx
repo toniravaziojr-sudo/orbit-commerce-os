@@ -488,6 +488,7 @@ const components: Record<string, React.ComponentType<any>> = {
     CheckoutSteps: CheckoutStepsBlock,
     Cart: CartBlock,
     Checkout: CheckoutBlock,
+    ThankYou: ThankYouBlock,
     // Essential blocks (8 novos)
     HeroBanner: HeroBannerBlockWrapper,
     CollectionSection: CollectionSectionBlockWrapper,
@@ -2093,6 +2094,82 @@ function CheckoutBlock({ isEditing, context }: any) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp = true, whatsAppNumber = '' }: any) {
+  const orderNumber = context?.order?.orderNumber || 'XXXXX';
+  
+  return (
+    <div className="py-12 container mx-auto px-4 max-w-2xl text-center">
+      {/* Success Icon */}
+      <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+        <Check className="h-10 w-10 text-green-600" />
+      </div>
+      
+      <h1 className="text-3xl font-bold mb-2">Obrigado pela compra!</h1>
+      <p className="text-muted-foreground mb-6">
+        Seu pedido #{orderNumber} foi recebido com sucesso.
+      </p>
+      
+      {/* Timeline */}
+      {showTimeline && (
+        <div className="border rounded-lg p-6 mb-6 text-left">
+          <h3 className="font-semibold mb-4">Próximos passos</h3>
+          <div className="space-y-4">
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                <Check className="h-3 w-3 text-green-600" />
+              </div>
+              <div>
+                <p className="font-medium">Pedido confirmado</p>
+                <p className="text-sm text-muted-foreground">Seu pagamento foi aprovado</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <span className="text-xs">2</span>
+              </div>
+              <div>
+                <p className="font-medium">Separação</p>
+                <p className="text-sm text-muted-foreground">Preparando seu pedido</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                <span className="text-xs">3</span>
+              </div>
+              <div>
+                <p className="font-medium">Envio</p>
+                <p className="text-sm text-muted-foreground">Código de rastreio será enviado por e-mail</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* WhatsApp Support */}
+      {showWhatsApp && whatsAppNumber && (
+        <Button
+          variant="outline"
+          className="gap-2"
+          onClick={() => {
+            const phone = whatsAppNumber.replace(/\D/g, '');
+            const message = encodeURIComponent(`Olá! Gostaria de informações sobre meu pedido #${orderNumber}`);
+            window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+          }}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Falar com suporte via WhatsApp
+        </Button>
+      )}
+      
+      {isEditing && (
+        <p className="text-sm text-muted-foreground mt-6">
+          [Configure as opções da página de confirmação no painel lateral]
+        </p>
+      )}
     </div>
   );
 }

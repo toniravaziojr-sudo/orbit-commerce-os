@@ -36,7 +36,7 @@ interface HeaderFooterPropsEditorProps {
   blockType: 'Header' | 'Footer';
   // For page overrides
   tenantId: string;
-  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'institutional' | 'landing_page';
   pageId?: string;
 }
 

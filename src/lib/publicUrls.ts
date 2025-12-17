@@ -79,6 +79,15 @@ export function getPublicCheckoutUrl(tenantSlug: string, preview = false): strin
 }
 
 /**
+ * Get the public thank you URL
+ */
+export function getPublicThankYouUrl(tenantSlug: string, preview = false): string {
+  const base = getStoreBaseUrl(tenantSlug);
+  const url = `${base}/obrigado`;
+  return preview ? `${url}?preview=1` : url;
+}
+
+/**
  * Get the public institutional page URL
  * @param tenantSlug - The tenant slug
  * @param pageSlug - The page slug (required - if empty/invalid, returns null)
@@ -213,6 +222,9 @@ export function getPreviewUrlForEditor(
       return getPublicCartUrl(tenantSlug, true);
     case 'checkout':
       return getPublicCheckoutUrl(tenantSlug, true);
+    case 'thank_you':
+    case 'obrigado':
+      return getPublicThankYouUrl(tenantSlug, true);
     case 'institutional':
     case 'page':
       if (entitySlug) {
@@ -263,6 +275,9 @@ export function getPreviewUrlWithValidation(
       return { url: getPublicCartUrl(tenantSlug, true), canPreview: true };
     case 'checkout':
       return { url: getPublicCheckoutUrl(tenantSlug, true), canPreview: true };
+    case 'thank_you':
+    case 'obrigado':
+      return { url: getPublicThankYouUrl(tenantSlug, true), canPreview: true };
     case 'institutional':
     case 'page':
       if (!entitySlug) {
@@ -305,6 +320,9 @@ export function getPublishedUrlForEntity(
       return getPublicCartUrl(tenantSlug, false);
     case 'checkout':
       return getPublicCheckoutUrl(tenantSlug, false);
+    case 'thank_you':
+    case 'obrigado':
+      return getPublicThankYouUrl(tenantSlug, false);
     case 'institutional':
     case 'page':
       return getPublicPageUrl(tenantSlug, entitySlug, false);

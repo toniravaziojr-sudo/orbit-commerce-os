@@ -49,19 +49,19 @@ export function MiniCartDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
-        className="flex flex-col w-[100vw] sm:w-[400px] sm:max-w-md p-0 h-[100dvh] inset-y-0 right-0"
+        className="flex flex-col w-full sm:w-[400px] sm:max-w-md p-0 h-full max-h-[100dvh]"
         side="right"
       >
-        {/* Header - fixed */}
-        <SheetHeader className="border-b px-4 py-4 flex-shrink-0">
+        {/* Header - fixed height, never shrink */}
+        <SheetHeader className="border-b px-4 py-4 shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
             <SheetTitle className="text-base font-semibold">Carrinho</SheetTitle>
           </div>
         </SheetHeader>
 
-        {/* Items - scrollable */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
+        {/* Items - flexible scroll area with proper containment */}
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
               <ShoppingCart className="h-12 w-12 mb-4 opacity-40" />
@@ -81,8 +81,8 @@ export function MiniCartDrawer({
           )}
         </div>
 
-        {/* Footer - fixed at bottom */}
-        <div className="border-t px-4 py-4 flex-shrink-0 space-y-4 bg-background mt-auto">
+        {/* Footer - fixed at bottom, never shrink, with safe area padding */}
+        <div className="border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] shrink-0 space-y-4 bg-background">
           {/* Summary */}
           {items.length > 0 && (
             <div className="space-y-2 text-sm">
