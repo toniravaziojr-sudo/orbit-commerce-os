@@ -41,7 +41,7 @@ export function ProductCarouselBlock({
   context,
   isEditing = false,
 }: ProductCarouselBlockProps) {
-  const { tenantSlug } = context;
+  const { tenantSlug, showRatings = true } = context;
 
   // Resolve category ID from context if needed
   const effectiveCategoryId =
@@ -124,8 +124,8 @@ export function ProductCarouselBlock({
                     />
                   </div>
                   <div className="p-3">
-                    {/* Rating - above product name */}
-                    {rating && rating.count > 0 && (
+                    {/* Rating - above product name (respects showRatings setting) */}
+                    {showRatings && rating && rating.count > 0 && (
                       <RatingSummary
                         average={rating.average}
                         count={rating.count}

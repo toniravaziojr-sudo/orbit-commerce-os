@@ -27,6 +27,7 @@ interface ProductData {
 interface ProductPageSectionsProps {
   product: ProductData;
   tenantSlug: string;
+  tenantId?: string;
   showDescription?: boolean;
   showBuyTogether?: boolean;
   showReviews?: boolean;
@@ -48,6 +49,7 @@ interface ProductPageSectionsProps {
 export function ProductPageSections({
   product,
   tenantSlug,
+  tenantId,
   showDescription = true,
   showBuyTogether = true,
   showReviews = true,
@@ -91,7 +93,7 @@ export function ProductPageSections({
 
       {/* 3. Reviews Section */}
       {showReviews && (
-        <ProductReviewsSection productId={product.id} />
+        <ProductReviewsSection productId={product.id} tenantId={tenantId} />
       )}
 
       {/* 4. Related Products Section - LAST (before footer) */}

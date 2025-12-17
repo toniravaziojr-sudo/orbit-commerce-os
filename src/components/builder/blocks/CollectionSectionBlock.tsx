@@ -43,6 +43,7 @@ export function CollectionSectionBlock({
   context,
   isEditing = false,
 }: CollectionSectionBlockProps) {
+  const showRatings = context?.showRatings !== false;
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
   
   const { products, isLoading, error } = useBuilderProducts({
@@ -116,8 +117,8 @@ export function CollectionSectionBlock({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         </div>
-        {/* Rating - above product name */}
-        {rating && rating.count > 0 && (
+        {/* Rating - above product name (respects showRatings setting) */}
+        {showRatings && rating && rating.count > 0 && (
           <RatingSummary
             average={rating.average}
             count={rating.count}

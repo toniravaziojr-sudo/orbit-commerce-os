@@ -34,7 +34,7 @@ export function FeaturedProductsBlock({
   context,
   isEditing = false,
 }: FeaturedProductsBlockProps) {
-  const { tenantSlug } = context;
+  const { tenantSlug, showRatings = true } = context;
 
   // Parse productIds: support both array (new) and string (legacy)
   const parsedProductIds = Array.isArray(productIds)
@@ -129,8 +129,8 @@ export function FeaturedProductsBlock({
                 />
               </div>
               <div className="p-3">
-                {/* Rating - above product name */}
-                {rating && rating.count > 0 && (
+                {/* Rating - above product name (respects showRatings setting) */}
+                {showRatings && rating && rating.count > 0 && (
                   <RatingSummary
                     average={rating.average}
                     count={rating.count}

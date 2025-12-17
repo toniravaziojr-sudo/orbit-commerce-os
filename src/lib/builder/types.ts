@@ -163,6 +163,9 @@ export interface BlockRenderContext {
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';
   
+  // Show ratings on product cards (controlled by category settings)
+  showRatings?: boolean;
+  
   /**
    * Slot rendered immediately after Header, before main content.
    * Use for: category banners, promotional bars, etc.

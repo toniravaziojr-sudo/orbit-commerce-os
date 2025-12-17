@@ -45,7 +45,7 @@ export function ProductGridBlock({
   context,
   isEditing = false,
 }: ProductGridBlockProps) {
-  const { tenantSlug, viewport } = context;
+  const { tenantSlug, viewport, showRatings = true } = context;
   
   // Determine if mobile based on viewport context (for builder) or default to responsive CSS
   const isMobileViewport = viewport === 'mobile';
@@ -227,8 +227,8 @@ export function ProductGridBlock({
               />
             </div>
             <div className="p-3">
-              {/* Rating - above product name */}
-              {rating && rating.count > 0 && (
+              {/* Rating - above product name (respects showRatings setting) */}
+              {showRatings && rating && rating.count > 0 && (
                 <RatingSummary
                   average={rating.average}
                   count={rating.count}

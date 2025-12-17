@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 export interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
+  showRatings?: boolean;
 }
 
 interface CategorySettingsPanelProps {
@@ -114,6 +115,18 @@ export function CategorySettingsPanel({
                   onCheckedChange={(checked) => handleChange('showBanner', checked)}
                 />
               </div>
+
+              {/* Exibir avaliações nos cards */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showRatings" className="text-sm">
+                  Mostrar avaliações nos produtos
+                </Label>
+                <Switch
+                  id="showRatings"
+                  checked={settings.showRatings ?? true}
+                  onCheckedChange={(checked) => handleChange('showRatings', checked)}
+                />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -127,6 +140,7 @@ export function useCategorySettings(tenantId: string) {
   const [settings, setSettings] = useState<CategorySettings>({
     showCategoryName: true,
     showBanner: true,
+    showRatings: true,
   });
   const [isLoading, setIsLoading] = useState(true);
 
