@@ -523,7 +523,6 @@ export function VisualBuilder({
         onBack={handleBack}
         exampleProductId={exampleProductId}
         exampleCategoryId={exampleCategoryId}
-        onExampleProductChange={setExampleProductId}
         onExampleCategoryChange={setExampleCategoryId}
       />
 

@@ -42,10 +42,8 @@ import {
   ArrowLeft,
   ExternalLink,
   ChevronRight,
-  Package,
   FolderOpen,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { getPreviewUrlWithValidation } from '@/lib/publicUrls';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -74,21 +72,11 @@ interface BuilderToolbarProps {
   onSettings?: () => void;
   onBack: () => void;
   onPageChange?: (pageType: string) => void;
-  // NEW: Example selectors
+  // Example selectors - product selector UI removed from toolbar (use right panel)
   exampleProductId?: string;
   exampleCategoryId?: string;
-  onExampleProductChange?: (productId: string) => void;
   onExampleCategoryChange?: (categoryId: string) => void;
 }
-
-const pageTypeLabels: Record<string, string> = {
-  home: 'Página Inicial',
-  category: 'Categoria',
-  product: 'Produto',
-  cart: 'Carrinho',
-  checkout: 'Checkout',
-  institutional: 'Página',
-};
 
 export function BuilderToolbar({
   pageTitle,
@@ -109,17 +97,15 @@ export function BuilderToolbar({
   onReset,
   onViewHistory,
   onBack,
-  onPageChange,
   exampleProductId,
   exampleCategoryId,
-  onExampleProductChange,
   onExampleCategoryChange,
 }: BuilderToolbarProps) {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
 
-  // Fetch products for Product template
-  const { data: products, isLoading: isLoadingProducts } = useQuery({
+  // Fetch products for Product template (for preview URL only, no UI selector)
+  const { data: products } = useQuery({
     queryKey: ['builder-example-products', currentTenant?.id],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
@@ -162,10 +148,10 @@ export function BuilderToolbar({
   const getPreviewResult = () => {
     if (!tenantSlug) return { url: null, canPreview: false, reason: 'Tenant não definido' };
     
-    // For product/category, use the selected example's slug if available
+    // For product, use the selected example's slug if available
     if (pageType === 'product') {
       if (!effectiveProductId) {
-        return { url: null, canPreview: false, reason: 'Nenhum produto disponível para visualizar' };
+        return { url: null, canPreview: false, reason: 'Selecione um produto de exemplo no painel direito' };
       }
       const product = products?.find(p => p.id === effectiveProductId);
       if (product?.slug) {
@@ -240,40 +226,6 @@ export function BuilderToolbar({
             <SelectItem value="checkout">💳 Checkout</SelectItem>
           </SelectContent>
         </Select>
-
-        {/* Example Product Selector - Only for Product template */}
-        {pageType === 'product' && onExampleProductChange && (
-          <>
-            <Separator orientation="vertical" className="h-6" />
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              {isLoadingProducts ? (
-                <Skeleton className="h-9 w-[180px]" />
-              ) : (
-                <Select 
-                  value={effectiveProductId || ''} 
-                  onValueChange={onExampleProductChange}
-                >
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Produto exemplo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {products?.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
-                      </SelectItem>
-                    ))}
-                    {(!products || products.length === 0) && (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Nenhum produto encontrado
-                      </div>
-                    )}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </>
-        )}
 
         {/* Example Category Selector - Only for Category template */}
         {pageType === 'category' && onExampleCategoryChange && (
@@ -392,7 +344,7 @@ export function BuilderToolbar({
           <AlertDialogTrigger asChild>
             <Button 
               size="sm" 
-              disabled={isPublishing || (pageType === 'category' && !effectiveCategoryId) || (pageType === 'product' && !effectiveProductId)} 
+              disabled={isPublishing || (pageType === 'category' && !effectiveCategoryId)} 
               className="gap-1"
             >
               <Upload className="h-4 w-4" />
