@@ -47,10 +47,14 @@ export default function StorefrontProduct() {
       
       const overrides = data?.page_overrides as Record<string, unknown> | null;
       return overrides?.productSettings as {
+        showGallery?: boolean;
+        showDescription?: boolean;
+        showVariants?: boolean;
+        showStock?: boolean;
         showRelatedProducts?: boolean;
         showBuyTogether?: boolean;
         showReviews?: boolean;
-        showDescription?: boolean;
+        openMiniCartOnAdd?: boolean;
       } | null;
     },
     enabled: !!tenantSlug,
