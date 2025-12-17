@@ -157,6 +157,9 @@ export interface BlockRenderContext {
   tenantSlug: string;
   isPreview: boolean;
   
+  // Page type for essential block detection
+  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';
   
