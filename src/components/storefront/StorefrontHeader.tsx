@@ -1,6 +1,6 @@
 import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { useCart } from '@/hooks/useCart';
+import { useCart } from '@/contexts/CartContext';
 import { usePublicGlobalLayout } from '@/hooks/useGlobalLayoutIntegration';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -14,7 +14,7 @@ import { StorefrontHeaderContent } from './StorefrontHeaderContent';
 export function StorefrontHeader() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { storeSettings, headerMenu, categories, tenant } = usePublicStorefront(tenantSlug || '');
-  const { totalItems } = useCart(tenantSlug || '');
+  const { totalItems } = useCart();
 
   // Fetch pages for resolving page menu item URLs
   const { data: pagesData } = useQuery({

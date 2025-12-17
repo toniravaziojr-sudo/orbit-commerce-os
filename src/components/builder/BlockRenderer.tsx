@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCart } from '@/hooks/useCart';
+import { useCart } from '@/contexts/CartContext';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
@@ -90,7 +90,7 @@ function ProductCTAs({
   onOpenMiniCart?: () => void;
 }) {
   const navigate = useNavigate();
-  const { items, addItem, updateQuantity } = useCart(tenantSlug);
+  const { items, addItem, updateQuantity } = useCart();
   
   // Find if product already in cart (only in Preview/Public mode)
   const cartItem = !isEditing ? items.find(i => i.product_id === productId) : null;

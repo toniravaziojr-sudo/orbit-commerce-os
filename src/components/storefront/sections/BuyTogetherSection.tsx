@@ -8,7 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Plus, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getPublicProductUrl } from '@/lib/publicUrls';
-import { useCart } from '@/hooks/useCart';
+import { useCart } from '@/contexts/CartContext';
 import { toast } from 'sonner';
 import { useState } from 'react';
 
@@ -27,7 +27,7 @@ interface BuyTogetherSectionProps {
 }
 
 export function BuyTogetherSection({ productId, tenantSlug, currentProduct, viewportOverride }: BuyTogetherSectionProps) {
-  const { addItem } = useCart(tenantSlug);
+  const { addItem } = useCart();
   const [isAdding, setIsAdding] = useState(false);
 
   const { data: rule, isLoading } = useQuery({

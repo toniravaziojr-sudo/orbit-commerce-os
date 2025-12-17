@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, X, ShoppingCart } from 'lucide-react';
-import { useCart, CartItem } from '@/hooks/useCart';
+import { useCart, CartItem } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 
 interface MiniCartDrawerProps {
@@ -28,7 +28,7 @@ export function MiniCartDrawer({
   isPreview,
 }: MiniCartDrawerProps) {
   const navigate = useNavigate();
-  const { items, subtotal, updateQuantity, removeItem } = useCart(tenantSlug);
+  const { items, subtotal, updateQuantity, removeItem } = useCart();
 
   const handleCheckout = () => {
     onOpenChange(false);

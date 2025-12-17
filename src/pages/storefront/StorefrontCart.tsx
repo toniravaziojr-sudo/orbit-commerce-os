@@ -3,7 +3,7 @@
 // =============================================
 
 import { useParams, useSearchParams } from 'react-router-dom';
-import { useCart } from '@/hooks/useCart';
+import { useCart } from '@/contexts/CartContext';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
@@ -16,7 +16,7 @@ export default function StorefrontCart() {
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const { items, subtotal, updateQuantity, removeItem } = useCart(tenantSlug || '');
+  const { items, subtotal, updateQuantity, removeItem } = useCart();
   
   // Use preview hook if in preview mode, otherwise use public hook
   const publicTemplate = usePublicTemplate(tenantSlug || '', 'cart');
