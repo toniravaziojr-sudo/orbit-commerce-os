@@ -45,10 +45,11 @@ export function useCart(tenantSlug: string) {
       );
 
       if (existingIndex >= 0) {
+        // Item exists - SET quantity (not add) to match user selection
         const updated = [...prev];
         updated[existingIndex] = {
           ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + item.quantity,
+          quantity: item.quantity,
         };
         return updated;
       }

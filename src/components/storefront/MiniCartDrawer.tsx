@@ -49,28 +49,26 @@ export function MiniCartDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
-        className="flex flex-col w-full sm:max-w-md p-0"
+        className="flex flex-col h-full w-full max-w-full sm:max-w-md p-0 overflow-hidden"
         side="right"
       >
         {/* Header - fixed */}
-        <SheetHeader className="border-b p-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5" />
-              <SheetTitle>Carrinho</SheetTitle>
-            </div>
+        <SheetHeader className="border-b px-4 py-3 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            <SheetTitle className="text-base">Carrinho</SheetTitle>
           </div>
         </SheetHeader>
 
         {/* Items - scrollable */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+        <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
-              <ShoppingCart className="h-12 w-12 mb-4 opacity-50" />
-              <p>Seu carrinho está vazio</p>
+              <ShoppingCart className="h-10 w-10 mb-3 opacity-50" />
+              <p className="text-sm">Seu carrinho está vazio</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {items.map((item) => (
                 <CartItemRow
                   key={item.id}
@@ -84,21 +82,21 @@ export function MiniCartDrawer({
         </div>
 
         {/* Footer - fixed at bottom */}
-        <div className="border-t p-4 flex-shrink-0 space-y-4 bg-background">
+        <div className="border-t px-4 py-3 flex-shrink-0 space-y-3 bg-background safe-area-bottom">
           {/* Summary */}
           {items.length > 0 && (
-            <div className="space-y-2 text-sm">
+            <div className="space-y-1.5 text-sm">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span className="font-medium">
                   R$ {subtotal.toFixed(2).replace('.', ',')}
                 </span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
+              <div className="flex justify-between text-muted-foreground text-xs">
                 <span>Frete:</span>
                 <span>A calcular</span>
               </div>
-              <div className="flex justify-between text-lg font-bold pt-2 border-t">
+              <div className="flex justify-between text-base font-bold pt-2 border-t">
                 <span>Total:</span>
                 <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
               </div>
@@ -110,7 +108,7 @@ export function MiniCartDrawer({
             <Button 
               onClick={handleCheckout}
               disabled={items.length === 0}
-              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+              className="w-full h-11 rounded-full font-semibold uppercase tracking-wide text-sm"
             >
               Iniciar Compra
             </Button>
@@ -118,14 +116,14 @@ export function MiniCartDrawer({
               variant="outline"
               onClick={handleGoToCart}
               disabled={items.length === 0}
-              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+              className="w-full h-11 rounded-full font-semibold uppercase tracking-wide text-sm"
             >
               Ir para o Carrinho
             </Button>
             <Button
               variant="ghost"
               onClick={handleContinueShopping}
-              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide"
+              className="w-full h-10 rounded-full font-semibold uppercase tracking-wide text-xs"
             >
               Continuar Comprando
             </Button>
