@@ -53,6 +53,7 @@ export default function StorefrontProduct() {
         showRelatedProducts?: boolean;
         showBuyTogether?: boolean;
         showReviews?: boolean;
+        showDescription?: boolean;
       } | null;
     },
     enabled: !!tenantSlug,
@@ -141,15 +142,35 @@ export default function StorefrontProduct() {
   const showBuyTogether = productSettings?.showBuyTogether !== false;
   const showRelatedProducts = productSettings?.showRelatedProducts !== false;
   const showReviews = productSettings?.showReviews !== false;
+  const showDescription = productSettings?.showDescription !== false;
+  
+  // Check if product has full description
+  const hasFullDescription = product?.description && product.description.trim().length > 0;
   
   const productSectionsSlot = product ? (
     <div className="container mx-auto px-4">
+      {/* Full Description Section */}
+      {showDescription && hasFullDescription && (
+        <div className="py-8 border-t">
+          <h2 className="text-xl md:text-2xl font-bold mb-4">Descrição</h2>
+          <div 
+            className="prose prose-sm md:prose max-w-none text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: product.description }}
+          />
+        </div>
+      )}
+      
+      {/* Buy Together Section */}
       {showBuyTogether && (
         <BuyTogetherSection productId={product.id} tenantSlug={tenantSlug || ''} />
       )}
+      
+      {/* Related Products Section */}
       {showRelatedProducts && (
         <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug || ''} />
       )}
+      
+      {/* Reviews Section */}
       {showReviews && (
         <ProductReviewsSection productId={product.id} />
       )}
