@@ -86,6 +86,12 @@ export function ProductSettingsPanel({
 
   return (
     <div className="border-b bg-muted/30">
+      {/* Template info notice */}
+      <div className="px-4 py-2 bg-blue-500/10 border-b border-blue-500/20">
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          <strong>Template de Produto:</strong> Este layout será usado por todos os produtos. O "Produto de Exemplo" serve apenas para visualizar dados.
+        </p>
+      </div>
       <Accordion type="single" collapsible defaultValue="product-settings" className="w-full">
         <AccordionItem value="product-settings" className="border-none">
           <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50">

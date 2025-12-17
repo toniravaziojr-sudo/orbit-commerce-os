@@ -1102,7 +1102,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         const { data, error } = await supabase
           .from('products')
           .select(`
-            id, name, price, description, short_description, stock_quantity, status, allow_backorder,
+            id, name, price, compare_at_price, description, short_description, stock_quantity, status, allow_backorder,
             product_images (id, url, alt_text, is_primary, sort_order)
           `)
           .eq('status', 'active')
@@ -1115,7 +1115,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, name, price, description, short_description, stock_quantity, status, allow_backorder,
+          id, name, price, compare_at_price, description, short_description, stock_quantity, status, allow_backorder,
           product_images (id, url, alt_text, is_primary, sort_order)
         `)
         .eq('id', exampleProductId)
@@ -1227,11 +1227,18 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
 
   const productName = product?.name || 'Produto';
   const productPrice = product?.price || 0;
+  const productCompareAtPrice = product?.compare_at_price || null;
   // Use short_description in hero section; full description goes in afterContentSlot
   const productShortDescription = product?.short_description || 
     (product?.description ? product.description.substring(0, 200) + (product.description.length > 200 ? '...' : '') : '');
   const productStock = product?.stock_quantity ?? 0;
   const allowBackorder = product?.allow_backorder ?? false;
+  
+  // Calculate discount percentage
+  const hasDiscount = productCompareAtPrice && productCompareAtPrice > productPrice;
+  const discountPercent = hasDiscount 
+    ? Math.round((1 - productPrice / productCompareAtPrice) * 100) 
+    : 0;
 
   return (
     <div className="py-6 md:py-8 px-4">
@@ -1285,9 +1292,21 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         {/* Product Info */}
         <div className="space-y-4">
           <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
-          <p className={`${priceClasses} text-primary font-bold`}>
-            R$ {productPrice.toFixed(2).replace('.', ',')}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`${priceClasses} text-primary font-bold`}>
+              R$ {productPrice.toFixed(2).replace('.', ',')}
+            </p>
+            {hasDiscount && discountPercent >= 1 && (
+              <>
+                <p className="text-muted-foreground line-through text-base md:text-lg">
+                  R$ {productCompareAtPrice.toFixed(2).replace('.', ',')}
+                </p>
+                <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">
+                  -{discountPercent}%
+                </span>
+              </>
+            )}
+          </div>
           {showDescription && productShortDescription && (
             <p className="text-muted-foreground text-sm md:text-base leading-relaxed">{productShortDescription}</p>
           )}
