@@ -3,6 +3,7 @@
 // =============================================
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
@@ -11,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useCart } from '@/hooks/useCart';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
@@ -26,14 +28,15 @@ import { ReviewsBlock as ReviewsBlockComponent } from './blocks/ReviewsBlock';
 import { FeaturedCategoriesBlock as FeaturedCategoriesBlockComponent } from './blocks/FeaturedCategoriesBlock';
 import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBannersBlock';
 import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
-import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl } from '@/lib/publicUrls';
+import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
 import { useProductRating } from '@/hooks/useProductRating';
-
-// Wrapper component that fetches and displays product rating
+import { Button } from '@/components/ui/button';
+import { Minus, Plus, Loader2, Check, MessageCircle } from 'lucide-react';
+import { toast } from 'sonner';
 function ProductRatingSummary({ 
   productId, 
   variant = 'productTitle',
@@ -54,6 +57,186 @@ function ProductRatingSummary({
       variant={variant}
       className={className}
     />
+  );
+}
+
+// Product CTA buttons component (Comprar agora, Adicionar ao carrinho, WhatsApp)
+function ProductCTAs({
+  productId,
+  productName,
+  productSku,
+  productPrice,
+  productStock,
+  allowBackorder,
+  imageUrl,
+  tenantSlug,
+  isPreview,
+  isEditing,
+  quantity,
+  setQuantity,
+  isAddingToCart,
+  setIsAddingToCart,
+  addedFeedback,
+  setAddedFeedback,
+}: {
+  productId?: string;
+  productName: string;
+  productSku: string;
+  productPrice: number;
+  productStock: number;
+  allowBackorder: boolean;
+  imageUrl?: string;
+  tenantSlug: string;
+  isPreview?: boolean;
+  isEditing?: boolean;
+  quantity: number;
+  setQuantity: (q: number) => void;
+  isAddingToCart: boolean;
+  setIsAddingToCart: (v: boolean) => void;
+  addedFeedback: boolean;
+  setAddedFeedback: (v: boolean) => void;
+}) {
+  const navigate = useNavigate();
+  const { addItem } = useCart(tenantSlug);
+  
+  const isOutOfStock = productStock <= 0 && !allowBackorder;
+  const maxQuantity = allowBackorder ? 999 : productStock;
+  
+  const handleAddToCart = React.useCallback(() => {
+    if (!productId || isOutOfStock || isAddingToCart) return;
+    
+    setIsAddingToCart(true);
+    
+    // Add item to cart
+    addItem({
+      product_id: productId,
+      name: productName,
+      sku: productSku,
+      price: productPrice,
+      quantity: quantity,
+      image_url: imageUrl,
+    });
+    
+    // Show feedback
+    setTimeout(() => {
+      setIsAddingToCart(false);
+      setAddedFeedback(true);
+      toast.success('Produto adicionado ao carrinho!');
+      
+      // Reset feedback after 2 seconds
+      setTimeout(() => {
+        setAddedFeedback(false);
+      }, 2000);
+    }, 300);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, setIsAddingToCart, setAddedFeedback]);
+  
+  const handleBuyNow = React.useCallback(() => {
+    if (!productId || isOutOfStock || isAddingToCart) return;
+    
+    // Add item to cart
+    addItem({
+      product_id: productId,
+      name: productName,
+      sku: productSku,
+      price: productPrice,
+      quantity: quantity,
+      image_url: imageUrl,
+    });
+    
+    // Navigate to checkout
+    const checkoutUrl = getPublicCheckoutUrl(tenantSlug, isPreview);
+    navigate(checkoutUrl);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, tenantSlug, isPreview, navigate]);
+  
+  const handleWhatsApp = React.useCallback(() => {
+    const whatsappNumber = '5511919555920';
+    const message = encodeURIComponent(`Quero comprar por aqui o "${productName}"`);
+    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  }, [productName]);
+  
+  const decrementQuantity = () => {
+    if (quantity > 1) setQuantity(quantity - 1);
+  };
+  
+  const incrementQuantity = () => {
+    if (quantity < maxQuantity) setQuantity(quantity + 1);
+  };
+
+  return (
+    <div className="space-y-3 pt-2">
+      {/* Quantity selector + Comprar agora in row */}
+      <div className="flex gap-3">
+        {/* Quantity Selector */}
+        <div className="flex items-center border rounded-full overflow-hidden">
+          <button
+            type="button"
+            onClick={decrementQuantity}
+            disabled={quantity <= 1 || isEditing}
+            className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <Minus className="w-4 h-4" />
+          </button>
+          <span className="w-8 text-center font-medium">{quantity}</span>
+          <button
+            type="button"
+            onClick={incrementQuantity}
+            disabled={quantity >= maxQuantity || isEditing}
+            className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+        
+        {/* Comprar Agora */}
+        <Button
+          onClick={handleBuyNow}
+          disabled={isOutOfStock || isAddingToCart || isEditing}
+          className="flex-1 h-10 rounded-full bg-foreground text-background hover:bg-foreground/90 font-semibold uppercase tracking-wide text-sm"
+        >
+          {isAddingToCart ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            'Comprar agora'
+          )}
+        </Button>
+      </div>
+      
+      {/* Adicionar ao Carrinho */}
+      <Button
+        variant="outline"
+        onClick={handleAddToCart}
+        disabled={isOutOfStock || isAddingToCart || isEditing}
+        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
+      >
+        {isAddingToCart ? (
+          <Loader2 className="w-4 h-4 animate-spin mr-2" />
+        ) : addedFeedback ? (
+          <>
+            <Check className="w-4 h-4 mr-2" />
+            Adicionado!
+          </>
+        ) : (
+          'Adicionar ao carrinho'
+        )}
+      </Button>
+      
+      {/* Comprar pelo WhatsApp */}
+      <Button
+        variant="outline"
+        onClick={handleWhatsApp}
+        disabled={isEditing}
+        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
+      >
+        <MessageCircle className="w-5 h-5 mr-2" />
+        Comprar pelo WhatsApp
+      </Button>
+      
+      {/* Out of stock message */}
+      {isOutOfStock && (
+        <p className="text-sm text-destructive text-center">Produto indisponível</p>
+      )}
+    </div>
   );
 }
 
@@ -1125,6 +1308,11 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   
   // State for selected image in gallery
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
+  // State for quantity
+  const [quantity, setQuantity] = React.useState(1);
+  // State for add to cart feedback
+  const [isAddingToCart, setIsAddingToCart] = React.useState(false);
+  const [addedFeedback, setAddedFeedback] = React.useState(false);
   
   // Determine if mobile based on viewport context (Builder) or default to responsive CSS
   const viewportOverride = context?.viewport;
@@ -1371,9 +1559,26 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
               Estoque: {productStock} unidades
             </p>
           )}
-          <button className="w-full bg-primary text-primary-foreground py-3.5 rounded-lg font-semibold text-base hover:bg-primary/90 transition-colors">
-            Adicionar ao Carrinho
-          </button>
+          
+          {/* Quantity Selector and CTAs */}
+          <ProductCTAs
+            productId={product?.id}
+            productName={productName}
+            productSku={product?.sku || ''}
+            productPrice={productPrice}
+            productStock={productStock}
+            allowBackorder={allowBackorder}
+            imageUrl={selectedImage?.url}
+            tenantSlug={tenantSlug}
+            isPreview={context?.isPreview}
+            isEditing={isEditing}
+            quantity={quantity}
+            setQuantity={setQuantity}
+            isAddingToCart={isAddingToCart}
+            setIsAddingToCart={setIsAddingToCart}
+            addedFeedback={addedFeedback}
+            setAddedFeedback={setAddedFeedback}
+          />
         </div>
       </div>
 
