@@ -1697,6 +1697,7 @@ export type Database = {
       store_settings: {
         Row: {
           accent_color: string | null
+          benefit_config: Json | null
           business_cnpj: string | null
           business_legal_name: string | null
           contact_address: string | null
@@ -1714,11 +1715,13 @@ export type Database = {
           id: string
           is_published: boolean | null
           logo_url: string | null
+          offers_config: Json | null
           primary_color: string | null
           secondary_color: string | null
           seo_description: string | null
           seo_keywords: string[] | null
           seo_title: string | null
+          shipping_config: Json | null
           social_custom: Json | null
           social_facebook: string | null
           social_instagram: string | null
@@ -1732,6 +1735,7 @@ export type Database = {
         }
         Insert: {
           accent_color?: string | null
+          benefit_config?: Json | null
           business_cnpj?: string | null
           business_legal_name?: string | null
           contact_address?: string | null
@@ -1749,11 +1753,13 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           logo_url?: string | null
+          offers_config?: Json | null
           primary_color?: string | null
           secondary_color?: string | null
           seo_description?: string | null
           seo_keywords?: string[] | null
           seo_title?: string | null
+          shipping_config?: Json | null
           social_custom?: Json | null
           social_facebook?: string | null
           social_instagram?: string | null
@@ -1767,6 +1773,7 @@ export type Database = {
         }
         Update: {
           accent_color?: string | null
+          benefit_config?: Json | null
           business_cnpj?: string | null
           business_legal_name?: string | null
           contact_address?: string | null
@@ -1784,11 +1791,13 @@ export type Database = {
           id?: string
           is_published?: boolean | null
           logo_url?: string | null
+          offers_config?: Json | null
           primary_color?: string | null
           secondary_color?: string | null
           seo_description?: string | null
           seo_keywords?: string[] | null
           seo_title?: string | null
+          shipping_config?: Json | null
           social_custom?: Json | null
           social_facebook?: string | null
           social_instagram?: string | null
