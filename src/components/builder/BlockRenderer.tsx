@@ -499,6 +499,10 @@ const components: Record<string, React.ComponentType<any>> = {
     FeaturedCategories: FeaturedCategoriesBlockWrapper,
     TextBanners: TextBannersBlockWrapper,
     VideoUpload: VideoUploadBlockWrapper,
+    // Account blocks (essential)
+    AccountHub: AccountHubBlock,
+    OrdersList: OrdersListBlock,
+    OrderDetail: OrderDetailBlock,
   };
 
   return components[type] || FallbackBlock;
@@ -2273,4 +2277,221 @@ function TextBannersBlockWrapper({ context, ...props }: any) {
 
 function VideoUploadBlockWrapper({ context, ...props }: any) {
   return <VideoUploadBlockComponent {...props} context={context} />;
+}
+
+// ========== ACCOUNT BLOCKS (essential) ==========
+
+function AccountHubBlock({ context, isEditing }: any) {
+  const navigate = useNavigate();
+  const tenantSlug = context?.tenantSlug || '';
+  
+  if (isEditing) {
+    return (
+      <div className="container mx-auto max-w-2xl py-8 px-4">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+            <span className="text-2xl">👤</span>
+          </div>
+          <h1 className="text-3xl font-bold mb-2">Minha Conta</h1>
+          <p className="text-muted-foreground">Gerencie seus pedidos e informações</p>
+        </div>
+        <div className="grid gap-4">
+          <div className="p-6 bg-card border rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-primary/10">📦</div>
+              <div>
+                <p className="font-semibold">Meus Pedidos</p>
+                <p className="text-sm text-muted-foreground">Acompanhe seus pedidos e entregas</p>
+              </div>
+            </div>
+            <div className="h-10 bg-primary rounded w-full flex items-center justify-center text-primary-foreground text-sm">Ver pedidos</div>
+          </div>
+          <div className="p-6 bg-card border rounded-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 rounded-lg bg-green-100">💬</div>
+              <div>
+                <p className="font-semibold">Suporte</p>
+                <p className="text-sm text-muted-foreground">Tire suas dúvidas pelo WhatsApp</p>
+              </div>
+            </div>
+            <div className="h-10 border-2 rounded w-full flex items-center justify-center text-sm">Falar no WhatsApp</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Import inline to avoid circular deps
+  const { useSearchParams, Link } = require('react-router-dom');
+  const { usePublicStorefront } = require('@/hooks/useStorefront');
+  const { getWhatsAppHref } = require('@/lib/contactHelpers');
+  
+  const [searchParams] = useSearchParams();
+  const isDemoMode = searchParams.has('demoAccount');
+  const { storeSettings } = usePublicStorefront(tenantSlug);
+  
+  const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
+  const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
+
+  return (
+    <div className="container mx-auto max-w-2xl py-8 px-4">
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
+          <span className="text-2xl">👤</span>
+        </div>
+        <h1 className="text-3xl font-bold mb-2">Minha Conta</h1>
+        <p className="text-muted-foreground">Gerencie seus pedidos e informações</p>
+      </div>
+      
+      {isDemoMode && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
+          <strong>Modo demonstração ativo.</strong> Você está visualizando dados de exemplo.
+        </div>
+      )}
+      
+      {!isDemoMode && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm">
+          <strong>Acesso limitado.</strong> Para ver seus pedidos reais, entre em contato conosco.
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        <div className="p-6 bg-card border rounded-lg hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-primary/10">📦</div>
+            <div>
+              <p className="font-semibold">Meus Pedidos</p>
+              <p className="text-sm text-muted-foreground">Acompanhe seus pedidos e entregas</p>
+            </div>
+          </div>
+          <Link to={`/store/${tenantSlug}/conta/pedidos${isDemoMode ? '?demoAccount=1' : ''}`}>
+            <Button className="w-full">Ver pedidos</Button>
+          </Link>
+        </div>
+        <div className="p-6 bg-card border rounded-lg hover:shadow-md transition-shadow">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="p-2 rounded-lg bg-green-100">💬</div>
+            <div>
+              <p className="font-semibold">Suporte</p>
+              <p className="text-sm text-muted-foreground">Tire suas dúvidas pelo WhatsApp</p>
+            </div>
+          </div>
+          <a href={whatsappHref} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="w-full">Falar no WhatsApp</Button>
+          </a>
+        </div>
+      </div>
+      
+      <div className="mt-8 text-center">
+        <Link to={`/store/${tenantSlug}`}>
+          <Button variant="ghost">🛒 Voltar à loja</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function OrdersListBlock({ context, isEditing }: any) {
+  if (isEditing) {
+    return (
+      <div className="container mx-auto max-w-3xl py-8 px-4">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Meus Pedidos</h1>
+          <p className="text-muted-foreground">Acompanhe o status das suas compras</p>
+        </div>
+        <div className="flex gap-2 mb-6">
+          <div className="px-3 py-1.5 bg-muted rounded text-sm">Todos (3)</div>
+          <div className="px-3 py-1.5 rounded text-sm text-muted-foreground">Em andamento (2)</div>
+          <div className="px-3 py-1.5 rounded text-sm text-muted-foreground">Finalizados (1)</div>
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="p-4 bg-card border rounded-lg">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <p className="font-semibold">Pedido #100{i}</p>
+                  <p className="text-sm text-muted-foreground">15 de Dez de 2024</p>
+                </div>
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Em andamento</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-muted-foreground">{i} item{i > 1 ? 's' : ''}</p>
+                  <p className="font-semibold">R$ {(i * 150).toFixed(2).replace('.', ',')}</p>
+                </div>
+                <div className="h-9 px-4 border rounded flex items-center text-sm">Ver detalhes →</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Dynamic import for public mode
+  const StorefrontOrdersListComponent = require('@/pages/storefront/StorefrontOrdersList').default;
+  return <StorefrontOrdersListComponent />;
+}
+
+function OrderDetailBlock({ context, isEditing }: any) {
+  if (isEditing) {
+    return (
+      <div className="container mx-auto max-w-3xl py-8 px-4">
+        <div className="text-sm text-muted-foreground mb-6">← Voltar aos pedidos</div>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">Pedido #1001</h1>
+            <p className="text-muted-foreground">15 de Dezembro de 2024 às 14:30</p>
+          </div>
+          <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm">Em separação</span>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-6">
+            <div className="p-4 bg-card border rounded-lg">
+              <p className="font-semibold mb-4">Acompanhamento</p>
+              <div className="space-y-3">
+                {['Pedido confirmado', 'Em separação', 'Enviado', 'Entregue'].map((step, i) => (
+                  <div key={step} className="flex items-center gap-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${i < 2 ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                      {i < 2 ? '✓' : '○'}
+                    </div>
+                    <span className={i < 2 ? '' : 'text-muted-foreground'}>{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 bg-card border rounded-lg">
+              <p className="font-semibold mb-4">Itens do pedido</p>
+              <div className="flex gap-3">
+                <div className="w-16 h-16 bg-muted rounded"></div>
+                <div className="flex-1">
+                  <p className="font-medium">Produto Exemplo</p>
+                  <p className="text-sm text-muted-foreground">Qtd: 1</p>
+                </div>
+                <p className="font-medium">R$ 150,00</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-6">
+            <div className="p-4 bg-card border rounded-lg">
+              <p className="font-semibold mb-4">Resumo</p>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>R$ 150,00</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Frete</span><span>R$ 15,00</span></div>
+                <div className="border-t pt-2 flex justify-between font-semibold"><span>Total</span><span>R$ 165,00</span></div>
+              </div>
+            </div>
+            <div className="p-4 bg-card border rounded-lg">
+              <p className="font-semibold mb-4">Precisa de ajuda?</p>
+              <div className="h-10 border rounded flex items-center justify-center text-sm">💬 Falar no WhatsApp</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Dynamic import for public mode
+  const StorefrontOrderDetailComponent = require('@/pages/storefront/StorefrontOrderDetail').default;
+  return <StorefrontOrderDetailComponent />;
 }

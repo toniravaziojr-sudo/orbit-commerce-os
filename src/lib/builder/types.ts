@@ -59,12 +59,14 @@ export interface BuilderState {
   isDirty: boolean;
 }
 
+export type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
+
 export interface PageVersion {
   id: string;
   tenant_id: string;
   entity_type: 'page' | 'template';
   page_id: string | null;
-  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | null;
+  page_type: PageType | null;
   version: number;
   status: 'draft' | 'published' | 'archived';
   content: BlockNode;
@@ -76,7 +78,7 @@ export interface PageVersion {
 export interface StorefrontTemplate {
   id: string;
   tenant_id: string;
-  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you';
+  page_type: PageType;
   published_version: number | null;
   draft_version: number | null;
   created_at: string;
@@ -158,7 +160,7 @@ export interface BlockRenderContext {
   isPreview: boolean;
   
   // Page type for essential block detection
-  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'institutional' | 'landing_page';
+  pageType?: PageType | 'institutional' | 'landing_page';
   
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';

@@ -509,6 +509,162 @@ export const defaultNeutralPageTemplate: BlockNode = {
   ],
 };
 
+// Default Account Hub template
+export const defaultAccountTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: true,
+        showCart: true,
+        sticky: true,
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('AccountHub'),
+          type: 'AccountHub',
+          props: {},
+        },
+      ],
+    },
+    {
+      id: generateBlockId('Footer'),
+      type: 'Footer',
+      props: {
+        menuId: '',
+        showSocial: true,
+        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        footerBgColor: '',
+        footerTextColor: '',
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+  ],
+};
+
+// Default Account Orders List template
+export const defaultAccountOrdersTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: true,
+        showCart: true,
+        sticky: true,
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('OrdersList'),
+          type: 'OrdersList',
+          props: {},
+        },
+      ],
+    },
+    {
+      id: generateBlockId('Footer'),
+      type: 'Footer',
+      props: {
+        menuId: '',
+        showSocial: true,
+        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        footerBgColor: '',
+        footerTextColor: '',
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+  ],
+};
+
+// Default Account Order Detail template
+export const defaultAccountOrderDetailTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: true,
+        showCart: true,
+        sticky: true,
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('OrderDetail'),
+          type: 'OrderDetail',
+          props: {},
+        },
+      ],
+    },
+    {
+      id: generateBlockId('Footer'),
+      type: 'Footer',
+      props: {
+        menuId: '',
+        showSocial: true,
+        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        footerBgColor: '',
+        footerTextColor: '',
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+  ],
+};
+
 // Get default template by page type
 export function getDefaultTemplate(pageType: string): BlockNode {
   switch (pageType) {
@@ -525,6 +681,12 @@ export function getDefaultTemplate(pageType: string): BlockNode {
     case 'thank_you':
     case 'obrigado':
       return JSON.parse(JSON.stringify(defaultThankYouTemplate));
+    case 'account':
+      return JSON.parse(JSON.stringify(defaultAccountTemplate));
+    case 'account_orders':
+      return JSON.parse(JSON.stringify(defaultAccountOrdersTemplate));
+    case 'account_order_detail':
+      return JSON.parse(JSON.stringify(defaultAccountOrderDetailTemplate));
     case 'neutral':
     case 'landing_page':
       return JSON.parse(JSON.stringify(defaultNeutralPageTemplate));
