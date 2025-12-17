@@ -92,12 +92,24 @@ function ProductCTAs({
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart(tenantSlug);
   
-  // Find if product already in cart
-  const cartItem = items.find(i => i.product_id === productId);
+  // Find if product already in cart (only in Preview/Public mode)
+  const cartItem = !isEditing ? items.find(i => i.product_id === productId) : null;
   const cartQuantity = cartItem?.quantity || 0;
   
-  // Local quantity state (for new items not yet in cart)
+  // Local quantity state - always starts at 1
   const [localQuantity, setLocalQuantity] = React.useState(1);
+  
+  // Track previous cart quantity to detect removal
+  const prevCartQuantityRef = React.useRef(cartQuantity);
+  
+  // Reset local quantity when item is removed from cart
+  React.useEffect(() => {
+    if (!isEditing && prevCartQuantityRef.current > 0 && cartQuantity === 0) {
+      // Item was removed from cart - reset local quantity
+      setLocalQuantity(1);
+    }
+    prevCartQuantityRef.current = cartQuantity;
+  }, [cartQuantity, isEditing]);
   
   // State for UI feedback
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
@@ -106,64 +118,58 @@ function ProductCTAs({
   const isOutOfStock = productStock <= 0 && !allowBackorder;
   const maxQuantity = allowBackorder ? 999 : productStock;
   
-  // Effective quantity: use cart quantity if in cart, else local
-  const quantity = cartQuantity > 0 ? cartQuantity : localQuantity;
+  // In Editor mode: always use localQuantity (default 1)
+  // In Preview/Public: use cart quantity if in cart, else local
+  const quantity = isEditing ? localQuantity : (cartQuantity > 0 ? cartQuantity : localQuantity);
   
   // Update quantity (either cart or local)
   const handleQuantityChange = React.useCallback((newQty: number) => {
     if (newQty < 1 || newQty > maxQuantity) return;
     
-    if (cartItem) {
+    if (isEditing) {
+      // In editor - always update local state only
+      setLocalQuantity(newQty);
+    } else if (cartItem) {
       // Product is in cart - update cart directly
       updateQuantity(cartItem.id, newQty);
     } else {
       // Product not in cart - update local state
       setLocalQuantity(newQty);
     }
-  }, [cartItem, maxQuantity, updateQuantity]);
+  }, [isEditing, cartItem, maxQuantity, updateQuantity]);
   
   const handleAddToCart = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
     
     setIsAddingToCart(true);
     
-    if (cartItem) {
-      // Already in cart - just open mini cart
-      setTimeout(() => {
-        setIsAddingToCart(false);
-        if (openMiniCartOnAdd && onOpenMiniCart) {
-          onOpenMiniCart();
-        }
-      }, 100);
-    } else {
-      // Add item to cart with selected quantity
-      addItem({
-        product_id: productId,
-        name: productName,
-        sku: productSku,
-        price: productPrice,
-        quantity: localQuantity,
-        image_url: imageUrl,
-      });
+    // Always add item to cart with selected quantity
+    addItem({
+      product_id: productId,
+      name: productName,
+      sku: productSku,
+      price: productPrice,
+      quantity: quantity,
+      image_url: imageUrl,
+    });
+    
+    // Show feedback after a brief delay to allow state to update
+    setTimeout(() => {
+      setIsAddingToCart(false);
+      setAddedFeedback(true);
+      toast.success('Produto adicionado ao carrinho!');
       
-      // Show feedback
+      // Open mini cart if enabled
+      if (openMiniCartOnAdd && onOpenMiniCart) {
+        onOpenMiniCart();
+      }
+      
+      // Reset feedback after 2 seconds
       setTimeout(() => {
-        setIsAddingToCart(false);
-        setAddedFeedback(true);
-        toast.success('Produto adicionado ao carrinho!');
-        
-        // Open mini cart if enabled
-        if (openMiniCartOnAdd && onOpenMiniCart) {
-          onOpenMiniCart();
-        }
-        
-        // Reset feedback after 2 seconds
-        setTimeout(() => {
-          setAddedFeedback(false);
-        }, 2000);
-      }, 300);
-    }
-  }, [productId, productName, productSku, productPrice, localQuantity, imageUrl, isOutOfStock, isAddingToCart, cartItem, addItem, openMiniCartOnAdd, onOpenMiniCart]);
+        setAddedFeedback(false);
+      }, 2000);
+    }, 150);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, onOpenMiniCart]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
