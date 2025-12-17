@@ -21,7 +21,7 @@ export interface PageOverrides {
 
 interface UsePageOverridesParams {
   tenantId: string;
-  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'institutional' | 'landing_page';
   pageId?: string; // For institutional/landing_page
 }
 

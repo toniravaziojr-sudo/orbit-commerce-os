@@ -7,7 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { BlockNode } from '@/lib/builder/types';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you';
 
 interface PublicTemplateResult {
   content: BlockNode;

@@ -64,7 +64,7 @@ export interface PageVersion {
   tenant_id: string;
   entity_type: 'page' | 'template';
   page_id: string | null;
-  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout' | null;
+  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | null;
   version: number;
   status: 'draft' | 'published' | 'archived';
   content: BlockNode;
@@ -76,7 +76,7 @@ export interface PageVersion {
 export interface StorefrontTemplate {
   id: string;
   tenant_id: string;
-  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout';
+  page_type: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you';
   published_version: number | null;
   draft_version: number | null;
   created_at: string;
@@ -158,7 +158,7 @@ export interface BlockRenderContext {
   isPreview: boolean;
   
   // Page type for essential block detection
-  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'institutional' | 'landing_page';
   
   // Viewport override for builder (forces mobile/tablet/desktop layout)
   viewport?: 'desktop' | 'tablet' | 'mobile';
@@ -222,6 +222,11 @@ export interface BlockRenderContext {
   page?: {
     title: string;
     slug: string;
+  };
+  
+  // Order confirmation context (for thank you page)
+  order?: {
+    orderNumber?: string;
   };
 }
 

@@ -354,6 +354,62 @@ export const defaultCheckoutTemplate: BlockNode = {
   ],
 };
 
+// Default Thank You / Order Confirmation template
+export const defaultThankYouTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: false,
+        showCart: false,
+        sticky: true,
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        padding: 'lg',
+      },
+      children: [
+        {
+          id: generateBlockId('ThankYou'),
+          type: 'ThankYou',
+          props: {
+            showTimeline: true,
+            showWhatsApp: true,
+            whatsAppNumber: '+55 11 91955-5920',
+          },
+        },
+      ],
+    },
+    {
+      id: generateBlockId('Footer'),
+      type: 'Footer',
+      props: {
+        menuId: '',
+        showSocial: true,
+        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        footerBgColor: '',
+        footerTextColor: '',
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+  ],
+};
+
 // Default Institutional Page template
 export const defaultInstitutionalTemplate: BlockNode = {
   id: 'root',
@@ -466,6 +522,9 @@ export function getDefaultTemplate(pageType: string): BlockNode {
       return JSON.parse(JSON.stringify(defaultCartTemplate));
     case 'checkout':
       return JSON.parse(JSON.stringify(defaultCheckoutTemplate));
+    case 'thank_you':
+    case 'obrigado':
+      return JSON.parse(JSON.stringify(defaultThankYouTemplate));
     case 'neutral':
     case 'landing_page':
       return JSON.parse(JSON.stringify(defaultNeutralPageTemplate));
