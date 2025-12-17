@@ -1,19 +1,28 @@
 // =============================================
 // BENEFIT PROGRESS BAR - Shows progress toward free shipping/gift
+// Uses centralized cartTotals for consistency
 // =============================================
 
 import { useBenefit } from '@/contexts/StorefrontConfigContext';
 import { useCart } from '@/contexts/CartContext';
 import { Gift, Truck, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { calculateCartTotals } from '@/lib/cartTotals';
 
 export function BenefitProgressBar() {
-  const { subtotal } = useCart();
+  const { items, shipping } = useCart();
   const { config, getProgress, isLoading } = useBenefit();
+
+  // Use centralized totals calculation
+  const totals = calculateCartTotals({
+    items,
+    selectedShipping: shipping.selected,
+    discountAmount: 0,
+  });
 
   if (isLoading) return null;
 
-  const { enabled, progress, remaining, achieved, label } = getProgress(subtotal);
+  const { enabled, progress, remaining, achieved, label } = getProgress(totals.subtotal);
 
   if (!enabled) return null;
 

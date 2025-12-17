@@ -1,5 +1,6 @@
 // =============================================
 // CART SUMMARY - Order summary with totals and CTA
+// Uses centralized cartTotals for consistency
 // =============================================
 
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,6 +8,7 @@ import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingBag, ArrowRight } from 'lucide-react';
+import { calculateCartTotals, formatCurrency, debugCartTotals } from '@/lib/cartTotals';
 
 interface CartSummaryProps {
   variant?: 'default' | 'sticky' | 'mobile-bar';
@@ -15,7 +17,17 @@ interface CartSummaryProps {
 export function CartSummary({ variant = 'default' }: CartSummaryProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const { items, subtotal, shipping, total } = useCart();
+  const { items, shipping } = useCart();
+
+  // Use centralized totals calculation
+  const totals = calculateCartTotals({
+    items,
+    selectedShipping: shipping.selected,
+    discountAmount: 0,
+  });
+
+  // Debug helper (dev only, triggered by ?debugCart=1)
+  debugCartTotals('CartSummary', totals, shipping);
 
   const handleCheckout = () => {
     navigate(`/store/${tenantSlug}/checkout`);
@@ -44,9 +56,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
         <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-xl font-bold">
-              R$ {total.toFixed(2).replace('.', ',')}
-            </p>
+            <p className="text-xl font-bold">{formatCurrency(totals.grandTotal)}</p>
           </div>
           <Button 
             size="lg" 
@@ -70,8 +80,8 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal ({items.length} {items.length === 1 ? 'item' : 'itens'})</span>
-              <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+              <span className="text-muted-foreground">Subtotal ({totals.itemCount} {totals.itemCount === 1 ? 'item' : 'itens'})</span>
+              <span>{formatCurrency(totals.subtotal)}</span>
             </div>
 
             {shipping.selected && (
@@ -81,7 +91,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
                   {shipping.selected.isFree ? (
                     <span className="text-green-600">Grátis</span>
                   ) : (
-                    `R$ ${shipping.selected.price.toFixed(2).replace('.', ',')}`
+                    formatCurrency(totals.shippingTotal)
                   )}
                 </span>
               </div>
@@ -91,7 +101,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
             <div className="flex justify-between text-lg font-semibold">
               <span>Total</span>
-              <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+              <span>{formatCurrency(totals.grandTotal)}</span>
             </div>
           </div>
 
@@ -124,7 +134,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
       <div className="space-y-3">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Subtotal</span>
-          <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+          <span>{formatCurrency(totals.subtotal)}</span>
         </div>
 
         {shipping.selected && (
@@ -134,7 +144,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
               {shipping.selected.isFree ? (
                 <span className="text-green-600">Grátis</span>
               ) : (
-                `R$ ${shipping.selected.price.toFixed(2).replace('.', ',')}`
+                formatCurrency(totals.shippingTotal)
               )}
             </span>
           </div>
@@ -144,7 +154,7 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
         <div className="flex justify-between text-lg font-semibold">
           <span>Total</span>
-          <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+          <span>{formatCurrency(totals.grandTotal)}</span>
         </div>
       </div>
 

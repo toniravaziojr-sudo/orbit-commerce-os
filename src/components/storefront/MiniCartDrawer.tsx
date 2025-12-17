@@ -1,5 +1,6 @@
 // =============================================
 // MINI CART DRAWER - Opens when adding to cart
+// Uses ResponsiveDrawerLayout for anti-regression mobile CSS
 // =============================================
 
 import { useNavigate } from 'react-router-dom';
@@ -13,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Minus, Plus, X, ShoppingCart } from 'lucide-react';
 import { useCart, CartItem } from '@/contexts/CartContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
+import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
+import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
 
 interface MiniCartDrawerProps {
   open: boolean;
@@ -28,7 +31,14 @@ export function MiniCartDrawer({
   isPreview,
 }: MiniCartDrawerProps) {
   const navigate = useNavigate();
-  const { items, subtotal, updateQuantity, removeItem } = useCart();
+  const { items, shipping, updateQuantity, removeItem } = useCart();
+
+  // Use centralized totals calculation
+  const totals = calculateCartTotals({
+    items,
+    selectedShipping: shipping.selected,
+    discountAmount: 0,
+  });
 
   const handleCheckout = () => {
     onOpenChange(false);
@@ -46,89 +56,99 @@ export function MiniCartDrawer({
     onOpenChange(false);
   };
 
+  // Header component
+  const Header = (
+    <SheetHeader className="border-b px-4 py-4">
+      <div className="flex items-center gap-2">
+        <ShoppingCart className="h-5 w-5" />
+        <SheetTitle className="text-base font-semibold">Carrinho</SheetTitle>
+      </div>
+    </SheetHeader>
+  );
+
+  // Body component - scrollable items list
+  const Body = (
+    <div className="px-4 py-4">
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
+          <ShoppingCart className="h-12 w-12 mb-4 opacity-40" />
+          <p className="text-sm">Seu carrinho está vazio</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {items.map((item) => (
+            <CartItemRow
+              key={item.id}
+              item={item}
+              onUpdateQuantity={(qty) => updateQuantity(item.id, qty)}
+              onRemove={() => removeItem(item.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Footer component - summary + CTAs
+  const Footer = (
+    <div className="border-t px-4 py-4 space-y-4 bg-background">
+      {/* Summary */}
+      {items.length > 0 && (
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span>Subtotal:</span>
+            <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground text-xs">
+            <span>Frete:</span>
+            <span>{totals.shippingTotal > 0 ? formatCurrency(totals.shippingTotal) : 'A calcular'}</span>
+          </div>
+          <div className="flex justify-between text-base font-bold pt-2 border-t">
+            <span>Total:</span>
+            <span>{formatCurrency(totals.grandTotal)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* CTAs */}
+      <div className="flex flex-col gap-2">
+        <Button 
+          onClick={handleCheckout}
+          disabled={items.length === 0}
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
+        >
+          Iniciar Compra
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleGoToCart}
+          disabled={items.length === 0}
+          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
+        >
+          Ir para o Carrinho
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={handleContinueShopping}
+          className="w-full h-10 rounded-full font-semibold uppercase tracking-wide text-xs"
+        >
+          Continuar Comprando
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
-        className="flex flex-col w-full sm:w-[400px] sm:max-w-md p-0 h-full max-h-[100dvh]"
+        className="p-0 w-full sm:w-[400px] sm:max-w-md"
         side="right"
       >
-        {/* Header - fixed height, never shrink */}
-        <SheetHeader className="border-b px-4 py-4 shrink-0">
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="h-5 w-5" />
-            <SheetTitle className="text-base font-semibold">Carrinho</SheetTitle>
-          </div>
-        </SheetHeader>
-
-        {/* Items - flexible scroll area with proper containment */}
-        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
-              <ShoppingCart className="h-12 w-12 mb-4 opacity-40" />
-              <p className="text-sm">Seu carrinho está vazio</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {items.map((item) => (
-                <CartItemRow
-                  key={item.id}
-                  item={item}
-                  onUpdateQuantity={(qty) => updateQuantity(item.id, qty)}
-                  onRemove={() => removeItem(item.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer - fixed at bottom, never shrink, with safe area padding */}
-        <div className="border-t px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] shrink-0 space-y-4 bg-background">
-          {/* Summary */}
-          {items.length > 0 && (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
-                <span className="font-medium">
-                  R$ {subtotal.toFixed(2).replace('.', ',')}
-                </span>
-              </div>
-              <div className="flex justify-between text-muted-foreground text-xs">
-                <span>Frete:</span>
-                <span>A calcular</span>
-              </div>
-              <div className="flex justify-between text-base font-bold pt-2 border-t">
-                <span>Total:</span>
-                <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-              </div>
-            </div>
-          )}
-
-          {/* CTAs */}
-          <div className="flex flex-col gap-2">
-            <Button 
-              onClick={handleCheckout}
-              disabled={items.length === 0}
-              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
-            >
-              Iniciar Compra
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleGoToCart}
-              disabled={items.length === 0}
-              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
-            >
-              Ir para o Carrinho
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={handleContinueShopping}
-              className="w-full h-10 rounded-full font-semibold uppercase tracking-wide text-xs"
-            >
-              Continuar Comprando
-            </Button>
-          </div>
-        </div>
+        <ResponsiveDrawerLayout
+          header={Header}
+          body={Body}
+          footer={Footer}
+        />
       </SheetContent>
     </Sheet>
   );

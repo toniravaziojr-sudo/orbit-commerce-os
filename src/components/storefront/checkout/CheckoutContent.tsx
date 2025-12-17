@@ -1,10 +1,12 @@
 // =============================================
 // CHECKOUT CONTENT - Main checkout page content
+// Uses OrderDraft for persistence and centralized totals
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
+import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { CheckoutForm, CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
 import { CheckoutOrderSummary } from './CheckoutOrderSummary';
 import { CheckoutShipping } from './CheckoutShipping';
@@ -24,11 +26,58 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
+  const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   
   const [formData, setFormData] = useState<CheckoutFormData>(initialCheckoutFormData);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Hydrate form from draft on initial load
+  useEffect(() => {
+    if (isHydrated && draft.customer.name) {
+      setFormData({
+        customerName: draft.customer.name || '',
+        customerEmail: draft.customer.email || '',
+        customerPhone: draft.customer.phone || '',
+        customerCpf: draft.customer.cpf || '',
+        shippingStreet: draft.customer.shippingStreet || '',
+        shippingNumber: draft.customer.shippingNumber || '',
+        shippingComplement: draft.customer.shippingComplement || '',
+        shippingNeighborhood: draft.customer.shippingNeighborhood || '',
+        shippingCity: draft.customer.shippingCity || '',
+        shippingState: draft.customer.shippingState || '',
+        shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
+        notes: '',
+      });
+    }
+  }, [isHydrated]);
+
+  // Sync cart snapshot to draft
+  useEffect(() => {
+    if (isHydrated && items.length > 0) {
+      updateCartSnapshot(items, { cep: shipping.cep, selected: shipping.selected });
+    }
+  }, [items, shipping, isHydrated]);
+
+  // Persist form changes to draft
+  useEffect(() => {
+    if (isHydrated) {
+      updateCustomer({
+        name: formData.customerName,
+        email: formData.customerEmail,
+        phone: formData.customerPhone,
+        cpf: formData.customerCpf,
+        shippingStreet: formData.shippingStreet,
+        shippingNumber: formData.shippingNumber,
+        shippingComplement: formData.shippingComplement,
+        shippingNeighborhood: formData.shippingNeighborhood,
+        shippingCity: formData.shippingCity,
+        shippingState: formData.shippingState,
+        shippingPostalCode: formData.shippingPostalCode,
+      });
+    }
+  }, [formData, isHydrated]);
 
   // Sync CEP from cart to form
   useEffect(() => {
@@ -67,8 +116,9 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       if (isSuccess) {
         setPaymentStatus('approved');
         
-        // Clear cart only after approval
+        // Clear cart and draft only after approval
         clearCart();
+        clearDraft();
         
         // Navigate to thank you page
         toast.success('Pedido realizado com sucesso!');
