@@ -1651,116 +1651,30 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
 // ========== CART / CHECKOUT BLOCKS ==========
 
 function CartSummaryBlock({ isEditing, context }: any) {
-  const { items, subtotal, updateQuantity, removeItem } = useCart();
-  const navigate = useNavigate();
-  const tenantSlug = context?.tenantSlug || '';
-  const isPreview = context?.isPreview;
+  const tenantId = context?.settings?.tenant_id || '';
 
-  const handleCheckout = () => {
-    navigate(getPublicCheckoutUrl(tenantSlug, isPreview));
-  };
-
+  // Editor mode: show placeholder
   if (isEditing) {
     return (
       <div className="py-8">
         <h1 className="text-3xl font-bold mb-8">Carrinho de Compras</h1>
         <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-          [Itens do carrinho serão listados aqui]
+          [Componente de carrinho completo será renderizado aqui]
+          <p className="text-xs mt-2">Inclui: itens, cálculo de frete, barra de benefícios, cross-sell, bundles</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="py-8">
-      <div className="grid md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 space-y-4">
-          {items.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground border rounded-lg">
-              Seu carrinho está vazio
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div key={item.id} className="flex gap-4 border rounded-lg p-4">
-                  <div className="w-20 h-20 bg-muted rounded-lg overflow-hidden flex-shrink-0">
-                    {item.image_url ? (
-                      <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ShoppingCart className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium line-clamp-2">{item.name}</h4>
-                    <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
-                    <p className="text-primary font-semibold mt-1">
-                      R$ {item.price.toFixed(2).replace('.', ',')}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end justify-between">
-                    <button 
-                      onClick={() => removeItem(item.id)}
-                      className="text-muted-foreground hover:text-destructive p-1"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="flex items-center border rounded-full">
-                      <button
-                        onClick={() => updateQuantity(item.id, Math.max(0, item.quantity - 1))}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-muted rounded-l-full"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="w-8 text-center text-sm">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        className="w-8 h-8 flex items-center justify-center hover:bg-muted rounded-r-full"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="font-semibold mb-4">Resumo</h2>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Frete</span>
-              <span>A calcular</span>
-            </div>
-            <hr className="my-2" />
-            <div className="flex justify-between font-bold">
-              <span>Total</span>
-              <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-            </div>
-          </div>
-          <Button 
-            className="w-full mt-4"
-            onClick={handleCheckout}
-            disabled={items.length === 0}
-          >
-            Finalizar Compra
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
+  // Public/Preview mode: render full CartContent component (same as CartBlock)
+  return <CartContent tenantId={tenantId} />;
 }
 
 function CheckoutStepsBlock({ isEditing, context }: any) {
-  const { items, subtotal } = useCart();
+  const tenantId = context?.settings?.tenant_id || '';
   const steps = ['Identificação', 'Entrega', 'Pagamento', 'Confirmação'];
 
+  // Editor mode: show placeholder with stepper preview
   if (isEditing) {
     return (
       <div className="py-8">
@@ -1781,90 +1695,15 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
           ))}
         </div>
         <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-          [Formulário de checkout será renderizado aqui]
+          [Formulário de checkout completo será renderizado aqui]
+          <p className="text-xs mt-2">Inclui: dados do cliente, endereço, frete, pagamento, resumo</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="py-8">
-      <div className="flex justify-center mb-8">
-        {steps.map((step, i) => (
-          <div key={i} className="flex items-center">
-            <div className={cn(
-              "w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold",
-              i === 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-            )}>
-              {i + 1}
-            </div>
-            <span className="ml-2 text-sm hidden sm:inline">{step}</span>
-            {i < steps.length - 1 && (
-              <div className="w-8 md:w-16 h-px bg-muted mx-2" />
-            )}
-          </div>
-        ))}
-      </div>
-      
-      <div className="grid md:grid-cols-2 gap-8">
-        <div className="space-y-6">
-          <div className="bg-card border rounded-lg p-6">
-            <h2 className="font-semibold mb-4">Dados do Cliente</h2>
-            <div className="space-y-4">
-              <Input placeholder="Nome completo" />
-              <Input placeholder="E-mail" type="email" />
-              <Input placeholder="Telefone" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-card border rounded-lg p-6">
-          <h2 className="font-semibold mb-4">Resumo do Pedido</h2>
-          {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Carrinho vazio</p>
-          ) : (
-            <>
-              <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
-                {items.map((item) => (
-                  <div key={item.id} className="flex gap-3 text-sm">
-                    <div className="w-12 h-12 bg-muted rounded overflow-hidden flex-shrink-0">
-                      {item.image_url ? (
-                        <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium line-clamp-1">{item.name}</p>
-                      <p className="text-muted-foreground">Qtd: {item.quantity}</p>
-                    </div>
-                    <p className="font-medium">
-                      R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div className="border-t pt-4 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal</span>
-                  <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Frete</span>
-                  <span>A calcular</span>
-                </div>
-                <div className="flex justify-between font-bold pt-2 border-t">
-                  <span>Total</span>
-                  <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+  // Public/Preview mode: render full CheckoutContent component (same as CheckoutBlock)
+  return <CheckoutContent tenantId={tenantId} />;
 }
 
 function CartBlock({ isEditing, context }: any) {
