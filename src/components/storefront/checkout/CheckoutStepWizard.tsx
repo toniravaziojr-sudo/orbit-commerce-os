@@ -1,6 +1,7 @@
 // =============================================
 // CHECKOUT STEP WIZARD - Multi-step checkout (Mercado Livre style)
 // Steps: 1) Dados pessoais 2) Endereço 3) Entrega 4) Pagamento
+// Includes account creation on first purchase
 // =============================================
 
 import { useState, useEffect } from 'react';
@@ -14,11 +15,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard } from 'lucide-react';
+import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -29,6 +31,18 @@ const STEPS = [
   { id: 3, label: 'Entrega', icon: Truck },
   { id: 4, label: 'Pagamento', icon: CreditCard },
 ] as const;
+
+// Extended form data to include password
+interface ExtendedFormData extends CheckoutFormData {
+  password: string;
+  confirmPassword: string;
+}
+
+const initialExtendedFormData: ExtendedFormData = {
+  ...initialCheckoutFormData,
+  password: '',
+  confirmPassword: '',
+};
 
 interface CheckoutStepWizardProps {
   tenantId: string;
@@ -42,11 +56,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { quote, isLoading: shippingLoading } = useShipping();
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
-  const [formData, setFormData] = useState<CheckoutFormData>(initialCheckoutFormData);
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({});
+  const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ExtendedFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [isExistingCustomer, setIsExistingCustomer] = useState(false);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
   // Use centralized totals
   const totals = calculateCartTotals({
@@ -55,12 +71,22 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     discountAmount: 0,
   });
 
+  // Load saved email from localStorage for returning customers
+  useEffect(() => {
+    const savedEmail = localStorage.getItem(`checkout_email_${tenantSlug}`);
+    if (savedEmail) {
+      setFormData(prev => ({ ...prev, customerEmail: savedEmail }));
+      setIsExistingCustomer(true);
+    }
+  }, [tenantSlug]);
+
   // Hydrate form from draft on initial load
   useEffect(() => {
     if (isHydrated && draft.customer.name) {
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         customerName: draft.customer.name || '',
-        customerEmail: draft.customer.email || '',
+        customerEmail: prev.customerEmail || draft.customer.email || '',
         customerPhone: draft.customer.phone || '',
         customerCpf: draft.customer.cpf || '',
         shippingStreet: draft.customer.shippingStreet || '',
@@ -70,8 +96,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         shippingCity: draft.customer.shippingCity || '',
         shippingState: draft.customer.shippingState || '',
         shippingPostalCode: draft.customer.shippingPostalCode || shipping.cep || '',
-        notes: '',
-      });
+      }));
     }
   }, [isHydrated]);
 
@@ -101,16 +126,43 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
   }, [formData, isHydrated]);
 
-  const handleFieldChange = (field: keyof CheckoutFormData, value: string) => {
+  // Check if email exists when user leaves email field
+  const checkExistingEmail = async (email: string) => {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    
+    setIsCheckingEmail(true);
+    try {
+      // Check if user exists in auth (by trying to sign in with wrong password - hacky but works)
+      // Actually, we'll just check customers table
+      const { data } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+      
+      setIsExistingCustomer(!!data);
+    } catch (error) {
+      console.error('Error checking email:', error);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleFieldChange = (field: keyof ExtendedFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (formErrors[field]) {
       setFormErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+    
+    // Check email when user finishes typing
+    if (field === 'customerEmail' && value.includes('@')) {
+      checkExistingEmail(value);
     }
   };
 
   // Validate current step
   const validateStep = (step: CheckoutStep): boolean => {
-    const errors: Partial<Record<keyof CheckoutFormData, string>> = {};
+    const errors: Partial<Record<keyof ExtendedFormData, string>> = {};
 
     if (step === 1) {
       if (!formData.customerName.trim()) errors.customerName = 'Nome é obrigatório';
@@ -118,6 +170,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerEmail)) errors.customerEmail = 'E-mail inválido';
       if (!formData.customerPhone.trim()) errors.customerPhone = 'Telefone é obrigatório';
       if (!formData.customerCpf.trim()) errors.customerCpf = 'CPF é obrigatório';
+      
+      // Password validation for new customers
+      if (!isExistingCustomer) {
+        if (!formData.password) errors.password = 'Crie uma senha para sua conta';
+        else if (formData.password.length < 6) errors.password = 'Senha deve ter no mínimo 6 caracteres';
+        if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Senhas não conferem';
+      }
     }
 
     if (step === 2) {
@@ -205,6 +264,34 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       const isSuccess = forcePayment === 'approved' || (forcePayment !== 'failed' && Math.random() > 0.1);
 
       if (isSuccess) {
+        // Save email for returning customer recognition
+        localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
+        
+        // Create account for new customers
+        if (!isExistingCustomer && formData.password) {
+          try {
+            const { data: authData, error: signUpError } = await supabase.auth.signUp({
+              email: formData.customerEmail,
+              password: formData.password,
+              options: {
+                emailRedirectTo: `${window.location.origin}/store/${tenantSlug}/conta`,
+                data: {
+                  full_name: formData.customerName,
+                }
+              }
+            });
+            
+            if (signUpError) {
+              console.error('Error creating account:', signUpError);
+              // Don't block the order, just log the error
+            } else {
+              toast.success('Conta criada! Verifique seu email para confirmar.', { duration: 5000 });
+            }
+          } catch (error) {
+            console.error('Error creating account:', error);
+          }
+        }
+
         setPaymentStatus('approved');
         clearCart();
         clearDraft();
@@ -300,6 +387,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
                 errors={formErrors} 
                 onChange={handleFieldChange}
                 disabled={isProcessing}
+                isExistingCustomer={isExistingCustomer}
+                isCheckingEmail={isCheckingEmail}
               />
             )}
             {currentStep === 2 && (
@@ -437,13 +526,20 @@ function Step1PersonalData({
   formData, 
   errors, 
   onChange,
-  disabled 
+  disabled,
+  isExistingCustomer,
+  isCheckingEmail
 }: { 
-  formData: CheckoutFormData;
-  errors: Partial<Record<keyof CheckoutFormData, string>>;
-  onChange: (field: keyof CheckoutFormData, value: string) => void;
+  formData: ExtendedFormData;
+  errors: Partial<Record<keyof ExtendedFormData, string>>;
+  onChange: (field: keyof ExtendedFormData, value: string) => void;
   disabled: boolean;
+  isExistingCustomer: boolean;
+  isCheckingEmail: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   return (
     <div className="space-y-6">
       <div>
@@ -467,15 +563,25 @@ function Step1PersonalData({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="customerEmail">E-mail *</Label>
-            <Input
-              id="customerEmail"
-              type="email"
-              value={formData.customerEmail}
-              onChange={(e) => onChange('customerEmail', e.target.value)}
-              disabled={disabled}
-              className={errors.customerEmail ? 'border-destructive' : ''}
-            />
+            <div className="relative">
+              <Input
+                id="customerEmail"
+                type="email"
+                value={formData.customerEmail}
+                onChange={(e) => onChange('customerEmail', e.target.value)}
+                disabled={disabled}
+                className={errors.customerEmail ? 'border-destructive' : ''}
+              />
+              {isCheckingEmail && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
             {errors.customerEmail && <p className="text-sm text-destructive mt-1">{errors.customerEmail}</p>}
+            {isExistingCustomer && !errors.customerEmail && (
+              <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                <Check className="h-3 w-3" /> Bem-vindo de volta!
+              </p>
+            )}
           </div>
           <div>
             <Label htmlFor="customerPhone">Telefone/WhatsApp *</Label>
@@ -503,6 +609,79 @@ function Step1PersonalData({
           />
           {errors.customerCpf && <p className="text-sm text-destructive mt-1">{errors.customerCpf}</p>}
         </div>
+
+        {/* Password section - only for new customers */}
+        {!isExistingCustomer && (
+          <div className="pt-4 border-t mt-4">
+            <div className="flex items-start gap-2 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-blue-700 dark:text-blue-300">Crie sua conta</p>
+                <p className="text-blue-600 dark:text-blue-400">Esta senha será usada para acessar sua conta e acompanhar seus pedidos.</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="password">Senha *</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.password}
+                    onChange={(e) => onChange('password', e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    disabled={disabled}
+                    className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && <p className="text-sm text-destructive mt-1">{errors.password}</p>}
+              </div>
+              <div>
+                <Label htmlFor="confirmPassword">Confirmar senha *</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={formData.confirmPassword}
+                    onChange={(e) => onChange('confirmPassword', e.target.value)}
+                    placeholder="Repita a senha"
+                    disabled={disabled}
+                    className={errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10'}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Existing customer - show login hint */}
+        {isExistingCustomer && (
+          <div className="pt-4 border-t mt-4">
+            <div className="flex items-start gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-medium text-green-700 dark:text-green-300">Você já tem uma conta!</p>
+                <p className="text-green-600 dark:text-green-400">Após a compra, acesse "Minha Conta" para ver seus pedidos.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
