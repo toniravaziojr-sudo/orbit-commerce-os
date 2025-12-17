@@ -10,9 +10,7 @@ import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { Storefront404 } from '@/components/storefront/Storefront404';
-import { BuyTogetherSection } from '@/components/storefront/sections/BuyTogetherSection';
-import { RelatedProductsSection } from '@/components/storefront/sections/RelatedProductsSection';
-import { ProductReviewsSection } from '@/components/storefront/sections/ProductReviewsSection';
+import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontProduct() {
@@ -144,54 +142,27 @@ export default function StorefrontProduct() {
   const showReviews = productSettings?.showReviews !== false;
   const showDescription = productSettings?.showDescription !== false;
   
-  // Check if product has full description
-  const hasFullDescription = product?.description && product.description.trim().length > 0;
-  
-  // Build current product data for BuyTogether section
-  const currentProductData = product ? {
-    id: product.id,
-    name: product.name,
-    price: product.price,
-    compare_at_price: product.compare_at_price || undefined,
-    sku: product.sku,
-    images: sortedImages.map((img: any) => ({
-      url: img.url,
-      alt: img.alt_text || product.name,
-    })),
-  } : undefined;
   
   const productSectionsSlot = product ? (
-    <div className="container mx-auto px-4">
-      {/* Buy Together Section - FIRST (right after main product section) */}
-      {showBuyTogether && (
-        <BuyTogetherSection 
-          productId={product.id} 
-          tenantSlug={tenantSlug || ''} 
-          currentProduct={currentProductData}
-        />
-      )}
-      
-      {/* Full Description Section */}
-      {showDescription && hasFullDescription && (
-        <div className="py-8 border-t">
-          <h2 className="text-xl md:text-2xl font-bold mb-4">Descrição</h2>
-          <div 
-            className="prose prose-sm md:prose max-w-none text-muted-foreground"
-            dangerouslySetInnerHTML={{ __html: product.description }}
-          />
-        </div>
-      )}
-      
-      {/* Reviews Section */}
-      {showReviews && (
-        <ProductReviewsSection productId={product.id} />
-      )}
-      
-      {/* Related Products Section - LAST (before footer) */}
-      {showRelatedProducts && (
-        <RelatedProductsSection productId={product.id} tenantSlug={tenantSlug || ''} />
-      )}
-    </div>
+    <ProductPageSections
+      product={{
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        compare_at_price: product.compare_at_price || undefined,
+        sku: product.sku,
+        description: product.description || undefined,
+        images: sortedImages.map((img: any) => ({
+          url: img.url,
+          alt: img.alt_text || product.name,
+        })),
+      }}
+      tenantSlug={tenantSlug || ''}
+      showDescription={showDescription}
+      showBuyTogether={showBuyTogether}
+      showReviews={showReviews}
+      showRelatedProducts={showRelatedProducts}
+    />
   ) : null;
 
   return (
