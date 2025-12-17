@@ -247,6 +247,20 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
   };
 
+  // Centralized payment simulation helper
+  const simulatePaymentResult = (): 'approved' | 'declined' | 'pending' => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const forcePayment = urlParams.get('forcePayment');
+    
+    // Explicit query param takes priority
+    if (forcePayment === 'approved') return 'approved';
+    if (forcePayment === 'declined' || forcePayment === 'failed') return 'declined';
+    if (forcePayment === 'pending') return 'pending';
+    
+    // Default behavior in mock mode: always approve (no random failures)
+    return 'approved';
+  };
+
   const handlePayment = async () => {
     if (!validateStep(4)) return;
 
@@ -254,52 +268,58 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     setPaymentError(null);
 
     try {
-      // Mock payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Mock payment processing delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Force success for testing, or check query param
-      const urlParams = new URLSearchParams(window.location.search);
-      const forcePayment = urlParams.get('forcePayment');
-      
-      const isSuccess = forcePayment === 'approved' || (forcePayment !== 'failed' && Math.random() > 0.1);
+      const paymentResult = simulatePaymentResult();
 
-      if (isSuccess) {
-        // Save email for returning customer recognition
-        localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
-        
-        // Create account for new customers
-        if (!isExistingCustomer && formData.password) {
-          try {
-            const { data: authData, error: signUpError } = await supabase.auth.signUp({
-              email: formData.customerEmail,
-              password: formData.password,
-              options: {
-                emailRedirectTo: `${window.location.origin}/store/${tenantSlug}/conta`,
-                data: {
-                  full_name: formData.customerName,
-                }
-              }
-            });
-            
-            if (signUpError) {
-              console.error('Error creating account:', signUpError);
-              // Don't block the order, just log the error
-            } else {
-              toast.success('Conta criada! Verifique seu email para confirmar.', { duration: 5000 });
-            }
-          } catch (error) {
-            console.error('Error creating account:', error);
-          }
-        }
-
-        setPaymentStatus('approved');
-        clearCart();
-        clearDraft();
-        toast.success('Pedido realizado com sucesso!');
-        navigate(`/store/${tenantSlug}/obrigado`);
-      } else {
-        throw new Error('Pagamento recusado. Por favor, tente novamente.');
+      if (paymentResult === 'pending') {
+        // Keep in processing state, allow user to wait or retry
+        toast.info('Pagamento em processamento. Aguarde a confirmação.');
+        return;
       }
+
+      if (paymentResult === 'declined') {
+        throw new Error('Pagamento recusado. Por favor, verifique os dados e tente novamente.');
+      }
+
+      // Payment approved - proceed with order completion
+      // Save email for returning customer recognition
+      localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
+      
+      // Create account for new customers
+      if (!isExistingCustomer && formData.password) {
+        try {
+          const { error: signUpError } = await supabase.auth.signUp({
+            email: formData.customerEmail,
+            password: formData.password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/store/${tenantSlug}/conta`,
+              data: {
+                full_name: formData.customerName,
+              }
+            }
+          });
+          
+          if (signUpError) {
+            console.error('Error creating account:', signUpError);
+            // Don't block the order, just log the error
+          } else {
+            toast.success('Conta criada! Verifique seu email para confirmar.', { duration: 5000 });
+          }
+        } catch (error) {
+          console.error('Error creating account:', error);
+        }
+      }
+
+      setPaymentStatus('approved');
+      clearCart();
+      clearDraft();
+      toast.success('Pedido realizado com sucesso!');
+      
+      // Generate mock order number for thank you page
+      const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+      navigate(`/store/${tenantSlug}/obrigado?orderNumber=${orderNumber}`);
     } catch (error) {
       setPaymentStatus('failed');
       setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
