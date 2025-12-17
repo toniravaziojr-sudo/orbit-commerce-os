@@ -49,26 +49,26 @@ export function MiniCartDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent 
-        className="flex flex-col h-full w-full max-w-full sm:max-w-md p-0 overflow-hidden"
+        className="flex flex-col w-[100vw] sm:w-[400px] sm:max-w-md p-0 h-[100dvh] inset-y-0 right-0"
         side="right"
       >
         {/* Header - fixed */}
-        <SheetHeader className="border-b px-4 py-3 flex-shrink-0">
+        <SheetHeader className="border-b px-4 py-4 flex-shrink-0">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
-            <SheetTitle className="text-base">Carrinho</SheetTitle>
+            <SheetTitle className="text-base font-semibold">Carrinho</SheetTitle>
           </div>
         </SheetHeader>
 
         {/* Items - scrollable */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4">
           {items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-8">
-              <ShoppingCart className="h-10 w-10 mb-3 opacity-50" />
+            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground py-12">
+              <ShoppingCart className="h-12 w-12 mb-4 opacity-40" />
               <p className="text-sm">Seu carrinho está vazio</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {items.map((item) => (
                 <CartItemRow
                   key={item.id}
@@ -82,10 +82,10 @@ export function MiniCartDrawer({
         </div>
 
         {/* Footer - fixed at bottom */}
-        <div className="border-t px-4 py-3 flex-shrink-0 space-y-3 bg-background safe-area-bottom">
+        <div className="border-t px-4 py-4 flex-shrink-0 space-y-4 bg-background mt-auto">
           {/* Summary */}
           {items.length > 0 && (
-            <div className="space-y-1.5 text-sm">
+            <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
                 <span className="font-medium">
@@ -104,11 +104,11 @@ export function MiniCartDrawer({
           )}
 
           {/* CTAs */}
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Button 
               onClick={handleCheckout}
               disabled={items.length === 0}
-              className="w-full h-11 rounded-full font-semibold uppercase tracking-wide text-sm"
+              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
             >
               Iniciar Compra
             </Button>
@@ -116,7 +116,7 @@ export function MiniCartDrawer({
               variant="outline"
               onClick={handleGoToCart}
               disabled={items.length === 0}
-              className="w-full h-11 rounded-full font-semibold uppercase tracking-wide text-sm"
+              className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
             >
               Ir para o Carrinho
             </Button>

@@ -96,20 +96,13 @@ function ProductCTAs({
   const cartItem = !isEditing ? items.find(i => i.product_id === productId) : null;
   const cartQuantity = cartItem?.quantity || 0;
   
-  // Local quantity state - always starts at 1
+  // Local quantity state - always starts at 1 and resets on product change
   const [localQuantity, setLocalQuantity] = React.useState(1);
   
-  // Track previous cart quantity to detect removal
-  const prevCartQuantityRef = React.useRef(cartQuantity);
-  
-  // Reset local quantity when item is removed from cart
+  // Reset local quantity when product changes (for Editor switching products)
   React.useEffect(() => {
-    if (!isEditing && prevCartQuantityRef.current > 0 && cartQuantity === 0) {
-      // Item was removed from cart - reset local quantity
-      setLocalQuantity(1);
-    }
-    prevCartQuantityRef.current = cartQuantity;
-  }, [cartQuantity, isEditing]);
+    setLocalQuantity(1);
+  }, [productId]);
   
   // State for UI feedback
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
@@ -118,25 +111,15 @@ function ProductCTAs({
   const isOutOfStock = productStock <= 0 && !allowBackorder;
   const maxQuantity = allowBackorder ? 999 : productStock;
   
-  // In Editor mode: always use localQuantity (default 1)
-  // In Preview/Public: use cart quantity if in cart, else local
-  const quantity = isEditing ? localQuantity : (cartQuantity > 0 ? cartQuantity : localQuantity);
+  // Quantity displayed: always use local quantity (user controls what to add)
+  // Cart quantity only affects display AFTER the item is added
+  const quantity = localQuantity;
   
-  // Update quantity (either cart or local)
+  // Update quantity (local state only - cart is updated on "Add to cart" click)
   const handleQuantityChange = React.useCallback((newQty: number) => {
     if (newQty < 1 || newQty > maxQuantity) return;
-    
-    if (isEditing) {
-      // In editor - always update local state only
-      setLocalQuantity(newQty);
-    } else if (cartItem) {
-      // Product is in cart - update cart directly
-      updateQuantity(cartItem.id, newQty);
-    } else {
-      // Product not in cart - update local state
-      setLocalQuantity(newQty);
-    }
-  }, [isEditing, cartItem, maxQuantity, updateQuantity]);
+    setLocalQuantity(newQty);
+  }, [maxQuantity]);
   
   const handleAddToCart = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
