@@ -35,6 +35,7 @@ import PageBuilder from "@/pages/PageBuilder";
 import LandingPages from "@/pages/LandingPages";
 import BuyTogether from "@/pages/BuyTogether";
 import Reviews from "@/pages/Reviews";
+import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
@@ -126,6 +127,7 @@ const App = () => (
               <Route path="/settings" element={<Settings />} />
               <Route path="/storefront" element={<StorefrontSettings />} />
               <Route path="/storefront/builder" element={<StorefrontBuilder />} />
+              <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
               <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
             </Route>
 

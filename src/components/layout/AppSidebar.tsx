@@ -27,6 +27,7 @@ import {
   Rocket,
   Star,
   Gift,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -65,6 +66,7 @@ const navigation: NavGroup[] = [
     label: "Loja Online",
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
+      { title: "Conversão", href: "/storefront/conversao", icon: TrendingUp },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
       { title: "Landing Pages", href: "/landing-pages", icon: Rocket },

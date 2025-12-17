@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 // Types
+import type { Json } from '@/integrations/supabase/types';
+
 export interface StoreSettings {
   id: string;
   tenant_id: string;
@@ -37,8 +39,28 @@ export interface StoreSettings {
   contact_email: string | null;
   contact_address: string | null;
   contact_support_hours: string | null;
+  // New config fields (JSONB)
+  shipping_config: Json | null;
+  benefit_config: Json | null;
+  offers_config: Json | null;
   created_at: string;
   updated_at: string;
+}
+
+// Helper to parse social_custom from Json
+function parseSocialCustom(data: Json | null): Array<{ label: string; url: string; icon?: string }> | null {
+  if (!data || !Array.isArray(data)) return null;
+  return data.map((item) => {
+    if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+      const obj = item as Record<string, unknown>;
+      return {
+        label: String(obj.label || ''),
+        url: String(obj.url || ''),
+        icon: obj.icon ? String(obj.icon) : undefined,
+      };
+    }
+    return { label: '', url: '' };
+  });
 }
 
 export interface Menu {
@@ -111,7 +133,7 @@ export function usePublicStorefront(tenantSlug: string) {
   // Fetch store settings
   const { data: storeSettings, isLoading: settingsLoading } = useQuery({
     queryKey: ['public-store-settings', tenant?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<StoreSettings | null> => {
       const { data, error } = await supabase
         .from('store_settings')
         .select('*')
@@ -119,7 +141,13 @@ export function usePublicStorefront(tenantSlug: string) {
         .maybeSingle();
 
       if (error) throw error;
-      return data as StoreSettings | null;
+      if (!data) return null;
+      
+      // Parse and transform the data
+      return {
+        ...data,
+        social_custom: parseSocialCustom(data.social_custom),
+      } as StoreSettings;
     },
     enabled: !!tenant?.id,
   });
