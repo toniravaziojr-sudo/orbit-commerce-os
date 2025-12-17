@@ -1,12 +1,14 @@
 // =============================================
 // STOREFRONT CHECKOUT - Public checkout page
 // =============================================
+// REGRA CRÍTICA: Esta página NÃO deve renderizar CheckoutContent diretamente.
+// O conteúdo do checkout vem EXCLUSIVAMENTE via template/blocos (CheckoutBlock).
+// Isso evita duplicação de UI (template + slot paralelo).
 
 import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
-import { CheckoutContent } from '@/components/storefront/checkout';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontCheckout() {
@@ -15,16 +17,11 @@ export default function StorefrontCheckout() {
   const { tenant, storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const template = usePublicTemplate(tenantSlug || '', 'checkout');
 
-  // Checkout content slot
-  const checkoutSlot = tenant?.id ? (
-    <CheckoutContent tenantId={tenant.id} />
-  ) : null;
-
-  // Build context for block rendering
+  // Build context for block rendering - NO afterHeaderSlot (template-only rendering)
   const context: BlockRenderContext = {
     tenantSlug: tenantSlug || '',
     isPreview: false,
-    afterHeaderSlot: checkoutSlot,
+    // REMOVED: afterHeaderSlot - checkout content comes from template blocks only
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,

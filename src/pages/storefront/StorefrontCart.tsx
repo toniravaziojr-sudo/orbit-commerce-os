@@ -1,12 +1,14 @@
 // =============================================
 // STOREFRONT CART - Public cart page
 // =============================================
+// REGRA CRÍTICA: Esta página NÃO deve renderizar CartContent diretamente.
+// O conteúdo do carrinho vem EXCLUSIVAMENTE via template/blocos (CartBlock).
+// Isso evita duplicação de UI (template + slot paralelo).
 
 import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
-import { CartContent } from '@/components/storefront/cart';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontCart() {
@@ -15,16 +17,11 @@ export default function StorefrontCart() {
   const { tenant, storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const template = usePublicTemplate(tenantSlug || '', 'cart');
 
-  // Cart content slot - render full cart with all features
-  const cartSlot = tenant?.id ? (
-    <CartContent tenantId={tenant.id} />
-  ) : null;
-
-  // Build context for block rendering with cart slot
+  // Build context for block rendering - NO afterHeaderSlot (template-only rendering)
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: false,
-    afterHeaderSlot: cartSlot,
+    // REMOVED: afterHeaderSlot - cart content comes from template blocks only
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
