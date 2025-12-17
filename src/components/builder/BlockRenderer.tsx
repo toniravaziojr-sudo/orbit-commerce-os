@@ -1082,6 +1082,9 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 }
 
 function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
+  // State for selected image in gallery
+  const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
+  
   // Determine if mobile based on viewport context (Builder) or default to responsive CSS
   const viewportOverride = context?.viewport;
   const isMobileView = viewportOverride === 'mobile';
@@ -1099,7 +1102,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         const { data, error } = await supabase
           .from('products')
           .select(`
-            id, name, price, description, stock_quantity, status,
+            id, name, price, description, short_description, stock_quantity, status, allow_backorder,
             product_images (id, url, alt_text, is_primary, sort_order)
           `)
           .eq('status', 'active')
@@ -1112,7 +1115,7 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
       const { data, error } = await supabase
         .from('products')
         .select(`
-          id, name, price, description, stock_quantity, status,
+          id, name, price, description, short_description, stock_quantity, status, allow_backorder,
           product_images (id, url, alt_text, is_primary, sort_order)
         `)
         .eq('id', exampleProductId)
@@ -1126,31 +1129,45 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   // Use context product if available (public page), otherwise use example product (editor)
   const product = contextProduct || exampleProduct;
   
-  // Get primary image - for context products, images come from context.product.images
+  // Get all images sorted - primary first, then by sort_order
+  // For context products, images come from context.product.images
   // For example products, images come from product_images relation
-  let primaryImage: { url: string; alt?: string } | undefined;
+  const allImages: { url: string; alt?: string; is_primary?: boolean }[] = React.useMemo(() => {
+    if (contextProduct?.images?.length) {
+      // From public context - already has images array
+      const imgs = [...contextProduct.images];
+      return imgs.sort((a: any, b: any) => {
+        if (a.is_primary) return -1;
+        if (b.is_primary) return 1;
+        return 0;
+      });
+    } else if (product?.product_images?.length) {
+      // From database query
+      return [...product.product_images].sort((a: any, b: any) => {
+        if (a.is_primary) return -1;
+        if (b.is_primary) return 1;
+        return (a.sort_order || 0) - (b.sort_order || 0);
+      }).map((img: any) => ({
+        url: img.url,
+        alt: img.alt_text,
+        is_primary: img.is_primary,
+      }));
+    }
+    return [];
+  }, [contextProduct?.images, product?.product_images]);
   
-  if (contextProduct?.images?.length) {
-    // From public context - already processed
-    primaryImage = contextProduct.images.find((img: any) => img.is_primary) || contextProduct.images[0];
-  } else if (product?.product_images?.length) {
-    // From database query
-    const sortedImages = [...product.product_images].sort((a: any, b: any) => {
-      if (a.is_primary) return -1;
-      if (b.is_primary) return 1;
-      return (a.sort_order || 0) - (b.sort_order || 0);
-    });
-    primaryImage = sortedImages[0];
-  }
+  // Reset selected index when product changes
+  React.useEffect(() => {
+    setSelectedImageIndex(0);
+  }, [product?.id]);
+  
+  const selectedImage = allImages[selectedImageIndex] || allImages[0];
+  const hasMultipleImages = allImages.length > 1;
 
   // Responsive layout classes based on viewport
   const gridClasses = viewportOverride 
     ? (isMobileView ? 'flex flex-col gap-6' : 'grid grid-cols-2 gap-8')
     : 'flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-8';
-  
-  const imageClasses = viewportOverride
-    ? (isMobileView ? 'w-full aspect-square' : 'aspect-square')
-    : 'w-full aspect-square';
   
   const titleClasses = viewportOverride
     ? (isMobileView ? 'text-2xl' : 'text-3xl')
@@ -1164,7 +1181,14 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
     return (
       <div className="py-6 md:py-8 px-4">
         <div className={gridClasses}>
-          <div className={`${imageClasses} bg-muted rounded-lg animate-pulse`} />
+          <div className="w-full">
+            <div className="aspect-square bg-muted rounded-lg animate-pulse" />
+            <div className="flex gap-2 mt-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="w-16 h-16 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
           <div className="space-y-4">
             <div className="h-8 bg-muted rounded w-3/4" />
             <div className="h-6 bg-muted rounded w-1/4" />
@@ -1180,8 +1204,10 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
     return (
       <div className="py-6 md:py-8 px-4">
         <div className={gridClasses}>
-          <div className={`${imageClasses} bg-muted rounded-lg flex items-center justify-center text-muted-foreground`}>
-            [Imagem do Produto]
+          <div className="w-full">
+            <div className="aspect-square bg-muted rounded-lg flex items-center justify-center text-muted-foreground">
+              [Imagem do Produto]
+            </div>
           </div>
           <div className="space-y-4">
             <h1 className={`${titleClasses} font-bold`}>[Nome do Produto]</h1>
@@ -1210,19 +1236,53 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   return (
     <div className="py-6 md:py-8 px-4">
       <div className={gridClasses}>
+        {/* Gallery Section */}
         {showGallery && (
-          <div className={`${imageClasses} bg-muted rounded-lg overflow-hidden`}>
-            {primaryImage?.url ? (
-              <img src={primaryImage.url} alt={primaryImage.alt || productName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+          <div className="w-full">
+            {/* Main Image */}
+            <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+              {selectedImage?.url ? (
+                <img 
+                  src={selectedImage.url} 
+                  alt={selectedImage.alt || productName} 
+                  className="w-full h-full object-cover" 
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  <svg className="w-16 h-16 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              )}
+            </div>
+            
+            {/* Thumbnails */}
+            {hasMultipleImages && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                {allImages.map((img, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setSelectedImageIndex(index)}
+                    className={cn(
+                      "flex-shrink-0 w-16 h-16 md:w-20 md:h-20 rounded-lg overflow-hidden border-2 transition-all",
+                      index === selectedImageIndex 
+                        ? "border-primary ring-2 ring-primary/20" 
+                        : "border-transparent hover:border-muted-foreground/30"
+                    )}
+                  >
+                    <img 
+                      src={img.url} 
+                      alt={img.alt || `${productName} ${index + 1}`} 
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
         )}
+        
+        {/* Product Info */}
         <div className="space-y-4">
           <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
           <p className={`${priceClasses} text-primary font-bold`}>
