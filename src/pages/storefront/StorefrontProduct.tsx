@@ -10,7 +10,6 @@ import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { Storefront404 } from '@/components/storefront/Storefront404';
-import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontProduct() {
@@ -137,39 +136,13 @@ export default function StorefrontProduct() {
     ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
     : true;
 
-  // Build product sections slot based on settings
-  const showBuyTogether = productSettings?.showBuyTogether !== false;
-  const showRelatedProducts = productSettings?.showRelatedProducts !== false;
-  const showReviews = productSettings?.showReviews !== false;
-  const showDescription = productSettings?.showDescription !== false;
-  
-  
-  const productSectionsSlot = product ? (
-    <ProductPageSections
-      product={{
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        compare_at_price: product.compare_at_price || undefined,
-        sku: product.sku,
-        description: product.description || undefined,
-        images: sortedImages.map((img: any) => ({
-          url: img.url,
-          alt: img.alt_text || product.name,
-        })),
-      }}
-      tenantSlug={tenantSlug || ''}
-      showDescription={showDescription}
-      showBuyTogether={showBuyTogether}
-      showReviews={showReviews}
-      showRelatedProducts={showRelatedProducts}
-    />
-  ) : null;
+  // ProductPageSections is now rendered inside ProductDetailsBlock (single source of truth)
+  // No need for afterContentSlot - the sections render in the correct order within the block
 
   return (
     <PublicTemplateRenderer
       content={template.content}
-      context={{...context, afterContentSlot: productSectionsSlot}}
+      context={context}
       isLoading={template.isLoading || storeLoading || productLoading}
       error={template.error}
       isPreviewMode={isPreviewMode}
