@@ -122,10 +122,37 @@ export function getPublicLandingUrl(tenantSlug: string, landingSlug: string | un
 }
 
 /**
- * Get the public "My Orders" URL
+ * Get the public account hub URL
+ */
+export function getPublicAccountUrl(tenantSlug: string, preview = false): string {
+  const base = getStoreBaseUrl(tenantSlug);
+  const url = `${base}/conta`;
+  return preview ? `${url}?preview=1` : url;
+}
+
+/**
+ * Get the public account orders list URL
+ */
+export function getPublicAccountOrdersUrl(tenantSlug: string, preview = false): string {
+  const base = getStoreBaseUrl(tenantSlug);
+  const url = `${base}/conta/pedidos`;
+  return preview ? `${url}?preview=1` : url;
+}
+
+/**
+ * Get the public account order detail URL
+ */
+export function getPublicAccountOrderDetailUrl(tenantSlug: string, orderId?: string, preview = false): string {
+  const base = getStoreBaseUrl(tenantSlug);
+  const url = orderId ? `${base}/conta/pedidos/${orderId}` : `${base}/conta/pedidos/:orderId`;
+  return preview ? `${url}?preview=1` : url;
+}
+
+/**
+ * Get the public "My Orders" URL (legacy alias)
  */
 export function getPublicMyOrdersUrl(tenantSlug: string): string {
-  return `${getStoreBaseUrl(tenantSlug)}/minhas-compras`;
+  return `${getStoreBaseUrl(tenantSlug)}/conta/pedidos`;
 }
 
 /**
@@ -239,6 +266,12 @@ export function getPreviewUrlForEditor(
         if (url) return url;
       }
       return getPublicHomeUrl(tenantSlug, true);
+    case 'account':
+      return getPublicAccountUrl(tenantSlug, true);
+    case 'account_orders':
+      return getPublicAccountOrdersUrl(tenantSlug, true);
+    case 'account_order_detail':
+      return getPublicAccountOrderDetailUrl(tenantSlug, undefined, true);
     default:
       return getPublicHomeUrl(tenantSlug, true);
   }
@@ -296,6 +329,12 @@ export function getPreviewUrlWithValidation(
       return landingUrl 
         ? { url: landingUrl, canPreview: true }
         : { url: null, canPreview: false, reason: 'Slug de landing page inválido' };
+    case 'account':
+      return { url: getPublicAccountUrl(tenantSlug, true), canPreview: true };
+    case 'account_orders':
+      return { url: getPublicAccountOrdersUrl(tenantSlug, true), canPreview: true };
+    case 'account_order_detail':
+      return { url: getPublicAccountOrderDetailUrl(tenantSlug, undefined, true), canPreview: true };
     default:
       return { url: getPublicHomeUrl(tenantSlug, true), canPreview: true };
   }
@@ -329,6 +368,12 @@ export function getPublishedUrlForEntity(
     case 'landing_page':
     case 'landing':
       return getPublicLandingUrl(tenantSlug, entitySlug, false);
+    case 'account':
+      return getPublicAccountUrl(tenantSlug, false);
+    case 'account_orders':
+      return getPublicAccountOrdersUrl(tenantSlug, false);
+    case 'account_order_detail':
+      return getPublicAccountOrderDetailUrl(tenantSlug, entitySlug, false);
     default:
       return getPublicHomeUrl(tenantSlug, false);
   }

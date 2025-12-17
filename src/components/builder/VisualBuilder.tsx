@@ -34,7 +34,7 @@ import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensor
 
 interface VisualBuilderProps {
   tenantId: string;
-  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'institutional' | 'landing_page';
+  pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'institutional' | 'landing_page';
   pageId?: string;
   pageTitle?: string;
   pageSlug?: string; // For institutional/landing pages

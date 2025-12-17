@@ -1924,6 +1924,37 @@ const blockDefinitions: BlockDefinition[] = [
     },
     canHaveChildren: false,
   },
+  // ========== ACCOUNT BLOCKS (essential, non-removable) ==========
+  {
+    type: 'AccountHub',
+    label: 'Hub da Conta',
+    category: 'ecommerce',
+    icon: 'User',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+    isRemovable: false,
+  },
+  {
+    type: 'OrdersList',
+    label: 'Lista de Pedidos',
+    category: 'ecommerce',
+    icon: 'Package',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+    isRemovable: false,
+  },
+  {
+    type: 'OrderDetail',
+    label: 'Detalhe do Pedido',
+    category: 'ecommerce',
+    icon: 'FileText',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+    isRemovable: false,
+  },
 ];
 
 // Registry class

@@ -90,6 +90,31 @@ export const ESSENTIAL_BLOCKS_BY_PAGE_TYPE: Record<string, EssentialBlockConfig>
     essentialTypes: [],
     reasons: {},
   },
+  // Account pages
+  account: {
+    essentialTypes: ['Header', 'Footer', 'AccountHub'],
+    reasons: {
+      'Header': 'O cabeçalho é essencial para navegação',
+      'Footer': 'O rodapé é essencial para informações da loja',
+      'AccountHub': 'O hub de conta é essencial para acessar funcionalidades do cliente',
+    },
+  },
+  account_orders: {
+    essentialTypes: ['Header', 'Footer', 'OrdersList'],
+    reasons: {
+      'Header': 'O cabeçalho é essencial para navegação',
+      'Footer': 'O rodapé é essencial para informações da loja',
+      'OrdersList': 'A lista de pedidos é essencial para exibir pedidos do cliente',
+    },
+  },
+  account_order_detail: {
+    essentialTypes: ['Header', 'Footer', 'OrderDetail'],
+    reasons: {
+      'Header': 'O cabeçalho é essencial para navegação',
+      'Footer': 'O rodapé é essencial para informações da loja',
+      'OrderDetail': 'O detalhe do pedido é essencial para exibir informações do pedido',
+    },
+  },
 };
 
 /**

@@ -26,7 +26,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
 
 const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
@@ -35,6 +35,9 @@ const pageTypeInfo: Record<PageType, { title: string; description: string; icon:
   cart: { title: 'Carrinho', description: 'Carrinho de compras', icon: '🛒' },
   checkout: { title: 'Checkout', description: 'Finalização', icon: '💳' },
   thank_you: { title: 'Obrigado', description: 'Confirmação do pedido', icon: '✅' },
+  account: { title: 'Minha Conta', description: 'Hub do cliente', icon: '👤' },
+  account_orders: { title: 'Pedidos', description: 'Lista de pedidos', icon: '📋' },
+  account_order_detail: { title: 'Pedido', description: 'Detalhe do pedido', icon: '📄' },
 };
 
 export default function StorefrontBuilder() {
