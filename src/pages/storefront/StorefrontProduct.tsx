@@ -147,8 +147,30 @@ export default function StorefrontProduct() {
   // Check if product has full description
   const hasFullDescription = product?.description && product.description.trim().length > 0;
   
+  // Build current product data for BuyTogether section
+  const currentProductData = product ? {
+    id: product.id,
+    name: product.name,
+    price: product.price,
+    compare_at_price: product.compare_at_price || undefined,
+    sku: product.sku,
+    images: sortedImages.map((img: any) => ({
+      url: img.url,
+      alt: img.alt_text || product.name,
+    })),
+  } : undefined;
+  
   const productSectionsSlot = product ? (
     <div className="container mx-auto px-4">
+      {/* Buy Together Section - FIRST (right after main product section) */}
+      {showBuyTogether && (
+        <BuyTogetherSection 
+          productId={product.id} 
+          tenantSlug={tenantSlug || ''} 
+          currentProduct={currentProductData}
+        />
+      )}
+      
       {/* Full Description Section */}
       {showDescription && hasFullDescription && (
         <div className="py-8 border-t">
@@ -158,11 +180,6 @@ export default function StorefrontProduct() {
             dangerouslySetInnerHTML={{ __html: product.description }}
           />
         </div>
-      )}
-      
-      {/* Buy Together Section */}
-      {showBuyTogether && (
-        <BuyTogetherSection productId={product.id} tenantSlug={tenantSlug || ''} />
       )}
       
       {/* Related Products Section */}
