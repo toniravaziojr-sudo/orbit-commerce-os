@@ -1,6 +1,7 @@
 import { Outlet, useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
+import { CartProvider } from '@/contexts/CartContext';
 
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -40,15 +41,17 @@ export function StorefrontLayout() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-white">
-      {isPreview && (
-        <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
-          Modo de pré-visualização - Esta página não está publicada
-        </div>
-      )}
-      <main className="flex-1">
-        <Outlet />
-      </main>
-    </div>
+    <CartProvider tenantSlug={tenantSlug || ''}>
+      <div className="min-h-screen flex flex-col bg-white">
+        {isPreview && (
+          <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+            Modo de pré-visualização - Esta página não está publicada
+          </div>
+        )}
+        <main className="flex-1">
+          <Outlet />
+        </main>
+      </div>
+    </CartProvider>
   );
 }
