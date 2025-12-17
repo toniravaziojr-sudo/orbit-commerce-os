@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 
 export interface CartItem {
   id: string;
@@ -35,23 +35,36 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
   const storageKey = `${CART_STORAGE_KEY}_${tenantSlug}`;
   const [items, setItems] = useState<CartItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const hasHydrated = useRef(false);
+  const currentStorageKey = useRef(storageKey);
 
-  // Load cart from localStorage
+  // Reset hydration flag and reload when storageKey changes
   useEffect(() => {
+    if (currentStorageKey.current !== storageKey) {
+      hasHydrated.current = false;
+      currentStorageKey.current = storageKey;
+      setIsLoading(true);
+    }
+    
+    // Hydrate cart from localStorage
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
-        setItems(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setItems(parsed);
+        }
       }
     } catch (error) {
       console.error('Error loading cart:', error);
     }
+    hasHydrated.current = true;
     setIsLoading(false);
   }, [storageKey]);
 
-  // Save cart to localStorage
+  // Save cart to localStorage - only after hydration complete
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && hasHydrated.current) {
       localStorage.setItem(storageKey, JSON.stringify(items));
     }
   }, [items, storageKey, isLoading]);
