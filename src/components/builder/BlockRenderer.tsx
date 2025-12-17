@@ -33,6 +33,7 @@ import { StorefrontFooterContent } from '@/components/storefront/StorefrontFoote
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { useProductRating } from '@/hooks/useProductRating';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, Loader2, Check, MessageCircle } from 'lucide-react';
@@ -78,6 +79,8 @@ function ProductCTAs({
   setIsAddingToCart,
   addedFeedback,
   setAddedFeedback,
+  openMiniCartOnAdd,
+  onOpenMiniCart,
 }: {
   productId?: string;
   productName: string;
@@ -95,6 +98,8 @@ function ProductCTAs({
   setIsAddingToCart: (v: boolean) => void;
   addedFeedback: boolean;
   setAddedFeedback: (v: boolean) => void;
+  openMiniCartOnAdd?: boolean;
+  onOpenMiniCart?: () => void;
 }) {
   const navigate = useNavigate();
   const { addItem } = useCart(tenantSlug);
@@ -123,12 +128,17 @@ function ProductCTAs({
       setAddedFeedback(true);
       toast.success('Produto adicionado ao carrinho!');
       
+      // Open mini cart if enabled
+      if (openMiniCartOnAdd && onOpenMiniCart) {
+        onOpenMiniCart();
+      }
+      
       // Reset feedback after 2 seconds
       setTimeout(() => {
         setAddedFeedback(false);
       }, 2000);
     }, 300);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, setIsAddingToCart, setAddedFeedback]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, setIsAddingToCart, setAddedFeedback, openMiniCartOnAdd, onOpenMiniCart]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
@@ -1299,12 +1309,17 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   );
 }
 
-function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
-  // Read settings from context (set by StorefrontProduct) or use defaults
+function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
+  // Read ALL settings from context (set by StorefrontProduct) or use defaults
   const productSettings = context?.productSettings || {};
+  const showGallery = productSettings.showGallery !== false;
+  const showDescription = productSettings.showDescription !== false;
+  const showVariants = productSettings.showVariants !== false;
+  const showStock = productSettings.showStock !== false;
   const showReviews = productSettings.showReviews !== false;
   const showBuyTogether = productSettings.showBuyTogether !== false;
   const showRelatedProducts = productSettings.showRelatedProducts !== false;
+  const openMiniCartOnAdd = productSettings.openMiniCartOnAdd !== false;
   
   // State for selected image in gallery
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
@@ -1313,6 +1328,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
   // State for add to cart feedback
   const [isAddingToCart, setIsAddingToCart] = React.useState(false);
   const [addedFeedback, setAddedFeedback] = React.useState(false);
+  // State for mini cart drawer
+  const [miniCartOpen, setMiniCartOpen] = React.useState(false);
   
   // Determine if mobile based on viewport context (Builder) or default to responsive CSS
   const viewportOverride = context?.viewport;
@@ -1578,6 +1595,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
             setIsAddingToCart={setIsAddingToCart}
             addedFeedback={addedFeedback}
             setAddedFeedback={setAddedFeedback}
+            openMiniCartOnAdd={openMiniCartOnAdd}
+            onOpenMiniCart={() => setMiniCartOpen(true)}
           />
         </div>
       </div>
@@ -1606,6 +1625,14 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
           viewportOverride={viewportOverride}
         />
       )}
+
+      {/* Mini Cart Drawer */}
+      <MiniCartDrawer
+        open={miniCartOpen}
+        onOpenChange={setMiniCartOpen}
+        tenantSlug={tenantSlug}
+        isPreview={context?.isPreview}
+      />
     </div>
   );
 }

@@ -25,6 +25,7 @@ export interface ProductSettings {
   showRelatedProducts?: boolean;
   showBuyTogether?: boolean;
   showReviews?: boolean;
+  openMiniCartOnAdd?: boolean;
 }
 
 interface ProductSettingsPanelProps {
@@ -185,6 +186,21 @@ export function ProductSettingsPanel({
                   onCheckedChange={(checked) => handleChange('showReviews', checked)}
                 />
               </div>
+
+              {/* Divider */}
+              <hr className="my-2" />
+
+              {/* Abrir carrinho suspenso */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="openMiniCartOnAdd" className="text-sm">
+                  Abrir carrinho ao adicionar
+                </Label>
+                <Switch
+                  id="openMiniCartOnAdd"
+                  checked={settings.openMiniCartOnAdd ?? true}
+                  onCheckedChange={(checked) => handleChange('openMiniCartOnAdd', checked)}
+                />
+              </div>
             </div>
           </AccordionContent>
         </AccordionItem>
@@ -203,6 +219,7 @@ export function useProductSettings(tenantId: string) {
     showRelatedProducts: true,
     showBuyTogether: true,
     showReviews: true,
+    openMiniCartOnAdd: true,
   });
   const [isLoading, setIsLoading] = useState(true);
 
