@@ -1335,8 +1335,11 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         </div>
       </div>
 
-      {/* Additional Sections - Rendered in Editor to show full page structure */}
-      {isEditing && product && (
+      {/* 
+        Additional Sections - ALWAYS rendered (Editor AND Preview/Public)
+        This ensures identical order in all contexts: Description → BuyTogether → Reviews → Related Products
+      */}
+      {product && (
         <ProductPageSections
           product={{
             id: product.id,
