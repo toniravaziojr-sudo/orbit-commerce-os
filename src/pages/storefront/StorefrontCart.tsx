@@ -1,33 +1,30 @@
 // =============================================
-// STOREFRONT CART - Public cart page via Builder
+// STOREFRONT CART - Public cart page
 // =============================================
 
-import { useParams, useSearchParams } from 'react-router-dom';
-import { useCart } from '@/contexts/CartContext';
+import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
-import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
+import { CartContent } from '@/components/storefront/cart';
 import { BlockRenderContext } from '@/lib/builder/types';
 
 export default function StorefrontCart() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const [searchParams] = useSearchParams();
-  const isPreviewMode = searchParams.get('preview') === '1';
 
-  const { storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  const { items, subtotal, updateQuantity, removeItem } = useCart();
-  
-  // Use preview hook if in preview mode, otherwise use public hook
-  const publicTemplate = usePublicTemplate(tenantSlug || '', 'cart');
-  const previewTemplate = usePreviewTemplate(tenantSlug || '', 'cart');
-  
-  const template = isPreviewMode ? previewTemplate : publicTemplate;
+  const { tenant, storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
+  const template = usePublicTemplate(tenantSlug || '', 'cart');
 
-  // Build context for block rendering with cart data
+  // Cart content slot - render full cart with all features
+  const cartSlot = tenant?.id ? (
+    <CartContent tenantId={tenant.id} />
+  ) : null;
+
+  // Build context for block rendering with cart slot
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
-    isPreview: isPreviewMode,
+    isPreview: false,
+    afterHeaderSlot: cartSlot,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
@@ -54,27 +51,7 @@ export default function StorefrontCart() {
       url: item.url || undefined,
     })),
     categories: categories?.map(c => ({ id: c.id, slug: c.slug })),
-    // Cart-specific context
-    cart: {
-      items: items.map(item => ({
-        id: item.id,
-        product_id: item.product_id,
-        name: item.name,
-        sku: item.sku,
-        price: item.price,
-        quantity: item.quantity,
-        image_url: item.image_url,
-      })),
-      subtotal,
-      updateQuantity,
-      removeItem,
-    },
   };
-
-  // Check preview access
-  const canPreview = isPreviewMode 
-    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
-    : true;
 
   return (
     <PublicTemplateRenderer
@@ -82,8 +59,8 @@ export default function StorefrontCart() {
       context={context}
       isLoading={template.isLoading || storeLoading}
       error={template.error}
-      isPreviewMode={isPreviewMode}
-      canPreview={canPreview}
+      isPreviewMode={false}
+      canPreview={true}
       pageType="cart"
     />
   );
