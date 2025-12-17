@@ -30,6 +30,32 @@ import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl } from '@/l
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
+import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { useProductRating } from '@/hooks/useProductRating';
+
+// Wrapper component that fetches and displays product rating
+function ProductRatingSummary({ 
+  productId, 
+  variant = 'productTitle',
+  className 
+}: { 
+  productId: string; 
+  variant?: 'productTitle' | 'card';
+  className?: string;
+}) {
+  const { data: rating } = useProductRating(productId);
+  
+  if (!rating || rating.count === 0) return null;
+  
+  return (
+    <RatingSummary
+      average={rating.average}
+      count={rating.count}
+      variant={variant}
+      className={className}
+    />
+  );
+}
 
 interface BlockRendererProps {
   node: BlockNode;
@@ -1305,7 +1331,17 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         
         {/* Product Info */}
         <div className="space-y-4">
-          <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
+          <div>
+            <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
+            {/* Rating Summary - below product name */}
+            {product?.id && (
+              <ProductRatingSummary 
+                productId={product.id} 
+                variant="productTitle"
+                className="mt-2"
+              />
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <p className={`${priceClasses} text-primary font-bold`}>
               R$ {productPrice.toFixed(2).replace('.', ',')}

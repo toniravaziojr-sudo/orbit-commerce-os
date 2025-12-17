@@ -2,11 +2,14 @@
 // PRODUCT CAROUSEL BLOCK - Real products with embla-carousel
 // =============================================
 
+import { useMemo } from 'react';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useBuilderProducts, getProductImage, formatProductPrice, ProductSource } from '@/hooks/useBuilderProducts';
+import { useProductRatings } from '@/hooks/useProductRating';
+import { RatingSummary } from '@/components/storefront/RatingSummary';
 import {
   Carousel,
   CarouselContent,
@@ -53,6 +56,10 @@ export function ProductCarouselBlock({
     limit,
   });
 
+  // Get product IDs for batch rating fetch
+  const productIds = useMemo(() => products.map(p => p.id), [products]);
+  const { data: ratingsMap } = useProductRatings(productIds);
+
   if (isLoading) {
     return (
       <div className="py-8 px-4">
@@ -95,50 +102,62 @@ export function ProductCarouselBlock({
         className="w-full"
       >
         <CarouselContent className="-ml-2 md:-ml-4">
-          {products.map((product) => (
-            <CarouselItem
-              key={product.id}
-              className="pl-2 md:pl-4 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"
-            >
-              <a
-                href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
-                className={cn(
-                  'block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md h-full',
-                  isEditing && 'pointer-events-none'
-                )}
+          {products.map((product) => {
+            const rating = ratingsMap?.get(product.id);
+            return (
+              <CarouselItem
+                key={product.id}
+                className="pl-2 md:pl-4 basis-1/2 sm:basis-1/3 md:basis-1/4 lg:basis-1/5"
               >
-                <div className="aspect-square overflow-hidden bg-muted">
-                  <img
-                    src={getProductImage(product)}
-                    alt={product.name}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
-                </div>
-                <div className="p-3">
-                  <h3 className="font-medium text-sm line-clamp-2 text-foreground">
-                    {product.name}
-                  </h3>
-                  {showPrice && (
-                    <div className="mt-1 flex items-center gap-2">
-                      {product.compare_at_price && product.compare_at_price > product.price && (
-                        <span className="text-xs text-muted-foreground line-through">
-                          {formatProductPrice(product.compare_at_price)}
+                <a
+                  href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+                  className={cn(
+                    'block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md h-full',
+                    isEditing && 'pointer-events-none'
+                  )}
+                >
+                  <div className="aspect-square overflow-hidden bg-muted">
+                    <img
+                      src={getProductImage(product)}
+                      alt={product.name}
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                  </div>
+                  <div className="p-3">
+                    {/* Rating - above product name */}
+                    {rating && rating.count > 0 && (
+                      <RatingSummary
+                        average={rating.average}
+                        count={rating.count}
+                        variant="card"
+                        className="mb-1"
+                      />
+                    )}
+                    <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                      {product.name}
+                    </h3>
+                    {showPrice && (
+                      <div className="mt-1 flex items-center gap-2">
+                        {product.compare_at_price && product.compare_at_price > product.price && (
+                          <span className="text-xs text-muted-foreground line-through">
+                            {formatProductPrice(product.compare_at_price)}
+                          </span>
+                        )}
+                        <span className="text-sm font-semibold text-primary">
+                          {formatProductPrice(product.price)}
                         </span>
-                      )}
-                      <span className="text-sm font-semibold text-primary">
-                        {formatProductPrice(product.price)}
-                      </span>
-                    </div>
-                  )}
-                  {showButton && (
-                    <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
-                      {buttonText}
-                    </button>
-                  )}
-                </div>
-              </a>
-            </CarouselItem>
-          ))}
+                      </div>
+                    )}
+                    {showButton && (
+                      <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                        {buttonText}
+                      </button>
+                    )}
+                  </div>
+                </a>
+              </CarouselItem>
+            );
+          })}
         </CarouselContent>
         <CarouselPrevious className="hidden sm:flex -left-4" />
         <CarouselNext className="hidden sm:flex -right-4" />

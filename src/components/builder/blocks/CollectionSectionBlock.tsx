@@ -3,6 +3,7 @@
 // =============================================
 
 import { useBuilderProducts, formatProductPrice, getProductImage } from '@/hooks/useBuilderProducts';
+import { useProductRatings } from '@/hooks/useProductRating';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Loader2, ImageIcon } from 'lucide-react';
@@ -10,7 +11,8 @@ import { Link } from 'react-router-dom';
 import { getPublicCategoryUrl } from '@/lib/publicUrls';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
+import { RatingSummary } from '@/components/storefront/RatingSummary';
 
 interface CollectionSectionBlockProps {
   title?: string;
@@ -49,6 +51,10 @@ export function CollectionSectionBlock({
     categoryId,
     limit,
   });
+
+  // Get product IDs for batch rating fetch
+  const productIds = useMemo(() => products.map(p => p.id), [products]);
+  const { data: ratingsMap } = useProductRatings(productIds);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
@@ -99,6 +105,7 @@ export function CollectionSectionBlock({
   const ProductCard = ({ product }: { product: typeof products[0] }) => {
     const imageUrl = getProductImage(product);
     const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
+    const rating = ratingsMap?.get(product.id);
     
     return (
       <div className="group">
@@ -109,6 +116,15 @@ export function CollectionSectionBlock({
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
         </div>
+        {/* Rating - above product name */}
+        {rating && rating.count > 0 && (
+          <RatingSummary
+            average={rating.average}
+            count={rating.count}
+            variant="card"
+            className="mb-1"
+          />
+        )}
         <h3 className="font-medium text-sm mb-1 line-clamp-2">{product.name}</h3>
       {showPrice && (
         <div className="flex items-center gap-2 mb-2">
