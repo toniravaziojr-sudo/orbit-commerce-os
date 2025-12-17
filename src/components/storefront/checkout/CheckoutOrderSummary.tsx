@@ -1,5 +1,6 @@
 // =============================================
 // CHECKOUT ORDER SUMMARY - Sidebar desktop, collapsible mobile
+// Uses centralized cartTotals for consistency
 // =============================================
 
 import { useState } from 'react';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
+import { calculateCartTotals, formatCurrency, debugCartTotals } from '@/lib/cartTotals';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'failed';
 
@@ -18,10 +20,19 @@ interface CheckoutOrderSummaryProps {
 }
 
 export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: CheckoutOrderSummaryProps) {
-  const { items, subtotal, shipping, total } = useCart();
+  const { items, shipping } = useCart();
   const [isOpen, setIsOpen] = useState(false);
 
-  const finalTotal = total - discount;
+  // Use centralized totals calculation
+  const totals = calculateCartTotals({
+    items,
+    selectedShipping: shipping.selected,
+    discountAmount: discount,
+  });
+
+  // Debug helper (dev only, triggered by ?debugCart=1)
+  debugCartTotals('CheckoutOrderSummary', totals, shipping);
+
   const isProcessing = paymentStatus === 'processing';
 
   const ItemsList = () => (
@@ -52,8 +63,8 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
   const SummaryTotals = () => (
     <div className="space-y-2">
       <div className="flex justify-between text-sm">
-        <span className="text-muted-foreground">Subtotal ({items.length} {items.length === 1 ? 'item' : 'itens'})</span>
-        <span>R$ {subtotal.toFixed(2).replace('.', ',')}</span>
+        <span className="text-muted-foreground">Subtotal ({totals.itemCount} {totals.itemCount === 1 ? 'item' : 'itens'})</span>
+        <span>{formatCurrency(totals.subtotal)}</span>
       </div>
       
       {shipping.selected && (
@@ -63,16 +74,16 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
             {shipping.selected.isFree ? (
               <span className="text-green-600">Grátis</span>
             ) : (
-              `R$ ${shipping.selected.price.toFixed(2).replace('.', ',')}`
+              formatCurrency(totals.shippingTotal)
             )}
           </span>
         </div>
       )}
 
-      {discount > 0 && (
+      {totals.discountTotal > 0 && (
         <div className="flex justify-between text-sm text-green-600">
           <span>Desconto</span>
-          <span>- R$ {discount.toFixed(2).replace('.', ',')}</span>
+          <span>- {formatCurrency(totals.discountTotal)}</span>
         </div>
       )}
 
@@ -80,7 +91,7 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
 
       <div className="flex justify-between font-semibold text-lg">
         <span>Total</span>
-        <span>R$ {finalTotal.toFixed(2).replace('.', ',')}</span>
+        <span>{formatCurrency(totals.grandTotal)}</span>
       </div>
     </div>
   );
@@ -129,7 +140,7 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
               </span>
             </div>
             <span className="font-semibold">
-              R$ {finalTotal.toFixed(2).replace('.', ',')}
+              {formatCurrency(totals.grandTotal)}
             </span>
           </button>
         </CollapsibleTrigger>
@@ -156,7 +167,7 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
               Processando...
             </>
           ) : (
-            `Finalizar • R$ ${finalTotal.toFixed(2).replace('.', ',')}`
+            `Finalizar • ${formatCurrency(totals.grandTotal)}`
           )}
         </Button>
       </div>
