@@ -6,6 +6,7 @@ import React from 'react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
+import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -167,6 +168,11 @@ export function BlockRenderer({
   const canMoveUp = siblingIndex > 0;
   const canMoveDown = siblingIndex < siblingsCount - 1;
   const isRemovable = definition.isRemovable !== false;
+  
+  // Check if this block is essential for the current page type
+  const pageType = context.pageType || 'home';
+  const isEssential = isEssentialBlock(node.type, pageType);
+  const essentialReason = isEssential ? getEssentialBlockReason(node.type, pageType) : undefined;
 
   return (
     <div
@@ -193,6 +199,8 @@ export function BlockRenderer({
           blockId={node.id}
           blockType={node.type}
           isRemovable={isRemovable}
+          isEssential={isEssential}
+          essentialReason={essentialReason || undefined}
           isHidden={node.hidden}
           canMoveUp={canMoveUp}
           canMoveDown={canMoveDown}

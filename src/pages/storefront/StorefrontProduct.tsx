@@ -80,6 +80,7 @@ export default function StorefrontProduct() {
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
+    pageType: 'product', // Add pageType for essential block detection
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,

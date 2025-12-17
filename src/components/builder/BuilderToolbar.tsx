@@ -387,10 +387,33 @@ export function BuilderToolbar({
             {onReset && (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onReset} className="text-destructive">
-                  <RotateCcw className="h-4 w-4 mr-2" />
-                  Resetar para padrão
-                </DropdownMenuItem>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem 
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Restaurar padrão
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Restaurar template padrão?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Isso irá sobrescrever toda a estrutura atual deste template, 
+                        restaurando os blocos essenciais e a ordem padrão.
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={onReset}>
+                        Sim, restaurar padrão
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </>
             )}
           </DropdownMenuContent>

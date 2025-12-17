@@ -11,6 +11,7 @@ import { useBuilderData } from '@/hooks/useBuilderData';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
+import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockPalette } from './BlockPalette';
@@ -184,7 +185,11 @@ export function VisualBuilder({
 
   // Build context with example data - include proper category object for builder
   const builderContext = useMemo<BlockRenderContext>(() => {
-    const ctx = { ...context, viewport: canvasViewport };
+    const ctx: BlockRenderContext = { 
+      ...context, 
+      viewport: canvasViewport,
+      pageType: pageType as BlockRenderContext['pageType'], // Pass pageType for essential block detection
+    };
     
     // For Category template, add category context with the selected example
     if (pageType === 'category' && selectedCategory) {
@@ -385,15 +390,19 @@ export function VisualBuilder({
     store.updateProps(store.selectedBlockId, props);
   }, [store]);
 
-  // Handle reset to default
+  // Handle reset to default - uses getDefaultTemplate as single source of truth
   const handleReset = useCallback(() => {
-    if (!confirm('Isso irá resetar todo o conteúdo para o template padrão. Continuar?')) {
-      return;
+    // Get the default template for this page type
+    let defaultContent = getDefaultTemplate(pageType);
+    
+    // Apply global layout to the default template (for non-checkout pages)
+    if (globalLayout && !isCheckoutPage) {
+      defaultContent = applyGlobalLayout(defaultContent, globalLayout, isCheckoutPage, null);
     }
-    const defaultContent = getDefaultTemplate(pageType);
+    
     store.setContent(defaultContent);
-    toast.success('Conteúdo resetado para o padrão');
-  }, [pageType, store]);
+    toast.success('Template restaurado para o padrão');
+  }, [pageType, store, globalLayout, isCheckoutPage]);
 
   // Handle moving block (from tree drag and drop)
   const handleMoveBlock = useCallback((blockId: string, newParentId: string, newIndex: number) => {
@@ -427,14 +436,23 @@ export function VisualBuilder({
     const block = findBlockById(store.content, blockId);
     if (!block) return;
     
+    // Check registry isRemovable
     const def = blockRegistry.get(block.type);
     if (def?.isRemovable === false) {
       toast.error('Este bloco não pode ser removido');
       return;
     }
+    
+    // Check if it's an essential block for this page type
+    if (isEssentialBlock(block.type, pageType)) {
+      const reason = getEssentialBlockReason(block.type, pageType);
+      toast.error(reason || 'Este bloco é essencial para este template e não pode ser removido');
+      return;
+    }
+    
     store.removeBlock(blockId);
     toast.success('Bloco removido');
-  }, [store]);
+  }, [store, pageType]);
 
   // Handle toggling block visibility (for quick actions)
   const handleToggleHidden = useCallback((blockId: string) => {

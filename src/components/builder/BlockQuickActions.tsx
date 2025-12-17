@@ -3,7 +3,7 @@
 // =============================================
 
 import { Button } from '@/components/ui/button';
-import { ChevronUp, ChevronDown, Copy, Trash2, Eye, EyeOff } from 'lucide-react';
+import { ChevronUp, ChevronDown, Copy, Trash2, Eye, EyeOff, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -16,11 +16,19 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface BlockQuickActionsProps {
   blockId: string;
   blockType: string;
   isRemovable: boolean;
+  isEssential?: boolean;
+  essentialReason?: string;
   isHidden?: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -34,6 +42,8 @@ interface BlockQuickActionsProps {
 export function BlockQuickActions({
   blockType,
   isRemovable,
+  isEssential = false,
+  essentialReason,
   isHidden = false,
   canMoveUp,
   canMoveDown,
@@ -92,8 +102,8 @@ export function BlockQuickActions({
         </Button>
       )}
 
-      {/* Duplicate */}
-      {isRemovable && (
+      {/* Duplicate - only for non-essential, removable blocks */}
+      {isRemovable && !isEssential && (
         <Button
           variant="ghost"
           size="icon"
@@ -105,8 +115,26 @@ export function BlockQuickActions({
         </Button>
       )}
 
-      {/* Delete with confirmation */}
-      {isRemovable && (
+      {/* Essential block indicator */}
+      {isEssential && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="h-7 w-7 flex items-center justify-center text-muted-foreground">
+                <Lock className="h-4 w-4" />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="max-w-[200px]">
+              <p className="text-xs">
+                {essentialReason || 'Bloco essencial do template – não pode ser removido'}
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* Delete with confirmation - only for non-essential, removable blocks */}
+      {isRemovable && !isEssential && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
