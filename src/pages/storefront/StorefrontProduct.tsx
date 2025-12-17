@@ -76,10 +76,12 @@ export default function StorefrontProduct() {
   });
 
   // Build context for block rendering with product data
-  const context: BlockRenderContext & { categories?: any[] } = {
+  const context: BlockRenderContext & { categories?: any[]; productSettings?: any } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
-    pageType: 'product', // Add pageType for essential block detection
+    pageType: 'product',
+    // Pass product settings for ProductDetailsBlock
+    productSettings: productSettings || {},
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
@@ -106,7 +108,6 @@ export default function StorefrontProduct() {
       url: item.url || undefined,
     })),
     categories: allCategories?.map(c => ({ id: c.id, slug: c.slug })),
-    // Product-specific context
     product: product ? {
       id: product.id,
       name: product.name,

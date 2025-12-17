@@ -1,5 +1,6 @@
 // =============================================
 // PRODUCT REVIEWS SECTION - Renders approved reviews on product page
+// With customer-facing review form
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -7,18 +8,20 @@ import { supabase } from '@/integrations/supabase/client';
 import { Star, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ReviewForm } from './ReviewForm';
 
 interface ProductReviewsSectionProps {
   productId: string;
+  tenantId?: string;
 }
 
-export function ProductReviewsSection({ productId }: ProductReviewsSectionProps) {
+export function ProductReviewsSection({ productId, tenantId }: ProductReviewsSectionProps) {
   const { data: reviews, isLoading } = useQuery({
     queryKey: ['product-reviews-public', productId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('product_reviews')
-        .select('id, customer_name, rating, title, content, created_at, is_verified_purchase')
+        .select('id, customer_name, rating, title, content, created_at, is_verified_purchase, tenant_id')
         .eq('product_id', productId)
         .eq('status', 'approved')
         .order('created_at', { ascending: false })
@@ -33,6 +36,9 @@ export function ProductReviewsSection({ productId }: ProductReviewsSectionProps)
   if (isLoading) {
     return null;
   }
+
+  // Get tenant_id from first review if not provided
+  const effectiveTenantId = tenantId || reviews?.[0]?.tenant_id;
 
   // Calculate average rating
   const avgRating = reviews?.length 
@@ -57,7 +63,7 @@ export function ProductReviewsSection({ productId }: ProductReviewsSectionProps)
   };
 
   return (
-    <section className="py-8 border-t">
+    <section className="py-8 border-t" id="reviews-section">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
@@ -79,44 +85,66 @@ export function ProductReviewsSection({ productId }: ProductReviewsSectionProps)
           <MessageSquare className="h-10 w-10 mx-auto mb-2 opacity-30" />
           <p>Ainda não há avaliações para este produto.</p>
           <p className="text-sm mt-1">Seja o primeiro a avaliar!</p>
+          
+          {/* Review Form for empty state */}
+          {effectiveTenantId && (
+            <div className="mt-4 max-w-md mx-auto text-left">
+              <ReviewForm 
+                productId={productId} 
+                tenantId={effectiveTenantId}
+              />
+            </div>
+          )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {reviews.map((review) => (
-            <div key={review.id} className="p-4 bg-card border rounded-lg">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    {renderStars(review.rating)}
-                    {review.is_verified_purchase && (
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                        Compra verificada
-                      </span>
+        <>
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <div key={review.id} className="p-4 bg-card border rounded-lg">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      {renderStars(review.rating)}
+                      {review.is_verified_purchase && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                          Compra verificada
+                        </span>
+                      )}
+                    </div>
+                    
+                    {review.title && (
+                      <h4 className="font-semibold text-sm">{review.title}</h4>
+                    )}
+                    
+                    {review.content && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        {review.content}
+                      </p>
                     )}
                   </div>
-                  
-                  {review.title && (
-                    <h4 className="font-semibold text-sm">{review.title}</h4>
-                  )}
-                  
-                  {review.content && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {review.content}
-                    </p>
-                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                  <span className="font-medium">{review.customer_name}</span>
+                  <span>•</span>
+                  <span>
+                    {format(new Date(review.created_at), "d 'de' MMM 'de' yyyy", { locale: ptBR })}
+                  </span>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-                <span className="font-medium">{review.customer_name}</span>
-                <span>•</span>
-                <span>
-                  {format(new Date(review.created_at), "d 'de' MMM 'de' yyyy", { locale: ptBR })}
-                </span>
-              </div>
+            ))}
+          </div>
+          
+          {/* Review Form after existing reviews */}
+          {effectiveTenantId && (
+            <div className="mt-6">
+              <ReviewForm 
+                productId={productId} 
+                tenantId={effectiveTenantId}
+              />
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </section>
   );

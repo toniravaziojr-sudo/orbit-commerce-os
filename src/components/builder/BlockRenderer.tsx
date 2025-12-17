@@ -1117,6 +1117,12 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
 }
 
 function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescription = true, showStock = true, context, isEditing }: any) {
+  // Read settings from context (set by StorefrontProduct) or use defaults
+  const productSettings = context?.productSettings || {};
+  const showReviews = productSettings.showReviews !== false;
+  const showBuyTogether = productSettings.showBuyTogether !== false;
+  const showRelatedProducts = productSettings.showRelatedProducts !== false;
+  
   // State for selected image in gallery
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   
@@ -1333,8 +1339,8 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
         <div className="space-y-4">
           <div>
             <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
-            {/* Rating Summary - below product name */}
-            {product?.id && (
+            {/* Rating Summary - below product name (only show if showReviews is enabled) */}
+            {showReviews && product?.id && (
               <ProductRatingSummary 
                 productId={product.id} 
                 variant="productTitle"
@@ -1387,10 +1393,11 @@ function ProductDetailsBlock({ exampleProductId, showGallery = true, showDescrip
             images: allImages,
           }}
           tenantSlug={tenantSlug}
+          tenantId={context?.settings?.tenant_id}
           showDescription={showDescription}
-          showBuyTogether={true}
-          showReviews={true}
-          showRelatedProducts={true}
+          showBuyTogether={showBuyTogether}
+          showReviews={showReviews}
+          showRelatedProducts={showRelatedProducts}
           viewportOverride={viewportOverride}
         />
       )}

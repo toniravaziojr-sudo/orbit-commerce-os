@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface CategorySettings {
   showCategoryName?: boolean;
   showBanner?: boolean;
+  showRatings?: boolean;
 }
 
 export default function StorefrontCategory() {
@@ -35,7 +36,7 @@ export default function StorefrontCategory() {
         .eq('slug', tenantSlug || '')
         .single();
       
-      if (!tenant) return { showCategoryName: true, showBanner: true };
+      if (!tenant) return { showCategoryName: true, showBanner: true, showRatings: true };
       
       const { data } = await supabase
         .from('storefront_page_templates')
@@ -45,7 +46,7 @@ export default function StorefrontCategory() {
         .maybeSingle();
       
       const overrides = data?.page_overrides as Record<string, unknown> | null;
-      return (overrides?.categorySettings as CategorySettings) || { showCategoryName: true, showBanner: true };
+      return (overrides?.categorySettings as CategorySettings) || { showCategoryName: true, showBanner: true, showRatings: true };
     },
     enabled: !!tenantSlug,
   });
@@ -103,8 +104,11 @@ export default function StorefrontCategory() {
   const context: BlockRenderContext & { categories?: any[] } = {
     tenantSlug: tenantSlug || '',
     isPreview: isPreviewMode,
+    pageType: 'category',
     // Pass category header (banner + name) via afterHeaderSlot
     afterHeaderSlot: categoryHeaderSlot,
+    // Pass showRatings setting for product cards
+    showRatings: categorySettings?.showRatings !== false,
     settings: {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
