@@ -83,7 +83,7 @@ export function ReviewForm({ productId, tenantId, onSuccess }: ReviewFormProps) 
 
   if (!isOpen) {
     return (
-      <div className="flex justify-center mt-4">
+      <div className="w-full flex justify-center mt-4">
         <Button
           variant="outline"
           onClick={() => setIsOpen(true)}
