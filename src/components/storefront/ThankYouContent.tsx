@@ -20,8 +20,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   
-  // Get order identifier from URL (can be order_number or orderId)
-  const orderParam = searchParams.get('pedido') || searchParams.get('orderId');
+  // Get order identifier from URL (supports: pedido, orderId, orderNumber for backward compatibility)
+  const orderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
   
   // Fetch real order data from database
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);
