@@ -388,7 +388,6 @@ export default function Domains() {
           open={!!instructionsDialog}
           onOpenChange={() => setInstructionsDialog(null)}
           cnameTarget={STOREFRONT_CNAME_TARGET}
-          aRecord=""
         />
       )}
 
