@@ -2,24 +2,49 @@
 // STOREFRONT ACCOUNT HUB - Customer account main page
 // =============================================
 
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Package, MessageCircle, User, ShoppingBag, Info } from 'lucide-react';
+import { Loader2, Package, MessageCircle, User, ShoppingBag, Info, LogOut } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { getWhatsAppHref } from '@/lib/contactHelpers';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 export default function StorefrontAccount() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
 
+  const [user, setUser] = useState<any>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const isDemoMode = searchParams.has('demoAccount');
+
+  // Check auth state
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user || null);
+      setIsLoadingAuth(false);
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Build context for block rendering
   const context: BlockRenderContext = {
@@ -55,10 +80,74 @@ export default function StorefrontAccount() {
   const whatsappMessage = `Olá! Preciso de suporte.`;
   const whatsappHref = getWhatsAppHref(whatsappNumber, whatsappMessage);
 
-  if (storeLoading || homeTemplate.isLoading) {
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await supabase.auth.signOut();
+      toast.success('Você saiu da sua conta');
+      navigate(`/store/${tenantSlug}`);
+    } catch (error) {
+      toast.error('Erro ao sair. Tente novamente.');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  if (storeLoading || homeTemplate.isLoading || isLoadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Not logged in and not demo mode - show login prompt
+  if (!user && !isDemoMode) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        {headerNode && (
+          <BlockRenderer node={headerNode} context={context} isEditing={false} />
+        )}
+
+        <main className="flex-1 py-8 px-4">
+          <div className="container mx-auto max-w-md">
+            <Card className="text-center">
+              <CardHeader>
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mx-auto mb-4">
+                  <User className="h-8 w-8 text-primary" />
+                </div>
+                <CardTitle className="text-2xl">Minha Conta</CardTitle>
+                <CardDescription>
+                  Faça login para acessar seus pedidos e informações
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Link to={`/store/${tenantSlug}/conta/login`}>
+                  <Button className="w-full h-12">
+                    Entrar
+                  </Button>
+                </Link>
+                
+                <p className="text-sm text-muted-foreground">
+                  Sua conta é criada automaticamente ao fazer sua primeira compra.
+                </p>
+
+                <div className="pt-4 border-t">
+                  <Link to={`/store/${tenantSlug}`}>
+                    <Button variant="ghost">
+                      <ShoppingBag className="h-4 w-4 mr-2" />
+                      Voltar à loja
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+
+        {footerNode && (
+          <BlockRenderer node={footerNode} context={context} isEditing={false} />
+        )}
       </div>
     );
   }
@@ -79,9 +168,12 @@ export default function StorefrontAccount() {
               <User className="h-8 w-8 text-primary" />
             </div>
             <h1 className="text-3xl font-bold mb-2">Minha Conta</h1>
-            <p className="text-muted-foreground">
-              Gerencie seus pedidos e informações
-            </p>
+            {user && (
+              <p className="text-muted-foreground">{user.email}</p>
+            )}
+            {isDemoMode && !user && (
+              <p className="text-muted-foreground">Gerencie seus pedidos e informações</p>
+            )}
           </div>
 
           {/* Demo mode notice */}
@@ -90,20 +182,6 @@ export default function StorefrontAccount() {
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-800">
                 <strong>Modo demonstração ativo.</strong> Você está visualizando dados de exemplo.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Auth notice when not in demo mode */}
-          {!isDemoMode && (
-            <Alert className="mb-6 border-amber-200 bg-amber-50">
-              <Info className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-800">
-                <strong>Acesso limitado.</strong> Para ver seus pedidos reais, entre em contato conosco.
-                <br />
-                <span className="text-sm">
-                  Para testar a interface, adicione <code className="bg-amber-100 px-1 rounded">?demoAccount=1</code> à URL.
-                </span>
               </AlertDescription>
             </Alert>
           )}
@@ -158,14 +236,30 @@ export default function StorefrontAccount() {
             </Card>
           </div>
 
-          {/* Back to store */}
-          <div className="mt-8 text-center">
+          {/* Actions */}
+          <div className="mt-8 flex flex-col items-center gap-4">
             <Link to={`/store/${tenantSlug}`}>
               <Button variant="ghost">
                 <ShoppingBag className="h-4 w-4 mr-2" />
                 Voltar à loja
               </Button>
             </Link>
+
+            {user && (
+              <Button 
+                variant="ghost" 
+                className="text-muted-foreground hover:text-destructive"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <LogOut className="h-4 w-4 mr-2" />
+                )}
+                Sair da conta
+              </Button>
+            )}
           </div>
         </div>
       </main>

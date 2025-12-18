@@ -615,13 +615,13 @@ export function HeaderFooterPropsEditor({
 
             <Separator />
 
-            {/* === ÁREA DO CLIENTE === */}
+            {/* === MINHA CONTA === */}
             <Collapsible open={openSections.customerArea} onOpenChange={() => toggleSection('customerArea')}>
               <CollapsibleTrigger asChild>
                 <Button variant="ghost" className="w-full justify-between p-3 h-auto">
                   <div className="flex items-center gap-2">
                     <User className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Área do Cliente</span>
+                    <span className="font-medium">Minha Conta</span>
                     {props.customerAreaEnabled && (
                       <Badge variant="secondary" className="text-xs">Ativo</Badge>
                     )}
@@ -632,8 +632,8 @@ export function HeaderFooterPropsEditor({
               <CollapsibleContent className="px-3 pb-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <Label className="text-xs">Exibir "Minhas compras"</Label>
-                    <p className="text-xs text-muted-foreground">Link para consulta de pedidos</p>
+                    <Label className="text-xs">Exibir "Minha Conta"</Label>
+                    <p className="text-xs text-muted-foreground">Link para área do cliente</p>
                   </div>
                   <Switch
                     checked={Boolean(props.customerAreaEnabled)}
@@ -645,9 +645,9 @@ export function HeaderFooterPropsEditor({
                   <div className="space-y-1.5">
                     <Label className="text-xs">Texto do link</Label>
                     <Input
-                      value={(props.customerAreaLabel as string) || 'Minhas compras'}
+                      value={(props.customerAreaLabel as string) || 'Minha Conta'}
                       onChange={(e) => updateProp('customerAreaLabel', e.target.value)}
-                      placeholder="Ex: Minhas compras"
+                      placeholder="Ex: Minha Conta"
                       className="h-9 text-sm"
                     />
                   </div>

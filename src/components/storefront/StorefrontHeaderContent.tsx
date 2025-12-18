@@ -117,7 +117,7 @@ export function StorefrontHeaderContent({
   
   // Customer area props
   const customerAreaEnabled = Boolean(props.customerAreaEnabled);
-  const customerAreaLabel = String(props.customerAreaLabel || 'Minhas compras');
+  const customerAreaLabel = String(props.customerAreaLabel || 'Minha Conta');
   
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
@@ -332,10 +332,10 @@ export function StorefrontHeaderContent({
                         </LinkWrapper>
                       )}
                       
-                      {/* Customer Area (Mobile) */}
+                      {/* Customer Area (Mobile) - Minha Conta */}
                       {customerAreaEnabled && (
                         <LinkWrapper
-                          to={`${baseUrl}/minhas-compras`}
+                          to={`${baseUrl}/conta`}
                           onClick={() => setMobileMenuOpen(false)}
                           className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-2"
                         >
@@ -592,10 +592,10 @@ export function StorefrontHeaderContent({
               </Button>
             )}
             
-            {/* Customer area icon - mobile only */}
+            {/* Customer area icon - Minha Conta */}
             {customerAreaEnabled && (forceMobile || !forceDesktop) && (
               <LinkWrapper 
-                to={`${baseUrl}/minhas-compras`}
+                to={`${baseUrl}/conta`}
                 className={cn(
                   forceDesktop ? "hidden" : (forceMobile ? "block" : "block md:hidden")
                 )}
