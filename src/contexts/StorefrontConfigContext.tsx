@@ -113,9 +113,10 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
       if (storeError) throw storeError;
 
       // Also check shipping_providers for active Frenet integration
+      // Only select non-sensitive fields - credentials used server-side only
       const { data: shippingProvider } = await supabase
         .from('shipping_providers')
-        .select('provider, is_enabled, credentials, settings')
+        .select('provider, is_enabled')
         .eq('tenant_id', tenantId)
         .eq('is_enabled', true)
         .eq('provider', 'frenet')
@@ -124,17 +125,14 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
       // If Frenet provider is active in shipping_providers, override store_settings config
+      // Origin CEP will come from edge function (using secure credentials)
       if (shippingProvider?.is_enabled && shippingProvider.provider === 'frenet') {
-        const credentials = shippingProvider.credentials as Record<string, string> | null;
         shippingConfig = {
           ...shippingConfig,
           provider: 'frenet',
-          originZip: credentials?.seller_cep || shippingConfig.originZip,
           frenetEnabled: true,
         };
-        console.log('[StorefrontConfigContext] Using Frenet from shipping_providers:', {
-          originZip: shippingConfig.originZip,
-        });
+        console.log('[StorefrontConfigContext] Frenet provider active - using edge function for quotes');
       }
       
       return {
@@ -227,8 +225,7 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
           console.log('[StorefrontConfigContext] Calling frenet-quote with tenant:', tenantId);
           const { data, error } = await supabase.functions.invoke('frenet-quote', {
             body: {
-              tenant_id: tenantId, // Pass tenant_id for database credential lookup
-              seller_cep: shippingConfig.originZip,
+              tenant_id: tenantId, // Edge function will get seller_cep from database
               recipient_cep: cep,
               items: items.map(item => ({
                 weight: item.weight || 0.3,
