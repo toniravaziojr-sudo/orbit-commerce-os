@@ -1,5 +1,5 @@
 // =============================================
-// OFFERS - Manage Cross-sell, Order Bump, Upsell rules
+// OFFERS - Manage Cross-sell, Order Bump, Upsell, Compre Junto
 // =============================================
 
 import { useState } from 'react';
@@ -28,8 +28,10 @@ import {
   Edit,
   ToggleLeft,
   ToggleRight,
+  ShoppingBag,
 } from 'lucide-react';
 import { ProductMultiSelect } from '@/components/builder/ProductMultiSelect';
+import { BuyTogetherContent } from '@/components/offers/BuyTogetherContent';
 
 const offerTypeLabels: Record<OfferType, string> = {
   cross_sell: 'Cross-sell',
@@ -99,7 +101,7 @@ export default function Offers() {
   const { rules, isLoading, createRule, updateRule, deleteRule, toggleRule } = useOfferRules();
   const { products } = useProducts();
   
-  const [activeTab, setActiveTab] = useState<OfferType>('cross_sell');
+  const [activeTab, setActiveTab] = useState<OfferType | 'buy_together'>('cross_sell');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<OfferRule | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -185,11 +187,11 @@ export default function Offers() {
         description="Configure regras de Cross-sell, Order Bump e Upsell para aumentar o ticket médio"
       />
 
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType)} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType | 'buy_together')} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="cross_sell" className="flex items-center gap-2">
             <ShoppingCart className="h-4 w-4" />
-            Cross-sell
+            <span className="hidden sm:inline">Cross-sell</span>
             {rules.filter(r => r.type === 'cross_sell').length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {rules.filter(r => r.type === 'cross_sell').length}
@@ -198,7 +200,7 @@ export default function Offers() {
           </TabsTrigger>
           <TabsTrigger value="order_bump" className="flex items-center gap-2">
             <Percent className="h-4 w-4" />
-            Order Bump
+            <span className="hidden sm:inline">Order Bump</span>
             {rules.filter(r => r.type === 'order_bump').length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {rules.filter(r => r.type === 'order_bump').length}
@@ -207,14 +209,23 @@ export default function Offers() {
           </TabsTrigger>
           <TabsTrigger value="upsell" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            Upsell
+            <span className="hidden sm:inline">Upsell</span>
             {rules.filter(r => r.type === 'upsell').length > 0 && (
               <Badge variant="secondary" className="ml-1">
                 {rules.filter(r => r.type === 'upsell').length}
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="buy_together" className="flex items-center gap-2">
+            <ShoppingBag className="h-4 w-4" />
+            <span className="hidden sm:inline">Compre Junto</span>
+          </TabsTrigger>
         </TabsList>
+
+        {/* Buy Together Tab */}
+        <TabsContent value="buy_together" className="space-y-4">
+          <BuyTogetherContent />
+        </TabsContent>
 
         {['cross_sell', 'order_bump', 'upsell'].map((type) => (
           <TabsContent key={type} value={type} className="space-y-4">
