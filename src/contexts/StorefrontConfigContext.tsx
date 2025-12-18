@@ -91,14 +91,31 @@ export function useOffers() {
   return context;
 }
 
+// ===== CANONICAL DOMAIN CONTEXT =====
+
+interface CanonicalDomainContextValue {
+  customDomain: string | null;
+}
+
+const CanonicalDomainContext = createContext<CanonicalDomainContextValue | null>(null);
+
+export function useCanonicalDomain() {
+  const context = useContext(CanonicalDomainContext);
+  if (!context) {
+    throw new Error('useCanonicalDomain must be used within StorefrontConfigProvider');
+  }
+  return context;
+}
+
 // ===== MAIN PROVIDER =====
 
-interface StorefrontConfigProviderProps {
+export interface StorefrontConfigProviderProps {
   tenantId: string;
+  customDomain?: string | null;
   children: React.ReactNode;
 }
 
-export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfigProviderProps) {
+export function StorefrontConfigProvider({ tenantId, customDomain = null, children }: StorefrontConfigProviderProps) {
   // Fetch all configs in one query
   const { data, isLoading } = useQuery({
     queryKey: ['storefront-config', tenantId],
@@ -330,13 +347,19 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
     isLoading,
   };
 
+  const canonicalDomainValue: CanonicalDomainContextValue = {
+    customDomain,
+  };
+
   return (
-    <ShippingContext.Provider value={shippingValue}>
-      <BenefitContext.Provider value={benefitValue}>
-        <OffersContext.Provider value={offersValue}>
-          {children}
-        </OffersContext.Provider>
-      </BenefitContext.Provider>
-    </ShippingContext.Provider>
+    <CanonicalDomainContext.Provider value={canonicalDomainValue}>
+      <ShippingContext.Provider value={shippingValue}>
+        <BenefitContext.Provider value={benefitValue}>
+          <OffersContext.Provider value={offersValue}>
+            {children}
+          </OffersContext.Provider>
+        </BenefitContext.Provider>
+      </ShippingContext.Provider>
+    </CanonicalDomainContext.Provider>
   );
 }
