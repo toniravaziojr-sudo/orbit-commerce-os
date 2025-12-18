@@ -96,12 +96,58 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
       const orderNumber = orderNumberData || `PED-${Date.now()}`;
 
-      // 2. Create order in database
+      // 2. Upsert customer to get customer_id
+      let customerId: string | null = null;
+      
+      // Check if customer exists by email
+      const { data: existingCustomer } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('email', customer.email)
+        .maybeSingle();
+
+      if (existingCustomer) {
+        customerId = existingCustomer.id;
+        // Update customer info if needed
+        await supabase
+          .from('customers')
+          .update({
+            full_name: customer.name,
+            phone: customer.phone,
+            cpf: customer.cpf,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', customerId);
+      } else {
+        // Create new customer
+        const { data: newCustomer, error: customerError } = await supabase
+          .from('customers')
+          .insert({
+            tenant_id: tenantId,
+            email: customer.email,
+            full_name: customer.name,
+            phone: customer.phone,
+            cpf: customer.cpf,
+            status: 'active',
+          })
+          .select('id')
+          .single();
+
+        if (!customerError && newCustomer) {
+          customerId = newCustomer.id;
+        } else {
+          console.warn('Could not create customer:', customerError);
+        }
+      }
+
+      // 3. Create order in database with customer_id
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           tenant_id: tenantId,
           order_number: orderNumber,
+          customer_id: customerId,
           customer_name: customer.name,
           customer_email: customer.email,
           customer_phone: customer.phone,
