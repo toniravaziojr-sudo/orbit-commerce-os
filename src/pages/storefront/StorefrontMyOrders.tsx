@@ -1,31 +1,25 @@
 // =============================================
-// STOREFRONT MY ORDERS - Public order lookup page
+// STOREFRONT MY ORDERS - DEPRECATED/REDIRECT
 // =============================================
+// Esta página foi descontinuada. O fluxo principal é /conta (Minha Conta).
+// Mantida para compatibilidade com links antigos - redireciona para /conta.
 
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Package, Search, ShoppingBag } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Loader2, User, ArrowRight, Info } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 
 export default function StorefrontMyOrders() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const navigate = useNavigate();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
-  
-  // Get home template to extract global header/footer
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
-  
-  const [email, setEmail] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResult, setSearchResult] = useState<'not_found' | 'coming_soon' | null>(null);
 
   // Build context for block rendering
   const context: BlockRenderContext = {
@@ -35,10 +29,6 @@ export default function StorefrontMyOrders() {
       store_name: storeSettings?.store_name || undefined,
       logo_url: storeSettings?.logo_url || undefined,
       primary_color: storeSettings?.primary_color || undefined,
-      social_instagram: storeSettings?.social_instagram || undefined,
-      social_facebook: storeSettings?.social_facebook || undefined,
-      social_whatsapp: storeSettings?.social_whatsapp || undefined,
-      store_description: storeSettings?.store_description || undefined,
     },
     headerMenu: headerMenu?.items?.map(item => ({
       id: item.id,
@@ -52,26 +42,10 @@ export default function StorefrontMyOrders() {
     })),
   };
 
-  // Extract Header and Footer from home template (global layout)
+  // Extract Header and Footer from home template
   const homeContent = homeTemplate.content as BlockNode | null;
   const headerNode = homeContent?.children?.find(child => child.type === 'Header');
   const footerNode = homeContent?.children?.find(child => child.type === 'Footer');
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email.trim() || !orderNumber.trim()) return;
-    
-    setIsSearching(true);
-    setSearchResult(null);
-    
-    // Simulate search delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // For now, always show "coming soon" message
-    setSearchResult('coming_soon');
-    setIsSearching(false);
-  };
 
   if (storeLoading || homeTemplate.isLoading) {
     return (
@@ -85,101 +59,39 @@ export default function StorefrontMyOrders() {
     <div className="min-h-screen flex flex-col">
       {/* Global Header */}
       {headerNode && (
-        <BlockRenderer
-          node={headerNode}
-          context={context}
-          isEditing={false}
-        />
+        <BlockRenderer node={headerNode} context={context} isEditing={false} />
       )}
 
-      {/* Main Content */}
+      {/* Main Content - Redirect notice */}
       <main className="flex-1 py-12 px-4">
         <div className="container mx-auto max-w-lg">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-              <ShoppingBag className="h-8 w-8 text-primary" />
-            </div>
-            <h1 className="text-3xl font-bold mb-2">Minhas compras</h1>
-            <p className="text-muted-foreground">
-              Consulte o status do seu pedido
-            </p>
-          </div>
-
-          <Card>
+          <Card className="text-center">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Buscar pedido
-              </CardTitle>
-              <CardDescription>
-                Informe seu e-mail e número do pedido para consultar
-              </CardDescription>
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mx-auto mb-4">
+                <User className="h-8 w-8 text-primary" />
+              </div>
+              <CardTitle className="text-2xl">Página atualizada</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleSearch} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="orderNumber">Número do pedido</Label>
-                  <Input
-                    id="orderNumber"
-                    type="text"
-                    placeholder="Ex: PED-25-000001"
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={isSearching || !email.trim() || !orderNumber.trim()}
-                >
-                  {isSearching ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Buscando...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="h-4 w-4 mr-2" />
-                      Buscar
-                    </>
-                  )}
+            <CardContent className="space-y-6">
+              <Alert className="text-left">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Novidade!</AlertTitle>
+                <AlertDescription>
+                  Agora seus pedidos ficam na <strong>Minha Conta</strong>. 
+                  Acesse para ver seus pedidos, acompanhar entregas e gerenciar suas informações.
+                </AlertDescription>
+              </Alert>
+              
+              <Link to={`/store/${tenantSlug}/conta`}>
+                <Button className="w-full h-12" size="lg">
+                  Ir para Minha Conta
+                  <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-              </form>
-
-              {/* Search Result */}
-              {searchResult === 'coming_soon' && (
-                <Alert className="mt-6 border-amber-200 bg-amber-50">
-                  <Package className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800">
-                    <strong>Funcionalidade em implementação.</strong>
-                    <br />
-                    Em breve você poderá consultar seus pedidos diretamente aqui.
-                    Entre em contato conosco para mais informações sobre seu pedido.
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {searchResult === 'not_found' && (
-                <Alert className="mt-6 border-destructive/50 bg-destructive/10">
-                  <AlertDescription className="text-destructive">
-                    Pedido não encontrado. Verifique os dados informados e tente novamente.
-                  </AlertDescription>
-                </Alert>
-              )}
+              </Link>
+              
+              <p className="text-xs text-muted-foreground">
+                A consulta por e-mail + número do pedido foi substituída pelo acesso à sua conta.
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -187,11 +99,7 @@ export default function StorefrontMyOrders() {
 
       {/* Global Footer */}
       {footerNode && (
-        <BlockRenderer
-          node={footerNode}
-          context={context}
-          isEditing={false}
-        />
+        <BlockRenderer node={footerNode} context={context} isEditing={false} />
       )}
     </div>
   );

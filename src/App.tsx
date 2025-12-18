@@ -54,6 +54,8 @@ import StorefrontCheckout from "@/pages/storefront/StorefrontCheckout";
 import StorefrontThankYou from "@/pages/storefront/StorefrontThankYou";
 import StorefrontMyOrders from "@/pages/storefront/StorefrontMyOrders";
 import StorefrontAccount from "@/pages/storefront/StorefrontAccount";
+import StorefrontAccountLogin from "@/pages/storefront/StorefrontAccountLogin";
+import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccountForgotPassword";
 import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
 import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
 
@@ -84,6 +86,8 @@ const App = () => (
               <Route path="minhas-compras" element={<StorefrontMyOrders />} />
               {/* Customer Account routes */}
               <Route path="conta" element={<StorefrontAccount />} />
+              <Route path="conta/login" element={<StorefrontAccountLogin />} />
+              <Route path="conta/esqueci-senha" element={<StorefrontAccountForgotPassword />} />
               <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
               <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
             </Route>
