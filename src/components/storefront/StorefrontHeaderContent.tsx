@@ -480,7 +480,7 @@ export function StorefrontHeaderContent({
               {/* Customer Area */}
               {customerAreaEnabled && (
                 <LinkWrapper
-                  to={`${baseUrl}/minhas-compras`}
+                  to={`${baseUrl}/conta`}
                   className="text-sm font-medium hover:opacity-70 flex items-center gap-1"
                   style={{ color: headerTextColor || undefined }}
                 >
