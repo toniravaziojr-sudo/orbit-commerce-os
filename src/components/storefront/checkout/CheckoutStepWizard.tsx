@@ -56,7 +56,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { tenantSlug } = useParams();
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
-  const { quote, isLoading: shippingLoading } = useShipping();
+  const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
@@ -243,13 +243,30 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     setIsCalculatingShipping(true);
     try {
       setShippingCep(cep);
-      const options = quote(cep, totals.subtotal);
-      setShippingOptions(options);
-      if (options.length > 0 && !shipping.selected) {
+      
+      let options;
+      // Use async quote for Frenet provider
+      if (shippingConfig.provider === 'frenet') {
+        const cartItems = items.map(item => ({
+          weight: 0.3,
+          height: 10,
+          width: 10,
+          length: 10,
+          quantity: item.quantity,
+          price: item.price,
+        }));
+        options = await quoteAsync(cep, totals.subtotal, cartItems);
+      } else {
+        options = quote(cep, totals.subtotal);
+      }
+      
+      setShippingOptions(options || []);
+      if (options && options.length > 0 && !shipping.selected) {
         selectShipping(options[0]);
       }
     } catch (error) {
       console.error('Error calculating shipping:', error);
+      toast.error('Erro ao calcular frete. Tente novamente.');
     } finally {
       setIsCalculatingShipping(false);
     }

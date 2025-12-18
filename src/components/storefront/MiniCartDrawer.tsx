@@ -98,6 +98,7 @@ export function MiniCartDrawer({
           <MiniCartShipping 
             subtotal={subtotal}
             shipping={shipping}
+            items={items}
             setShippingCep={setShippingCep}
             setShippingOptions={setShippingOptions}
             selectShipping={selectShipping}
@@ -248,15 +249,17 @@ function MiniCartShipping({
   shipping, 
   setShippingCep, 
   setShippingOptions, 
-  selectShipping 
+  selectShipping,
+  items,
 }: {
   subtotal: number;
   shipping: { cep: string; options: any[]; selected: any | null };
   setShippingCep: (cep: string) => void;
   setShippingOptions: (options: any[]) => void;
   selectShipping: (option: any) => void;
+  items: any[];
 }) {
-  const { quote, isLoading: configLoading } = useShipping();
+  const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -277,7 +280,7 @@ function MiniCartShipping({
   const handleCalculate = async () => {
     const cepDigits = shipping.cep.replace(/\D/g, '');
     if (cepDigits.length !== 8) {
-      setError('CEP inválido');
+      setError('CEP inválido. Digite 8 dígitos.');
       return;
     }
 
@@ -285,11 +288,25 @@ function MiniCartShipping({
     setError(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 400));
-      const options = quote(cepDigits, subtotal);
+      let options;
       
-      if (options.length === 0) {
-        setError('CEP não encontrado');
+      // Use async quote for Frenet provider
+      if (config.provider === 'frenet') {
+        const cartItems = items.map(item => ({
+          weight: 0.3,
+          height: 10,
+          width: 10,
+          length: 10,
+          quantity: item.quantity,
+          price: item.price,
+        }));
+        options = await quoteAsync(cepDigits, subtotal, cartItems);
+      } else {
+        options = quote(cepDigits, subtotal);
+      }
+      
+      if (!options || options.length === 0) {
+        setError('Não encontramos opções de frete para este CEP.');
         setShippingOptions([]);
       } else {
         setShippingOptions(options);
@@ -297,7 +314,8 @@ function MiniCartShipping({
         selectShipping(options[0]);
       }
     } catch (err) {
-      setError('Erro ao calcular');
+      console.error('MiniCart shipping quote error:', err);
+      setError('Erro ao calcular frete. Tente novamente.');
       setShippingOptions([]);
     } finally {
       setIsCalculating(false);
