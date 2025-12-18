@@ -181,8 +181,8 @@ export default function Offers() {
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <PageHeader
-        title="Ofertas"
-        description="Configure regras de Cross-sell, Order Bump e Upsell"
+        title="Aumentar Ticket"
+        description="Configure regras de Cross-sell, Order Bump e Upsell para aumentar o ticket médio"
       />
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as OfferType)} className="space-y-6">
