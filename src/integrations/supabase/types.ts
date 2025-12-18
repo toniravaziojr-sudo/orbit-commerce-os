@@ -2247,11 +2247,14 @@ export type Database = {
         Row: {
           created_at: string
           domain: string
+          external_id: string | null
           id: string
           is_primary: boolean
           last_checked_at: string | null
           last_error: string | null
+          ssl_status: string | null
           status: string
+          target_hostname: string | null
           tenant_id: string
           updated_at: string
           verification_token: string
@@ -2260,11 +2263,14 @@ export type Database = {
         Insert: {
           created_at?: string
           domain: string
+          external_id?: string | null
           id?: string
           is_primary?: boolean
           last_checked_at?: string | null
           last_error?: string | null
+          ssl_status?: string | null
           status?: string
+          target_hostname?: string | null
           tenant_id: string
           updated_at?: string
           verification_token: string
@@ -2273,11 +2279,14 @@ export type Database = {
         Update: {
           created_at?: string
           domain?: string
+          external_id?: string | null
           id?: string
           is_primary?: boolean
           last_checked_at?: string | null
           last_error?: string | null
+          ssl_status?: string | null
           status?: string
+          target_hostname?: string | null
           tenant_id?: string
           updated_at?: string
           verification_token?: string
