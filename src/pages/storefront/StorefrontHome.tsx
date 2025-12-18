@@ -2,16 +2,19 @@
 // STOREFRONT HOME - Public home page via Builder
 // =============================================
 
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { BlockRenderContext } from '@/lib/builder/types';
+import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 
 export default function StorefrontHome() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, categories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -21,6 +24,19 @@ export default function StorefrontHome() {
   const previewTemplate = usePreviewTemplate(tenantSlug || '', 'home');
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
+
+  // Check preview access
+  const canPreview = isPreviewMode 
+    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
+    : true;
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !template.isLoading) {
+      const cleanPath = `/store/${tenantSlug}${getCleanQueryString(searchParams)}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate]);
 
   // Build context for block rendering - include all needed data for header/footer
   const context: BlockRenderContext & { categories?: any[] } = {
@@ -54,11 +70,6 @@ export default function StorefrontHome() {
     })),
     categories: categories?.map(c => ({ id: c.id, slug: c.slug })),
   };
-
-  // Check preview access
-  const canPreview = isPreviewMode 
-    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
-    : true;
 
   return (
     <PublicTemplateRenderer
