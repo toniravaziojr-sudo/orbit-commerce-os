@@ -264,8 +264,10 @@ export type Database = {
           customer_phone: string | null
           discount_total: number | null
           id: string
+          items_snapshot: Json | null
           notes: string | null
           payment_method: string | null
+          recovery_status: string
           shipping_address_id: string | null
           shipping_carrier: string | null
           shipping_city: string | null
@@ -300,8 +302,10 @@ export type Database = {
           customer_phone?: string | null
           discount_total?: number | null
           id?: string
+          items_snapshot?: Json | null
           notes?: string | null
           payment_method?: string | null
+          recovery_status?: string
           shipping_address_id?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
@@ -336,8 +340,10 @@ export type Database = {
           customer_phone?: string | null
           discount_total?: number | null
           id?: string
+          items_snapshot?: Json | null
           notes?: string | null
           payment_method?: string | null
+          recovery_status?: string
           shipping_address_id?: string | null
           shipping_carrier?: string | null
           shipping_city?: string | null
