@@ -57,9 +57,11 @@ async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
 
   if (provider?.is_enabled && provider?.credentials?.token) {
     console.log('[Frenet] Using database credentials');
+    // Check seller_cep in both credentials and settings
+    const originCep = provider.credentials.seller_cep || provider.settings?.origin_cep || '01310100';
     return {
       token: provider.credentials.token,
-      originCep: provider.settings?.origin_cep || '01310100',
+      originCep: originCep.replace(/\D/g, ''),
       source: 'database',
     };
   }

@@ -103,18 +103,44 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
   const { data, isLoading } = useQuery({
     queryKey: ['storefront-config', tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch store_settings
+      const { data: storeData, error: storeError } = await supabase
         .from('store_settings')
         .select('shipping_config, benefit_config, offers_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
-      if (error) throw error;
+      if (storeError) throw storeError;
+
+      // Also check shipping_providers for active Frenet integration
+      const { data: shippingProvider } = await supabase
+        .from('shipping_providers')
+        .select('provider, is_enabled, credentials, settings')
+        .eq('tenant_id', tenantId)
+        .eq('is_enabled', true)
+        .eq('provider', 'frenet')
+        .maybeSingle();
+
+      let shippingConfig = parseShippingConfig(storeData?.shipping_config);
+
+      // If Frenet provider is active in shipping_providers, override store_settings config
+      if (shippingProvider?.is_enabled && shippingProvider.provider === 'frenet') {
+        const credentials = shippingProvider.credentials as Record<string, string> | null;
+        shippingConfig = {
+          ...shippingConfig,
+          provider: 'frenet',
+          originZip: credentials?.seller_cep || shippingConfig.originZip,
+          frenetEnabled: true,
+        };
+        console.log('[StorefrontConfigContext] Using Frenet from shipping_providers:', {
+          originZip: shippingConfig.originZip,
+        });
+      }
       
       return {
-        shippingConfig: parseShippingConfig(data?.shipping_config),
-        benefitConfig: parseBenefitConfig(data?.benefit_config),
-        offersConfig: parseOffersConfig(data?.offers_config),
+        shippingConfig,
+        benefitConfig: parseBenefitConfig(storeData?.benefit_config),
+        offersConfig: parseOffersConfig(storeData?.offers_config),
       };
     },
     enabled: !!tenantId,
@@ -184,7 +210,7 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
     };
   }, [shippingConfig]);
 
-  // Async shipping quote function for Frenet
+  // Async shipping quote function for Frenet - needs tenantId
   const quoteAsync = useMemo(() => {
     return async (
       cep: string, 
@@ -195,11 +221,13 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
       const isFreeShipping = shippingConfig.freeShippingThreshold != null && 
         cartTotal >= shippingConfig.freeShippingThreshold;
 
-      // If using Frenet, call the Edge Function
+      // If using Frenet, call the Edge Function with tenant_id
       if (shippingConfig.provider === 'frenet') {
         try {
+          console.log('[StorefrontConfigContext] Calling frenet-quote with tenant:', tenantId);
           const { data, error } = await supabase.functions.invoke('frenet-quote', {
             body: {
+              tenant_id: tenantId, // Pass tenant_id for database credential lookup
               seller_cep: shippingConfig.originZip,
               recipient_cep: cep,
               items: items.map(item => ({
@@ -214,15 +242,17 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
           });
 
           if (error) {
-            console.error('Frenet quote error:', error);
+            console.error('[StorefrontConfigContext] Frenet quote error:', error);
             // Fallback to default
             return [{
               price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
               deliveryDays: shippingConfig.defaultDays,
-              label: 'Frete padrão',
+              label: 'Frete padrão (fallback)',
               isFree: isFreeShipping,
             }];
           }
+
+          console.log('[StorefrontConfigContext] Frenet quote response:', data);
 
           if (data?.options && data.options.length > 0) {
             return data.options.map((opt: { code?: string; label: string; carrier?: string; price: number; deliveryDays: number }) => ({
@@ -235,14 +265,14 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
             }));
           }
         } catch (err) {
-          console.error('Frenet quote exception:', err);
+          console.error('[StorefrontConfigContext] Frenet quote exception:', err);
         }
         
         // Fallback
         return [{
           price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
           deliveryDays: shippingConfig.defaultDays,
-          label: 'Frete padrão',
+          label: 'Frete padrão (fallback)',
           isFree: isFreeShipping,
         }];
       }
@@ -250,7 +280,7 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
       // For non-Frenet providers, use sync quote
       return quote(cep, cartTotal);
     };
-  }, [shippingConfig, quote]);
+  }, [shippingConfig, quote, tenantId]);
 
   // Benefit progress function
   const getProgress = useMemo(() => {
