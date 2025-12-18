@@ -1,14 +1,17 @@
 // =============================================
 // CHECKOUT STEP WIZARD - Multi-step checkout (Mercado Livre style)
 // Steps: 1) Dados pessoais 2) Endereço 3) Entrega 4) Pagamento
-// Includes account creation on first purchase
+// Uses REAL payment integration with Pagar.me
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
+import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
+import { PaymentMethodSelector } from './PaymentMethodSelector';
+import { PaymentResultDisplay } from './PaymentResult';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +25,7 @@ import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
-type PaymentStatus = 'idle' | 'processing' | 'approved' | 'failed';
+type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
 
 const STEPS = [
@@ -54,9 +57,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { quote, isLoading: shippingLoading } = useShipping();
+  const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [cardData, setCardData] = useState<CardData>({
+    number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
+  });
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof ExtendedFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -247,47 +255,24 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     }
   };
 
-  // Centralized payment simulation helper
-  const simulatePaymentResult = (): 'approved' | 'declined' | 'pending' => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const forcePayment = urlParams.get('forcePayment');
-    
-    // Explicit query param takes priority
-    if (forcePayment === 'approved') return 'approved';
-    if (forcePayment === 'declined' || forcePayment === 'failed') return 'declined';
-    if (forcePayment === 'pending') return 'pending';
-    
-    // Default behavior in mock mode: always approve (no random failures)
-    return 'approved';
-  };
-
+  // Real payment processing using Pagar.me
   const handlePayment = async () => {
     if (!validateStep(4)) return;
+
+    // Validate card data if credit card selected
+    if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.cvv)) {
+      toast.error('Preencha os dados do cartão');
+      return;
+    }
 
     setPaymentStatus('processing');
     setPaymentError(null);
 
     try {
-      // Mock payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const paymentResult = simulatePaymentResult();
-
-      if (paymentResult === 'pending') {
-        // Keep in processing state, allow user to wait or retry
-        toast.info('Pagamento em processamento. Aguarde a confirmação.');
-        return;
-      }
-
-      if (paymentResult === 'declined') {
-        throw new Error('Pagamento recusado. Por favor, verifique os dados e tente novamente.');
-      }
-
-      // Payment approved - proceed with order completion
       // Save email for returning customer recognition
       localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
       
-      // Create account for new customers
+      // Create account for new customers BEFORE payment
       if (!isExistingCustomer && formData.password) {
         try {
           const { error: signUpError } = await supabase.auth.signUp({
@@ -303,7 +288,6 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           
           if (signUpError) {
             console.error('Error creating account:', signUpError);
-            // Don't block the order, just log the error
           } else {
             toast.success('Conta criada! Verifique seu email para confirmar.', { duration: 5000 });
           }
@@ -312,14 +296,46 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         }
       }
 
-      setPaymentStatus('approved');
-      clearCart();
-      clearDraft();
-      toast.success('Pedido realizado com sucesso!');
-      
-      // Generate mock order number for thank you page
-      const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
-      navigate(`/store/${tenantSlug}/obrigado?orderNumber=${orderNumber}`);
+      // Process REAL payment via Pagar.me
+      const result = await processPayment({
+        method: paymentMethod,
+        items,
+        shipping: {
+          street: formData.shippingStreet,
+          number: formData.shippingNumber,
+          complement: formData.shippingComplement,
+          neighborhood: formData.shippingNeighborhood,
+          city: formData.shippingCity,
+          state: formData.shippingState,
+          postalCode: formData.shippingPostalCode,
+        },
+        shippingOption: shipping.selected,
+        customer: {
+          name: formData.customerName,
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          cpf: formData.customerCpf,
+        },
+        card: paymentMethod === 'credit_card' ? cardData : undefined,
+      });
+
+      if (result.success) {
+        if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
+          // Credit card approved immediately
+          setPaymentStatus('approved');
+          clearCart();
+          clearDraft();
+          toast.success('Pedido realizado com sucesso!');
+          navigate(`/store/${tenantSlug}/obrigado?pedido=${result.orderNumber}`);
+        } else {
+          // PIX/Boleto - pending payment (show QR code or boleto)
+          setPaymentStatus('pending_payment');
+          clearCart();
+          clearDraft();
+        }
+      } else {
+        throw new Error(result.error || 'Erro ao processar pagamento');
+      }
     } catch (error) {
       setPaymentStatus('failed');
       setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
@@ -344,8 +360,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     );
   }
 
-  // Empty cart guard
-  if (items.length === 0 && paymentStatus !== 'approved') {
+  // Empty cart guard (allow if payment pending or approved)
+  if (items.length === 0 && paymentStatus !== 'approved' && paymentStatus !== 'pending_payment') {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto text-center">
@@ -365,7 +381,17 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     );
   }
 
-  const isProcessing = paymentStatus === 'processing';
+  // Show payment result for PIX/Boleto (pending payment)
+  if (paymentStatus === 'pending_payment' && paymentResult) {
+    const handleViewOrders = () => navigate(`/store/${tenantSlug}/conta/pedidos`);
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-lg">
+        <PaymentResultDisplay result={paymentResult} method={paymentMethod} onContinue={handleViewOrders} />
+      </div>
+    );
+  }
+
+  const isProcessing = paymentStatus === 'processing' || paymentProcessing;
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -431,6 +457,10 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
             {currentStep === 4 && (
               <Step4Payment 
                 disabled={isProcessing}
+                paymentMethod={paymentMethod}
+                onPaymentMethodChange={setPaymentMethod}
+                cardData={cardData}
+                onCardDataChange={setCardData}
               />
             )}
 
@@ -900,8 +930,20 @@ function Step3Shipping({
   );
 }
 
-// Step 4: Payment
-function Step4Payment({ disabled }: { disabled: boolean }) {
+// Step 4: Payment - Real payment method selection
+function Step4Payment({ 
+  disabled,
+  paymentMethod,
+  onPaymentMethodChange,
+  cardData,
+  onCardDataChange,
+}: { 
+  disabled: boolean;
+  paymentMethod: PaymentMethod;
+  onPaymentMethodChange: (method: PaymentMethod) => void;
+  cardData: CardData;
+  onCardDataChange: (data: CardData) => void;
+}) {
   return (
     <div className="space-y-6">
       <div>
@@ -909,20 +951,13 @@ function Step4Payment({ disabled }: { disabled: boolean }) {
         <p className="text-sm text-muted-foreground">Escolha como deseja pagar</p>
       </div>
 
-      <div className="bg-muted/50 rounded-lg p-6 text-center">
-        <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-        <p className="font-medium mb-2">Pagamento em desenvolvimento</p>
-        <p className="text-sm text-muted-foreground mb-4">
-          Em breve você poderá pagar com PIX, cartão de crédito e boleto.
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Por enquanto, clique em "Finalizar Pedido" para simular a compra.
-        </p>
-      </div>
-
-      <div className="text-sm text-muted-foreground">
-        <p>💡 <strong>Dica de teste:</strong> Adicione <code>?forcePayment=approved</code> na URL para simular pagamento aprovado.</p>
-      </div>
+      <PaymentMethodSelector
+        selectedMethod={paymentMethod}
+        onMethodChange={onPaymentMethodChange}
+        cardData={cardData}
+        onCardDataChange={onCardDataChange}
+        disabled={disabled}
+      />
     </div>
   );
 }

@@ -28,12 +28,12 @@ import {
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
 
-const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string }> = {
+const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string; isSystem?: boolean }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
   category: { title: 'Categoria', description: 'Listagem de produtos', icon: '📁' },
   product: { title: 'Produto', description: 'Detalhes do produto', icon: '📦' },
   cart: { title: 'Carrinho', description: 'Carrinho de compras', icon: '🛒' },
-  checkout: { title: 'Checkout', description: 'Finalização', icon: '💳' },
+  checkout: { title: 'Checkout', description: 'Página de sistema - configure em Integrações', icon: '💳', isSystem: true },
   thank_you: { title: 'Obrigado', description: 'Confirmação do pedido', icon: '✅' },
   account: { title: 'Minha Conta', description: 'Hub do cliente', icon: '👤' },
   account_orders: { title: 'Pedidos', description: 'Lista de pedidos', icon: '📋' },
