@@ -117,7 +117,7 @@ export function StorefrontHeaderContent({
   
   // Customer area props
   const customerAreaEnabled = Boolean(props.customerAreaEnabled);
-  const customerAreaLabel = String(props.customerAreaLabel || 'Minha Conta');
+  // Label fixo: apenas ícone no mobile, "Minha Conta" no desktop
   
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
@@ -340,7 +340,7 @@ export function StorefrontHeaderContent({
                           className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center gap-2"
                         >
                           <User className="h-4 w-4" />
-                          {customerAreaLabel}
+                          Minha Conta
                         </LinkWrapper>
                       )}
                     </nav>
@@ -477,7 +477,7 @@ export function StorefrontHeaderContent({
                 </LinkWrapper>
               )}
               
-              {/* Customer Area */}
+              {/* Customer Area - Desktop: texto "Minha Conta" */}
               {customerAreaEnabled && (
                 <LinkWrapper
                   to={`${baseUrl}/conta`}
@@ -485,7 +485,7 @@ export function StorefrontHeaderContent({
                   style={{ color: headerTextColor || undefined }}
                 >
                   <User className="h-4 w-4" style={iconStyle} />
-                  {customerAreaLabel}
+                  Minha Conta
                 </LinkWrapper>
               )}
             </nav>
