@@ -364,11 +364,11 @@ export default function Pages() {
                       {/* Preview button - always show if valid slug */}
                       {currentTenant && page.slug && (
                         <a 
-                          href={getPublicPageUrl(currentTenant.slug, page.slug, true) || '#'} 
+                          href={getPublicPageUrl(currentTenant.slug, page.slug, false) || '#'} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
-                          <Button variant="outline" size="icon" title="Visualizar (Preview)">
+                          <Button variant="outline" size="icon" title="Visualizar">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </a>

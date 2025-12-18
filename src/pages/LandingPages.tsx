@@ -232,11 +232,11 @@ export default function LandingPages() {
                       {/* Preview button - always show if valid slug */}
                       {currentTenant && page.slug && (
                         <a 
-                          href={getPublicLandingUrl(currentTenant.slug, page.slug, true) || '#'} 
+                          href={getPublicLandingUrl(currentTenant.slug, page.slug, false) || '#'} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
-                          <Button variant="outline" size="icon" title="Visualizar (Preview)">
+                          <Button variant="outline" size="icon" title="Visualizar">
                             <Eye className="h-4 w-4" />
                           </Button>
                         </a>

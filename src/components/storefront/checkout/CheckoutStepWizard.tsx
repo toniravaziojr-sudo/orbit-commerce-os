@@ -220,6 +220,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       return;
     }
 
+    // Prevent double-click
+    if (isTransitioning) return;
+
     setIsTransitioning(true);
     setTransitionError(null);
 
@@ -229,12 +232,16 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         await calculateShippingOptions();
       }
 
+      // Small delay to ensure state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       if (currentStep < 4) {
         setCurrentStep((currentStep + 1) as CheckoutStep);
       }
     } catch (error) {
       console.error('Error transitioning step:', error);
-      setTransitionError('Ocorreu um erro. Por favor, tente novamente.');
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro. Por favor, tente novamente.';
+      setTransitionError(errorMessage);
       toast.error('Erro ao avançar. Tente novamente.');
     } finally {
       setIsTransitioning(false);

@@ -287,7 +287,8 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
                           onClick={() => {
-                            const url = currentTenant ? getPublicProductUrl(currentTenant.slug, product.slug, true) : null;
+                            // Opens PUBLIC URL (no preview) - for sharing/testing as customer
+                            const url = currentTenant ? getPublicProductUrl(currentTenant.slug, product.slug, false) : null;
                             if (url) window.open(url, '_blank');
                           }}
                           disabled={!product.slug}

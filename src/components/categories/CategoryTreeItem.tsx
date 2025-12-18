@@ -48,7 +48,8 @@ export function CategoryTreeItem({
 
   const handlePreview = () => {
     if (currentTenant && category.slug) {
-      const url = getPublicCategoryUrl(currentTenant.slug, category.slug, true);
+      // Opens PUBLIC URL (no preview) - for sharing/testing as customer
+      const url = getPublicCategoryUrl(currentTenant.slug, category.slug, false);
       if (url) {
         window.open(url, '_blank');
       }
