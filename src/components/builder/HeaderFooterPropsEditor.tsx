@@ -633,25 +633,13 @@ export function HeaderFooterPropsEditor({
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="text-xs">Exibir "Minha Conta"</Label>
-                    <p className="text-xs text-muted-foreground">Link para área do cliente</p>
+                    <p className="text-xs text-muted-foreground">Ícone no mobile, "Minha Conta" no desktop</p>
                   </div>
                   <Switch
                     checked={Boolean(props.customerAreaEnabled)}
                     onCheckedChange={(v) => updateProp('customerAreaEnabled', v)}
                   />
                 </div>
-                
-                {props.customerAreaEnabled && (
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Texto do link</Label>
-                    <Input
-                      value={(props.customerAreaLabel as string) || 'Minha Conta'}
-                      onChange={(e) => updateProp('customerAreaLabel', e.target.value)}
-                      placeholder="Ex: Minha Conta"
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                )}
               </CollapsibleContent>
             </Collapsible>
 
