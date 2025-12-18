@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
+import { normalizeEmail } from '@/lib/normalizeEmail';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
@@ -82,6 +83,10 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     try {
       console.log('[Checkout] Step 0: Starting payment process');
       
+      // Normalize customer email for consistent storage and lookup
+      const normalizedEmail = normalizeEmail(customer.email);
+      console.log('[Checkout] Email normalized:', customer.email, '->', normalizedEmail);
+      
       // Calculate totals
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = typeof shippingOption?.price === 'string' 
@@ -109,12 +114,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       let customerId: string | null = null;
       
       try {
-        // Check if customer exists by email
+        // Check if customer exists by normalized email
         const { data: existingCustomer, error: selectError } = await supabase
           .from('customers')
           .select('id')
           .eq('tenant_id', tenantId)
-          .eq('email', customer.email)
+          .eq('email', normalizedEmail)
           .maybeSingle();
 
         if (selectError) {
@@ -136,12 +141,12 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             .eq('id', customerId);
         } else {
           console.log('[Checkout] Step 2b - Creating new customer');
-          // Create new customer
+          // Create new customer with normalized email
           const { data: newCustomer, error: customerError } = await supabase
             .from('customers')
             .insert({
               tenant_id: tenantId,
-              email: customer.email,
+              email: normalizedEmail,
               full_name: customer.name,
               phone: customer.phone,
               cpf: customer.cpf,
@@ -164,7 +169,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       console.log('[Checkout] Step 2 complete - Customer ID:', customerId);
 
       // 3. Create order in database with customer_id
-      console.log('[Checkout] Step 3: Creating order');
+      // 3. Create order with normalized email
+      console.log('[Checkout] Step 3: Creating order with normalized email');
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -172,7 +178,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           order_number: orderNumber,
           customer_id: customerId,
           customer_name: customer.name,
-          customer_email: customer.email,
+          customer_email: normalizedEmail,
           customer_phone: customer.phone,
           status: 'pending',
           payment_status: 'pending',

@@ -1,12 +1,12 @@
 // =============================================
 // USE CUSTOMER ORDERS - Real database orders for logged-in customers
-// No more mock data - uses Supabase auth email
+// No more mock data - uses Supabase auth email (normalized)
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffect, useState } from 'react';
-
+import { normalizeEmail } from '@/lib/normalizeEmail';
 export interface OrderItem {
   id: string;
   product_name: string;
@@ -61,21 +61,23 @@ function useCurrentUserEmail(): { email: string | null; isLoading: boolean } {
   return { email, isLoading };
 }
 
-// List orders for a customer by email
+// List orders for a customer by email (normalized)
 export function useCustomerOrders(customerEmailOverride?: string) {
   const { email: authEmail, isLoading: authLoading } = useCurrentUserEmail();
   
   // Use override if provided (for admin viewing), otherwise use logged-in user's email
-  const customerEmail = customerEmailOverride || authEmail;
+  // Always normalize email to ensure consistent matching
+  const rawEmail = customerEmailOverride || authEmail;
+  const customerEmail = normalizeEmail(rawEmail);
 
   const ordersQuery = useQuery({
     queryKey: ['customer-orders', customerEmail],
     queryFn: async (): Promise<CustomerOrder[]> => {
       if (!customerEmail) return [];
 
-      console.log('[useCustomerOrders] Fetching orders for:', customerEmail);
+      console.log('[useCustomerOrders] Fetching orders for (normalized):', customerEmail);
 
-      // Real query - fetch orders by customer email
+      // Real query - fetch orders by customer email (normalized)
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
