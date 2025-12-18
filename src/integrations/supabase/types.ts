@@ -858,6 +858,77 @@ export type Database = {
           },
         ]
       }
+      offer_rules: {
+        Row: {
+          created_at: string
+          customer_type: string | null
+          default_checked: boolean | null
+          description: string | null
+          discount_type: string | null
+          discount_value: number | null
+          id: string
+          is_active: boolean
+          max_items: number | null
+          min_order_value: number | null
+          name: string
+          priority: number
+          suggested_product_ids: string[]
+          tenant_id: string
+          title: string | null
+          trigger_product_ids: string[] | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_type?: string | null
+          default_checked?: boolean | null
+          description?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean
+          max_items?: number | null
+          min_order_value?: number | null
+          name: string
+          priority?: number
+          suggested_product_ids?: string[]
+          tenant_id: string
+          title?: string | null
+          trigger_product_ids?: string[] | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_type?: string | null
+          default_checked?: boolean | null
+          description?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          id?: string
+          is_active?: boolean
+          max_items?: number | null
+          min_order_value?: number | null
+          name?: string
+          priority?: number
+          suggested_product_ids?: string[]
+          tenant_id?: string
+          title?: string | null
+          trigger_product_ids?: string[] | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "offer_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_history: {
         Row: {
           action: string
