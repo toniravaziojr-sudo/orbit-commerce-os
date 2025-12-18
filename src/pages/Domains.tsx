@@ -53,7 +53,10 @@ export default function Domains() {
   const [instructionsDialog, setInstructionsDialog] = useState<TenantDomain | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
 
-  const previewDomain = currentTenant?.slug ? `${currentTenant.slug}.lovable.app` : null;
+  // URL real do storefront (baseada no host atual + path do tenant)
+  const storefrontUrl = currentTenant?.slug 
+    ? `${window.location.origin}/store/${currentTenant.slug}` 
+    : null;
 
   const handleCopyToken = (domain: TenantDomain) => {
     navigator.clipboard.writeText(`cc-verify=${domain.verification_token}`);
@@ -75,28 +78,28 @@ export default function Domains() {
         description="Gerencie o domínio padrão e domínios personalizados da sua loja"
       />
 
-      {/* Preview Domain Card */}
+      {/* Storefront URL Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            Domínio de Preview
+            URL do Storefront
           </CardTitle>
           <CardDescription>
-            Este é o domínio temporário da sua loja, disponível automaticamente.
+            Esta é a URL da sua loja, disponível automaticamente.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {previewDomain ? (
-            <div className="flex items-center gap-3">
-              <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono">
-                {previewDomain}
+          {storefrontUrl ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
+                {storefrontUrl}
               </code>
-              <Badge variant="outline">Preview</Badge>
+              <Badge variant="outline">Ativo</Badge>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.open(`https://${previewDomain}`, '_blank')}
+                onClick={() => window.open(storefrontUrl, '_blank')}
               >
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Abrir
