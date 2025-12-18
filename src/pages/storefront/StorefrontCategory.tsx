@@ -2,7 +2,8 @@
 // STOREFRONT CATEGORY - Public category page via Builder
 // =============================================
 
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { usePublicCategory, usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
@@ -11,6 +12,7 @@ import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRe
 import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
+import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 
 interface CategorySettings {
   showCategoryName?: boolean;
@@ -21,6 +23,7 @@ interface CategorySettings {
 export default function StorefrontCategory() {
   const { tenantSlug, categorySlug } = useParams<{ tenantSlug: string; categorySlug: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -159,6 +162,14 @@ export default function StorefrontCategory() {
   const canPreview = isPreviewMode 
     ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
     : true;
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !template.isLoading) {
+      const cleanPath = `/store/${tenantSlug}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
 
   return (
     <PublicTemplateRenderer

@@ -135,22 +135,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   }, [formData, isHydrated]);
 
   // Check if email exists when user leaves email field
+  // Note: This is a non-blocking check. If RLS blocks the query, we assume new customer.
   const checkExistingEmail = async (email: string) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
     
     setIsCheckingEmail(true);
     try {
-      // Check if user exists in auth (by trying to sign in with wrong password - hacky but works)
-      // Actually, we'll just check customers table
-      const { data } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
+      // Check via localStorage first (customer who already purchased)
+      const savedEmail = localStorage.getItem(`checkout_email_${tenantSlug}`);
+      if (savedEmail && savedEmail.toLowerCase() === email.toLowerCase()) {
+        setIsExistingCustomer(true);
+        setIsCheckingEmail(false);
+        return;
+      }
       
-      setIsExistingCustomer(!!data);
+      // For anonymous checkout, we can't query customers table due to RLS
+      // Just default to new customer - account creation is optional anyway
+      setIsExistingCustomer(false);
     } catch (error) {
       console.error('Error checking email:', error);
+      setIsExistingCustomer(false);
     } finally {
       setIsCheckingEmail(false);
     }

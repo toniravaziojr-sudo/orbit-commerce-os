@@ -3,7 +3,7 @@
 // =============================================
 
 import { useEffect } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicPageTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewPageTemplate } from '@/hooks/usePreviewTemplate';
@@ -14,10 +14,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getEffectiveSeo, applySeoToDocument } from '@/lib/seo';
+import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 
 export default function StorefrontPage() {
   const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, categories: allCategories, isPublished, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -88,6 +90,14 @@ export default function StorefrontPage() {
   const canPreview = isPreviewMode 
     ? ('canPreview' in pageData ? Boolean(pageData.canPreview) : true) 
     : true;
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !pageData.isLoading) {
+      const cleanPath = `/store/${tenantSlug}/page/${pageSlug}${getCleanQueryString(searchParams)}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, pageData.isLoading, tenantSlug, pageSlug, searchParams, navigate]);
 
   // Page not found - show 404, never redirect to home
   if (!pageData.content && !pageData.isLoading) {

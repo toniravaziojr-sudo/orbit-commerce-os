@@ -2,16 +2,19 @@
 // STOREFRONT THANK YOU - Post-checkout confirmation page
 // =============================================
 
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import type { BlockRenderContext } from '@/lib/builder/types';
+import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 
 export default function StorefrontThankYou() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
 
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -21,6 +24,21 @@ export default function StorefrontThankYou() {
   const previewTemplate = usePreviewTemplate(tenantSlug || '', 'thank_you');
   
   const template = isPreviewMode ? previewTemplate : publicTemplate;
+
+  // Check preview access
+  const canPreview = isPreviewMode 
+    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
+    : true;
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  // Keep order params but strip preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !template.isLoading) {
+      const cleanParams = getCleanQueryString(searchParams);
+      const cleanPath = `/store/${tenantSlug}/obrigado${cleanParams}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate]);
 
   // Build context for block rendering with order data
   const context: BlockRenderContext = {
@@ -51,11 +69,6 @@ export default function StorefrontThankYou() {
       orderNumber: searchParams.get('pedido') || undefined,
     },
   };
-
-  // Check preview access
-  const canPreview = isPreviewMode 
-    ? ('canPreview' in template ? Boolean(template.canPreview) : true) 
-    : true;
 
   return (
     <PublicTemplateRenderer
