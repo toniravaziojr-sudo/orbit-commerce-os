@@ -80,68 +80,91 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     setPaymentResult(null);
 
     try {
+      console.log('[Checkout] Step 0: Starting payment process');
+      
       // Calculate totals
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const shippingTotal = shippingOption?.price || 0;
+      const shippingTotal = typeof shippingOption?.price === 'string' 
+        ? parseFloat(shippingOption.price) || 0 
+        : (shippingOption?.price || 0);
       const total = subtotal + shippingTotal;
+      
+      console.log('[Checkout] Totals calculated:', { subtotal, shippingTotal, total });
 
       // 1. Generate order number
+      console.log('[Checkout] Step 1: Generating order number');
       const { data: orderNumberData, error: orderNumberError } = await supabase
         .rpc('generate_order_number', { p_tenant_id: tenantId });
 
       if (orderNumberError) {
-        console.error('Error generating order number:', orderNumberError);
-        throw new Error('Erro ao gerar número do pedido');
+        console.error('[Checkout] Step 1 FAILED - Error generating order number:', orderNumberError);
+        throw new Error(`Erro ao gerar número do pedido: ${orderNumberError.message}`);
       }
 
       const orderNumber = orderNumberData || `PED-${Date.now()}`;
+      console.log('[Checkout] Step 1 OK - Order number:', orderNumber);
 
       // 2. Upsert customer to get customer_id
+      console.log('[Checkout] Step 2: Upserting customer');
       let customerId: string | null = null;
       
-      // Check if customer exists by email
-      const { data: existingCustomer } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('email', customer.email)
-        .maybeSingle();
-
-      if (existingCustomer) {
-        customerId = existingCustomer.id;
-        // Update customer info if needed
-        await supabase
+      try {
+        // Check if customer exists by email
+        const { data: existingCustomer, error: selectError } = await supabase
           .from('customers')
-          .update({
-            full_name: customer.name,
-            phone: customer.phone,
-            cpf: customer.cpf,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', customerId);
-      } else {
-        // Create new customer
-        const { data: newCustomer, error: customerError } = await supabase
-          .from('customers')
-          .insert({
-            tenant_id: tenantId,
-            email: customer.email,
-            full_name: customer.name,
-            phone: customer.phone,
-            cpf: customer.cpf,
-            status: 'active',
-          })
           .select('id')
-          .single();
+          .eq('tenant_id', tenantId)
+          .eq('email', customer.email)
+          .maybeSingle();
 
-        if (!customerError && newCustomer) {
-          customerId = newCustomer.id;
-        } else {
-          console.warn('Could not create customer:', customerError);
+        if (selectError) {
+          console.warn('[Checkout] Step 2a - Customer select failed:', selectError);
         }
+
+        if (existingCustomer) {
+          customerId = existingCustomer.id;
+          console.log('[Checkout] Step 2b - Updating existing customer:', customerId);
+          // Update customer info if needed
+          await supabase
+            .from('customers')
+            .update({
+              full_name: customer.name,
+              phone: customer.phone,
+              cpf: customer.cpf,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', customerId);
+        } else {
+          console.log('[Checkout] Step 2b - Creating new customer');
+          // Create new customer
+          const { data: newCustomer, error: customerError } = await supabase
+            .from('customers')
+            .insert({
+              tenant_id: tenantId,
+              email: customer.email,
+              full_name: customer.name,
+              phone: customer.phone,
+              cpf: customer.cpf,
+              status: 'active',
+            })
+            .select('id')
+            .single();
+
+          if (!customerError && newCustomer) {
+            customerId = newCustomer.id;
+            console.log('[Checkout] Step 2b OK - New customer created:', customerId);
+          } else {
+            console.warn('[Checkout] Step 2b - Could not create customer:', customerError);
+          }
+        }
+      } catch (customerErr) {
+        console.warn('[Checkout] Step 2 - Customer operation failed (non-blocking):', customerErr);
       }
+      
+      console.log('[Checkout] Step 2 complete - Customer ID:', customerId);
 
       // 3. Create order in database with customer_id
+      console.log('[Checkout] Step 3: Creating order');
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -170,13 +193,15 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         .single();
 
       if (orderError) {
-        console.error('Error creating order:', orderError);
-        throw new Error('Erro ao criar pedido');
+        console.error('[Checkout] Step 3 FAILED - Error creating order:', orderError);
+        throw new Error(`Erro ao criar pedido: ${orderError.message}`);
       }
 
       const orderId = order.id;
+      console.log('[Checkout] Step 3 OK - Order created:', orderId);
 
-      // 3. Create order items
+      // 4. Create order items
+      console.log('[Checkout] Step 4: Creating order items');
       const orderItems = items.map(item => ({
         order_id: orderId,
         product_id: item.product_id,
@@ -193,14 +218,18 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         .insert(orderItems);
 
       if (itemsError) {
-        console.error('Error creating order items:', itemsError);
+        console.error('[Checkout] Step 4 FAILED - Error creating order items:', itemsError);
         // Continue anyway - order was created
+      } else {
+        console.log('[Checkout] Step 4 OK - Order items created');
       }
 
-      // 4. Call Pagar.me Edge Function
+      // 5. Call Pagar.me Edge Function
+      console.log('[Checkout] Step 5: Calling Pagar.me');
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('pagarme-create-charge', {
         body: {
           tenant_id: tenantId,
+          checkout_id: orderId, // Edge function expects checkout_id
           order_id: orderId,
           method,
           amount: Math.round(total * 100), // Convert to cents
@@ -210,14 +239,14 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             phone: customer.phone.replace(/\D/g, ''),
             document: customer.cpf.replace(/\D/g, ''),
           },
-          billing: {
+          billing_address: {
             street: shipping.street,
             number: shipping.number,
             complement: shipping.complement || '',
             neighborhood: shipping.neighborhood,
             city: shipping.city,
             state: shipping.state,
-            zip_code: shipping.postalCode.replace(/\D/g, ''),
+            postal_code: shipping.postalCode.replace(/\D/g, ''),
             country: 'BR',
           },
           card: card ? {
@@ -231,7 +260,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       });
 
       if (paymentError) {
-        console.error('Payment error:', paymentError);
+        console.error('[Checkout] Step 5 FAILED - Payment error:', paymentError);
         
         // Update order status to failed
         await supabase
@@ -241,6 +270,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
 
         throw new Error(paymentError.message || 'Erro ao processar pagamento');
       }
+      
+      console.log('[Checkout] Step 5 OK - Payment processed:', paymentData);
 
       // 5. Process payment response
       const result: PaymentResult = {
