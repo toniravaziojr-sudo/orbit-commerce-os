@@ -6,7 +6,23 @@
 import { hasValidSlug } from './slugValidation';
 
 /**
- * Get the base URL for a store
+ * The default public origin for the app
+ */
+export const PUBLIC_APP_ORIGIN = 'https://orbit-commerce-os.lovable.app';
+
+/**
+ * Get the canonical origin for a tenant
+ * @param customDomain - The custom domain if active (e.g., "loja.respeiteohomem.com.br")
+ */
+export function getCanonicalOrigin(customDomain: string | null | undefined): string {
+  if (customDomain) {
+    return `https://${customDomain}`;
+  }
+  return PUBLIC_APP_ORIGIN;
+}
+
+/**
+ * Get the base URL for a store (relative path only, for internal navigation)
  */
 export function getStoreBaseUrl(tenantSlug: string): string {
   if (!tenantSlug) {
@@ -16,6 +32,14 @@ export function getStoreBaseUrl(tenantSlug: string): string {
     return '/store';
   }
   return `/store/${tenantSlug}`;
+}
+
+/**
+ * Get the full canonical base URL for a store (absolute URL with domain)
+ */
+export function getCanonicalStoreBaseUrl(tenantSlug: string, customDomain: string | null | undefined): string {
+  const origin = getCanonicalOrigin(customDomain);
+  return `${origin}/store/${tenantSlug}`;
 }
 
 /**
@@ -424,4 +448,79 @@ export function diagnoseEntityUrl(
     status,
     message,
   };
+}
+
+// =============================================
+// CANONICAL URL BUILDERS (Absolute URLs with domain)
+// These return full URLs suitable for sharing, copying, SEO, etc.
+// =============================================
+
+/**
+ * Get the canonical home URL (absolute)
+ */
+export function getCanonicalHomeUrl(tenantSlug: string, customDomain: string | null | undefined): string {
+  return getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+}
+
+/**
+ * Get the canonical product URL (absolute)
+ */
+export function getCanonicalProductUrl(
+  tenantSlug: string, 
+  productSlug: string | undefined, 
+  customDomain: string | null | undefined
+): string | null {
+  if (!hasValidSlug(productSlug)) return null;
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/p/${productSlug}`;
+}
+
+/**
+ * Get the canonical category URL (absolute)
+ */
+export function getCanonicalCategoryUrl(
+  tenantSlug: string, 
+  categorySlug: string | undefined, 
+  customDomain: string | null | undefined
+): string | null {
+  if (!hasValidSlug(categorySlug)) return null;
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/c/${categorySlug}`;
+}
+
+/**
+ * Get the canonical page URL (absolute)
+ */
+export function getCanonicalPageUrl(
+  tenantSlug: string, 
+  pageSlug: string | undefined, 
+  customDomain: string | null | undefined
+): string | null {
+  if (!hasValidSlug(pageSlug)) return null;
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/page/${pageSlug}`;
+}
+
+/**
+ * Get the canonical cart URL (absolute)
+ */
+export function getCanonicalCartUrl(tenantSlug: string, customDomain: string | null | undefined): string {
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/cart`;
+}
+
+/**
+ * Get the canonical checkout URL (absolute)
+ */
+export function getCanonicalCheckoutUrl(tenantSlug: string, customDomain: string | null | undefined): string {
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/checkout`;
+}
+
+/**
+ * Get the canonical thank-you URL (absolute)
+ */
+export function getCanonicalThankYouUrl(tenantSlug: string, customDomain: string | null | undefined): string {
+  const base = getCanonicalStoreBaseUrl(tenantSlug, customDomain);
+  return `${base}/obrigado`;
 }
