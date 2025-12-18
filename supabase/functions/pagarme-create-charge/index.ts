@@ -1,3 +1,8 @@
+// ============================================
+// PAGAR.ME CREATE CHARGE - Payment processing
+// Uses database config first, falls back to Secrets
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,10 +11,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
-const PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+// Fallback to environment secrets
+const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
+const ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
   checkout_id: string;
@@ -42,18 +49,82 @@ interface ChargeRequest {
   installments?: number;
 }
 
+// Get Pagar.me credentials from database or fallback to Secrets
+async function getPagarmeCredentials(supabase: any, tenantId: string): Promise<{
+  apiKey: string;
+  accountId: string;
+  environment: string;
+  source: 'database' | 'fallback';
+}> {
+  // Try database first
+  const { data: provider } = await supabase
+    .from('payment_providers')
+    .select('credentials, environment, is_enabled')
+    .eq('tenant_id', tenantId)
+    .eq('provider', 'pagarme')
+    .single();
+
+  if (provider?.is_enabled && provider?.credentials?.api_key) {
+    console.log('[Pagar.me] Using database credentials');
+    return {
+      apiKey: provider.credentials.api_key,
+      accountId: provider.credentials.account_id || '',
+      environment: provider.environment || 'sandbox',
+      source: 'database',
+    };
+  }
+
+  // Fallback to environment secrets
+  if (ENV_PAGARME_API_KEY) {
+    console.log('[Pagar.me] Using fallback (Secrets)');
+    return {
+      apiKey: ENV_PAGARME_API_KEY,
+      accountId: ENV_PAGARME_ACCOUNT_ID || '',
+      environment: 'sandbox', // Assume sandbox for fallback
+      source: 'fallback',
+    };
+  }
+
+  throw new Error('Pagar.me não configurado. Configure em Sistema → Integrações.');
+}
+
+// Check if payment method is enabled for tenant
+async function isMethodEnabled(supabase: any, tenantId: string, method: string): Promise<boolean> {
+  const { data: paymentMethod } = await supabase
+    .from('payment_methods')
+    .select('is_enabled')
+    .eq('tenant_id', tenantId)
+    .eq('method', method)
+    .single();
+
+  // If not configured in DB, allow by default (backward compatibility)
+  if (!paymentMethod) {
+    return true;
+  }
+
+  return paymentMethod.is_enabled;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    if (!PAGARME_API_KEY || !PAGARME_ACCOUNT_ID) {
-      throw new Error('Pagar.me credentials not configured');
-    }
-
     const payload: ChargeRequest = await req.json();
-    console.log('Creating charge:', { method: payload.method, amount: payload.amount, checkout_id: payload.checkout_id });
+    console.log('Creating charge:', { method: payload.method, amount: payload.amount, checkout_id: payload.checkout_id, tenant_id: payload.tenant_id });
+
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Get credentials from database or fallback
+    const credentials = await getPagarmeCredentials(supabase, payload.tenant_id);
+    console.log(`[Pagar.me] Using ${credentials.source} credentials, environment: ${credentials.environment}`);
+
+    // Check if method is enabled
+    const methodEnabled = await isMethodEnabled(supabase, payload.tenant_id, payload.method);
+    if (!methodEnabled) {
+      throw new Error(`Método de pagamento ${payload.method} não está habilitado`);
+    }
 
     // Build Pagar.me order request
     const orderPayload: any = {
@@ -80,6 +151,7 @@ serve(async (req) => {
       metadata: {
         checkout_id: payload.checkout_id,
         tenant_id: payload.tenant_id,
+        credential_source: credentials.source,
       },
     };
 
@@ -129,7 +201,7 @@ serve(async (req) => {
     }
 
     // Call Pagar.me API
-    const authHeader = btoa(`${PAGARME_API_KEY}:`);
+    const authHeader = btoa(`${credentials.apiKey}:`);
     const response = await fetch('https://api.pagar.me/core/v5/orders', {
       method: 'POST',
       headers: {
@@ -148,8 +220,6 @@ serve(async (req) => {
     }
 
     // Save transaction to database
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-    
     const charge = pagarmeResponse.charges?.[0];
     const transactionData = {
       tenant_id: payload.tenant_id,
@@ -163,6 +233,8 @@ serve(async (req) => {
       payment_data: {
         order_id: pagarmeResponse.id,
         charge_id: charge?.id,
+        credential_source: credentials.source,
+        environment: credentials.environment,
         // PIX data
         qr_code: charge?.last_transaction?.qr_code,
         qr_code_url: charge?.last_transaction?.qr_code_url,
@@ -189,6 +261,7 @@ serve(async (req) => {
       provider_id: pagarmeResponse.id,
       status: charge?.status,
       payment_data: transactionData.payment_data,
+      credential_source: credentials.source,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

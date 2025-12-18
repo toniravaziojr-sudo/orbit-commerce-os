@@ -1,12 +1,25 @@
+// ============================================
+// FRENET QUOTE - Shipping quote
+// Uses database config first, falls back to Secrets
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+// Fallback to environment secrets
+const ENV_FRENET_TOKEN = Deno.env.get('FRENET_TOKEN');
+
 interface ShippingQuoteRequest {
-  seller_cep: string;
+  tenant_id: string;
+  seller_cep?: string; // Optional - will use config if not provided
   recipient_cep: string;
   items: Array<{
     weight: number; // kg
@@ -28,6 +41,42 @@ interface FrenetShippingService {
   Msg: string | null;
 }
 
+// Get Frenet credentials from database or fallback to Secrets
+async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
+  token: string;
+  originCep: string;
+  source: 'database' | 'fallback';
+}> {
+  // Try database first
+  const { data: provider } = await supabase
+    .from('shipping_providers')
+    .select('credentials, settings, is_enabled')
+    .eq('tenant_id', tenantId)
+    .eq('provider', 'frenet')
+    .single();
+
+  if (provider?.is_enabled && provider?.credentials?.token) {
+    console.log('[Frenet] Using database credentials');
+    return {
+      token: provider.credentials.token,
+      originCep: provider.settings?.origin_cep || '01310100',
+      source: 'database',
+    };
+  }
+
+  // Fallback to environment secrets
+  if (ENV_FRENET_TOKEN) {
+    console.log('[Frenet] Using fallback (Secrets)');
+    return {
+      token: ENV_FRENET_TOKEN,
+      originCep: '01310100', // Default CEP for fallback
+      source: 'fallback',
+    };
+  }
+
+  throw new Error('Frenet não configurado. Configure em Sistema → Integrações.');
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -35,29 +84,33 @@ serve(async (req) => {
   }
 
   try {
-    const FRENET_KEY = Deno.env.get('FRENET_KEY');
-    const FRENET_PASSWORD = Deno.env.get('FRENET_PASSWORD');
-    const FRENET_TOKEN = Deno.env.get('FRENET_TOKEN');
-
-    if (!FRENET_TOKEN) {
-      console.error('FRENET_TOKEN not configured');
-      return new Response(
-        JSON.stringify({ error: 'Frenet not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const body: ShippingQuoteRequest = await req.json();
     console.log('Frenet quote request:', JSON.stringify(body));
 
-    const { seller_cep, recipient_cep, items } = body;
+    const { tenant_id, recipient_cep, items } = body;
 
-    if (!seller_cep || !recipient_cep || !items?.length) {
+    if (!tenant_id) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: seller_cep, recipient_cep, items' }),
+        JSON.stringify({ error: 'tenant_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    if (!recipient_cep || !items?.length) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: recipient_cep, items' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+    // Get credentials from database or fallback
+    const credentials = await getFrenetCredentials(supabase, tenant_id);
+    console.log(`[Frenet] Using ${credentials.source} credentials, origin CEP: ${credentials.originCep}`);
+
+    // Use provided seller_cep or config origin_cep
+    const sellerCep = body.seller_cep || credentials.originCep;
 
     // Calculate totals
     let totalWeight = 0;
@@ -82,7 +135,7 @@ serve(async (req) => {
 
     // Frenet API request
     const frenetPayload = {
-      SellerCEP: seller_cep.replace(/\D/g, ''),
+      SellerCEP: sellerCep.replace(/\D/g, ''),
       RecipientCEP: recipient_cep.replace(/\D/g, ''),
       ShipmentInvoiceValue: totalValue,
       ShippingServiceCode: null, // Get all services
@@ -105,7 +158,7 @@ serve(async (req) => {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'token': FRENET_TOKEN
+        'token': credentials.token
       },
       body: JSON.stringify(frenetPayload)
     });
@@ -143,8 +196,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         options,
-        seller_cep,
+        seller_cep: sellerCep,
         recipient_cep,
+        credential_source: credentials.source,
         totals: {
           weight: totalWeight,
           height: totalHeight,
