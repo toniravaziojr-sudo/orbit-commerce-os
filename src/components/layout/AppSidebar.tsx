@@ -57,6 +57,7 @@ const navigation: NavGroup[] = [
     label: "E-commerce",
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
+      { title: "Checkouts Abandonados", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },

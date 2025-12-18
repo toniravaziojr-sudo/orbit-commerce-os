@@ -36,6 +36,7 @@ import LandingPages from "@/pages/LandingPages";
 
 import Reviews from "@/pages/Reviews";
 import Offers from "@/pages/Offers";
+import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import Auth from "@/pages/Auth";
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="/executions" element={<Executions />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/orders/:id" element={<OrderDetail />} />
+              <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
               <Route path="/products" element={<Products />} />
               <Route path="/categories" element={<Categories />} />
               <Route path="/menus" element={<Menus />} />
