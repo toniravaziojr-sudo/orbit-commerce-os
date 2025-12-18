@@ -94,7 +94,8 @@ export default function CustomerDetail() {
   
   const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(id);
   const { addresses, isLoading: addressesLoading } = useCustomerAddresses(id);
-  const { orders, isLoading: ordersLoading } = useCustomerOrders(id);
+  // Pass customer email (not id) to useCustomerOrders - the hook filters by customer_email
+  const { orders, isLoading: ordersLoading } = useCustomerOrders(customer?.email);
 
   useEffect(() => {
     async function fetchCustomer() {
