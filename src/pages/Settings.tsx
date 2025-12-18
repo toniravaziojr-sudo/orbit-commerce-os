@@ -1,14 +1,22 @@
-import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette } from "lucide-react";
+import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette, Globe } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useNavigate } from "react-router-dom";
 
 const SETTINGS_SECTIONS = [
   {
     title: "Dados da Loja",
     description: "Configure informações básicas, logo e dados de contato",
     icon: Store,
+    href: "/storefront",
+  },
+  {
+    title: "Domínios",
+    description: "Gerencie domínios personalizados da sua loja",
+    icon: Globe,
+    href: "/settings/domains",
   },
   {
     title: "Equipe & Permissões",
@@ -33,6 +41,8 @@ const SETTINGS_SECTIONS = [
 ];
 
 export default function Settings() {
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -46,7 +56,8 @@ export default function Settings() {
           return (
             <Card
               key={section.title}
-              className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
+              className={`transition-all hover:shadow-md hover:border-primary/50 ${section.href ? 'cursor-pointer' : ''}`}
+              onClick={() => section.href && navigate(section.href)}
             >
               <CardContent className="pt-6">
                 <div className="flex items-start gap-4">
@@ -67,8 +78,6 @@ export default function Settings() {
           );
         })}
       </div>
-
-      {/* Tenant Info */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg font-semibold">Informações do Tenant</CardTitle>
