@@ -1,12 +1,11 @@
 // =============================================
 // USE CHECKOUT PAYMENT - Real payment processing with Pagar.me
-// Creates order, payment_transaction, and calls Edge Function
+// Uses edge functions for secure server-side operations
 // =============================================
 
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
-import { normalizeEmail } from '@/lib/normalizeEmail';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
@@ -81,11 +80,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     setPaymentResult(null);
 
     try {
-      console.log('[Checkout] Step 0: Starting payment process');
-      
-      // Normalize customer email for consistent storage and lookup
-      const normalizedEmail = normalizeEmail(customer.email);
-      console.log('[Checkout] Email normalized:', customer.email, '->', normalizedEmail);
+      console.log('[Checkout] Starting payment process via edge functions');
       
       // Calculate totals
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -94,148 +89,59 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
         : (shippingOption?.price || 0);
       const total = subtotal + shippingTotal;
       
-      console.log('[Checkout] Totals calculated:', { subtotal, shippingTotal, total });
+      console.log('[Checkout] Totals:', { subtotal, shippingTotal, total });
 
-      // 1. Generate order number
-      console.log('[Checkout] Step 1: Generating order number');
-      const { data: orderNumberData, error: orderNumberError } = await supabase
-        .rpc('generate_order_number', { p_tenant_id: tenantId });
-
-      if (orderNumberError) {
-        console.error('[Checkout] Step 1 FAILED - Error generating order number:', orderNumberError);
-        throw new Error(`Erro ao gerar número do pedido: ${orderNumberError.message}`);
-      }
-
-      const orderNumber = orderNumberData || `PED-${Date.now()}`;
-      console.log('[Checkout] Step 1 OK - Order number:', orderNumber);
-
-      // 2. Upsert customer to get customer_id
-      console.log('[Checkout] Step 2: Upserting customer');
-      let customerId: string | null = null;
-      
-      try {
-        // Check if customer exists by normalized email
-        const { data: existingCustomer, error: selectError } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('email', normalizedEmail)
-          .maybeSingle();
-
-        if (selectError) {
-          console.warn('[Checkout] Step 2a - Customer select failed:', selectError);
-        }
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-          console.log('[Checkout] Step 2b - Updating existing customer:', customerId);
-          // Update customer info if needed
-          await supabase
-            .from('customers')
-            .update({
-              full_name: customer.name,
-              phone: customer.phone,
-              cpf: customer.cpf,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', customerId);
-        } else {
-          console.log('[Checkout] Step 2b - Creating new customer');
-          // Create new customer with normalized email
-          const { data: newCustomer, error: customerError } = await supabase
-            .from('customers')
-            .insert({
-              tenant_id: tenantId,
-              email: normalizedEmail,
-              full_name: customer.name,
-              phone: customer.phone,
-              cpf: customer.cpf,
-              status: 'active',
-            })
-            .select('id')
-            .single();
-
-          if (!customerError && newCustomer) {
-            customerId = newCustomer.id;
-            console.log('[Checkout] Step 2b OK - New customer created:', customerId);
-          } else {
-            console.warn('[Checkout] Step 2b - Could not create customer:', customerError);
-          }
-        }
-      } catch (customerErr) {
-        console.warn('[Checkout] Step 2 - Customer operation failed (non-blocking):', customerErr);
-      }
-      
-      console.log('[Checkout] Step 2 complete - Customer ID:', customerId);
-
-      // 3. Create order in database with customer_id
-      // 3. Create order with normalized email
-      console.log('[Checkout] Step 3: Creating order with normalized email');
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
+      // 1. Create order via edge function (handles customer, order, order_items)
+      console.log('[Checkout] Step 1: Creating order via edge function');
+      const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
+        body: {
           tenant_id: tenantId,
-          order_number: orderNumber,
-          customer_id: customerId,
-          customer_name: customer.name,
-          customer_email: normalizedEmail,
-          customer_phone: customer.phone,
-          status: 'pending',
-          payment_status: 'pending',
-          payment_method: method as 'pix' | 'boleto' | 'credit_card',
+          customer: {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            cpf: customer.cpf,
+          },
+          shipping: {
+            street: shipping.street,
+            number: shipping.number,
+            complement: shipping.complement,
+            neighborhood: shipping.neighborhood,
+            city: shipping.city,
+            state: shipping.state,
+            postal_code: shipping.postalCode,
+            carrier: shippingOption?.label,
+          },
+          items: items.map(item => ({
+            product_id: item.product_id,
+            product_name: item.name,
+            sku: item.sku,
+            quantity: item.quantity,
+            unit_price: item.price,
+            image_url: item.image_url,
+          })),
+          payment_method: method,
           subtotal,
           shipping_total: shippingTotal,
           total,
-          shipping_street: shipping.street,
-          shipping_number: shipping.number,
-          shipping_complement: shipping.complement || null,
-          shipping_neighborhood: shipping.neighborhood,
-          shipping_city: shipping.city,
-          shipping_state: shipping.state,
-          shipping_postal_code: shipping.postalCode,
-          shipping_carrier: shippingOption?.label || null,
-        })
-        .select('id')
-        .single();
+        },
+      });
 
-      if (orderError) {
-        console.error('[Checkout] Step 3 FAILED - Error creating order:', orderError);
-        throw new Error(`Erro ao criar pedido: ${orderError.message}`);
+      if (orderError || !orderData?.success) {
+        console.error('[Checkout] Step 1 FAILED:', orderError || orderData?.error);
+        throw new Error(orderError?.message || orderData?.error || 'Erro ao criar pedido');
       }
 
-      const orderId = order.id;
-      console.log('[Checkout] Step 3 OK - Order created:', orderId);
+      const orderId = orderData.order_id;
+      const orderNumber = orderData.order_number;
+      console.log('[Checkout] Step 1 OK - Order:', orderId, orderNumber);
 
-      // 4. Create order items
-      console.log('[Checkout] Step 4: Creating order items');
-      const orderItems = items.map(item => ({
-        order_id: orderId,
-        product_id: item.product_id,
-        product_name: item.name,
-        sku: item.sku,
-        quantity: item.quantity,
-        unit_price: item.price,
-        total_price: item.price * item.quantity,
-        product_image_url: item.image_url || null,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-
-      if (itemsError) {
-        console.error('[Checkout] Step 4 FAILED - Error creating order items:', itemsError);
-        // Continue anyway - order was created
-      } else {
-        console.log('[Checkout] Step 4 OK - Order items created');
-      }
-
-      // 5. Call Pagar.me Edge Function
-      console.log('[Checkout] Step 5: Calling Pagar.me');
+      // 2. Process payment via Pagar.me edge function
+      console.log('[Checkout] Step 2: Processing payment');
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('pagarme-create-charge', {
         body: {
           tenant_id: tenantId,
-          checkout_id: orderId, // Edge function expects checkout_id
+          checkout_id: orderId,
           order_id: orderId,
           method,
           amount: Math.round(total * 100), // Convert to cents
@@ -266,20 +172,13 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       });
 
       if (paymentError) {
-        console.error('[Checkout] Step 5 FAILED - Payment error:', paymentError);
-        
-        // Update order status to failed
-        await supabase
-          .from('orders')
-          .update({ payment_status: 'declined' as const, status: 'cancelled' as const })
-          .eq('id', orderId);
-
+        console.error('[Checkout] Step 2 FAILED:', paymentError);
         throw new Error(paymentError.message || 'Erro ao processar pagamento');
       }
       
-      console.log('[Checkout] Step 5 OK - Payment processed:', paymentData);
+      console.log('[Checkout] Step 2 OK - Payment processed');
 
-      // 5. Process payment response
+      // Build result
       const result: PaymentResult = {
         success: true,
         orderId,
@@ -288,27 +187,15 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       };
 
       if (method === 'pix') {
-        result.pixQrCode = paymentData?.pix?.qr_code;
-        result.pixQrCodeUrl = paymentData?.pix?.qr_code_url;
-        result.pixExpiresAt = paymentData?.pix?.expires_at;
+        result.pixQrCode = paymentData?.payment_data?.qr_code;
+        result.pixQrCodeUrl = paymentData?.payment_data?.qr_code_url;
+        result.pixExpiresAt = paymentData?.payment_data?.expires_at;
       } else if (method === 'boleto') {
-        result.boletoUrl = paymentData?.boleto?.url;
-        result.boletoBarcode = paymentData?.boleto?.barcode;
-        result.boletoDueDate = paymentData?.boleto?.due_at;
+        result.boletoUrl = paymentData?.payment_data?.boleto_url;
+        result.boletoBarcode = paymentData?.payment_data?.boleto_barcode;
+        result.boletoDueDate = paymentData?.payment_data?.boleto_due_date;
       } else if (method === 'credit_card') {
         result.cardStatus = paymentData?.status;
-        
-        // If credit card was approved immediately, update order
-        if (paymentData?.status === 'paid') {
-          await supabase
-            .from('orders')
-            .update({ 
-              payment_status: 'approved' as const, 
-              status: 'paid' as const,
-              paid_at: new Date().toISOString(),
-            })
-            .eq('id', orderId);
-        }
       }
 
       setPaymentResult(result);
