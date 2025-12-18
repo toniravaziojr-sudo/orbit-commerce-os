@@ -1,5 +1,6 @@
 // =============================================
 // SHIPPING ESTIMATOR - CEP input and shipping options
+// Uses Frenet Edge Function when provider is 'frenet'
 // =============================================
 
 import { useState } from 'react';
@@ -20,8 +21,8 @@ function formatCep(value: string): string {
 }
 
 export function ShippingEstimator() {
-  const { subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
-  const { config, quote, isLoading: configLoading } = useShipping();
+  const { items, subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
+  const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,10 +43,23 @@ export function ShippingEstimator() {
     setError(null);
 
     try {
-      // Simulate async call for better UX
-      await new Promise(resolve => setTimeout(resolve, 500));
+      let options;
       
-      const options = quote(cepDigits, subtotal);
+      // Use async quote for Frenet provider
+      if (config.provider === 'frenet') {
+        const cartItems = items.map(item => ({
+          weight: 0.3, // Default weight - could be fetched from product
+          height: 10,
+          width: 10,
+          length: 10,
+          quantity: item.quantity,
+          price: item.price,
+        }));
+        options = await quoteAsync(cepDigits, subtotal, cartItems);
+      } else {
+        // Sync quote for mock/manual providers
+        options = quote(cepDigits, subtotal);
+      }
       
       if (options.length === 0) {
         setError('Não encontramos opções de frete para este CEP.');
@@ -54,6 +68,7 @@ export function ShippingEstimator() {
         setShippingOptions(options);
       }
     } catch (err) {
+      console.error('Shipping quote error:', err);
       setError('Erro ao calcular frete. Tente novamente.');
       setShippingOptions([]);
     } finally {

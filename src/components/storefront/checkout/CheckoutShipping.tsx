@@ -1,5 +1,6 @@
 // =============================================
 // CHECKOUT SHIPPING - Reuses shipping from CartContext
+// Uses Frenet Edge Function when provider is 'frenet'
 // =============================================
 
 import { useState } from 'react';
@@ -7,8 +8,8 @@ import { useCart } from '@/contexts/CartContext';
 import { useShipping } from '@/contexts/StorefrontConfigContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Truck, Check, Edit2 } from 'lucide-react';
 
@@ -17,8 +18,8 @@ interface CheckoutShippingProps {
 }
 
 export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
-  const { subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
-  const { quote, isLoading: configLoading } = useShipping();
+  const { items, subtotal, shipping, setShippingCep, setShippingOptions, selectShipping } = useCart();
+  const { config, quote, quoteAsync, isLoading: configLoading } = useShipping();
   const [isEditing, setIsEditing] = useState(false);
   const [tempCep, setTempCep] = useState(shipping.cep);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -45,8 +46,22 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
     setError(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const options = quote(cepDigits, subtotal);
+      let options;
+      
+      // Use async quote for Frenet provider
+      if (config.provider === 'frenet') {
+        const cartItems = items.map(item => ({
+          weight: 0.3,
+          height: 10,
+          width: 10,
+          length: 10,
+          quantity: item.quantity,
+          price: item.price,
+        }));
+        options = await quoteAsync(cepDigits, subtotal, cartItems);
+      } else {
+        options = quote(cepDigits, subtotal);
+      }
       
       if (options.length === 0) {
         setError('Não encontramos opções de frete para este CEP.');

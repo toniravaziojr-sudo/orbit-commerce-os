@@ -20,10 +20,12 @@ import {
 
 // ===== SHIPPING PROVIDER =====
 
-interface ShippingQuote {
+export interface ShippingQuote {
+  code?: string;
   price: number;
   deliveryDays: number;
   label: string;
+  carrier?: string;
   isFree: boolean;
 }
 
@@ -31,6 +33,11 @@ interface ShippingContextValue {
   config: ShippingConfig;
   isLoading: boolean;
   quote: (cep: string, cartTotal: number, cartWeight?: number) => ShippingQuote[];
+  quoteAsync: (
+    cep: string, 
+    cartTotal: number, 
+    items: Array<{ weight?: number; height?: number; width?: number; length?: number; quantity: number; price: number }>
+  ) => Promise<ShippingQuote[]>;
 }
 
 const ShippingContext = createContext<ShippingContextValue | null>(null);
@@ -171,11 +178,79 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
           });
         }
       }
-      // External provider would be handled differently (API call)
+      // Frenet provider is handled by quoteAsync
 
       return quotes;
     };
   }, [shippingConfig]);
+
+  // Async shipping quote function for Frenet
+  const quoteAsync = useMemo(() => {
+    return async (
+      cep: string, 
+      cartTotal: number,
+      items: Array<{ weight?: number; height?: number; width?: number; length?: number; quantity: number; price: number }>
+    ): Promise<ShippingQuote[]> => {
+      // Check for free shipping threshold
+      const isFreeShipping = shippingConfig.freeShippingThreshold != null && 
+        cartTotal >= shippingConfig.freeShippingThreshold;
+
+      // If using Frenet, call the Edge Function
+      if (shippingConfig.provider === 'frenet') {
+        try {
+          const { data, error } = await supabase.functions.invoke('frenet-quote', {
+            body: {
+              seller_cep: shippingConfig.originZip,
+              recipient_cep: cep,
+              items: items.map(item => ({
+                weight: item.weight || 0.3,
+                height: item.height || 10,
+                width: item.width || 10,
+                length: item.length || 10,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+            },
+          });
+
+          if (error) {
+            console.error('Frenet quote error:', error);
+            // Fallback to default
+            return [{
+              price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
+              deliveryDays: shippingConfig.defaultDays,
+              label: 'Frete padrão',
+              isFree: isFreeShipping,
+            }];
+          }
+
+          if (data?.options && data.options.length > 0) {
+            return data.options.map((opt: { code?: string; label: string; carrier?: string; price: number; deliveryDays: number }) => ({
+              code: opt.code,
+              label: opt.label,
+              carrier: opt.carrier,
+              price: isFreeShipping ? 0 : opt.price,
+              deliveryDays: opt.deliveryDays,
+              isFree: isFreeShipping,
+            }));
+          }
+        } catch (err) {
+          console.error('Frenet quote exception:', err);
+        }
+        
+        // Fallback
+        return [{
+          price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
+          deliveryDays: shippingConfig.defaultDays,
+          label: 'Frete padrão',
+          isFree: isFreeShipping,
+        }];
+      }
+
+      // For non-Frenet providers, use sync quote
+      return quote(cep, cartTotal);
+    };
+  }, [shippingConfig, quote]);
 
   // Benefit progress function
   const getProgress = useMemo(() => {
@@ -203,6 +278,7 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
     config: shippingConfig,
     isLoading,
     quote,
+    quoteAsync,
   };
 
   const benefitValue: BenefitContextValue = {
