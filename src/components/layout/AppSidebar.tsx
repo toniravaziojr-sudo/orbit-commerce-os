@@ -12,8 +12,6 @@ import {
   Megaphone,
   Plug,
   DollarSign,
-  CreditCard,
-  Truck,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +24,6 @@ import {
   Menu,
   Rocket,
   Star,
-  Gift,
   TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -93,8 +90,6 @@ const navigation: NavGroup[] = [
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Pagamentos", href: "/payments", icon: CreditCard },
-      { title: "Envios", href: "/shipping", icon: Truck },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },

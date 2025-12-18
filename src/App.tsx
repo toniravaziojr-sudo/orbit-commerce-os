@@ -24,8 +24,6 @@ import Media from "@/pages/Media";
 import Campaigns from "@/pages/Campaigns";
 import Integrations from "@/pages/Integrations";
 import Finance from "@/pages/Finance";
-import Payments from "@/pages/Payments";
-import Shipping from "@/pages/Shipping";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
@@ -135,8 +133,8 @@ const App = () => (
               <Route path="/reviews" element={<Reviews />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/finance" element={<Finance />} />
-              <Route path="/payments" element={<Payments />} />
-              <Route path="/shipping" element={<Shipping />} />
+              <Route path="/payments" element={<Navigate to="/integrations" replace />} />
+              <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
               <Route path="/fiscal" element={<Fiscal />} />
               <Route path="/purchases" element={<Purchases />} />
               <Route path="/settings" element={<Settings />} />
