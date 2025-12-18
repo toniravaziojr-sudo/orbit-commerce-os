@@ -209,6 +209,19 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
           {/* Shipping section */}
           <CheckoutShipping disabled={isProcessing} />
 
+          {/* Payment method selection */}
+          <div className="border rounded-lg p-4 md:p-6">
+            <h2 className="text-lg font-semibold mb-4">Pagamento</h2>
+            <p className="text-sm text-muted-foreground mb-4">Escolha como deseja pagar</p>
+            <PaymentMethodSelector
+              selectedMethod={paymentMethod}
+              onMethodChange={setPaymentMethod}
+              cardData={cardData}
+              onCardDataChange={setCardData}
+              disabled={isProcessing}
+            />
+          </div>
+
           {/* Order bump */}
           <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
         </div>
