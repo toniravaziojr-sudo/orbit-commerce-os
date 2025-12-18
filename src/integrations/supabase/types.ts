@@ -1192,6 +1192,198 @@ export type Database = {
           },
         ]
       }
+      payment_methods: {
+        Row: {
+          created_at: string
+          discount_type: string | null
+          discount_value: number | null
+          display_name: string
+          display_order: number
+          id: string
+          info_message: string | null
+          is_enabled: boolean
+          method: string
+          provider_id: string | null
+          settings: Json
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          discount_type?: string | null
+          discount_value?: number | null
+          display_name: string
+          display_order?: number
+          id?: string
+          info_message?: string | null
+          is_enabled?: boolean
+          method: string
+          provider_id?: string | null
+          settings?: Json
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          discount_type?: string | null
+          discount_value?: number | null
+          display_name?: string
+          display_order?: number
+          id?: string
+          info_message?: string | null
+          is_enabled?: boolean
+          method?: string
+          provider_id?: string | null
+          settings?: Json
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_methods_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "payment_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_methods_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_providers: {
+        Row: {
+          created_at: string
+          credentials: Json
+          environment: string
+          id: string
+          is_enabled: boolean
+          provider: string
+          settings: Json
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json
+          environment?: string
+          id?: string
+          is_enabled?: boolean
+          provider: string
+          settings?: Json
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          environment?: string
+          id?: string
+          is_enabled?: boolean
+          provider?: string
+          settings?: Json
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_providers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          amount: number
+          checkout_id: string | null
+          created_at: string
+          currency: string
+          error_message: string | null
+          id: string
+          method: string
+          order_id: string | null
+          paid_amount: number | null
+          paid_at: string | null
+          payment_data: Json
+          provider: string
+          provider_transaction_id: string | null
+          refunded_amount: number | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          webhook_payload: Json | null
+        }
+        Insert: {
+          amount: number
+          checkout_id?: string | null
+          created_at?: string
+          currency?: string
+          error_message?: string | null
+          id?: string
+          method: string
+          order_id?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_data?: Json
+          provider: string
+          provider_transaction_id?: string | null
+          refunded_amount?: number | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          webhook_payload?: Json | null
+        }
+        Update: {
+          amount?: number
+          checkout_id?: string | null
+          created_at?: string
+          currency?: string
+          error_message?: string | null
+          id?: string
+          method?: string
+          order_id?: string | null
+          paid_amount?: number | null
+          paid_at?: string | null
+          payment_data?: Json
+          provider?: string
+          provider_transaction_id?: string | null
+          refunded_amount?: number | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          webhook_payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_checkout_id_fkey"
+            columns: ["checkout_id"]
+            isOneToOne: false
+            referencedRelation: "checkouts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           category_id: string
@@ -1618,6 +1810,47 @@ export type Database = {
             columns: ["related_product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_providers: {
+        Row: {
+          created_at: string
+          credentials: Json
+          id: string
+          is_enabled: boolean
+          provider: string
+          settings: Json
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_enabled?: boolean
+          provider: string
+          settings?: Json
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_enabled?: boolean
+          provider?: string
+          settings?: Json
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_providers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
