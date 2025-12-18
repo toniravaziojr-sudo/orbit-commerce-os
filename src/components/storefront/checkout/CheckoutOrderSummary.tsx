@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
 import { calculateCartTotals, formatCurrency, debugCartTotals } from '@/lib/cartTotals';
 
-type PaymentStatus = 'idle' | 'processing' | 'approved' | 'failed';
+type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 
 interface CheckoutOrderSummaryProps {
   onSubmit: () => void;
