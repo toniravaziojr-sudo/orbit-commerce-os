@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info } from 'lucide-react';
+import { Globe, Plus, RefreshCw, Trash2, Star, Copy, CheckCircle, Clock, XCircle, ExternalLink, Info, Shield, ShieldCheck, ShieldAlert, ShieldOff } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useTenantDomains, TenantDomain } from '@/hooks/useTenantDomains';
+import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
 import { getDomainType } from '@/lib/normalizeDomain';
 import { toast } from 'sonner';
@@ -42,13 +42,45 @@ const STATUS_CONFIG = {
   },
 };
 
-// Canonical hostname for CNAME (phase 2 - informational)
-const STOREFRONT_CNAME_TARGET = 'stores.lovable.app';
-const STOREFRONT_A_RECORD = '185.158.133.1';
+const SSL_STATUS_CONFIG = {
+  none: {
+    label: 'Não ativado',
+    icon: ShieldOff,
+    variant: 'secondary' as const,
+  },
+  pending: {
+    label: 'Provisionando',
+    icon: Shield,
+    variant: 'outline' as const,
+  },
+  active: {
+    label: 'SSL Ativo',
+    icon: ShieldCheck,
+    variant: 'default' as const,
+  },
+  failed: {
+    label: 'SSL Falhou',
+    icon: ShieldAlert,
+    variant: 'destructive' as const,
+  },
+};
+
+// SaaS hostname target for CNAME
+const STOREFRONT_CNAME_TARGET = DEFAULT_TARGET_HOSTNAME;
 
 export default function Domains() {
   const { currentTenant } = useAuth();
-  const { domains, isLoading, isVerifying, verifyDomain, setPrimaryDomain, removeDomain } = useTenantDomains();
+  const { 
+    domains, 
+    isLoading, 
+    isVerifying, 
+    isProvisioning,
+    verifyDomain, 
+    provisionSSL,
+    checkSSLStatus,
+    setPrimaryDomain, 
+    removeDomain 
+  } = useTenantDomains();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [instructionsDialog, setInstructionsDialog] = useState<TenantDomain | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
@@ -63,12 +95,30 @@ export default function Domains() {
     toast.success('Token copiado!');
   };
 
+  const handleCopyTarget = () => {
+    navigator.clipboard.writeText(STOREFRONT_CNAME_TARGET);
+    toast.success('Hostname copiado!');
+  };
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '—';
     return new Date(dateStr).toLocaleString('pt-BR', {
       dateStyle: 'short',
       timeStyle: 'short',
     });
+  };
+
+  const getNextAction = (domain: TenantDomain) => {
+    if (domain.status !== 'verified') {
+      return { label: 'Verificar DNS', action: () => verifyDomain(domain.id), disabled: isVerifying === domain.id };
+    }
+    if (domain.ssl_status === 'none' || domain.ssl_status === 'failed') {
+      return { label: 'Ativar SSL', action: () => provisionSSL(domain.id), disabled: isProvisioning === domain.id };
+    }
+    if (domain.ssl_status === 'pending') {
+      return { label: 'Verificar SSL', action: () => checkSSLStatus(domain.id), disabled: isProvisioning === domain.id };
+    }
+    return null;
   };
 
   return (
@@ -144,8 +194,8 @@ export default function Domains() {
                 <TableRow>
                   <TableHead>Domínio</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Última verificação</TableHead>
+                  <TableHead>Verificação</TableHead>
+                  <TableHead>SSL</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -153,7 +203,10 @@ export default function Domains() {
                 {domains.map((domain) => {
                   const statusConfig = STATUS_CONFIG[domain.status];
                   const StatusIcon = statusConfig.icon;
+                  const sslConfig = SSL_STATUS_CONFIG[domain.ssl_status || 'none'];
+                  const SslIcon = sslConfig.icon;
                   const domainType = getDomainType(domain.domain);
+                  const nextAction = getNextAction(domain);
 
                   return (
                     <TableRow key={domain.id}>
@@ -167,6 +220,11 @@ export default function Domains() {
                             </Badge>
                           )}
                         </div>
+                        {domain.last_error && (
+                          <p className="text-xs text-destructive mt-1 max-w-[250px]">
+                            {domain.last_error}
+                          </p>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">
@@ -178,17 +236,28 @@ export default function Domains() {
                           <StatusIcon className="h-3 w-3" />
                           {statusConfig.label}
                         </Badge>
-                        {domain.last_error && domain.status !== 'verified' && (
-                          <p className="text-xs text-muted-foreground mt-1 max-w-[200px] truncate">
-                            {domain.last_error}
-                          </p>
-                        )}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {formatDate(domain.last_checked_at)}
+                      <TableCell>
+                        <Badge variant={sslConfig.variant} className="gap-1">
+                          <SslIcon className="h-3 w-3" />
+                          {sslConfig.label}
+                        </Badge>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
+                          {nextAction && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={nextAction.action}
+                              disabled={nextAction.disabled}
+                            >
+                              {(isVerifying === domain.id || isProvisioning === domain.id) && (
+                                <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                              )}
+                              {nextAction.label}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -205,16 +274,7 @@ export default function Domains() {
                           >
                             <Copy className="h-4 w-4" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => verifyDomain(domain.id)}
-                            disabled={isVerifying === domain.id}
-                            title="Verificar agora"
-                          >
-                            <RefreshCw className={`h-4 w-4 ${isVerifying === domain.id ? 'animate-spin' : ''}`} />
-                          </Button>
-                          {domain.status === 'verified' && !domain.is_primary && (
+                          {domain.status === 'verified' && domain.ssl_status === 'active' && !domain.is_primary && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -250,18 +310,18 @@ export default function Domains() {
         <CardHeader>
           <CardTitle className="text-lg">Instruções de Configuração DNS</CardTitle>
           <CardDescription>
-            Siga estas instruções para apontar seu domínio para a loja
+            Siga estas instruções para apontar seu domínio para a loja. Funciona com qualquer provedor DNS (Cloudflare, Registro.br, GoDaddy, etc.)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertTitle>Passo 1: Verificação de propriedade</AlertTitle>
+            <AlertTitle>Passo 1: Verificação de propriedade (TXT)</AlertTitle>
             <AlertDescription>
               Após adicionar o domínio, crie um registro TXT no seu DNS:
               <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
                 <li><strong>Tipo:</strong> TXT</li>
-                <li><strong>Nome/Host:</strong> <code className="bg-muted px-1 rounded">_cc-verify</code> (ou <code className="bg-muted px-1 rounded">_cc-verify.seusubdominio</code> para subdomínios)</li>
+                <li><strong>Nome/Host:</strong> <code className="bg-muted px-1 rounded">_cc-verify</code></li>
                 <li><strong>Valor:</strong> <code className="bg-muted px-1 rounded">cc-verify=SEU_TOKEN</code></li>
                 <li><strong>TTL:</strong> 300 (5 minutos)</li>
               </ul>
@@ -270,24 +330,45 @@ export default function Domains() {
 
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertTitle>Passo 2: Apontamento (após verificação)</AlertTitle>
+            <AlertTitle>Passo 2: Apontamento via CNAME (recomendado)</AlertTitle>
             <AlertDescription>
-              <p className="mb-2">Para subdomínios (www, loja, etc.):</p>
+              <p className="mb-2">Para subdomínios como <code className="bg-muted px-1 rounded">www</code> ou <code className="bg-muted px-1 rounded">loja</code>:</p>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li><strong>Tipo:</strong> CNAME</li>
-                <li><strong>Nome:</strong> seu subdomínio (ex: <code className="bg-muted px-1 rounded">www</code>)</li>
-                <li><strong>Destino:</strong> <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code></li>
+                <li><strong>Nome:</strong> seu subdomínio (ex: <code className="bg-muted px-1 rounded">www</code> ou <code className="bg-muted px-1 rounded">loja</code>)</li>
+                <li>
+                  <strong>Destino:</strong>{' '}
+                  <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code>
+                  <Button variant="ghost" size="sm" className="h-6 ml-1" onClick={handleCopyTarget}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </li>
               </ul>
-              
-              <p className="mt-4 mb-2">Para domínio raiz (apex):</p>
+            </AlertDescription>
+          </Alert>
+
+          <Alert variant="default">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Passo 2 (alternativa): Domínio raiz (apex)</AlertTitle>
+            <AlertDescription>
+              <p className="mb-2">Para domínio raiz (ex: <code className="bg-muted px-1 rounded">minhaloja.com.br</code>):</p>
               <ul className="list-disc list-inside space-y-1 text-sm">
-                <li><strong>Tipo:</strong> A</li>
-                <li><strong>Nome:</strong> <code className="bg-muted px-1 rounded">@</code></li>
-                <li><strong>IP:</strong> <code className="bg-muted px-1 rounded">{STOREFRONT_A_RECORD}</code></li>
+                <li>Se seu provedor suportar <strong>ALIAS</strong>, <strong>ANAME</strong> ou <strong>CNAME flattening</strong>: use para apontar <code className="bg-muted px-1 rounded">@</code> → <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code></li>
+                <li>Se não suportar: use <code className="bg-muted px-1 rounded">www</code> como principal e configure redirecionamento do apex para www no seu provedor</li>
               </ul>
-              
-              <p className="mt-4 text-xs text-muted-foreground">
-                ⚠️ A propagação DNS pode levar de alguns minutos até 48 horas.
+              <p className="mt-3 text-xs text-muted-foreground">
+                💡 <strong>Dica:</strong> Usar www (CNAME) é mais simples e funciona em todos os provedores. Apex (ALIAS/ANAME) é avançado.
+              </p>
+            </AlertDescription>
+          </Alert>
+
+          <Alert>
+            <ShieldCheck className="h-4 w-4" />
+            <AlertTitle>Passo 3: Ativar SSL</AlertTitle>
+            <AlertDescription>
+              Após a verificação, clique em "Ativar SSL" para habilitar HTTPS automático. O processo pode levar alguns minutos.
+              <p className="mt-2 text-xs text-muted-foreground">
+                ⚠️ A propagação DNS pode levar de alguns minutos até 48 horas. Tente verificar novamente se não funcionar de imediato.
               </p>
             </AlertDescription>
           </Alert>
@@ -307,7 +388,7 @@ export default function Domains() {
           open={!!instructionsDialog}
           onOpenChange={() => setInstructionsDialog(null)}
           cnameTarget={STOREFRONT_CNAME_TARGET}
-          aRecord={STOREFRONT_A_RECORD}
+          aRecord=""
         />
       )}
 

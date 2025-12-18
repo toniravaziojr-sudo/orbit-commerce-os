@@ -15,13 +15,21 @@ export interface TenantDomain {
   last_checked_at: string | null;
   last_error: string | null;
   created_at: string;
+  // Phase 2 fields
+  ssl_status: 'none' | 'pending' | 'active' | 'failed';
+  external_id: string | null;
+  target_hostname: string;
 }
+
+// Default SaaS hostname for CNAME target
+export const DEFAULT_TARGET_HOSTNAME = 'shops.respeiteohomem.com.br';
 
 export function useTenantDomains() {
   const { currentTenant } = useAuth();
   const [domains, setDomains] = useState<TenantDomain[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isVerifying, setIsVerifying] = useState<string | null>(null);
+  const [isProvisioning, setIsProvisioning] = useState<string | null>(null);
 
   const fetchDomains = useCallback(async () => {
     if (!currentTenant?.id) {
@@ -39,7 +47,16 @@ export function useTenantDomains() {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setDomains((data as TenantDomain[]) || []);
+      
+      // Map data with defaults for new fields
+      const mappedDomains = (data || []).map(d => ({
+        ...d,
+        ssl_status: d.ssl_status || 'none',
+        external_id: d.external_id || null,
+        target_hostname: d.target_hostname || DEFAULT_TARGET_HOSTNAME,
+      })) as TenantDomain[];
+      
+      setDomains(mappedDomains);
     } catch (error) {
       console.error('Error fetching domains:', error);
       toast.error('Erro ao carregar domínios');
@@ -70,6 +87,8 @@ export function useTenantDomains() {
           verification_token,
           status: 'pending',
           is_primary: false,
+          ssl_status: 'none',
+          target_hostname: DEFAULT_TARGET_HOSTNAME,
         })
         .select()
         .single();
@@ -123,6 +142,80 @@ export function useTenantDomains() {
     }
   };
 
+  const provisionSSL = async (domainId: string): Promise<boolean> => {
+    if (!currentTenant?.id) return false;
+
+    setIsProvisioning(domainId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('domains-provision', {
+        body: { 
+          tenant_id: currentTenant.id, 
+          domain_id: domainId,
+          action: 'provision'
+        },
+      });
+
+      if (error) throw error;
+
+      await fetchDomains();
+
+      if (data.ssl_status === 'active') {
+        toast.success('SSL ativado com sucesso!');
+        return true;
+      } else if (data.ssl_status === 'pending') {
+        toast.info('SSL sendo provisionado. Aguarde alguns minutos e verifique novamente.');
+        return true;
+      } else {
+        toast.error(data.error || 'Erro ao provisionar SSL');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error provisioning SSL:', error);
+      toast.error('Erro ao ativar SSL. Verifique se as credenciais do Cloudflare estão configuradas.');
+      return false;
+    } finally {
+      setIsProvisioning(null);
+    }
+  };
+
+  const checkSSLStatus = async (domainId: string): Promise<boolean> => {
+    if (!currentTenant?.id) return false;
+
+    setIsProvisioning(domainId);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('domains-provision', {
+        body: { 
+          tenant_id: currentTenant.id, 
+          domain_id: domainId,
+          action: 'check_status'
+        },
+      });
+
+      if (error) throw error;
+
+      await fetchDomains();
+
+      if (data.ssl_status === 'active') {
+        toast.success('SSL está ativo!');
+        return true;
+      } else if (data.ssl_status === 'pending') {
+        toast.info('SSL ainda sendo provisionado. Tente novamente em alguns minutos.');
+        return false;
+      } else {
+        toast.error(data.last_error || 'Erro no SSL. Verifique a configuração DNS.');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error checking SSL status:', error);
+      toast.error('Erro ao verificar status do SSL');
+      return false;
+    } finally {
+      setIsProvisioning(null);
+    }
+  };
+
   const setPrimaryDomain = async (domainId: string): Promise<boolean> => {
     if (!currentTenant?.id) return false;
 
@@ -134,6 +227,12 @@ export function useTenantDomains() {
 
     if (domain.status !== 'verified') {
       toast.error('Apenas domínios verificados podem ser definidos como principal');
+      return false;
+    }
+
+    // For Phase 2, require SSL to be active for primary
+    if (domain.ssl_status !== 'active') {
+      toast.error('Ative o SSL antes de definir como principal');
       return false;
     }
 
@@ -176,6 +275,19 @@ export function useTenantDomains() {
     }
 
     try {
+      // If has external_id, try to delete from Cloudflare first
+      if (domain.external_id && currentTenant?.id) {
+        await supabase.functions.invoke('domains-provision', {
+          body: { 
+            tenant_id: currentTenant.id, 
+            domain_id: domainId,
+            action: 'delete'
+          },
+        }).catch(err => {
+          console.warn('Failed to delete from Cloudflare:', err);
+        });
+      }
+
       const { error } = await supabase
         .from('tenant_domains')
         .delete()
@@ -197,8 +309,11 @@ export function useTenantDomains() {
     domains,
     isLoading,
     isVerifying,
+    isProvisioning,
     addDomain,
     verifyDomain,
+    provisionSSL,
+    checkSSLStatus,
     setPrimaryDomain,
     removeDomain,
     refetch: fetchDomains,
