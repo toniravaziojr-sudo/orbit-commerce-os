@@ -17,12 +17,14 @@ export interface ShippingRule {
 }
 
 export interface ShippingConfig {
-  provider: 'mock' | 'manual_table' | 'external';
+  provider: 'mock' | 'manual_table' | 'frenet' | 'external';
   originZip: string;
   defaultPrice: number;
   defaultDays: number;
   freeShippingThreshold: number | null;
   rules: ShippingRule[];
+  // Frenet specific
+  frenetEnabled?: boolean;
 }
 
 // Benefit bar configuration
@@ -84,6 +86,7 @@ export const defaultShippingConfig: ShippingConfig = {
   defaultDays: 7,
   freeShippingThreshold: null,
   rules: [],
+  frenetEnabled: false,
 };
 
 export const defaultBenefitConfig: BenefitConfig = {
@@ -134,6 +137,7 @@ export function parseShippingConfig(data: unknown): ShippingConfig {
     defaultDays: Number(obj.defaultDays) || 7,
     freeShippingThreshold: obj.freeShippingThreshold != null ? Number(obj.freeShippingThreshold) : null,
     rules: Array.isArray(obj.rules) ? obj.rules.map(parseShippingRule) : [],
+    frenetEnabled: Boolean(obj.frenetEnabled),
   };
 }
 

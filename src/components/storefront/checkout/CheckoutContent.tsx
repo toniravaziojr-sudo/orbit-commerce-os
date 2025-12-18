@@ -1,22 +1,24 @@
 // =============================================
-// CHECKOUT CONTENT - Main checkout page content
-// Uses OrderDraft for persistence and centralized totals
+// CHECKOUT CONTENT - Real payment integration with Pagar.me
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
+import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { CheckoutForm, CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
 import { CheckoutOrderSummary } from './CheckoutOrderSummary';
 import { CheckoutShipping } from './CheckoutShipping';
 import { OrderBumpSection } from './OrderBumpSection';
+import { PaymentMethodSelector } from './PaymentMethodSelector';
+import { PaymentResultDisplay } from './PaymentResult';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
-type PaymentStatus = 'idle' | 'processing' | 'approved' | 'failed';
+type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 
 interface CheckoutContentProps {
   tenantId: string;
@@ -27,13 +29,18 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const { tenantSlug } = useParams();
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
+  const { processPayment, isProcessing, paymentResult } = useCheckoutPayment({ tenantId });
   
   const [formData, setFormData] = useState<CheckoutFormData>(initialCheckoutFormData);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  const [cardData, setCardData] = useState<CardData>({
+    number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
+  });
 
-  // Hydrate form from draft on initial load
+  // Hydrate form from draft
   useEffect(() => {
     if (isHydrated && draft.customer.name) {
       setFormData({
@@ -64,22 +71,16 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   useEffect(() => {
     if (isHydrated) {
       updateCustomer({
-        name: formData.customerName,
-        email: formData.customerEmail,
-        phone: formData.customerPhone,
-        cpf: formData.customerCpf,
-        shippingStreet: formData.shippingStreet,
-        shippingNumber: formData.shippingNumber,
-        shippingComplement: formData.shippingComplement,
-        shippingNeighborhood: formData.shippingNeighborhood,
-        shippingCity: formData.shippingCity,
-        shippingState: formData.shippingState,
+        name: formData.customerName, email: formData.customerEmail,
+        phone: formData.customerPhone, cpf: formData.customerCpf,
+        shippingStreet: formData.shippingStreet, shippingNumber: formData.shippingNumber,
+        shippingComplement: formData.shippingComplement, shippingNeighborhood: formData.shippingNeighborhood,
+        shippingCity: formData.shippingCity, shippingState: formData.shippingState,
         shippingPostalCode: formData.shippingPostalCode,
       });
     }
   }, [formData, isHydrated]);
 
-  // Sync CEP from cart to form
   useEffect(() => {
     if (shipping.cep && !formData.shippingPostalCode) {
       setFormData(prev => ({ ...prev, shippingPostalCode: shipping.cep }));
@@ -87,91 +88,75 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   }, [shipping.cep]);
 
   const handleSubmit = async () => {
-    // Validate form
     const errors = validateCheckoutForm(formData);
     setFormErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      toast.error('Por favor, corrija os erros no formulário');
-      return;
+    if (Object.keys(errors).length > 0) { toast.error('Corrija os erros no formulário'); return; }
+    if (!shipping.selected) { toast.error('Selecione uma opção de frete'); return; }
+    if (paymentMethod === 'credit_card' && (!cardData.number || !cardData.holderName || !cardData.cvv)) {
+      toast.error('Preencha os dados do cartão'); return;
     }
 
-    // Check if shipping is selected
-    if (!shipping.selected) {
-      toast.error('Por favor, selecione uma opção de frete');
-      return;
-    }
-
-    // Start payment processing
     setPaymentStatus('processing');
     setPaymentError(null);
 
-    try {
-      // Mock payment processing - simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    const result = await processPayment({
+      method: paymentMethod,
+      items,
+      shipping: {
+        street: formData.shippingStreet, number: formData.shippingNumber,
+        complement: formData.shippingComplement, neighborhood: formData.shippingNeighborhood,
+        city: formData.shippingCity, state: formData.shippingState, postalCode: formData.shippingPostalCode,
+      },
+      shippingOption: shipping.selected,
+      customer: {
+        name: formData.customerName, email: formData.customerEmail,
+        phone: formData.customerPhone, cpf: formData.customerCpf,
+      },
+      card: paymentMethod === 'credit_card' ? cardData : undefined,
+    });
 
-      // Simulate success (90% chance) or failure (10% chance)
-      const isSuccess = Math.random() > 0.1;
-
-      if (isSuccess) {
+    if (result.success) {
+      if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
         setPaymentStatus('approved');
-        
-        // Clear cart and draft only after approval
-        clearCart();
-        clearDraft();
-        
-        // Navigate to thank you page
+        clearCart(); clearDraft();
         toast.success('Pedido realizado com sucesso!');
-        navigate(`/store/${tenantSlug}/obrigado`);
+        navigate(`/store/${tenantSlug}/obrigado?pedido=${result.orderNumber}`);
       } else {
-        throw new Error('Pagamento recusado. Por favor, tente novamente.');
+        setPaymentStatus('pending_payment');
+        clearCart(); clearDraft();
       }
-    } catch (error) {
+    } else {
       setPaymentStatus('failed');
-      setPaymentError(error instanceof Error ? error.message : 'Erro ao processar pagamento');
+      setPaymentError(result.error || 'Erro ao processar pagamento');
       toast.error('Falha no pagamento');
     }
   };
 
-  const handleRetry = () => {
-    setPaymentStatus('idle');
-    setPaymentError(null);
-  };
+  const handleRetry = () => { setPaymentStatus('idle'); setPaymentError(null); };
+  const handleViewOrders = () => navigate(`/store/${tenantSlug}/conta/pedidos`);
 
-  // Loading state
   if (cartLoading) {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="flex items-center justify-center gap-3">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          <span className="text-muted-foreground">Carregando checkout...</span>
-        </div>
-      </div>
-    );
+    return <div className="container mx-auto px-4 py-12 flex items-center justify-center gap-3">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <span className="text-muted-foreground">Carregando checkout...</span>
+    </div>;
   }
 
-  // Empty cart guard
-  if (items.length === 0 && paymentStatus !== 'approved') {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-md mx-auto text-center">
-          <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-          <h2 className="text-2xl font-bold mb-2">Seu carrinho está vazio</h2>
-          <p className="text-muted-foreground mb-6">
-            Adicione produtos ao carrinho antes de finalizar a compra.
-          </p>
-          <Link to={`/store/${tenantSlug}`}>
-            <Button>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar para a loja
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
+  if (items.length === 0 && paymentStatus === 'idle') {
+    return <div className="container mx-auto px-4 py-12 max-w-md mx-auto text-center">
+      <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+      <h2 className="text-2xl font-bold mb-2">Seu carrinho está vazio</h2>
+      <p className="text-muted-foreground mb-6">Adicione produtos antes de finalizar.</p>
+      <Link to={`/store/${tenantSlug}`}><Button><ArrowLeft className="h-4 w-4 mr-2" />Voltar para a loja</Button></Link>
+    </div>;
   }
 
-  const isProcessing = paymentStatus === 'processing';
+  // Show payment result for PIX/Boleto
+  if (paymentStatus === 'pending_payment' && paymentResult) {
+    return <div className="container mx-auto px-4 py-8 max-w-lg">
+      <PaymentResultDisplay result={paymentResult} method={paymentMethod} onContinue={handleViewOrders} />
+    </div>;
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
