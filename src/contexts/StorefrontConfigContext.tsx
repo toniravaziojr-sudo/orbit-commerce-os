@@ -149,10 +149,18 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
   const benefitConfig = data?.benefitConfig || defaultBenefitConfig;
   const offersConfig = data?.offersConfig || defaultOffersConfig;
 
-  // Shipping quote function
+  // Shipping quote function (sync - for mock/manual providers)
+  // For Frenet provider, returns fallback. Use quoteAsync for real Frenet quotes.
   const quote = useMemo(() => {
     return (cep: string, cartTotal: number, cartWeight?: number): ShippingQuote[] => {
       const quotes: ShippingQuote[] = [];
+      
+      // Normalize CEP - extract digits only
+      const cepDigits = cep.replace(/\D/g, '');
+      if (cepDigits.length !== 8) {
+        console.warn('[StorefrontConfigContext] Invalid CEP format:', cep);
+        return quotes;
+      }
       
       // Check for free shipping threshold
       const isFreeShipping = shippingConfig.freeShippingThreshold != null && 
@@ -168,7 +176,7 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
         });
       } else if (shippingConfig.provider === 'manual_table') {
         // Manual table: find matching rules
-        const cepNum = parseInt(cep.replace(/\D/g, ''), 10);
+        const cepNum = parseInt(cepDigits, 10);
         
         const matchingRules = shippingConfig.rules.filter((rule: ShippingRule) => {
           const start = parseInt(rule.zipRangeStart.replace(/\D/g, ''), 10);
@@ -201,8 +209,11 @@ export function StorefrontConfigProvider({ tenantId, children }: StorefrontConfi
             isFree: isFreeShipping,
           });
         }
+      } else if (shippingConfig.provider === 'frenet') {
+        // Frenet provider: this function should not be called for Frenet
+        // Return empty to signal that quoteAsync should be used instead
+        console.log('[StorefrontConfigContext] Frenet provider active - use quoteAsync for real quotes');
       }
-      // Frenet provider is handled by quoteAsync
 
       return quotes;
     };
