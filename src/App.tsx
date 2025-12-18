@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -33,7 +33,7 @@ import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import LandingPages from "@/pages/LandingPages";
-import BuyTogether from "@/pages/BuyTogether";
+
 import Reviews from "@/pages/Reviews";
 import Offers from "@/pages/Offers";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
@@ -129,7 +129,7 @@ const App = () => (
               <Route path="/media" element={<Media />} />
               <Route path="/campaigns" element={<Campaigns />} />
               <Route path="/offers" element={<Offers />} />
-              <Route path="/buy-together" element={<BuyTogether />} />
+              <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
               <Route path="/reviews" element={<Reviews />} />
               <Route path="/integrations" element={<Integrations />} />
               <Route path="/finance" element={<Finance />} />

@@ -75,8 +75,7 @@ const navigation: NavGroup[] = [
   {
     label: "Marketing",
     items: [
-      { title: "Aumentar Ticket", href: "/offers", icon: Package },
-      { title: "Compre Junto", href: "/buy-together", icon: Gift },
+      { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
       { title: "Avaliações", href: "/reviews", icon: Star },
       { title: "Mídias", href: "/media", icon: Image },
       { title: "Campanhas", href: "/campaigns", icon: Megaphone },
