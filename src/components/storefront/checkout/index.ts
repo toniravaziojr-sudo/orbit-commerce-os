@@ -6,3 +6,5 @@ export type { CheckoutFormData } from './CheckoutForm';
 export { CheckoutOrderSummary } from './CheckoutOrderSummary';
 export { CheckoutShipping } from './CheckoutShipping';
 export { OrderBumpSection } from './OrderBumpSection';
+export { PaymentMethodSelector } from './PaymentMethodSelector';
+export { PaymentResultDisplay } from './PaymentResult';

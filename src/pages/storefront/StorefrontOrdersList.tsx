@@ -2,16 +2,15 @@
 // STOREFRONT ORDERS LIST - Customer orders list page
 // =============================================
 
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { useCustomerOrders, getOrderStatusInfo } from '@/hooks/useCustomerOrders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Loader2, Package, ShoppingBag, ArrowLeft, Info, ChevronRight } from 'lucide-react';
+import { Loader2, Package, ShoppingBag, ArrowLeft, ChevronRight } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { format } from 'date-fns';
@@ -20,12 +19,11 @@ import { formatCurrency } from '@/lib/cartTotals';
 
 export default function StorefrontOrdersList() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const [searchParams] = useSearchParams();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
 
-  // Customer orders
-  const { orders, isLoading: ordersLoading, isMockMode } = useCustomerOrders();
+  // Customer orders - uses logged-in user's email automatically
+  const { orders, isLoading: ordersLoading, customerEmail } = useCustomerOrders();
 
   // Build context
   const context: BlockRenderContext = {
@@ -82,7 +80,7 @@ export default function StorefrontOrdersList() {
         <div className="container mx-auto max-w-3xl">
           {/* Back link */}
           <Link 
-            to={`/store/${tenantSlug}/conta${isMockMode ? '?demoAccount=1' : ''}`}
+            to={`/store/${tenantSlug}/conta`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -94,27 +92,21 @@ export default function StorefrontOrdersList() {
             <h1 className="text-2xl font-bold">Meus Pedidos</h1>
             <p className="text-muted-foreground">
               Acompanhe o status das suas compras
+              {customerEmail && <span className="block text-sm">({customerEmail})</span>}
             </p>
           </div>
 
-          {/* Demo mode notice */}
-          {isMockMode && (
-            <Alert className="mb-6 border-blue-200 bg-blue-50">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-800">
-                Modo demonstração: exibindo pedidos de exemplo.
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Empty state */}
-          {orders.length === 0 && !isMockMode && (
+          {orders.length === 0 && (
             <Card className="text-center py-12">
               <CardContent>
                 <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-medium mb-2">Nenhum pedido encontrado</h3>
                 <p className="text-muted-foreground mb-6">
-                  Você ainda não realizou nenhuma compra.
+                  {customerEmail 
+                    ? 'Você ainda não realizou nenhuma compra.'
+                    : 'Faça login para ver seus pedidos.'
+                  }
                 </p>
                 <Link to={`/store/${tenantSlug}`}>
                   <Button>
@@ -137,7 +129,7 @@ export default function StorefrontOrdersList() {
 
               <TabsContent value="all" className="space-y-4">
                 {orders.map(order => (
-                  <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} isMockMode={isMockMode} />
+                  <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
                 ))}
               </TabsContent>
 
@@ -146,7 +138,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido em andamento.</p>
                 ) : (
                   inProgressOrders.map(order => (
-                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} isMockMode={isMockMode} />
+                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
                   ))
                 )}
               </TabsContent>
@@ -156,7 +148,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido finalizado.</p>
                 ) : (
                   completedOrders.map(order => (
-                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} isMockMode={isMockMode} />
+                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
                   ))
                 )}
               </TabsContent>
@@ -176,12 +168,10 @@ export default function StorefrontOrdersList() {
 // Order card component
 function OrderCard({ 
   order, 
-  tenantSlug, 
-  isMockMode 
+  tenantSlug,
 }: { 
   order: ReturnType<typeof useCustomerOrders>['orders'][0]; 
   tenantSlug: string;
-  isMockMode: boolean;
 }) {
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = format(new Date(order.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
@@ -207,7 +197,7 @@ function OrderCard({
             </p>
             <p className="font-semibold">{formatCurrency(order.total)}</p>
           </div>
-          <Link to={`/store/${tenantSlug}/conta/pedidos/${order.id}${isMockMode ? '?demoAccount=1' : ''}`}>
+          <Link to={`/store/${tenantSlug}/conta/pedidos/${order.id}`}>
             <Button variant="outline" size="sm">
               Ver detalhes
               <ChevronRight className="h-4 w-4 ml-1" />

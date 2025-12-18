@@ -14,131 +14,217 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID().slice(0, 8);
+
   try {
     const payload = await req.json();
-    console.log('Webhook received:', JSON.stringify(payload, null, 2));
+    console.log(`[${requestId}] Webhook received:`, JSON.stringify(payload, null, 2));
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Extract event type and data
+    // Extract event data
     const eventType = payload.type;
-    const orderId = payload.data?.id;
+    const pagarmeOrderId = payload.data?.id;
     const charge = payload.data?.charges?.[0];
+    const chargeId = charge?.id;
+    const chargeStatus = charge?.status;
 
-    if (!orderId) {
-      console.log('No order ID in webhook payload');
-      return new Response(JSON.stringify({ received: true }), {
+    console.log(`[${requestId}] Event: ${eventType}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, Status: ${chargeStatus}`);
+
+    if (!pagarmeOrderId) {
+      console.log(`[${requestId}] No order ID in webhook payload, ignoring`);
+      return new Response(JSON.stringify({ received: true, message: 'No order ID' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Processing webhook:', { eventType, orderId, chargeStatus: charge?.status });
-
-    // Find existing transaction by provider_transaction_id
-    const { data: existingTransaction } = await supabase
+    // ==== IDEMPOTENCY CHECK ====
+    // Find existing transaction by provider_transaction_id (Pagar.me order ID)
+    const { data: existingTransaction, error: findError } = await supabase
       .from('payment_transactions')
       .select('*')
-      .eq('provider_transaction_id', orderId)
-      .single();
+      .eq('provider_transaction_id', pagarmeOrderId)
+      .maybeSingle();
+
+    if (findError) {
+      console.error(`[${requestId}] Error finding transaction:`, findError);
+      throw findError;
+    }
 
     if (!existingTransaction) {
-      console.log('Transaction not found for order:', orderId);
-      return new Response(JSON.stringify({ received: true, message: 'Transaction not found' }), {
+      console.log(`[${requestId}] Transaction not found for Pagar.me order: ${pagarmeOrderId}`);
+      return new Response(JSON.stringify({ 
+        received: true, 
+        message: 'Transaction not found',
+        pagarme_order_id: pagarmeOrderId,
+      }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Map Pagar.me status to our status
-    let newStatus = existingTransaction.status;
-    let paidAt = null;
+    // Check if already processed with same status (idempotency)
+    const webhookHistory = existingTransaction.webhook_payload as any;
+    if (webhookHistory?.charges?.[0]?.status === chargeStatus) {
+      console.log(`[${requestId}] Already processed with status ${chargeStatus}, skipping`);
+      return new Response(JSON.stringify({ 
+        received: true, 
+        message: 'Already processed',
+        transaction_id: existingTransaction.id,
+        status: existingTransaction.status,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    switch (charge?.status) {
+    // ==== MAP STATUS ====
+    let newTransactionStatus = existingTransaction.status;
+    let newPaymentStatus: string | null = null;
+    let newOrderStatus: string | null = null;
+    let paidAt: string | null = null;
+    let paidAmount: number | null = null;
+
+    switch (chargeStatus) {
       case 'paid':
-        newStatus = 'paid';
+        newTransactionStatus = 'paid';
+        newPaymentStatus = 'approved';
+        newOrderStatus = 'confirmed';
         paidAt = new Date().toISOString();
+        paidAmount = charge?.paid_amount || charge?.amount || existingTransaction.amount;
         break;
       case 'pending':
       case 'processing':
-        newStatus = 'pending';
+        newTransactionStatus = 'pending';
+        newPaymentStatus = 'processing';
         break;
       case 'failed':
       case 'canceled':
-        newStatus = 'failed';
+        newTransactionStatus = 'failed';
+        newPaymentStatus = 'declined';
+        newOrderStatus = 'cancelled';
+        break;
+      case 'overpaid':
+        newTransactionStatus = 'paid';
+        newPaymentStatus = 'approved';
+        newOrderStatus = 'confirmed';
+        paidAt = new Date().toISOString();
+        paidAmount = charge?.paid_amount || charge?.amount;
+        break;
+      case 'underpaid':
+        newTransactionStatus = 'pending';
+        newPaymentStatus = 'processing';
         break;
       case 'refunded':
-        newStatus = 'refunded';
+        newTransactionStatus = 'refunded';
+        newPaymentStatus = 'approved'; // Payment was approved, just refunded
         break;
       case 'chargedback':
-        newStatus = 'chargedback';
+        newTransactionStatus = 'chargedback';
+        newPaymentStatus = 'declined';
+        newOrderStatus = 'cancelled';
         break;
+      default:
+        console.log(`[${requestId}] Unknown charge status: ${chargeStatus}`);
     }
 
-    // Update transaction
-    const updateData: any = {
-      status: newStatus,
+    console.log(`[${requestId}] Status mapping: transaction=${newTransactionStatus}, payment=${newPaymentStatus}, order=${newOrderStatus}`);
+
+    // ==== UPDATE TRANSACTION ====
+    const transactionUpdate: Record<string, any> = {
+      status: newTransactionStatus,
       webhook_payload: payload,
+      updated_at: new Date().toISOString(),
     };
 
     if (paidAt) {
-      updateData.paid_at = paidAt;
-      updateData.paid_amount = charge?.amount || existingTransaction.amount;
+      transactionUpdate.paid_at = paidAt;
+      transactionUpdate.paid_amount = paidAmount;
     }
 
-    const { error: updateError } = await supabase
+    const { error: updateTransactionError } = await supabase
       .from('payment_transactions')
-      .update(updateData)
+      .update(transactionUpdate)
       .eq('id', existingTransaction.id);
 
-    if (updateError) {
-      console.error('Error updating transaction:', updateError);
+    if (updateTransactionError) {
+      console.error(`[${requestId}] Error updating transaction:`, updateTransactionError);
+      throw updateTransactionError;
     }
 
-    // If payment is confirmed, update order status
-    if (newStatus === 'paid' && existingTransaction.checkout_id) {
-      // Get checkout to find/create order
-      const { data: checkout } = await supabase
-        .from('checkouts')
-        .select('*')
-        .eq('id', existingTransaction.checkout_id)
-        .single();
+    console.log(`[${requestId}] Transaction ${existingTransaction.id} updated to status: ${newTransactionStatus}`);
 
-      if (checkout) {
-        // Update checkout status
-        await supabase
-          .from('checkouts')
-          .update({ 
-            status: 'paid',
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', checkout.id);
+    // ==== UPDATE ORDER (if exists) ====
+    if (existingTransaction.order_id) {
+      const orderUpdate: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
 
-        // If there's an associated order, update its payment status
-        if (existingTransaction.order_id) {
-          await supabase
-            .from('orders')
-            .update({ 
-              payment_status: 'approved',
-              paid_at: new Date().toISOString(),
-            })
-            .eq('id', existingTransaction.order_id);
-        }
+      if (newPaymentStatus) {
+        orderUpdate.payment_status = newPaymentStatus;
+      }
+
+      if (newOrderStatus) {
+        orderUpdate.status = newOrderStatus;
+      }
+
+      if (paidAt) {
+        orderUpdate.paid_at = paidAt;
+      }
+
+      const { error: updateOrderError } = await supabase
+        .from('orders')
+        .update(orderUpdate)
+        .eq('id', existingTransaction.order_id);
+
+      if (updateOrderError) {
+        console.error(`[${requestId}] Error updating order:`, updateOrderError);
+        // Don't throw - transaction was updated, order update is secondary
+      } else {
+        console.log(`[${requestId}] Order ${existingTransaction.order_id} updated: payment=${newPaymentStatus}, status=${newOrderStatus}`);
       }
     }
 
-    console.log('Webhook processed successfully:', { transactionId: existingTransaction.id, newStatus });
+    // ==== UPDATE CHECKOUT (if exists) ====
+    if (existingTransaction.checkout_id && newTransactionStatus === 'paid') {
+      const { error: updateCheckoutError } = await supabase
+        .from('checkouts')
+        .update({ 
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', existingTransaction.checkout_id);
+
+      if (updateCheckoutError) {
+        console.error(`[${requestId}] Error updating checkout:`, updateCheckoutError);
+      } else {
+        console.log(`[${requestId}] Checkout ${existingTransaction.checkout_id} marked as completed`);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[${requestId}] Webhook processed successfully in ${duration}ms`);
 
     return new Response(JSON.stringify({ 
       received: true,
+      request_id: requestId,
       transaction_id: existingTransaction.id,
-      status: newStatus,
+      order_id: existingTransaction.order_id,
+      previous_status: existingTransaction.status,
+      new_status: newTransactionStatus,
+      payment_status: newPaymentStatus,
+      duration_ms: duration,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error: any) {
-    console.error('Webhook error:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[${requestId}] Webhook error after ${duration}ms:`, error);
+    
     return new Response(JSON.stringify({ 
-      error: error.message || 'Unknown error'
+      error: error.message || 'Unknown error',
+      request_id: requestId,
+      duration_ms: duration,
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
