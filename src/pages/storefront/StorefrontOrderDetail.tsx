@@ -27,7 +27,7 @@ export default function StorefrontOrderDetail() {
   const [searchParams] = useSearchParams();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
-  const { order, isLoading: orderLoading, isMockMode } = useCustomerOrder(orderId);
+  const { order, isLoading: orderLoading } = useCustomerOrder(orderId);
 
   // Build context
   const context: BlockRenderContext = {
@@ -86,7 +86,7 @@ export default function StorefrontOrderDetail() {
             <p className="text-muted-foreground mb-6">
               Não conseguimos encontrar este pedido. Verifique o link ou entre em contato.
             </p>
-            <Link to={`/store/${tenantSlug}/conta/pedidos${isMockMode ? '?demoAccount=1' : ''}`}>
+            <Link to={`/store/${tenantSlug}/conta/pedidos`}>
               <Button>Voltar aos pedidos</Button>
             </Link>
           </div>
@@ -111,22 +111,12 @@ export default function StorefrontOrderDetail() {
         <div className="container mx-auto max-w-3xl">
           {/* Back link */}
           <Link 
-            to={`/store/${tenantSlug}/conta/pedidos${isMockMode ? '?demoAccount=1' : ''}`}
+            to={`/store/${tenantSlug}/conta/pedidos`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Voltar aos pedidos
           </Link>
-
-          {/* Demo mode notice */}
-          {isMockMode && (
-            <Alert className="mb-6 border-blue-200 bg-blue-50">
-              <Info className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-800">
-                Modo demonstração: exibindo pedido de exemplo.
-              </AlertDescription>
-            </Alert>
-          )}
 
           {/* Order header */}
           <div className="flex items-start justify-between gap-4 mb-6">
