@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.assign-tag-to-all-customers]
 verify_jwt = false
+
+[functions.pagarme-create-charge]
+verify_jwt = true
+
+[functions.pagarme-webhook]
+verify_jwt = false
