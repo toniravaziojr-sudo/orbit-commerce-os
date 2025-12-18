@@ -5,17 +5,27 @@
 // O checkout é uma página de sistema (não editável por blocos).
 // A configuração de layout pode ser feita via Admin > Integrações.
 
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { usePublicStorefront } from '@/hooks/useStorefront';
-import { StorefrontHeader } from '@/components/storefront/StorefrontHeader';
-import { StorefrontFooter } from '@/components/storefront/StorefrontFooter';
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { Loader2 } from 'lucide-react';
+import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 
 export default function StorefrontCheckout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
-  const { tenant, storeSettings, headerMenu, footerMenu, isLoading } = usePublicStorefront(tenantSlug || '');
+  // Redirect to public URL if accessing with preview param in public context
+  useEffect(() => {
+    if (isPreviewUrl(searchParams)) {
+      // Remove preview params and redirect to clean URL
+      navigate(`/store/${tenantSlug}/checkout`, { replace: true });
+    }
+  }, [searchParams, tenantSlug, navigate]);
+
+  const { tenant, storeSettings, headerMenu, isLoading } = usePublicStorefront(tenantSlug || '');
 
   if (isLoading) {
     return (

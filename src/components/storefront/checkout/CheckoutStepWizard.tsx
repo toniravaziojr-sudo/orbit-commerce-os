@@ -211,19 +211,33 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     return Object.keys(errors).length === 0;
   };
 
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionError, setTransitionError] = useState<string | null>(null);
+
   const handleNext = async () => {
     if (!validateStep(currentStep)) {
       toast.error('Por favor, preencha todos os campos obrigatórios');
       return;
     }
 
-    // When leaving step 2 (address), calculate shipping
-    if (currentStep === 2) {
-      await calculateShippingOptions();
-    }
+    setIsTransitioning(true);
+    setTransitionError(null);
 
-    if (currentStep < 4) {
-      setCurrentStep((currentStep + 1) as CheckoutStep);
+    try {
+      // When leaving step 2 (address), calculate shipping
+      if (currentStep === 2) {
+        await calculateShippingOptions();
+      }
+
+      if (currentStep < 4) {
+        setCurrentStep((currentStep + 1) as CheckoutStep);
+      }
+    } catch (error) {
+      console.error('Error transitioning step:', error);
+      setTransitionError('Ocorreu um erro. Por favor, tente novamente.');
+      toast.error('Erro ao avançar. Tente novamente.');
+    } finally {
+      setIsTransitioning(false);
     }
   };
 
@@ -444,6 +458,20 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         </Alert>
       )}
 
+      {/* Transition error alert */}
+      {transitionError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Erro ao continuar</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>{transitionError}</span>
+            <Button variant="outline" size="sm" onClick={() => setTransitionError(null)}>
+              Fechar
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main column - Step content */}
         <div className="lg:col-span-2">
@@ -497,9 +525,18 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
               </Button>
 
               {currentStep < 4 ? (
-                <Button onClick={handleNext} disabled={isProcessing}>
-                  Continuar
-                  <ArrowRight className="h-4 w-4 ml-2" />
+                <Button onClick={handleNext} disabled={isProcessing || isTransitioning}>
+                  {isTransitioning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Carregando...
+                    </>
+                  ) : (
+                    <>
+                      Continuar
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               ) : (
                 <Button 
