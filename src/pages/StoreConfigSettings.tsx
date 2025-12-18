@@ -103,7 +103,7 @@ export default function StoreConfigSettings() {
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <PageHeader
-        title="Configurações de Conversão"
+        title="Conversão de Carrinho"
         description="Configure frete e barra de benefícios do carrinho"
       />
 

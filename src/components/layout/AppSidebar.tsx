@@ -66,7 +66,7 @@ const navigation: NavGroup[] = [
     label: "Loja Online",
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
-      { title: "Conversão", href: "/storefront/conversao", icon: TrendingUp },
+      { title: "Conversão de Carrinho", href: "/storefront/conversao", icon: TrendingUp },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
       { title: "Landing Pages", href: "/landing-pages", icon: Rocket },
@@ -75,7 +75,7 @@ const navigation: NavGroup[] = [
   {
     label: "Marketing",
     items: [
-      { title: "Ofertas", href: "/offers", icon: Package },
+      { title: "Aumentar Ticket", href: "/offers", icon: Package },
       { title: "Compre Junto", href: "/buy-together", icon: Gift },
       { title: "Avaliações", href: "/reviews", icon: Star },
       { title: "Mídias", href: "/media", icon: Image },
