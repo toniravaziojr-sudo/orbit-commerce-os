@@ -1,10 +1,9 @@
 // =============================================
-// STORE CONFIG SETTINGS - Admin page for Shipping, Benefits, Offers
+// STORE CONFIG SETTINGS - Admin page for Shipping, Benefits
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useStoreConfig } from '@/hooks/useStoreConfig';
-import { useProducts } from '@/hooks/useProducts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,49 +14,37 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { 
   Save, 
   Truck, 
   Gift, 
-  ShoppingBag,
   Plus,
   Trash2,
-  Package,
-  Percent,
-  CheckCircle2
 } from 'lucide-react';
 import {
   ShippingConfig,
   BenefitConfig,
-  OffersConfig,
   ShippingRule,
   defaultShippingConfig,
   defaultBenefitConfig,
-  defaultOffersConfig,
 } from '@/lib/storeConfigTypes';
 
 export default function StoreConfigSettings() {
-  const { config, isLoading, updateShippingConfig, updateBenefitConfig, updateOffersConfig } = useStoreConfig();
-  const { products } = useProducts();
+  const { config, isLoading, updateShippingConfig, updateBenefitConfig } = useStoreConfig();
   
   // Local state for each config section
   const [shippingForm, setShippingForm] = useState<ShippingConfig>(defaultShippingConfig);
   const [benefitForm, setBenefitForm] = useState<BenefitConfig>(defaultBenefitConfig);
-  const [offersForm, setOffersForm] = useState<OffersConfig>(defaultOffersConfig);
   
   // Track changes
   const [shippingChanged, setShippingChanged] = useState(false);
   const [benefitChanged, setBenefitChanged] = useState(false);
-  const [offersChanged, setOffersChanged] = useState(false);
 
   // Load configs into forms
   useEffect(() => {
     if (config) {
       setShippingForm(config.shippingConfig);
       setBenefitForm(config.benefitConfig);
-      setOffersForm(config.offersConfig);
     }
   }, [config]);
 
@@ -104,20 +91,6 @@ export default function StoreConfigSettings() {
     setBenefitChanged(false);
   };
 
-  // Handlers for offers
-  const handleOffersChange = (section: keyof OffersConfig, updates: Partial<OffersConfig[keyof OffersConfig]>) => {
-    setOffersForm(prev => ({
-      ...prev,
-      [section]: { ...prev[section], ...updates },
-    }));
-    setOffersChanged(true);
-  };
-
-  const saveOffers = async () => {
-    await updateOffersConfig.mutateAsync(offersForm);
-    setOffersChanged(false);
-  };
-
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -131,11 +104,11 @@ export default function StoreConfigSettings() {
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <PageHeader
         title="Configurações de Conversão"
-        description="Configure frete, barra de benefícios e ofertas da sua loja"
+        description="Configure frete e barra de benefícios do carrinho"
       />
 
       <Tabs defaultValue="shipping" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="shipping" className="flex items-center gap-2">
             <Truck className="h-4 w-4" />
             Frete
@@ -143,10 +116,6 @@ export default function StoreConfigSettings() {
           <TabsTrigger value="benefit" className="flex items-center gap-2">
             <Gift className="h-4 w-4" />
             Benefícios
-          </TabsTrigger>
-          <TabsTrigger value="offers" className="flex items-center gap-2">
-            <ShoppingBag className="h-4 w-4" />
-            Ofertas
           </TabsTrigger>
         </TabsList>
 
@@ -453,189 +422,6 @@ export default function StoreConfigSettings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* OFFERS TAB */}
-        <TabsContent value="offers" className="space-y-4">
-          {/* Cross-Sell */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Cross-Sell
-              </CardTitle>
-              <CardDescription>
-                Sugestões de produtos complementares no carrinho
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base">Ativar Cross-Sell</Label>
-                  <p className="text-sm text-muted-foreground">
-                    "Complete seu pedido" no carrinho
-                  </p>
-                </div>
-                <Switch
-                  checked={offersForm.crossSell.enabled}
-                  onCheckedChange={(v) => handleOffersChange('crossSell', { enabled: v })}
-                />
-              </div>
-
-              {offersForm.crossSell.enabled && (
-                <>
-                  <Separator />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Título da Seção</Label>
-                      <Input
-                        value={offersForm.crossSell.title}
-                        onChange={(e) => handleOffersChange('crossSell', { title: e.target.value })}
-                        placeholder="Complete seu pedido"
-                      />
-                    </div>
-                    <div>
-                      <Label>Máximo de Itens</Label>
-                      <Select 
-                        value={String(offersForm.crossSell.maxItems)} 
-                        onValueChange={(v) => handleOffersChange('crossSell', { maxItems: Number(v) })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[3, 4, 5, 6].map(n => (
-                            <SelectItem key={n} value={String(n)}>{n} itens</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Order Bump */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Percent className="h-5 w-5" />
-                Order Bump
-              </CardTitle>
-              <CardDescription>
-                Oferta especial no checkout (máx. 2 produtos)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base">Ativar Order Bump</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Adicionar produto com 1 clique no checkout
-                  </p>
-                </div>
-                <Switch
-                  checked={offersForm.orderBump.enabled}
-                  onCheckedChange={(v) => handleOffersChange('orderBump', { enabled: v })}
-                />
-              </div>
-
-              {offersForm.orderBump.enabled && (
-                <>
-                  <Separator />
-                  <div className="space-y-4">
-                    <div>
-                      <Label>Título</Label>
-                      <Input
-                        value={offersForm.orderBump.title}
-                        onChange={(e) => handleOffersChange('orderBump', { title: e.target.value })}
-                        placeholder="Aproveite esta oferta!"
-                      />
-                    </div>
-                    <div>
-                      <Label>Descrição</Label>
-                      <Textarea
-                        value={offersForm.orderBump.description}
-                        onChange={(e) => handleOffersChange('orderBump', { description: e.target.value })}
-                        placeholder="Adicione ao seu pedido com desconto especial"
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Desconto (%)</Label>
-                        <Input
-                          type="number"
-                          value={offersForm.orderBump.discountPercent}
-                          onChange={(e) => handleOffersChange('orderBump', { discountPercent: Number(e.target.value) })}
-                          min={0}
-                          max={100}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2 pt-6">
-                        <Switch
-                          id="defaultChecked"
-                          checked={offersForm.orderBump.defaultChecked}
-                          onCheckedChange={(v) => handleOffersChange('orderBump', { defaultChecked: v })}
-                        />
-                        <Label htmlFor="defaultChecked" className="text-sm">
-                          Pré-selecionado
-                        </Label>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Buy Together */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5" />
-                Compre Junto
-              </CardTitle>
-              <CardDescription>
-                Usa as regras configuradas no menu "Compre Junto"
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-base">Ativar Compre Junto</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Mostra sugestões na página do produto
-                  </p>
-                </div>
-                <Switch
-                  checked={offersForm.buyTogether.enabled}
-                  onCheckedChange={(v) => handleOffersChange('buyTogether', { enabled: v })}
-                />
-              </div>
-              
-              {offersForm.buyTogether.enabled && (
-                <div className="p-3 bg-muted rounded-lg flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">
-                    Usando regras do menu <Badge variant="outline">Compre Junto</Badge>
-                  </span>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Save Button */}
-          <div className="flex justify-end">
-            <Button 
-              onClick={saveOffers} 
-              disabled={!offersChanged || updateOffersConfig.isPending}
-            >
-              <Save className="h-4 w-4 mr-2" />
-              {updateOffersConfig.isPending ? 'Salvando...' : 'Salvar Ofertas'}
-            </Button>
-          </div>
         </TabsContent>
       </Tabs>
     </div>

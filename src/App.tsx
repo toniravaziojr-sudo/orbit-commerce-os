@@ -35,6 +35,7 @@ import PageBuilder from "@/pages/PageBuilder";
 import LandingPages from "@/pages/LandingPages";
 import BuyTogether from "@/pages/BuyTogether";
 import Reviews from "@/pages/Reviews";
+import Offers from "@/pages/Offers";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import Auth from "@/pages/Auth";
@@ -127,6 +128,7 @@ const App = () => (
               <Route path="/support" element={<Support />} />
               <Route path="/media" element={<Media />} />
               <Route path="/campaigns" element={<Campaigns />} />
+              <Route path="/offers" element={<Offers />} />
               <Route path="/buy-together" element={<BuyTogether />} />
               <Route path="/reviews" element={<Reviews />} />
               <Route path="/integrations" element={<Integrations />} />
