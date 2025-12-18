@@ -176,21 +176,24 @@ serve(async (req) => {
       );
     }
 
-    // Parse shipping services
+    // Parse shipping services - include free shipping options (price = 0)
     const services: FrenetShippingService[] = frenetData.ShippingSevicesArray || [];
     
     const options = services
-      .filter(s => !s.Error && s.ShippingPrice > 0)
-      .map(s => ({
-        code: s.ServiceCode,
-        label: `${s.Carrier} - ${s.ServiceDescription}`,
-        carrier: s.Carrier,
-        service: s.ServiceDescription,
-        price: s.ShippingPrice,
-        deliveryDays: s.DeliveryTime,
-        isFree: false
-      }))
-      .sort((a, b) => a.price - b.price);
+      .filter(s => !s.Error && parseFloat(String(s.ShippingPrice)) >= 0)
+      .map(s => {
+        const price = parseFloat(String(s.ShippingPrice)) || 0;
+        return {
+          code: s.ServiceCode,
+          label: `${s.Carrier} - ${s.ServiceDescription}`,
+          carrier: s.Carrier,
+          service: s.ServiceDescription,
+          price: price.toFixed(2),
+          deliveryDays: String(s.DeliveryTime),
+          isFree: price === 0
+        };
+      })
+      .sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
 
     console.log('Parsed shipping options:', JSON.stringify(options));
 
