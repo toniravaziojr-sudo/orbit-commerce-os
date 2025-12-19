@@ -1,22 +1,30 @@
 /**
- * Cloudflare Worker - Shops Router (SaaS multi-tenant)
+ * Cloudflare Worker - Multi-tenant SaaS Router
  * 
- * Roteia *.shops.comandocentral.com.br para o origin Lovable,
- * extraindo o tenantSlug do subdomínio automaticamente.
+ * Roteia tráfego para o origin Lovable, suportando:
+ * 1. Subdomínios da plataforma: {tenant}.shops.comandocentral.com.br
+ * 2. Domínios custom dos clientes: loja.cliente.com.br
  * 
  * CONFIGURAÇÃO no Cloudflare:
  * 1. Variáveis de ambiente:
  *    - ORIGIN_HOST = orbit-commerce-os.lovable.app
+ *    - SUPABASE_URL = https://ojssezfjhdvvncsqyhyq.supabase.co (para resolve-domain)
+ *    - SUPABASE_ANON_KEY = <sua anon key> (para resolve-domain)
  * 
  * 2. Rotas:
  *    - *.shops.comandocentral.com.br/* → shops-router
  *    - shops.comandocentral.com.br/* → shops-router
+ * 
+ * 3. Custom Hostnames (para domínios dos clientes):
+ *    - Cada domínio custom precisa ser registrado via API no Cloudflare for SaaS
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
+    const SUPABASE_URL = env.SUPABASE_URL;
+    const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
     const hostname = url.hostname;
 
     // shops.comandocentral.com.br (sem tenant) -> redireciona pro app
@@ -24,18 +32,57 @@ export default {
       return Response.redirect("https://app.comandocentral.com.br/", 302);
     }
 
-    // Extrai tenantSlug do subdomínio: {tenant}.shops.comandocentral.com.br
-    const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
-    if (!match) {
-      return new Response("Domain not configured", { status: 404 });
-    }
+    let tenantSlug = null;
+    let domainType = "platform_subdomain";
 
-    const tenantSlug = match[1].toLowerCase();
-    
-    // Bloqueia slugs reservados para evitar conflitos
-    const reserved = new Set(["app", "shops", "www"]);
-    if (reserved.has(tenantSlug)) {
-      return new Response("Domain not configured", { status: 404 });
+    // Tenta extrair tenant do subdomínio: {tenant}.shops.comandocentral.com.br
+    const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
+    if (match) {
+      tenantSlug = match[1].toLowerCase();
+      
+      // Bloqueia slugs reservados para evitar conflitos
+      const reserved = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
+      if (reserved.has(tenantSlug)) {
+        return new Response("Domain not configured", { status: 404 });
+      }
+    } else {
+      // Domínio custom (ex: loja.cliente.com.br) - precisa resolver via API
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.log(`[Worker] Custom domain ${hostname} but no Supabase config`);
+        return new Response("Domain not configured", { status: 404 });
+      }
+
+      try {
+        const resolveUrl = `${SUPABASE_URL}/functions/v1/resolve-domain`;
+        const resolveResponse = await fetch(resolveUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+          body: JSON.stringify({ hostname }),
+        });
+
+        if (!resolveResponse.ok) {
+          console.log(`[Worker] resolve-domain failed: ${resolveResponse.status}`);
+          return new Response("Domain not configured", { status: 404 });
+        }
+
+        const data = await resolveResponse.json();
+        
+        if (!data.found || !data.tenant_slug) {
+          console.log(`[Worker] Domain not found in database: ${hostname}`);
+          return new Response("Domain not configured", { status: 404 });
+        }
+
+        tenantSlug = data.tenant_slug;
+        domainType = data.domain_type || "custom";
+        
+        console.log(`[Worker] Resolved custom domain: ${hostname} -> ${tenantSlug}`);
+      } catch (err) {
+        console.error(`[Worker] Error resolving domain: ${err.message}`);
+        return new Response("Domain resolution error", { status: 500 });
+      }
     }
 
     // Na raiz "/", redireciona para /store/{tenantSlug} (preserva querystring)
@@ -44,7 +91,7 @@ export default {
       return Response.redirect(redirectUrl, 302);
     }
 
-    // Todo o resto (/store/*, /assets/*, /api/*, etc) -> proxy direto pro origin
+    // Todo o resto (/store/*, /assets/*, /api/*, /p/*, /c/*, etc) -> proxy direto pro origin
     const originUrl = new URL(request.url);
     originUrl.hostname = ORIGIN_HOST;
 
@@ -54,10 +101,11 @@ export default {
       if (key.toLowerCase() === "host") continue;
       headers.set(key, value);
     }
-    
+
     headers.set("X-Forwarded-Host", hostname);
     headers.set("X-Forwarded-Proto", "https");
     headers.set("X-Tenant-Slug", tenantSlug);
+    headers.set("X-Domain-Type", domainType);
 
     const originRequest = new Request(originUrl.toString(), {
       method: request.method,

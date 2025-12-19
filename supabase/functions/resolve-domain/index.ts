@@ -25,6 +25,7 @@ interface ResolveResponse {
 const SAAS_DOMAIN = Deno.env.get('SAAS_DOMAIN') || 'comandocentral.com.br';
 const SAAS_STOREFRONT_SUBDOMAIN = 'shops';
 const SAAS_APP_SUBDOMAIN = 'app';
+const TARGET_HOSTNAME = 'shops.comandocentral.com.br';
 const PUBLIC_APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://orbit-commerce-os.lovable.app';
 
 // Check if hostname is a platform subdomain (tenantSlug.shops.domain)

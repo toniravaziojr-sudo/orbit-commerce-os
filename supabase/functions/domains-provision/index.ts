@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const targetHostname = domain.target_hostname || 'shops.respeiteohomem.com.br';
+      const targetHostname = domain.target_hostname || 'shops.comandocentral.com.br';
       
       // Create custom hostname in Cloudflare
       const cfResult = await createCustomHostname(cfZoneId, cfApiToken, domain.domain, targetHostname);

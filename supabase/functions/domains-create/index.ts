@@ -112,8 +112,8 @@ Deno.serve(async (req) => {
     const domain = normalizeDomain(rawDomain);
     const verificationToken = generateVerificationToken();
 
-    // Get target hostname from environment or use default
-    const targetHostname = Deno.env.get('SAAS_STOREFRONT_HOSTNAME') || 'shops.respeiteohomem.com.br';
+    // Get target hostname for CNAME instructions
+    const targetHostname = 'shops.comandocentral.com.br';
 
     console.log(`[domains-create] Creating domain: ${domain} for tenant: ${tenant_id}`);
 

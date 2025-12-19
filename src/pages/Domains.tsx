@@ -79,11 +79,25 @@ export default function Domains() {
     provisionSSL,
     checkSSLStatus,
     setPrimaryDomain, 
-    removeDomain 
+    removeDomain,
+    provisionDefaultDomain,
   } = useTenantDomains();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [instructionsDialog, setInstructionsDialog] = useState<TenantDomain | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
+  const [isProvisioningDefault, setIsProvisioningDefault] = useState(false);
+
+  // Find the platform subdomain (auto-provisioned)
+  const platformSubdomain = domains.find(d => d.type === 'platform_subdomain');
+  const platformSubdomainActive = platformSubdomain?.ssl_status === 'active';
+
+  // Handler for provisioning default domain
+  const handleProvisionDefault = async () => {
+    if (!currentTenant?.slug) return;
+    setIsProvisioningDefault(true);
+    await provisionDefaultDomain(currentTenant.slug);
+    setIsProvisioningDefault(false);
+  };
 
   // URL padrão da plataforma (grátis) - formato: tenantSlug.shops.domain
   const platformStorefrontUrl = currentTenant?.slug 

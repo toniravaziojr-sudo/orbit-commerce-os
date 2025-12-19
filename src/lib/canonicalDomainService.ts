@@ -16,6 +16,8 @@ export const SAAS_CONFIG = {
   appSubdomain: 'app',
   // Fallback origin for legacy/development
   fallbackOrigin: 'https://orbit-commerce-os.lovable.app',
+  // Target hostname for Cloudflare Custom Hostnames
+  targetHostname: 'shops.comandocentral.com.br',
 } as const;
 
 // =============================================
