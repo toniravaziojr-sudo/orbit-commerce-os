@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { normalizeDomain, generateVerificationToken } from '@/lib/normalizeDomain';
+import { SAAS_CONFIG, getPlatformSubdomainUrl } from '@/lib/canonicalDomainService';
 
 export interface TenantDomain {
   id: string;
   tenant_id: string;
   domain: string;
+  type: 'platform_subdomain' | 'custom';
   is_primary: boolean;
   status: 'pending' | 'verified' | 'failed';
   verification_token: string;
@@ -15,14 +17,16 @@ export interface TenantDomain {
   last_checked_at: string | null;
   last_error: string | null;
   created_at: string;
-  // Phase 2 fields
   ssl_status: 'none' | 'pending' | 'active' | 'failed';
   external_id: string | null;
   target_hostname: string;
 }
 
 // Default SaaS hostname for CNAME target
-export const DEFAULT_TARGET_HOSTNAME = 'shops.respeiteohomem.com.br';
+export const DEFAULT_TARGET_HOSTNAME = `${SAAS_CONFIG.storefrontSubdomain}.${SAAS_CONFIG.domain}`;
+
+// Get the platform subdomain URL for a tenant
+export { getPlatformSubdomainUrl };
 
 export function useTenantDomains() {
   const { currentTenant } = useAuth();
@@ -51,6 +55,7 @@ export function useTenantDomains() {
       // Map data with defaults for new fields
       const mappedDomains = (data || []).map(d => ({
         ...d,
+        type: d.type || 'custom',
         ssl_status: d.ssl_status || 'none',
         external_id: d.external_id || null,
         target_hostname: d.target_hostname || DEFAULT_TARGET_HOSTNAME,
@@ -84,6 +89,7 @@ export function useTenantDomains() {
         .insert({
           tenant_id: currentTenant.id,
           domain,
+          type: 'custom',
           verification_token,
           status: 'pending',
           is_primary: false,
