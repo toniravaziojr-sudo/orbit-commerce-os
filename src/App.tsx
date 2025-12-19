@@ -61,22 +61,36 @@ import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccoun
 import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
 import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
 
+import { PUBLIC_APP_ORIGIN } from '@/hooks/useTenantCanonicalDomain';
+
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/auth/reset-password" element={<ResetPassword />} />
+// Check if we're on a custom domain at startup
+const isCustomDomain = () => {
+  const appHost = new URL(PUBLIC_APP_ORIGIN).host;
+  const currentHost = window.location.host;
+  return currentHost !== appHost;
+};
 
-            {/* Custom domain root handler - resolves hostname to tenant */}
-            <Route path="/" element={<CustomDomainResolver />} />
+const App = () => {
+  // If on custom domain and at root, show the resolver
+  const onCustomDomain = isCustomDomain();
+  const isRootPath = window.location.pathname === '/' || window.location.pathname === '';
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            {onCustomDomain && isRootPath ? (
+              <CustomDomainResolver />
+            ) : (
+              <Routes>
+                {/* Public routes */}
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/auth/reset-password" element={<ResetPassword />} />
 
             {/* Public Storefront routes */}
             <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
@@ -152,10 +166,12 @@ const App = () => (
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+            )}
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
