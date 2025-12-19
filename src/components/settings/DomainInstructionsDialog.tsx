@@ -41,6 +41,14 @@ export function DomainInstructionsDialog({
     return parts.length > 2 ? parts[0] : 'www';
   };
 
+  // Para subdomínios, o TXT deve ser _cc-verify.subdominio (ex: _cc-verify.loja)
+  const getTxtRecordName = () => {
+    if (domainType === 'subdomain') {
+      return `_cc-verify.${getSubdomainName()}`;
+    }
+    return '_cc-verify';
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -90,7 +98,7 @@ export function DomainInstructionsDialog({
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Nome/Host:</span>
-                  <code className="bg-background px-2 py-0.5 rounded font-mono">_cc-verify</code>
+                  <code className="bg-background px-2 py-0.5 rounded font-mono">{getTxtRecordName()}</code>
                 </div>
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-muted-foreground">Valor:</span>
