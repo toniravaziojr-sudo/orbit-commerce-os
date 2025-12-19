@@ -57,10 +57,40 @@ export function calculateCartTotals(input: CartTotalsInput): CartTotals {
 }
 
 /**
- * Format currency for display (BRL)
+ * Safely convert any value to a valid number.
+ * Handles strings, objects, null, undefined gracefully.
  */
-export function formatCurrency(value: number): string {
-  return `R$ ${value.toFixed(2).replace('.', ',')}`;
+export function toSafeNumber(value: unknown): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value.replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  // Handle objects that might have a numeric property
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>;
+    if ('price' in obj && typeof obj.price === 'number') return obj.price;
+    if ('value' in obj && typeof obj.value === 'number') return obj.value;
+  }
+  return 0;
+}
+
+/**
+ * Format currency for display (BRL) - SAFE version
+ * Always returns valid string even if input is invalid
+ */
+export function formatCurrency(value: unknown): string {
+  const safeValue = toSafeNumber(value);
+  return `R$ ${safeValue.toFixed(2).replace('.', ',')}`;
+}
+
+/**
+ * Format price for display - SAFE version (without R$ prefix)
+ */
+export function formatPrice(value: unknown): string {
+  const safeValue = toSafeNumber(value);
+  return safeValue.toFixed(2).replace('.', ',');
 }
 
 /**

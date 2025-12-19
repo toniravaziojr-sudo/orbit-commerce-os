@@ -280,14 +280,24 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
           console.log('[StorefrontConfigContext] Frenet quote response:', data);
 
           if (data?.options && data.options.length > 0) {
-            return data.options.map((opt: { code?: string; label: string; carrier?: string; price: number; deliveryDays: number }) => ({
-              code: opt.code,
-              label: opt.label,
-              carrier: opt.carrier,
-              price: isFreeShipping ? 0 : opt.price,
-              deliveryDays: opt.deliveryDays,
-              isFree: isFreeShipping,
-            }));
+            return data.options.map((opt: { code?: string; label: string; carrier?: string; price: unknown; deliveryDays: unknown }) => {
+              // Safe conversion - handle string/number/undefined
+              const safePrice = typeof opt.price === 'number' 
+                ? opt.price 
+                : parseFloat(String(opt.price)) || 0;
+              const safeDays = typeof opt.deliveryDays === 'number' 
+                ? opt.deliveryDays 
+                : parseInt(String(opt.deliveryDays), 10) || 5;
+              
+              return {
+                code: opt.code,
+                label: opt.label,
+                carrier: opt.carrier,
+                price: isFreeShipping ? 0 : safePrice,
+                deliveryDays: safeDays,
+                isFree: isFreeShipping,
+              };
+            });
           }
         } catch (err) {
           console.error('[StorefrontConfigContext] Frenet quote exception:', err);

@@ -183,17 +183,18 @@ serve(async (req) => {
       .filter(s => !s.Error && parseFloat(String(s.ShippingPrice)) >= 0)
       .map(s => {
         const price = parseFloat(String(s.ShippingPrice)) || 0;
+        const deliveryDays = parseInt(String(s.DeliveryTime), 10) || 5;
         return {
           code: s.ServiceCode,
           label: `${s.Carrier} - ${s.ServiceDescription}`,
           carrier: s.Carrier,
           service: s.ServiceDescription,
-          price: price.toFixed(2),
-          deliveryDays: String(s.DeliveryTime),
+          price: price, // Keep as number for frontend
+          deliveryDays: deliveryDays, // Keep as number for frontend
           isFree: price === 0
         };
       })
-      .sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+      .sort((a, b) => a.price - b.price);
 
     console.log('Parsed shipping options:', JSON.stringify(options));
 

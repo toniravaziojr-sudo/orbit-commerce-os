@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
-import { calculateCartTotals, formatCurrency, debugCartTotals } from '@/lib/cartTotals';
+import { calculateCartTotals, formatCurrency, formatPrice, debugCartTotals } from '@/lib/cartTotals';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 
@@ -53,7 +53,7 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
             <p className="text-xs text-muted-foreground">Qtd: {item.quantity}</p>
           </div>
           <p className="text-sm font-medium">
-            R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}
+            R$ {formatPrice(item.price * item.quantity)}
           </p>
         </div>
       ))}
