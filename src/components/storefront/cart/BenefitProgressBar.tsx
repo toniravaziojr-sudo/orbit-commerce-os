@@ -7,7 +7,7 @@ import { useBenefit } from '@/contexts/StorefrontConfigContext';
 import { useCart } from '@/contexts/CartContext';
 import { Gift, Truck, Check } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { calculateCartTotals } from '@/lib/cartTotals';
+import { calculateCartTotals, formatPrice } from '@/lib/cartTotals';
 
 export function BenefitProgressBar() {
   const { items, shipping } = useCart();
@@ -56,7 +56,7 @@ export function BenefitProgressBar() {
             <p className="text-sm">
               Faltam{' '}
               <span className="font-semibold">
-                R$ {remaining.toFixed(2).replace('.', ',')}
+                R$ {formatPrice(remaining)}
               </span>{' '}
               para {label.toLowerCase()}
             </p>

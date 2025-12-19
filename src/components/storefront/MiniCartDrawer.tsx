@@ -19,7 +19,7 @@ import { useCart, CartItem } from '@/contexts/CartContext';
 import { useBenefit, useShipping } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
-import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
+import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
 import { Progress } from '@/components/ui/progress';
 
 interface MiniCartDrawerProps {
@@ -224,7 +224,7 @@ function MiniCartBenefitBar({ subtotal }: { subtotal: number }) {
             <p>
               Faltam{' '}
               <span className="font-semibold">
-                R$ {remaining.toFixed(2).replace('.', ',')}
+                R$ {formatPrice(remaining)}
               </span>{' '}
               para {label.toLowerCase()}
             </p>
@@ -380,7 +380,7 @@ function MiniCartShipping({
                 <span className="font-semibold text-green-600">Grátis</span>
               ) : (
                 <span className="font-semibold">
-                  R$ {option.price.toFixed(2).replace('.', ',')}
+                  R$ {formatPrice(option.price)}
                 </span>
               )}
             </button>
@@ -394,7 +394,7 @@ function MiniCartShipping({
           <Check className="h-3 w-3 text-green-600" />
           <span>
             {shipping.selected.label} • {shipping.selected.deliveryDays} dia(s)
-            {shipping.selected.isFree ? ' • Grátis' : ` • R$ ${shipping.selected.price.toFixed(2).replace('.', ',')}`}
+            {shipping.selected.isFree ? ' • Grátis' : ` • R$ ${formatPrice(shipping.selected.price)}`}
           </span>
         </div>
       )}
@@ -443,7 +443,7 @@ function CartItemRow({
         </div>
         
         <p className="text-sm text-primary font-medium mt-1">
-          R$ {item.price.toFixed(2).replace('.', ',')}
+          R$ {formatPrice(item.price)}
         </p>
 
         {/* Quantity Controls */}

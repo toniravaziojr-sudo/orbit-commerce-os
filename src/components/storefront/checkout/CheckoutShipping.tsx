@@ -12,6 +12,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Truck, Check, Edit2 } from 'lucide-react';
+import { formatPrice } from '@/lib/cartTotals';
 
 interface CheckoutShippingProps {
   disabled?: boolean;
@@ -119,7 +120,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                 </Badge>
               ) : (
                 <span className="font-semibold">
-                  R$ {shipping.selected?.price.toFixed(2).replace('.', ',')}
+                  R$ {formatPrice(shipping.selected?.price)}
                 </span>
               )}
             </div>
@@ -200,7 +201,7 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                     <span className="font-semibold text-green-600">Grátis</span>
                   ) : (
                     <span className="font-semibold">
-                      R$ {option.price.toFixed(2).replace('.', ',')}
+                      R$ {formatPrice(option.price)}
                     </span>
                   )}
                 </div>
