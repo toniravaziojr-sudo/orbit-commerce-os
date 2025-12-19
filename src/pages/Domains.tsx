@@ -474,32 +474,79 @@ export default function Domains() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remover domínio?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
-              <p>
-                Tem certeza que deseja remover o domínio <strong>{deleteConfirm?.domain}</strong>?
-              </p>
-              {deleteConfirm?.is_primary && (
-                <p className="text-amber-600 font-medium">
-                  ⚠️ Este é o domínio principal. Ao removê-lo, sua loja passará a usar a URL padrão da plataforma.
-                </p>
-              )}
-              <p className="text-sm">
-                Esta ação não pode ser desfeita. Você poderá adicionar um novo domínio depois.
-              </p>
+              {(() => {
+                // Verificar se há outros domínios custom além do que está sendo deletado
+                const otherCustomDomains = domains.filter(d => d.id !== deleteConfirm?.id && d.type === 'custom');
+                const isPrimaryWithOthers = deleteConfirm?.is_primary && otherCustomDomains.length > 0;
+                const isPrimaryOnly = deleteConfirm?.is_primary && otherCustomDomains.length === 0;
+                
+                if (isPrimaryWithOthers) {
+                  return (
+                    <>
+                      <p>
+                        O domínio <strong>{deleteConfirm?.domain}</strong> é o principal e existem outros domínios personalizados.
+                      </p>
+                      <p className="text-amber-600 font-medium">
+                        ⚠️ Defina outro domínio como principal antes de remover este.
+                      </p>
+                    </>
+                  );
+                }
+                
+                if (isPrimaryOnly) {
+                  return (
+                    <>
+                      <p>
+                        Tem certeza que deseja remover o domínio <strong>{deleteConfirm?.domain}</strong>?
+                      </p>
+                      <p className="text-amber-600 font-medium">
+                        ⚠️ Este é o único domínio personalizado. Ao removê-lo, sua loja voltará a usar a URL padrão da plataforma ({currentTenant?.slug}.shops.comandocentral.com.br).
+                      </p>
+                      <p className="text-sm">
+                        Você poderá adicionar um novo domínio personalizado depois.
+                      </p>
+                    </>
+                  );
+                }
+                
+                return (
+                  <>
+                    <p>
+                      Tem certeza que deseja remover o domínio <strong>{deleteConfirm?.domain}</strong>?
+                    </p>
+                    <p className="text-sm">
+                      Esta ação não pode ser desfeita. Você poderá adicionar um novo domínio depois.
+                    </p>
+                  </>
+                );
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteConfirm) {
-                  removeDomain(deleteConfirm.id);
-                  setDeleteConfirm(null);
-                }
-              }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Remover Domínio
-            </AlertDialogAction>
+            {(() => {
+              const otherCustomDomains = domains.filter(d => d.id !== deleteConfirm?.id && d.type === 'custom');
+              const isPrimaryWithOthers = deleteConfirm?.is_primary && otherCustomDomains.length > 0;
+              
+              if (isPrimaryWithOthers) {
+                // Não mostrar botão de remover, apenas cancelar
+                return null;
+              }
+              
+              return (
+                <AlertDialogAction
+                  onClick={() => {
+                    if (deleteConfirm) {
+                      removeDomain(deleteConfirm.id, true);
+                      setDeleteConfirm(null);
+                    }
+                  }}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleteConfirm?.is_primary ? 'Remover e Voltar ao Padrão' : 'Remover Domínio'}
+                </AlertDialogAction>
+              );
+            })()}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
