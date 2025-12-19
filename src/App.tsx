@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { CustomDomainResolver } from "@/components/storefront/CustomDomainResolver";
 
 // Admin Pages
 import Dashboard from "@/pages/Dashboard";
@@ -73,6 +74,9 @@ const App = () => (
             {/* Public routes */}
             <Route path="/auth" element={<Auth />} />
             <Route path="/auth/reset-password" element={<ResetPassword />} />
+
+            {/* Custom domain root handler - resolves hostname to tenant */}
+            <Route path="/" element={<CustomDomainResolver />} />
 
             {/* Public Storefront routes */}
             <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
