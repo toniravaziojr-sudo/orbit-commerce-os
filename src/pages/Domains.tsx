@@ -321,9 +321,13 @@ export default function Domains() {
               Após adicionar o domínio, crie um registro TXT no seu DNS:
               <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
                 <li><strong>Tipo:</strong> TXT</li>
-                <li><strong>Nome/Host:</strong> <code className="bg-muted px-1 rounded">_cc-verify</code></li>
+                <li>
+                  <strong>Nome/Host:</strong>{' '}
+                  <code className="bg-muted px-1 rounded">_cc-verify</code> para domínio raiz, ou{' '}
+                  <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios (ex: <code className="bg-muted px-1 rounded">_cc-verify.loja</code>)
+                </li>
                 <li><strong>Valor:</strong> <code className="bg-muted px-1 rounded">cc-verify=SEU_TOKEN</code></li>
-                <li><strong>TTL:</strong> 300 (5 minutos)</li>
+                <li><strong>TTL:</strong> Auto ou 300 (5 minutos)</li>
               </ul>
             </AlertDescription>
           </Alert>
