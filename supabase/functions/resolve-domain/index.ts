@@ -55,6 +55,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Query for the domain - try both with and without www
+    // Note: We match any verified+active domain, not just primary ones
     const { data: domains, error } = await supabase
       .from('tenant_domains')
       .select(`
@@ -69,7 +70,6 @@ Deno.serve(async (req) => {
       .or(`domain.eq.${normalizedHostname},domain.eq.${hostnameWithoutWww}`)
       .eq('status', 'verified')
       .eq('ssl_status', 'active')
-      .eq('is_primary', true)
       .limit(1);
 
     if (error) {
