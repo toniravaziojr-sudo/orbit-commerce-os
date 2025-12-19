@@ -1,23 +1,41 @@
 /**
- * Cloudflare Worker - Custom Domain Router (single domain - loja.respeiteohomem.com.br)
+ * Cloudflare Worker - Shops Router (SaaS multi-tenant)
+ * 
+ * Roteia *.shops.comandocentral.com.br para o origin Lovable,
+ * extraindo o tenantSlug do subdomínio automaticamente.
  * 
  * CONFIGURAÇÃO no Cloudflare:
  * 1. Variáveis de ambiente:
  *    - ORIGIN_HOST = orbit-commerce-os.lovable.app
  * 
- * 2. Rota:
- *    - loja.respeiteohomem.com.br/* → cc-domain-router
+ * 2. Rotas:
+ *    - *.shops.comandocentral.com.br/* → shops-router
+ *    - shops.comandocentral.com.br/* → shops-router
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
+    const hostname = url.hostname;
 
-    // Só na raiz "/" redireciona para /store/respeite-o-homem
-    // USA URL ABSOLUTA EXPLÍCITA (evita erro de parse)
+    // Extrai tenantSlug do subdomínio: {tenant}.shops.comandocentral.com.br
+    const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
+    
+    if (!match) {
+      // Se for só shops.comandocentral.com.br (sem tenant), redireciona para o app
+      if (hostname === "shops.comandocentral.com.br") {
+        return Response.redirect("https://app.comandocentral.com.br/", 302);
+      }
+      // Hostname não reconhecido
+      return new Response("Domain not configured", { status: 404 });
+    }
+
+    const tenantSlug = match[1];
+
+    // Na raiz "/", redireciona para /store/{tenantSlug}
     if (url.pathname === "/" || url.pathname === "") {
-      const redirectUrl = "https://" + url.hostname + "/store/respeite-o-homem";
+      const redirectUrl = `https://${hostname}/store/${tenantSlug}`;
       return Response.redirect(redirectUrl, 302);
     }
 
@@ -32,8 +50,9 @@ export default {
       headers.set(key, value);
     }
     
-    headers.set("X-Forwarded-Host", url.hostname);
+    headers.set("X-Forwarded-Host", hostname);
     headers.set("X-Forwarded-Proto", "https");
+    headers.set("X-Tenant-Slug", tenantSlug);
 
     const originRequest = new Request(originUrl.toString(), {
       method: request.method,
