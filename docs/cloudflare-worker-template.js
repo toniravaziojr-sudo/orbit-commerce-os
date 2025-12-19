@@ -20,7 +20,7 @@ export default {
 
     // Só na raiz "/" redireciona para /store/respeite-o-homem
     if (url.pathname === "/" || url.pathname === "") {
-      return Response.redirect(`https://${url.hostname}/store/respeite-o-homem`, 302);
+      return Response.redirect(`${url.origin}/store/respeite-o-homem`, 302);
     }
 
     // Todo o resto (/store/*, /assets/*, /api/*, etc) -> proxy direto pro origin
@@ -28,14 +28,23 @@ export default {
     const originUrl = new URL(request.url);
     originUrl.hostname = ORIGIN_HOST;
 
-    const headers = new Headers(request.headers);
-    headers.set("Host", ORIGIN_HOST);
+    // CRÍTICO: Criar novos headers SEM o Host original
+    const headers = new Headers();
+    for (const [key, value] of request.headers.entries()) {
+      // Pula o header Host - vamos deixar o fetch usar o hostname correto
+      if (key.toLowerCase() === "host") continue;
+      headers.set(key, value);
+    }
+    
+    // Adiciona headers de forwarding para debug
     headers.set("X-Forwarded-Host", url.hostname);
+    headers.set("X-Forwarded-Proto", "https");
 
+    // Cria a request para o origin
     const originRequest = new Request(originUrl.toString(), {
       method: request.method,
       headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+      body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
       redirect: "manual",
     });
 
@@ -55,7 +64,8 @@ export default {
  * - /assets/* vai direto pro origin (NÃO reescreve para /store/slug/assets/*)
  * - /store/* vai direto pro origin
  * - Qualquer outro path vai direto pro origin
+ * - REMOVE o header Host original (causa do erro 1101 e MIME text/plain)
  * 
- * IMPORTANTE: O código antigo estava reescrevendo /assets/* para 
- * /store/respeite-o-homem/assets/* - isso não existe no origin!
+ * VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
+ * - ORIGIN_HOST = orbit-commerce-os.lovable.app
  */
