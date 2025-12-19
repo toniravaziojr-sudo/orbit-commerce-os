@@ -90,6 +90,18 @@ export default function Domains() {
     ? `${window.location.origin}/store/${currentTenant.slug}` 
     : null;
 
+  // Find the active custom domain (verified + SSL active + primary or first one)
+  const activeCustomDomain = domains.find(
+    d => d.status === 'verified' && d.ssl_status === 'active' && d.is_primary
+  ) || domains.find(
+    d => d.status === 'verified' && d.ssl_status === 'active'
+  );
+
+  // URL do storefront no domínio personalizado
+  const customDomainUrl = activeCustomDomain && currentTenant?.slug
+    ? `https://${activeCustomDomain.domain}/store/${currentTenant.slug}`
+    : null;
+
   const handleCopyToken = (domain: TenantDomain) => {
     navigator.clipboard.writeText(`cc-verify=${domain.verification_token}`);
     toast.success('Token copiado!');
@@ -98,6 +110,11 @@ export default function Domains() {
   const handleCopyTarget = () => {
     navigator.clipboard.writeText(STOREFRONT_CNAME_TARGET);
     toast.success('Hostname copiado!');
+  };
+
+  const handleCopyUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success('URL copiada!');
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -136,27 +153,74 @@ export default function Domains() {
             URL do Storefront
           </CardTitle>
           <CardDescription>
-            Esta é a URL da sua loja, disponível automaticamente.
+            URLs públicas da sua loja
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          {/* URL padrão (grátis) */}
           {storefrontUrl ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
-                {storefrontUrl}
-              </code>
-              <Badge variant="outline">Ativo</Badge>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => window.open(storefrontUrl, '_blank')}
-              >
-                <ExternalLink className="h-4 w-4 mr-1" />
-                Abrir
-              </Button>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-muted-foreground">URL padrão (grátis)</p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
+                  {storefrontUrl}
+                </code>
+                <Badge variant="outline">Ativo</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.open(storefrontUrl, '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Abrir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCopyUrl(storefrontUrl)}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copiar
+                </Button>
+              </div>
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">Nenhum tenant selecionado</p>
+          )}
+
+          {/* URL do domínio personalizado */}
+          {customDomainUrl && (
+            <div className="space-y-1 pt-3 border-t">
+              <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-green-600" />
+                URL no domínio personalizado
+              </p>
+              <div className="flex items-center gap-3 flex-wrap">
+                <code className="bg-green-50 border border-green-200 px-3 py-1.5 rounded text-sm font-mono break-all text-green-800">
+                  {customDomainUrl}
+                </code>
+                <Badge variant="default" className="bg-green-600">Principal</Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => window.open(customDomainUrl, '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Abrir
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleCopyUrl(customDomainUrl)}
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  Copiar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Quando acessarem a URL padrão, serão redirecionados automaticamente para o domínio personalizado.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
