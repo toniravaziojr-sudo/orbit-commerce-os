@@ -19,23 +19,28 @@ export default {
     const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
     const hostname = url.hostname;
 
+    // shops.comandocentral.com.br (sem tenant) -> redireciona pro app
+    if (hostname === "shops.comandocentral.com.br") {
+      return Response.redirect("https://app.comandocentral.com.br/", 302);
+    }
+
     // Extrai tenantSlug do subdomínio: {tenant}.shops.comandocentral.com.br
     const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
-    
     if (!match) {
-      // Se for só shops.comandocentral.com.br (sem tenant), redireciona para o app
-      if (hostname === "shops.comandocentral.com.br") {
-        return Response.redirect("https://app.comandocentral.com.br/", 302);
-      }
-      // Hostname não reconhecido
       return new Response("Domain not configured", { status: 404 });
     }
 
-    const tenantSlug = match[1];
+    const tenantSlug = match[1].toLowerCase();
+    
+    // Bloqueia slugs reservados para evitar conflitos
+    const reserved = new Set(["app", "shops", "www"]);
+    if (reserved.has(tenantSlug)) {
+      return new Response("Domain not configured", { status: 404 });
+    }
 
-    // Na raiz "/", redireciona para /store/{tenantSlug}
+    // Na raiz "/", redireciona para /store/{tenantSlug} (preserva querystring)
     if (url.pathname === "/" || url.pathname === "") {
-      const redirectUrl = `https://${hostname}/store/${tenantSlug}`;
+      const redirectUrl = `https://${hostname}/store/${tenantSlug}${url.search || ""}`;
       return Response.redirect(redirectUrl, 302);
     }
 
