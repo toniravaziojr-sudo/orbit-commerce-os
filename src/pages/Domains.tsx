@@ -359,16 +359,14 @@ export default function Domains() {
                               <Star className="h-4 w-4" />
                             </Button>
                           )}
-                          {!domain.is_primary && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setDeleteConfirm(domain)}
-                              title="Remover"
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteConfirm(domain)}
+                            title="Remover domínio"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -475,9 +473,18 @@ export default function Domains() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remover domínio?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja remover o domínio <strong>{deleteConfirm?.domain}</strong>?
-              Esta ação não pode ser desfeita.
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Tem certeza que deseja remover o domínio <strong>{deleteConfirm?.domain}</strong>?
+              </p>
+              {deleteConfirm?.is_primary && (
+                <p className="text-amber-600 font-medium">
+                  ⚠️ Este é o domínio principal. Ao removê-lo, sua loja passará a usar a URL padrão da plataforma.
+                </p>
+              )}
+              <p className="text-sm">
+                Esta ação não pode ser desfeita. Você poderá adicionar um novo domínio depois.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -491,7 +498,7 @@ export default function Domains() {
               }}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Remover
+              Remover Domínio
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
