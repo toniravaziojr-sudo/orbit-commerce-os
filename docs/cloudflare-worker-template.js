@@ -3,16 +3,20 @@
  * 
  * Este worker roteia requisições de domínios personalizados para o tenant correto.
  * 
+ * IMPORTANTE: 
+ * - Só resolve tenant na raiz "/" (redirect para /store/:slug)
+ * - Para todos outros paths, faz proxy direto para o origin (preservando path)
+ * 
  * CONFIGURAÇÃO:
  * 1. Crie um Worker no Cloudflare Dashboard
  * 2. Configure as variáveis de ambiente:
  *    - SUPABASE_URL: URL do projeto Supabase
  *    - RESOLVE_DOMAIN_URL: URL da edge function resolve-domain
  *    - ORIGIN_HOST: Host de origem (ex: orbit-commerce-os.lovable.app)
- * 3. Configure as rotas para o Custom Hostname (shops.seudominio.com.br)
+ * 3. Configure as rotas para o domínio customizado
  * 
  * USO:
- * - Domínios dos clientes apontam (CNAME) para shops.seudominio.com.br
+ * - Domínios dos clientes apontam (CNAME) para o origin host
  * - Este worker intercepta as requisições e resolve o tenant
  * - Requisições são encaminhadas para o storefront correto
  */
@@ -23,77 +27,101 @@ const CACHE_TTL = 300;
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const hostname = url.hostname;
+    // Normalizar hostname: lowercase, sem porta, sem trailing dot
+    const hostname = url.hostname.toLowerCase().split(':')[0].replace(/\.$/, '');
+    const pathname = url.pathname;
     
-    console.log(`[Worker] Incoming request: ${hostname}${url.pathname}`);
+    console.log(`[Worker] Incoming request: ${hostname}${pathname}`);
 
-    // Bypass para assets estáticos e health checks
-    if (url.pathname.startsWith('/_next') || 
-        url.pathname.startsWith('/static') ||
-        url.pathname === '/health' ||
-        url.pathname === '/favicon.ico') {
+    // Verificar se é um hostname do Lovable (não precisa processar)
+    if (hostname.endsWith('.lovable.app') || hostname.endsWith('.workers.dev')) {
+      console.log(`[Worker] Lovable/Workers host, passthrough`);
       return fetch(request);
     }
 
-    // Verificar se é um hostname customizado (não é o hostname base)
+    // Verificar se é um hostname base conhecido (não precisa resolver tenant)
     const baseHostnames = [
       'shops.respeiteohomem.com.br',
       'localhost',
       '127.0.0.1'
     ];
     
-    if (baseHostnames.some(h => hostname.includes(h))) {
-      // É o hostname base, não precisa resolver tenant
+    if (baseHostnames.some(h => hostname === h || hostname.endsWith(`.${h}`))) {
+      console.log(`[Worker] Base hostname, passthrough`);
       return fetch(request);
     }
 
+    const originHost = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
+
     try {
-      // Tentar resolver o tenant pelo hostname
-      const tenantInfo = await resolveTenant(hostname, env, ctx);
-      
-      if (!tenantInfo.found) {
-        console.log(`[Worker] Tenant not found for: ${hostname}`);
-        // Retornar 404 ou redirecionar para página padrão
-        return new Response('Domínio não encontrado', { 
-          status: 404,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' }
-        });
+      // ============================================
+      // CASO 1: Raiz "/" - Resolver tenant e redirect
+      // ============================================
+      if (pathname === '/' || pathname === '') {
+        console.log(`[Worker] Root path, resolving tenant for: ${hostname}`);
+        
+        const tenantInfo = await resolveTenant(hostname, env, ctx);
+        
+        if (!tenantInfo.found) {
+          console.log(`[Worker] Tenant not found for: ${hostname}`);
+          return new Response('Domínio não encontrado', { 
+            status: 404,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' }
+          });
+        }
+
+        console.log(`[Worker] Resolved: ${hostname} -> ${tenantInfo.tenant_slug}`);
+        
+        // Redirect 302 para /store/:slug no mesmo domínio custom
+        const redirectUrl = `https://${hostname}/store/${tenantInfo.tenant_slug}`;
+        console.log(`[Worker] Redirecting to: ${redirectUrl}`);
+        
+        return Response.redirect(redirectUrl, 302);
       }
 
-      console.log(`[Worker] Resolved: ${hostname} -> ${tenantInfo.tenant_slug}`);
-
-      // Reescrever a URL para o storefront do tenant
-      const originUrl = new URL(request.url);
-      originUrl.hostname = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
+      // ============================================
+      // CASO 2: Qualquer outro path - Proxy direto para origin
+      // ============================================
+      // Isso inclui: /assets/*, /store/*, /api/*, /favicon.ico, /robots.txt, etc.
       
-      // Se não está no path do store, adicionar
-      if (!originUrl.pathname.startsWith('/store/')) {
-        originUrl.pathname = `/store/${tenantInfo.tenant_slug}${originUrl.pathname}`;
-      }
-
-      // Criar nova requisição com o host de origem
-      const originRequest = new Request(originUrl.toString(), {
+      const upstreamUrl = new URL(`https://${originHost}${pathname}${url.search}`);
+      console.log(`[Worker] Proxying to: ${upstreamUrl.toString()}`);
+      
+      // Clonar headers e ajustar Host
+      const headers = new Headers(request.headers);
+      headers.set('Host', originHost);
+      headers.set('X-Forwarded-Host', hostname);
+      headers.set('X-Original-Host', hostname);
+      
+      const upstreamRequest = new Request(upstreamUrl.toString(), {
         method: request.method,
-        headers: request.headers,
-        body: request.body,
+        headers: headers,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
         redirect: 'manual'
       });
 
-      // Encaminhar para origem
-      const response = await fetch(originRequest);
-
-      // Copiar resposta e ajustar headers se necessário
-      const newResponse = new Response(response.body, {
+      const response = await fetch(upstreamRequest);
+      
+      // Clonar response para poder modificar headers se necessário
+      const responseHeaders = new Headers(response.headers);
+      
+      // Adicionar CORS headers para permitir requests do domínio custom
+      responseHeaders.set('Access-Control-Allow-Origin', '*');
+      responseHeaders.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      responseHeaders.set('Access-Control-Allow-Headers', 'authorization, x-client-info, apikey, content-type');
+      
+      return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
-        headers: response.headers
+        headers: responseHeaders
       });
-
-      return newResponse;
 
     } catch (error) {
       console.error(`[Worker] Error: ${error.message}`);
-      return new Response('Erro interno', { status: 500 });
+      return new Response('Erro interno do servidor', { 
+        status: 500,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      });
     }
   }
 };
@@ -118,6 +146,8 @@ async function resolveTenant(hostname, env, ctx) {
   const resolveUrl = env.RESOLVE_DOMAIN_URL || 
     `${env.SUPABASE_URL}/functions/v1/resolve-domain`;
   
+  console.log(`[Worker] Calling resolve-domain: ${resolveUrl}?hostname=${hostname}`);
+  
   const response = await fetch(`${resolveUrl}?hostname=${encodeURIComponent(hostname)}`, {
     method: 'GET',
     headers: {
@@ -132,6 +162,7 @@ async function resolveTenant(hostname, env, ctx) {
   }
 
   const result = await response.json();
+  console.log(`[Worker] resolve-domain response:`, JSON.stringify(result));
 
   // Cachear resultado (se encontrado)
   if (result.found && env.TENANT_CACHE) {
@@ -144,23 +175,31 @@ async function resolveTenant(hostname, env, ctx) {
 }
 
 /**
- * Exemplo de configuração wrangler.toml:
+ * INSTRUÇÕES DE DEPLOY:
  * 
- * name = "storefront-router"
- * main = "worker.js"
- * compatibility_date = "2024-01-01"
+ * 1. No Cloudflare Dashboard, vá em Workers & Pages
+ * 2. Crie um novo Worker chamado "cc-domain-router" (ou atualize o existente)
+ * 3. Cole este código
+ * 4. Configure as variáveis de ambiente em Settings > Variables:
+ *    - ORIGIN_HOST = orbit-commerce-os.lovable.app
+ *    - SUPABASE_URL = https://ojssezfjhdvvncsqyhyq.supabase.co
+ *    - RESOLVE_DOMAIN_URL = https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/resolve-domain
  * 
- * [vars]
- * ORIGIN_HOST = "orbit-commerce-os.lovable.app"
- * SUPABASE_URL = "https://ojssezfjhdvvncsqyhyq.supabase.co"
- * RESOLVE_DOMAIN_URL = "https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/resolve-domain"
+ * 5. Configure a rota em Triggers > Routes:
+ *    - Pattern: loja.respeiteohomem.com.br/*
+ *    - Zone: respeiteohomem.com.br
+ *    
+ *    IMPORTANTE: NÃO use wildcard *.respeiteohomem.com.br/* 
+ *    pois isso intercepta TODOS os subdomínios (incluindo Shopify, etc.)
+ *    Use rotas específicas para cada domínio custom.
  * 
- * [[kv_namespaces]]
- * binding = "TENANT_CACHE"
- * id = "YOUR_KV_NAMESPACE_ID"
+ * 6. No DNS do Cloudflare:
+ *    - CNAME loja -> orbit-commerce-os.lovable.app (Somente DNS, nuvem cinza)
+ *    OU
+ *    - A loja -> 185.158.133.1 (se necessário, mas prefira CNAME)
  * 
- * [triggers]
- * routes = [
- *   { pattern = "shops.respeiteohomem.com.br/*", zone_name = "respeiteohomem.com.br" }
- * ]
+ * TESTE:
+ * - https://loja.respeiteohomem.com.br/ deve redirecionar para /store/respeite-o-homem
+ * - https://loja.respeiteohomem.com.br/assets/*.css deve retornar CSS com content-type correto
+ * - https://loja.respeiteohomem.com.br/store/respeite-o-homem deve carregar a loja
  */
