@@ -268,16 +268,22 @@ export function useTenantDomains() {
     }
   };
 
-  const removeDomain = async (domainId: string): Promise<boolean> => {
+  const removeDomain = async (domainId: string, forceRemovePrimary: boolean = false): Promise<boolean> => {
     const domain = domains.find(d => d.id === domainId);
     if (!domain) {
       toast.error('Domínio não encontrado');
       return false;
     }
 
-    if (domain.is_primary) {
-      toast.error('Não é possível remover o domínio principal. Defina outro domínio como principal primeiro.');
-      return false;
+    // Se é principal e não foi forçado, verificar se há outros domínios custom
+    if (domain.is_primary && !forceRemovePrimary) {
+      const otherCustomDomains = domains.filter(d => d.id !== domainId && d.type === 'custom');
+      if (otherCustomDomains.length > 0) {
+        // Há outros domínios, exige definir outro como principal primeiro
+        toast.error('Defina outro domínio como principal antes de remover este.');
+        return false;
+      }
+      // Se não há outros, permite remover (volta ao padrão shops)
     }
 
     try {
@@ -301,7 +307,7 @@ export function useTenantDomains() {
 
       if (error) throw error;
 
-      toast.success('Domínio removido');
+      toast.success('Domínio removido. Sua loja agora usa a URL padrão da plataforma.');
       await fetchDomains();
       return true;
     } catch (error) {
