@@ -21,10 +21,10 @@ export function CustomDomainResolver() {
       const currentHost = window.location.host;
       const appHost = new URL(PUBLIC_APP_ORIGIN).host;
 
-      // If we're on the default app host, this component shouldn't handle it
+      // If we're on the default app host, redirect to auth
       if (currentHost === appHost) {
-        setStatus('error');
-        setErrorMessage('Página não encontrada');
+        setStatus('redirecting');
+        window.location.replace('/auth');
         return;
       }
 
