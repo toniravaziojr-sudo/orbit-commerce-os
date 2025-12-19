@@ -22,7 +22,7 @@ interface ResolveResponse {
 }
 
 // SaaS platform configuration
-const SAAS_DOMAIN = Deno.env.get('SAAS_DOMAIN') || 'respeiteohomem.com.br';
+const SAAS_DOMAIN = Deno.env.get('SAAS_DOMAIN') || 'comandocentral.com.br';
 const SAAS_STOREFRONT_SUBDOMAIN = 'shops';
 const SAAS_APP_SUBDOMAIN = 'app';
 const PUBLIC_APP_ORIGIN = Deno.env.get('PUBLIC_APP_ORIGIN') || 'https://orbit-commerce-os.lovable.app';

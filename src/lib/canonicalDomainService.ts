@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 // SaaS Platform Configuration
 export const SAAS_CONFIG = {
   // The main SaaS domain
-  domain: 'respeiteohomem.com.br',
+  domain: 'comandocentral.com.br',
   // Subdomain for storefronts (tenantSlug.shops.domain)
   storefrontSubdomain: 'shops',
   // Subdomain for admin app

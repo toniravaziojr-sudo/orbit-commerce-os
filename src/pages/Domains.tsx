@@ -192,7 +192,7 @@ export default function Domains() {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Formato: {currentTenant?.slug}.shops.respeiteohomem.com.br
+                Formato: {currentTenant?.slug}.shops.comandocentral.com.br
               </p>
             </div>
           ) : (
