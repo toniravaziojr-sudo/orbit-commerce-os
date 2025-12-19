@@ -32,3 +32,15 @@ verify_jwt = true
 
 [functions.resolve-domain]
 verify_jwt = false
+
+[functions.domains-create]
+verify_jwt = true
+
+[functions.domains-refresh-status]
+verify_jwt = true
+
+[functions.checkout-create-order]
+verify_jwt = false
+
+[functions.get-order]
+verify_jwt = false

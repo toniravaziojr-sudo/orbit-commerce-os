@@ -2256,6 +2256,7 @@ export type Database = {
           status: string
           target_hostname: string | null
           tenant_id: string
+          type: string
           updated_at: string
           verification_token: string
           verified_at: string | null
@@ -2272,6 +2273,7 @@ export type Database = {
           status?: string
           target_hostname?: string | null
           tenant_id: string
+          type?: string
           updated_at?: string
           verification_token: string
           verified_at?: string | null
@@ -2288,6 +2290,7 @@ export type Database = {
           status?: string
           target_hostname?: string | null
           tenant_id?: string
+          type?: string
           updated_at?: string
           verification_token?: string
           verified_at?: string | null

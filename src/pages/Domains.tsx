@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME } from '@/hooks/useTenantDomains';
+import { useTenantDomains, TenantDomain, DEFAULT_TARGET_HOSTNAME, getPlatformSubdomainUrl } from '@/hooks/useTenantDomains';
 import { useAuth } from '@/hooks/useAuth';
 import { getDomainType } from '@/lib/normalizeDomain';
 import { toast } from 'sonner';
@@ -85,22 +85,30 @@ export default function Domains() {
   const [instructionsDialog, setInstructionsDialog] = useState<TenantDomain | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<TenantDomain | null>(null);
 
-  // URL real do storefront (baseada no host atual + path do tenant)
-  const storefrontUrl = currentTenant?.slug 
+  // URL padrão da plataforma (grátis) - formato: tenantSlug.shops.domain
+  const platformStorefrontUrl = currentTenant?.slug 
+    ? getPlatformSubdomainUrl(currentTenant.slug)
+    : null;
+
+  // URL legada no app (para compatibilidade)
+  const legacyStorefrontUrl = currentTenant?.slug 
     ? `${window.location.origin}/store/${currentTenant.slug}` 
     : null;
 
   // Find the active custom domain (verified + SSL active + primary or first one)
   const activeCustomDomain = domains.find(
-    d => d.status === 'verified' && d.ssl_status === 'active' && d.is_primary
+    d => d.status === 'verified' && d.ssl_status === 'active' && d.is_primary && d.type === 'custom'
   ) || domains.find(
-    d => d.status === 'verified' && d.ssl_status === 'active'
+    d => d.status === 'verified' && d.ssl_status === 'active' && d.type === 'custom'
   );
 
-  // URL do storefront no domínio personalizado
-  const customDomainUrl = activeCustomDomain && currentTenant?.slug
-    ? `https://${activeCustomDomain.domain}/store/${currentTenant.slug}`
+  // URL do storefront no domínio personalizado (na raiz)
+  const customDomainUrl = activeCustomDomain
+    ? `https://${activeCustomDomain.domain}`
     : null;
+
+  // Canonical URL (custom domain if active, otherwise platform subdomain)
+  const canonicalUrl = customDomainUrl || platformStorefrontUrl;
 
   const handleCopyToken = (domain: TenantDomain) => {
     navigator.clipboard.writeText(`cc-verify=${domain.verification_token}`);
@@ -158,18 +166,18 @@ export default function Domains() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* URL padrão (grátis) */}
-          {storefrontUrl ? (
+          {platformStorefrontUrl ? (
             <div className="space-y-1">
               <p className="text-sm font-medium text-muted-foreground">URL padrão (grátis)</p>
               <div className="flex items-center gap-3 flex-wrap">
                 <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
-                  {storefrontUrl}
+                  {platformStorefrontUrl}
                 </code>
-                <Badge variant="outline">Ativo</Badge>
+                <Badge variant="outline">{customDomainUrl ? 'Ativo' : 'Principal'}</Badge>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.open(storefrontUrl, '_blank')}
+                  onClick={() => window.open(platformStorefrontUrl, '_blank')}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Abrir
@@ -177,12 +185,15 @@ export default function Domains() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleCopyUrl(storefrontUrl)}
+                  onClick={() => handleCopyUrl(platformStorefrontUrl)}
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   Copiar
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Formato: {currentTenant?.slug}.shops.respeiteohomem.com.br
+              </p>
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">Nenhum tenant selecionado</p>
