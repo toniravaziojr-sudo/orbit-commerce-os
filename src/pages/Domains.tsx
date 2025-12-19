@@ -187,11 +187,45 @@ export default function Domains() {
                 <code className="bg-muted px-3 py-1.5 rounded text-sm font-mono break-all">
                   {platformStorefrontUrl}
                 </code>
-                <Badge variant="outline">{customDomainUrl ? 'Ativo' : 'Principal'}</Badge>
+                
+                {/* Show SSL status badge */}
+                {platformSubdomain ? (
+                  <Badge 
+                    variant={platformSubdomainActive ? 'default' : 'secondary'}
+                    className={platformSubdomainActive ? 'bg-green-600' : ''}
+                  >
+                    {platformSubdomainActive ? (
+                      <>
+                        <ShieldCheck className="h-3 w-3 mr-1" />
+                        SSL Ativo
+                      </>
+                    ) : platformSubdomain.ssl_status === 'pending' ? (
+                      <>
+                        <Clock className="h-3 w-3 mr-1" />
+                        SSL Pendente
+                      </>
+                    ) : (
+                      <>
+                        <ShieldOff className="h-3 w-3 mr-1" />
+                        SSL Inativo
+                      </>
+                    )}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">
+                    <ShieldOff className="h-3 w-3 mr-1" />
+                    Não Ativado
+                  </Badge>
+                )}
+                
+                {!customDomainUrl && <Badge variant="outline">Principal</Badge>}
+                
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => window.open(platformStorefrontUrl, '_blank')}
+                  disabled={!platformSubdomainActive}
+                  title={!platformSubdomainActive ? 'Ative o SSL primeiro' : 'Abrir loja'}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Abrir
@@ -204,10 +238,47 @@ export default function Domains() {
                   <Copy className="h-4 w-4 mr-1" />
                   Copiar
                 </Button>
+                
+                {/* Show "Activate" button if not provisioned or SSL not active */}
+                {(!platformSubdomain || platformSubdomain.ssl_status !== 'active') && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleProvisionDefault}
+                    disabled={isProvisioningDefault}
+                  >
+                    {isProvisioningDefault ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                        Ativando...
+                      </>
+                    ) : platformSubdomain?.ssl_status === 'pending' ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        Verificar SSL
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-4 w-4 mr-1" />
+                        Ativar Domínio
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Formato: {currentTenant?.slug}.shops.comandocentral.com.br
               </p>
+              
+              {/* Show error if provisioning failed */}
+              {platformSubdomain?.last_error && (
+                <Alert variant="destructive" className="mt-2">
+                  <XCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">
+                    {platformSubdomain.last_error}
+                  </AlertDescription>
+                </Alert>
+              )}
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">Nenhum tenant selecionado</p>
