@@ -22,8 +22,8 @@ export interface TenantDomain {
   target_hostname: string;
 }
 
-// Default SaaS hostname for CNAME target
-export const DEFAULT_TARGET_HOSTNAME = `${SAAS_CONFIG.storefrontSubdomain}.${SAAS_CONFIG.domain}`;
+// Default SaaS hostname for CNAME target (fallback origin for Cloudflare Custom Hostnames)
+export const DEFAULT_TARGET_HOSTNAME = SAAS_CONFIG.targetHostname;
 
 // Get the platform subdomain URL for a tenant
 export { getPlatformSubdomainUrl };
@@ -317,6 +317,38 @@ export function useTenantDomains() {
     }
   };
 
+  const provisionDefaultDomain = async (tenantSlug: string): Promise<boolean> => {
+    if (!currentTenant?.id) return false;
+
+    try {
+      const { data, error } = await supabase.functions.invoke('domains-provision-default', {
+        body: { 
+          tenant_id: currentTenant.id, 
+          tenant_slug: tenantSlug 
+        },
+      });
+
+      if (error) throw error;
+
+      await fetchDomains();
+
+      if (data.ssl_status === 'active') {
+        toast.success('Domínio padrão ativado com sucesso!');
+        return true;
+      } else if (data.ssl_status === 'pending') {
+        toast.info('SSL sendo provisionado para o domínio padrão. Aguarde alguns minutos.');
+        return true;
+      } else {
+        toast.error(data.error || 'Erro ao provisionar domínio padrão');
+        return false;
+      }
+    } catch (error) {
+      console.error('Error provisioning default domain:', error);
+      toast.error('Erro ao provisionar domínio padrão. Verifique as credenciais do Cloudflare.');
+      return false;
+    }
+  };
+
   return {
     domains,
     isLoading,
@@ -328,6 +360,7 @@ export function useTenantDomains() {
     checkSSLStatus,
     setPrimaryDomain,
     removeDomain,
+    provisionDefaultDomain,
     refetch: fetchDomains,
   };
 }
