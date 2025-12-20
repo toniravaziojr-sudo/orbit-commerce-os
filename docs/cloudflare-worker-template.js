@@ -15,8 +15,14 @@
  *    - *.shops.comandocentral.com.br/* → shops-router
  *    - shops.comandocentral.com.br/* → shops-router
  * 
- * 3. Custom Hostnames (para domínios dos clientes):
- *    - Cada domínio custom precisa ser registrado via API no Cloudflare for SaaS
+ * 3. Custom Hostnames (APENAS para domínios externos dos clientes):
+ *    - NÃO cadastrar subdomínios *.shops.comandocentral.com.br como Custom Hostname
+ *    - Cada domínio custom EXTERNO precisa ser registrado via API no Cloudflare for SaaS
+ * 
+ * IMPORTANTE:
+ * - SSL/TLS do zone deve estar em Full (Strict)
+ * - Subdomínios *.shops.* são resolvidos via DNS wildcard + Worker routes
+ * - Custom Hostnames são APENAS para domínios externos (ex: loja.cliente.com.br)
  */
 
 export default {
@@ -85,15 +91,18 @@ export default {
       }
     }
 
-    // Na raiz "/", redireciona para /store/{tenantSlug} (preserva querystring)
-    if (url.pathname === "/" || url.pathname === "") {
-      const redirectUrl = `https://${hostname}/store/${tenantSlug}${url.search || ""}`;
-      return Response.redirect(redirectUrl, 302);
+    // CRÍTICO: Rewrite interno para /store/{tenant} em vez de redirect 302
+    // Isso evita loops de redirecionamento
+    let effectivePath = url.pathname;
+    if (effectivePath === "/" || effectivePath === "") {
+      effectivePath = `/store/${tenantSlug}`;
+      console.log(`[Worker] Rewriting / to ${effectivePath} (no redirect)`);
     }
 
-    // Todo o resto (/store/*, /assets/*, /api/*, /p/*, /c/*, etc) -> proxy direto pro origin
+    // Monta a URL do origin com o path efetivo
     const originUrl = new URL(request.url);
     originUrl.hostname = ORIGIN_HOST;
+    originUrl.pathname = effectivePath;
 
     // CRÍTICO: Criar novos headers SEM o Host original
     const headers = new Headers();
@@ -114,6 +123,7 @@ export default {
       redirect: "manual", // Importante: captura redirects para reescrever
     });
 
+    console.log(`[Worker] Fetching origin: ${originUrl.toString()}`);
     const response = await fetch(originRequest);
 
     // Reescrever headers Location em respostas 3xx (redirects)
@@ -123,6 +133,7 @@ export default {
       if (location) {
         const rewrittenLocation = rewriteLocationHeader(location, hostname, tenantSlug);
         if (rewrittenLocation !== location) {
+          console.log(`[Worker] Rewriting Location: ${location} -> ${rewrittenLocation}`);
           // Clone response com Location reescrito
           const newHeaders = new Headers(response.headers);
           newHeaders.set("Location", rewrittenLocation);
@@ -157,11 +168,11 @@ function rewriteLocationHeader(location, currentHostname, tenantSlug) {
       if (url.hostname === pattern) {
         // Reescreve para o hostname atual (shops subdomain ou custom domain)
         url.hostname = currentHostname;
-        console.log(`[Worker] Rewriting Location: ${location} -> ${url.toString()}`);
         return url.toString();
       }
     }
     
+    // Se o Location está apontando para o mesmo host mas com path diferente, mantém
     return location;
   } catch (e) {
     // Se não for URL válida (ex: path relativo), retorna como está
