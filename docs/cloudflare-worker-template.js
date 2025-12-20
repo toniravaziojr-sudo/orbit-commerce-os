@@ -30,6 +30,62 @@ const PLATFORM_BASE_RE = /\.shops\.comandocentral\.com\.br$/i;
 // Cache do resolve-domain (segundos)
 const RESOLVE_CACHE_TTL = 300;
 
+// Rotas públicas de storefront que devem ter app.comandocentral.com.br reescrito
+// para o host do tenant (evita vazamento para o app)
+const PUBLIC_STOREFRONT_PREFIXES = [
+  "/store/",
+  "/store",
+  "/products",
+  "/product/",
+  "/category/",
+  "/categories",
+  "/collections",
+  "/cart",
+  "/checkout",
+  "/thank-you",
+  "/order/",
+  "/orders",
+];
+
+// Rotas de auth/admin que NUNCA devem ser reescritas (evita loops)
+const AUTH_ADMIN_PREFIXES = [
+  "/auth",
+  "/login",
+  "/logout",
+  "/admin",
+  "/account",
+  "/dashboard",
+  "/settings",
+];
+
+/**
+ * Verifica se um path é rota pública de storefront
+ */
+function isPublicStorefrontPath(pathname) {
+  const path = pathname.toLowerCase();
+  
+  // Primeiro verifica se é rota de auth/admin (nunca reescrever)
+  for (const prefix of AUTH_ADMIN_PREFIXES) {
+    if (path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?")) {
+      return false;
+    }
+  }
+  
+  // Verifica se é rota pública de storefront
+  for (const prefix of PUBLIC_STOREFRONT_PREFIXES) {
+    if (path === prefix || path.startsWith(prefix)) {
+      return true;
+    }
+  }
+  
+  // Raiz também é pública
+  if (path === "/" || path === "") {
+    return true;
+  }
+  
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -124,6 +180,7 @@ export default {
       const location = response.headers.get("Location");
       if (location) {
         const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
+        console.log(`[Worker] Location rewrite: status=${response.status} original=${location} rewritten=${rewritten}`);
         if (rewritten !== location) {
           outHeaders.set("Location", rewritten);
         }
@@ -224,10 +281,16 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
 
 /**
  * Reescreve Location header para apontar para o host correto
+ * 
+ * REGRAS:
+ * 1. Origin (orbit-commerce-os.lovable.app) → sempre reescreve para publicHost
+ * 2. shops.comandocentral.com.br → sempre reescreve para publicHost  
+ * 3. app.comandocentral.com.br → SOMENTE reescreve se for rota pública de storefront
+ *    (para evitar loops com auth/admin)
  */
 function rewriteLocationHeader(location, currentHostname, originHost) {
   try {
-    // Path relativo
+    // Path relativo → sempre reescrever para manter no host atual
     if (location.startsWith("/")) {
       return `https://${currentHostname}${location}`;
     }
@@ -245,22 +308,40 @@ function rewriteLocationHeader(location, currentHostname, originHost) {
     }
 
     const u = new URL(location);
+    const targetHost = u.hostname.toLowerCase();
+    const targetPath = u.pathname;
 
-    // Hosts que devem ser reescritos (NÃO incluir app.comandocentral.com.br para evitar loop)
-    const rewriteHosts = new Set([
+    // Hosts que SEMPRE devem ser reescritos
+    const alwaysRewriteHosts = new Set([
       "orbit-commerce-os.lovable.app",
       "shops.comandocentral.com.br",
-      originHost,
+      originHost.toLowerCase(),
     ]);
 
-    if (rewriteHosts.has(u.hostname)) {
+    if (alwaysRewriteHosts.has(targetHost)) {
       u.hostname = currentHostname;
       u.protocol = "https:";
+      console.log(`[Worker] Rewriting ${targetHost} → ${currentHostname} (always rewrite)`);
       return u.toString();
     }
 
+    // app.comandocentral.com.br → reescrever SOMENTE se for rota pública de storefront
+    if (targetHost === "app.comandocentral.com.br") {
+      if (isPublicStorefrontPath(targetPath)) {
+        u.hostname = currentHostname;
+        u.protocol = "https:";
+        console.log(`[Worker] Rewriting app → ${currentHostname} for public path: ${targetPath}`);
+        return u.toString();
+      } else {
+        console.log(`[Worker] NOT rewriting app for auth/admin path: ${targetPath}`);
+        return location;
+      }
+    }
+
+    // Outros hosts → não reescrever
     return location;
-  } catch {
+  } catch (err) {
+    console.log(`[Worker] Error rewriting location: ${err?.message || err}`);
     return location;
   }
 }
@@ -279,11 +360,12 @@ function rewriteSetCookieDomains(inHeaders, outHeaders, currentHostname, originH
 
   outHeaders.delete("Set-Cookie");
 
-  // Não reescrever cookies do app.comandocentral.com.br para evitar loops
+  // Domínios que devem ter cookies reescritos para o host público
+  // NÃO incluir app.comandocentral.com.br para evitar vazamento de sessão admin
   const badDomains = new Set([
     "orbit-commerce-os.lovable.app",
     "shops.comandocentral.com.br",
-    originHost,
+    originHost.toLowerCase(),
   ]);
 
   for (const c of cookies) {
