@@ -163,10 +163,14 @@ export default {
  */
 function rewriteLocationHeader(location, currentHostname) {
   try {
-    // Se for path relativo, converte para absoluto no host atual
-    // Isso evita que redirects relativos do origin "vazem" para outro domínio
+    // 1) Path relativo absoluto
     if (location.startsWith("/")) {
       return `https://${currentHostname}${location}`;
+    }
+
+    // 2) Scheme-relative (//host/path) - alguns sistemas retornam assim
+    if (location.startsWith("//")) {
+      location = `https:${location}`;
     }
 
     const url = new URL(location);
@@ -174,6 +178,7 @@ function rewriteLocationHeader(location, currentHostname) {
     // Padrões que devem ser reescritos para o hostname atual
     const patternsToRewrite = new Set([
       "app.comandocentral.com.br",
+      "www.app.comandocentral.com.br",
       "orbit-commerce-os.lovable.app",
     ]);
 
