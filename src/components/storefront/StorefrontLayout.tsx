@@ -4,6 +4,52 @@ import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
+import { isAppDomain, getPlatformSubdomainUrl } from '@/lib/canonicalDomainService';
+import { useEffect, useState } from 'react';
+
+/**
+ * Check if we need to redirect to the canonical domain
+ * This handles the case when users access storefront via app.comandocentral.com.br
+ */
+function useCanonicalRedirect(
+  tenantSlug: string | undefined,
+  customDomain: string | null,
+  isPreview: boolean,
+  isReady: boolean
+) {
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  
+  useEffect(() => {
+    // Don't redirect in preview mode or if not ready
+    if (isPreview || !isReady || !tenantSlug) return;
+    
+    const currentHost = window.location.hostname.toLowerCase().replace(/^www\./, '');
+    
+    // If we're on app.comandocentral.com.br or lovable.app accessing storefront,
+    // redirect to the canonical domain
+    if (isAppDomain(currentHost)) {
+      // Determine canonical URL
+      const canonicalOrigin = customDomain 
+        ? `https://${customDomain}` 
+        : getPlatformSubdomainUrl(tenantSlug);
+      
+      // Build redirect URL (keep path and search, remove preview params)
+      const cleanParams = new URLSearchParams(window.location.search);
+      cleanParams.delete('preview');
+      cleanParams.delete('previewId');
+      cleanParams.delete('draft');
+      const queryString = cleanParams.toString();
+      
+      const redirectUrl = `${canonicalOrigin}${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
+      
+      console.log(`[StorefrontLayout] Redirecting from ${currentHost} to canonical: ${redirectUrl}`);
+      setIsRedirecting(true);
+      window.location.replace(redirectUrl);
+    }
+  }, [tenantSlug, customDomain, isPreview, isReady]);
+  
+  return isRedirecting;
+}
 
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -14,9 +60,22 @@ export function StorefrontLayout() {
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // NOTE: Canonical redirects are handled by the Cloudflare Worker
-  // We do NOT redirect client-side to avoid redirect loops
-  // The Worker already ensures requests come from valid hosts
+  // Check if we need to redirect to canonical domain
+  const isRedirecting = useCanonicalRedirect(
+    tenantSlug,
+    customDomain,
+    isPreview,
+    !isLoading && !isDomainLoading && !!tenant
+  );
+
+  // Show loading while redirecting
+  if (isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   // CartProvider wraps EVERYTHING to persist state across navigation and loading states
   return (
