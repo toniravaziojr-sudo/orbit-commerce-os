@@ -6,18 +6,18 @@
 // Redireciona automaticamente para /conta sem UI intermediária.
 
 import { useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontMyOrders() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
   const navigate = useNavigate();
 
   useEffect(() => {
     // Redirect imediato para /conta
-    if (tenantSlug) {
-      navigate(`/store/${tenantSlug}/conta`, { replace: true });
-    }
+    const basePath = tenantSlug ? `/store/${tenantSlug}/conta` : '/conta';
+    navigate(basePath, { replace: true });
   }, [tenantSlug, navigate]);
 
   // Spinner mínimo enquanto redireciona (evita flash branco)

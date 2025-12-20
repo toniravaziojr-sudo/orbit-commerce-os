@@ -5,14 +5,14 @@
 // O conteúdo do carrinho vem EXCLUSIVAMENTE via template/blocos (CartBlock).
 // Isso evita duplicação de UI (template + slot paralelo).
 
-import { useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import { BlockRenderContext } from '@/lib/builder/types';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontCart() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
 
   const { tenant, storeSettings, headerMenu, footerMenu, categories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const template = usePublicTemplate(tenantSlug || '', 'cart');

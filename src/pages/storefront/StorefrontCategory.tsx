@@ -13,6 +13,7 @@ import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 interface CategorySettings {
   showCategoryName?: boolean;
@@ -21,7 +22,8 @@ interface CategorySettings {
 }
 
 export default function StorefrontCategory() {
-  const { tenantSlug, categorySlug } = useParams<{ tenantSlug: string; categorySlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const { categorySlug } = useParams<{ categorySlug: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
@@ -166,7 +168,8 @@ export default function StorefrontCategory() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
-      const cleanPath = `/store/${tenantSlug}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
+      const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+      const cleanPath = `${basePath}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, categorySlug, searchParams, navigate]);
