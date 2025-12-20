@@ -171,20 +171,36 @@ export default {
     }
 
     // 3) Rewrite interno para origin:
-    // - No custom: sempre prefixar /store/{tenant}
-    // - No platform: aceitar ambos, mas também suporta URL limpa (prefixa internamente se não tiver)
+    // IMPORTANTE: Assets e APIs NÃO devem receber prefixo /store/{tenant}
+    const pathLower = (url.pathname || "/").toLowerCase();
+    const shouldBypassStorePrefix =
+      pathLower.startsWith("/assets/") ||
+      pathLower.startsWith("/api/") ||
+      pathLower.startsWith("/@vite/") ||
+      pathLower.startsWith("/node_modules/") ||
+      pathLower.startsWith("/favicon") ||
+      pathLower === "/robots.txt" ||
+      pathLower.startsWith("/sitemap") ||
+      pathLower.startsWith("/manifest") ||
+      pathLower.startsWith("/src/");  // Vite dev mode
+
     let originPath = url.pathname;
-    if (isCustomHost) {
-      originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
-    } else {
-      // platform
-      if (stripped === null) {
+
+    // Se NÃO for asset/api, aí sim aplica /store/{tenant} no custom (URL limpa no browser)
+    if (!shouldBypassStorePrefix) {
+      if (isCustomHost) {
         originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
       } else {
-        // já tem /store/{tenant}... (mantém)
-        originPath = url.pathname;
+        // platform: também pode manter compatibilidade
+        if (stripped === null) {
+          originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
+        } else {
+          // já tem /store/{tenant}... (mantém)
+          originPath = url.pathname;
+        }
       }
     }
+    // Se for asset/api, mantém originPath = url.pathname (sem prefixo)
 
     console.log(`[Worker] Proxying: ${url.pathname} -> ${originPath}`);
 
