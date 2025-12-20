@@ -22,6 +22,10 @@
  * - SSL/TLS: Full (Strict)
  * - ACM: Wildcard certificate para *.shops.comandocentral.com.br
  * - DNS: shops CNAME → origin, *.shops CNAME → shops (ambos Proxy ON)
+ * 
+ * IMPORTANTE: Este Worker segue redirects do origin internamente quando o
+ * destino é app.comandocentral.com.br com rota pública de storefront.
+ * Isso evita loops de redirect quando o origin força canonical para app.
  */
 
 const RESERVED_SLUGS = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
@@ -30,11 +34,13 @@ const PLATFORM_BASE_RE = /\.shops\.comandocentral\.com\.br$/i;
 // Cache do resolve-domain (segundos)
 const RESOLVE_CACHE_TTL = 300;
 
-// Rotas públicas de storefront que devem ter app.comandocentral.com.br reescrito
-// para o host do tenant (evita vazamento para o app)
-// IMPORTANTE: /store sem barra foi removido para evitar match errado
+// Máximo de redirects internos para evitar loops infinitos
+const MAX_INTERNAL_REDIRECTS = 5;
+
+// Rotas públicas de storefront que devem ter redirects seguidos internamente
+// quando o origin redireciona para app.comandocentral.com.br
 const PUBLIC_STOREFRONT_PREFIXES = [
-  "/store/",  // Apenas com barra para evitar conflito
+  "/store/",
   "/products",
   "/product/",
   "/category/",
@@ -46,9 +52,13 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/obrigado",
   "/order/",
   "/orders",
+  "/p/",
+  "/c/",
+  "/lp/",
+  "/page/",
 ];
 
-// Rotas de auth/admin que NUNCA devem ser reescritas (evita loops)
+// Rotas de auth/admin que NUNCA devem ser interceptadas (deixa redirect passar)
 const AUTH_ADMIN_PREFIXES = [
   "/auth",
   "/login",
@@ -65,7 +75,7 @@ const AUTH_ADMIN_PREFIXES = [
 function isPublicStorefrontPath(pathname) {
   const path = pathname.toLowerCase();
   
-  // Primeiro verifica se é rota de auth/admin (nunca reescrever)
+  // Primeiro verifica se é rota de auth/admin (nunca interceptar)
   for (const prefix of AUTH_ADMIN_PREFIXES) {
     if (path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?")) {
       return false;
@@ -132,12 +142,31 @@ export default {
       return Response.redirect(redirectUrl, 302);
     }
 
-    // 3) Proxy para o origin
-    const originUrl = new URL(request.url);
-    originUrl.hostname = ORIGIN_HOST;
+    // 3) Proxy para o origin com seguimento de redirects internos
+    return await proxyWithRedirectFollow(request, {
+      ORIGIN_HOST,
+      publicHost,
+      tenantSlug,
+      domainType,
+    });
+  },
+};
 
+/**
+ * Faz proxy para o origin e segue redirects internamente quando necessário
+ * Isso evita loops quando o origin redireciona para app.comandocentral.com.br
+ */
+async function proxyWithRedirectFollow(originalRequest, config) {
+  const { ORIGIN_HOST, publicHost, tenantSlug, domainType } = config;
+  
+  let currentUrl = new URL(originalRequest.url);
+  currentUrl.hostname = ORIGIN_HOST;
+  
+  let redirectCount = 0;
+  
+  while (redirectCount < MAX_INTERNAL_REDIRECTS) {
     const headers = new Headers();
-    for (const [key, value] of request.headers.entries()) {
+    for (const [key, value] of originalRequest.headers.entries()) {
       if (key.toLowerCase() === "host") continue;
       headers.set(key, value);
     }
@@ -158,43 +187,178 @@ export default {
     headers.set("X-Tenant-Slug", tenantSlug);
     headers.set("X-Domain-Type", domainType);
 
-    const originRequest = new Request(originUrl.toString(), {
-      method: request.method,
+    const originRequest = new Request(currentUrl.toString(), {
+      method: originalRequest.method,
       headers,
-      body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+      body: redirectCount === 0 && originalRequest.method !== "GET" && originalRequest.method !== "HEAD" 
+        ? originalRequest.body 
+        : undefined,
       redirect: "manual",
     });
 
-    console.log(`[Worker] Proxying to origin: ${originUrl.toString()}`);
+    console.log(`[Worker] Fetching (attempt ${redirectCount + 1}): ${currentUrl.toString()}`);
     const response = await fetch(originRequest);
-    console.log(`[Worker] Origin response: status=${response.status}`);
+    console.log(`[Worker] Response: status=${response.status}`);
 
-    // 4) Clonar e modificar headers da resposta
-    const outHeaders = cloneHeaders(response.headers);
-
-    // Reescrever Set-Cookie Domain
-    rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
-
-    // Reescrever Location em 3xx
-    if (response.status >= 300 && response.status < 400) {
-      const location = response.headers.get("Location");
-      if (location) {
-        const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
-        console.log(`[Worker] Location rewrite: status=${response.status} original="${location}" rewritten="${rewritten}"`);
-        
-        if (rewritten !== location) {
-          outHeaders.set("Location", rewritten);
-        }
-      }
+    // Se não é redirect, retornar a resposta
+    if (response.status < 300 || response.status >= 400) {
+      const outHeaders = cloneHeaders(response.headers);
+      rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
+      
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: outHeaders,
+      });
     }
 
+    // É redirect - verificar se devemos seguir internamente ou retornar ao browser
+    const location = response.headers.get("Location");
+    if (!location) {
+      // Redirect sem Location - retornar como está
+      return response;
+    }
+
+    // Analisar o destino do redirect
+    const redirectInfo = analyzeRedirect(location, publicHost, ORIGIN_HOST);
+    console.log(`[Worker] Redirect analysis: location="${location}" action=${redirectInfo.action} reason=${redirectInfo.reason}`);
+
+    if (redirectInfo.action === "follow") {
+      // Seguir redirect internamente - o origin está redirecionando para app.comandocentral.com.br
+      // mas queremos buscar o conteúdo diretamente sem expor isso ao browser
+      currentUrl = new URL(redirectInfo.targetUrl);
+      redirectCount++;
+      console.log(`[Worker] Following redirect internally to: ${currentUrl.toString()}`);
+      continue;
+    }
+
+    if (redirectInfo.action === "rewrite") {
+      // Retornar redirect ao browser com URL reescrita
+      const outHeaders = cloneHeaders(response.headers);
+      rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
+      outHeaders.set("Location", redirectInfo.rewrittenUrl);
+      console.log(`[Worker] Returning rewritten redirect: ${redirectInfo.rewrittenUrl}`);
+      
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: outHeaders,
+      });
+    }
+
+    // action === "passthrough" - retornar redirect como está
+    const outHeaders = cloneHeaders(response.headers);
+    rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
+    console.log(`[Worker] Passing through redirect as-is: ${location}`);
+    
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: outHeaders,
     });
-  },
-};
+  }
+
+  // Limite de redirects atingido
+  console.log(`[Worker] Max redirects (${MAX_INTERNAL_REDIRECTS}) exceeded`);
+  return new Response("Too many redirects", { status: 508 });
+}
+
+/**
+ * Analisa um redirect e decide o que fazer:
+ * - "follow": seguir internamente (quando origin redireciona para app.comandocentral.com.br com rota pública)
+ * - "rewrite": retornar ao browser com URL reescrita para o host público
+ * - "passthrough": retornar ao browser sem modificar
+ */
+function analyzeRedirect(location, publicHost, originHost) {
+  try {
+    // Path relativo → reescrever para host público
+    if (location.startsWith("/")) {
+      return {
+        action: "rewrite",
+        rewrittenUrl: `https://${publicHost}${location}`,
+        reason: "relative_path",
+      };
+    }
+
+    // Scheme-relative
+    if (location.startsWith("//")) {
+      try {
+        const u = new URL("https:" + location);
+        u.hostname = publicHost;
+        u.protocol = "https:";
+        return {
+          action: "rewrite",
+          rewrittenUrl: u.toString(),
+          reason: "scheme_relative",
+        };
+      } catch {
+        return {
+          action: "rewrite",
+          rewrittenUrl: `https://${publicHost}${location.slice(1)}`,
+          reason: "scheme_relative_fallback",
+        };
+      }
+    }
+
+    const u = new URL(location);
+    const targetHost = u.hostname.toLowerCase();
+    const targetPath = u.pathname;
+
+    // Hosts do origin → reescrever
+    const originHosts = new Set([
+      "orbit-commerce-os.lovable.app",
+      "shops.comandocentral.com.br",
+      originHost.toLowerCase(),
+    ]);
+
+    if (originHosts.has(targetHost)) {
+      u.hostname = publicHost;
+      u.protocol = "https:";
+      return {
+        action: "rewrite",
+        rewrittenUrl: u.toString(),
+        reason: "origin_host",
+      };
+    }
+
+    // app.comandocentral.com.br com rota pública → SEGUIR INTERNAMENTE
+    // Este é o caso crítico que causa o loop - o origin está redirecionando
+    // para app.comandocentral.com.br, mas queremos buscar o conteúdo diretamente
+    if (targetHost === "app.comandocentral.com.br") {
+      if (isPublicStorefrontPath(targetPath)) {
+        // Ao invés de reescrever e retornar 302, vamos buscar diretamente do origin
+        // usando o path do redirect
+        const followUrl = new URL(location);
+        followUrl.hostname = originHost;
+        
+        return {
+          action: "follow",
+          targetUrl: followUrl.toString(),
+          reason: "app_public_storefront",
+        };
+      } else {
+        // Rota de auth/admin - deixar passar sem modificar
+        return {
+          action: "passthrough",
+          reason: "app_auth_admin",
+        };
+      }
+    }
+
+    // Outros hosts → passthrough
+    return {
+      action: "passthrough",
+      reason: "external_host",
+    };
+
+  } catch (err) {
+    console.log(`[Worker] Error analyzing redirect: ${err?.message || err}`);
+    return {
+      action: "passthrough",
+      reason: "parse_error",
+    };
+  }
+}
 
 /**
  * Resolve tenant:
@@ -280,73 +444,6 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
   }
 }
 
-/**
- * Reescreve Location header para apontar para o host correto
- * 
- * REGRAS:
- * 1. Origin (orbit-commerce-os.lovable.app) → sempre reescreve para publicHost
- * 2. shops.comandocentral.com.br → sempre reescreve para publicHost  
- * 3. app.comandocentral.com.br → SOMENTE reescreve se for rota pública de storefront
- *    (para evitar loops com auth/admin)
- */
-function rewriteLocationHeader(location, currentHostname, originHost) {
-  try {
-    // Path relativo → sempre reescrever para manter no host atual
-    if (location.startsWith("/")) {
-      return `https://${currentHostname}${location}`;
-    }
-
-    // Scheme-relative
-    if (location.startsWith("//")) {
-      try {
-        const u = new URL("https:" + location);
-        u.hostname = currentHostname;
-        u.protocol = "https:";
-        return u.toString();
-      } catch {
-        return `https://${currentHostname}${location.slice(1)}`;
-      }
-    }
-
-    const u = new URL(location);
-    const targetHost = u.hostname.toLowerCase();
-    const targetPath = u.pathname;
-
-    // Hosts que SEMPRE devem ser reescritos
-    const alwaysRewriteHosts = new Set([
-      "orbit-commerce-os.lovable.app",
-      "shops.comandocentral.com.br",
-      originHost.toLowerCase(),
-    ]);
-
-    if (alwaysRewriteHosts.has(targetHost)) {
-      u.hostname = currentHostname;
-      u.protocol = "https:";
-      console.log(`[Worker] Rewriting ${targetHost} → ${currentHostname} (always rewrite)`);
-      return u.toString();
-    }
-
-    // app.comandocentral.com.br → reescrever SOMENTE se for rota pública de storefront
-    if (targetHost === "app.comandocentral.com.br") {
-      if (isPublicStorefrontPath(targetPath)) {
-        u.hostname = currentHostname;
-        u.protocol = "https:";
-        console.log(`[Worker] Rewriting app → ${currentHostname} for public path: ${targetPath}`);
-        return u.toString();
-      } else {
-        console.log(`[Worker] NOT rewriting app for auth/admin path: ${targetPath}`);
-        return location;
-      }
-    }
-
-    // Outros hosts → não reescrever
-    return location;
-  } catch (err) {
-    console.log(`[Worker] Error rewriting location: ${err?.message || err}`);
-    return location;
-  }
-}
-
 function cloneHeaders(h) {
   const out = new Headers();
   for (const [k, v] of h.entries()) out.append(k, v);
@@ -362,10 +459,10 @@ function rewriteSetCookieDomains(inHeaders, outHeaders, currentHostname, originH
   outHeaders.delete("Set-Cookie");
 
   // Domínios que devem ter cookies reescritos para o host público
-  // NÃO incluir app.comandocentral.com.br para evitar vazamento de sessão admin
   const badDomains = new Set([
     "orbit-commerce-os.lovable.app",
     "shops.comandocentral.com.br",
+    "app.comandocentral.com.br",
     originHost.toLowerCase(),
   ]);
 
