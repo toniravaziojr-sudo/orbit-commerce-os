@@ -34,9 +34,12 @@ export default {
     // CRÍTICO: Quando existe Custom Hostname, o Cloudflare envia o host real via CF-Connecting-Host
     // O url.hostname pode ser o Fallback Origin, causando loops de redirect
     const edgeHost = url.hostname;
-    const publicHost = request.headers.get("cf-connecting-host") 
+    
+    // Normalizar publicHost: pegar só o primeiro valor se vier com vírgula (X-Forwarded-Host pode ter lista)
+    const publicHostRaw = request.headers.get("cf-connecting-host") 
       || request.headers.get("x-forwarded-host") 
       || edgeHost;
+    const publicHost = String(publicHostRaw).split(",")[0].trim().toLowerCase();
 
     const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
     const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
@@ -121,12 +124,15 @@ export default {
     await rewriteSetCookieDomainsIfPossible(response.headers, outHeaders, publicHost, ORIGIN_HOST);
 
     // 6) Reescrever Location em respostas 3xx usando publicHost
+    // SEMPRE logar 3xx para debug de loops
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("Location");
+      console.log(`[Worker][3xx] status=${response.status} publicHost=${publicHost} path=${url.pathname} Location_original=${location || "(none)"}`);
+      
       if (location) {
         const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
         if (rewritten !== location) {
-          console.log(`[Worker] Rewriting Location: ${location} -> ${rewritten}`);
+          console.log(`[Worker][3xx] Location_rewritten=${rewritten}`);
           outHeaders.set("Location", rewritten);
         }
       }
@@ -239,9 +245,16 @@ function rewriteLocationHeader(location, currentHostname, originHost) {
       return `https://${currentHostname}${location}`;
     }
 
-    // 2) Scheme-relative (//host/path)
+    // 2) Scheme-relative (//host/path) - corrigir para não montar URL inválida
     if (location.startsWith("//")) {
-      return `https://${currentHostname}${location.slice(1)}`;
+      try {
+        const u2 = new URL("https:" + location);
+        u2.hostname = currentHostname;
+        u2.protocol = "https:";
+        return u2.toString();
+      } catch {
+        return `https://${currentHostname}${location.slice(1)}`;
+      }
     }
 
     const u = new URL(location);
