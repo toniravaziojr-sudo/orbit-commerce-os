@@ -1,15 +1,22 @@
-import { Outlet, useParams } from 'react-router-dom';
+import { Outlet, useParams, useLocation } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
-import { isAppDomain, getPlatformSubdomainUrl } from '@/lib/canonicalDomainService';
+import { 
+  isAppDomain, 
+  getPlatformSubdomainUrl,
+  isPlatformSubdomain,
+  SAAS_CONFIG,
+} from '@/lib/canonicalDomainService';
 import { useEffect, useState } from 'react';
 
 /**
  * Check if we need to redirect to the canonical domain
- * This handles the case when users access storefront via app.comandocentral.com.br
+ * This handles:
+ * 1. Users accessing storefront via app.comandocentral.com.br → redirect to tenant domain
+ * 2. Users accessing /store/{slug}/... on tenant domain → redirect to clean path
  */
 function useCanonicalRedirect(
   tenantSlug: string | undefined,
@@ -18,35 +25,70 @@ function useCanonicalRedirect(
   isReady: boolean
 ) {
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const location = useLocation();
   
   useEffect(() => {
     // Don't redirect in preview mode or if not ready
     if (isPreview || !isReady || !tenantSlug) return;
     
     const currentHost = window.location.hostname.toLowerCase().replace(/^www\./, '');
+    const currentPath = location.pathname;
     
-    // If we're on app.comandocentral.com.br or lovable.app accessing storefront,
-    // redirect to the canonical domain
+    // Determine if we're on a tenant-specific host (custom domain or platform subdomain)
+    const isOnTenantHost = isPlatformSubdomain(currentHost) || (
+      !isAppDomain(currentHost) && 
+      currentHost !== new URL(SAAS_CONFIG.fallbackOrigin).hostname
+    );
+    
+    // Case 1: On app domain → redirect to canonical tenant domain
     if (isAppDomain(currentHost)) {
-      // Determine canonical URL
       const canonicalOrigin = customDomain 
         ? `https://${customDomain}` 
         : getPlatformSubdomainUrl(tenantSlug);
       
-      // Build redirect URL (keep path and search, remove preview params)
+      // Clean the path: remove /store/{tenantSlug} prefix
+      let cleanPath = currentPath;
+      const storePrefix = `/store/${tenantSlug}`;
+      if (cleanPath.startsWith(storePrefix)) {
+        cleanPath = cleanPath.slice(storePrefix.length) || '/';
+      }
+      
       const cleanParams = new URLSearchParams(window.location.search);
       cleanParams.delete('preview');
       cleanParams.delete('previewId');
       cleanParams.delete('draft');
       const queryString = cleanParams.toString();
       
-      const redirectUrl = `${canonicalOrigin}${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
+      const redirectUrl = `${canonicalOrigin}${cleanPath}${queryString ? `?${queryString}` : ''}`;
       
-      console.log(`[StorefrontLayout] Redirecting from ${currentHost} to canonical: ${redirectUrl}`);
+      console.log(`[StorefrontLayout] Redirecting from app domain to canonical: ${redirectUrl}`);
       setIsRedirecting(true);
       window.location.replace(redirectUrl);
+      return;
     }
-  }, [tenantSlug, customDomain, isPreview, isReady]);
+    
+    // Case 2: On tenant host but path still has /store/{slug} prefix → redirect to clean path
+    if (isOnTenantHost) {
+      const storePrefix = `/store/${tenantSlug}`;
+      if (currentPath.startsWith(storePrefix)) {
+        // Remove the /store/{slug} prefix
+        const cleanPath = currentPath.slice(storePrefix.length) || '/';
+        
+        const cleanParams = new URLSearchParams(window.location.search);
+        cleanParams.delete('preview');
+        cleanParams.delete('previewId');
+        cleanParams.delete('draft');
+        const queryString = cleanParams.toString();
+        
+        const redirectUrl = `${cleanPath}${queryString ? `?${queryString}` : ''}`;
+        
+        console.log(`[StorefrontLayout] Cleaning path from ${currentPath} to ${redirectUrl}`);
+        setIsRedirecting(true);
+        window.location.replace(redirectUrl);
+        return;
+      }
+    }
+  }, [tenantSlug, customDomain, isPreview, isReady, location.pathname]);
   
   return isRedirecting;
 }
