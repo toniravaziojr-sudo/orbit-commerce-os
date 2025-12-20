@@ -67,6 +67,7 @@ export default {
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+            "apikey": SUPABASE_ANON_KEY, // Alguns setups Supabase exigem este header também
           },
           body: JSON.stringify({ hostname }),
         });
@@ -132,6 +133,22 @@ export default {
     console.log(`[Worker] Fetching origin: ${originUrl.toString()}`);
     const response = await fetch(originRequest);
 
+    // Clonar headers para poder modificar Location e Set-Cookie
+    const newHeaders = new Headers(response.headers);
+
+    // Reescrever Set-Cookie Domain=... para não "vazar" cookies para app.* ou origin
+    // Isso evita problemas com sessão/carrinho em subdomínios
+    const getSetCookie = response.headers.getSetCookie?.bind(response.headers);
+    if (getSetCookie) {
+      const cookies = getSetCookie();
+      if (cookies?.length) {
+        newHeaders.delete("Set-Cookie");
+        for (const c of cookies) {
+          newHeaders.append("Set-Cookie", rewriteSetCookieDomain(c, hostname));
+        }
+      }
+    }
+
     // Reescrever headers Location em respostas 3xx (redirects)
     // Isso garante que redirects do origin não "vazem" para app.comandocentral.com.br
     if (response.status >= 300 && response.status < 400) {
@@ -140,25 +157,42 @@ export default {
         const rewrittenLocation = rewriteLocationHeader(location, hostname);
         if (rewrittenLocation !== location) {
           console.log(`[Worker] Rewriting Location: ${location} -> ${rewrittenLocation}`);
-          // Clone response com Location reescrito
-          const newHeaders = new Headers(response.headers);
           newHeaders.set("Location", rewrittenLocation);
-          return new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: newHeaders,
-          });
         }
       }
     }
 
-    return response;
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: newHeaders,
+    });
   },
 };
 
 /**
+ * Reescreve Set-Cookie Domain=... para manter cookies no domínio correto
+ * Evita que cookies fixados em app.* ou origin não funcionem no subdomínio da loja
+ */
+function rewriteSetCookieDomain(setCookieValue, currentHostname) {
+  return setCookieValue.replace(/;\s*Domain=([^;]+)/i, (match, domain) => {
+    const d = domain.trim().toLowerCase().replace(/^\./, "");
+    const rewriteFrom = new Set([
+      "app.comandocentral.com.br",
+      "www.app.comandocentral.com.br",
+      "orbit-commerce-os.lovable.app",
+    ]);
+    if (rewriteFrom.has(d)) {
+      return `; Domain=${currentHostname}`;
+    }
+    return match;
+  });
+}
+
+/**
  * Reescreve Location headers de redirects para manter no domínio correto
  * - Paths relativos (/auth, /store/...) são convertidos para absolutos no host atual
+ * - URLs scheme-relative (//host/path) são tratadas
  * - URLs absolutas apontando para app.* ou origin são reescritas para o host atual
  */
 function rewriteLocationHeader(location, currentHostname) {
