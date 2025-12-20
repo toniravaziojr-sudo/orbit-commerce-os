@@ -67,11 +67,16 @@ import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDo
 function isOnTenantHost(): boolean {
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
+  
+  // If on platform subdomain (tenant.shops.comandocentral.com.br) → tenant host
   if (isPlatformSubdomain(hostname)) return true;
+  
+  // If NOT on app domain and NOT on fallback origin → likely custom domain
   if (!isAppDomain(hostname)) {
     const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
     if (hostname !== fallbackHost) return true;
   }
+  
   return false;
 }
 
