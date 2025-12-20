@@ -45,6 +45,7 @@ import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
+import { TenantStorefrontLayout } from "@/components/storefront/TenantStorefrontLayout";
 import StorefrontHome from "@/pages/storefront/StorefrontHome";
 import StorefrontCategory from "@/pages/storefront/StorefrontCategory";
 import StorefrontProduct from "@/pages/storefront/StorefrontProduct";
@@ -60,7 +61,24 @@ import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccoun
 import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
 import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
 
+// Helper to check if we're on a tenant host (custom domain or platform subdomain)
+import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
+
+function isOnTenantHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
+  if (isPlatformSubdomain(hostname)) return true;
+  if (!isAppDomain(hostname)) {
+    const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
+    if (hostname !== fallbackHost) return true;
+  }
+  return false;
+}
+
 const queryClient = new QueryClient();
+
+// Determine if we should render tenant routes at root (for custom/platform domains)
+const shouldUseTenantRootRoutes = isOnTenantHost();
 
 const App = () => {
   return (
@@ -71,11 +89,36 @@ const App = () => {
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              {/* Public routes */}
+              {/* Public routes (always available) */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
 
-              {/* Public Storefront routes */}
+              {/* 
+                Storefront routes - When on tenant host (custom domain / platform subdomain),
+                routes are at root. Otherwise, use /store/:tenantSlug prefix.
+              */}
+              
+              {/* Root routes for custom/platform domains */}
+              {shouldUseTenantRootRoutes && (
+                <Route path="/" element={<TenantStorefrontLayout />}>
+                  <Route index element={<StorefrontHome />} />
+                  <Route path="c/:categorySlug" element={<StorefrontCategory />} />
+                  <Route path="p/:productSlug" element={<StorefrontProduct />} />
+                  <Route path="page/:pageSlug" element={<StorefrontPage />} />
+                  <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
+                  <Route path="cart" element={<StorefrontCart />} />
+                  <Route path="checkout" element={<StorefrontCheckout />} />
+                  <Route path="obrigado" element={<StorefrontThankYou />} />
+                  <Route path="minhas-compras" element={<StorefrontMyOrders />} />
+                  <Route path="conta" element={<StorefrontAccount />} />
+                  <Route path="conta/login" element={<StorefrontAccountLogin />} />
+                  <Route path="conta/esqueci-senha" element={<StorefrontAccountForgotPassword />} />
+                  <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
+                  <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
+                </Route>
+              )}
+
+              {/* Legacy storefront routes with /store/:tenantSlug prefix (for app domain / fallback) */}
               <Route path="/store/:tenantSlug" element={<StorefrontLayout />}>
                 <Route index element={<StorefrontHome />} />
                 <Route path="c/:categorySlug" element={<StorefrontCategory />} />
@@ -86,7 +129,6 @@ const App = () => {
                 <Route path="checkout" element={<StorefrontCheckout />} />
                 <Route path="obrigado" element={<StorefrontThankYou />} />
                 <Route path="minhas-compras" element={<StorefrontMyOrders />} />
-                {/* Customer Account routes */}
                 <Route path="conta" element={<StorefrontAccount />} />
                 <Route path="conta/login" element={<StorefrontAccountLogin />} />
                 <Route path="conta/esqueci-senha" element={<StorefrontAccountForgotPassword />} />
@@ -104,48 +146,50 @@ const App = () => {
                 }
               />
 
-              {/* Protected routes with tenant requirement */}
-              <Route
-                element={
-                  <ProtectedRoute>
-                    <AppShell />
-                  </ProtectedRoute>
-                }
-              >
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/executions" element={<Executions />} />
-                <Route path="/orders" element={<Orders />} />
-                <Route path="/orders/:id" element={<OrderDetail />} />
-                <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
-                <Route path="/products" element={<Products />} />
-                <Route path="/categories" element={<Categories />} />
-                <Route path="/menus" element={<Menus />} />
-                <Route path="/pages" element={<Pages />} />
-                <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
-                <Route path="/landing-pages" element={<LandingPages />} />
-                <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
-                <Route path="/customers" element={<Customers />} />
-                <Route path="/customers/:id" element={<CustomerDetail />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/support" element={<Support />} />
-                <Route path="/media" element={<Media />} />
-                <Route path="/campaigns" element={<Campaigns />} />
-                <Route path="/offers" element={<Offers />} />
-                <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
-                <Route path="/reviews" element={<Reviews />} />
-                <Route path="/integrations" element={<Integrations />} />
-                <Route path="/finance" element={<Finance />} />
-                <Route path="/payments" element={<Navigate to="/integrations" replace />} />
-                <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
-                <Route path="/fiscal" element={<Fiscal />} />
-                <Route path="/purchases" element={<Purchases />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/settings/domains" element={<Domains />} />
-                <Route path="/storefront" element={<StorefrontSettings />} />
-                <Route path="/storefront/builder" element={<StorefrontBuilder />} />
-                <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
-                <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
-              </Route>
+              {/* Protected routes with tenant requirement (admin panel) */}
+              {!shouldUseTenantRootRoutes && (
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <AppShell />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/executions" element={<Executions />} />
+                  <Route path="/orders" element={<Orders />} />
+                  <Route path="/orders/:id" element={<OrderDetail />} />
+                  <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
+                  <Route path="/products" element={<Products />} />
+                  <Route path="/categories" element={<Categories />} />
+                  <Route path="/menus" element={<Menus />} />
+                  <Route path="/pages" element={<Pages />} />
+                  <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
+                  <Route path="/landing-pages" element={<LandingPages />} />
+                  <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
+                  <Route path="/customers" element={<Customers />} />
+                  <Route path="/customers/:id" element={<CustomerDetail />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path="/support" element={<Support />} />
+                  <Route path="/media" element={<Media />} />
+                  <Route path="/campaigns" element={<Campaigns />} />
+                  <Route path="/offers" element={<Offers />} />
+                  <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
+                  <Route path="/reviews" element={<Reviews />} />
+                  <Route path="/integrations" element={<Integrations />} />
+                  <Route path="/finance" element={<Finance />} />
+                  <Route path="/payments" element={<Navigate to="/integrations" replace />} />
+                  <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
+                  <Route path="/fiscal" element={<Fiscal />} />
+                  <Route path="/purchases" element={<Purchases />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/settings/domains" element={<Domains />} />
+                  <Route path="/storefront" element={<StorefrontSettings />} />
+                  <Route path="/storefront/builder" element={<StorefrontBuilder />} />
+                  <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
+                  <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
+                </Route>
+              )}
 
               <Route path="*" element={<NotFound />} />
             </Routes>
