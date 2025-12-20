@@ -8,7 +8,6 @@ const corsHeaders = {
 // SaaS domain configuration
 const SAAS_DOMAIN = 'comandocentral.com.br';
 const SAAS_STOREFRONT_SUBDOMAIN = 'shops';
-const TARGET_HOSTNAME = `${SAAS_STOREFRONT_SUBDOMAIN}.${SAAS_DOMAIN}`;
 
 interface ProvisionDefaultRequest {
   tenant_id: string;
@@ -16,17 +15,16 @@ interface ProvisionDefaultRequest {
 }
 
 /**
- * ARQUITETURA: Subzona shops.comandocentral.com.br
+ * ARQUITETURA: SSL gerenciado por ACM (Advanced Certificate Manager)
  * 
- * Com a subzona configurada no Cloudflare, o Universal SSL dessa zona
- * cobre automaticamente *.shops.comandocentral.com.br.
+ * Com ACM ativado na zona comandocentral.com.br com wildcard para
+ * *.shops.comandocentral.com.br, o SSL é automático para todos os tenants.
  * 
- * Portanto, NÃO precisamos criar Custom Hostname para subdomínios da plataforma.
- * Custom Hostnames são usados apenas para domínios externos de clientes
- * (ex: loja.cliente.com.br) via domains-provision.
+ * Esta função APENAS registra o domínio no banco de dados.
+ * NÃO cria Custom Hostnames para subdomínios internos.
  * 
- * Esta função apenas registra o domínio no banco de dados.
- * O SSL é automático via Universal SSL da subzona.
+ * Custom Hostnames (via domains-provision) são usados APENAS para
+ * domínios externos de clientes (ex: loja.cliente.com.br).
  */
 
 Deno.serve(async (req) => {
@@ -59,7 +57,7 @@ Deno.serve(async (req) => {
     // Check if domain already exists for this tenant in DB
     const { data: existingDomain, error: fetchError } = await supabase
       .from('tenant_domains')
-      .select('id, status, ssl_status, external_id')
+      .select('id, status, ssl_status')
       .eq('tenant_id', tenant_id)
       .eq('domain', hostname)
       .eq('type', 'platform_subdomain')
@@ -72,8 +70,7 @@ Deno.serve(async (req) => {
     if (existingDomain) {
       console.log(`[domains-provision-default] Domain already exists: ${existingDomain.id}`);
       
-      // Update to ensure it's marked as verified + active
-      // SSL is handled by Universal SSL of the subzone
+      // Update to ensure it's marked as verified + active (ACM handles SSL)
       await supabase
         .from('tenant_domains')
         .update({
@@ -90,14 +87,14 @@ Deno.serve(async (req) => {
           domain_id: existingDomain.id,
           hostname,
           ssl_status: 'active',
-          message: 'Platform subdomain is active (SSL via subzone Universal SSL)'
+          message: 'Subdomínio da plataforma ativo (SSL via ACM)'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Create the domain record
-    // NOTE: No Custom Hostname is created - SSL is handled by the subzone's Universal SSL
+    // NOTE: No Cloudflare API call - ACM handles SSL for *.shops.comandocentral.com.br
     const { data: newDomain, error: insertError } = await supabase
       .from('tenant_domains')
       .insert({
@@ -105,11 +102,11 @@ Deno.serve(async (req) => {
         domain: hostname,
         type: 'platform_subdomain',
         status: 'verified',
-        ssl_status: 'active', // SSL covered by subzone Universal SSL
+        ssl_status: 'active', // SSL covered by ACM wildcard certificate
         is_primary: false,
         verification_token: 'platform-auto',
-        target_hostname: TARGET_HOSTNAME,
-        external_id: null, // No Custom Hostname - works via subzone
+        target_hostname: `${SAAS_STOREFRONT_SUBDOMAIN}.${SAAS_DOMAIN}`,
+        external_id: null, // No Custom Hostname needed - ACM handles it
       })
       .select('id')
       .single();
@@ -133,7 +130,7 @@ Deno.serve(async (req) => {
               domain_id: existingAfterRace.id,
               hostname,
               ssl_status: 'active',
-              message: 'Platform subdomain is active (SSL via subzone Universal SSL)'
+              message: 'Subdomínio da plataforma ativo (SSL via ACM)'
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
@@ -148,7 +145,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`[domains-provision-default] Created domain: ${newDomain.id}, hostname: ${hostname}`);
-    console.log(`[domains-provision-default] SSL is automatic via subzone Universal SSL`);
+    console.log(`[domains-provision-default] SSL is automatic via ACM wildcard certificate`);
 
     return new Response(
       JSON.stringify({ 
@@ -156,7 +153,7 @@ Deno.serve(async (req) => {
         domain_id: newDomain.id,
         hostname,
         ssl_status: 'active',
-        message: 'Platform subdomain is active (SSL via subzone Universal SSL)'
+        message: 'Subdomínio da plataforma ativo (SSL via ACM)'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

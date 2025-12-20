@@ -1,24 +1,27 @@
 /**
- * Cloudflare Worker - Multi-tenant SaaS Router (SaaS-aware)
+ * Cloudflare Worker - Multi-tenant SaaS Router
+ *
+ * Arquitetura simplificada com ACM (Advanced Certificate Manager):
+ * - SSL para *.shops.comandocentral.com.br é automático via wildcard ACM
+ * - Custom Hostnames são usados APENAS para domínios externos de clientes
  *
  * Suporta:
- * 1) Subdomínios da plataforma: {tenant}.shops.comandocentral.com.br
- * 2) Domínios custom dos clientes: loja.cliente.com.br (via resolve-domain no Supabase)
- * 3) Custom Hostnames (Cloudflare for SaaS) - usa CF-Connecting-Host para obter host real
+ * 1) Subdomínios da plataforma: {tenant}.shops.comandocentral.com.br (SSL via ACM)
+ * 2) Domínios custom dos clientes: loja.cliente.com.br (SSL via Custom Hostname)
  *
  * ENV vars:
  * - ORIGIN_HOST = orbit-commerce-os.lovable.app
- * - SUPABASE_URL (ou SUPABASE_URI) = https://ojssezfjhdvvncsqyhyq.supabase.co
+ * - SUPABASE_URL = https://ojssezfjhdvvncsqyhyq.supabase.co
  * - SUPABASE_ANON_KEY = <sua anon key>
  *
- * Worker Routes:
+ * Worker Routes (zona comandocentral.com.br):
  * - *.shops.comandocentral.com.br/*
  * - shops.comandocentral.com.br/*
  *
- * IMPORTANTE:
- * - SSL/TLS do zone deve estar em Full (Strict)
- * - Quando existe Custom Hostname, o Worker usa CF-Connecting-Host para obter o host real
- * - Isso evita loops de redirect quando o tráfego passa via Fallback Origin
+ * Requisitos Cloudflare:
+ * - SSL/TLS: Full (Strict)
+ * - ACM: Wildcard certificate para *.shops.comandocentral.com.br
+ * - DNS: shops CNAME → origin, *.shops CNAME → shops (ambos Proxy ON)
  */
 
 const RESERVED_SLUGS = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
@@ -30,78 +33,63 @@ const RESOLVE_CACHE_TTL = 300;
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
+    const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
+    const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
     
-    // CRÍTICO: Quando existe Custom Hostname, o Cloudflare envia o host real via CF-Connecting-Host
-    // O url.hostname pode ser o Fallback Origin, causando loops de redirect
+    // Determinar o host público (para Custom Hostnames, usa CF-Connecting-Host)
     const edgeHost = url.hostname;
-    
-    // Normalizar publicHost: pegar só o primeiro valor se vier com vírgula (X-Forwarded-Host pode ter lista)
     const publicHostRaw = request.headers.get("cf-connecting-host") 
       || request.headers.get("x-forwarded-host") 
       || edgeHost;
     const publicHost = String(publicHostRaw).split(",")[0].trim().toLowerCase();
 
-    const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
-    const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
-    const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
+    console.log(`[Worker] Request: publicHost=${publicHost} path=${url.pathname}`);
 
-    // Debug log (remover depois de confirmar funcionamento)
-    console.log(`[Worker] edgeHost=${edgeHost} publicHost=${publicHost} path=${url.pathname}`);
-
-    // shops.comandocentral.com.br (sem tenant) -> redireciona pro app
-    // IMPORTANTE: usar publicHost para a comparação, não edgeHost
+    // shops.comandocentral.com.br (sem tenant) → redireciona para o app
     if (publicHost === "shops.comandocentral.com.br") {
       return Response.redirect("https://app.comandocentral.com.br/", 302);
     }
 
-    // 1) Resolver tenantSlug + tipo de domínio usando publicHost (não edgeHost)
-    const resolved = await resolveTenant(publicHost, {
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
-    });
+    // 1) Resolver tenant
+    const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
 
     if (!resolved?.tenantSlug) {
       console.log(`[Worker] Domain not configured: ${publicHost}`);
       return new Response("Domain not configured", { status: 404 });
     }
 
-    const tenantSlug = resolved.tenantSlug;
-    const domainType = resolved.domainType;
+    const { tenantSlug, domainType } = resolved;
+    console.log(`[Worker] Resolved: tenant=${tenantSlug} type=${domainType}`);
 
-    console.log(`[Worker] Resolved: publicHost=${publicHost} tenantSlug=${tenantSlug} domainType=${domainType}`);
-
-    // 2) Raiz "/" -> 302 para /store/{tenant}
-    // IMPORTANTE: usar publicHost no redirect, não edgeHost
+    // 2) Raiz "/" → redirect para /store/{tenant}
     if (url.pathname === "/" || url.pathname === "") {
       const redirectUrl = `https://${publicHost}/store/${tenantSlug}${url.search || ""}`;
-      console.log(`[Worker] Redirecting / to ${redirectUrl}`);
+      console.log(`[Worker] Redirecting / → ${redirectUrl}`);
       return Response.redirect(redirectUrl, 302);
     }
 
-    // 3) Proxy para o origin (Lovable)
+    // 3) Proxy para o origin
     const originUrl = new URL(request.url);
     originUrl.hostname = ORIGIN_HOST;
 
-    // Recriar headers sem Host original
     const headers = new Headers();
     for (const [key, value] of request.headers.entries()) {
       if (key.toLowerCase() === "host") continue;
       headers.set(key, value);
     }
 
-    // Ajustes de origem usando publicHost (reduz CORS/CSRF "surpresa")
+    // Ajustar headers de origem
     if (headers.has("origin")) headers.set("origin", `https://${publicHost}`);
     if (headers.has("referer")) {
       try {
         const r = new URL(headers.get("referer"));
         r.hostname = publicHost;
         headers.set("referer", r.toString());
-      } catch {
-        // ignora
-      }
+      } catch {}
     }
 
-    // Forwarding headers úteis - USAR publicHost
+    // Headers de forwarding
     headers.set("X-Forwarded-Host", publicHost);
     headers.set("X-Forwarded-Proto", "https");
     headers.set("X-Tenant-Slug", tenantSlug);
@@ -111,28 +99,23 @@ export default {
       method: request.method,
       headers,
       body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-      redirect: "manual", // captura redirects para reescrever Location
+      redirect: "manual",
     });
 
-    console.log(`[Worker] Fetching origin: ${originUrl.toString()}`);
     const response = await fetch(originRequest);
 
-    // 4) Clonar headers para poder modificar Location e Set-Cookie
+    // 4) Clonar e modificar headers da resposta
     const outHeaders = cloneHeaders(response.headers);
 
-    // 5) Reescrever Set-Cookie Domain=... usando publicHost
-    await rewriteSetCookieDomainsIfPossible(response.headers, outHeaders, publicHost, ORIGIN_HOST);
+    // Reescrever Set-Cookie Domain
+    rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
 
-    // 6) Reescrever Location em respostas 3xx usando publicHost
-    // SEMPRE logar 3xx para debug de loops
+    // Reescrever Location em 3xx
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("Location");
-      console.log(`[Worker][3xx] status=${response.status} publicHost=${publicHost} path=${url.pathname} Location_original=${location || "(none)"}`);
-      
       if (location) {
         const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
         if (rewritten !== location) {
-          console.log(`[Worker][3xx] Location_rewritten=${rewritten}`);
           outHeaders.set("Location", rewritten);
         }
       }
@@ -147,12 +130,12 @@ export default {
 };
 
 /**
- * Resolve tenant a partir do hostname
- * - Plataforma: {tenant}.shops.comandocentral.com.br
- * - Custom: loja.cliente.com.br (via resolve-domain no Supabase, com cache)
+ * Resolve tenant:
+ * - Plataforma: {tenant}.shops.comandocentral.com.br (parse direto)
+ * - Custom: loja.cliente.com.br (via resolve-domain, com cache)
  */
 async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
-  // A) Plataforma: {tenant}.shops.comandocentral.com.br
+  // A) Subdomínio da plataforma
   if (PLATFORM_BASE_RE.test(hostname)) {
     const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
     if (!match) return null;
@@ -163,26 +146,24 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
     return { tenantSlug, domainType: "platform_subdomain" };
   }
 
-  // B) Domínio custom (externo) -> resolve-domain no Supabase
+  // B) Domínio custom → resolve-domain
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     console.log(`[Worker] Custom domain ${hostname} but no Supabase config`);
     return null;
   }
 
-  // Cache (5 min) para reduzir chamadas ao Supabase
+  // Cache
   const cacheKey = new Request(`https://resolve-domain-cache.internal/${hostname}`);
   try {
     const cached = await caches.default.match(cacheKey);
     if (cached) {
       const data = await cached.json();
       if (data?.tenantSlug) {
-        console.log(`[Worker] Cache hit for ${hostname} -> ${data.tenantSlug}`);
+        console.log(`[Worker] Cache hit: ${hostname} → ${data.tenantSlug}`);
         return data;
       }
     }
-  } catch {
-    // ignora cache corrompido
-  }
+  } catch {}
 
   try {
     const resolveUrl = `${SUPABASE_URL}/functions/v1/resolve-domain`;
@@ -203,7 +184,7 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
 
     const payload = await resolveResponse.json();
     if (!payload?.found || !payload?.tenant_slug) {
-      console.log(`[Worker] Domain not found in database: ${hostname}`);
+      console.log(`[Worker] Domain not found: ${hostname}`);
       return null;
     }
 
@@ -212,9 +193,9 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
       domainType: payload.domain_type || "custom",
     };
 
-    console.log(`[Worker] Resolved custom domain: ${hostname} -> ${result.tenantSlug}`);
+    console.log(`[Worker] Resolved: ${hostname} → ${result.tenantSlug}`);
 
-    // Guarda cache
+    // Salvar no cache
     await caches.default.put(
       cacheKey,
       new Response(JSON.stringify(result), {
@@ -233,25 +214,22 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
 }
 
 /**
- * Reescreve Location:
- * - path relativo (/auth) -> https://{host}/auth
- * - scheme-relative (//app.com...) -> https://{host}/...
- * - absoluto apontando para app.* ou ORIGIN_HOST -> troca hostname para o host atual
+ * Reescreve Location header para apontar para o host correto
  */
 function rewriteLocationHeader(location, currentHostname, originHost) {
   try {
-    // 1) Path relativo absoluto
+    // Path relativo
     if (location.startsWith("/")) {
       return `https://${currentHostname}${location}`;
     }
 
-    // 2) Scheme-relative (//host/path) - corrigir para não montar URL inválida
+    // Scheme-relative
     if (location.startsWith("//")) {
       try {
-        const u2 = new URL("https:" + location);
-        u2.hostname = currentHostname;
-        u2.protocol = "https:";
-        return u2.toString();
+        const u = new URL("https:" + location);
+        u.hostname = currentHostname;
+        u.protocol = "https:";
+        return u.toString();
       } catch {
         return `https://${currentHostname}${location.slice(1)}`;
       }
@@ -259,12 +237,11 @@ function rewriteLocationHeader(location, currentHostname, originHost) {
 
     const u = new URL(location);
 
-    // Padrões que devem ser reescritos para o hostname atual
+    // Hosts que devem ser reescritos
     const rewriteHosts = new Set([
       "app.comandocentral.com.br",
-      "www.app.comandocentral.com.br",
       "orbit-commerce-os.lovable.app",
-      "shops.comandocentral.com.br", // fallback origin também deve ser reescrito
+      "shops.comandocentral.com.br",
       originHost,
     ]);
 
@@ -280,57 +257,36 @@ function rewriteLocationHeader(location, currentHostname, originHost) {
   }
 }
 
-/**
- * Clona headers preservando múltiplos valores
- */
 function cloneHeaders(h) {
   const out = new Headers();
   for (const [k, v] of h.entries()) out.append(k, v);
   return out;
 }
 
-/**
- * Reescreve Domain=... em Set-Cookie quando possível.
- * - Em Workers modernos existe headers.getSetCookie()
- * - Caso não exista, não mexe (evita quebrar cookies múltiplos)
- */
-async function rewriteSetCookieDomainsIfPossible(inHeaders, outHeaders, currentHostname, originHost) {
-  // Workers modernos têm getSetCookie()
-  if (typeof inHeaders.getSetCookie !== "function") return false;
+function rewriteSetCookieDomains(inHeaders, outHeaders, currentHostname, originHost) {
+  if (typeof inHeaders.getSetCookie !== "function") return;
 
   const cookies = inHeaders.getSetCookie();
-  if (!Array.isArray(cookies) || cookies.length === 0) return false;
+  if (!Array.isArray(cookies) || cookies.length === 0) return;
 
-  // Limpa e re-adiciona todos os cookies com Domain reescrito
   outHeaders.delete("Set-Cookie");
 
-  for (const c of cookies) {
-    outHeaders.append("Set-Cookie", rewriteCookieDomain(c, currentHostname, originHost));
-  }
-
-  return true;
-}
-
-/**
- * Reescreve Domain=app.comandocentral.com.br / orbit-commerce... / originHost / fallback -> currentHostname
- */
-function rewriteCookieDomain(setCookieValue, currentHostname, originHost) {
   const badDomains = new Set([
     "app.comandocentral.com.br",
-    "www.app.comandocentral.com.br",
     "orbit-commerce-os.lovable.app",
-    "shops.comandocentral.com.br", // fallback origin
+    "shops.comandocentral.com.br",
     originHost,
   ]);
 
-  const m = setCookieValue.match(/;\s*Domain=([^;]+)/i);
-  if (!m) return setCookieValue;
-
-  const domain = m[1].trim().replace(/^\./, "").toLowerCase();
-
-  if (badDomains.has(domain)) {
-    return setCookieValue.replace(/;\s*Domain=([^;]+)/i, `; Domain=${currentHostname}`);
+  for (const c of cookies) {
+    const m = c.match(/;\s*Domain=([^;]+)/i);
+    if (m) {
+      const domain = m[1].trim().replace(/^\./, "").toLowerCase();
+      if (badDomains.has(domain)) {
+        outHeaders.append("Set-Cookie", c.replace(/;\s*Domain=([^;]+)/i, `; Domain=${currentHostname}`));
+        continue;
+      }
+    }
+    outHeaders.append("Set-Cookie", c);
   }
-
-  return setCookieValue;
 }

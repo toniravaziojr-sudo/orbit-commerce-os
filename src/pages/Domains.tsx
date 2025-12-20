@@ -188,33 +188,16 @@ export default function Domains() {
                   {platformStorefrontUrl}
                 </code>
                 
-                {/* Show SSL status badge */}
+                {/* SSL status - ACM handles SSL automatically */}
                 {platformSubdomain ? (
-                  <Badge 
-                    variant={platformSubdomainActive ? 'default' : 'secondary'}
-                    className={platformSubdomainActive ? 'bg-green-600' : ''}
-                  >
-                    {platformSubdomainActive ? (
-                      <>
-                        <ShieldCheck className="h-3 w-3 mr-1" />
-                        SSL Ativo
-                      </>
-                    ) : platformSubdomain.ssl_status === 'pending' ? (
-                      <>
-                        <Clock className="h-3 w-3 mr-1" />
-                        SSL Pendente
-                      </>
-                    ) : (
-                      <>
-                        <ShieldOff className="h-3 w-3 mr-1" />
-                        SSL Inativo
-                      </>
-                    )}
+                  <Badge variant="default" className="bg-green-600">
+                    <ShieldCheck className="h-3 w-3 mr-1" />
+                    SSL Ativo
                   </Badge>
                 ) : (
                   <Badge variant="outline">
-                    <ShieldOff className="h-3 w-3 mr-1" />
-                    Não Ativado
+                    <Clock className="h-3 w-3 mr-1" />
+                    Não ativado
                   </Badge>
                 )}
                 
@@ -224,8 +207,8 @@ export default function Domains() {
                   variant="ghost"
                   size="sm"
                   onClick={() => window.open(platformStorefrontUrl, '_blank')}
-                  disabled={!platformSubdomainActive}
-                  title={!platformSubdomainActive ? 'Ative o SSL primeiro' : 'Abrir loja'}
+                  disabled={!platformSubdomain}
+                  title={!platformSubdomain ? 'Ative o domínio primeiro' : 'Abrir loja'}
                 >
                   <ExternalLink className="h-4 w-4 mr-1" />
                   Abrir
@@ -239,8 +222,8 @@ export default function Domains() {
                   Copiar
                 </Button>
                 
-                {/* Show "Activate" button if not provisioned or SSL not active */}
-                {(!platformSubdomain || platformSubdomain.ssl_status !== 'active') && (
+                {/* Show "Activate" button if not provisioned */}
+                {!platformSubdomain && (
                   <Button
                     variant="default"
                     size="sm"
@@ -252,11 +235,6 @@ export default function Domains() {
                         <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
                         Ativando...
                       </>
-                    ) : platformSubdomain?.ssl_status === 'pending' ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-1" />
-                        Verificar SSL
-                      </>
                     ) : (
                       <>
                         <Shield className="h-4 w-4 mr-1" />
@@ -267,18 +245,8 @@ export default function Domains() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Formato: {currentTenant?.slug}.shops.comandocentral.com.br
+                Formato: {currentTenant?.slug}.shops.comandocentral.com.br (SSL automático)
               </p>
-              
-              {/* Show error if provisioning failed */}
-              {platformSubdomain?.last_error && (
-                <Alert variant="destructive" className="mt-2">
-                  <XCircle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    {platformSubdomain.last_error}
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
           ) : (
             <p className="text-muted-foreground text-sm">Nenhum tenant selecionado</p>
@@ -466,9 +434,9 @@ export default function Domains() {
       {/* DNS Instructions Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Instruções de Configuração DNS</CardTitle>
+          <CardTitle className="text-lg">Configuração de Domínio Personalizado</CardTitle>
           <CardDescription>
-            Siga estas instruções para apontar seu domínio para a loja. Funciona com qualquer provedor DNS (Cloudflare, Registro.br, GoDaddy, etc.)
+            Siga estas instruções para usar seu próprio domínio (ex: minhaloja.com.br)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -482,19 +450,18 @@ export default function Domains() {
                 <li>
                   <strong>Nome/Host:</strong>{' '}
                   <code className="bg-muted px-1 rounded">_cc-verify</code> para domínio raiz, ou{' '}
-                  <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios (ex: <code className="bg-muted px-1 rounded">_cc-verify.loja</code>)
+                  <code className="bg-muted px-1 rounded">_cc-verify.SUBDOMINIO</code> para subdomínios
                 </li>
                 <li><strong>Valor:</strong> <code className="bg-muted px-1 rounded">cc-verify=SEU_TOKEN</code></li>
-                <li><strong>TTL:</strong> Auto ou 300 (5 minutos)</li>
               </ul>
             </AlertDescription>
           </Alert>
 
           <Alert>
             <Info className="h-4 w-4" />
-            <AlertTitle>Passo 2: Apontamento via CNAME (recomendado)</AlertTitle>
+            <AlertTitle>Passo 2: Apontar DNS (CNAME)</AlertTitle>
             <AlertDescription>
-              <p className="mb-2">Para subdomínios como <code className="bg-muted px-1 rounded">www</code> ou <code className="bg-muted px-1 rounded">loja</code>:</p>
+              <p className="mb-2">Crie um registro CNAME apontando para nossa plataforma:</p>
               <ul className="list-disc list-inside space-y-1 text-sm">
                 <li><strong>Tipo:</strong> CNAME</li>
                 <li><strong>Nome:</strong> seu subdomínio (ex: <code className="bg-muted px-1 rounded">www</code> ou <code className="bg-muted px-1 rounded">loja</code>)</li>
@@ -506,20 +473,8 @@ export default function Domains() {
                   </Button>
                 </li>
               </ul>
-            </AlertDescription>
-          </Alert>
-
-          <Alert variant="default">
-            <Info className="h-4 w-4" />
-            <AlertTitle>Passo 2 (alternativa): Domínio raiz (apex)</AlertTitle>
-            <AlertDescription>
-              <p className="mb-2">Para domínio raiz (ex: <code className="bg-muted px-1 rounded">minhaloja.com.br</code>):</p>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Se seu provedor suportar <strong>ALIAS</strong>, <strong>ANAME</strong> ou <strong>CNAME flattening</strong>: use para apontar <code className="bg-muted px-1 rounded">@</code> → <code className="bg-muted px-1 rounded">{STOREFRONT_CNAME_TARGET}</code></li>
-                <li>Se não suportar: use <code className="bg-muted px-1 rounded">www</code> como principal e configure redirecionamento do apex para www no seu provedor</li>
-              </ul>
-              <p className="mt-3 text-xs text-muted-foreground">
-                💡 <strong>Dica:</strong> Usar www (CNAME) é mais simples e funciona em todos os provedores. Apex (ALIAS/ANAME) é avançado.
+              <p className="mt-2 text-xs text-muted-foreground">
+                Para domínio raiz (apex), use ALIAS/ANAME se disponível, ou configure www como principal.
               </p>
             </AlertDescription>
           </Alert>
@@ -528,9 +483,9 @@ export default function Domains() {
             <ShieldCheck className="h-4 w-4" />
             <AlertTitle>Passo 3: Ativar SSL</AlertTitle>
             <AlertDescription>
-              Após a verificação, clique em "Ativar SSL" para habilitar HTTPS automático. O processo pode levar alguns minutos.
+              Após a verificação, clique em "Ativar SSL" para habilitar HTTPS automático.
               <p className="mt-2 text-xs text-muted-foreground">
-                ⚠️ A propagação DNS pode levar de alguns minutos até 48 horas. Tente verificar novamente se não funcionar de imediato.
+                A propagação DNS pode levar até 48 horas. O SSL é provisionado automaticamente após a verificação.
               </p>
             </AlertDescription>
           </Alert>
