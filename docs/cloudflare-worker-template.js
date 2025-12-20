@@ -39,7 +39,6 @@ const MAX_INTERNAL_REDIRECTS = 5;
 
 // Rotas públicas de storefront que devem ter redirects seguidos internamente
 // quando o origin redireciona para app.comandocentral.com.br
-// IMPORTANTE: Inclui /assets/ para evitar CORS quando assets são redirecionados
 const PUBLIC_STOREFRONT_PREFIXES = [
   "/store/",
   "/products",
@@ -57,8 +56,17 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/c/",
   "/lp/",
   "/page/",
-  "/assets/",  // Assets do Vite - CRÍTICO para evitar CORS
-  "/@vite/",   // Vite dev assets
+];
+
+// Assets e API públicos - CRÍTICO para evitar CORS quando redirecionados para app
+const PUBLIC_ASSET_API_PREFIXES = [
+  "/assets/",     // Vite build assets (JS/CSS)
+  "/@vite/",      // Vite dev assets
+  "/api/",        // API endpoints
+  "/favicon",     // Favicon
+  "/manifest",    // PWA manifest
+  "/robots.txt",  // SEO
+  "/sitemap",     // SEO sitemap
   "/node_modules/", // Dev dependencies
 ];
 
@@ -98,6 +106,19 @@ function isPublicStorefrontPath(pathname) {
     return true;
   }
   
+  return false;
+}
+
+/**
+ * Verifica se um path é asset ou API pública (JS, CSS, imagens, etc.)
+ */
+function isPublicAssetOrApiPath(pathname) {
+  const path = (pathname || "").toLowerCase();
+  for (const prefix of PUBLIC_ASSET_API_PREFIXES) {
+    if (path === prefix || path.startsWith(prefix)) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -348,12 +369,13 @@ function analyzeRedirect(location, publicHost, originHost) {
       };
     }
 
-    // app.comandocentral.com.br com rota pública → REESCREVER para o host público
+    // app.comandocentral.com.br com rota pública ou assets → REESCREVER para o host público
     // O origin está redirecionando para app.comandocentral.com.br, mas o browser
     // deve ver apenas o host do tenant. Se depois de reescrever a URL fica
-    // igual à original (loop potencial), retornamos 200 e buscamos o conteúdo.
+    // igual à original (loop potencial), seguimos internamente para buscar o conteúdo.
     if (targetHost === "app.comandocentral.com.br") {
-      if (isPublicStorefrontPath(targetPath)) {
+      // Se for storefront público OU assets/api públicos → reescrever para o host do tenant
+      if (isPublicStorefrontPath(targetPath) || isPublicAssetOrApiPath(targetPath)) {
         // Reescrever para o host público
         u.hostname = publicHost;
         u.protocol = "https:";
@@ -361,10 +383,10 @@ function analyzeRedirect(location, publicHost, originHost) {
         return {
           action: "rewrite",
           rewrittenUrl: u.toString(),
-          reason: "app_public_storefront_rewrite",
+          reason: "app_public_rewrite",
         };
       } else {
-        // Rota de auth/admin - deixar passar sem modificar
+        // Rotas de auth/admin - deixar passar sem modificar
         return {
           action: "passthrough",
           reason: "app_auth_admin",
