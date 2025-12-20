@@ -74,6 +74,7 @@ export function useTenantDomains() {
     fetchDomains();
   }, [fetchDomains]);
 
+  // Add a custom domain (requires DNS verification + SSL via Cloudflare for SaaS)
   const addDomain = async (rawDomain: string): Promise<TenantDomain | null> => {
     if (!currentTenant?.id) {
       toast.error('Tenant não encontrado');
@@ -118,6 +119,7 @@ export function useTenantDomains() {
     }
   };
 
+  // Verify DNS for custom domains
   const verifyDomain = async (domainId: string): Promise<boolean> => {
     if (!currentTenant?.id) return false;
 
@@ -148,6 +150,7 @@ export function useTenantDomains() {
     }
   };
 
+  // Provision SSL for custom domains (via Cloudflare for SaaS / Custom Hostnames)
   const provisionSSL = async (domainId: string): Promise<boolean> => {
     if (!currentTenant?.id) return false;
 
@@ -185,6 +188,7 @@ export function useTenantDomains() {
     }
   };
 
+  // Check SSL status for custom domains
   const checkSSLStatus = async (domainId: string): Promise<boolean> => {
     if (!currentTenant?.id) return false;
 
@@ -236,8 +240,8 @@ export function useTenantDomains() {
       return false;
     }
 
-    // For Phase 2, require SSL to be active for primary
-    if (domain.ssl_status !== 'active') {
+    // For custom domains, require SSL to be active
+    if (domain.type === 'custom' && domain.ssl_status !== 'active') {
       toast.error('Ative o SSL antes de definir como principal');
       return false;
     }
@@ -279,16 +283,14 @@ export function useTenantDomains() {
     if (domain.is_primary && !forceRemovePrimary) {
       const otherCustomDomains = domains.filter(d => d.id !== domainId && d.type === 'custom');
       if (otherCustomDomains.length > 0) {
-        // Há outros domínios, exige definir outro como principal primeiro
         toast.error('Defina outro domínio como principal antes de remover este.');
         return false;
       }
-      // Se não há outros, permite remover (volta ao padrão shops)
     }
 
     try {
-      // If has external_id, try to delete from Cloudflare first
-      if (domain.external_id && currentTenant?.id) {
+      // For custom domains with external_id, try to delete from Cloudflare first
+      if (domain.type === 'custom' && domain.external_id && currentTenant?.id) {
         await supabase.functions.invoke('domains-provision', {
           body: { 
             tenant_id: currentTenant.id, 
@@ -307,7 +309,7 @@ export function useTenantDomains() {
 
       if (error) throw error;
 
-      toast.success('Domínio removido. Sua loja agora usa a URL padrão da plataforma.');
+      toast.success('Domínio removido.');
       await fetchDomains();
       return true;
     } catch (error) {
@@ -317,6 +319,7 @@ export function useTenantDomains() {
     }
   };
 
+  // Provision default platform subdomain (SSL handled by ACM - no Cloudflare API calls)
   const provisionDefaultDomain = async (tenantSlug: string): Promise<boolean> => {
     if (!currentTenant?.id) return false;
 
@@ -333,10 +336,7 @@ export function useTenantDomains() {
       await fetchDomains();
 
       if (data.ssl_status === 'active') {
-        toast.success('Domínio padrão ativado com sucesso!');
-        return true;
-      } else if (data.ssl_status === 'pending') {
-        toast.info('SSL sendo provisionado para o domínio padrão. Aguarde alguns minutos.');
+        toast.success('Domínio padrão ativado!');
         return true;
       } else {
         toast.error(data.error || 'Erro ao provisionar domínio padrão');
@@ -344,7 +344,7 @@ export function useTenantDomains() {
       }
     } catch (error) {
       console.error('Error provisioning default domain:', error);
-      toast.error('Erro ao provisionar domínio padrão. Verifique as credenciais do Cloudflare.');
+      toast.error('Erro ao provisionar domínio padrão');
       return false;
     }
   };
