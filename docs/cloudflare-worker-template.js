@@ -69,6 +69,14 @@ const AUTH_ADMIN_PREFIXES = [
   "/settings",
 ];
 
+// Arquivos que SEMPRE existem na raiz do origin (não precisam de /store/{tenant})
+const ROOT_ONLY_PATHS = [
+  "/robots.txt",
+  "/sitemap",
+  "/manifest",
+  "/favicon",
+];
+
 function isPublicStorefrontPath(pathname) {
   const path = (pathname || "/").toLowerCase();
 
@@ -86,6 +94,14 @@ function isPublicStorefrontPath(pathname) {
 function isPublicAssetOrApiPath(pathname) {
   const path = (pathname || "").toLowerCase();
   for (const prefix of PUBLIC_ASSET_API_PREFIXES) {
+    if (path === prefix || path.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function isRootOnlyPath(pathname) {
+  const path = (pathname || "").toLowerCase();
+  for (const prefix of ROOT_ONLY_PATHS) {
     if (path === prefix || path.startsWith(prefix)) return true;
   }
   return false;
@@ -153,7 +169,15 @@ export default {
 
     // 1) Canonicalização por host (301 REAL no edge)
     // Se existe um domínio custom primário e o usuário está no domínio platform, redireciona
-    if (isStorefront && publicHost !== canonicalHost) {
+    // MAS: NÃO redirecionar assets/api - esses devem ser servidos diretamente
+    const pathLower = (url.pathname || "/").toLowerCase();
+    const isAssetOrApi = pathLower.startsWith("/assets/") || 
+                          pathLower.startsWith("/@vite/") || 
+                          pathLower.startsWith("/node_modules/") ||
+                          pathLower.startsWith("/src/") ||
+                          pathLower.startsWith("/api/");
+    
+    if (isStorefront && publicHost !== canonicalHost && !isAssetOrApi) {
       const target = `https://${canonicalHost}${url.pathname}${cleanPublicSearch(url.search)}`;
       console.log(`[Worker] Canonical redirect: ${publicHost} -> ${canonicalHost}`);
       return Response.redirect(target, 301);
@@ -161,46 +185,42 @@ export default {
 
     // 2) URL limpa no domínio custom:
     // Se custom e o browser pedir /store/{tenant}..., devolve 301 para path limpo.
+    // MAS: NÃO limpar assets - o browser não deve ver /assets com /store/{tenant} de qualquer forma
     const isCustomHost = !PLATFORM_BASE_RE.test(publicHost); // custom domain não termina com .shops...
     const stripped = stripStorePrefix(url.pathname, tenantSlug);
 
-    if (isCustomHost && stripped !== null) {
+    if (isCustomHost && stripped !== null && !isAssetOrApi) {
       const target = `https://${publicHost}${stripped}${cleanPublicSearch(url.search)}`;
       console.log(`[Worker] Clean URL redirect: ${url.pathname} -> ${stripped}`);
       return Response.redirect(target, 301);
     }
 
     // 3) Rewrite interno para origin:
-    // IMPORTANTE: Assets e APIs NÃO devem receber prefixo /store/{tenant}
-    const pathLower = (url.pathname || "/").toLowerCase();
-    const shouldBypassStorePrefix =
-      pathLower.startsWith("/assets/") ||
-      pathLower.startsWith("/api/") ||
-      pathLower.startsWith("/@vite/") ||
-      pathLower.startsWith("/node_modules/") ||
-      pathLower.startsWith("/favicon") ||
-      pathLower === "/robots.txt" ||
-      pathLower.startsWith("/sitemap") ||
-      pathLower.startsWith("/manifest") ||
-      pathLower.startsWith("/src/");  // Vite dev mode
-
+    // REGRA CRÍTICA: O origin Lovable serve assets DENTRO de /store/{tenant}/
+    // Então /assets/... no browser deve virar /store/{tenant}/assets/... no origin
+    
+    // Exceções que ficam na raiz (sem /store/{tenant}):
+    const shouldBypassStorePrefix = isRootOnlyPath(url.pathname);
+    
     let originPath = url.pathname;
 
-    // Se NÃO for asset/api, aí sim aplica /store/{tenant} no custom (URL limpa no browser)
     if (!shouldBypassStorePrefix) {
+      // TODOS os paths (incluindo /assets, /api, páginas) recebem /store/{tenant} no origin
       if (isCustomHost) {
+        // Domínio custom: sempre prefixar com /store/{tenant}
         originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
       } else {
-        // platform: também pode manter compatibilidade
+        // Domínio platform: verificar se já tem o prefixo
         if (stripped === null) {
+          // Não tem prefixo, adicionar
           originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
         } else {
-          // já tem /store/{tenant}... (mantém)
+          // Já tem /store/{tenant}, manter como está
           originPath = url.pathname;
         }
       }
     }
-    // Se for asset/api, mantém originPath = url.pathname (sem prefixo)
+    // Se for root-only (robots.txt, sitemap, etc.), mantém originPath = url.pathname
 
     console.log(`[Worker] Proxying: ${url.pathname} -> ${originPath}`);
 
@@ -338,6 +358,7 @@ async function proxyWithRedirectFollow(originalRequest, config) {
 function analyzeRedirect(location, ctx) {
   const { publicHost, originHost, tenantSlug, isCustomHost } = ctx;
 
+  // Para domínio custom, remover /store/{tenant} dos redirects para o browser
   const stripIfCustom = (path) => {
     if (!isCustomHost) return path;
     const stripped = stripStorePrefix(path, tenantSlug);
