@@ -37,8 +37,6 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/store/",  // Apenas com barra para evitar conflito
   "/products",
   "/product/",
-  "/c/",       // Categoria
-  "/p/",       // Produto  
   "/category/",
   "/categories",
   "/collections",
@@ -48,8 +46,6 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/obrigado",
   "/order/",
   "/orders",
-  "/lp/",      // Landing pages
-  "/page/",    // Páginas institucionais
 ];
 
 // Rotas de auth/admin que NUNCA devem ser reescritas (evita loops)
@@ -99,12 +95,9 @@ export default {
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
     
     // Determinar o host público
-    // Quando via Worker Route: url.hostname já é o host correto (ex: tenant.shops.comandocentral.com.br)
-    // Quando via Custom Hostname: cf-connecting-host tem o host original
     const edgeHost = url.hostname.toLowerCase();
     
-    // Se estamos rodando no .workers.dev, não devemos servir storefronts
-    // Isso só acontece quando alguém acessa diretamente o worker URL
+    // Se estamos rodando no .workers.dev, rejeitar
     if (edgeHost.endsWith(".workers.dev")) {
       console.log(`[Worker] Direct access to workers.dev rejected: ${edgeHost}`);
       return new Response("Please access via the correct domain", { status: 404 });
@@ -133,20 +126,11 @@ export default {
     console.log(`[Worker] Resolved: tenant=${tenantSlug} type=${domainType}`);
 
     // 2) Raiz "/" → redirect para /store/{tenant}
-    //    MAS: Se já está em /store/{tenant}, NÃO redirecionar (evita loop)
     if (url.pathname === "/" || url.pathname === "") {
       const redirectUrl = `https://${publicHost}/store/${tenantSlug}${url.search || ""}`;
       console.log(`[Worker] Redirecting / → ${redirectUrl}`);
       return Response.redirect(redirectUrl, 302);
     }
-    
-    // Verificar se estamos no path correto /store/{tenant}
-    const expectedStorePath = `/store/${tenantSlug}`;
-    const isOnCorrectStorePath = url.pathname === expectedStorePath || 
-                                  url.pathname.startsWith(expectedStorePath + "/") ||
-                                  url.pathname.startsWith(expectedStorePath + "?");
-    
-    console.log(`[Worker] Path check: pathname=${url.pathname} expectedStorePath=${expectedStorePath} isOnCorrectStorePath=${isOnCorrectStorePath}`);
 
     // 3) Proxy para o origin
     const originUrl = new URL(request.url);
@@ -168,7 +152,7 @@ export default {
       } catch {}
     }
 
-    // Headers de forwarding
+    // Headers de forwarding - CRÍTICO para o app saber o host público
     headers.set("X-Forwarded-Host", publicHost);
     headers.set("X-Forwarded-Proto", "https");
     headers.set("X-Tenant-Slug", tenantSlug);
@@ -181,7 +165,9 @@ export default {
       redirect: "manual",
     });
 
+    console.log(`[Worker] Proxying to origin: ${originUrl.toString()}`);
     const response = await fetch(originRequest);
+    console.log(`[Worker] Origin response: status=${response.status}`);
 
     // 4) Clonar e modificar headers da resposta
     const outHeaders = cloneHeaders(response.headers);
@@ -194,22 +180,7 @@ export default {
       const location = response.headers.get("Location");
       if (location) {
         const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
-        console.log(`[Worker] Location rewrite: status=${response.status} original=${location} rewritten=${rewritten}`);
-        
-        // LOOP GUARD: Se o redirect reescrito aponta para exatamente a mesma URL que pedimos, é loop
-        const requestUrl = new URL(request.url);
-        requestUrl.hostname = publicHost;
-        const requestFullUrl = requestUrl.toString();
-        
-        if (rewritten === requestFullUrl || rewritten === request.url) {
-          console.log(`[Worker] LOOP DETECTED! Blocking redirect to same URL: ${rewritten}`);
-          // Retorna o body original sem o redirect para quebrar o loop
-          return new Response(response.body, {
-            status: 200,
-            statusText: "OK (loop blocked)",
-            headers: outHeaders,
-          });
-        }
+        console.log(`[Worker] Location rewrite: status=${response.status} original="${location}" rewritten="${rewritten}"`);
         
         if (rewritten !== location) {
           outHeaders.set("Location", rewritten);
