@@ -39,6 +39,7 @@ const MAX_INTERNAL_REDIRECTS = 5;
 
 // Rotas públicas de storefront que devem ter redirects seguidos internamente
 // quando o origin redireciona para app.comandocentral.com.br
+// IMPORTANTE: Inclui /assets/ para evitar CORS quando assets são redirecionados
 const PUBLIC_STOREFRONT_PREFIXES = [
   "/store/",
   "/products",
@@ -56,6 +57,9 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/c/",
   "/lp/",
   "/page/",
+  "/assets/",  // Assets do Vite - CRÍTICO para evitar CORS
+  "/@vite/",   // Vite dev assets
+  "/node_modules/", // Dev dependencies
 ];
 
 // Rotas de auth/admin que NUNCA devem ser interceptadas (deixa redirect passar)
