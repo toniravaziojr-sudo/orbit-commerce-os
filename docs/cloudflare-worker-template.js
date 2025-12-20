@@ -32,19 +32,24 @@ const RESOLVE_CACHE_TTL = 300;
 
 // Rotas públicas de storefront que devem ter app.comandocentral.com.br reescrito
 // para o host do tenant (evita vazamento para o app)
+// IMPORTANTE: /store sem barra foi removido para evitar match errado
 const PUBLIC_STOREFRONT_PREFIXES = [
-  "/store/",
-  "/store",
+  "/store/",  // Apenas com barra para evitar conflito
   "/products",
   "/product/",
+  "/c/",       // Categoria
+  "/p/",       // Produto  
   "/category/",
   "/categories",
   "/collections",
   "/cart",
   "/checkout",
   "/thank-you",
+  "/obrigado",
   "/order/",
   "/orders",
+  "/lp/",      // Landing pages
+  "/page/",    // Páginas institucionais
 ];
 
 // Rotas de auth/admin que NUNCA devem ser reescritas (evita loops)
@@ -128,11 +133,20 @@ export default {
     console.log(`[Worker] Resolved: tenant=${tenantSlug} type=${domainType}`);
 
     // 2) Raiz "/" → redirect para /store/{tenant}
+    //    MAS: Se já está em /store/{tenant}, NÃO redirecionar (evita loop)
     if (url.pathname === "/" || url.pathname === "") {
       const redirectUrl = `https://${publicHost}/store/${tenantSlug}${url.search || ""}`;
       console.log(`[Worker] Redirecting / → ${redirectUrl}`);
       return Response.redirect(redirectUrl, 302);
     }
+    
+    // Verificar se estamos no path correto /store/{tenant}
+    const expectedStorePath = `/store/${tenantSlug}`;
+    const isOnCorrectStorePath = url.pathname === expectedStorePath || 
+                                  url.pathname.startsWith(expectedStorePath + "/") ||
+                                  url.pathname.startsWith(expectedStorePath + "?");
+    
+    console.log(`[Worker] Path check: pathname=${url.pathname} expectedStorePath=${expectedStorePath} isOnCorrectStorePath=${isOnCorrectStorePath}`);
 
     // 3) Proxy para o origin
     const originUrl = new URL(request.url);
@@ -181,6 +195,22 @@ export default {
       if (location) {
         const rewritten = rewriteLocationHeader(location, publicHost, ORIGIN_HOST);
         console.log(`[Worker] Location rewrite: status=${response.status} original=${location} rewritten=${rewritten}`);
+        
+        // LOOP GUARD: Se o redirect reescrito aponta para exatamente a mesma URL que pedimos, é loop
+        const requestUrl = new URL(request.url);
+        requestUrl.hostname = publicHost;
+        const requestFullUrl = requestUrl.toString();
+        
+        if (rewritten === requestFullUrl || rewritten === request.url) {
+          console.log(`[Worker] LOOP DETECTED! Blocking redirect to same URL: ${rewritten}`);
+          // Retorna o body original sem o redirect para quebrar o loop
+          return new Response(response.body, {
+            status: 200,
+            statusText: "OK (loop blocked)",
+            headers: outHeaders,
+          });
+        }
+        
         if (rewritten !== location) {
           outHeaders.set("Location", rewritten);
         }
