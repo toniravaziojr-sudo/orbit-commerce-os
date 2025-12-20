@@ -4,19 +4,29 @@
 
 import { hasValidSlug } from './slugValidation';
 import { stripPreviewParams } from './sanitizePublicUrl';
+import { 
+  SAAS_CONFIG, 
+  isPlatformSubdomain, 
+  getPlatformSubdomainUrl,
+} from './canonicalDomainService';
 
 /**
- * The default public origin for the app
+ * The default public origin for the app (legacy fallback)
  */
-export const PUBLIC_APP_ORIGIN = 'https://orbit-commerce-os.lovable.app';
+export const PUBLIC_APP_ORIGIN = SAAS_CONFIG.fallbackOrigin;
 
 /**
  * Get the canonical origin for a tenant
  * @param customDomain - The custom domain if active (e.g., "loja.respeiteohomem.com.br")
+ * @param tenantSlug - Optional tenant slug for generating platform subdomain URL
  */
-export function getCanonicalOrigin(customDomain: string | null): string {
+export function getCanonicalOrigin(customDomain: string | null, tenantSlug?: string): string {
   if (customDomain) {
     return `https://${customDomain}`;
+  }
+  // If tenant slug is provided, use the platform subdomain
+  if (tenantSlug) {
+    return getPlatformSubdomainUrl(tenantSlug);
   }
   return PUBLIC_APP_ORIGIN;
 }
@@ -25,7 +35,7 @@ export function getCanonicalOrigin(customDomain: string | null): string {
  * Get the full canonical base URL for a store
  */
 export function getCanonicalStoreBaseUrl(tenantSlug: string, customDomain: string | null): string {
-  const origin = getCanonicalOrigin(customDomain);
+  const origin = getCanonicalOrigin(customDomain, tenantSlug);
   return `${origin}/store/${tenantSlug}`;
 }
 
@@ -106,17 +116,28 @@ export function getCanonicalThankYouUrl(tenantSlug: string, customDomain: string
 /**
  * Check if current host matches the expected canonical host
  */
-export function isOnCanonicalHost(customDomain: string | null): boolean {
-  const currentHost = window.location.host;
+export function isOnCanonicalHost(customDomain: string | null, tenantSlug?: string): boolean {
+  const currentHost = window.location.host.toLowerCase().replace(/^www\./, '');
   
-  if (!customDomain) {
-    // No custom domain - app's default host is canonical
-    const appHost = new URL(PUBLIC_APP_ORIGIN).host;
-    return currentHost === appHost;
+  // Check if we're on a platform subdomain
+  if (isPlatformSubdomain(currentHost)) {
+    // If no custom domain, platform subdomain is canonical
+    if (!customDomain) {
+      return true;
+    }
+    // If custom domain exists, it's the canonical - we should redirect
+    return false;
   }
   
-  // Custom domain exists - check if we're on it
-  return currentHost === customDomain || currentHost === `www.${customDomain}`;
+  // Check if we're on the custom domain
+  if (customDomain) {
+    const normalizedCustom = customDomain.toLowerCase().replace(/^www\./, '');
+    return currentHost === normalizedCustom;
+  }
+  
+  // Fallback check for legacy origin
+  const appHost = new URL(PUBLIC_APP_ORIGIN).host;
+  return currentHost === appHost;
 }
 
 /**
@@ -127,11 +148,11 @@ export function getCanonicalRedirect(
   tenantSlug: string,
   customDomain: string | null
 ): string | null {
-  if (isOnCanonicalHost(customDomain)) {
+  if (isOnCanonicalHost(customDomain, tenantSlug)) {
     return null;
   }
 
-  const canonicalOrigin = getCanonicalOrigin(customDomain);
+  const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug);
   const currentPath = window.location.pathname;
   
   // Clean query params (remove preview)

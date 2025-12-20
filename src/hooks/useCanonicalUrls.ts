@@ -29,8 +29,8 @@ export function useCanonicalUrls() {
     // The custom domain (or null if using default)
     customDomain,
     
-    // The canonical origin (e.g., "https://loja.example.com" or "https://orbit-commerce-os.lovable.app")
-    origin: getCanonicalOrigin(customDomain),
+    // The canonical origin (e.g., "https://loja.example.com" or "https://tenant.shops.comandocentral.com.br")
+    origin: getCanonicalOrigin(customDomain, tenantSlug),
     
     // The canonical store base URL
     storeBaseUrl: getCanonicalStoreBaseUrl(tenantSlug, customDomain),

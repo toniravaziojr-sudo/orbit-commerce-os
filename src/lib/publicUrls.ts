@@ -4,19 +4,28 @@
 // =============================================
 
 import { hasValidSlug } from './slugValidation';
+import { 
+  SAAS_CONFIG, 
+  getPlatformSubdomainUrl 
+} from './canonicalDomainService';
 
 /**
- * The default public origin for the app
+ * The default public origin for the app (legacy fallback)
  */
-export const PUBLIC_APP_ORIGIN = 'https://orbit-commerce-os.lovable.app';
+export const PUBLIC_APP_ORIGIN = SAAS_CONFIG.fallbackOrigin;
 
 /**
  * Get the canonical origin for a tenant
  * @param customDomain - The custom domain if active (e.g., "loja.respeiteohomem.com.br")
+ * @param tenantSlug - Optional tenant slug for generating platform subdomain URL
  */
-export function getCanonicalOrigin(customDomain: string | null | undefined): string {
+export function getCanonicalOrigin(customDomain: string | null | undefined, tenantSlug?: string): string {
   if (customDomain) {
     return `https://${customDomain}`;
+  }
+  // If tenant slug is provided, use the platform subdomain
+  if (tenantSlug) {
+    return getPlatformSubdomainUrl(tenantSlug);
   }
   return PUBLIC_APP_ORIGIN;
 }
@@ -38,7 +47,7 @@ export function getStoreBaseUrl(tenantSlug: string): string {
  * Get the full canonical base URL for a store (absolute URL with domain)
  */
 export function getCanonicalStoreBaseUrl(tenantSlug: string, customDomain: string | null | undefined): string {
-  const origin = getCanonicalOrigin(customDomain);
+  const origin = getCanonicalOrigin(customDomain, tenantSlug);
   return `${origin}/store/${tenantSlug}`;
 }
 
