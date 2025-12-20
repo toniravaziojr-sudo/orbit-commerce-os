@@ -17,7 +17,9 @@ interface ResolveResponse {
   domain?: string;
   domain_type?: 'platform_subdomain' | 'custom';
   canonical_origin?: string;
+  primary_public_host?: string;
   is_primary?: boolean;
+  has_custom_primary?: boolean;
   error?: string;
 }
 
@@ -127,9 +129,11 @@ Deno.serve(async (req) => {
         .eq('is_primary', true)
         .single();
       
-      const canonicalOrigin = primaryDomain 
-        ? `https://${primaryDomain.domain}`
-        : `https://${platformTenantSlug}.${SAAS_STOREFRONT_SUBDOMAIN}.${SAAS_DOMAIN}`;
+      const hasCustomPrimary = !!primaryDomain;
+      const primaryPublicHost = hasCustomPrimary 
+        ? primaryDomain.domain
+        : `${platformTenantSlug}.${SAAS_STOREFRONT_SUBDOMAIN}.${SAAS_DOMAIN}`;
+      const canonicalOrigin = `https://${primaryPublicHost}`;
       
       const response: ResolveResponse = {
         found: true,
@@ -138,7 +142,9 @@ Deno.serve(async (req) => {
         domain: hostnameWithoutWww,
         domain_type: 'platform_subdomain',
         canonical_origin: canonicalOrigin,
-        is_primary: !primaryDomain, // Platform subdomain is primary only if no custom domain
+        primary_public_host: primaryPublicHost,
+        is_primary: !hasCustomPrimary, // Platform subdomain is primary only if no custom domain
+        has_custom_primary: hasCustomPrimary,
       };
       
       return new Response(
@@ -201,7 +207,7 @@ Deno.serve(async (req) => {
     console.log(`[resolve-domain] Found custom domain: ${domain.domain} -> tenant: ${tenantSlug}`);
 
     // For custom domains, check if this is the primary or if there's another primary
-    let canonicalOrigin = `https://${domain.domain}`;
+    let primaryPublicHost = domain.domain;
     
     if (!domain.is_primary) {
       // Check if there's a primary custom domain
@@ -216,9 +222,11 @@ Deno.serve(async (req) => {
         .single();
       
       if (primaryDomain) {
-        canonicalOrigin = `https://${primaryDomain.domain}`;
+        primaryPublicHost = primaryDomain.domain;
       }
     }
+
+    const canonicalOrigin = `https://${primaryPublicHost}`;
 
     const response: ResolveResponse = {
       found: true,
@@ -227,7 +235,9 @@ Deno.serve(async (req) => {
       domain: domain.domain,
       domain_type: 'custom',
       canonical_origin: canonicalOrigin,
+      primary_public_host: primaryPublicHost,
       is_primary: domain.is_primary,
+      has_custom_primary: true,
     };
 
     return new Response(
