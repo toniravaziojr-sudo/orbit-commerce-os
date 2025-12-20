@@ -152,10 +152,17 @@ export default {
 
 /**
  * Reescreve Location headers de redirects para manter no domínio correto
- * Ex: https://app.comandocentral.com.br/store/tenant/... -> https://tenant.shops.comandocentral.com.br/store/tenant/...
+ * - Paths relativos (/auth, /store/...) são convertidos para absolutos no host atual
+ * - URLs absolutas apontando para app.* ou origin são reescritas para o host atual
  */
 function rewriteLocationHeader(location, currentHostname, tenantSlug) {
   try {
+    // Se for path relativo, converte para absoluto no host atual
+    // Isso evita que redirects relativos do origin "vazem" para outro domínio
+    if (location.startsWith("/")) {
+      return `https://${currentHostname}${location}`;
+    }
+
     const url = new URL(location);
     
     // Padrões que devem ser reescritos para o hostname atual
@@ -172,10 +179,10 @@ function rewriteLocationHeader(location, currentHostname, tenantSlug) {
       }
     }
     
-    // Se o Location está apontando para o mesmo host mas com path diferente, mantém
+    // Se o Location está apontando para outro host, mantém como está
     return location;
   } catch (e) {
-    // Se não for URL válida (ex: path relativo), retorna como está
+    // Fallback: retorna como está
     return location;
   }
 }
