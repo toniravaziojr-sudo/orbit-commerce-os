@@ -3,7 +3,7 @@
 // =============================================
 
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,9 +15,11 @@ import { Loader2, Mail, ArrowLeft, Check } from 'lucide-react';
 import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontAccountForgotPassword() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
 
@@ -58,7 +60,7 @@ export default function StorefrontAccountForgotPassword() {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/store/${tenantSlug}/conta/redefinir-senha`,
+        redirectTo: `${window.location.origin}${basePath}/conta/redefinir-senha`,
       });
 
       if (resetError) {
@@ -94,7 +96,7 @@ export default function StorefrontAccountForgotPassword() {
         <div className="container mx-auto max-w-md">
           {/* Back link */}
           <Link 
-            to={`/store/${tenantSlug}/conta/login`}
+            to={`${basePath}/conta/login`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -124,7 +126,7 @@ export default function StorefrontAccountForgotPassword() {
                       Verifique sua caixa de entrada e spam.
                     </p>
                   </div>
-                  <Link to={`/store/${tenantSlug}/conta/login`}>
+                  <Link to={`${basePath}/conta/login`}>
                     <Button variant="outline" className="w-full">
                       Voltar ao login
                     </Button>

@@ -3,7 +3,7 @@
 // =============================================
 
 import { useState } from 'react';
-import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,9 +16,10 @@ import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontAccountLogin() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -30,7 +31,8 @@ export default function StorefrontAccountLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const redirectTo = searchParams.get('redirect') || `/store/${tenantSlug}/conta`;
+  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+  const redirectTo = searchParams.get('redirect') || `${basePath}/conta`;
 
   // Build context
   const context: BlockRenderContext = {
@@ -110,7 +112,7 @@ export default function StorefrontAccountLogin() {
         <div className="container mx-auto max-w-md">
           {/* Back link */}
           <Link 
-            to={`/store/${tenantSlug}`}
+            to={`${basePath}`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -152,7 +154,7 @@ export default function StorefrontAccountLogin() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Senha</Label>
                     <Link 
-                      to={`/store/${tenantSlug}/conta/esqueci-senha`}
+                      to={`${basePath}/conta/esqueci-senha`}
                       className="text-xs text-primary hover:underline"
                     >
                       Esqueceu a senha?

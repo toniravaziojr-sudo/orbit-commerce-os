@@ -2,7 +2,7 @@
 // STOREFRONT ORDERS LIST - Customer orders list page
 // =============================================
 
-import { Link, useParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { useCustomerOrders, getOrderStatusInfo } from '@/hooks/useCustomerOrders';
@@ -16,9 +16,11 @@ import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/cartTotals';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontOrdersList() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
 
@@ -80,7 +82,7 @@ export default function StorefrontOrdersList() {
         <div className="container mx-auto max-w-3xl">
           {/* Back link */}
           <Link 
-            to={`/store/${tenantSlug}/conta`}
+            to={`${basePath}/conta`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -108,7 +110,7 @@ export default function StorefrontOrdersList() {
                     : 'Faça login para ver seus pedidos.'
                   }
                 </p>
-                <Link to={`/store/${tenantSlug}`}>
+                <Link to={`${basePath}`}>
                   <Button>
                     <ShoppingBag className="h-4 w-4 mr-2" />
                     Ir às compras
@@ -129,7 +131,7 @@ export default function StorefrontOrdersList() {
 
               <TabsContent value="all" className="space-y-4">
                 {orders.map(order => (
-                  <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
+                  <OrderCard key={order.id} order={order} basePath={basePath} />
                 ))}
               </TabsContent>
 
@@ -138,7 +140,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido em andamento.</p>
                 ) : (
                   inProgressOrders.map(order => (
-                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
+                    <OrderCard key={order.id} order={order} basePath={basePath} />
                   ))
                 )}
               </TabsContent>
@@ -148,7 +150,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido finalizado.</p>
                 ) : (
                   completedOrders.map(order => (
-                    <OrderCard key={order.id} order={order} tenantSlug={tenantSlug || ''} />
+                    <OrderCard key={order.id} order={order} basePath={basePath} />
                   ))
                 )}
               </TabsContent>
@@ -168,10 +170,10 @@ export default function StorefrontOrdersList() {
 // Order card component
 function OrderCard({ 
   order, 
-  tenantSlug,
+  basePath,
 }: { 
   order: ReturnType<typeof useCustomerOrders>['orders'][0]; 
-  tenantSlug: string;
+  basePath: string;
 }) {
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = format(new Date(order.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
@@ -197,7 +199,7 @@ function OrderCard({
             </p>
             <p className="font-semibold">{formatCurrency(order.total)}</p>
           </div>
-          <Link to={`/store/${tenantSlug}/conta/pedidos/${order.id}`}>
+          <Link to={`${basePath}/conta/pedidos/${order.id}`}>
             <Button variant="outline" size="sm">
               Ver detalhes
               <ChevronRight className="h-4 w-4 ml-1" />

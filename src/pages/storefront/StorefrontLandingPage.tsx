@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 // Hook specifically for landing pages - validates type = 'landing_page'
 // Supports preview mode for unpublished pages when user is authenticated
@@ -149,7 +150,8 @@ function usePublicLandingPage(tenantSlug: string, pageSlug: string, isPreviewMod
 }
 
 export default function StorefrontLandingPage() {
-  const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const { pageSlug } = useParams<{ pageSlug: string }>();
   const [searchParams] = useSearchParams();
   const isPreviewMode = searchParams.get('preview') === '1';
 

@@ -15,9 +15,11 @@ import { FileX } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getEffectiveSeo, applySeoToDocument } from '@/lib/seo';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontPage() {
-  const { tenantSlug, pageSlug } = useParams<{ tenantSlug: string; pageSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const { pageSlug } = useParams<{ pageSlug: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
@@ -94,7 +96,8 @@ export default function StorefrontPage() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !pageData.isLoading) {
-      const cleanPath = `/store/${tenantSlug}/page/${pageSlug}${getCleanQueryString(searchParams)}`;
+      const basePath = tenantSlug ? `/store/${tenantSlug}/page/${pageSlug}` : `/page/${pageSlug}`;
+      const cleanPath = `${basePath}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
   }, [isPreviewMode, canPreview, pageData.isLoading, tenantSlug, pageSlug, searchParams, navigate]);

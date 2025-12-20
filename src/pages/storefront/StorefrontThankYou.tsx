@@ -3,16 +3,17 @@
 // =============================================
 
 import { useEffect } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { usePreviewTemplate } from '@/hooks/usePreviewTemplate';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
 import type { BlockRenderContext } from '@/lib/builder/types';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontThankYou() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
@@ -35,7 +36,8 @@ export default function StorefrontThankYou() {
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
       const cleanParams = getCleanQueryString(searchParams);
-      const cleanPath = `/store/${tenantSlug}/obrigado${cleanParams}`;
+      const basePath = tenantSlug ? `/store/${tenantSlug}/obrigado` : '/obrigado';
+      const cleanPath = `${basePath}${cleanParams}`;
       navigate(cleanPath, { replace: true });
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate]);

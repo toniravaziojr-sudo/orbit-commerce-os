@@ -13,9 +13,11 @@ import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRe
 import { Storefront404 } from '@/components/storefront/Storefront404';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { isPreviewUrl, getCleanQueryString } from '@/lib/sanitizePublicUrl';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 export default function StorefrontProduct() {
-  const { tenantSlug, productSlug } = useParams<{ tenantSlug: string; productSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const { productSlug } = useParams<{ productSlug: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
@@ -37,7 +39,8 @@ export default function StorefrontProduct() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
-      const cleanPath = `/store/${tenantSlug}/p/${productSlug}${getCleanQueryString(searchParams)}`;
+      const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+      const cleanPath = `${basePath}/p/${productSlug}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
   }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, productSlug, searchParams, navigate]);
