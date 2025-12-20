@@ -28,9 +28,11 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
     const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
-    const SUPABASE_URL = env.SUPABASE_URL;
+    const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI; // fallback para ambos os nomes
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
+
     const hostname = url.hostname;
 
     // shops.comandocentral.com.br (sem tenant) -> redireciona pro app
@@ -45,7 +47,7 @@ export default {
     const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
     if (match) {
       tenantSlug = match[1].toLowerCase();
-      
+
       // Bloqueia slugs reservados para evitar conflitos
       const reserved = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
       if (reserved.has(tenantSlug)) {
@@ -75,7 +77,7 @@ export default {
         }
 
         const data = await resolveResponse.json();
-        
+
         if (!data.found || !data.tenant_slug) {
           console.log(`[Worker] Domain not found in database: ${hostname}`);
           return new Response("Domain not configured", { status: 404 });
@@ -83,7 +85,7 @@ export default {
 
         tenantSlug = data.tenant_slug;
         domainType = data.domain_type || "custom";
-        
+
         console.log(`[Worker] Resolved custom domain: ${hostname} -> ${tenantSlug}`);
       } catch (err) {
         console.error(`[Worker] Error resolving domain: ${err.message}`);
@@ -91,18 +93,22 @@ export default {
       }
     }
 
-    // CRÍTICO: Rewrite interno para /store/{tenant} em vez de redirect 302
-    // Isso evita loops de redirecionamento
-    let effectivePath = url.pathname;
-    if (effectivePath === "/" || effectivePath === "") {
-      effectivePath = `/store/${tenantSlug}`;
-      console.log(`[Worker] Rewriting / to ${effectivePath} (no redirect)`);
+    if (!tenantSlug) {
+      return new Response("Domain not configured", { status: 404 });
     }
 
-    // Monta a URL do origin com o path efetivo
+    // CRÍTICO: SPA/React Router -> na raiz "/" faz 302 para /store/{tenant}
+    // NÃO usar rewrite interno, pois a URL do navegador ficaria em "/" e o React Router
+    // entraria na rota do Dashboard (protegido), causando redirect para /auth
+    if (url.pathname === "/" || url.pathname === "") {
+      const redirectUrl = `https://${hostname}/store/${tenantSlug}${url.search || ""}`;
+      console.log(`[Worker] Redirecting / to ${redirectUrl}`);
+      return Response.redirect(redirectUrl, 302);
+    }
+
+    // Monta a URL do origin
     const originUrl = new URL(request.url);
     originUrl.hostname = ORIGIN_HOST;
-    originUrl.pathname = effectivePath;
 
     // CRÍTICO: Criar novos headers SEM o Host original
     const headers = new Headers();
@@ -131,7 +137,7 @@ export default {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("Location");
       if (location) {
-        const rewrittenLocation = rewriteLocationHeader(location, hostname, tenantSlug);
+        const rewrittenLocation = rewriteLocationHeader(location, hostname);
         if (rewrittenLocation !== location) {
           console.log(`[Worker] Rewriting Location: ${location} -> ${rewrittenLocation}`);
           // Clone response com Location reescrito
@@ -155,7 +161,7 @@ export default {
  * - Paths relativos (/auth, /store/...) são convertidos para absolutos no host atual
  * - URLs absolutas apontando para app.* ou origin são reescritas para o host atual
  */
-function rewriteLocationHeader(location, currentHostname, tenantSlug) {
+function rewriteLocationHeader(location, currentHostname) {
   try {
     // Se for path relativo, converte para absoluto no host atual
     // Isso evita que redirects relativos do origin "vazem" para outro domínio
@@ -164,21 +170,18 @@ function rewriteLocationHeader(location, currentHostname, tenantSlug) {
     }
 
     const url = new URL(location);
-    
+
     // Padrões que devem ser reescritos para o hostname atual
-    const patternsToRewrite = [
+    const patternsToRewrite = new Set([
       "app.comandocentral.com.br",
       "orbit-commerce-os.lovable.app",
-    ];
-    
-    for (const pattern of patternsToRewrite) {
-      if (url.hostname === pattern) {
-        // Reescreve para o hostname atual (shops subdomain ou custom domain)
-        url.hostname = currentHostname;
-        return url.toString();
-      }
+    ]);
+
+    if (patternsToRewrite.has(url.hostname)) {
+      url.hostname = currentHostname;
+      return url.toString();
     }
-    
+
     // Se o Location está apontando para outro host, mantém como está
     return location;
   } catch (e) {
