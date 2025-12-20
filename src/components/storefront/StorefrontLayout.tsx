@@ -4,8 +4,12 @@ import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
-import { useTenantCanonicalDomain, PUBLIC_APP_ORIGIN } from '@/hooks/useTenantCanonicalDomain';
-import { isPreviewUrl, stripPreviewParams } from '@/lib/sanitizePublicUrl';
+import { 
+  useTenantCanonicalDomain, 
+  isValidStorefrontHost,
+  getCanonicalRedirectUrl,
+} from '@/hooks/useTenantCanonicalDomain';
+import { stripPreviewParams } from '@/lib/sanitizePublicUrl';
 
 export function StorefrontLayout() {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
@@ -26,23 +30,28 @@ export function StorefrontLayout() {
     // Don't redirect in preview mode (admin testing)
     if (isPreview) return;
 
-    // If tenant has a custom primary domain with active SSL
-    if (customDomain) {
-      const currentHost = window.location.host;
-      const appHost = new URL(PUBLIC_APP_ORIGIN).host;
+    // Don't redirect if no tenant slug
+    if (!tenantSlug) return;
+
+    const currentHost = window.location.host;
+    
+    // Check if we're on a valid storefront host
+    if (isValidStorefrontHost(currentHost, customDomain, tenantSlug)) {
+      // We're on a valid host - check if we need to redirect to canonical
+      const redirectUrl = getCanonicalRedirectUrl(
+        currentHost,
+        window.location.pathname + window.location.search,
+        customDomain,
+        tenantSlug
+      );
       
-      // If we're on the "free" domain but tenant has a custom domain, redirect
-      if (currentHost === appHost && customDomain !== currentHost) {
-        const cleanParams = stripPreviewParams(searchParams);
-        const queryString = cleanParams.toString();
-        const canonicalUrl = `https://${customDomain}${window.location.pathname}${queryString ? `?${queryString}` : ''}`;
-        
-        console.log('[StorefrontLayout] Redirecting to canonical domain:', canonicalUrl);
-        window.location.replace(canonicalUrl);
+      if (redirectUrl) {
+        console.log('[StorefrontLayout] Redirecting to canonical domain:', redirectUrl);
+        window.location.replace(redirectUrl);
         setShouldRedirect(true);
       }
     }
-  }, [isLoading, isDomainLoading, customDomain, isPreview, searchParams]);
+  }, [isLoading, isDomainLoading, customDomain, isPreview, tenantSlug]);
 
   // Show loading while redirecting
   if (shouldRedirect) {

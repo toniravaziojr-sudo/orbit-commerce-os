@@ -111,9 +111,60 @@ export default {
       method: request.method,
       headers,
       body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-      redirect: "manual",
+      redirect: "manual", // Importante: captura redirects para reescrever
     });
 
-    return fetch(originRequest);
+    const response = await fetch(originRequest);
+
+    // Reescrever headers Location em respostas 3xx (redirects)
+    // Isso garante que redirects do origin não "vazem" para app.comandocentral.com.br
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("Location");
+      if (location) {
+        const rewrittenLocation = rewriteLocationHeader(location, hostname, tenantSlug);
+        if (rewrittenLocation !== location) {
+          // Clone response com Location reescrito
+          const newHeaders = new Headers(response.headers);
+          newHeaders.set("Location", rewrittenLocation);
+          return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders,
+          });
+        }
+      }
+    }
+
+    return response;
   },
 };
+
+/**
+ * Reescreve Location headers de redirects para manter no domínio correto
+ * Ex: https://app.comandocentral.com.br/store/tenant/... -> https://tenant.shops.comandocentral.com.br/store/tenant/...
+ */
+function rewriteLocationHeader(location, currentHostname, tenantSlug) {
+  try {
+    const url = new URL(location);
+    
+    // Padrões que devem ser reescritos para o hostname atual
+    const patternsToRewrite = [
+      "app.comandocentral.com.br",
+      "orbit-commerce-os.lovable.app",
+    ];
+    
+    for (const pattern of patternsToRewrite) {
+      if (url.hostname === pattern) {
+        // Reescreve para o hostname atual (shops subdomain ou custom domain)
+        url.hostname = currentHostname;
+        console.log(`[Worker] Rewriting Location: ${location} -> ${url.toString()}`);
+        return url.toString();
+      }
+    }
+    
+    return location;
+  } catch (e) {
+    // Se não for URL válida (ex: path relativo), retorna como está
+    return location;
+  }
+}
