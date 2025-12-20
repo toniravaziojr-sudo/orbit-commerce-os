@@ -237,9 +237,8 @@ function rewriteLocationHeader(location, currentHostname, originHost) {
 
     const u = new URL(location);
 
-    // Hosts que devem ser reescritos
+    // Hosts que devem ser reescritos (NÃO incluir app.comandocentral.com.br para evitar loop)
     const rewriteHosts = new Set([
-      "app.comandocentral.com.br",
       "orbit-commerce-os.lovable.app",
       "shops.comandocentral.com.br",
       originHost,
@@ -271,8 +270,8 @@ function rewriteSetCookieDomains(inHeaders, outHeaders, currentHostname, originH
 
   outHeaders.delete("Set-Cookie");
 
+  // Não reescrever cookies do app.comandocentral.com.br para evitar loops
   const badDomains = new Set([
-    "app.comandocentral.com.br",
     "orbit-commerce-os.lovable.app",
     "shops.comandocentral.com.br",
     originHost,
