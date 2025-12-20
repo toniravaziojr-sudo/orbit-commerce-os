@@ -90,35 +90,53 @@ export function DomainInstructionsDialog({
               {isVerified && <Badge variant="default" className="bg-green-600">Concluído</Badge>}
             </AlertTitle>
             <AlertDescription>
-              <p className="mb-3 mt-2 font-medium">Crie um registro TXT com:</p>
-              <div className="space-y-2 text-sm bg-muted p-3 rounded">
+              <p className="mb-3 mt-2 font-medium">Crie um registro TXT com os dados abaixo:</p>
+              <div className="space-y-3 text-sm bg-muted p-3 rounded">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Tipo:</span>
                   <code className="bg-background px-2 py-0.5 rounded font-mono">TXT</code>
                 </div>
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col gap-1">
                   <span className="text-muted-foreground">Nome/Host:</span>
-                  <code className="bg-background px-2 py-0.5 rounded font-mono">{getTxtRecordName()}</code>
-                </div>
-                <div className="flex justify-between items-center gap-2">
-                  <span className="text-muted-foreground">Valor:</span>
                   <div className="flex items-center gap-1">
-                    <code className="bg-background px-2 py-0.5 rounded text-xs font-mono">
-                      cc-verify={domain.verification_token}
+                    <code className="bg-background px-2 py-1 rounded font-mono text-primary font-bold">
+                      {getTxtRecordName()}
                     </code>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0"
+                      onClick={() => handleCopy(getTxtRecordName(), setCopiedToken)}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    No Cloudflare, digite apenas "{getTxtRecordName()}" (sem o domínio)
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground">Valor (copie exatamente):</span>
+                  <div className="flex items-center gap-1">
+                    <code className="bg-primary/10 border border-primary/30 px-2 py-1 rounded font-mono text-primary font-bold break-all">
+                      cc-verify={domain.verification_token}
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 flex-shrink-0"
                       onClick={() => handleCopy(`cc-verify=${domain.verification_token}`, setCopiedToken)}
                     >
                       {copiedToken ? <CheckCircle className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                     </Button>
                   </div>
+                  <p className="text-xs text-destructive font-medium">
+                    ⚠️ O valor deve ser EXATAMENTE este. Se você já tem um TXT anterior, atualize-o.
+                  </p>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">TTL:</span>
-                  <code className="bg-background px-2 py-0.5 rounded font-mono">300</code>
+                  <code className="bg-background px-2 py-0.5 rounded font-mono">Auto ou 300</code>
                 </div>
               </div>
               {domain.last_error && !isVerified && (
