@@ -4,14 +4,16 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { toast } from 'sonner';
-import { Loader2, Store, Mail, Lock, User, ArrowLeft } from 'lucide-react';
+import { Loader2, Store, Mail, Lock, User, ArrowLeft, Building2 } from 'lucide-react';
+import { generateSlug } from '@/lib/slugPolicy';
 
 // Schemas de validação
 const loginSchema = z.object({
@@ -21,6 +23,7 @@ const loginSchema = z.object({
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
+  businessName: z.string().min(2, 'Nome do negócio deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
   email: z.string().email('Email inválido').max(255, 'Email muito longo'),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
   confirmPassword: z.string(),
@@ -60,7 +63,7 @@ export default function Auth() {
 
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
+    defaultValues: { fullName: '', businessName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const resetPasswordForm = useForm<ResetPasswordFormData>({
@@ -95,6 +98,7 @@ export default function Auth() {
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     try {
+      // 1. Criar conta do usuário
       const { error } = await signUp(data.email, data.password, data.fullName);
       
       if (error) {
@@ -104,6 +108,50 @@ export default function Auth() {
           toast.error(error.message);
         }
         return;
+      }
+
+      // 2. Se auto-confirm está ativo, criar tenant automaticamente
+      // Aguardar um momento para a sessão ser criada
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (sessionData?.session?.user) {
+        try {
+          // Gerar slug a partir do nome do negócio
+          const tenantSlug = generateSlug(data.businessName);
+          
+          // Criar tenant via RPC
+          const { data: newTenant, error: tenantError } = await supabase.rpc('create_tenant_for_user', {
+            p_name: data.businessName,
+            p_slug: tenantSlug,
+          });
+
+          if (tenantError) {
+            console.error('Error creating tenant:', tenantError);
+            // Não bloquear o cadastro se falhar a criação do tenant
+            toast.warning('Conta criada! Configure sua loja após fazer login.');
+          } else if (newTenant) {
+            // 3. Provisionar domínio automaticamente
+            try {
+              await supabase.functions.invoke('domains-provision-default', {
+                body: {
+                  tenant_id: newTenant.id,
+                  tenant_slug: tenantSlug,
+                },
+              });
+              console.log('Default domain provisioned for tenant:', tenantSlug);
+            } catch (domainError) {
+              console.error('Error provisioning default domain:', domainError);
+              // Não bloquear - domínio pode ser provisionado depois
+            }
+            
+            toast.success('Conta e loja criadas com sucesso!');
+            return;
+          }
+        } catch (tenantSetupError) {
+          console.error('Error in tenant setup:', tenantSetupError);
+        }
       }
 
       toast.success('Conta criada! Verifique seu email para confirmar o cadastro.');
@@ -307,18 +355,42 @@ export default function Auth() {
                           name="fullName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Nome Completo</FormLabel>
+                              <FormLabel>Seu Nome</FormLabel>
                               <FormControl>
                                 <div className="relative">
                                   <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                   <Input
                                     {...field}
-                                    placeholder="Seu nome"
+                                    placeholder="Nome do responsável"
                                     className="pl-10"
                                     disabled={isLoading}
                                   />
                                 </div>
                               </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={signUpForm.control}
+                          name="businessName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nome do Negócio</FormLabel>
+                              <FormControl>
+                                <div className="relative">
+                                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                  <Input
+                                    {...field}
+                                    placeholder="Minha Loja Online"
+                                    className="pl-10"
+                                    disabled={isLoading}
+                                  />
+                                </div>
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                Será usado para criar sua loja: {field.value ? `${generateSlug(field.value)}.shops.comandocentral.com.br` : 'sua-loja.shops.comandocentral.com.br'}
+                              </FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
