@@ -83,7 +83,7 @@ export default {
           return new Response("Domain not configured", { status: 404 });
         }
 
-        tenantSlug = data.tenant_slug;
+        tenantSlug = String(data.tenant_slug).toLowerCase();
         domainType = data.domain_type || "custom";
 
         console.log(`[Worker] Resolved custom domain: ${hostname} -> ${tenantSlug}`);
