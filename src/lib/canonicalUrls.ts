@@ -115,6 +115,9 @@ export function getCanonicalThankYouUrl(tenantSlug: string, customDomain: string
 
 /**
  * Check if current host matches the expected canonical host
+ * 
+ * IMPORTANT: The fallback origin (lovable.app) is NEVER canonical for production.
+ * Only platform subdomains or verified custom domains are canonical.
  */
 export function isOnCanonicalHost(customDomain: string | null, tenantSlug?: string): boolean {
   const currentHost = window.location.host.toLowerCase().replace(/^www\./, '');
@@ -135,9 +138,9 @@ export function isOnCanonicalHost(customDomain: string | null, tenantSlug?: stri
     return currentHost === normalizedCustom;
   }
   
-  // Fallback check for legacy origin
-  const appHost = new URL(PUBLIC_APP_ORIGIN).host;
-  return currentHost === appHost;
+  // Fallback origin (lovable.app) and app domain are NOT canonical for storefronts
+  // They should redirect to the proper tenant subdomain
+  return false;
 }
 
 /**

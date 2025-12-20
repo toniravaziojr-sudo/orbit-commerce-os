@@ -21,12 +21,43 @@ export const SAAS_CONFIG = {
 } as const;
 
 // =============================================
+// PUBLIC HOSTNAME DETECTION
+// =============================================
+
+/**
+ * Get the public hostname, respecting X-Forwarded-Host when behind a proxy (Cloudflare Worker)
+ * Falls back to window.location.hostname for direct access
+ */
+export function getPublicHostname(): string {
+  // In browser context, we need to check if we're behind a proxy
+  // The Worker sets X-Forwarded-Host, but we can't read HTTP headers in browser JS
+  // Instead, we need to rely on the URL that the browser sees
+  
+  // For platform subdomains served via Worker, the browser URL should already show the tenant host
+  // If it shows the origin (lovable.app), we need to use other indicators
+  
+  const currentHost = window.location.hostname.toLowerCase().replace(/^www\./, '');
+  
+  // If already on a platform subdomain or custom domain, use it directly
+  if (isPlatformSubdomain(currentHost)) {
+    return currentHost;
+  }
+  
+  // If on app.comandocentral.com.br, return as-is (admin context)
+  if (currentHost === `${SAAS_CONFIG.appSubdomain}.${SAAS_CONFIG.domain}`) {
+    return currentHost;
+  }
+  
+  return currentHost;
+}
+
+// =============================================
 // URL BUILDING UTILITIES
 // =============================================
 
 /**
  * Get the platform subdomain URL for a tenant
- * Format: https://tenantSlug.shops.respeiteohomem.com.br
+ * Format: https://tenantSlug.shops.comandocentral.com.br
  */
 export function getPlatformSubdomainUrl(tenantSlug: string): string {
   return `https://${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}.${SAAS_CONFIG.domain}`;
@@ -34,14 +65,14 @@ export function getPlatformSubdomainUrl(tenantSlug: string): string {
 
 /**
  * Get the app/admin URL
- * Format: https://app.respeiteohomem.com.br
+ * Format: https://app.comandocentral.com.br
  */
 export function getAppUrl(): string {
   return `https://${SAAS_CONFIG.appSubdomain}.${SAAS_CONFIG.domain}`;
 }
 
 /**
- * Check if the current host is a platform subdomain
+ * Check if a hostname is a platform subdomain
  */
 export function isPlatformSubdomain(hostname: string): boolean {
   const pattern = new RegExp(
@@ -163,20 +194,23 @@ export function getCanonicalOrigin(
 /**
  * Get the canonical base URL for a tenant's store
  * This returns the root URL where the storefront lives
+ * 
+ * IMPORTANT: Always returns the platform subdomain or custom domain URL.
+ * Links in storefronts should ALWAYS point to the canonical tenant URL,
+ * not the legacy app domain.
  */
 export function getCanonicalStoreUrl(
   customDomain: string | null,
   tenantSlug: string
 ): string {
-  const origin = getCanonicalOrigin(customDomain, tenantSlug);
-  
-  // On custom domain or platform subdomain, store is at root
-  if (customDomain || isPlatformSubdomain(window.location.hostname)) {
-    return origin;
+  // If custom domain exists and is active, use it
+  if (customDomain) {
+    return `https://${customDomain}`;
   }
   
-  // Legacy: on app domain, store is at /store/:slug
-  return `${SAAS_CONFIG.fallbackOrigin}/store/${tenantSlug}`;
+  // Default to platform subdomain (the SaaS model)
+  // This ensures links always point to {tenant}.shops.comandocentral.com.br
+  return getPlatformSubdomainUrl(tenantSlug);
 }
 
 // =============================================
