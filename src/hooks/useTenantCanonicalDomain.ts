@@ -104,7 +104,8 @@ export function getTenantPublicBaseUrl(tenantSlug: string, customDomain: string 
 }
 
 /**
- * Check if the current host is valid for storefront (platform subdomain, custom domain, or legacy)
+ * Check if the current host is valid for storefront (platform subdomain, custom domain, or legacy for dev)
+ * Note: Legacy origin (lovable.app) is only valid for development/preview
  */
 export function isValidStorefrontHost(currentHost: string, customDomain: string | null, tenantSlug?: string): boolean {
   const normalizedHost = currentHost.toLowerCase().replace(/^www\./, '');
@@ -127,7 +128,12 @@ export function isValidStorefrontHost(currentHost: string, customDomain: string 
     }
   }
   
-  // Check if it's the legacy/fallback origin
+  // Check if it's the app domain (for admin preview access)
+  if (normalizedHost === `${SAAS_CONFIG.appSubdomain}.${SAAS_CONFIG.domain}`) {
+    return true;
+  }
+  
+  // Legacy/fallback origin is valid ONLY for development access via Lovable preview
   const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).host;
   return normalizedHost === fallbackHost;
 }
@@ -135,6 +141,9 @@ export function isValidStorefrontHost(currentHost: string, customDomain: string 
 /**
  * Check if the current host matches the canonical domain
  * Returns true if no redirect is needed
+ * 
+ * IMPORTANT: The fallback origin (lovable.app) is NEVER canonical for production.
+ * Only platform subdomains or verified custom domains are canonical.
  */
 export function isCanonicalHost(currentHost: string, customDomain: string | null, tenantSlug?: string): boolean {
   const normalizedHost = currentHost.toLowerCase().replace(/^www\./, '');
@@ -158,9 +167,9 @@ export function isCanonicalHost(currentHost: string, customDomain: string | null
     return true;
   }
   
-  // Fallback origin is valid when no custom domain
-  const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).host;
-  return normalizedHost === fallbackHost;
+  // IMPORTANT: Fallback origin (lovable.app) and app domain are NOT canonical for storefronts
+  // They should redirect to the proper tenant subdomain
+  return false;
 }
 
 /**

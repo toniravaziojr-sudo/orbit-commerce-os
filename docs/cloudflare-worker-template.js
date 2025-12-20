@@ -37,14 +37,23 @@ export default {
     const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
     
-    // Determinar o host público (para Custom Hostnames, usa CF-Connecting-Host)
-    const edgeHost = url.hostname;
-    const publicHostRaw = request.headers.get("cf-connecting-host") 
-      || request.headers.get("x-forwarded-host") 
-      || edgeHost;
-    const publicHost = String(publicHostRaw).split(",")[0].trim().toLowerCase();
+    // Determinar o host público
+    // Quando via Worker Route: url.hostname já é o host correto (ex: tenant.shops.comandocentral.com.br)
+    // Quando via Custom Hostname: cf-connecting-host tem o host original
+    const edgeHost = url.hostname.toLowerCase();
+    
+    // Se estamos rodando no .workers.dev, não devemos servir storefronts
+    // Isso só acontece quando alguém acessa diretamente o worker URL
+    if (edgeHost.endsWith(".workers.dev")) {
+      console.log(`[Worker] Direct access to workers.dev rejected: ${edgeHost}`);
+      return new Response("Please access via the correct domain", { status: 404 });
+    }
+    
+    // Para Custom Hostnames, Cloudflare pode passar o host original em headers
+    const cfConnectingHost = request.headers.get("cf-connecting-host");
+    const publicHost = (cfConnectingHost || edgeHost).toLowerCase().replace(/^www\./, '');
 
-    console.log(`[Worker] Request: publicHost=${publicHost} path=${url.pathname}`);
+    console.log(`[Worker] Request: edgeHost=${edgeHost} cfConnectingHost=${cfConnectingHost || 'none'} publicHost=${publicHost} path=${url.pathname}`);
 
     // shops.comandocentral.com.br (sem tenant) → redireciona para o app
     if (publicHost === "shops.comandocentral.com.br") {
