@@ -6,13 +6,40 @@
 import { hasValidSlug } from './slugValidation';
 import { 
   SAAS_CONFIG, 
-  getPlatformSubdomainUrl 
+  getPlatformSubdomainUrl,
+  isPlatformSubdomain,
+  isAppDomain,
 } from './canonicalDomainService';
 
 /**
  * The default public origin for the app (legacy fallback)
  */
 export const PUBLIC_APP_ORIGIN = SAAS_CONFIG.fallbackOrigin;
+
+/**
+ * Check if we're currently on a tenant-specific host (custom domain or platform subdomain)
+ * where paths should NOT include /store/{tenantSlug}
+ */
+function isOnTenantHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
+  
+  // If on platform subdomain (tenant.shops.comandocentral.com.br) → tenant host
+  if (isPlatformSubdomain(hostname)) {
+    return true;
+  }
+  
+  // If NOT on app domain and NOT on fallback origin → likely custom domain
+  if (!isAppDomain(hostname)) {
+    const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
+    if (hostname !== fallbackHost) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 /**
  * Get the canonical origin for a tenant
@@ -32,6 +59,9 @@ export function getCanonicalOrigin(customDomain: string | null | undefined, tena
 
 /**
  * Get the base URL for a store (relative path only, for internal navigation)
+ * 
+ * IMPORTANT: When on a custom domain or platform subdomain, returns empty string
+ * so paths are relative to root (e.g., /p/product instead of /store/tenant/p/product)
  */
 export function getStoreBaseUrl(tenantSlug: string): string {
   if (!tenantSlug) {
@@ -40,14 +70,26 @@ export function getStoreBaseUrl(tenantSlug: string): string {
     }
     return '/store';
   }
+  
+  // When on tenant host (custom domain or platform subdomain), use root paths
+  if (isOnTenantHost()) {
+    return '';
+  }
+  
+  // When on app/legacy domain, use /store/{tenantSlug} paths
   return `/store/${tenantSlug}`;
 }
 
 /**
  * Get the full canonical base URL for a store (absolute URL with domain)
+ * NOTE: For custom/platform domains, the path is just the origin (no /store/{slug})
  */
 export function getCanonicalStoreBaseUrl(tenantSlug: string, customDomain: string | null | undefined): string {
   const origin = getCanonicalOrigin(customDomain, tenantSlug);
+  // On custom domain or platform subdomain, don't add /store/{tenantSlug}
+  if (customDomain || (tenantSlug && origin.includes(`${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}`))) {
+    return origin;
+  }
   return `${origin}/store/${tenantSlug}`;
 }
 
