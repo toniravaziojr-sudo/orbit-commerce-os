@@ -159,6 +159,12 @@ export default {
 async function proxyWithRedirectFollow(originalRequest, config) {
   const { ORIGIN_HOST, publicHost, tenantSlug, domainType } = config;
   
+  // URL original do request (para detectar loops)
+  const originalPublicUrl = new URL(originalRequest.url);
+  originalPublicUrl.hostname = publicHost;
+  originalPublicUrl.protocol = "https:";
+  const originalUrlStr = originalPublicUrl.toString();
+  
   let currentUrl = new URL(originalRequest.url);
   currentUrl.hostname = ORIGIN_HOST;
   
@@ -224,8 +230,7 @@ async function proxyWithRedirectFollow(originalRequest, config) {
     console.log(`[Worker] Redirect analysis: location="${location}" action=${redirectInfo.action} reason=${redirectInfo.reason}`);
 
     if (redirectInfo.action === "follow") {
-      // Seguir redirect internamente - o origin está redirecionando para app.comandocentral.com.br
-      // mas queremos buscar o conteúdo diretamente sem expor isso ao browser
+      // Seguir redirect internamente
       currentUrl = new URL(redirectInfo.targetUrl);
       redirectCount++;
       console.log(`[Worker] Following redirect internally to: ${currentUrl.toString()}`);
@@ -233,11 +238,29 @@ async function proxyWithRedirectFollow(originalRequest, config) {
     }
 
     if (redirectInfo.action === "rewrite") {
+      const rewrittenUrl = redirectInfo.rewrittenUrl;
+      
+      // LOOP DETECTION: Se o redirect reescrito aponta para a mesma URL original,
+      // seguimos internamente para app.comandocentral.com.br em vez de retornar 302
+      if (rewrittenUrl === originalUrlStr) {
+        console.log(`[Worker] LOOP DETECTED: rewritten URL equals original. Following internally instead.`);
+        
+        // Buscar conteúdo diretamente de app.comandocentral.com.br
+        // O app.comandocentral.com.br resolve para o mesmo origin, então usamos o origin
+        // mas se houver CDN/cache diferente, precisamos usar o host real
+        const followUrl = new URL(location);
+        // Manter o host original do redirect (app.comandocentral.com.br)
+        // porque o origin está configurado para responder nesse host
+        currentUrl = followUrl;
+        redirectCount++;
+        continue;
+      }
+      
       // Retornar redirect ao browser com URL reescrita
       const outHeaders = cloneHeaders(response.headers);
       rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
-      outHeaders.set("Location", redirectInfo.rewrittenUrl);
-      console.log(`[Worker] Returning rewritten redirect: ${redirectInfo.rewrittenUrl}`);
+      outHeaders.set("Location", rewrittenUrl);
+      console.log(`[Worker] Returning rewritten redirect: ${rewrittenUrl}`);
       
       return new Response(response.body, {
         status: response.status,
@@ -321,20 +344,20 @@ function analyzeRedirect(location, publicHost, originHost) {
       };
     }
 
-    // app.comandocentral.com.br com rota pública → SEGUIR INTERNAMENTE
-    // Este é o caso crítico que causa o loop - o origin está redirecionando
-    // para app.comandocentral.com.br, mas queremos buscar o conteúdo diretamente
+    // app.comandocentral.com.br com rota pública → REESCREVER para o host público
+    // O origin está redirecionando para app.comandocentral.com.br, mas o browser
+    // deve ver apenas o host do tenant. Se depois de reescrever a URL fica
+    // igual à original (loop potencial), retornamos 200 e buscamos o conteúdo.
     if (targetHost === "app.comandocentral.com.br") {
       if (isPublicStorefrontPath(targetPath)) {
-        // Ao invés de reescrever e retornar 302, vamos buscar diretamente do origin
-        // usando o path do redirect
-        const followUrl = new URL(location);
-        followUrl.hostname = originHost;
+        // Reescrever para o host público
+        u.hostname = publicHost;
+        u.protocol = "https:";
         
         return {
-          action: "follow",
-          targetUrl: followUrl.toString(),
-          reason: "app_public_storefront",
+          action: "rewrite",
+          rewrittenUrl: u.toString(),
+          reason: "app_public_storefront_rewrite",
         };
       } else {
         // Rota de auth/admin - deixar passar sem modificar
