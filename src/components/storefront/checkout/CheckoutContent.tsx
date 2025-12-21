@@ -2,8 +2,9 @@
 // CHECKOUT CONTENT - Real payment integration with Pagar.me
 // =============================================
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
@@ -33,7 +34,7 @@ interface CheckoutContentProps {
 
 export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const navigate = useNavigate();
-  const { tenantSlug } = useParams();
+  const tenantSlug = useTenantSlug();
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { processPayment, isProcessing, paymentResult } = useCheckoutPayment({ tenantId });
