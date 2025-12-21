@@ -22,6 +22,7 @@ import {
   startCheckoutSession, 
   heartbeatCheckoutSession, 
   completeCheckoutSession,
+  endCheckoutSession,
   getCheckoutSessionId,
   clearCheckoutSessionId
 } from '@/lib/checkoutSession';
@@ -115,6 +116,30 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       }
     };
   }, [tenantSlug, items, formData.customerEmail, formData.customerPhone, formData.customerName, formData.shippingPostalCode, shipping]);
+
+  // Track page exit to mark checkout as abandoned immediately
+  useEffect(() => {
+    if (!tenantSlug) return;
+
+    const handlePageExit = () => {
+      // Only send if we have a session and items
+      const sessionId = getCheckoutSessionId(tenantSlug);
+      if (sessionId && items.length > 0) {
+        console.log('[checkout] Page exit detected, ending session');
+        endCheckoutSession(tenantSlug);
+      }
+    };
+
+    // pagehide is more reliable on mobile Safari
+    window.addEventListener('pagehide', handlePageExit);
+    // beforeunload as fallback for desktop browsers
+    window.addEventListener('beforeunload', handlePageExit);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
+    };
+  }, [tenantSlug, items.length]);
 
   // Hydrate form from draft
   useEffect(() => {
