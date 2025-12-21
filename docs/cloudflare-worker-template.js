@@ -221,18 +221,12 @@ export default {
 
 /**
  * Handler especial para assets com fallback:
- * 1. Tenta /store/{tenant}/assets/...
- * 2. Se 404, tenta /assets/... (raiz)
+ * 1. Tenta /assets/... (raiz) - onde o Vite/Lovable realmente serve
+ * 2. Se 404, tenta /store/{tenant}/assets/...
  * 3. Retorna o primeiro que der 200
  */
 async function handleAssetWithFallback(request, config) {
   const { ORIGIN_HOST, publicHost, tenantSlug, pathname, search } = config;
-
-  // Primeiro: tentar COM /store/{tenant}
-  const withTenantPath = `/store/${tenantSlug}${pathname}`;
-  const urlWithTenant = `https://${ORIGIN_HOST}${withTenantPath}${search || ""}`;
-
-  console.log(`[Worker] Asset attempt 1: ${urlWithTenant}`);
 
   const headers = new Headers();
   for (const [key, value] of request.headers.entries()) {
@@ -242,7 +236,12 @@ async function handleAssetWithFallback(request, config) {
   headers.set("X-Forwarded-Host", publicHost);
   headers.set("X-Tenant-Slug", tenantSlug);
 
-  let response = await fetch(urlWithTenant, {
+  // Primeiro: tentar SEM /store/{tenant} (na raiz) - é onde o Vite serve os assets
+  const urlRoot = `https://${ORIGIN_HOST}${pathname}${search || ""}`;
+
+  console.log(`[Worker] Asset attempt 1 (root): ${urlRoot}`);
+
+  let response = await fetch(urlRoot, {
     method: request.method,
     headers,
     redirect: "follow",
@@ -251,20 +250,23 @@ async function handleAssetWithFallback(request, config) {
   console.log(`[Worker] Asset attempt 1 result: ${response.status}`);
 
   if (response.status === 200) {
-    // Success com /store/{tenant}
+    // Success na raiz
+    const outHeaders = cloneHeaders(response.headers);
+    outHeaders.set("X-Asset-Strategy", "root");
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: cloneHeaders(response.headers),
+      headers: outHeaders,
     });
   }
 
-  // Segundo: tentar SEM /store/{tenant} (na raiz)
-  const urlWithoutTenant = `https://${ORIGIN_HOST}${pathname}${search || ""}`;
+  // Segundo: tentar COM /store/{tenant}
+  const withTenantPath = `/store/${tenantSlug}${pathname}`;
+  const urlWithTenant = `https://${ORIGIN_HOST}${withTenantPath}${search || ""}`;
 
-  console.log(`[Worker] Asset attempt 2 (fallback): ${urlWithoutTenant}`);
+  console.log(`[Worker] Asset attempt 2 (tenant): ${urlWithTenant}`);
 
-  response = await fetch(urlWithoutTenant, {
+  response = await fetch(urlWithTenant, {
     method: request.method,
     headers,
     redirect: "follow",
@@ -272,10 +274,12 @@ async function handleAssetWithFallback(request, config) {
 
   console.log(`[Worker] Asset attempt 2 result: ${response.status}`);
 
+  const outHeaders = cloneHeaders(response.headers);
+  outHeaders.set("X-Asset-Strategy", response.status === 200 ? "tenant" : "none");
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: cloneHeaders(response.headers),
+    headers: outHeaders,
   });
 }
 
