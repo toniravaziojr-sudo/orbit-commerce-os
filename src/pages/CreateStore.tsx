@@ -67,6 +67,29 @@ export default function CreateStore() {
         throw createError;
       }
 
+      // Provisionar automaticamente o domínio padrão (ativo imediatamente)
+      // O tenant retornado pela RPC contém { id, name, slug, ... }
+      const tenantId = (newTenant as any)?.id;
+      const tenantSlug = data.slug;
+      
+      if (tenantId && tenantSlug) {
+        try {
+          const { error: provisionError } = await supabase.functions.invoke('domains-provision-default', {
+            body: { tenant_id: tenantId, tenant_slug: tenantSlug }
+          });
+          
+          if (provisionError) {
+            console.error('Error provisioning default domain:', provisionError);
+            // Não bloquear a criação da loja, apenas logar o erro
+          } else {
+            console.log('Default platform domain provisioned successfully');
+          }
+        } catch (domainError) {
+          console.error('Error calling domains-provision-default:', domainError);
+          // Continuar mesmo se falhar - o usuário pode ativar manualmente depois
+        }
+      }
+
       // Atualizar o contexto de autenticação
       await refreshProfile();
 
