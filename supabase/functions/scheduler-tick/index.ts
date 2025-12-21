@@ -6,6 +6,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Security: Verify the request is from an authorized source
+async function isAuthorizedRequest(req: Request): Promise<boolean> {
+  // Check if this is a scheduled invocation (internal Supabase call)
+  const isScheduledInvocation = req.headers.get('x-supabase-function-version') !== null;
+  if (isScheduledInvocation) {
+    console.log('[scheduler-tick] Authorized: Scheduled invocation');
+    return true;
+  }
+  
+  // For manual calls, verify service role or admin JWT
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    console.log('[scheduler-tick] Unauthorized: No authorization header');
+    return false;
+  }
+  
+  const token = authHeader.replace('Bearer ', '');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  
+  // Allow service role key (for internal system calls)
+  if (token === supabaseServiceKey) {
+    console.log('[scheduler-tick] Authorized: Service role key');
+    return true;
+  }
+  
+  // Verify JWT and check for admin/owner role
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error || !user) {
+      console.log('[scheduler-tick] Unauthorized: Invalid JWT');
+      return false;
+    }
+    
+    // Check if user has owner or admin role in any tenant
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .in('role', ['owner', 'admin'])
+      .limit(1);
+    
+    if (roles && roles.length > 0) {
+      console.log('[scheduler-tick] Authorized: Admin/Owner user');
+      return true;
+    }
+    
+    console.log('[scheduler-tick] Unauthorized: User lacks admin/owner role');
+    return false;
+  } catch (error) {
+    console.error('[scheduler-tick] Authorization check failed:', error);
+    return false;
+  }
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -43,6 +100,16 @@ serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Security check: Only allow authorized requests
+  const authorized = await isAuthorizedRequest(req);
+  if (!authorized) {
+    console.log('[scheduler-tick] Request rejected: Unauthorized');
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 
   const tickStartedAt = new Date().toISOString();

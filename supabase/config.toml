@@ -65,3 +65,4 @@ verify_jwt = false
 
 [functions.scheduler-tick]
 verify_jwt = false
+schedule = "* * * * *"
