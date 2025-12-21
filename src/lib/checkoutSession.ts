@@ -1,31 +1,44 @@
 // Checkout Session Management - Instrumentação para rastrear checkouts abandonados
 
-const CHECKOUT_SESSION_KEY = 'checkout_session_id';
+const CHECKOUT_SESSION_KEY = 'cc_checkout_session';
 
-export function getOrCreateCheckoutSessionId(): string {
-  let sessionId = localStorage.getItem(CHECKOUT_SESSION_KEY);
+/**
+ * Get or create checkout session ID, scoped by tenant slug and cart signature
+ * Persists in localStorage to survive page reloads
+ */
+export function getOrCreateCheckoutSessionId(tenantSlug: string): string {
+  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+  let sessionId = localStorage.getItem(storageKey);
   if (!sessionId) {
     sessionId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem(CHECKOUT_SESSION_KEY, sessionId);
+    localStorage.setItem(storageKey, sessionId);
   }
   return sessionId;
 }
 
-export function clearCheckoutSessionId(): void {
-  localStorage.removeItem(CHECKOUT_SESSION_KEY);
+export function getCheckoutSessionId(tenantSlug: string): string | null {
+  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+  return localStorage.getItem(storageKey);
 }
 
-export async function startCheckoutSession(params: {
-  tenantId: string;
-  cartId?: string;
+export function clearCheckoutSessionId(tenantSlug: string): void {
+  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+  localStorage.removeItem(storageKey);
+}
+
+export interface CheckoutSessionParams {
+  tenantSlug: string;
+  cartItems?: unknown[];
+  totalEstimated?: number;
   customerEmail?: string;
   customerPhone?: string;
   customerName?: string;
   region?: string;
-  totalEstimated?: number;
-  itemsSnapshot?: unknown[];
-}): Promise<{ success: boolean; sessionId: string }> {
-  const sessionId = getOrCreateCheckoutSessionId();
+  step?: string;
+}
+
+export async function startCheckoutSession(params: CheckoutSessionParams): Promise<{ success: boolean; sessionId: string }> {
+  const sessionId = getOrCreateCheckoutSessionId(params.tenantSlug);
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   try {
@@ -34,14 +47,13 @@ export async function startCheckoutSession(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_id: params.tenantId,
-        cart_id: params.cartId,
+        tenant_slug: params.tenantSlug,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
         customer_name: params.customerName,
         region: params.region,
         total_estimated: params.totalEstimated,
-        items_snapshot: params.itemsSnapshot,
+        items_snapshot: params.cartItems,
       }),
     });
 
@@ -58,17 +70,8 @@ export async function startCheckoutSession(params: {
   }
 }
 
-export async function heartbeatCheckoutSession(params: {
-  tenantId: string;
-  customerEmail?: string;
-  customerPhone?: string;
-  customerName?: string;
-  region?: string;
-  totalEstimated?: number;
-  itemsSnapshot?: unknown[];
-  step?: string;
-}): Promise<void> {
-  const sessionId = localStorage.getItem(CHECKOUT_SESSION_KEY);
+export async function heartbeatCheckoutSession(params: CheckoutSessionParams): Promise<void> {
+  const sessionId = getCheckoutSessionId(params.tenantSlug);
   if (!sessionId) return;
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -79,13 +82,13 @@ export async function heartbeatCheckoutSession(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_id: params.tenantId,
+        tenant_slug: params.tenantSlug,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
         customer_name: params.customerName,
         region: params.region,
         total_estimated: params.totalEstimated,
-        items_snapshot: params.itemsSnapshot,
+        items_snapshot: params.cartItems,
         step: params.step,
       }),
     });
@@ -95,12 +98,12 @@ export async function heartbeatCheckoutSession(params: {
 }
 
 export async function completeCheckoutSession(params: {
-  tenantId: string;
+  tenantSlug: string;
   orderId: string;
   customerEmail?: string;
   customerPhone?: string;
 }): Promise<void> {
-  const sessionId = localStorage.getItem(CHECKOUT_SESSION_KEY);
+  const sessionId = getCheckoutSessionId(params.tenantSlug);
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   try {
@@ -109,7 +112,7 @@ export async function completeCheckoutSession(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_id: params.tenantId,
+        tenant_slug: params.tenantSlug,
         order_id: params.orderId,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
@@ -117,7 +120,7 @@ export async function completeCheckoutSession(params: {
     });
 
     // Limpar sessão após completar
-    clearCheckoutSessionId();
+    clearCheckoutSessionId(params.tenantSlug);
     console.log('[checkout-session] Session completed and cleared');
   } catch (error) {
     console.error('[checkout-session] Complete error:', error);

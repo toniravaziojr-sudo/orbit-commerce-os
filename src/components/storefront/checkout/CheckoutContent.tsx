@@ -2,7 +2,7 @@
 // CHECKOUT CONTENT - Real payment integration with Pagar.me
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
@@ -17,6 +17,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
+import { 
+  startCheckoutSession, 
+  heartbeatCheckoutSession, 
+  completeCheckoutSession,
+  getCheckoutSessionId,
+  clearCheckoutSessionId
+} from '@/lib/checkoutSession';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 
@@ -39,6 +46,74 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const [cardData, setCardData] = useState<CardData>({
     number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
   });
+
+  // Checkout session tracking refs
+  const sessionStarted = useRef(false);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Start checkout session once on mount
+  useEffect(() => {
+    if (!tenantSlug || sessionStarted.current || items.length === 0) return;
+    
+    sessionStarted.current = true;
+    
+    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const shippingTotal = shipping.selected?.price || 0;
+    
+    startCheckoutSession({
+      tenantSlug,
+      cartItems: items.map(item => ({
+        product_id: item.product_id,
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+        image_url: item.image_url,
+      })),
+      totalEstimated: subtotal + shippingTotal,
+      customerEmail: formData.customerEmail || undefined,
+      customerPhone: formData.customerPhone || undefined,
+      customerName: formData.customerName || undefined,
+      region: shipping.cep || undefined,
+    });
+  }, [tenantSlug, items.length]);
+
+  // Heartbeat every 25 seconds while in checkout
+  useEffect(() => {
+    if (!tenantSlug || items.length === 0) return;
+
+    const sendHeartbeat = () => {
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const shippingTotal = shipping.selected?.price || 0;
+      
+      heartbeatCheckoutSession({
+        tenantSlug,
+        cartItems: items.map(item => ({
+          product_id: item.product_id,
+          name: item.name,
+          sku: item.sku,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        totalEstimated: subtotal + shippingTotal,
+        customerEmail: formData.customerEmail || undefined,
+        customerPhone: formData.customerPhone || undefined,
+        customerName: formData.customerName || undefined,
+        region: formData.shippingPostalCode || shipping.cep || undefined,
+        step: 'checkout',
+      });
+    };
+
+    // Start heartbeat interval
+    heartbeatIntervalRef.current = setInterval(sendHeartbeat, 25000);
+
+    // Cleanup on unmount
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+    };
+  }, [tenantSlug, items, formData.customerEmail, formData.customerPhone, formData.customerName, formData.shippingPostalCode, shipping]);
 
   // Hydrate form from draft
   useEffect(() => {
@@ -99,6 +174,9 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     setPaymentStatus('processing');
     setPaymentError(null);
 
+    // Get session ID to pass to order creation
+    const sessionId = tenantSlug ? getCheckoutSessionId(tenantSlug) : null;
+
     const result = await processPayment({
       method: paymentMethod,
       items,
@@ -113,9 +191,20 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         phone: formData.customerPhone, cpf: formData.customerCpf,
       },
       card: paymentMethod === 'credit_card' ? cardData : undefined,
+      checkoutSessionId: sessionId || undefined,
     });
 
     if (result.success) {
+      // Complete checkout session with order ID
+      if (tenantSlug && result.orderId) {
+        completeCheckoutSession({
+          tenantSlug,
+          orderId: result.orderId,
+          customerEmail: formData.customerEmail,
+          customerPhone: formData.customerPhone,
+        });
+      }
+
       if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
         setPaymentStatus('approved');
         clearCart(); clearDraft();
