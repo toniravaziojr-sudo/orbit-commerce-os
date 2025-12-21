@@ -57,15 +57,17 @@ export function useCheckoutSessions(filters: CheckoutSessionsFilters = {}) {
       params.set('tenant_id', `eq.${currentTenant.id}`);
       params.set('order', 'started_at.desc');
       
-      // Filtrar apenas abandonados e recuperados para a lista
+      // Filtrar por status - agora suporta active também
       if (filters.status === 'abandoned') {
         params.set('status', 'eq.abandoned');
       } else if (filters.status === 'recovered') {
         params.set('status', 'eq.recovered');
-      } else {
-        // Por padrão, mostrar abandoned e recovered
-        params.set('status', 'in.(abandoned,recovered)');
+      } else if (filters.status === 'active') {
+        params.set('status', 'eq.active');
+      } else if (filters.status === 'converted') {
+        params.set('status', 'eq.converted');
       }
+      // Se 'all', não adiciona filtro de status
 
       if (filters.startDate) {
         params.set('started_at', `gte.${filters.startDate.toISOString()}`);
