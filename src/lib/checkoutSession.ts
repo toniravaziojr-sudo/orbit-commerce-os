@@ -126,3 +126,42 @@ export async function completeCheckoutSession(params: {
     console.error('[checkout-session] Complete error:', error);
   }
 }
+
+/**
+ * End checkout session (mark as abandoned) when user exits checkout page
+ * Uses sendBeacon for reliable delivery even when page is closing
+ */
+export function endCheckoutSession(tenantSlug: string): void {
+  const sessionId = getCheckoutSessionId(tenantSlug);
+  if (!sessionId) {
+    console.log('[checkout-session] No session to end');
+    return;
+  }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const url = `${supabaseUrl}/functions/v1/checkout-session-end`;
+  const payload = JSON.stringify({
+    session_id: sessionId,
+    tenant_slug: tenantSlug,
+  });
+
+  // Try sendBeacon first (most reliable for page unload)
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: 'application/json' });
+    const sent = navigator.sendBeacon(url, blob);
+    console.log('[checkout-session] Beacon sent:', sent);
+    if (sent) return;
+  }
+
+  // Fallback to fetch with keepalive
+  try {
+    fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: true,
+    }).catch(err => console.error('[checkout-session] End fallback failed:', err));
+  } catch (error) {
+    console.error('[checkout-session] End error:', error);
+  }
+}

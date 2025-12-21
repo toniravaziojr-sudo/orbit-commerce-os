@@ -75,3 +75,6 @@ verify_jwt = false
 
 [functions.checkout-session-complete]
 verify_jwt = false
+
+[functions.checkout-session-end]
+verify_jwt = false

@@ -6,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Tempo de abandono em minutos (TESTE = 1 min, produção = 30 min)
+// Tempo de abandono em minutos (fallback para quando o evento pagehide não chega)
+// TESTE = 1 min; produção = 30 min
 const ABANDON_THRESHOLD_MINUTES = 1;
 
 // Security: Verify the request is from an authorized source
