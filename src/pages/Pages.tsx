@@ -18,13 +18,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { getPublicPageUrl } from '@/lib/publicUrls';
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug, generateSlug } from '@/lib/slugValidation';
 import type { Json } from '@/integrations/supabase/types';
 
 export default function Pages() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const { pages, isLoading, createPage, updatePage, deletePage } = useStorePages();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -362,9 +363,9 @@ export default function Pages() {
                   <TableCell>
                     <div className="flex gap-1">
                       {/* Preview button - always show if valid slug */}
-                      {currentTenant && page.slug && (
+                      {primaryOrigin && page.slug && (
                         <a 
-                          href={getPublicPageUrl(currentTenant.slug, page.slug, false) || '#'} 
+                          href={buildPublicStorefrontUrl(primaryOrigin, `/page/${page.slug}`)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >

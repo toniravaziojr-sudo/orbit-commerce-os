@@ -22,12 +22,13 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useLandingPages } from '@/hooks/useLandingPages';
-import { getPublicLandingUrl } from '@/lib/publicUrls';
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug, generateSlug } from '@/lib/slugValidation';
 
 export default function LandingPages() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const { landingPages, isLoading, createLandingPage, updateLandingPage, deleteLandingPage, duplicateLandingPage } = useLandingPages();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -230,9 +231,9 @@ export default function LandingPages() {
                   <TableCell>
                     <div className="flex gap-1">
                       {/* Preview button - always show if valid slug */}
-                      {currentTenant && page.slug && (
+                      {primaryOrigin && page.slug && (
                         <a 
-                          href={getPublicLandingUrl(currentTenant.slug, page.slug, false) || '#'} 
+                          href={buildPublicStorefrontUrl(primaryOrigin, `/lp/${page.slug}`)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >

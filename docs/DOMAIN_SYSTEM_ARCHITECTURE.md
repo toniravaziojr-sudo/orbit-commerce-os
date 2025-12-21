@@ -88,13 +88,52 @@ Quando **NÃO existe** domínio custom:
 |---------|------------------|
 | `src/lib/canonicalDomainService.ts` | Config SaaS + helpers de domínio |
 | `src/lib/canonicalUrls.ts` | Geração de URLs canônicas |
-| `src/lib/publicUrls.ts` | Geração de URLs públicas (relativas) |
+| `src/lib/publicUrls.ts` | Geração de URLs públicas (para storefront) |
+| `src/hooks/usePrimaryPublicHost.ts` | **Hook para URLs públicas no ADMIN** |
 | `src/hooks/useStorefrontUrls.ts` | Hook para URLs no storefront |
 | `src/hooks/useCanonicalUrls.ts` | Hook para URLs canônicas |
 | `src/hooks/useTenantDomains.ts` | Gerenciamento de domínios |
 | `src/hooks/useTenantCanonicalDomain.ts` | Fetch do domínio canônico |
 | `src/components/storefront/TenantStorefrontLayout.tsx` | Layout + canonical redirect |
 | `src/pages/Domains.tsx` | UI de gerenciamento de domínios |
+
+## Regras Anti-Regressão (CRÍTICO)
+
+### Regra 1: URLs Públicas no Admin
+
+**NUNCA** usar as seguintes funções no código do admin (pages, components fora de storefront):
+- `getPublicProductUrl` de `publicUrls.ts` (usa `window.location` errado)
+- `getPublicCategoryUrl` de `publicUrls.ts`
+- `getPublicPageUrl` de `publicUrls.ts`
+- `getPublicLandingUrl` de `publicUrls.ts`
+
+**SEMPRE** usar no admin:
+```typescript
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
+
+// No componente:
+const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
+
+// Para gerar URLs:
+const productUrl = buildPublicStorefrontUrl(primaryOrigin, `/p/${productSlug}`);
+const categoryUrl = buildPublicStorefrontUrl(primaryOrigin, `/c/${categorySlug}`);
+const pageUrl = buildPublicStorefrontUrl(primaryOrigin, `/page/${pageSlug}`);
+const landingUrl = buildPublicStorefrontUrl(primaryOrigin, `/lp/${landingSlug}`);
+```
+
+### Regra 2: Separação Admin vs Storefront
+
+| Contexto | Domínio Base | Funções Permitidas |
+|----------|--------------|-------------------|
+| Admin (src/pages/*.tsx exceto storefront) | `app.comandocentral.com.br` | `usePrimaryPublicHost` + `buildPublicStorefrontUrl` |
+| Storefront (src/pages/storefront/*.tsx) | `{tenant}.shops...` ou custom | `getPublic*Url` de `publicUrls.ts` |
+| Componentes do Builder (preview interno) | `app.comandocentral.com.br` | `getStoreBaseUrl` (caminhos relativos) |
+
+### Regra 3: O que rege cada domínio
+
+- **app.comandocentral.com.br** - Apenas admin/dashboard. NUNCA gerar links públicos usando este domínio.
+- **{tenantSlug}.shops.comandocentral.com.br** - Storefront público (padrão/backup). 
+- **loja.cliente.com.br** (custom) - Storefront público (primário quando ativo).
 
 ## Checklist de Testes (Anti-Regressão)
 

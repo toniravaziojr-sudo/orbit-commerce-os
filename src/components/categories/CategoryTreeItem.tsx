@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronRight, ChevronDown, GripVertical, Pencil, Trash2, FolderOpen, Folder, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPublicCategoryUrl } from '@/lib/publicUrls';
 import { useAuth } from '@/hooks/useAuth';
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 
 interface CategoryTreeItemProps {
   category: Category;
@@ -32,6 +32,7 @@ export function CategoryTreeItem({
   isDragging,
 }: CategoryTreeItemProps) {
   const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   
   const {
     attributes,
@@ -47,12 +48,10 @@ export function CategoryTreeItem({
   };
 
   const handlePreview = () => {
-    if (currentTenant && category.slug) {
-      // Opens PUBLIC URL (no preview) - for sharing/testing as customer
-      const url = getPublicCategoryUrl(currentTenant.slug, category.slug, false);
-      if (url) {
-        window.open(url, '_blank');
-      }
+    if (primaryOrigin && category.slug) {
+      // Opens PUBLIC URL using canonical origin (shops or custom domain)
+      const url = buildPublicStorefrontUrl(primaryOrigin, `/c/${category.slug}`);
+      window.open(url, '_blank');
     }
   };
 
