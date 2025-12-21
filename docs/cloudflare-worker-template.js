@@ -1,26 +1,17 @@
 /**
  * Cloudflare Worker - Multi-tenant SaaS Router (canonical + clean URLs)
  *
- * VERSÃO ATUALIZADA - Com canonicalização e URLs limpas
+ * VERSÃO ATUALIZADA COM FALLBACK PARA ASSETS
  *
  * Objetivos:
  * - 301 real para host canônico (primary_public_host)
  * - Domínio custom com URL limpa (sem /store/{tenant} no browser)
- * - Rewrite interno para origin /store/{tenant}...
+ * - Fallback automático para assets: tenta /store/{tenant}/assets, se 404 tenta /assets
  *
  * ENV vars:
  * - ORIGIN_HOST = orbit-commerce-os.lovable.app
  * - SUPABASE_URL = https://ojssezfjhdvvncsqyhyq.supabase.co
  * - SUPABASE_ANON_KEY = <sua anon key>
- *
- * Worker Routes (zona comandocentral.com.br):
- * - *.shops.comandocentral.com.br/*
- * - shops.comandocentral.com.br/*
- *
- * Requisitos Cloudflare:
- * - SSL/TLS: Full (Strict)
- * - ACM: Wildcard certificate para *.shops.comandocentral.com.br
- * - DNS: shops CNAME → origin, *.shops CNAME → shops (ambos Proxy ON)
  */
 
 const RESERVED_SLUGS = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
@@ -48,17 +39,6 @@ const PUBLIC_STOREFRONT_PREFIXES = [
   "/page/",
 ];
 
-const PUBLIC_ASSET_API_PREFIXES = [
-  "/assets/",
-  "/@vite/",
-  "/api/",
-  "/favicon",
-  "/manifest",
-  "/robots.txt",
-  "/sitemap",
-  "/node_modules/",
-];
-
 const AUTH_ADMIN_PREFIXES = [
   "/auth",
   "/login",
@@ -69,12 +49,20 @@ const AUTH_ADMIN_PREFIXES = [
   "/settings",
 ];
 
-// Arquivos que SEMPRE existem na raiz do origin (não precisam de /store/{tenant})
+// Paths que devem ser buscados NA RAIZ do origin (sem /store/{tenant})
 const ROOT_ONLY_PATHS = [
   "/robots.txt",
   "/sitemap",
   "/manifest",
   "/favicon",
+];
+
+// Paths de assets que precisam de fallback (tentar com e sem /store/{tenant})
+const ASSET_PATHS = [
+  "/assets/",
+  "/@vite/",
+  "/node_modules/",
+  "/src/",
 ];
 
 function isPublicStorefrontPath(pathname) {
@@ -91,12 +79,17 @@ function isPublicStorefrontPath(pathname) {
   return path === "/" || path === "";
 }
 
-function isPublicAssetOrApiPath(pathname) {
+function isAssetPath(pathname) {
   const path = (pathname || "").toLowerCase();
-  for (const prefix of PUBLIC_ASSET_API_PREFIXES) {
-    if (path === prefix || path.startsWith(prefix)) return true;
+  for (const prefix of ASSET_PATHS) {
+    if (path.startsWith(prefix)) return true;
   }
   return false;
+}
+
+function isApiPath(pathname) {
+  const path = (pathname || "").toLowerCase();
+  return path.startsWith("/api/");
 }
 
 function isRootOnlyPath(pathname) {
@@ -110,7 +103,6 @@ function isRootOnlyPath(pathname) {
 function cleanPublicSearch(search) {
   if (!search) return "";
   const u = new URL("https://x.invalid/" + search.replace(/^\?/, ""));
-  // Remover sinais de preview públicos
   u.searchParams.delete("preview");
   u.searchParams.delete("previewId");
   u.searchParams.delete("previewToken");
@@ -123,7 +115,7 @@ function stripStorePrefix(pathname, tenantSlug) {
   const prefix = `/store/${tenantSlug}`;
   if (p === prefix) return "/";
   if (p.startsWith(prefix + "/")) return p.slice(prefix.length) || "/";
-  return null; // não tem prefixo
+  return null;
 }
 
 export default {
@@ -139,18 +131,17 @@ export default {
       return new Response("Please access via the correct domain", { status: 404 });
     }
 
-    // Para custom hostnames (for SaaS), o host original costuma vir aqui:
     const cfConnectingHost = request.headers.get("cf-connecting-host");
     const publicHost = (cfConnectingHost || edgeHost).toLowerCase().replace(/^www\./, "");
 
-    console.log(`[Worker] Request: edgeHost=${edgeHost} cfConnectingHost=${cfConnectingHost || 'none'} publicHost=${publicHost} path=${url.pathname}`);
+    console.log(`[Worker] Request: host=${publicHost} path=${url.pathname}`);
 
     // shops.comandocentral.com.br sem tenant → manda pro app
     if (publicHost === "shops.comandocentral.com.br") {
       return Response.redirect("https://app.comandocentral.com.br/", 302);
     }
 
-    // Resolver tenant + canonical host (idealmente via resolve-domain para ambos: custom e platform)
+    // Resolver tenant
     const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
 
     if (!resolved?.tenantSlug) {
@@ -159,82 +150,164 @@ export default {
     }
 
     const tenantSlug = resolved.tenantSlug;
-    const domainType = resolved.domainType || (PLATFORM_BASE_RE.test(publicHost) ? "platform_subdomain" : "custom");
     const primaryPublicHost = (resolved.primaryPublicHost || "").toLowerCase().replace(/^www\./, "");
     const canonicalHost = primaryPublicHost || publicHost;
+    const isCustomHost = !PLATFORM_BASE_RE.test(publicHost);
 
-    console.log(`[Worker] Resolved: tenant=${tenantSlug} type=${domainType} canonical=${canonicalHost}`);
+    console.log(`[Worker] Resolved: tenant=${tenantSlug} canonical=${canonicalHost} isCustom=${isCustomHost}`);
 
-    const isStorefront = isPublicStorefrontPath(url.pathname) || isPublicAssetOrApiPath(url.pathname);
+    // ASSETS: Tratamento especial com fallback
+    if (isAssetPath(url.pathname)) {
+      return await handleAssetWithFallback(request, {
+        ORIGIN_HOST,
+        publicHost,
+        tenantSlug,
+        pathname: url.pathname,
+        search: url.search,
+      });
+    }
 
-    // 1) Canonicalização por host (301 REAL no edge)
-    // Se existe um domínio custom primário e o usuário está no domínio platform, redireciona
-    // MAS: NÃO redirecionar assets/api - esses devem ser servidos diretamente
-    const pathLower = (url.pathname || "/").toLowerCase();
-    const isAssetOrApi = pathLower.startsWith("/assets/") || 
-                          pathLower.startsWith("/@vite/") || 
-                          pathLower.startsWith("/node_modules/") ||
-                          pathLower.startsWith("/src/") ||
-                          pathLower.startsWith("/api/");
-    
-    if (isStorefront && publicHost !== canonicalHost && !isAssetOrApi) {
+    // ROOT-ONLY paths (robots.txt, sitemap, etc.)
+    if (isRootOnlyPath(url.pathname)) {
+      return await proxySimple(request, ORIGIN_HOST, url.pathname, publicHost, tenantSlug);
+    }
+
+    // API paths: também prefixar com /store/{tenant}
+    if (isApiPath(url.pathname)) {
+      const originPath = `/store/${tenantSlug}${url.pathname}`;
+      return await proxySimple(request, ORIGIN_HOST, originPath, publicHost, tenantSlug);
+    }
+
+    // Canonicalização: redirecionar platform → custom se existir
+    if (isPublicStorefrontPath(url.pathname) && publicHost !== canonicalHost) {
       const target = `https://${canonicalHost}${url.pathname}${cleanPublicSearch(url.search)}`;
       console.log(`[Worker] Canonical redirect: ${publicHost} -> ${canonicalHost}`);
       return Response.redirect(target, 301);
     }
 
-    // 2) URL limpa no domínio custom:
-    // Se custom e o browser pedir /store/{tenant}..., devolve 301 para path limpo.
-    // MAS: NÃO limpar assets - o browser não deve ver /assets com /store/{tenant} de qualquer forma
-    const isCustomHost = !PLATFORM_BASE_RE.test(publicHost); // custom domain não termina com .shops...
+    // URL limpa: se custom e browser pedir /store/{tenant}..., redirect 301 para path limpo
     const stripped = stripStorePrefix(url.pathname, tenantSlug);
-
-    if (isCustomHost && stripped !== null && !isAssetOrApi) {
+    if (isCustomHost && stripped !== null) {
       const target = `https://${publicHost}${stripped}${cleanPublicSearch(url.search)}`;
       console.log(`[Worker] Clean URL redirect: ${url.pathname} -> ${stripped}`);
       return Response.redirect(target, 301);
     }
 
-    // 3) Rewrite interno para origin:
-    // REGRA CRÍTICA: O origin Lovable serve assets DENTRO de /store/{tenant}/
-    // Então /assets/... no browser deve virar /store/{tenant}/assets/... no origin
-    
-    // Exceções que ficam na raiz (sem /store/{tenant}):
-    const shouldBypassStorePrefix = isRootOnlyPath(url.pathname);
-    
-    let originPath = url.pathname;
-
-    if (!shouldBypassStorePrefix) {
-      // TODOS os paths (incluindo /assets, /api, páginas) recebem /store/{tenant} no origin
-      if (isCustomHost) {
-        // Domínio custom: sempre prefixar com /store/{tenant}
+    // Proxy para origin: prefixar com /store/{tenant}
+    let originPath;
+    if (isCustomHost) {
+      originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
+    } else {
+      // Platform: verificar se já tem prefixo
+      if (stripped === null) {
         originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
       } else {
-        // Domínio platform: verificar se já tem o prefixo
-        if (stripped === null) {
-          // Não tem prefixo, adicionar
-          originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
-        } else {
-          // Já tem /store/{tenant}, manter como está
-          originPath = url.pathname;
-        }
+        originPath = url.pathname;
       }
     }
-    // Se for root-only (robots.txt, sitemap, etc.), mantém originPath = url.pathname
 
-    console.log(`[Worker] Proxying: ${url.pathname} -> ${originPath}`);
+    console.log(`[Worker] Proxying page: ${url.pathname} -> ${originPath}`);
 
-    // Proxy para origin (seguindo redirects internos quando necessário)
     return await proxyWithRedirectFollow(request, {
       ORIGIN_HOST,
       publicHost,
       tenantSlug,
-      domainType,
+      domainType: isCustomHost ? "custom" : "platform_subdomain",
       originPath,
       isCustomHost,
     });
   },
 };
+
+/**
+ * Handler especial para assets com fallback:
+ * 1. Tenta /store/{tenant}/assets/...
+ * 2. Se 404, tenta /assets/... (raiz)
+ * 3. Retorna o primeiro que der 200
+ */
+async function handleAssetWithFallback(request, config) {
+  const { ORIGIN_HOST, publicHost, tenantSlug, pathname, search } = config;
+
+  // Primeiro: tentar COM /store/{tenant}
+  const withTenantPath = `/store/${tenantSlug}${pathname}`;
+  const urlWithTenant = `https://${ORIGIN_HOST}${withTenantPath}${search || ""}`;
+
+  console.log(`[Worker] Asset attempt 1: ${urlWithTenant}`);
+
+  const headers = new Headers();
+  for (const [key, value] of request.headers.entries()) {
+    if (key.toLowerCase() === "host") continue;
+    headers.set(key, value);
+  }
+  headers.set("X-Forwarded-Host", publicHost);
+  headers.set("X-Tenant-Slug", tenantSlug);
+
+  let response = await fetch(urlWithTenant, {
+    method: request.method,
+    headers,
+    redirect: "follow",
+  });
+
+  console.log(`[Worker] Asset attempt 1 result: ${response.status}`);
+
+  if (response.status === 200) {
+    // Success com /store/{tenant}
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: cloneHeaders(response.headers),
+    });
+  }
+
+  // Segundo: tentar SEM /store/{tenant} (na raiz)
+  const urlWithoutTenant = `https://${ORIGIN_HOST}${pathname}${search || ""}`;
+
+  console.log(`[Worker] Asset attempt 2 (fallback): ${urlWithoutTenant}`);
+
+  response = await fetch(urlWithoutTenant, {
+    method: request.method,
+    headers,
+    redirect: "follow",
+  });
+
+  console.log(`[Worker] Asset attempt 2 result: ${response.status}`);
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: cloneHeaders(response.headers),
+  });
+}
+
+/**
+ * Proxy simples sem tratamento de redirects
+ */
+async function proxySimple(request, originHost, originPath, publicHost, tenantSlug) {
+  const originUrl = `https://${originHost}${originPath}`;
+
+  const headers = new Headers();
+  for (const [key, value] of request.headers.entries()) {
+    if (key.toLowerCase() === "host") continue;
+    headers.set(key, value);
+  }
+  headers.set("X-Forwarded-Host", publicHost);
+  headers.set("X-Tenant-Slug", tenantSlug);
+
+  console.log(`[Worker] Simple proxy: ${originPath}`);
+
+  const response = await fetch(originUrl, {
+    method: request.method,
+    headers,
+    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+    redirect: "follow",
+  });
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: cloneHeaders(response.headers),
+  });
+}
 
 async function proxyWithRedirectFollow(originalRequest, config) {
   const { ORIGIN_HOST, publicHost, tenantSlug, domainType, originPath, isCustomHost } = config;
@@ -283,7 +356,7 @@ async function proxyWithRedirectFollow(originalRequest, config) {
       redirect: "manual",
     });
 
-    console.log(`[Worker] Fetching (attempt ${redirectCount + 1}): ${currentUrl.toString()}`);
+    console.log(`[Worker] Fetching: ${currentUrl.toString()}`);
     const response = await fetch(originRequest);
     console.log(`[Worker] Response: status=${response.status}`);
 
@@ -308,12 +381,11 @@ async function proxyWithRedirectFollow(originalRequest, config) {
       isCustomHost,
     });
 
-    console.log(`[Worker] Redirect analysis: location="${location}" action=${redirectInfo.action} reason=${redirectInfo.reason}`);
+    console.log(`[Worker] Redirect: ${location} -> ${redirectInfo.action}`);
 
     if (redirectInfo.action === "follow") {
       currentUrl = new URL(redirectInfo.targetUrl);
       redirectCount++;
-      console.log(`[Worker] Following redirect internally to: ${currentUrl.toString()}`);
       continue;
     }
 
@@ -321,8 +393,7 @@ async function proxyWithRedirectFollow(originalRequest, config) {
       const rewrittenUrl = redirectInfo.rewrittenUrl;
 
       if (rewrittenUrl === originalUrlStr) {
-        // Loop potencial: segue internamente
-        console.log(`[Worker] LOOP DETECTED: rewritten URL equals original. Following internally instead.`);
+        console.log(`[Worker] LOOP DETECTED, following internally`);
         currentUrl = new URL(location);
         redirectCount++;
         continue;
@@ -331,8 +402,6 @@ async function proxyWithRedirectFollow(originalRequest, config) {
       const outHeaders = cloneHeaders(response.headers);
       rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
       outHeaders.set("Location", rewrittenUrl);
-
-      console.log(`[Worker] Returning rewritten redirect: ${rewrittenUrl}`);
 
       return new Response(response.body, {
         status: response.status,
@@ -343,7 +412,6 @@ async function proxyWithRedirectFollow(originalRequest, config) {
 
     const outHeaders = cloneHeaders(response.headers);
     rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
-    console.log(`[Worker] Passing through redirect as-is: ${location}`);
     return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
@@ -351,14 +419,13 @@ async function proxyWithRedirectFollow(originalRequest, config) {
     });
   }
 
-  console.log(`[Worker] Max redirects (${MAX_INTERNAL_REDIRECTS}) exceeded`);
+  console.log(`[Worker] Max redirects exceeded`);
   return new Response("Too many redirects", { status: 508 });
 }
 
 function analyzeRedirect(location, ctx) {
   const { publicHost, originHost, tenantSlug, isCustomHost } = ctx;
 
-  // Para domínio custom, remover /store/{tenant} dos redirects para o browser
   const stripIfCustom = (path) => {
     if (!isCustomHost) return path;
     const stripped = stripStorePrefix(path, tenantSlug);
@@ -385,7 +452,6 @@ function analyzeRedirect(location, ctx) {
 
     const u = new URL(location);
     const targetHost = u.hostname.toLowerCase();
-    const targetPath = u.pathname;
 
     const originHosts = new Set([
       "orbit-commerce-os.lovable.app",
@@ -401,7 +467,7 @@ function analyzeRedirect(location, ctx) {
     }
 
     if (targetHost === "app.comandocentral.com.br") {
-      if (isPublicStorefrontPath(targetPath) || isPublicAssetOrApiPath(targetPath)) {
+      if (isPublicStorefrontPath(u.pathname)) {
         u.hostname = publicHost;
         u.protocol = "https:";
         u.pathname = stripIfCustom(u.pathname);
@@ -417,14 +483,12 @@ function analyzeRedirect(location, ctx) {
 }
 
 async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
-  // 1) Sempre tentar resolve-domain (custom e platform), para obter primary_public_host
   if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     const cacheKey = new Request(`https://resolve-domain-cache.internal/${hostname}`);
     try {
       const cached = await caches.default.match(cacheKey);
       if (cached) {
         const data = await cached.json();
-        console.log(`[Worker] Cache hit: ${hostname} -> ${data.tenantSlug}`);
         if (data?.tenantSlug) return data;
       }
     } catch {}
@@ -447,11 +511,8 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
           const result = {
             tenantSlug: String(payload.tenant_slug).toLowerCase(),
             domainType: payload.domain_type || (PLATFORM_BASE_RE.test(hostname) ? "platform_subdomain" : "custom"),
-            primaryPublicHost: payload.primary_public_host || payload.primary_public_host?.toLowerCase(),
-            canonicalOrigin: payload.canonical_origin,
+            primaryPublicHost: payload.primary_public_host?.toLowerCase(),
           };
-
-          console.log(`[Worker] Resolved via API: ${hostname} -> ${result.tenantSlug} (canonical: ${result.primaryPublicHost})`);
 
           await caches.default.put(
             cacheKey,
@@ -462,15 +523,12 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
 
           return result;
         }
-      } else {
-        console.log(`[Worker] resolve-domain failed: ${resolveResponse.status}`);
       }
     } catch (err) {
-      console.error(`[Worker] Error resolving domain: ${err?.message || err}`);
+      console.error(`[Worker] Error resolving: ${err?.message || err}`);
     }
   }
 
-  // 2) Fallback: se for platform subdomain, parse direto (sem canonicalização por custom)
   if (PLATFORM_BASE_RE.test(hostname)) {
     const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
     if (!match) return null;
@@ -478,7 +536,6 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
     const tenantSlug = String(match[1]).toLowerCase();
     if (RESERVED_SLUGS.has(tenantSlug)) return null;
 
-    console.log(`[Worker] Fallback parse: ${hostname} -> ${tenantSlug}`);
     return { tenantSlug, domainType: "platform_subdomain" };
   }
 
@@ -499,22 +556,11 @@ function rewriteSetCookieDomains(inHeaders, outHeaders, currentHostname, originH
 
   outHeaders.delete("Set-Cookie");
 
-  const badDomains = new Set([
-    "orbit-commerce-os.lovable.app",
-    "shops.comandocentral.com.br",
-    "app.comandocentral.com.br",
-    originHost.toLowerCase(),
-  ]);
-
-  for (const c of cookies) {
-    const m = c.match(/;\s*Domain=([^;]+)/i);
-    if (m) {
-      const domain = m[1].trim().replace(/^\./, "").toLowerCase();
-      if (badDomains.has(domain)) {
-        outHeaders.append("Set-Cookie", c.replace(/;\s*Domain=([^;]+)/i, `; Domain=${currentHostname}`));
-        continue;
-      }
+  for (const cookie of cookies) {
+    let newCookie = cookie;
+    if (newCookie.toLowerCase().includes(`domain=${originHost.toLowerCase()}`)) {
+      newCookie = newCookie.replace(new RegExp(`domain=${originHost}`, "gi"), `domain=${currentHostname}`);
     }
-    outHeaders.append("Set-Cookie", c);
+    outHeaders.append("Set-Cookie", newCookie);
   }
 }
