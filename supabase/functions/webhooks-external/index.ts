@@ -6,13 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-tenant-id, x-webhook-secret',
 };
 
-// Simple hash function for idempotency key generation
-async function generateHash(data: string): Promise<string> {
+// SHA-256 hash function (full 64-char hex for secret validation, truncated for idempotency)
+async function generateHash(data: string, truncate = false): Promise<string> {
   const encoder = new TextEncoder();
   const dataBuffer = encoder.encode(data);
   const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+  const fullHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return truncate ? fullHash.substring(0, 32) : fullHash;
 }
 
 // Extract provider event ID from common webhook patterns
@@ -128,13 +129,16 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate webhook secret
+    // Calculate SHA-256 hash of the provided secret
+    const secretHash = await generateHash(webhookSecret);
+    console.log('[webhooks-external] Validating secret hash for provider:', provider);
+
+    // Validate webhook secret by comparing hash
     const { data: secretRecord, error: secretError } = await supabase
       .from('webhook_secrets')
-      .select('id, is_enabled')
+      .select('id, is_enabled, secret_hash')
       .eq('tenant_id', tenantId)
       .eq('provider', provider)
-      .eq('secret', webhookSecret)
       .maybeSingle();
 
     if (secretError) {
@@ -143,7 +147,16 @@ serve(async (req) => {
     }
 
     if (!secretRecord) {
-      console.error('[webhooks-external] Invalid credentials for tenant/provider:', { tenantId, provider });
+      console.error('[webhooks-external] No webhook config for tenant/provider:', { tenantId, provider });
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid credentials' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Compare hash (timing-safe comparison via string equality after hash)
+    if (secretRecord.secret_hash !== secretHash) {
+      console.error('[webhooks-external] Invalid secret hash for tenant/provider:', { tenantId, provider });
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid credentials' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -179,9 +192,9 @@ serve(async (req) => {
     if (providerEventId) {
       idempotencyKey = `${provider}:${providerEventId}`;
     } else {
-      // Fallback: hash of body + provider + tenant
+      // Fallback: hash of body + provider + tenant (truncated for readability)
       const hashInput = `${tenantId}:${provider}:${JSON.stringify(payload)}`;
-      idempotencyKey = `${provider}:hash:${await generateHash(hashInput)}`;
+      idempotencyKey = `${provider}:hash:${await generateHash(hashInput, true)}`;
     }
 
     console.log('[webhooks-external] Generated idempotency_key:', idempotencyKey);
