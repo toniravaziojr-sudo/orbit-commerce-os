@@ -1,11 +1,81 @@
-import { Bell, Plus, Zap, Mail, MessageSquare, Clock } from "lucide-react";
+import { useState } from "react";
+import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 
 export default function Notifications() {
+  const { profile } = useAuth();
+  const [isEmitting, setIsEmitting] = useState(false);
+  const [lastResult, setLastResult] = useState<{
+    success: boolean;
+    duplicate: boolean;
+    event_id?: string;
+    message?: string;
+    error?: string;
+  } | null>(null);
+
+  const handleEmitTestEvent = async () => {
+    if (!profile?.current_tenant_id) {
+      toast.error("Tenant não encontrado");
+      return;
+    }
+
+    setIsEmitting(true);
+    setLastResult(null);
+
+    try {
+      // Use a fixed idempotency key to demonstrate dedupe
+      const testIdempotencyKey = `test-event-${profile.current_tenant_id}-demo-001`;
+      
+      const { data, error } = await supabase.functions.invoke('emit-internal-event', {
+        body: {
+          tenant_id: profile.current_tenant_id,
+          event_type: 'order.paid',
+          subject: {
+            type: 'order',
+            id: 'test-order-12345',
+          },
+          payload_normalized: {
+            order_number: 'PED-25-000001',
+            customer_name: 'Cliente Teste',
+            total: 199.90,
+            test: true,
+          },
+          idempotency_key: testIdempotencyKey,
+        },
+      });
+
+      if (error) {
+        console.error('[Notifications] Error emitting test event:', error);
+        setLastResult({ success: false, duplicate: false, error: error.message });
+        toast.error("Erro ao emitir evento: " + error.message);
+        return;
+      }
+
+      console.log('[Notifications] Test event result:', data);
+      setLastResult(data);
+
+      if (data.duplicate) {
+        toast.info("Evento já existe (idempotência funcionando!)");
+      } else {
+        toast.success("Evento emitido com sucesso!");
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('[Notifications] Unexpected error:', err);
+      setLastResult({ success: false, duplicate: false, error: errorMessage });
+      toast.error("Erro inesperado: " + errorMessage);
+    } finally {
+      setIsEmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -32,6 +102,10 @@ export default function Notifications() {
           <TabsTrigger value="logs" className="gap-2">
             <Clock className="h-4 w-4" />
             Histórico
+          </TabsTrigger>
+          <TabsTrigger value="dev" className="gap-2">
+            <TestTube className="h-4 w-4" />
+            Dev/Teste
           </TabsTrigger>
         </TabsList>
 
@@ -86,6 +160,123 @@ export default function Notifications() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="dev">
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Emit Internal Event Test */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <TestTube className="h-5 w-5" />
+                  Emitir Evento Interno (Teste)
+                </CardTitle>
+                <CardDescription>
+                  Emite um evento de teste (order.paid) com idempotency_key fixa para validar dedupe.
+                  Clique 2x para ver a idempotência funcionando.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg bg-muted p-3 text-sm font-mono">
+                  <div><span className="text-muted-foreground">event_type:</span> order.paid</div>
+                  <div><span className="text-muted-foreground">subject:</span> order/test-order-12345</div>
+                  <div><span className="text-muted-foreground">idempotency_key:</span> test-event-...-demo-001</div>
+                </div>
+
+                <Button 
+                  onClick={handleEmitTestEvent} 
+                  disabled={isEmitting}
+                  className="w-full gap-2"
+                >
+                  {isEmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Emitindo...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4" />
+                      Emitir Evento de Teste
+                    </>
+                  )}
+                </Button>
+
+                {lastResult && (
+                  <div className={`rounded-lg p-3 text-sm ${
+                    lastResult.success 
+                      ? lastResult.duplicate 
+                        ? 'bg-warning/10 border border-warning/20' 
+                        : 'bg-success/10 border border-success/20'
+                      : 'bg-destructive/10 border border-destructive/20'
+                  }`}>
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      {lastResult.success ? (
+                        lastResult.duplicate ? (
+                          <>
+                            <AlertCircle className="h-4 w-4 text-warning" />
+                            <span className="text-warning">Duplicado (idempotência)</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 text-success" />
+                            <span className="text-success">Evento Criado</span>
+                          </>
+                        )
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                          <span className="text-destructive">Erro</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="font-mono text-xs">
+                      {lastResult.event_id && (
+                        <div><span className="text-muted-foreground">event_id:</span> {lastResult.event_id}</div>
+                      )}
+                      {lastResult.message && (
+                        <div><span className="text-muted-foreground">message:</span> {lastResult.message}</div>
+                      )}
+                      {lastResult.error && (
+                        <div><span className="text-muted-foreground">error:</span> {lastResult.error}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Webhook Info */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Endpoint de Webhook Externo</CardTitle>
+                <CardDescription>
+                  URL para receber webhooks de provedores externos (pagamento, frete, etc.)
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg bg-muted p-3 text-sm font-mono break-all">
+                  POST /functions/v1/webhooks-external/:provider
+                </div>
+
+                <div className="text-sm space-y-2">
+                  <p className="font-medium">Headers obrigatórios:</p>
+                  <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                    <li><code className="text-xs bg-muted px-1 rounded">x-tenant-id</code>: ID do tenant</li>
+                    <li><code className="text-xs bg-muted px-1 rounded">x-webhook-secret</code>: Secret configurado</li>
+                  </ul>
+                </div>
+
+                <div className="text-sm space-y-2">
+                  <p className="font-medium">Para configurar um webhook:</p>
+                  <ol className="list-decimal list-inside text-muted-foreground space-y-1">
+                    <li>Cadastre um secret na tabela <code className="text-xs bg-muted px-1 rounded">webhook_secrets</code></li>
+                    <li>Configure a URL no provedor externo</li>
+                    <li>Inclua os headers de autenticação</li>
+                  </ol>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
