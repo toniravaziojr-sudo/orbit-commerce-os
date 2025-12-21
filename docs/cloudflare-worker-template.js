@@ -114,9 +114,6 @@ export default {
     const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
 
-    // DEBUG: Verificar variáveis de ambiente
-    console.log(`[Worker] ENV Check: ORIGIN_HOST=${ORIGIN_HOST}, SUPABASE_URL=${SUPABASE_URL ? 'SET' : 'MISSING'}, SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
-
     const edgeHost = url.hostname.toLowerCase();
     if (edgeHost.endsWith(".workers.dev")) {
       return new Response("Please access via the correct domain", { status: 404 });
@@ -127,6 +124,35 @@ export default {
 
     console.log(`[Worker] Request: host=${publicHost} path=${url.pathname}`);
 
+    // ============================================
+    // ENDPOINT DE DEBUG: /_debug
+    // ============================================
+    if (url.pathname === "/_debug" || url.pathname === "/_health") {
+      const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
+      const debugInfo = {
+        timestamp: new Date().toISOString(),
+        hostname: publicHost,
+        cfConnectingHost: cfConnectingHost || null,
+        edgeHost,
+        path: url.pathname,
+        envConfigured: {
+          ORIGIN_HOST: !!ORIGIN_HOST,
+          SUPABASE_URL: !!SUPABASE_URL,
+          SUPABASE_ANON_KEY: !!SUPABASE_ANON_KEY,
+        },
+        resolved: resolved ? {
+          tenantSlug: resolved.tenantSlug,
+          primaryPublicHost: resolved.primaryPublicHost,
+          isCanonical: publicHost === (resolved.primaryPublicHost || "").toLowerCase().replace(/^www\./, ""),
+        } : null,
+        status: resolved?.tenantSlug ? "OK" : "TENANT_NOT_FOUND",
+      };
+      return new Response(JSON.stringify(debugInfo, null, 2), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+      });
+    }
+
     // shops.comandocentral.com.br sem tenant → manda pro app
     if (publicHost === "shops.comandocentral.com.br") {
       return Response.redirect("https://app.comandocentral.com.br/", 302);
@@ -135,17 +161,14 @@ export default {
     // Resolver tenant
     const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
 
-    // DEBUG: Mostrar resultado da resolução
-    console.log(`[Worker] resolveTenant returned:`, JSON.stringify(resolved));
-
     if (!resolved?.tenantSlug) {
       console.log(`[Worker] Domain not configured: ${publicHost}`);
-      // Retornar mais detalhes para debug
       const debugInfo = {
         error: "Domain not configured",
         hostname: publicHost,
         supabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
         resolved: resolved,
+        hint: "Check if domain is registered in tenant_domains table with status=verified and ssl_status=active",
       };
       return new Response(JSON.stringify(debugInfo, null, 2), { 
         status: 404,
@@ -180,7 +203,7 @@ export default {
     // ============================================
     // CANONICALIZAÇÃO: redirecionar platform → custom
     // ============================================
-    if (isPublicStorefrontPath(url.pathname) && publicHost !== canonicalHost) {
+    if (isPublicStorefrontPath(url.pathname) && publicHost !== canonicalHost && primaryPublicHost) {
       const target = `https://${canonicalHost}${url.pathname}${cleanPublicSearch(url.search)}`;
       console.log(`[Worker] Canonical redirect: ${publicHost} -> ${canonicalHost}`);
       return Response.redirect(target, 301);

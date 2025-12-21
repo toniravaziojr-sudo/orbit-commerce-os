@@ -1,5 +1,6 @@
 // =============================================
 // CANONICAL URLS - Full URL generation with domain support
+// URLs are CLEAN (without /store/{tenant}) for custom domains and platform subdomains
 // =============================================
 
 import { hasValidSlug } from './slugValidation';
@@ -33,14 +34,29 @@ export function getCanonicalOrigin(customDomain: string | null, tenantSlug?: str
 
 /**
  * Get the full canonical base URL for a store
+ * IMPORTANT: For custom domains and platform subdomains, returns just the origin (clean URL)
+ * Only legacy app domain paths use /store/{tenantSlug}
  */
 export function getCanonicalStoreBaseUrl(tenantSlug: string, customDomain: string | null): string {
   const origin = getCanonicalOrigin(customDomain, tenantSlug);
+  
+  // For custom domains, return just the origin (clean URL, no /store/tenant)
+  if (customDomain) {
+    return origin;
+  }
+  
+  // For platform subdomains (tenant.shops.domain), return just the origin (clean URL)
+  if (tenantSlug && origin.includes(`${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}`)) {
+    return origin;
+  }
+  
+  // Only for legacy/fallback origin, use /store/{tenantSlug}
   return `${origin}/store/${tenantSlug}`;
 }
 
 /**
  * Generate a full canonical URL for any store path
+ * Uses clean paths for custom/platform domains
  */
 export function getCanonicalUrl(
   tenantSlug: string,
@@ -54,6 +70,16 @@ export function getCanonicalUrl(
   // Ensure path starts with /
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${baseUrl}${cleanPath}`;
+}
+
+/**
+ * Generate canonical home URL
+ */
+export function getCanonicalHomeUrl(
+  tenantSlug: string,
+  customDomain: string | null
+): string {
+  return getCanonicalStoreBaseUrl(tenantSlug, customDomain);
 }
 
 /**

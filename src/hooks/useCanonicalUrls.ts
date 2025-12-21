@@ -15,11 +15,12 @@ import {
   getCanonicalCartUrl,
   getCanonicalCheckoutUrl,
   getCanonicalThankYouUrl,
-} from '@/lib/publicUrls';
+} from '@/lib/canonicalUrls';
 
 /**
  * Hook that provides canonical URL builders for the current storefront
  * Automatically uses the custom domain when available
+ * Returns CLEAN URLs (without /store/{tenant}) for custom domains and platform subdomains
  */
 export function useCanonicalUrls() {
   const { tenantSlug = '' } = useParams<{ tenantSlug: string }>();
@@ -32,10 +33,10 @@ export function useCanonicalUrls() {
     // The canonical origin (e.g., "https://loja.example.com" or "https://tenant.shops.comandocentral.com.br")
     origin: getCanonicalOrigin(customDomain, tenantSlug),
     
-    // The canonical store base URL
+    // The canonical store base URL (clean, without /store/{tenant} for custom/platform domains)
     storeBaseUrl: getCanonicalStoreBaseUrl(tenantSlug, customDomain),
     
-    // URL builders
+    // URL builders - all return clean URLs for custom/platform domains
     getHomeUrl: () => getCanonicalHomeUrl(tenantSlug, customDomain),
     
     getProductUrl: (productSlug: string | undefined) => 
