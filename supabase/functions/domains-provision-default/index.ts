@@ -93,6 +93,18 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check if there are any other domains for this tenant (custom domains)
+    const { data: otherDomains } = await supabase
+      .from('tenant_domains')
+      .select('id')
+      .eq('tenant_id', tenant_id)
+      .neq('type', 'platform_subdomain')
+      .eq('is_primary', true)
+      .limit(1);
+
+    // If no other primary domain exists, this platform domain should be primary
+    const shouldBePrimary = !otherDomains || otherDomains.length === 0;
+
     // Create the domain record
     // NOTE: No Cloudflare API call - ACM handles SSL for *.shops.comandocentral.com.br
     const { data: newDomain, error: insertError } = await supabase
@@ -103,7 +115,7 @@ Deno.serve(async (req) => {
         type: 'platform_subdomain',
         status: 'verified',
         ssl_status: 'active', // SSL covered by ACM wildcard certificate
-        is_primary: false,
+        is_primary: shouldBePrimary, // Primary if no custom domain exists
         verification_token: 'platform-auto',
         target_hostname: `${SAAS_STOREFRONT_SUBDOMAIN}.${SAAS_DOMAIN}`,
         external_id: null, // No Custom Hostname needed - ACM handles it
@@ -144,7 +156,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[domains-provision-default] Created domain: ${newDomain.id}, hostname: ${hostname}`);
+    console.log(`[domains-provision-default] Created domain: ${newDomain.id}, hostname: ${hostname}, is_primary: ${shouldBePrimary}`);
     console.log(`[domains-provision-default] SSL is automatic via ACM wildcard certificate`);
 
     return new Response(

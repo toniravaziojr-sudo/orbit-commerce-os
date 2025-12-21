@@ -13,7 +13,16 @@ Modelo SaaS profissional de domínios para storefronts, seguindo as melhores pr�
 - Serve como **backup permanente** caso o domínio custom seja removido ou tenha problemas
 - SSL é automático via ACM (AWS Certificate Manager)
 
-### 2. Domínios Personalizados (Custom)
+### 2. Bootstrap Automático no Signup
+
+- **CRÍTICO:** Ao criar conta + loja, o sistema automaticamente:
+  1. Cria o tenant + tenantSlug
+  2. Chama `domains-provision-default` para criar o domínio platform
+  3. Marca como `verified`, `ssl_status: active`, `is_primary: true` (se não existir custom)
+- **O usuário NÃO precisa clicar em "Ativar Domínio"** - ele já nasce ativo
+- Fluxo: `CreateStore.tsx` → `create_tenant_for_user` RPC → `domains-provision-default` edge function
+
+### 3. Domínios Personalizados (Custom)
 
 - O cliente pode **adicionar/remover/substituir** domínios personalizados
 - Um domínio pode ser marcado como **Principal**
@@ -21,7 +30,7 @@ Modelo SaaS profissional de domínios para storefronts, seguindo as melhores pr�
   - Verificado (status = 'verified')
   - Com SSL ativo (ssl_status = 'active')
 
-### 3. Canonicalização e Redirects
+### 4. Canonicalização e Redirects
 
 Quando existe um domínio custom como **Principal**:
 
@@ -36,7 +45,7 @@ Quando **NÃO existe** domínio custom:
 |--------|---------|------|
 | `{tenantSlug}.shops.comandocentral.com.br/*` | (serve conteúdo) | 200 OK |
 
-### 4. URL Limpa
+### 5. URL Limpa
 
 - No domínio custom ou platform subdomain: URLs **limpas** sem `/store/{tenant}`
   - `https://loja.cliente.com.br/`
@@ -45,7 +54,7 @@ Quando **NÃO existe** domínio custom:
   
 - O path `/store/{tenantSlug}` é **interno** (traduzido pelo Worker) e nunca aparece na barra do navegador
 
-### 5. Separação de Responsabilidades
+### 6. Separação de Responsabilidades
 
 | Domínio | Propósito |
 |---------|-----------|
