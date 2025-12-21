@@ -250,6 +250,103 @@ export type Database = {
           },
         ]
       }
+      checkout_sessions: {
+        Row: {
+          abandoned_at: string | null
+          cart_id: string | null
+          converted_at: string | null
+          created_at: string
+          currency: string
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          id: string
+          items_snapshot: Json | null
+          last_seen_at: string
+          metadata: Json | null
+          order_id: string | null
+          recovered_at: string | null
+          region: string | null
+          started_at: string
+          status: string
+          tenant_id: string
+          total_estimated: number | null
+          updated_at: string
+          utm: Json | null
+        }
+        Insert: {
+          abandoned_at?: string | null
+          cart_id?: string | null
+          converted_at?: string | null
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          last_seen_at?: string
+          metadata?: Json | null
+          order_id?: string | null
+          recovered_at?: string | null
+          region?: string | null
+          started_at?: string
+          status?: string
+          tenant_id: string
+          total_estimated?: number | null
+          updated_at?: string
+          utm?: Json | null
+        }
+        Update: {
+          abandoned_at?: string | null
+          cart_id?: string | null
+          converted_at?: string | null
+          created_at?: string
+          currency?: string
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: string
+          items_snapshot?: Json | null
+          last_seen_at?: string
+          metadata?: Json | null
+          order_id?: string | null
+          recovered_at?: string | null
+          region?: string | null
+          started_at?: string
+          status?: string
+          tenant_id?: string
+          total_estimated?: number | null
+          updated_at?: string
+          utm?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_sessions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkouts: {
         Row: {
           abandoned_at: string | null

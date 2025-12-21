@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Tempo de abandono em minutos (produção = 30 min)
+const ABANDON_THRESHOLD_MINUTES = 30;
+
 // Security: Verify the request is from an authorized source
 async function isAuthorizedRequest(req: Request): Promise<boolean> {
   // Check if this is a scheduled invocation (internal Supabase call)
@@ -63,6 +66,145 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
   }
 }
 
+interface AbandonSweepStats {
+  sessions_abandoned: number;
+  events_emitted: number;
+  errors: number;
+}
+
+interface CheckoutSession {
+  id: string;
+  tenant_id: string;
+  customer_email: string | null;
+  customer_phone: string | null;
+  customer_name: string | null;
+  total_estimated: number | null;
+  items_snapshot: unknown[];
+  started_at: string;
+}
+
+// Detectar e marcar checkouts abandonados
+async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string): Promise<AbandonSweepStats> {
+  const stats: AbandonSweepStats = {
+    sessions_abandoned: 0,
+    events_emitted: 0,
+    errors: 0,
+  };
+
+  try {
+    const thresholdTime = new Date(Date.now() - ABANDON_THRESHOLD_MINUTES * 60 * 1000).toISOString();
+    console.log(`[abandon-sweep] Looking for sessions started before ${thresholdTime}`);
+
+    // Usar fetch direto para evitar problemas de tipagem com tabela nova
+    const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&started_at=lte.${encodeURIComponent(thresholdTime)}&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at`;
+    
+    const fetchResponse = await fetch(selectUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'apikey': supabaseServiceKey,
+      },
+    });
+
+    if (!fetchResponse.ok) {
+      const errorText = await fetchResponse.text();
+      console.error('[abandon-sweep] Error fetching sessions:', errorText);
+      stats.errors++;
+      return stats;
+    }
+
+    const activeSessions: CheckoutSession[] = await fetchResponse.json();
+
+    if (!activeSessions || activeSessions.length === 0) {
+      console.log('[abandon-sweep] No sessions to abandon');
+      return stats;
+    }
+
+    console.log(`[abandon-sweep] Found ${activeSessions.length} sessions to abandon`);
+
+    const now = new Date().toISOString();
+
+    for (const session of activeSessions) {
+      try {
+        // Marcar como abandonado via REST
+        const updateUrl = `${supabaseUrl}/rest/v1/checkout_sessions?id=eq.${session.id}&status=eq.active`;
+        const updateResponse = await fetch(updateUrl, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'apikey': supabaseServiceKey,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            status: 'abandoned',
+            abandoned_at: now,
+          }),
+        });
+
+        if (!updateResponse.ok) {
+          const errorText = await updateResponse.text();
+          console.error(`[abandon-sweep] Error updating session ${session.id}:`, errorText);
+          stats.errors++;
+          continue;
+        }
+
+        stats.sessions_abandoned++;
+
+        // Emitir evento checkout.abandoned (idempotente) via REST
+        try {
+          const idempotencyKey = `checkout.abandoned:${session.id}`;
+          const eventUrl = `${supabaseUrl}/rest/v1/events_inbox`;
+          await fetch(eventUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'apikey': supabaseServiceKey,
+              'Prefer': 'return=minimal',
+            },
+            body: JSON.stringify({
+              tenant_id: session.tenant_id,
+              event_type: 'checkout.abandoned',
+              idempotency_key: idempotencyKey,
+              provider: 'internal',
+              payload_raw: { session_id: session.id },
+              payload_normalized: {
+                session_id: session.id,
+                customer_email: session.customer_email,
+                customer_phone: session.customer_phone,
+                customer_name: session.customer_name,
+                total_estimated: session.total_estimated,
+                items_count: Array.isArray(session.items_snapshot) ? session.items_snapshot.length : 0,
+                started_at: session.started_at,
+                abandoned_at: now,
+              },
+              status: 'pending',
+            }),
+          });
+          stats.events_emitted++;
+          console.log(`[abandon-sweep] Session ${session.id} abandoned, event emitted`);
+        } catch (eventError) {
+          // Ignorar erro de duplicidade (evento já existia)
+          console.log(`[abandon-sweep] Event for session ${session.id} already exists or error:`, eventError);
+        }
+      } catch (sessionError) {
+        console.error(`[abandon-sweep] Error processing session ${session.id}:`, sessionError);
+        stats.errors++;
+      }
+    }
+
+    console.log(`[abandon-sweep] Completed: ${stats.sessions_abandoned} abandoned, ${stats.events_emitted} events`);
+    return stats;
+
+  } catch (error) {
+    console.error('[abandon-sweep] Fatal error:', error);
+    stats.errors++;
+    return stats;
+  }
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -79,6 +221,7 @@ interface TickStats {
     failed: number;
     errors: number;
   };
+  abandon_sweep: AbandonSweepStats;
 }
 
 interface AggregatedStats {
@@ -92,6 +235,7 @@ interface AggregatedStats {
     notifications_sent: number;
     notifications_retrying: number;
     notifications_failed: number;
+    sessions_abandoned: number;
   };
   passes: TickStats[];
 }
@@ -118,6 +262,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Parse optional parameters
     let body: { passes?: number; process_limit?: number; run_limit?: number } = {};
@@ -139,6 +284,7 @@ serve(async (req) => {
       notifications_sent: 0,
       notifications_retrying: 0,
       notifications_failed: 0,
+      sessions_abandoned: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -160,9 +306,24 @@ serve(async (req) => {
           failed: 0,
           errors: 0,
         },
+        abandon_sweep: {
+          sessions_abandoned: 0,
+          events_emitted: 0,
+          errors: 0,
+        },
       };
 
-      // --- Pass 1: Call process-events ---
+      // --- Step 1: Abandon Sweep (check for abandoned checkouts) ---
+      try {
+        console.log(`[scheduler-tick] Running abandon sweep...`);
+        passStats.abandon_sweep = await runAbandonSweep(supabaseUrl, supabaseServiceKey);
+        aggregatedTotals.sessions_abandoned += passStats.abandon_sweep.sessions_abandoned;
+      } catch (error) {
+        console.error(`[scheduler-tick] abandon-sweep exception:`, error);
+        passStats.abandon_sweep.errors = 1;
+      }
+
+      // --- Step 2: Call process-events ---
       try {
         console.log(`[scheduler-tick] Calling process-events with limit=${processLimit}`);
         const processResponse = await fetch(`${supabaseUrl}/functions/v1/process-events`, {
@@ -195,7 +356,7 @@ serve(async (req) => {
         passStats.process_events.errors = 1;
       }
 
-      // --- Pass 2: Call run-notifications ---
+      // --- Step 3: Call run-notifications ---
       try {
         console.log(`[scheduler-tick] Calling run-notifications with limit=${runLimit}`);
         const runResponse = await fetch(`${supabaseUrl}/functions/v1/run-notifications`, {

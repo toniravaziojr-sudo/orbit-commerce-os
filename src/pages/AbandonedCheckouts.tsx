@@ -30,7 +30,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAbandonedCheckouts, useAbandonedCheckoutStats, AbandonedCheckout } from '@/hooks/useAbandonedCheckouts';
+import { useCheckoutSessions, useCheckoutSessionsStats, CheckoutSession } from '@/hooks/useCheckoutSessions';
 import { StatCard } from '@/components/ui/stat-card';
 
 const BRAZILIAN_STATES = [
@@ -50,7 +50,7 @@ function formatDate(dateStr: string | null) {
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
   
   if (diffDays === 0) {
-    return format(date, 'HH:mm', { locale: ptBR });
+    return `Hoje às ${format(date, 'HH:mm', { locale: ptBR })}`;
   } else if (diffDays === 1) {
     return `Ontem às ${format(date, 'HH:mm', { locale: ptBR })}`;
   } else if (diffDays < 7) {
@@ -59,18 +59,21 @@ function formatDate(dateStr: string | null) {
   return format(date, 'dd/MM/yyyy HH:mm', { locale: ptBR });
 }
 
-function getStatusBadge(status: string | null, recoveryStatus: string) {
-  if (status === 'completed' || recoveryStatus === 'recovered') {
-    return <Badge variant="default" className="bg-green-600">Convertido</Badge>;
+function getStatusBadge(status: CheckoutSession['status']) {
+  switch (status) {
+    case 'recovered':
+      return <Badge variant="default" className="bg-green-600">Recuperado</Badge>;
+    case 'abandoned':
+      return <Badge variant="secondary" className="bg-amber-100 text-amber-800">Abandonado</Badge>;
+    case 'converted':
+      return <Badge variant="default" className="bg-blue-600">Convertido</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
   }
-  if (status === 'abandoned') {
-    return <Badge variant="secondary" className="bg-amber-100 text-amber-800">Abandonado</Badge>;
-  }
-  return <Badge variant="outline">Em progresso</Badge>;
 }
 
-function getRecoveryBadge(recoveryStatus: string) {
-  if (recoveryStatus === 'recovered') {
+function getRecoveryBadge(status: CheckoutSession['status']) {
+  if (status === 'recovered') {
     return <Badge variant="default" className="bg-green-100 text-green-800">Recuperado</Badge>;
   }
   return <Badge variant="secondary" className="bg-red-100 text-red-800">Não recuperado</Badge>;
@@ -79,33 +82,30 @@ function getRecoveryBadge(recoveryStatus: string) {
 export default function AbandonedCheckouts() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
-  const [recoveryStatus, setRecoveryStatus] = useState('all');
   const [region, setRegion] = useState('all');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  const [selectedCheckout, setSelectedCheckout] = useState<AbandonedCheckout | null>(null);
+  const [selectedSession, setSelectedSession] = useState<CheckoutSession | null>(null);
 
-  const { data: checkouts, isLoading } = useAbandonedCheckouts({
+  const { data: sessions, isLoading } = useCheckoutSessions({
     search,
-    status,
-    recoveryStatus,
+    status: status === 'all' ? undefined : status,
     startDate,
     endDate,
     region,
   });
 
-  const { data: stats } = useAbandonedCheckoutStats();
+  const { data: stats } = useCheckoutSessionsStats();
 
   const clearFilters = () => {
     setSearch('');
     setStatus('all');
-    setRecoveryStatus('all');
     setRegion('all');
     setStartDate(undefined);
     setEndDate(undefined);
   };
 
-  const hasActiveFilters = search || status !== 'all' || recoveryStatus !== 'all' || region !== 'all' || startDate || endDate;
+  const hasActiveFilters = search || status !== 'all' || region !== 'all' || startDate || endDate;
 
   return (
     <div className="space-y-6">
@@ -157,19 +157,7 @@ export default function AbandonedCheckouts() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="pending">Em progresso</SelectItem>
             <SelectItem value="abandoned">Abandonado</SelectItem>
-            <SelectItem value="completed">Convertido</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={recoveryStatus} onValueChange={setRecoveryStatus}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Recuperação" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            <SelectItem value="not_recovered">Não recuperado</SelectItem>
             <SelectItem value="recovered">Recuperado</SelectItem>
           </SelectContent>
         </Select>
@@ -243,38 +231,38 @@ export default function AbandonedCheckouts() {
                   <TableCell><Skeleton className="h-4 w-8" /></TableCell>
                 </TableRow>
               ))
-            ) : checkouts?.length === 0 ? (
+            ) : sessions?.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                  Nenhum checkout encontrado
+                  Nenhum checkout abandonado encontrado
                 </TableCell>
               </TableRow>
             ) : (
-              checkouts?.map((checkout) => (
-                <TableRow key={checkout.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedCheckout(checkout)}>
+              sessions?.map((session) => (
+                <TableRow key={session.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedSession(session)}>
                   <TableCell className="font-mono text-sm">
-                    #{checkout.id.slice(0, 8)}
+                    #{session.id.slice(0, 8)}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {formatDate(checkout.updated_at)}
+                    {formatDate(session.abandoned_at || session.started_at)}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{checkout.customer_name || '-'}</span>
-                      <span className="text-sm text-muted-foreground">{checkout.customer_email || '-'}</span>
+                      <span className="font-medium">{session.customer_name || '-'}</span>
+                      <span className="text-sm text-muted-foreground">{session.customer_email || '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {checkout.shipping_state || checkout.shipping_country || 'Brasil'}
+                    {session.region || 'Brasil'}
                   </TableCell>
                   <TableCell>
-                    {getStatusBadge(checkout.status, checkout.recovery_status)}
+                    {getStatusBadge(session.status)}
                   </TableCell>
                   <TableCell>
-                    {getRecoveryBadge(checkout.recovery_status)}
+                    {getRecoveryBadge(session.status)}
                   </TableCell>
                   <TableCell className="text-right font-medium">
-                    {formatCurrency(checkout.total)}
+                    {formatCurrency(session.total_estimated)}
                   </TableCell>
                   <TableCell>
                     <Button variant="ghost" size="icon">
@@ -289,42 +277,40 @@ export default function AbandonedCheckouts() {
       </div>
 
       {/* Detail Sheet */}
-      <Sheet open={!!selectedCheckout} onOpenChange={() => setSelectedCheckout(null)}>
+      <Sheet open={!!selectedSession} onOpenChange={() => setSelectedSession(null)}>
         <SheetContent className="sm:max-w-lg overflow-y-auto">
           <SheetHeader>
             <SheetTitle>Detalhes do Checkout</SheetTitle>
           </SheetHeader>
           
-          {selectedCheckout && (
+          {selectedSession && (
             <div className="space-y-6 mt-6">
               {/* Customer Info */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-muted-foreground">CLIENTE</h3>
                 <div className="space-y-1">
-                  <p className="font-medium">{selectedCheckout.customer_name || 'Nome não informado'}</p>
-                  <p className="text-sm text-muted-foreground">{selectedCheckout.customer_email || 'Email não informado'}</p>
-                  {selectedCheckout.customer_phone && (
-                    <p className="text-sm text-muted-foreground">{selectedCheckout.customer_phone}</p>
+                  <p className="font-medium">{selectedSession.customer_name || 'Nome não informado'}</p>
+                  <p className="text-sm text-muted-foreground">{selectedSession.customer_email || 'Email não informado'}</p>
+                  {selectedSession.customer_phone && (
+                    <p className="text-sm text-muted-foreground">{selectedSession.customer_phone}</p>
                   )}
                 </div>
               </div>
 
-              {/* Address */}
-              {(selectedCheckout.shipping_city || selectedCheckout.shipping_state) && (
+              {/* Region */}
+              {selectedSession.region && (
                 <div className="space-y-2">
-                  <h3 className="font-semibold text-sm text-muted-foreground">ENDEREÇO</h3>
-                  <p className="text-sm">
-                    {[selectedCheckout.shipping_city, selectedCheckout.shipping_state].filter(Boolean).join(', ')}
-                  </p>
+                  <h3 className="font-semibold text-sm text-muted-foreground">REGIÃO</h3>
+                  <p className="text-sm">{selectedSession.region}</p>
                 </div>
               )}
 
               {/* Items */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm text-muted-foreground">ITENS DO CARRINHO</h3>
-                {selectedCheckout.items_snapshot && selectedCheckout.items_snapshot.length > 0 ? (
+                {selectedSession.items_snapshot && selectedSession.items_snapshot.length > 0 ? (
                   <div className="space-y-2">
-                    {selectedCheckout.items_snapshot.map((item: any, idx: number) => (
+                    {(selectedSession.items_snapshot as any[]).map((item: any, idx: number) => (
                       <div key={idx} className="flex justify-between items-center py-2 border-b last:border-0">
                         <div className="flex items-center gap-3">
                           {item.image && (
@@ -344,27 +330,11 @@ export default function AbandonedCheckouts() {
                 )}
               </div>
 
-              {/* Totals */}
+              {/* Total */}
               <div className="space-y-2 border-t pt-4">
-                <div className="flex justify-between text-sm">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(selectedCheckout.subtotal)}</span>
-                </div>
-                {selectedCheckout.shipping_total && selectedCheckout.shipping_total > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span>Frete</span>
-                    <span>{formatCurrency(selectedCheckout.shipping_total)}</span>
-                  </div>
-                )}
-                {selectedCheckout.discount_total && selectedCheckout.discount_total > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Desconto</span>
-                    <span>-{formatCurrency(selectedCheckout.discount_total)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-semibold text-lg pt-2 border-t">
-                  <span>Total</span>
-                  <span>{formatCurrency(selectedCheckout.total)}</span>
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Total estimado</span>
+                  <span>{formatCurrency(selectedSession.total_estimated)}</span>
                 </div>
               </div>
 
@@ -374,22 +344,28 @@ export default function AbandonedCheckouts() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 text-sm">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    <span>Iniciado em {format(new Date(selectedCheckout.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                    <span>Iniciado em {format(new Date(selectedSession.started_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <div className="w-2 h-2 rounded-full bg-gray-400" />
-                    <span>Última atividade em {format(new Date(selectedCheckout.updated_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                    <span>Última atividade em {format(new Date(selectedSession.last_seen_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                   </div>
-                  {selectedCheckout.abandoned_at && (
+                  {selectedSession.abandoned_at && (
                     <div className="flex items-center gap-3 text-sm text-amber-600">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span>Abandonado em {format(new Date(selectedCheckout.abandoned_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                      <span>Abandonado em {format(new Date(selectedSession.abandoned_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                     </div>
                   )}
-                  {selectedCheckout.completed_at && (
+                  {selectedSession.recovered_at && (
                     <div className="flex items-center gap-3 text-sm text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <span>Convertido em {format(new Date(selectedCheckout.completed_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                      <span>Recuperado em {format(new Date(selectedSession.recovered_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
+                    </div>
+                  )}
+                  {selectedSession.converted_at && (
+                    <div className="flex items-center gap-3 text-sm text-blue-600">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Convertido em {format(new Date(selectedSession.converted_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</span>
                     </div>
                   )}
                 </div>
@@ -397,8 +373,8 @@ export default function AbandonedCheckouts() {
 
               {/* Status */}
               <div className="flex gap-2">
-                {getStatusBadge(selectedCheckout.status, selectedCheckout.recovery_status)}
-                {getRecoveryBadge(selectedCheckout.recovery_status)}
+                {getStatusBadge(selectedSession.status)}
+                {getRecoveryBadge(selectedSession.status)}
               </div>
             </div>
           )}
