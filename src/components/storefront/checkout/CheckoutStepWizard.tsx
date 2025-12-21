@@ -98,49 +98,31 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // ===== CHECKOUT SESSION TRACKING =====
   // Start session IMMEDIATELY on mount
   useEffect(() => {
-    console.log('[checkout-wizard] === MOUNTED ===');
-    console.log('[checkout-wizard] tenantId:', tenantId);
-    console.log('[checkout-wizard] host:', window.location.host);
-    console.log('[checkout-wizard] items:', items.length);
-    console.log('[checkout-wizard] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
-
-    if (sessionStartedRef.current) {
-      console.log('[checkout-wizard] Session already started');
-      return;
-    }
+    if (sessionStartedRef.current) return;
 
     const initSession = async () => {
       sessionStartedRef.current = true;
-      console.log('[checkout-wizard] === STARTING SESSION ===');
-      
-      try {
-        const result = await startCheckoutSession({
-          tenantSlug: tenantSlug || undefined,
-          cartItems: items.map(item => ({
-            product_id: item.product_id,
-            name: item.name,
-            sku: item.sku,
-            quantity: item.quantity,
-            price: item.price,
-          })),
-          totalEstimated: totals.grandTotal,
-          region: shipping.cep || undefined,
-        });
-        console.log('[checkout-wizard] Session result:', result);
-      } catch (err) {
-        console.error('[checkout-wizard] Session error:', err);
-      }
+      await startCheckoutSession({
+        tenantSlug: tenantSlug || undefined,
+        cartItems: items.map(item => ({
+          product_id: item.product_id,
+          name: item.name,
+          sku: item.sku,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        totalEstimated: totals.grandTotal,
+        region: shipping.cep || undefined,
+      });
     };
 
     initSession();
 
     // Cleanup: end session on unmount
     return () => {
-      console.log('[checkout-wizard] === UNMOUNTING ===');
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      // End session when leaving checkout
       endCheckoutSession();
     };
   }, []); // Empty deps - run once on mount
@@ -150,7 +132,6 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     if (!sessionStartedRef.current || items.length === 0) return;
 
     heartbeatIntervalRef.current = setInterval(() => {
-      console.log('[checkout-wizard] Heartbeat');
       heartbeatCheckoutSession({
         tenantSlug: tenantSlug || undefined,
         cartItems: items.map(item => ({
