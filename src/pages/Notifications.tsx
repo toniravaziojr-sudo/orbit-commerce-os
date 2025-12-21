@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle, Play } from "lucide-react";
+import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle, Play, Send } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -53,11 +53,21 @@ interface ProcessEventsStats {
   ledger_conflicts: number;
 }
 
+interface RunnerStats {
+  claimed_count: number;
+  processed_success: number;
+  processed_error: number;
+  scheduled_retries: number;
+  failed_final: number;
+  unstuck_count: number;
+}
+
 export default function Notifications() {
   const { profile } = useAuth();
   const isAdminOrOwner = useIsAdminOrOwner(profile?.current_tenant_id);
   const [isEmitting, setIsEmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const [lastResult, setLastResult] = useState<{
     success: boolean;
     duplicate: boolean;
@@ -68,6 +78,11 @@ export default function Notifications() {
   const [processResult, setProcessResult] = useState<{
     success: boolean;
     stats?: ProcessEventsStats;
+    error?: string;
+  } | null>(null);
+  const [runnerResult, setRunnerResult] = useState<{
+    success: boolean;
+    stats?: RunnerStats;
     error?: string;
   } | null>(null);
 
@@ -168,6 +183,50 @@ export default function Notifications() {
       toast.error("Erro inesperado: " + errorMessage);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleRunNotifications = async () => {
+    if (!profile?.current_tenant_id) {
+      toast.error("Tenant não encontrado");
+      return;
+    }
+
+    setIsRunning(true);
+    setRunnerResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('run-notifications', {
+        body: {
+          tenant_id: profile.current_tenant_id,
+          limit: 25,
+        },
+      });
+
+      if (error) {
+        console.error('[Notifications] Error running notifications:', error);
+        setRunnerResult({ success: false, error: error.message });
+        toast.error("Erro ao rodar runner: " + error.message);
+        return;
+      }
+
+      console.log('[Notifications] Runner result:', data);
+      setRunnerResult(data);
+
+      if (data.stats?.processed_success > 0) {
+        toast.success(`${data.stats.processed_success} notificação(ões) enviada(s)!`);
+      } else if (data.stats?.claimed_count === 0) {
+        toast.info("Nenhuma notificação pendente para enviar");
+      } else {
+        toast.info("Runner executado");
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('[Notifications] Unexpected error:', err);
+      setRunnerResult({ success: false, error: errorMessage });
+      toast.error("Erro inesperado: " + errorMessage);
+    } finally {
+      setIsRunning(false);
     }
   };
 
@@ -405,6 +464,76 @@ export default function Notifications() {
                     {processResult.error && (
                       <div className="font-mono text-xs">
                         <span className="text-muted-foreground">error:</span> {processResult.error}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Run Notifications (Runner) */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Send className="h-5 w-5" />
+                  Rodar Runner (Enviar Notificações)
+                </CardTitle>
+                <CardDescription>
+                  Executa o envio de notificações pendentes (status='scheduled'/'retrying'). Mock sender - não envia de verdade ainda.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={handleRunNotifications} 
+                  disabled={isRunning}
+                  variant="outline"
+                  className="w-full gap-2"
+                >
+                  {isRunning ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Rodar Runner Agora
+                    </>
+                  )}
+                </Button>
+
+                {runnerResult && (
+                  <div className={`rounded-lg p-3 text-sm ${
+                    runnerResult.success 
+                      ? 'bg-success/10 border border-success/20'
+                      : 'bg-destructive/10 border border-destructive/20'
+                  }`}>
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      {runnerResult.success ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-success" />
+                          <span className="text-success">Runner Executado</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                          <span className="text-destructive">Erro</span>
+                        </>
+                      )}
+                    </div>
+                    {runnerResult.stats && (
+                      <div className="font-mono text-xs space-y-1">
+                        <div><span className="text-muted-foreground">claimed_count:</span> {runnerResult.stats.claimed_count}</div>
+                        <div><span className="text-muted-foreground">processed_success:</span> {runnerResult.stats.processed_success}</div>
+                        <div><span className="text-muted-foreground">processed_error:</span> {runnerResult.stats.processed_error}</div>
+                        <div><span className="text-muted-foreground">scheduled_retries:</span> {runnerResult.stats.scheduled_retries}</div>
+                        <div><span className="text-muted-foreground">failed_final:</span> {runnerResult.stats.failed_final}</div>
+                        <div><span className="text-muted-foreground">unstuck_count:</span> {runnerResult.stats.unstuck_count}</div>
+                      </div>
+                    )}
+                    {runnerResult.error && (
+                      <div className="font-mono text-xs">
+                        <span className="text-muted-foreground">error:</span> {runnerResult.error}
                       </div>
                     )}
                   </div>
