@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle, Play } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -44,15 +44,30 @@ function useIsAdminOrOwner(tenantId: string | null | undefined) {
   return isAdminOrOwner;
 }
 
+interface ProcessEventsStats {
+  events_fetched: number;
+  events_processed: number;
+  events_ignored: number;
+  rules_matched: number;
+  notifications_created: number;
+  ledger_conflicts: number;
+}
+
 export default function Notifications() {
   const { profile } = useAuth();
   const isAdminOrOwner = useIsAdminOrOwner(profile?.current_tenant_id);
   const [isEmitting, setIsEmitting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [lastResult, setLastResult] = useState<{
     success: boolean;
     duplicate: boolean;
     event_id?: string;
     message?: string;
+    error?: string;
+  } | null>(null);
+  const [processResult, setProcessResult] = useState<{
+    success: boolean;
+    stats?: ProcessEventsStats;
     error?: string;
   } | null>(null);
 
@@ -109,6 +124,50 @@ export default function Notifications() {
       toast.error("Erro inesperado: " + errorMessage);
     } finally {
       setIsEmitting(false);
+    }
+  };
+
+  const handleProcessEvents = async () => {
+    if (!profile?.current_tenant_id) {
+      toast.error("Tenant não encontrado");
+      return;
+    }
+
+    setIsProcessing(true);
+    setProcessResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('process-events', {
+        body: {
+          tenant_id: profile.current_tenant_id,
+          limit: 50,
+        },
+      });
+
+      if (error) {
+        console.error('[Notifications] Error processing events:', error);
+        setProcessResult({ success: false, error: error.message });
+        toast.error("Erro ao processar eventos: " + error.message);
+        return;
+      }
+
+      console.log('[Notifications] Process events result:', data);
+      setProcessResult(data);
+
+      if (data.stats?.notifications_created > 0) {
+        toast.success(`${data.stats.notifications_created} notificação(ões) criada(s)!`);
+      } else if (data.stats?.events_fetched === 0) {
+        toast.info("Nenhum evento pendente para processar");
+      } else {
+        toast.info("Processamento concluído");
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('[Notifications] Unexpected error:', err);
+      setProcessResult({ success: false, error: errorMessage });
+      toast.error("Erro inesperado: " + errorMessage);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -283,8 +342,78 @@ export default function Notifications() {
               </CardContent>
             </Card>
 
-            {/* Webhook Info */}
+            {/* Process Events */}
             <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Play className="h-5 w-5" />
+                  Processar Eventos Pendentes
+                </CardTitle>
+                <CardDescription>
+                  Executa o motor de regras nos eventos com status 'new' e cria notificações conforme regras habilitadas.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Button 
+                  onClick={handleProcessEvents} 
+                  disabled={isProcessing}
+                  variant="secondary"
+                  className="w-full gap-2"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="h-4 w-4" />
+                      Processar Eventos
+                    </>
+                  )}
+                </Button>
+
+                {processResult && (
+                  <div className={`rounded-lg p-3 text-sm ${
+                    processResult.success 
+                      ? 'bg-success/10 border border-success/20'
+                      : 'bg-destructive/10 border border-destructive/20'
+                  }`}>
+                    <div className="flex items-center gap-2 font-medium mb-2">
+                      {processResult.success ? (
+                        <>
+                          <CheckCircle className="h-4 w-4 text-success" />
+                          <span className="text-success">Processamento Concluído</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                          <span className="text-destructive">Erro</span>
+                        </>
+                      )}
+                    </div>
+                    {processResult.stats && (
+                      <div className="font-mono text-xs space-y-1">
+                        <div><span className="text-muted-foreground">events_fetched:</span> {processResult.stats.events_fetched}</div>
+                        <div><span className="text-muted-foreground">events_processed:</span> {processResult.stats.events_processed}</div>
+                        <div><span className="text-muted-foreground">events_ignored:</span> {processResult.stats.events_ignored}</div>
+                        <div><span className="text-muted-foreground">rules_matched:</span> {processResult.stats.rules_matched}</div>
+                        <div><span className="text-muted-foreground">notifications_created:</span> {processResult.stats.notifications_created}</div>
+                        <div><span className="text-muted-foreground">ledger_conflicts:</span> {processResult.stats.ledger_conflicts}</div>
+                      </div>
+                    )}
+                    {processResult.error && (
+                      <div className="font-mono text-xs">
+                        <span className="text-muted-foreground">error:</span> {processResult.error}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Webhook Info */}
+            <Card className="lg:col-span-2">
               <CardHeader>
                 <CardTitle className="text-lg font-semibold">Endpoint de Webhook Externo</CardTitle>
                 <CardDescription>
@@ -296,21 +425,23 @@ export default function Notifications() {
                   POST /functions/v1/webhooks-external/:provider
                 </div>
 
-                <div className="text-sm space-y-2">
-                  <p className="font-medium">Headers obrigatórios:</p>
-                  <ul className="list-disc list-inside text-muted-foreground space-y-1">
-                    <li><code className="text-xs bg-muted px-1 rounded">x-tenant-id</code>: ID do tenant</li>
-                    <li><code className="text-xs bg-muted px-1 rounded">x-webhook-secret</code>: Secret configurado</li>
-                  </ul>
-                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="text-sm space-y-2">
+                    <p className="font-medium">Headers obrigatórios:</p>
+                    <ul className="list-disc list-inside text-muted-foreground space-y-1">
+                      <li><code className="text-xs bg-muted px-1 rounded">x-tenant-id</code>: ID do tenant</li>
+                      <li><code className="text-xs bg-muted px-1 rounded">x-webhook-secret</code>: Secret configurado</li>
+                    </ul>
+                  </div>
 
-                <div className="text-sm space-y-2">
-                  <p className="font-medium">Para configurar um webhook:</p>
-                  <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                    <li>Cadastre um secret na tabela <code className="text-xs bg-muted px-1 rounded">webhook_secrets</code></li>
-                    <li>Configure a URL no provedor externo</li>
-                    <li>Inclua os headers de autenticação</li>
-                  </ol>
+                  <div className="text-sm space-y-2">
+                    <p className="font-medium">Para configurar um webhook:</p>
+                    <ol className="list-decimal list-inside text-muted-foreground space-y-1">
+                      <li>Cadastre um secret na tabela <code className="text-xs bg-muted px-1 rounded">webhook_secrets</code></li>
+                      <li>Configure a URL no provedor externo</li>
+                      <li>Inclua os headers de autenticação</li>
+                    </ol>
+                  </div>
                 </div>
               </CardContent>
             </Card>
