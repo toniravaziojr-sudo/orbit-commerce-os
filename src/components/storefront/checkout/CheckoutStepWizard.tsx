@@ -21,9 +21,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
-import { useShipping } from '@/contexts/StorefrontConfigContext';
+import { useShipping, useCanonicalDomain } from '@/contexts/StorefrontConfigContext';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -58,6 +59,10 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
+  const { customDomain } = useCanonicalDomain();
+  
+  // Get canonical origin for auth redirects (custom domain or platform subdomain)
+  const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
@@ -321,7 +326,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
             email: formData.customerEmail,
             password: formData.password,
             options: {
-              emailRedirectTo: `${window.location.origin}/store/${tenantSlug}/conta`,
+              // Use canonical origin (custom domain or platform subdomain) with clean URL
+              emailRedirectTo: `${canonicalOrigin}/conta`,
               data: {
                 full_name: formData.customerName,
               }

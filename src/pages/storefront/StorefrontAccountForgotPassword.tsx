@@ -16,12 +16,19 @@ import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useCanonicalDomain } from '@/contexts/StorefrontConfigContext';
+import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 
 export default function StorefrontAccountForgotPassword() {
   const tenantSlug = useTenantSlug();
   const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
+  
+  // Get canonical domain for auth redirects
+  const canonicalDomainContext = useCanonicalDomain();
+  const customDomain = canonicalDomainContext?.customDomain || null;
+  const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
 
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -59,8 +66,9 @@ export default function StorefrontAccountForgotPassword() {
     setIsLoading(true);
 
     try {
+      // Use canonical origin (custom domain or platform subdomain) with clean URL
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}${basePath}/conta/redefinir-senha`,
+        redirectTo: `${canonicalOrigin}/conta/redefinir-senha`,
       });
 
       if (resetError) {

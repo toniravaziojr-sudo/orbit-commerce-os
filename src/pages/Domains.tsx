@@ -412,14 +412,17 @@ export default function Domains() {
                               <Star className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteConfirm(domain)}
-                            title="Remover domínio"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
+                          {/* Platform subdomains cannot be deleted */}
+                          {domain.type !== 'platform_subdomain' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteConfirm(domain)}
+                              title="Remover domínio"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

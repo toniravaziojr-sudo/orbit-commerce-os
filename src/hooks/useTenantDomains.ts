@@ -279,6 +279,12 @@ export function useTenantDomains() {
       return false;
     }
 
+    // INVARIANTE: Platform subdomains cannot be deleted (backup domain)
+    if (domain.type === 'platform_subdomain') {
+      toast.error('O domínio padrão da plataforma não pode ser removido. Ele serve como backup permanente da sua loja.');
+      return false;
+    }
+
     // Se é principal e não foi forçado, verificar se há outros domínios custom
     if (domain.is_primary && !forceRemovePrimary) {
       const otherCustomDomains = domains.filter(d => d.id !== domainId && d.type === 'custom');
