@@ -1,11 +1,10 @@
 /**
- * Cloudflare Worker - Multi-tenant SaaS Router (VERSÃO DEFINITIVA)
+ * Cloudflare Worker - Multi-tenant SaaS Router (VERSÃO SIMPLIFICADA)
  *
- * CORREÇÃO FINAL: Assets servidos na raiz, SPA fallback
- *
- * O Lovable/Vite serve assets em /assets/* na RAIZ do origin.
- * O Worker NÃO deve prefixar assets com /store/{tenant}.
- * Para rotas de página, o origin retorna o index.html (SPA).
+ * Arquitetura domain-based:
+ * - O React App já detecta o hostname e resolve o tenant
+ * - O Worker só faz proxy transparente para o origin
+ * - NÃO adiciona /store/{tenant} - o app resolve sozinho
  *
  * ENV vars:
  * - ORIGIN_HOST = orbit-commerce-os.lovable.app
@@ -13,98 +12,7 @@
  * - SUPABASE_ANON_KEY = <sua anon key>
  */
 
-const RESERVED_SLUGS = new Set(["app", "shops", "www", "api", "cdn", "admin"]);
 const PLATFORM_BASE_RE = /\.shops\.comandocentral\.com\.br$/i;
-
-const RESOLVE_CACHE_TTL = 300;
-const MAX_INTERNAL_REDIRECTS = 5;
-
-const PUBLIC_STOREFRONT_PREFIXES = [
-  "/store/",
-  "/products",
-  "/product/",
-  "/category/",
-  "/categories",
-  "/collections",
-  "/cart",
-  "/checkout",
-  "/thank-you",
-  "/obrigado",
-  "/order/",
-  "/orders",
-  "/p/",
-  "/c/",
-  "/lp/",
-  "/page/",
-  "/conta",
-  "/minhas-compras",
-];
-
-const AUTH_ADMIN_PREFIXES = [
-  "/auth",
-  "/login",
-  "/logout",
-  "/admin",
-  "/dashboard",
-  "/settings",
-];
-
-// Paths que SEMPRE vão para a RAIZ do origin (sem /store/{tenant})
-const ROOT_ONLY_PATHS = [
-  "/assets/",
-  "/@vite/",
-  "/node_modules/",
-  "/src/",
-  "/robots.txt",
-  "/sitemap",
-  "/manifest",
-  "/favicon",
-];
-
-function isPublicStorefrontPath(pathname) {
-  const path = (pathname || "/").toLowerCase();
-
-  for (const prefix of AUTH_ADMIN_PREFIXES) {
-    if (path === prefix || path.startsWith(prefix + "/") || path.startsWith(prefix + "?")) return false;
-  }
-
-  for (const prefix of PUBLIC_STOREFRONT_PREFIXES) {
-    if (path === prefix || path.startsWith(prefix)) return true;
-  }
-
-  return path === "/" || path === "";
-}
-
-function isRootOnlyPath(pathname) {
-  const path = (pathname || "").toLowerCase();
-  for (const prefix of ROOT_ONLY_PATHS) {
-    if (path === prefix || path.startsWith(prefix)) return true;
-  }
-  return false;
-}
-
-function isApiPath(pathname) {
-  const path = (pathname || "").toLowerCase();
-  return path.startsWith("/api/");
-}
-
-function cleanPublicSearch(search) {
-  if (!search) return "";
-  const u = new URL("https://x.invalid/" + search.replace(/^\?/, ""));
-  u.searchParams.delete("preview");
-  u.searchParams.delete("previewId");
-  u.searchParams.delete("previewToken");
-  const out = u.searchParams.toString();
-  return out ? `?${out}` : "";
-}
-
-function stripStorePrefix(pathname, tenantSlug) {
-  const p = pathname || "/";
-  const prefix = `/store/${tenantSlug}`;
-  if (p === prefix) return "/";
-  if (p.startsWith(prefix + "/")) return p.slice(prefix.length) || "/";
-  return null;
-}
 
 export default {
   async fetch(request, env) {
@@ -115,10 +23,13 @@ export default {
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
 
     const edgeHost = url.hostname.toLowerCase();
+    
+    // Rejeitar acesso direto pelo workers.dev
     if (edgeHost.endsWith(".workers.dev")) {
       return new Response("Please access via the correct domain", { status: 404 });
     }
 
+    // Determinar o host público (cf-connecting-host tem prioridade)
     const cfConnectingHost = request.headers.get("cf-connecting-host");
     const publicHost = (cfConnectingHost || edgeHost).toLowerCase().replace(/^www\./, "");
 
@@ -158,7 +69,7 @@ export default {
       return Response.redirect("https://app.comandocentral.com.br/", 302);
     }
 
-    // Resolver tenant
+    // Resolver tenant para validação e canonicalização
     const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
 
     if (!resolved?.tenantSlug) {
@@ -179,265 +90,129 @@ export default {
     const tenantSlug = resolved.tenantSlug;
     const primaryPublicHost = (resolved.primaryPublicHost || "").toLowerCase().replace(/^www\./, "");
     const canonicalHost = primaryPublicHost || publicHost;
-    const isCustomHost = !PLATFORM_BASE_RE.test(publicHost);
 
-    console.log(`[Worker] Resolved: tenant=${tenantSlug} canonical=${canonicalHost} isCustom=${isCustomHost}`);
-
-    // ============================================
-    // ASSETS E ARQUIVOS ESTÁTICOS: SEMPRE NA RAIZ
-    // ============================================
-    if (isRootOnlyPath(url.pathname)) {
-      console.log(`[Worker] Root-only path (asset/static): ${url.pathname}`);
-      return await proxyToRoot(request, ORIGIN_HOST, url.pathname + (url.search || ""), publicHost, tenantSlug);
-    }
+    console.log(`[Worker] Resolved: tenant=${tenantSlug} canonical=${canonicalHost}`);
 
     // ============================================
-    // API: Prefixar com /store/{tenant}
+    // CANONICALIZAÇÃO: platform subdomain → custom domain
     // ============================================
-    if (isApiPath(url.pathname)) {
-      const originPath = `/store/${tenantSlug}${url.pathname}`;
-      console.log(`[Worker] API path: ${url.pathname} -> ${originPath}`);
-      return await proxySimple(request, ORIGIN_HOST, originPath + (url.search || ""), publicHost, tenantSlug);
-    }
-
-    // ============================================
-    // CANONICALIZAÇÃO: redirecionar platform → custom
-    // ============================================
-    if (isPublicStorefrontPath(url.pathname) && publicHost !== canonicalHost && primaryPublicHost) {
-      const target = `https://${canonicalHost}${url.pathname}${cleanPublicSearch(url.search)}`;
-      console.log(`[Worker] Canonical redirect: ${publicHost} -> ${canonicalHost}`);
+    if (PLATFORM_BASE_RE.test(publicHost) && primaryPublicHost && publicHost !== primaryPublicHost) {
+      const cleanSearch = cleanPublicSearch(url.search);
+      const target = `https://${primaryPublicHost}${url.pathname}${cleanSearch}`;
+      console.log(`[Worker] Canonical redirect: ${publicHost} -> ${primaryPublicHost}`);
       return Response.redirect(target, 301);
     }
 
     // ============================================
-    // URL LIMPA: se browser pedir /store/{tenant}..., redirect 301 para path limpo
+    // PROXY TRANSPARENTE PARA O ORIGIN
+    // O React App detecta o hostname e resolve o tenant
+    // NÃO adiciona /store/{tenant} - o app faz isso internamente
     // ============================================
-    const stripped = stripStorePrefix(url.pathname, tenantSlug);
-    if (isCustomHost && stripped !== null) {
-      const target = `https://${publicHost}${stripped}${cleanPublicSearch(url.search)}`;
-      console.log(`[Worker] Clean URL redirect: ${url.pathname} -> ${stripped}`);
-      return Response.redirect(target, 301);
+    const originUrl = `https://${ORIGIN_HOST}${url.pathname}${url.search || ""}`;
+    
+    console.log(`[Worker] Proxy to origin: ${originUrl}`);
+
+    const headers = new Headers();
+    for (const [key, value] of request.headers.entries()) {
+      if (key.toLowerCase() === "host") continue;
+      headers.set(key, value);
     }
 
+    // Headers para o app saber o contexto
+    headers.set("Host", ORIGIN_HOST);
+    headers.set("X-Forwarded-Host", publicHost);
+    headers.set("X-Forwarded-Proto", "https");
+    headers.set("X-Tenant-Slug", tenantSlug);
+    headers.set("X-Domain-Type", PLATFORM_BASE_RE.test(publicHost) ? "platform_subdomain" : "custom");
+
+    const response = await fetch(originUrl, {
+      method: request.method,
+      headers,
+      body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
+      redirect: "manual", // NÃO seguir redirects automaticamente
+    });
+
+    console.log(`[Worker] Origin response: ${response.status}`);
+
     // ============================================
-    // PÁGINAS (SPA): Buscar no origin COM /store/{tenant}
+    // REESCREVER REDIRECTS DO ORIGIN
+    // Se origin redireciona para lovable.app, reescrever para o host público
     // ============================================
-    let originPath;
-    if (isCustomHost) {
-      originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
-    } else {
-      // Platform: verificar se já tem prefixo
-      if (stripped === null) {
-        originPath = `/store/${tenantSlug}${url.pathname === "/" ? "" : url.pathname}`;
-      } else {
-        originPath = url.pathname;
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("Location");
+      if (location) {
+        const rewrittenLocation = rewriteLocation(location, publicHost, ORIGIN_HOST, tenantSlug);
+        console.log(`[Worker] Rewriting redirect: ${location} -> ${rewrittenLocation}`);
+        
+        const outHeaders = cloneHeaders(response.headers);
+        outHeaders.set("Location", rewrittenLocation);
+        outHeaders.set("X-CC-Original-Location", location);
+        
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: outHeaders,
+        });
       }
     }
 
-    console.log(`[Worker] Proxying SPA page: ${url.pathname} -> ${originPath}`);
+    // Retornar resposta do origin
+    const outHeaders = cloneHeaders(response.headers);
+    outHeaders.set("X-CC-Tenant-Slug", tenantSlug);
+    outHeaders.set("X-CC-Public-Host", publicHost);
 
-    return await proxyWithSpaFallback(request, {
-      ORIGIN_HOST,
-      publicHost,
-      tenantSlug,
-      domainType: isCustomHost ? "custom" : "platform_subdomain",
-      originPath,
-      isCustomHost,
-      search: url.search,
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: outHeaders,
     });
   },
 };
 
-/**
- * Proxy direto para a RAIZ do origin (sem prefixo de tenant)
- * Usado para: /assets/*, /@vite/*, /robots.txt, etc.
- */
-async function proxyToRoot(request, originHost, originPath, publicHost, tenantSlug) {
-  const originUrl = `https://${originHost}${originPath}`;
+// ============================================
+// FUNÇÕES AUXILIARES
+// ============================================
 
-  const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
-    if (key.toLowerCase() === "host") continue;
-    headers.set(key, value);
-  }
-  headers.set("X-Forwarded-Host", publicHost);
-  headers.set("X-Tenant-Slug", tenantSlug);
-
-  console.log(`[Worker] Fetching from root: ${originUrl}`);
-
-  const response = await fetch(originUrl, {
-    method: request.method,
-    headers,
-    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-    redirect: "follow",
-  });
-
-  console.log(`[Worker] Root fetch result: ${response.status}`);
-
-  const outHeaders = cloneHeaders(response.headers);
-  outHeaders.set("X-CC-Origin-Path", originPath);
-  outHeaders.set("X-CC-Strategy", "root");
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: outHeaders,
-  });
+function cleanPublicSearch(search) {
+  if (!search) return "";
+  const u = new URL("https://x.invalid/" + search.replace(/^\?/, ""));
+  u.searchParams.delete("preview");
+  u.searchParams.delete("previewId");
+  u.searchParams.delete("previewToken");
+  const out = u.searchParams.toString();
+  return out ? `?${out}` : "";
 }
 
-/**
- * Proxy simples com prefixo de tenant (para APIs)
- */
-async function proxySimple(request, originHost, originPath, publicHost, tenantSlug) {
-  const originUrl = `https://${originHost}${originPath}`;
-
-  const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
-    if (key.toLowerCase() === "host") continue;
-    headers.set(key, value);
-  }
-  headers.set("X-Forwarded-Host", publicHost);
-  headers.set("X-Tenant-Slug", tenantSlug);
-
-  console.log(`[Worker] Simple proxy: ${originUrl}`);
-
-  const response = await fetch(originUrl, {
-    method: request.method,
-    headers,
-    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-    redirect: "follow",
-  });
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: cloneHeaders(response.headers),
-  });
-}
-
-/**
- * Proxy para páginas SPA com fallback para index.html
- * Se o origin retornar 404, tenta buscar a raiz (SPA fallback)
- */
-async function proxyWithSpaFallback(request, config) {
-  const { ORIGIN_HOST, publicHost, tenantSlug, domainType, originPath, isCustomHost, search } = config;
-
-  const originUrl = `https://${ORIGIN_HOST}${originPath}${search || ""}`;
-
-  const headers = new Headers();
-  for (const [key, value] of request.headers.entries()) {
-    if (key.toLowerCase() === "host") continue;
-    headers.set(key, value);
-  }
-
-  if (headers.has("origin")) headers.set("origin", `https://${publicHost}`);
-  if (headers.has("referer")) {
-    try {
-      const r = new URL(headers.get("referer"));
-      r.hostname = publicHost;
-      headers.set("referer", r.toString());
-    } catch {}
-  }
-
-  headers.set("X-Forwarded-Host", publicHost);
-  headers.set("X-Forwarded-Proto", "https");
-  headers.set("X-Tenant-Slug", tenantSlug);
-  headers.set("X-Domain-Type", domainType);
-
-  console.log(`[Worker] SPA fetch: ${originUrl}`);
-
-  let response = await fetch(originUrl, {
-    method: request.method,
-    headers,
-    body: request.method !== "GET" && request.method !== "HEAD" ? request.body : undefined,
-    redirect: "manual",
-  });
-
-  console.log(`[Worker] SPA fetch result: ${response.status}`);
-
-  // Handle redirects
-  if (response.status >= 300 && response.status < 400) {
-    const location = response.headers.get("Location");
-    if (location) {
-      const rewrittenLocation = rewriteLocation(location, publicHost, ORIGIN_HOST, tenantSlug, isCustomHost);
-      const outHeaders = cloneHeaders(response.headers);
-      rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
-      outHeaders.set("Location", rewrittenLocation);
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: outHeaders,
-      });
-    }
-  }
-
-  // Se 404 e é uma rota de página, tenta SPA fallback (buscar index.html na raiz)
-  if (response.status === 404 && request.method === "GET") {
-    console.log(`[Worker] 404 detected, trying SPA fallback`);
-    
-    // Tenta buscar o index.html na raiz do tenant
-    const spaUrl = `https://${ORIGIN_HOST}/store/${tenantSlug}`;
-    const spaResponse = await fetch(spaUrl, {
-      method: "GET",
-      headers,
-      redirect: "follow",
-    });
-
-    console.log(`[Worker] SPA fallback result: ${spaResponse.status}`);
-
-    if (spaResponse.status === 200) {
-      const outHeaders = cloneHeaders(spaResponse.headers);
-      outHeaders.set("X-CC-SPA-Fallback", "true");
-      rewriteSetCookieDomains(spaResponse.headers, outHeaders, publicHost, ORIGIN_HOST);
-      return new Response(spaResponse.body, {
-        status: 200,
-        statusText: "OK",
-        headers: outHeaders,
-      });
-    }
-  }
-
-  const outHeaders = cloneHeaders(response.headers);
-  rewriteSetCookieDomains(response.headers, outHeaders, publicHost, ORIGIN_HOST);
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: outHeaders,
-  });
-}
-
-/**
- * Reescreve Location header para o host público
- */
-function rewriteLocation(location, publicHost, originHost, tenantSlug, isCustomHost) {
+function rewriteLocation(location, publicHost, originHost, tenantSlug) {
   try {
+    // Path relativo
     if (location.startsWith("/")) {
-      // Path relativo
-      let path = location;
-      if (isCustomHost) {
-        const stripped = stripStorePrefix(path, tenantSlug);
-        if (stripped !== null) path = stripped;
-      }
-      return `https://${publicHost}${path}`;
+      // Remover /store/{tenant} se presente
+      const stripped = stripStorePrefix(location, tenantSlug);
+      const cleanPath = stripped !== null ? stripped : location;
+      return `https://${publicHost}${cleanPath}`;
     }
 
+    // URL absoluta
     const u = new URL(location);
     const targetHost = u.hostname.toLowerCase();
 
+    // Lista de hosts do origin que devem ser reescritos
     const originHosts = new Set([
       "orbit-commerce-os.lovable.app",
       "shops.comandocentral.com.br",
+      "app.comandocentral.com.br",
       originHost.toLowerCase(),
     ]);
 
-    if (originHosts.has(targetHost) || targetHost.endsWith(".shops.comandocentral.com.br")) {
+    if (originHosts.has(targetHost) || targetHost.endsWith(".lovable.app")) {
       u.hostname = publicHost;
       u.protocol = "https:";
-      if (isCustomHost) {
-        const stripped = stripStorePrefix(u.pathname, tenantSlug);
-        if (stripped !== null) u.pathname = stripped;
-      }
+      
+      // Remover /store/{tenant} se presente
+      const stripped = stripStorePrefix(u.pathname, tenantSlug);
+      if (stripped !== null) u.pathname = stripped;
+      
       return u.toString();
     }
 
@@ -447,17 +222,41 @@ function rewriteLocation(location, publicHost, originHost, tenantSlug, isCustomH
   }
 }
 
+function stripStorePrefix(pathname, tenantSlug) {
+  const p = pathname || "/";
+  const prefix = `/store/${tenantSlug}`;
+  if (p === prefix) return "/";
+  if (p.startsWith(prefix + "/")) return p.slice(prefix.length) || "/";
+  return null;
+}
+
+function cloneHeaders(headers) {
+  const out = new Headers();
+  for (const [key, value] of headers.entries()) {
+    // Remover headers problemáticos
+    if (key.toLowerCase() === "content-encoding") continue;
+    if (key.toLowerCase() === "content-length") continue;
+    out.append(key, value);
+  }
+  return out;
+}
+
 async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
+  // Tentar cache primeiro
   if (SUPABASE_URL && SUPABASE_ANON_KEY) {
     const cacheKey = new Request(`https://resolve-domain-cache.internal/${hostname}`);
     try {
       const cached = await caches.default.match(cacheKey);
       if (cached) {
         const data = await cached.json();
-        if (data?.tenantSlug) return data;
+        if (data?.tenantSlug) {
+          console.log(`[Worker] Tenant from cache: ${data.tenantSlug}`);
+          return data;
+        }
       }
     } catch {}
 
+    // Chamar edge function
     try {
       const endpoint = `${SUPABASE_URL}/functions/v1/resolve-domain`;
       const res = await fetch(endpoint, {
@@ -474,8 +273,7 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
         const data = await res.json();
         console.log(`[Worker] resolveTenant result:`, JSON.stringify(data));
 
-        // IMPORTANTE: A Edge Function retorna snake_case (tenant_slug, primary_public_host)
-        // Aceitar ambos os formatos para robustez
+        // Aceitar snake_case e camelCase
         const tenantSlug = data.tenant_slug || data.tenantSlug;
         const primaryPublicHost = data.primary_public_host || data.primaryPublicHost || null;
 
@@ -485,9 +283,10 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
             primaryPublicHost: primaryPublicHost,
           };
 
+          // Cachear resultado
           try {
             const cacheRes = new Response(JSON.stringify(result), {
-              headers: { "Cache-Control": `max-age=${RESOLVE_CACHE_TTL}` },
+              headers: { "Cache-Control": "max-age=300" },
             });
             await caches.default.put(cacheKey, cacheRes);
           } catch {}
@@ -500,36 +299,14 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
     }
   }
 
-  // Fallback: extrair slug do hostname platform
-  const match = hostname.match(/^([^.]+)\.shops\.comandocentral\.com\.br$/i);
-  if (match && match[1] && !RESERVED_SLUGS.has(match[1].toLowerCase())) {
-    return { tenantSlug: match[1].toLowerCase(), primaryPublicHost: null };
+  // Fallback: extrair tenant de platform subdomain
+  const platformMatch = hostname.match(/^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/i);
+  if (platformMatch) {
+    return {
+      tenantSlug: platformMatch[1],
+      primaryPublicHost: null,
+    };
   }
 
   return null;
-}
-
-function cloneHeaders(sourceHeaders) {
-  const out = new Headers();
-  for (const [key, value] of sourceHeaders.entries()) {
-    const k = key.toLowerCase();
-    if (k.startsWith("cf-") || k === "x-real-ip" || k === "x-forwarded-for") continue;
-    out.append(key, value);
-  }
-  return out;
-}
-
-function rewriteSetCookieDomains(sourceHeaders, targetHeaders, publicHost, originHost) {
-  const cookies = sourceHeaders.getAll ? sourceHeaders.getAll("set-cookie") : [];
-  if (!cookies.length) return;
-
-  targetHeaders.delete("set-cookie");
-
-  for (const cookie of cookies) {
-    let rewritten = cookie
-      .replace(new RegExp(`domain=${originHost}`, "gi"), `domain=${publicHost}`)
-      .replace(/domain=\.?orbit-commerce-os\.lovable\.app/gi, `domain=${publicHost}`)
-      .replace(/domain=\.?shops\.comandocentral\.com\.br/gi, `domain=${publicHost}`);
-    targetHeaders.append("set-cookie", rewritten);
-  }
 }
