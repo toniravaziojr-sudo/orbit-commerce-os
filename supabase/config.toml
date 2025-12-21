@@ -66,3 +66,12 @@ verify_jwt = false
 [functions.scheduler-tick]
 verify_jwt = false
 schedule = "* * * * *"
+
+[functions.checkout-session-start]
+verify_jwt = false
+
+[functions.checkout-session-heartbeat]
+verify_jwt = false
+
+[functions.checkout-session-complete]
+verify_jwt = false
