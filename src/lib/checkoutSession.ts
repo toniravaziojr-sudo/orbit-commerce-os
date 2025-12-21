@@ -75,52 +75,35 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
   const sessionId = getOrCreateCheckoutSessionId();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   
-  const endpoint = `${supabaseUrl}/functions/v1/checkout-session-start`;
-
-  console.log('[checkout-session] === STARTING SESSION ===');
-  console.log('[checkout-session] Session ID:', sessionId);
-  console.log('[checkout-session] Endpoint:', endpoint);
-  console.log('[checkout-session] Host:', window.location.host);
-
   if (!supabaseUrl) {
-    console.error('[checkout-session] CRITICAL: VITE_SUPABASE_URL is not defined!');
     return { success: false, sessionId };
   }
 
   try {
-    const body = {
-      session_id: sessionId,
-      tenant_slug: params.tenantSlug || undefined,
-      customer_email: params.customerEmail?.toLowerCase().trim(),
-      customer_phone: params.customerPhone?.replace(/\D/g, ''),
-      customer_name: params.customerName,
-      region: params.region,
-      total_estimated: params.totalEstimated,
-      items_snapshot: params.cartItems,
-      store_host: window.location.host,
-    };
-    
-    console.log('[checkout-session] Sending request...');
-
-    const response = await fetch(endpoint, {
+    const response = await fetch(`${supabaseUrl}/functions/v1/checkout-session-start`, {
       method: 'POST',
       headers: getSimpleHeaders(),
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        session_id: sessionId,
+        tenant_slug: params.tenantSlug || undefined,
+        customer_email: params.customerEmail?.toLowerCase().trim(),
+        customer_phone: params.customerPhone?.replace(/\D/g, ''),
+        customer_name: params.customerName,
+        region: params.region,
+        total_estimated: params.totalEstimated,
+        items_snapshot: params.cartItems,
+        store_host: window.location.host,
+      }),
     });
 
-    console.log('[checkout-session] Response status:', response.status);
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[checkout-session] Start failed:', response.status, errorText);
       return { success: false, sessionId };
     }
 
-    const result = await response.json();
-    console.log('[checkout-session] Session started:', result);
+    await response.json();
     return { success: true, sessionId };
   } catch (error) {
-    console.error('[checkout-session] Error starting session:', error);
+    console.error('[checkout-session] Start error:', error);
     return { success: false, sessionId };
   }
 }
@@ -190,37 +173,29 @@ export async function completeCheckoutSession(params: {
  */
 export function endCheckoutSession(): void {
   const sessionId = getCheckoutSessionId();
-  if (!sessionId) {
-    console.log('[checkout-session] No session to end');
-    return;
-  }
+  if (!sessionId) return;
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) return;
+
   const url = `${supabaseUrl}/functions/v1/checkout-session-end`;
   const payload = JSON.stringify({
     session_id: sessionId,
     store_host: window.location.host,
   });
 
-  console.log('[checkout-session] Ending session:', sessionId);
-
   // Use sendBeacon with text/plain (no CORS preflight)
   if (navigator.sendBeacon) {
     const blob = new Blob([payload], { type: 'text/plain' });
-    const sent = navigator.sendBeacon(url, blob);
-    console.log('[checkout-session] Beacon sent:', sent);
+    navigator.sendBeacon(url, blob);
     return;
   }
 
   // Fallback: fetch with keepalive
-  try {
-    fetch(url, {
-      method: 'POST',
-      headers: getSimpleHeaders(),
-      body: payload,
-      keepalive: true,
-    }).catch(err => console.error('[checkout-session] End fetch failed:', err));
-  } catch (error) {
-    console.error('[checkout-session] End error:', error);
-  }
+  fetch(url, {
+    method: 'POST',
+    headers: getSimpleHeaders(),
+    body: payload,
+    keepalive: true,
+  }).catch(() => {});
 }
