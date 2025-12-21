@@ -75,24 +75,44 @@ export interface CheckoutSessionParams {
 export async function startCheckoutSession(params: CheckoutSessionParams): Promise<{ success: boolean; sessionId: string }> {
   const sessionId = getOrCreateCheckoutSessionId();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  
+  const endpoint = `${supabaseUrl}/functions/v1/checkout-session-start`;
 
-  console.log('[checkout-session] Starting session with host:', window.location.host);
+  console.log('[checkout-session] === STARTING SESSION ===');
+  console.log('[checkout-session] Session ID:', sessionId);
+  console.log('[checkout-session] Supabase URL:', supabaseUrl);
+  console.log('[checkout-session] Endpoint:', endpoint);
+  console.log('[checkout-session] Host:', window.location.host);
+  console.log('[checkout-session] Origin:', window.location.origin);
+
+  if (!supabaseUrl) {
+    console.error('[checkout-session] CRITICAL: VITE_SUPABASE_URL is not defined!');
+    return { success: false, sessionId };
+  }
 
   try {
-    const response = await fetch(`${supabaseUrl}/functions/v1/checkout-session-start`, {
+    const body = {
+      session_id: sessionId,
+      tenant_slug: params.tenantSlug || undefined,
+      customer_email: params.customerEmail?.toLowerCase().trim(),
+      customer_phone: params.customerPhone?.replace(/\D/g, ''),
+      customer_name: params.customerName,
+      region: params.region,
+      total_estimated: params.totalEstimated,
+      items_snapshot: params.cartItems,
+      store_host: window.location.host, // Include in body as backup
+    };
+    
+    console.log('[checkout-session] Request body:', JSON.stringify(body, null, 2));
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: getApiHeaders(),
-      body: JSON.stringify({
-        session_id: sessionId,
-        tenant_slug: params.tenantSlug || undefined,
-        customer_email: params.customerEmail?.toLowerCase().trim(),
-        customer_phone: params.customerPhone?.replace(/\D/g, ''),
-        customer_name: params.customerName,
-        region: params.region,
-        total_estimated: params.totalEstimated,
-        items_snapshot: params.cartItems,
-      }),
+      body: JSON.stringify(body),
     });
+
+    console.log('[checkout-session] Response status:', response.status);
+    console.log('[checkout-session] Response ok:', response.ok);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -101,7 +121,7 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
     }
 
     const result = await response.json();
-    console.log('[checkout-session] Session started:', sessionId, result);
+    console.log('[checkout-session] Session started successfully:', sessionId, result);
     return { success: true, sessionId };
   } catch (error) {
     console.error('[checkout-session] Error starting session:', error);

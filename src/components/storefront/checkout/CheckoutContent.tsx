@@ -54,13 +54,21 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
 
-  // Start checkout session once on mount - with retry for items loading
+  // Start checkout session IMMEDIATELY on mount
   useEffect(() => {
+    console.log('[checkout] === COMPONENT MOUNTED ===');
+    console.log('[checkout] tenantId:', tenantId);
+    console.log('[checkout] tenantSlug:', tenantSlug);
+    console.log('[checkout] items.length:', items.length);
+    console.log('[checkout] cartLoading:', cartLoading);
+    console.log('[checkout] window.location.host:', window.location.host);
+    console.log('[checkout] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
+    
     const startSession = async () => {
-      if (sessionStarted.current) return;
-      
-      // Log immediately to verify effect runs
-      console.log('[checkout] Session effect running, items:', items.length, 'cartLoading:', cartLoading);
+      if (sessionStarted.current) {
+        console.log('[checkout] Session already started, skipping');
+        return;
+      }
       
       // If cart is still loading, retry after a delay
       if (cartLoading && retryCountRef.current < 5) {
@@ -76,30 +84,35 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = shipping.selected?.price || 0;
       
-      console.log('[checkout] Starting session NOW, items:', items.length, 'host:', window.location.host);
+      console.log('[checkout] === CALLING startCheckoutSession ===');
       
-      const result = await startCheckoutSession({
-        tenantSlug: tenantSlug || undefined,
-        cartItems: items.map(item => ({
-          product_id: item.product_id,
-          name: item.name,
-          sku: item.sku,
-          quantity: item.quantity,
-          price: item.price,
-          image_url: item.image_url,
-        })),
-        totalEstimated: subtotal + shippingTotal,
-        customerEmail: formData.customerEmail || undefined,
-        customerPhone: formData.customerPhone || undefined,
-        customerName: formData.customerName || undefined,
-        region: shipping.cep || undefined,
-      });
-      
-      console.log('[checkout] Session start result:', result);
+      try {
+        const result = await startCheckoutSession({
+          tenantSlug: tenantSlug || undefined,
+          cartItems: items.map(item => ({
+            product_id: item.product_id,
+            name: item.name,
+            sku: item.sku,
+            quantity: item.quantity,
+            price: item.price,
+            image_url: item.image_url,
+          })),
+          totalEstimated: subtotal + shippingTotal,
+          customerEmail: formData.customerEmail || undefined,
+          customerPhone: formData.customerPhone || undefined,
+          customerName: formData.customerName || undefined,
+          region: shipping.cep || undefined,
+        });
+        
+        console.log('[checkout] Session start result:', result);
+      } catch (err) {
+        console.error('[checkout] Session start EXCEPTION:', err);
+      }
     };
     
+    // Start immediately
     startSession();
-  }, [cartLoading, items, shipping, tenantSlug]);
+  }, [cartLoading, items, shipping, tenantSlug, tenantId, formData.customerEmail, formData.customerPhone, formData.customerName]);
 
   // Heartbeat every 25 seconds while in checkout
   useEffect(() => {
