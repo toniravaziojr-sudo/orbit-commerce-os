@@ -1,237 +1,115 @@
 /**
- * Cloudflare Worker - Multi-tenant SaaS Router (URL LIMPA)
- *
- * Objetivo:
- * - Browser vê URLs limpas (sem /store/{tenant})
- * - Origin recebe /store/{tenant} internamente
- * - Worker faz "path translation" e SPA fallback
- *
- * ENV vars:
- * - ORIGIN_HOST = orbit-commerce-os.lovable.app
- * - SUPABASE_URL = https://ojssezfjhdvvncsqyhyq.supabase.co
- * - SUPABASE_ANON_KEY = <sua anon key>
+ * Cloudflare Worker - Multi-tenant SaaS Router (TRANSPARENT PROXY)
+ * 
+ * OBJETIVO FINAL:
+ * - URL LIMPA no navegador (sem /store/{tenant})
+ * - Domínio custom é o canônico quando existe
+ * - Subdomínio padrão redireciona 301 para o custom quando existe
+ * 
+ * ESTRATÉGIA CORRETA:
+ * - O Worker faz PROXY TRANSPARENTE (NÃO adiciona /store/{tenant})
+ * - O React App detecta tenant host e usa rotas na RAIZ
+ * - O Worker só resolve tenant, canonicaliza hosts, e faz SPA fallback
+ * 
+ * ENV VARIABLES (configure no Cloudflare):
+ * - ORIGIN_HOST: origin do app (ex: orbit-commerce-os.lovable.app)
+ * - SUPABASE_URL: URL do projeto Supabase
+ * - SUPABASE_ANON_KEY: Anon key do Supabase
  */
 
-const PLATFORM_BASE_RE = /\.shops\.comandocentral\.com\.br$/i;
+const PLATFORM_SUBDOMAIN_RE = /^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/i;
 const RESOLVE_CACHE_TTL = 300;
-const MAX_INTERNAL_REDIRECTS = 5;
 
-// Paths que devem ir SEMPRE na RAIZ do origin (Vite/Lovable assets)
-const ROOT_ONLY_PATHS = [
-  "/assets/",
-  "/@vite/",
-  "/node_modules/",
-  "/src/",
-  "/robots.txt",
-  "/sitemap",
-  "/manifest",
-  "/favicon",
+// Paths que sempre vão para a raiz do origin (assets do Vite)
+const STATIC_PATHS = [
+  '/assets/',
+  '/@vite/',
+  '/node_modules/',
+  '/src/',
+  '/favicon',
+  '/robots.txt',
+  '/sitemap',
+  '/manifest',
 ];
 
-function isRootOnlyPath(pathname) {
-  const p = (pathname || "/").toLowerCase();
-  return ROOT_ONLY_PATHS.some((x) => p === x || p.startsWith(x));
+function isStaticPath(pathname) {
+  const p = pathname.toLowerCase();
+  return STATIC_PATHS.some(prefix => p.startsWith(prefix) || p === prefix.replace(/\/$/, ''));
 }
 
-function isApiPath(pathname) {
-  const p = (pathname || "").toLowerCase();
-  return p.startsWith("/api/");
+function cleanPreviewParams(search) {
+  if (!search) return '';
+  const params = new URLSearchParams(search.replace(/^\?/, ''));
+  params.delete('preview');
+  params.delete('previewId');
+  params.delete('previewToken');
+  params.delete('draft');
+  const out = params.toString();
+  return out ? `?${out}` : '';
 }
 
-function cleanPublicSearch(search) {
-  if (!search) return "";
-  const u = new URL("https://x.invalid/" + search.replace(/^\?/, ""));
-  u.searchParams.delete("preview");
-  u.searchParams.delete("previewId");
-  u.searchParams.delete("previewToken");
-  const out = u.searchParams.toString();
-  return out ? `?${out}` : "";
-}
-
-function stripStorePrefix(pathname, tenantSlug) {
-  const p = pathname || "/";
-  const prefix = `/store/${tenantSlug}`;
-  if (p === prefix) return "/";
-  if (p.startsWith(prefix + "/")) return p.slice(prefix.length) || "/";
-  return null;
-}
-
-function cloneHeaders(h) {
-  const out = new Headers();
-  for (const [k, v] of h.entries()) {
-    const lk = k.toLowerCase();
-    if (lk === "content-length") continue;
-    if (lk === "content-encoding") continue;
-    out.append(k, v);
+async function resolveTenant(hostname, env) {
+  const { SUPABASE_URL, SUPABASE_ANON_KEY } = env;
+  
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    // Fallback: extract from platform subdomain
+    const match = hostname.match(PLATFORM_SUBDOMAIN_RE);
+    if (match) {
+      return { tenantSlug: match[1], primaryPublicHost: null, domainType: 'platform_subdomain' };
+    }
+    return null;
   }
-  return out;
-}
 
-function buildOriginPath({ pathname, tenantSlug }) {
-  // Assets/static na raiz
-  if (isRootOnlyPath(pathname)) return pathname;
-
-  // API sob /store/{tenant}/api/*
-  if (isApiPath(pathname)) return `/store/${tenantSlug}${pathname}`;
-
-  // Páginas: / -> /store/{tenant}
-  if (pathname === "/" || pathname === "") return `/store/${tenantSlug}`;
-
-  // Páginas: /p/x -> /store/{tenant}/p/x
-  return `/store/${tenantSlug}${pathname}`;
-}
-
-function rewriteLocationToCleanPublic(location, publicHost, originHost, tenantSlug) {
+  // Try cache first
+  const cacheKey = new Request(`https://resolve-cache.internal/${hostname}`);
   try {
-    // Relativo
-    if (location.startsWith("/")) {
-      const stripped = stripStorePrefix(location, tenantSlug);
-      const cleanPath = stripped !== null ? stripped : location;
-      return `https://${publicHost}${cleanPath}`;
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const data = await cached.json();
+      if (data?.tenantSlug) return data;
     }
+  } catch {}
 
-    // Absoluto
-    const u = new URL(location);
-    const targetHost = u.hostname.toLowerCase();
-
-    const originHosts = new Set([
-      originHost.toLowerCase(),
-      "orbit-commerce-os.lovable.app",
-      "app.comandocentral.com.br",
-      "shops.comandocentral.com.br",
-    ]);
-
-    if (originHosts.has(targetHost) || targetHost.endsWith(".lovable.app")) {
-      u.hostname = publicHost;
-      u.protocol = "https:";
-      const stripped = stripStorePrefix(u.pathname, tenantSlug);
-      if (stripped !== null) u.pathname = stripped;
-      return u.toString();
-    }
-
-    // Redirect externo - não mexe
-    return location;
-  } catch {
-    return location;
-  }
-}
-
-async function fetchWithInternalFollow({
-  request,
-  originHost,
-  originUrl,
-  publicHost,
-  tenantSlug,
-}) {
-  const headers = new Headers();
-  for (const [k, v] of request.headers.entries()) {
-    if (k.toLowerCase() === "host") continue;
-    headers.set(k, v);
-  }
-
-  headers.set("Host", originHost);
-  headers.set("X-Forwarded-Host", publicHost);
-  headers.set("X-Forwarded-Proto", "https");
-  headers.set("X-Tenant-Slug", tenantSlug);
-  headers.set("X-Domain-Type", "custom_or_platform");
-
-  let currentUrl = originUrl;
-  let redirects = 0;
-
-  while (true) {
-    const res = await fetch(currentUrl, {
-      method: request.method,
-      headers,
-      body:
-        request.method !== "GET" && request.method !== "HEAD"
-          ? request.body
-          : undefined,
-      redirect: "manual",
+  try {
+    const endpoint = `${SUPABASE_URL}/functions/v1/resolve-domain`;
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ hostname }),
     });
 
-    // Se não é redirect, retorna
-    if (!(res.status >= 300 && res.status < 400)) return res;
+    if (res.ok) {
+      const data = await res.json();
+      const tenantSlug = data.tenant_slug || data.tenantSlug;
+      const primaryPublicHost = data.primary_public_host || data.primaryPublicHost || null;
+      const domainType = data.domain_type || 'custom';
 
-    // Para métodos não-GET, não seguir internamente
-    if (request.method !== "GET" && request.method !== "HEAD") return res;
-
-    const loc = res.headers.get("Location");
-    if (!loc) return res;
-
-    redirects += 1;
-    if (redirects > MAX_INTERNAL_REDIRECTS) return res;
-
-    // Seguimos internamente apenas redirects para o próprio origin
-    let nextUrl;
-    try {
-      if (loc.startsWith("/")) {
-        nextUrl = `https://${originHost}${loc}`;
-      } else {
-        const u = new URL(loc);
-        const h = u.hostname.toLowerCase();
-        if (h === originHost.toLowerCase() || h.endsWith(".lovable.app")) {
-          nextUrl = u.toString();
-        } else {
-          // Externo: devolve redirect
-          return res;
-        }
+      if (data.found && tenantSlug) {
+        const result = { tenantSlug, primaryPublicHost, domainType };
+        try {
+          await caches.default.put(
+            cacheKey,
+            new Response(JSON.stringify(result), {
+              headers: { 'Cache-Control': `max-age=${RESOLVE_CACHE_TTL}` },
+            })
+          );
+        } catch {}
+        return result;
       }
-    } catch {
-      return res;
     }
-
-    currentUrl = nextUrl;
-  }
-}
-
-async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
-  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    const cacheKey = new Request(`https://resolve-domain-cache.internal/${hostname}`);
-    try {
-      const cached = await caches.default.match(cacheKey);
-      if (cached) {
-        const data = await cached.json();
-        if (data?.tenantSlug) return data;
-      }
-    } catch {}
-
-    try {
-      const endpoint = `${SUPABASE_URL}/functions/v1/resolve-domain`;
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ hostname }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const tenantSlug = data.tenant_slug || data.tenantSlug;
-        const primaryPublicHost =
-          data.primary_public_host || data.primaryPublicHost || null;
-
-        if (data.found && tenantSlug) {
-          const result = { tenantSlug, primaryPublicHost };
-          try {
-            await caches.default.put(
-              cacheKey,
-              new Response(JSON.stringify(result), {
-                headers: { "Cache-Control": `max-age=${RESOLVE_CACHE_TTL}` },
-              })
-            );
-          } catch {}
-          return result;
-        }
-      }
-    } catch {}
+  } catch (e) {
+    console.error('[resolveTenant] Error:', e);
   }
 
-  // Fallback: platform subdomain -> slug
-  const m = hostname.match(/^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/i);
-  if (m?.[1]) return { tenantSlug: m[1], primaryPublicHost: null };
+  // Fallback for platform subdomain
+  const match = hostname.match(PLATFORM_SUBDOMAIN_RE);
+  if (match) {
+    return { tenantSlug: match[1], primaryPublicHost: null, domainType: 'platform_subdomain' };
+  }
 
   return null;
 }
@@ -239,133 +117,204 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const ORIGIN_HOST = env.ORIGIN_HOST || 'orbit-commerce-os.lovable.app';
 
-    const ORIGIN_HOST = env.ORIGIN_HOST || "orbit-commerce-os.lovable.app";
-    const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
-    const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
-
+    // Get the public hostname (what the user sees)
     const edgeHost = url.hostname.toLowerCase();
-    if (edgeHost.endsWith(".workers.dev")) {
-      return new Response("Please access via the correct domain", { status: 404 });
+    
+    // Ignore workers.dev
+    if (edgeHost.endsWith('.workers.dev')) {
+      return new Response('Access via correct domain', { status: 404 });
     }
 
-    const cfConnectingHost = request.headers.get("cf-connecting-host");
-    const publicHost = (cfConnectingHost || edgeHost).toLowerCase().replace(/^www\./, "");
+    // Use cf-connecting-host if available (original user host)
+    const cfHost = request.headers.get('cf-connecting-host');
+    const publicHost = (cfHost || edgeHost).toLowerCase().replace(/^www\./, '');
 
-    // Debug endpoint
-    if (url.pathname === "/_debug" || url.pathname === "/_health") {
-      const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
+    // ========== DEBUG ENDPOINT ==========
+    if (url.pathname === '/_debug' || url.pathname === '/_health') {
+      const resolved = await resolveTenant(publicHost, env);
+      const isCanonical = resolved?.primaryPublicHost 
+        ? publicHost === resolved.primaryPublicHost.toLowerCase().replace(/^www\./, '')
+        : true;
+
       return new Response(
-        JSON.stringify(
-          {
-            timestamp: new Date().toISOString(),
-            hostname: publicHost,
-            edgeHost,
-            path: url.pathname,
-            envConfigured: {
-              ORIGIN_HOST: !!ORIGIN_HOST,
-              SUPABASE_URL: !!SUPABASE_URL,
-              SUPABASE_ANON_KEY: !!SUPABASE_ANON_KEY,
-            },
-            resolved: resolved ? {
-              tenantSlug: resolved.tenantSlug,
-              primaryPublicHost: resolved.primaryPublicHost,
-              isCanonical: publicHost === (resolved.primaryPublicHost || "").toLowerCase().replace(/^www\./, ""),
-            } : null,
-            status: resolved?.tenantSlug ? "OK" : "TENANT_NOT_FOUND",
+        JSON.stringify({
+          timestamp: new Date().toISOString(),
+          hostname: publicHost,
+          edgeHost,
+          path: url.pathname,
+          envConfigured: {
+            ORIGIN_HOST: !!ORIGIN_HOST,
+            SUPABASE_URL: !!env.SUPABASE_URL,
+            SUPABASE_ANON_KEY: !!env.SUPABASE_ANON_KEY,
           },
-          null,
-          2
-        ),
-        { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+          resolved: {
+            tenantSlug: resolved?.tenantSlug || null,
+            primaryPublicHost: resolved?.primaryPublicHost || null,
+            domainType: resolved?.domainType || null,
+          },
+          isCanonical,
+          strategy: 'transparent_proxy',
+          status: resolved?.tenantSlug ? 'OK' : 'TENANT_NOT_FOUND',
+        }, null, 2),
+        { 
+          status: 200, 
+          headers: { 
+            'Content-Type': 'application/json', 
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+          } 
+        }
       );
     }
 
-    // Domínio raiz do catálogo de tenants
-    if (publicHost === "shops.comandocentral.com.br") {
-      return Response.redirect("https://app.comandocentral.com.br/", 302);
+    // ========== ROOT SHOPS DOMAIN ==========
+    if (publicHost === 'shops.comandocentral.com.br') {
+      return Response.redirect('https://app.comandocentral.com.br/', 302);
     }
 
-    const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
+    // ========== RESOLVE TENANT ==========
+    const resolved = await resolveTenant(publicHost, env);
+    
     if (!resolved?.tenantSlug) {
       return new Response(
-        JSON.stringify(
-          {
-            error: "Domain not configured",
-            hostname: publicHost,
-            supabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
-          },
-          null,
-          2
-        ),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: 'Domain not configured',
+          hostname: publicHost,
+          hint: 'This domain is not linked to any tenant',
+        }, null, 2),
+        { 
+          status: 404, 
+          headers: { 'Content-Type': 'application/json' } 
+        }
       );
     }
 
-    const tenantSlug = resolved.tenantSlug;
-    const primaryPublicHost = (resolved.primaryPublicHost || "").toLowerCase().replace(/^www\./, "");
+    const { tenantSlug, primaryPublicHost, domainType } = resolved;
 
-    // Canonical: platform -> custom
-    if (PLATFORM_BASE_RE.test(publicHost) && primaryPublicHost && publicHost !== primaryPublicHost) {
-      const target = `https://${primaryPublicHost}${url.pathname}${cleanPublicSearch(url.search)}`;
-      return Response.redirect(target, 301);
+    // ========== CANONICAL REDIRECT (platform subdomain → custom domain) ==========
+    if (domainType === 'platform_subdomain' && primaryPublicHost) {
+      const normalizedPrimary = primaryPublicHost.toLowerCase().replace(/^www\./, '');
+      if (publicHost !== normalizedPrimary) {
+        // Platform subdomain should redirect to custom domain
+        const redirectUrl = `https://${primaryPublicHost}${url.pathname}${cleanPreviewParams(url.search)}`;
+        return Response.redirect(redirectUrl, 301);
+      }
     }
 
-    // 1) Traduz path do browser para path do origin
-    const originPath = buildOriginPath({ pathname: url.pathname, tenantSlug });
-    const originUrl = `https://${ORIGIN_HOST}${originPath}${url.search || ""}`;
+    // ========== TRANSPARENT PROXY TO ORIGIN ==========
+    // IMPORTANTE: O Worker faz proxy TRANSPARENTE - NÃO adiciona /store/{tenant}
+    // O React app usa isOnTenantHost() baseado no X-Forwarded-Host para detectar tenant host
+    // e rotear na raiz automaticamente
+    
+    const originUrl = `https://${ORIGIN_HOST}${url.pathname}${url.search}`;
 
-    // 2) Fetch no origin seguindo redirects internos
-    let originRes = await fetchWithInternalFollow({
-      request,
-      originHost: ORIGIN_HOST,
-      originUrl,
-      publicHost,
-      tenantSlug,
+    const proxyHeaders = new Headers();
+    for (const [key, value] of request.headers.entries()) {
+      const lowerKey = key.toLowerCase();
+      // Skip hop-by-hop headers
+      if (['host', 'connection', 'keep-alive', 'transfer-encoding', 'upgrade'].includes(lowerKey)) {
+        continue;
+      }
+      proxyHeaders.set(key, value);
+    }
+
+    // CRITICAL: Pass the public host so the React app knows we're on a tenant domain
+    proxyHeaders.set('X-Forwarded-Host', publicHost);
+    proxyHeaders.set('X-Forwarded-Proto', 'https');
+    proxyHeaders.set('X-Tenant-Slug', tenantSlug);
+    proxyHeaders.set('X-Original-Host', publicHost);
+
+    const originRes = await fetch(originUrl, {
+      method: request.method,
+      headers: proxyHeaders,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      redirect: 'manual', // Handle redirects ourselves
     });
 
-    // 3) Se ainda veio redirect, reescreve Location para host público e URL limpa
+    // ========== HANDLE REDIRECTS FROM ORIGIN ==========
     if (originRes.status >= 300 && originRes.status < 400) {
-      const loc = originRes.headers.get("Location");
-      if (loc) {
-        const outHeaders = cloneHeaders(originRes.headers);
-        outHeaders.set("Location", rewriteLocationToCleanPublic(loc, publicHost, ORIGIN_HOST, tenantSlug));
-        outHeaders.set("X-CC-Original-Location", loc);
-        return new Response(originRes.body, { status: originRes.status, headers: outHeaders });
+      const location = originRes.headers.get('Location');
+      if (location) {
+        let newLocation = location;
+        
+        try {
+          // Rewrite redirect to use public host
+          if (location.startsWith('/')) {
+            newLocation = `https://${publicHost}${location}`;
+          } else {
+            const locUrl = new URL(location);
+            const locHost = locUrl.hostname.toLowerCase();
+            
+            // If redirecting to origin or lovable domain, rewrite to public host
+            if (locHost === ORIGIN_HOST.toLowerCase() || 
+                locHost.endsWith('.lovable.app') ||
+                locHost === 'app.comandocentral.com.br') {
+              locUrl.hostname = publicHost;
+              locUrl.protocol = 'https:';
+              
+              // Strip /store/{tenant} prefix if present (origin might add it)
+              const storePrefix = `/store/${tenantSlug}`;
+              if (locUrl.pathname === storePrefix) {
+                locUrl.pathname = '/';
+              } else if (locUrl.pathname.startsWith(storePrefix + '/')) {
+                locUrl.pathname = locUrl.pathname.substring(storePrefix.length);
+              }
+              
+              newLocation = locUrl.toString();
+            }
+          }
+        } catch {}
+
+        const resHeaders = new Headers(originRes.headers);
+        resHeaders.set('Location', newLocation);
+        resHeaders.set('X-CC-Original-Location', location);
+        resHeaders.set('X-CC-Tenant', tenantSlug);
+        
+        return new Response(originRes.body, {
+          status: originRes.status,
+          statusText: originRes.statusText,
+          headers: resHeaders,
+        });
       }
     }
 
-    // 4) SPA fallback: se GET e veio 404 para rota de página, tenta servir /store/{tenant}
-    if (
-      originRes.status === 404 &&
-      request.method === "GET" &&
-      !isRootOnlyPath(url.pathname) &&
-      !isApiPath(url.pathname)
-    ) {
-      const spaUrl = `https://${ORIGIN_HOST}/store/${tenantSlug}`;
-      const spaHeaders = new Headers();
-      for (const [k, v] of request.headers.entries()) {
-        if (k.toLowerCase() === "host") continue;
-        spaHeaders.set(k, v);
-      }
-      spaHeaders.set("Host", ORIGIN_HOST);
-      spaHeaders.set("X-Forwarded-Host", publicHost);
-      spaHeaders.set("X-Tenant-Slug", tenantSlug);
+    // ========== SPA FALLBACK ==========
+    // If origin returns 404 for a page route, return the SPA index
+    if (originRes.status === 404 && 
+        request.method === 'GET' && 
+        !isStaticPath(url.pathname) &&
+        !url.pathname.startsWith('/api/')) {
       
-      originRes = await fetch(spaUrl, { method: "GET", headers: spaHeaders, redirect: "manual" });
-      const outHeaders = cloneHeaders(originRes.headers);
-      outHeaders.set("X-CC-SPA-Fallback", "true");
-      return new Response(originRes.body, { status: 200, headers: outHeaders });
+      // Try fetching root (SPA entry point)
+      const spaRes = await fetch(`https://${ORIGIN_HOST}/`, {
+        method: 'GET',
+        headers: proxyHeaders,
+        redirect: 'manual',
+      });
+      
+      if (spaRes.ok) {
+        const resHeaders = new Headers(spaRes.headers);
+        resHeaders.set('X-CC-SPA-Fallback', 'true');
+        resHeaders.set('X-CC-Tenant', tenantSlug);
+        
+        return new Response(spaRes.body, {
+          status: 200,
+          headers: resHeaders,
+        });
+      }
     }
 
-    const outHeaders = cloneHeaders(originRes.headers);
-    outHeaders.set("X-CC-Tenant", tenantSlug);
-    outHeaders.set("X-CC-Origin-Path", originPath);
+    // ========== PASS THROUGH RESPONSE ==========
+    const resHeaders = new Headers(originRes.headers);
+    resHeaders.set('X-CC-Tenant', tenantSlug);
+    resHeaders.set('X-CC-Origin-Path', url.pathname);
 
     return new Response(originRes.body, {
       status: originRes.status,
       statusText: originRes.statusText,
-      headers: outHeaders,
+      headers: resHeaders,
     });
   },
 };

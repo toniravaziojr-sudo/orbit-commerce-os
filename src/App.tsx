@@ -71,14 +71,21 @@ function isOnTenantHost(): boolean {
   // If on platform subdomain (tenant.shops.comandocentral.com.br) → tenant host
   if (isPlatformSubdomain(hostname)) return true;
   
-  // If NOT on app domain and NOT on fallback origin → likely custom domain
-  if (!isAppDomain(hostname)) {
-    const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
-    if (hostname !== fallbackHost) return true;
-  }
+  // If on app domain → NOT tenant host (admin panel)
+  if (isAppDomain(hostname)) return false;
   
-  return false;
+  // If on fallback origin (lovable preview) → NOT tenant host
+  const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
+  if (hostname === fallbackHost) return false;
+  
+  // If on localhost → NOT tenant host (development)
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
+  
+  // Any other domain is considered a custom tenant domain
+  // This includes domains like loja.respeiteohomem.com.br
+  return true;
 }
+
 
 const queryClient = new QueryClient();
 
