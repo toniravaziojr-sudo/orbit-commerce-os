@@ -1,3 +1,8 @@
+// ============================================
+// CHECKOUT SESSION COMPLETE - Marks session as converted/recovered
+// Resolves tenant by slug (secure, server-side)
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -17,17 +22,44 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    const { session_id, tenant_id, order_id, customer_email, customer_phone } = body;
+    const { 
+      session_id, 
+      tenant_slug,
+      tenant_id: legacyTenantId, 
+      order_id, 
+      customer_email, 
+      customer_phone 
+    } = body;
 
-    if (!tenant_id) {
-      return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+    if (!order_id) {
+      return new Response(JSON.stringify({ error: 'order_id is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!order_id) {
-      return new Response(JSON.stringify({ error: 'order_id is required' }), {
+    // Resolve tenant_id from slug (secure) or use legacy tenant_id
+    let tenantId = legacyTenantId;
+    
+    if (tenant_slug) {
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenant_slug)
+        .single();
+
+      if (tenantError || !tenant) {
+        console.error('[checkout-session-complete] Tenant not found for slug:', tenant_slug);
+        return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      tenantId = tenant.id;
+    }
+
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: 'tenant_slug or tenant_id is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -46,7 +78,7 @@ serve(async (req) => {
         .from('checkout_sessions')
         .select('id, status')
         .eq('id', session_id)
-        .eq('tenant_id', tenant_id)
+        .eq('tenant_id', tenantId)
         .single();
 
       if (session) {
@@ -78,7 +110,7 @@ serve(async (req) => {
       let query = supabase
         .from('checkout_sessions')
         .select('id, status')
-        .eq('tenant_id', tenant_id)
+        .eq('tenant_id', tenantId)
         .in('status', ['active', 'abandoned'])
         .is('order_id', null)
         .order('started_at', { ascending: false })
@@ -124,7 +156,7 @@ serve(async (req) => {
         await supabase
           .from('events_inbox')
           .insert({
-            tenant_id,
+            tenant_id: tenantId,
             event_type: 'checkout.completed',
             idempotency_key: idempotencyKey,
             provider: 'internal',

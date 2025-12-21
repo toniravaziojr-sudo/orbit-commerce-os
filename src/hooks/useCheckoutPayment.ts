@@ -68,6 +68,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     shippingOption,
     customer,
     card,
+    checkoutSessionId,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -75,6 +76,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     shippingOption: ShippingOption | null;
     customer: CustomerData;
     card?: CardData;
+    checkoutSessionId?: string;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -96,6 +98,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       const { data: orderData, error: orderError } = await supabase.functions.invoke('checkout-create-order', {
         body: {
           tenant_id: tenantId,
+          checkout_session_id: checkoutSessionId,
           customer: {
             name: customer.name,
             email: customer.email,

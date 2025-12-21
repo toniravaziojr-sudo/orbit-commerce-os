@@ -1,3 +1,8 @@
+// ============================================
+// CHECKOUT SESSION START - Creates/updates checkout session
+// Resolves tenant by slug (secure, server-side)
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -19,7 +24,8 @@ serve(async (req) => {
     const body = await req.json();
     const {
       session_id,
-      tenant_id,
+      tenant_slug,
+      tenant_id: legacyTenantId,
       cart_id,
       customer_id,
       customer_email,
@@ -40,21 +46,41 @@ serve(async (req) => {
       });
     }
 
-    if (!tenant_id) {
-      return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+    // Resolve tenant_id from slug (secure) or use legacy tenant_id
+    let tenantId = legacyTenantId;
+    
+    if (tenant_slug) {
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenant_slug)
+        .single();
+
+      if (tenantError || !tenant) {
+        console.error('[checkout-session-start] Tenant not found for slug:', tenant_slug);
+        return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      tenantId = tenant.id;
+    }
+
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: 'tenant_slug or tenant_id is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`[checkout-session-start] Starting session ${session_id} for tenant ${tenant_id}`);
+    console.log(`[checkout-session-start] Starting session ${session_id} for tenant ${tenantId}`);
 
     // Verificar se sessão já existe
     const { data: existing } = await supabase
       .from('checkout_sessions')
       .select('id, status')
       .eq('id', session_id)
-      .eq('tenant_id', tenant_id)
+      .eq('tenant_id', tenantId)
       .single();
 
     if (existing) {
@@ -98,7 +124,7 @@ serve(async (req) => {
       .from('checkout_sessions')
       .insert({
         id: session_id,
-        tenant_id,
+        tenant_id: tenantId,
         cart_id,
         customer_id,
         customer_email,

@@ -1,3 +1,8 @@
+// ============================================
+// CHECKOUT SESSION HEARTBEAT - Updates last_seen_at and session data
+// Resolves tenant by slug (secure, server-side)
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -19,7 +24,8 @@ serve(async (req) => {
     const body = await req.json();
     const {
       session_id,
-      tenant_id,
+      tenant_slug,
+      tenant_id: legacyTenantId,
       customer_email,
       customer_phone,
       customer_name,
@@ -36,8 +42,27 @@ serve(async (req) => {
       });
     }
 
-    if (!tenant_id) {
-      return new Response(JSON.stringify({ error: 'tenant_id is required' }), {
+    // Resolve tenant_id from slug (secure) or use legacy tenant_id
+    let tenantId = legacyTenantId;
+    
+    if (tenant_slug) {
+      const { data: tenant, error: tenantError } = await supabase
+        .from('tenants')
+        .select('id')
+        .eq('slug', tenant_slug)
+        .single();
+
+      if (tenantError || !tenant) {
+        return new Response(JSON.stringify({ error: 'Tenant not found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      tenantId = tenant.id;
+    }
+
+    if (!tenantId) {
+      return new Response(JSON.stringify({ error: 'tenant_slug or tenant_id is required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -63,7 +88,7 @@ serve(async (req) => {
       .from('checkout_sessions')
       .update(updateData)
       .eq('id', session_id)
-      .eq('tenant_id', tenant_id)
+      .eq('tenant_id', tenantId)
       .eq('status', 'active') // Só atualiza se ainda active
       .select('id, status')
       .single();
