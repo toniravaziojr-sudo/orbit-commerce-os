@@ -6,8 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Tempo de abandono em minutos (produção = 30 min)
-const ABANDON_THRESHOLD_MINUTES = 30;
+// Tempo de abandono em minutos (TESTE = 1 min, produção = 30 min)
+const ABANDON_THRESHOLD_MINUTES = 1;
 
 // Security: Verify the request is from an authorized source
 async function isAuthorizedRequest(req: Request): Promise<boolean> {
