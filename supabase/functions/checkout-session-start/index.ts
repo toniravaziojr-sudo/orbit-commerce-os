@@ -1,6 +1,6 @@
 // ============================================
 // CHECKOUT SESSION START - Creates/updates checkout session
-// Resolves tenant by Origin header (custom domain) or slug (platform)
+// Resolves tenant by x-store-host header (reliable) or Origin/slug fallback
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,17 +8,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 /**
  * Resolve tenant from hostname (custom domain or platform subdomain)
  */
 async function resolveTenantFromHost(
+  // deno-lint-ignore no-explicit-any
   supabase: any,
   hostname: string
 ): Promise<string | null> {
-  const normalizedHost = hostname.toLowerCase().replace(/^www\./, '');
+  const normalizedHost = hostname.toLowerCase().replace(/^www\./, '').split(':')[0];
   
   console.log(`[checkout-session-start] Resolving tenant from host: ${normalizedHost}`);
   
@@ -50,17 +52,26 @@ async function resolveTenantFromHost(
     return domainRecord.tenant_id;
   }
   
-  // Fallback: check if the host itself is a slug
-  const { data: tenantBySlug } = await supabase
-    .from('tenants')
-    .select('id')
-    .eq('slug', normalizedHost.split('.')[0])
-    .maybeSingle();
+  // Fallback: check if the host itself matches a slug
+  const hostParts = normalizedHost.split('.');
+  if (hostParts.length > 0) {
+    const { data: tenantBySlug } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', hostParts[0])
+      .maybeSingle();
+    
+    if (tenantBySlug?.id) {
+      console.log(`[checkout-session-start] Tenant found by slug from host: ${tenantBySlug.id}`);
+      return tenantBySlug.id;
+    }
+  }
   
-  return tenantBySlug?.id || null;
+  return null;
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -74,8 +85,6 @@ serve(async (req) => {
     const {
       session_id,
       tenant_slug,
-      tenant_id: legacyTenantId,
-      origin: clientOrigin,
       cart_id,
       customer_id,
       customer_email,
@@ -88,6 +97,19 @@ serve(async (req) => {
       metadata,
     } = body;
 
+    // Log all incoming data for debugging
+    const storeHostHeader = req.headers.get('x-store-host');
+    const originHeader = req.headers.get('origin');
+    const refererHeader = req.headers.get('referer');
+    
+    console.log(`[checkout-session-start] Incoming request:`, {
+      session_id,
+      tenant_slug,
+      'x-store-host': storeHostHeader,
+      origin: originHeader,
+      referer: refererHeader,
+    });
+
     // Validação obrigatória
     if (!session_id) {
       console.error('[checkout-session-start] Missing session_id');
@@ -97,48 +119,70 @@ serve(async (req) => {
       });
     }
 
-    // 1. Try to resolve tenant from Origin/Referer headers (most reliable for custom domains)
+    // 1. Primary: resolve from x-store-host header (most reliable)
     let tenantId: string | null = null;
     
-    const originHeader = req.headers.get('origin') || req.headers.get('referer') || clientOrigin;
+    if (storeHostHeader) {
+      tenantId = await resolveTenantFromHost(supabase, storeHostHeader);
+      if (tenantId) {
+        console.log(`[checkout-session-start] Tenant resolved from x-store-host: ${tenantId}`);
+      }
+    }
     
-    if (originHeader) {
+    // 2. Fallback: resolve from Origin header
+    if (!tenantId && originHeader) {
       try {
         const originUrl = new URL(originHeader);
         tenantId = await resolveTenantFromHost(supabase, originUrl.hostname);
         if (tenantId) {
-          console.log(`[checkout-session-start] Tenant resolved from Origin header: ${tenantId}`);
+          console.log(`[checkout-session-start] Tenant resolved from Origin: ${tenantId}`);
         }
       } catch (e) {
         console.log(`[checkout-session-start] Invalid origin header: ${originHeader}`);
       }
     }
     
-    // 2. Fallback: resolve from tenant_slug
+    // 3. Fallback: resolve from Referer header
+    if (!tenantId && refererHeader) {
+      try {
+        const refererUrl = new URL(refererHeader);
+        tenantId = await resolveTenantFromHost(supabase, refererUrl.hostname);
+        if (tenantId) {
+          console.log(`[checkout-session-start] Tenant resolved from Referer: ${tenantId}`);
+        }
+      } catch (e) {
+        console.log(`[checkout-session-start] Invalid referer header: ${refererHeader}`);
+      }
+    }
+    
+    // 4. Fallback: resolve from tenant_slug body param
     if (!tenantId && tenant_slug) {
-      const { data: tenant, error: tenantError } = await supabase
+      const { data: tenant } = await supabase
         .from('tenants')
         .select('id')
         .eq('slug', tenant_slug)
         .single();
 
-      if (!tenantError && tenant) {
+      if (tenant) {
         tenantId = tenant.id;
-        console.log(`[checkout-session-start] Tenant resolved from slug: ${tenantId}`);
+        console.log(`[checkout-session-start] Tenant resolved from slug param: ${tenantId}`);
       }
-    }
-    
-    // 3. Last fallback: use legacy tenant_id
-    if (!tenantId && legacyTenantId) {
-      tenantId = legacyTenantId;
-      console.log(`[checkout-session-start] Using legacy tenant_id: ${tenantId}`);
     }
 
     if (!tenantId) {
-      console.error('[checkout-session-start] Could not resolve tenant. Origin:', originHeader, 'Slug:', tenant_slug);
+      console.error('[checkout-session-start] Could not resolve tenant', {
+        'x-store-host': storeHostHeader,
+        origin: originHeader,
+        referer: refererHeader,
+        slug: tenant_slug,
+      });
       return new Response(JSON.stringify({ 
         error: 'Could not resolve tenant',
-        debug: { origin: originHeader, slug: tenant_slug }
+        debug: { 
+          'x-store-host': storeHostHeader,
+          origin: originHeader, 
+          slug: tenant_slug,
+        }
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -147,7 +191,7 @@ serve(async (req) => {
 
     console.log(`[checkout-session-start] Processing session ${session_id} for tenant ${tenantId}`);
 
-    // Verificar se sessão já existe
+    // Check if session already exists
     const { data: existing } = await supabase
       .from('checkout_sessions')
       .select('id, status')
@@ -156,12 +200,11 @@ serve(async (req) => {
       .single();
 
     if (existing) {
-      // Se já existe, atualizar last_seen_at e dados do cliente
+      // Update existing session
       const updateData: Record<string, unknown> = {
         last_seen_at: new Date().toISOString(),
       };
 
-      // Atualizar campos opcionais se fornecidos
       if (customer_email) updateData.customer_email = customer_email;
       if (customer_phone) updateData.customer_phone = customer_phone;
       if (customer_name) updateData.customer_name = customer_name;
@@ -191,7 +234,7 @@ serve(async (req) => {
       });
     }
 
-    // Criar nova sessão
+    // Create new session
     const { data: newSession, error: insertError } = await supabase
       .from('checkout_sessions')
       .insert({
@@ -219,7 +262,7 @@ serve(async (req) => {
       throw insertError;
     }
 
-    console.log(`[checkout-session-start] Session ${session_id} created successfully`);
+    console.log(`[checkout-session-start] Session ${session_id} created successfully for tenant ${tenantId}`);
 
     return new Response(JSON.stringify({ 
       success: true, 

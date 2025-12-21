@@ -1,5 +1,6 @@
 // ============================================
 // CHECKOUT SESSION END - Marks session as abandoned
+// Resolves session directly by ID (no tenant required from client)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -7,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 serve(async (req) => {
@@ -27,19 +29,29 @@ serve(async (req) => {
       body = await req.json();
     } else {
       const text = await req.text();
-      try { body = JSON.parse(text); } catch { 
-        return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      try { 
+        body = JSON.parse(text); 
+      } catch { 
+        return new Response(JSON.stringify({ error: 'Invalid JSON' }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
       }
     }
 
     const { session_id } = body as { session_id?: string };
+    
     if (!session_id) {
-      return new Response(JSON.stringify({ error: 'session_id required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.log('[checkout-session-end] No session_id provided');
+      return new Response(JSON.stringify({ error: 'session_id required' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
     console.log(`[checkout-session-end] Ending session: ${session_id}`);
 
-    // Find session directly
+    // Find session directly by ID (no tenant needed)
     const { data: session } = await supabase
       .from('checkout_sessions')
       .select('id, status, order_id, tenant_id')
@@ -47,23 +59,52 @@ serve(async (req) => {
       .single();
 
     if (!session) {
-      return new Response(JSON.stringify({ success: false, reason: 'not_found' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.log(`[checkout-session-end] Session ${session_id} not found`);
+      return new Response(JSON.stringify({ success: false, reason: 'not_found' }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
+    // Skip if already abandoned/converted or has order
     if (session.status !== 'active' || session.order_id) {
-      return new Response(JSON.stringify({ success: true, action: 'skipped', status: session.status }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+      console.log(`[checkout-session-end] Session ${session_id} skipped (status: ${session.status}, has_order: ${!!session.order_id})`);
+      return new Response(JSON.stringify({ 
+        success: true, 
+        action: 'skipped', 
+        status: session.status 
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
+    // Mark as abandoned
     const now = new Date().toISOString();
-    await supabase.from('checkout_sessions').update({ status: 'abandoned', abandoned_at: now, last_seen_at: now }).eq('id', session_id);
+    const { error } = await supabase
+      .from('checkout_sessions')
+      .update({ 
+        status: 'abandoned', 
+        abandoned_at: now, 
+        last_seen_at: now 
+      })
+      .eq('id', session_id);
+
+    if (error) {
+      console.error('[checkout-session-end] Update error:', error);
+      throw error;
+    }
 
     console.log(`[checkout-session-end] Session ${session_id} marked abandoned`);
 
-    return new Response(JSON.stringify({ success: true, status: 'abandoned' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ success: true, status: 'abandoned' }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
     console.error('[checkout-session-end] Error:', error);
-    return new Response(JSON.stringify({ error: msg }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ error: msg }), { 
+      status: 500, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 });

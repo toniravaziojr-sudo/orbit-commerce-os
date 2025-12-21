@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 /**
@@ -81,12 +82,18 @@ serve(async (req) => {
       });
     }
 
-    // 1. Try to resolve tenant from Origin/Referer headers
+    // 1. Primary: resolve from x-store-host header
     let tenantId: string | null = null;
     
+    const storeHostHeader = req.headers.get('x-store-host');
     const originHeader = req.headers.get('origin') || req.headers.get('referer') || clientOrigin;
     
-    if (originHeader) {
+    if (storeHostHeader) {
+      tenantId = await resolveTenantFromHost(supabase, storeHostHeader);
+    }
+    
+    // 2. Fallback: Origin header
+    if (!tenantId && originHeader) {
       try {
         const originUrl = new URL(originHeader);
         tenantId = await resolveTenantFromHost(supabase, originUrl.hostname);
