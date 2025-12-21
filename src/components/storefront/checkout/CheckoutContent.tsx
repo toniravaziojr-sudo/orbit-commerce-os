@@ -53,17 +53,19 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const sessionStarted = useRef(false);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Start checkout session once on mount
+  // Start checkout session once on mount (or when items become available)
   useEffect(() => {
-    if (!tenantSlug || sessionStarted.current || items.length === 0) return;
+    if (sessionStarted.current || items.length === 0) return;
     
     sessionStarted.current = true;
     
     const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
     const shippingTotal = shipping.selected?.price || 0;
     
+    console.log('[checkout] Starting session, items:', items.length, 'host:', window.location.host);
+    
     startCheckoutSession({
-      tenantSlug,
+      tenantSlug: tenantSlug || undefined,
       cartItems: items.map(item => ({
         product_id: item.product_id,
         name: item.name,
@@ -78,18 +80,18 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       customerName: formData.customerName || undefined,
       region: shipping.cep || undefined,
     });
-  }, [tenantSlug, items.length]);
+  }, [items.length]);
 
   // Heartbeat every 25 seconds while in checkout
   useEffect(() => {
-    if (!tenantSlug || items.length === 0) return;
+    if (items.length === 0) return;
 
     const sendHeartbeat = () => {
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = shipping.selected?.price || 0;
       
       heartbeatCheckoutSession({
-        tenantSlug,
+        tenantSlug: tenantSlug || undefined,
         cartItems: items.map(item => ({
           product_id: item.product_id,
           name: item.name,
@@ -119,14 +121,12 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
   // Track page exit to mark checkout as abandoned immediately
   useEffect(() => {
-    if (!tenantSlug) return;
-
     const handlePageExit = () => {
       // Only send if we have a session and items
-      const sessionId = getCheckoutSessionId(tenantSlug);
+      const sessionId = getCheckoutSessionId();
       if (sessionId && items.length > 0) {
         console.log('[checkout] Page exit detected, ending session');
-        endCheckoutSession(tenantSlug);
+        endCheckoutSession();
       }
     };
 
@@ -139,7 +139,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       window.removeEventListener('pagehide', handlePageExit);
       window.removeEventListener('beforeunload', handlePageExit);
     };
-  }, [tenantSlug, items.length]);
+  }, [items.length]);
 
   // Hydrate form from draft
   useEffect(() => {
@@ -201,7 +201,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     setPaymentError(null);
 
     // Get session ID to pass to order creation
-    const sessionId = tenantSlug ? getCheckoutSessionId(tenantSlug) : null;
+    const sessionId = getCheckoutSessionId();
 
     const result = await processPayment({
       method: paymentMethod,

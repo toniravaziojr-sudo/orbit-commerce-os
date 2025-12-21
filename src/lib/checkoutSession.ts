@@ -3,10 +3,6 @@
 const CHECKOUT_SESSION_KEY = 'cc_checkout_session';
 
 /**
- * Get or create checkout session ID, scoped by tenant slug and cart signature
- * Persists in localStorage to survive page reloads
- */
-/**
  * Generate a valid UUID v4
  */
 function generateUUID(): string {
@@ -22,8 +18,20 @@ function generateUUID(): string {
   });
 }
 
-export function getOrCreateCheckoutSessionId(tenantSlug: string): string {
-  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+/**
+ * Get storage key for checkout session
+ * Uses host as primary key for custom domains
+ */
+function getStorageKey(): string {
+  const host = window.location.host.toLowerCase().replace(/^www\./, '');
+  return `${CHECKOUT_SESSION_KEY}_${host}`;
+}
+
+/**
+ * Get or create checkout session ID
+ */
+export function getOrCreateCheckoutSessionId(): string {
+  const storageKey = getStorageKey();
   let sessionId = localStorage.getItem(storageKey);
   if (!sessionId) {
     sessionId = generateUUID();
@@ -32,18 +40,29 @@ export function getOrCreateCheckoutSessionId(tenantSlug: string): string {
   return sessionId;
 }
 
-export function getCheckoutSessionId(tenantSlug: string): string | null {
-  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+export function getCheckoutSessionId(): string | null {
+  const storageKey = getStorageKey();
   return localStorage.getItem(storageKey);
 }
 
-export function clearCheckoutSessionId(tenantSlug: string): void {
-  const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
+export function clearCheckoutSessionId(): void {
+  const storageKey = getStorageKey();
   localStorage.removeItem(storageKey);
 }
 
+/**
+ * Get common headers for all checkout session API calls
+ * Includes x-store-host for reliable tenant resolution
+ */
+function getApiHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'x-store-host': window.location.host,
+  };
+}
+
 export interface CheckoutSessionParams {
-  tenantSlug: string;
+  tenantSlug?: string;
   cartItems?: unknown[];
   totalEstimated?: number;
   customerEmail?: string;
@@ -54,16 +73,18 @@ export interface CheckoutSessionParams {
 }
 
 export async function startCheckoutSession(params: CheckoutSessionParams): Promise<{ success: boolean; sessionId: string }> {
-  const sessionId = getOrCreateCheckoutSessionId(params.tenantSlug);
+  const sessionId = getOrCreateCheckoutSessionId();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+
+  console.log('[checkout-session] Starting session with host:', window.location.host);
 
   try {
     const response = await fetch(`${supabaseUrl}/functions/v1/checkout-session-start`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_slug: params.tenantSlug,
+        tenant_slug: params.tenantSlug || undefined,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
         customer_name: params.customerName,
@@ -74,11 +95,13 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
     });
 
     if (!response.ok) {
-      console.error('[checkout-session] Start failed:', await response.text());
+      const errorText = await response.text();
+      console.error('[checkout-session] Start failed:', response.status, errorText);
       return { success: false, sessionId };
     }
 
-    console.log('[checkout-session] Session started:', sessionId);
+    const result = await response.json();
+    console.log('[checkout-session] Session started:', sessionId, result);
     return { success: true, sessionId };
   } catch (error) {
     console.error('[checkout-session] Error starting session:', error);
@@ -87,7 +110,7 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
 }
 
 export async function heartbeatCheckoutSession(params: CheckoutSessionParams): Promise<void> {
-  const sessionId = getCheckoutSessionId(params.tenantSlug);
+  const sessionId = getCheckoutSessionId();
   if (!sessionId) return;
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -95,10 +118,10 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
   try {
     await fetch(`${supabaseUrl}/functions/v1/checkout-session-heartbeat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_slug: params.tenantSlug,
+        tenant_slug: params.tenantSlug || undefined,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
         customer_name: params.customerName,
@@ -114,21 +137,21 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
 }
 
 export async function completeCheckoutSession(params: {
-  tenantSlug: string;
+  tenantSlug?: string;
   orderId: string;
   customerEmail?: string;
   customerPhone?: string;
 }): Promise<void> {
-  const sessionId = getCheckoutSessionId(params.tenantSlug);
+  const sessionId = getCheckoutSessionId();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
   try {
     await fetch(`${supabaseUrl}/functions/v1/checkout-session-complete`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
-        tenant_slug: params.tenantSlug,
+        tenant_slug: params.tenantSlug || undefined,
         order_id: params.orderId,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
@@ -136,7 +159,7 @@ export async function completeCheckoutSession(params: {
     });
 
     // Limpar sessão após completar
-    clearCheckoutSessionId(params.tenantSlug);
+    clearCheckoutSessionId();
     console.log('[checkout-session] Session completed and cleared');
   } catch (error) {
     console.error('[checkout-session] Complete error:', error);
@@ -145,10 +168,10 @@ export async function completeCheckoutSession(params: {
 
 /**
  * End checkout session (mark as abandoned) when user exits checkout page
- * Uses sendBeacon for reliable delivery even when page is closing
+ * Uses fetch with keepalive for reliable delivery, with sendBeacon fallback
  */
-export function endCheckoutSession(tenantSlug: string): void {
-  const sessionId = getCheckoutSessionId(tenantSlug);
+export function endCheckoutSession(): void {
+  const sessionId = getCheckoutSessionId();
   if (!sessionId) {
     console.log('[checkout-session] No session to end');
     return;
@@ -158,26 +181,24 @@ export function endCheckoutSession(tenantSlug: string): void {
   const url = `${supabaseUrl}/functions/v1/checkout-session-end`;
   const payload = JSON.stringify({
     session_id: sessionId,
-    tenant_slug: tenantSlug,
   });
 
-  // Try sendBeacon first (most reliable for page unload)
-  if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: 'application/json' });
-    const sent = navigator.sendBeacon(url, blob);
-    console.log('[checkout-session] Beacon sent:', sent);
-    if (sent) return;
-  }
+  console.log('[checkout-session] Ending session:', sessionId);
 
-  // Fallback to fetch with keepalive
+  // Primary: fetch with keepalive (most reliable)
   try {
     fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getApiHeaders(),
       body: payload,
       keepalive: true,
-    }).catch(err => console.error('[checkout-session] End fallback failed:', err));
+    }).catch(err => console.error('[checkout-session] End fetch failed:', err));
   } catch (error) {
-    console.error('[checkout-session] End error:', error);
+    // Fallback: sendBeacon (no custom headers, but still tries)
+    if (navigator.sendBeacon) {
+      const blob = new Blob([payload], { type: 'application/json' });
+      const sent = navigator.sendBeacon(url, blob);
+      console.log('[checkout-session] Beacon fallback sent:', sent);
+    }
   }
 }
