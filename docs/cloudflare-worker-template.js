@@ -114,6 +114,9 @@ export default {
     const SUPABASE_URL = env.SUPABASE_URL || env.SUPABASE_URI;
     const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY;
 
+    // DEBUG: Verificar variáveis de ambiente
+    console.log(`[Worker] ENV Check: ORIGIN_HOST=${ORIGIN_HOST}, SUPABASE_URL=${SUPABASE_URL ? 'SET' : 'MISSING'}, SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY ? 'SET' : 'MISSING'}`);
+
     const edgeHost = url.hostname.toLowerCase();
     if (edgeHost.endsWith(".workers.dev")) {
       return new Response("Please access via the correct domain", { status: 404 });
@@ -132,9 +135,22 @@ export default {
     // Resolver tenant
     const resolved = await resolveTenant(publicHost, { SUPABASE_URL, SUPABASE_ANON_KEY });
 
+    // DEBUG: Mostrar resultado da resolução
+    console.log(`[Worker] resolveTenant returned:`, JSON.stringify(resolved));
+
     if (!resolved?.tenantSlug) {
       console.log(`[Worker] Domain not configured: ${publicHost}`);
-      return new Response("Domain not configured", { status: 404 });
+      // Retornar mais detalhes para debug
+      const debugInfo = {
+        error: "Domain not configured",
+        hostname: publicHost,
+        supabaseConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY),
+        resolved: resolved,
+      };
+      return new Response(JSON.stringify(debugInfo, null, 2), { 
+        status: 404,
+        headers: { "Content-Type": "application/json" }
+      });
     }
 
     const tenantSlug = resolved.tenantSlug;
