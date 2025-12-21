@@ -1598,6 +1598,56 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          processing_result: string | null
+          provider: string
+          provider_payment_id: string | null
+          received_at: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_result?: string | null
+          provider?: string
+          provider_payment_id?: string | null
+          received_at?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_result?: string | null
+          provider?: string
+          provider_payment_id?: string | null
+          received_at?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           created_at: string

@@ -1,3 +1,8 @@
+// ============================================
+// PAGAR.ME WEBHOOK - Payment status sync
+// With proper idempotency via payment_events table
+// ============================================
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -24,13 +29,14 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Extract event data
-    const eventType = payload.type;
+    const eventType = payload.type || 'unknown';
+    const eventId = payload.id || `${Date.now()}-${requestId}`;
     const pagarmeOrderId = payload.data?.id;
     const charge = payload.data?.charges?.[0];
     const chargeId = charge?.id;
     const chargeStatus = charge?.status;
 
-    console.log(`[${requestId}] Event: ${eventType}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, Status: ${chargeStatus}`);
+    console.log(`[${requestId}] Event: ${eventType}, EventId: ${eventId}, Order: ${pagarmeOrderId}, Charge: ${chargeId}, Status: ${chargeStatus}`);
 
     if (!pagarmeOrderId) {
       console.log(`[${requestId}] No order ID in webhook payload, ignoring`);
@@ -39,8 +45,27 @@ serve(async (req) => {
       });
     }
 
-    // ==== IDEMPOTENCY CHECK ====
-    // Find existing transaction by provider_transaction_id (Pagar.me order ID)
+    // ==== IDEMPOTENCY CHECK via payment_events table ====
+    // Try to insert the event - if it fails with unique constraint, it's a duplicate
+    const { data: existingEvent, error: eventCheckError } = await supabase
+      .from('payment_events')
+      .select('id, processed_at')
+      .eq('provider', 'pagarme')
+      .eq('event_id', eventId)
+      .maybeSingle();
+
+    if (existingEvent) {
+      console.log(`[${requestId}] Event ${eventId} already processed, skipping`);
+      return new Response(JSON.stringify({ 
+        received: true, 
+        message: 'Event already processed',
+        event_id: eventId,
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Find the transaction by provider_transaction_id
     const { data: existingTransaction, error: findError } = await supabase
       .from('payment_transactions')
       .select('*')
@@ -63,18 +88,28 @@ serve(async (req) => {
       });
     }
 
-    // Check if already processed with same status (idempotency)
-    const webhookHistory = existingTransaction.webhook_payload as any;
-    if (webhookHistory?.charges?.[0]?.status === chargeStatus) {
-      console.log(`[${requestId}] Already processed with status ${chargeStatus}, skipping`);
-      return new Response(JSON.stringify({ 
-        received: true, 
-        message: 'Already processed',
-        transaction_id: existingTransaction.id,
-        status: existingTransaction.status,
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // ==== RECORD EVENT for idempotency ====
+    const { error: insertEventError } = await supabase
+      .from('payment_events')
+      .insert({
+        tenant_id: existingTransaction.tenant_id,
+        provider: 'pagarme',
+        event_id: eventId,
+        provider_payment_id: pagarmeOrderId,
+        event_type: eventType,
+        payload: payload,
+        received_at: new Date().toISOString(),
       });
+
+    if (insertEventError) {
+      // If unique constraint violation, another process handled it
+      if (insertEventError.code === '23505') {
+        console.log(`[${requestId}] Concurrent event processing, skipping`);
+        return new Response(JSON.stringify({ received: true, message: 'Concurrent processing' }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      console.warn(`[${requestId}] Failed to record event:`, insertEventError);
     }
 
     // ==== MAP STATUS ====
@@ -95,11 +130,15 @@ serve(async (req) => {
       case 'pending':
       case 'processing':
         newTransactionStatus = 'pending';
-        newPaymentStatus = 'processing';
+        newPaymentStatus = 'pending';
         break;
       case 'failed':
-      case 'canceled':
         newTransactionStatus = 'failed';
+        newPaymentStatus = 'declined';
+        newOrderStatus = 'cancelled';
+        break;
+      case 'canceled':
+        newTransactionStatus = 'canceled';
         newPaymentStatus = 'declined';
         newOrderStatus = 'cancelled';
         break;
@@ -112,16 +151,20 @@ serve(async (req) => {
         break;
       case 'underpaid':
         newTransactionStatus = 'pending';
-        newPaymentStatus = 'processing';
+        newPaymentStatus = 'pending';
         break;
       case 'refunded':
         newTransactionStatus = 'refunded';
-        newPaymentStatus = 'approved'; // Payment was approved, just refunded
+        newPaymentStatus = 'refunded';
         break;
       case 'chargedback':
         newTransactionStatus = 'chargedback';
-        newPaymentStatus = 'declined';
+        newPaymentStatus = 'chargedback';
         newOrderStatus = 'cancelled';
+        break;
+      case 'expired':
+        newTransactionStatus = 'expired';
+        newPaymentStatus = 'expired';
         break;
       default:
         console.log(`[${requestId}] Unknown charge status: ${chargeStatus}`);
@@ -178,7 +221,6 @@ serve(async (req) => {
 
       if (updateOrderError) {
         console.error(`[${requestId}] Error updating order:`, updateOrderError);
-        // Don't throw - transaction was updated, order update is secondary
       } else {
         console.log(`[${requestId}] Order ${existingTransaction.order_id} updated: payment=${newPaymentStatus}, status=${newOrderStatus}`);
       }
@@ -200,6 +242,16 @@ serve(async (req) => {
         console.log(`[${requestId}] Checkout ${existingTransaction.checkout_id} marked as completed`);
       }
     }
+
+    // ==== MARK EVENT AS PROCESSED ====
+    await supabase
+      .from('payment_events')
+      .update({
+        processed_at: new Date().toISOString(),
+        processing_result: 'success',
+      })
+      .eq('provider', 'pagarme')
+      .eq('event_id', eventId);
 
     const duration = Date.now() - startTime;
     console.log(`[${requestId}] Webhook processed successfully in ${duration}ms`);

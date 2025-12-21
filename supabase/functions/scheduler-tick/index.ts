@@ -7,8 +7,8 @@ const corsHeaders = {
 };
 
 // Tempo de abandono em minutos (fallback para quando o evento pagehide não chega)
-// TESTE = 1 min; produção = 30 min
-const ABANDON_THRESHOLD_MINUTES = 1;
+// Produção = 30 min
+const ABANDON_THRESHOLD_MINUTES = 30;
 
 // Security: Verify the request is from an authorized source
 async function isAuthorizedRequest(req: Request): Promise<boolean> {
@@ -206,6 +206,13 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
   }
 }
 
+interface ReconcilePaymentsStats {
+  checked: number;
+  updated: number;
+  unchanged: number;
+  errors: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -223,6 +230,7 @@ interface TickStats {
     errors: number;
   };
   abandon_sweep: AbandonSweepStats;
+  reconcile_payments: ReconcilePaymentsStats;
 }
 
 interface AggregatedStats {
@@ -237,6 +245,7 @@ interface AggregatedStats {
     notifications_retrying: number;
     notifications_failed: number;
     sessions_abandoned: number;
+    payments_reconciled: number;
   };
   passes: TickStats[];
 }
@@ -286,6 +295,7 @@ serve(async (req) => {
       notifications_retrying: 0,
       notifications_failed: 0,
       sessions_abandoned: 0,
+      payments_reconciled: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -310,6 +320,12 @@ serve(async (req) => {
         abandon_sweep: {
           sessions_abandoned: 0,
           events_emitted: 0,
+          errors: 0,
+        },
+        reconcile_payments: {
+          checked: 0,
+          updated: 0,
+          unchanged: 0,
           errors: 0,
         },
       };
@@ -389,6 +405,40 @@ serve(async (req) => {
       } catch (error) {
         console.error(`[scheduler-tick] run-notifications exception:`, error);
         passStats.run_notifications.errors = 1;
+      }
+
+      // --- Step 4: Call reconcile-payments (only on first pass to avoid hammering) ---
+      if (pass === 1) {
+        try {
+          console.log(`[scheduler-tick] Calling reconcile-payments...`);
+          const reconcileResponse = await fetch(`${supabaseUrl}/functions/v1/reconcile-payments`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ limit: 20 }),
+          });
+
+          if (reconcileResponse.ok) {
+            const reconcileResult = await reconcileResponse.json();
+            console.log(`[scheduler-tick] reconcile-payments result:`, reconcileResult);
+            
+            passStats.reconcile_payments.checked = reconcileResult.stats?.checked ?? 0;
+            passStats.reconcile_payments.updated = reconcileResult.stats?.updated ?? 0;
+            passStats.reconcile_payments.unchanged = reconcileResult.stats?.unchanged ?? 0;
+            passStats.reconcile_payments.errors = reconcileResult.stats?.errors ?? 0;
+            
+            aggregatedTotals.payments_reconciled += passStats.reconcile_payments.updated;
+          } else {
+            const errorText = await reconcileResponse.text();
+            console.error(`[scheduler-tick] reconcile-payments error: ${reconcileResponse.status} - ${errorText}`);
+            passStats.reconcile_payments.errors = 1;
+          }
+        } catch (error) {
+          console.error(`[scheduler-tick] reconcile-payments exception:`, error);
+          passStats.reconcile_payments.errors = 1;
+        }
       }
 
       allPassStats.push(passStats);
