@@ -95,6 +95,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     discountAmount: 0,
   });
 
+  // Ref to track if exit event already fired (prevent duplicates)
+  const exitFiredRef = useRef(false);
+
   // ===== CHECKOUT SESSION TRACKING =====
   // Start session IMMEDIATELY on mount
   useEffect(() => {
@@ -118,14 +121,56 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
     initSession();
 
-    // Cleanup: end session on unmount
+    // Cleanup: end session on unmount (navigation within SPA)
     return () => {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      endCheckoutSession();
+      if (!exitFiredRef.current) {
+        exitFiredRef.current = true;
+        endCheckoutSession();
+      }
     };
   }, []); // Empty deps - run once on mount
+
+  // ===== EXIT EVENT LISTENERS =====
+  // Handle page exit: pagehide, visibilitychange, beforeunload
+  useEffect(() => {
+    const handleExit = () => {
+      if (exitFiredRef.current) return;
+      exitFiredRef.current = true;
+      endCheckoutSession();
+    };
+
+    // pagehide - best for mobile/Safari
+    const handlePageHide = (e: PageTransitionEvent) => {
+      // Only fire if page is actually being unloaded
+      if (e.persisted) return; // Page is going into bfcache, not unloading
+      handleExit();
+    };
+
+    // visibilitychange - when tab becomes hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        handleExit();
+      }
+    };
+
+    // beforeunload - fallback for desktop browsers
+    const handleBeforeUnload = () => {
+      handleExit();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   // Heartbeat every 25 seconds
   useEffect(() => {
