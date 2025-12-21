@@ -6,11 +6,27 @@ const CHECKOUT_SESSION_KEY = 'cc_checkout_session';
  * Get or create checkout session ID, scoped by tenant slug and cart signature
  * Persists in localStorage to survive page reloads
  */
+/**
+ * Generate a valid UUID v4
+ */
+function generateUUID(): string {
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback: generate a valid UUID v4 format
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 export function getOrCreateCheckoutSessionId(tenantSlug: string): string {
   const storageKey = `${CHECKOUT_SESSION_KEY}_${tenantSlug}`;
   let sessionId = localStorage.getItem(storageKey);
   if (!sessionId) {
-    sessionId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    sessionId = generateUUID();
     localStorage.setItem(storageKey, sessionId);
   }
   return sessionId;
