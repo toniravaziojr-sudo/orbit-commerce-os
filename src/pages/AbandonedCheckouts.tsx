@@ -67,6 +67,8 @@ function getStatusBadge(status: CheckoutSession['status']) {
       return <Badge variant="secondary" className="bg-amber-100 text-amber-800">Abandonado</Badge>;
     case 'converted':
       return <Badge variant="default" className="bg-blue-600">Convertido</Badge>;
+    case 'active':
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Ativo</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
