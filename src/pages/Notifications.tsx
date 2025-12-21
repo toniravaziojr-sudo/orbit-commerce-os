@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Plus, Zap, Mail, MessageSquare, Clock, TestTube, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,8 +9,44 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
+// Check if user has admin/owner role for current tenant
+function useIsAdminOrOwner(tenantId: string | null | undefined) {
+  const [isAdminOrOwner, setIsAdminOrOwner] = useState<boolean | null>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user?.id || !tenantId) {
+      setIsAdminOrOwner(false);
+      return;
+    }
+
+    const checkRole = async () => {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('tenant_id', tenantId)
+        .in('role', ['owner', 'admin'])
+        .maybeSingle();
+
+      if (error) {
+        console.error('[useIsAdminOrOwner] Error checking role:', error);
+        setIsAdminOrOwner(false);
+        return;
+      }
+
+      setIsAdminOrOwner(!!data);
+    };
+
+    checkRole();
+  }, [user?.id, tenantId]);
+
+  return isAdminOrOwner;
+}
+
 export default function Notifications() {
   const { profile } = useAuth();
+  const isAdminOrOwner = useIsAdminOrOwner(profile?.current_tenant_id);
   const [isEmitting, setIsEmitting] = useState(false);
   const [lastResult, setLastResult] = useState<{
     success: boolean;
@@ -103,10 +139,12 @@ export default function Notifications() {
             <Clock className="h-4 w-4" />
             Histórico
           </TabsTrigger>
-          <TabsTrigger value="dev" className="gap-2">
-            <TestTube className="h-4 w-4" />
-            Dev/Teste
-          </TabsTrigger>
+          {isAdminOrOwner && (
+            <TabsTrigger value="dev" className="gap-2">
+              <TestTube className="h-4 w-4" />
+              Dev/Teste
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="rules">
