@@ -1,6 +1,7 @@
 // ============================================
 // CHECKOUT SESSION START - Creates/updates checkout session
-// Resolves tenant by x-store-host header (reliable) or Origin/slug fallback
+// Accepts text/plain to avoid CORS preflight
+// Resolves tenant from store_host in body (primary) or headers (fallback)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,7 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -81,10 +82,25 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json();
+    // Parse body - accept both JSON and text/plain
+    let body: Record<string, unknown> = {};
+    const contentType = req.headers.get('content-type') || '';
+    const rawBody = await req.text();
+    
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      console.error('[checkout-session-start] Failed to parse body:', rawBody.substring(0, 100));
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const {
       session_id,
       tenant_slug,
+      store_host,
       cart_id,
       customer_id,
       customer_email,
@@ -95,19 +111,19 @@ serve(async (req) => {
       items_snapshot,
       utm,
       metadata,
-    } = body;
+    } = body as Record<string, any>;
 
     // Log all incoming data for debugging
-    const storeHostHeader = req.headers.get('x-store-host');
     const originHeader = req.headers.get('origin');
     const refererHeader = req.headers.get('referer');
     
-    console.log(`[checkout-session-start] Incoming request:`, {
+    console.log(`[checkout-session-start] Request received:`, {
       session_id,
+      store_host,
       tenant_slug,
-      'x-store-host': storeHostHeader,
       origin: originHeader,
       referer: refererHeader,
+      content_type: contentType,
     });
 
     // Validação obrigatória
@@ -119,13 +135,14 @@ serve(async (req) => {
       });
     }
 
-    // 1. Primary: resolve from x-store-host header (most reliable)
+    // Resolve tenant in order of reliability:
     let tenantId: string | null = null;
     
-    if (storeHostHeader) {
-      tenantId = await resolveTenantFromHost(supabase, storeHostHeader);
+    // 1. Primary: store_host from body (most reliable, no CORS issues)
+    if (store_host) {
+      tenantId = await resolveTenantFromHost(supabase, store_host);
       if (tenantId) {
-        console.log(`[checkout-session-start] Tenant resolved from x-store-host: ${tenantId}`);
+        console.log(`[checkout-session-start] Tenant resolved from store_host: ${tenantId}`);
       }
     }
     
@@ -171,18 +188,14 @@ serve(async (req) => {
 
     if (!tenantId) {
       console.error('[checkout-session-start] Could not resolve tenant', {
-        'x-store-host': storeHostHeader,
+        store_host,
         origin: originHeader,
         referer: refererHeader,
         slug: tenant_slug,
       });
       return new Response(JSON.stringify({ 
         error: 'Could not resolve tenant',
-        debug: { 
-          'x-store-host': storeHostHeader,
-          origin: originHeader, 
-          slug: tenant_slug,
-        }
+        debug: { store_host, origin: originHeader, slug: tenant_slug }
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -249,7 +262,7 @@ serve(async (req) => {
         total_estimated,
         items_snapshot: items_snapshot || [],
         utm: utm || {},
-        metadata: metadata || {},
+        metadata: { ...(metadata || {}), store_host },
         status: 'active',
         started_at: new Date().toISOString(),
         last_seen_at: new Date().toISOString(),

@@ -1,6 +1,7 @@
 // ============================================
 // CHECKOUT SESSION HEARTBEAT - Updates last_seen_at and session data
-// Resolves tenant by Origin header (custom domain) or slug (platform)
+// Accepts text/plain to avoid CORS preflight
+// Resolves tenant from store_host in body (primary) or headers (fallback)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,7 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -16,10 +17,11 @@ const corsHeaders = {
  * Resolve tenant from hostname (custom domain or platform subdomain)
  */
 async function resolveTenantFromHost(
+  // deno-lint-ignore no-explicit-any
   supabase: any,
   hostname: string
 ): Promise<string | null> {
-  const normalizedHost = hostname.toLowerCase().replace(/^www\./, '');
+  const normalizedHost = hostname.toLowerCase().replace(/^www\./, '').split(':')[0];
   
   // Check for platform subdomain pattern: {slug}.shops.comandocentral.com.br
   const platformPattern = /^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/;
@@ -60,12 +62,25 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json();
+    // Parse body - accept both JSON and text/plain
+    let body: Record<string, unknown> = {};
+    const rawBody = await req.text();
+    
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      console.error('[checkout-session-heartbeat] Failed to parse body');
+      return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const {
       session_id,
       tenant_slug,
+      store_host,
       tenant_id: legacyTenantId,
-      origin: clientOrigin,
       customer_email,
       customer_phone,
       customer_name,
@@ -73,7 +88,7 @@ serve(async (req) => {
       total_estimated,
       items_snapshot,
       step,
-    } = body;
+    } = body as Record<string, any>;
 
     if (!session_id) {
       return new Response(JSON.stringify({ error: 'session_id is required' }), {
@@ -82,14 +97,13 @@ serve(async (req) => {
       });
     }
 
-    // 1. Primary: resolve from x-store-host header
+    // Resolve tenant in order of reliability
     let tenantId: string | null = null;
+    const originHeader = req.headers.get('origin') || req.headers.get('referer');
     
-    const storeHostHeader = req.headers.get('x-store-host');
-    const originHeader = req.headers.get('origin') || req.headers.get('referer') || clientOrigin;
-    
-    if (storeHostHeader) {
-      tenantId = await resolveTenantFromHost(supabase, storeHostHeader);
+    // 1. Primary: store_host from body
+    if (store_host) {
+      tenantId = await resolveTenantFromHost(supabase, store_host);
     }
     
     // 2. Fallback: Origin header
@@ -102,7 +116,7 @@ serve(async (req) => {
       }
     }
     
-    // 2. Fallback: resolve from tenant_slug
+    // 3. Fallback: resolve from tenant_slug
     if (!tenantId && tenant_slug) {
       const { data: tenant } = await supabase
         .from('tenants')
@@ -112,12 +126,13 @@ serve(async (req) => {
       if (tenant) tenantId = tenant.id;
     }
     
-    // 3. Last fallback: use legacy tenant_id
+    // 4. Last fallback: use legacy tenant_id
     if (!tenantId && legacyTenantId) {
       tenantId = legacyTenantId;
     }
 
     if (!tenantId) {
+      console.error('[checkout-session-heartbeat] Could not resolve tenant', { store_host, origin: originHeader });
       return new Response(JSON.stringify({ error: 'Could not resolve tenant' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

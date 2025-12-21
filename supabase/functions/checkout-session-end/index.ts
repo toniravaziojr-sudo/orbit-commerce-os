@@ -1,5 +1,6 @@
 // ============================================
 // CHECKOUT SESSION END - Marks session as abandoned
+// Accepts text/plain to avoid CORS preflight (important for sendBeacon)
 // Resolves session directly by ID (no tenant required from client)
 // ============================================
 
@@ -8,7 +9,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer, x-store-host',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -22,24 +23,21 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Parse body - accept both JSON and text/plain (for sendBeacon)
     let body: Record<string, unknown> = {};
-    const contentType = req.headers.get('content-type') || '';
+    const rawBody = await req.text();
     
-    if (contentType.includes('application/json')) {
-      body = await req.json();
-    } else {
-      const text = await req.text();
-      try { 
-        body = JSON.parse(text); 
-      } catch { 
-        return new Response(JSON.stringify({ error: 'Invalid JSON' }), { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        });
-      }
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      console.error('[checkout-session-end] Failed to parse body:', rawBody.substring(0, 100));
+      return new Response(JSON.stringify({ error: 'Invalid JSON' }), { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
     }
 
-    const { session_id } = body as { session_id?: string };
+    const { session_id, store_host } = body as { session_id?: string; store_host?: string };
     
     if (!session_id) {
       console.log('[checkout-session-end] No session_id provided');
@@ -49,9 +47,9 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[checkout-session-end] Ending session: ${session_id}`);
+    console.log(`[checkout-session-end] Ending session: ${session_id}, store_host: ${store_host}`);
 
-    // Find session directly by ID (no tenant needed)
+    // Find session directly by ID (no tenant needed - session_id is unique)
     const { data: session } = await supabase
       .from('checkout_sessions')
       .select('id, status, order_id, tenant_id')
