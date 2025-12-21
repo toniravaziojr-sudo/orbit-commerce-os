@@ -718,6 +718,65 @@ export type Database = {
           },
         ]
       }
+      events_inbox: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          idempotency_key: string
+          occurred_at: string
+          payload_normalized: Json | null
+          payload_raw: Json | null
+          processed_at: string | null
+          processing_error: string | null
+          provider: string
+          provider_event_id: string | null
+          received_at: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          idempotency_key: string
+          occurred_at?: string
+          payload_normalized?: Json | null
+          payload_raw?: Json | null
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          provider_event_id?: string | null
+          received_at?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          idempotency_key?: string
+          occurred_at?: string
+          payload_normalized?: Json | null
+          payload_raw?: Json | null
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          provider_event_id?: string | null
+          received_at?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_inbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_library: {
         Row: {
           created_at: string
@@ -857,6 +916,256 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "menus_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_attempts: {
+        Row: {
+          attempt_no: number
+          error_code: string | null
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          notification_id: string
+          provider_response: Json | null
+          started_at: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          attempt_no?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          notification_id: string
+          provider_response?: Json | null
+          started_at?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          attempt_no?: number
+          error_code?: string | null
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          notification_id?: string
+          provider_response?: Json | null
+          started_at?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_attempts_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_attempts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_dedup_ledger: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          notification_id: string | null
+          rule_id: string
+          scope_key: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          notification_id?: string | null
+          rule_id: string
+          scope_key?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          notification_id?: string | null
+          rule_id?: string
+          scope_key?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_dedup_ledger_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_dedup_ledger_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_dedup_ledger_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_rules: {
+        Row: {
+          actions: Json | null
+          created_at: string
+          dedupe_scope: string | null
+          description: string | null
+          filters: Json | null
+          id: string
+          is_enabled: boolean
+          name: string
+          priority: number
+          tenant_id: string
+          trigger_event_type: string
+          updated_at: string
+        }
+        Insert: {
+          actions?: Json | null
+          created_at?: string
+          dedupe_scope?: string | null
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          is_enabled?: boolean
+          name: string
+          priority?: number
+          tenant_id: string
+          trigger_event_type: string
+          updated_at?: string
+        }
+        Update: {
+          actions?: Json | null
+          created_at?: string
+          dedupe_scope?: string | null
+          description?: string | null
+          filters?: Json | null
+          id?: string
+          is_enabled?: boolean
+          name?: string
+          priority?: number
+          tenant_id?: string
+          trigger_event_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          attempt_count: number
+          channel: string
+          created_at: string
+          dedupe_key: string
+          event_id: string | null
+          id: string
+          last_attempt_at: string | null
+          last_error: string | null
+          max_attempts: number
+          next_attempt_at: string
+          payload: Json | null
+          recipient: string
+          rule_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          template_key: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          channel: string
+          created_at?: string
+          dedupe_key: string
+          event_id?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload?: Json | null
+          recipient: string
+          rule_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          template_key?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          channel?: string
+          created_at?: string
+          dedupe_key?: string
+          event_id?: string | null
+          id?: string
+          last_attempt_at?: string | null
+          last_error?: string | null
+          max_attempts?: number
+          next_attempt_at?: string
+          payload?: Json | null
+          recipient?: string
+          rule_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          template_key?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events_inbox"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
