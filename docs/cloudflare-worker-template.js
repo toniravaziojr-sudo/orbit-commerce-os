@@ -435,10 +435,15 @@ async function resolveTenant(hostname, { SUPABASE_URL, SUPABASE_ANON_KEY }) {
         const data = await res.json();
         console.log(`[Worker] resolveTenant result:`, JSON.stringify(data));
 
-        if (data.found && data.tenantSlug) {
+        // IMPORTANTE: A Edge Function retorna snake_case (tenant_slug, primary_public_host)
+        // Aceitar ambos os formatos para robustez
+        const tenantSlug = data.tenant_slug || data.tenantSlug;
+        const primaryPublicHost = data.primary_public_host || data.primaryPublicHost || null;
+
+        if (data.found && tenantSlug) {
           const result = {
-            tenantSlug: data.tenantSlug,
-            primaryPublicHost: data.primaryPublicHost || null,
+            tenantSlug: tenantSlug,
+            primaryPublicHost: primaryPublicHost,
           };
 
           try {
