@@ -140,40 +140,32 @@ export function TenantStorefrontLayout() {
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // Handle canonical redirect (301) and path cleanup
+  // Handle canonical redirect (301) - ONLY redirect to different host, never based on path
+  // The Worker handles path translation, so the browser URL is already clean
   useEffect(() => {
     if (!resolveResult || isPreview) return;
     
-    const currentPath = location.pathname;
-    
-    // Check if path has /store/{tenantSlug} prefix that needs to be cleaned
-    const storePrefixMatch = currentPath.match(/^\/store\/[^/]+(.*)$/);
-    const hasLegacyPrefix = !!storePrefixMatch;
-    
-    if (resolveResult.shouldRedirect || hasLegacyPrefix) {
-      // Build redirect URL
-      let cleanPath = currentPath;
+    // ONLY redirect if we need to go to a DIFFERENT HOST (e.g., platform subdomain → custom domain)
+    // NEVER redirect based on pathname - the Worker handles path translation transparently
+    if (resolveResult.shouldRedirect) {
+      const currentHost = window.location.host.toLowerCase().replace(/^www\./, '');
+      const targetHost = new URL(resolveResult.canonicalOrigin).host.toLowerCase().replace(/^www\./, '');
       
-      // Remove /store/{tenantSlug} prefix
-      if (storePrefixMatch) {
-        cleanPath = storePrefixMatch[1] || '/';
+      // Only redirect if actually on a different host
+      if (currentHost !== targetHost) {
+        // Build clean query string (remove preview params)
+        const params = new URLSearchParams(location.search);
+        params.delete('preview');
+        params.delete('previewId');
+        params.delete('draft');
+        const queryString = params.toString();
+        
+        // Use current path as-is (it's already clean in the browser)
+        const redirectUrl = `${resolveResult.canonicalOrigin}${location.pathname}${queryString ? `?${queryString}` : ''}`;
+        
+        console.log(`[TenantStorefrontLayout] Canonical redirect to: ${redirectUrl}`);
+        window.location.replace(redirectUrl);
       }
-      
-      // Build clean query string (remove preview params)
-      const params = new URLSearchParams(location.search);
-      params.delete('preview');
-      params.delete('previewId');
-      params.delete('draft');
-      const queryString = params.toString();
-      
-      const targetOrigin = resolveResult.shouldRedirect 
-        ? resolveResult.canonicalOrigin 
-        : window.location.origin;
-      
-      const redirectUrl = `${targetOrigin}${cleanPath}${queryString ? `?${queryString}` : ''}`;
-      
-      console.log(`[TenantStorefrontLayout] Redirecting to: ${redirectUrl}`);
-      window.location.replace(redirectUrl);
     }
   }, [resolveResult, location.pathname, location.search, isPreview]);
 
