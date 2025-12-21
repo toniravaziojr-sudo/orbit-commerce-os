@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.webhooks-external]
 verify_jwt = false
+
+[functions.process-events]
+verify_jwt = false
