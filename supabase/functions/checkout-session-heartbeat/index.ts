@@ -1,6 +1,6 @@
 // ============================================
 // CHECKOUT SESSION HEARTBEAT - Updates last_seen_at and session data
-// Resolves tenant by slug (secure, server-side)
+// Resolves tenant by Origin header (custom domain) or slug (platform)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,8 +8,46 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, origin, referer',
 };
+
+/**
+ * Resolve tenant from hostname (custom domain or platform subdomain)
+ */
+async function resolveTenantFromHost(
+  supabase: any,
+  hostname: string
+): Promise<string | null> {
+  const normalizedHost = hostname.toLowerCase().replace(/^www\./, '');
+  
+  // Check for platform subdomain pattern: {slug}.shops.comandocentral.com.br
+  const platformPattern = /^([a-z0-9-]+)\.shops\.comandocentral\.com\.br$/;
+  const platformMatch = normalizedHost.match(platformPattern);
+  
+  if (platformMatch) {
+    const slug = platformMatch[1];
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+    return tenant?.id || null;
+  }
+  
+  // Check tenant_domains table for custom domains
+  const { data: domainRecord } = await supabase
+    .from('tenant_domains')
+    .select('tenant_id')
+    .eq('domain', normalizedHost)
+    .in('status', ['verified', 'active'])
+    .maybeSingle();
+  
+  if (domainRecord?.tenant_id) {
+    return domainRecord.tenant_id;
+  }
+  
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -26,6 +64,7 @@ serve(async (req) => {
       session_id,
       tenant_slug,
       tenant_id: legacyTenantId,
+      origin: clientOrigin,
       customer_email,
       customer_phone,
       customer_name,
@@ -42,33 +81,41 @@ serve(async (req) => {
       });
     }
 
-    // Resolve tenant_id from slug (secure) or use legacy tenant_id
-    let tenantId = legacyTenantId;
+    // 1. Try to resolve tenant from Origin/Referer headers
+    let tenantId: string | null = null;
     
-    if (tenant_slug) {
-      const { data: tenant, error: tenantError } = await supabase
+    const originHeader = req.headers.get('origin') || req.headers.get('referer') || clientOrigin;
+    
+    if (originHeader) {
+      try {
+        const originUrl = new URL(originHeader);
+        tenantId = await resolveTenantFromHost(supabase, originUrl.hostname);
+      } catch (e) {
+        // Invalid origin
+      }
+    }
+    
+    // 2. Fallback: resolve from tenant_slug
+    if (!tenantId && tenant_slug) {
+      const { data: tenant } = await supabase
         .from('tenants')
         .select('id')
         .eq('slug', tenant_slug)
         .single();
-
-      if (tenantError || !tenant) {
-        return new Response(JSON.stringify({ error: 'Tenant not found' }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      tenantId = tenant.id;
+      if (tenant) tenantId = tenant.id;
+    }
+    
+    // 3. Last fallback: use legacy tenant_id
+    if (!tenantId && legacyTenantId) {
+      tenantId = legacyTenantId;
     }
 
     if (!tenantId) {
-      return new Response(JSON.stringify({ error: 'tenant_slug or tenant_id is required' }), {
+      return new Response(JSON.stringify({ error: 'Could not resolve tenant' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log(`[checkout-session-heartbeat] Heartbeat for session ${session_id}`);
 
     // Atualizar last_seen_at e dados do cliente
     const updateData: Record<string, unknown> = {
@@ -95,7 +142,6 @@ serve(async (req) => {
 
     if (error) {
       // Pode não existir ou já ter sido convertido/abandonado
-      console.log(`[checkout-session-heartbeat] Session ${session_id} not found or not active`);
       return new Response(JSON.stringify({ 
         success: false, 
         session_id,
@@ -104,8 +150,6 @@ serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    console.log(`[checkout-session-heartbeat] Session ${session_id} heartbeat recorded`);
 
     return new Response(JSON.stringify({ 
       success: true, 
