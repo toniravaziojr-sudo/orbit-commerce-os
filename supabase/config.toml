@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.checkout-session-end]
 verify_jwt = false
+
+[functions.reconcile-payments]
+verify_jwt = false
