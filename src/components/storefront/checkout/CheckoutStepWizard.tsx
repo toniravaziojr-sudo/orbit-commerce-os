@@ -4,7 +4,7 @@
 // Uses REAL payment integration with Pagar.me
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
@@ -25,6 +25,13 @@ import { useShipping, useCanonicalDomain } from '@/contexts/StorefrontConfigCont
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
+import {
+  startCheckoutSession,
+  heartbeatCheckoutSession,
+  completeCheckoutSession,
+  endCheckoutSession,
+  getCheckoutSessionId,
+} from '@/lib/checkoutSession';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
 type CheckoutStep = 1 | 2 | 3 | 4;
@@ -77,12 +84,96 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const [isExistingCustomer, setIsExistingCustomer] = useState(false);
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
 
+  // Checkout session tracking refs
+  const sessionStartedRef = useRef(false);
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
   // Use centralized totals
   const totals = calculateCartTotals({
     items,
     selectedShipping: shipping.selected,
     discountAmount: 0,
   });
+
+  // ===== CHECKOUT SESSION TRACKING =====
+  // Start session IMMEDIATELY on mount
+  useEffect(() => {
+    console.log('[checkout-wizard] === MOUNTED ===');
+    console.log('[checkout-wizard] tenantId:', tenantId);
+    console.log('[checkout-wizard] host:', window.location.host);
+    console.log('[checkout-wizard] items:', items.length);
+    console.log('[checkout-wizard] VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
+
+    if (sessionStartedRef.current) {
+      console.log('[checkout-wizard] Session already started');
+      return;
+    }
+
+    const initSession = async () => {
+      sessionStartedRef.current = true;
+      console.log('[checkout-wizard] === STARTING SESSION ===');
+      
+      try {
+        const result = await startCheckoutSession({
+          tenantSlug: tenantSlug || undefined,
+          cartItems: items.map(item => ({
+            product_id: item.product_id,
+            name: item.name,
+            sku: item.sku,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          totalEstimated: totals.grandTotal,
+          region: shipping.cep || undefined,
+        });
+        console.log('[checkout-wizard] Session result:', result);
+      } catch (err) {
+        console.error('[checkout-wizard] Session error:', err);
+      }
+    };
+
+    initSession();
+
+    // Cleanup: end session on unmount
+    return () => {
+      console.log('[checkout-wizard] === UNMOUNTING ===');
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+      // End session when leaving checkout
+      endCheckoutSession();
+    };
+  }, []); // Empty deps - run once on mount
+
+  // Heartbeat every 25 seconds
+  useEffect(() => {
+    if (!sessionStartedRef.current || items.length === 0) return;
+
+    heartbeatIntervalRef.current = setInterval(() => {
+      console.log('[checkout-wizard] Heartbeat');
+      heartbeatCheckoutSession({
+        tenantSlug: tenantSlug || undefined,
+        cartItems: items.map(item => ({
+          product_id: item.product_id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        totalEstimated: totals.grandTotal,
+        customerEmail: formData.customerEmail || undefined,
+        customerPhone: formData.customerPhone || undefined,
+        customerName: formData.customerName || undefined,
+        step: `step_${currentStep}`,
+        region: shipping.cep || undefined,
+      });
+    }, 25000);
+
+    return () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+    };
+  }, [items, totals.grandTotal, formData.customerEmail, formData.customerPhone, formData.customerName, currentStep, shipping.cep, tenantSlug]);
 
   // Load saved email from localStorage for returning customers
   useEffect(() => {
@@ -92,6 +183,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       setIsExistingCustomer(true);
     }
   }, [tenantSlug]);
+
 
   // Hydrate form from draft on initial load
   useEffect(() => {

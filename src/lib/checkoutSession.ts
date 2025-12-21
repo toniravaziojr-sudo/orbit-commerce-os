@@ -51,13 +51,12 @@ export function clearCheckoutSessionId(): void {
 }
 
 /**
- * Get common headers for all checkout session API calls
- * Includes x-store-host for reliable tenant resolution
+ * Get common headers - use text/plain to avoid CORS preflight
+ * This makes the request a "simple request" that doesn't trigger preflight
  */
-function getApiHeaders(): Record<string, string> {
+function getSimpleHeaders(): Record<string, string> {
   return {
-    'Content-Type': 'application/json',
-    'x-store-host': window.location.host,
+    'Content-Type': 'text/plain',
   };
 }
 
@@ -80,10 +79,8 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
 
   console.log('[checkout-session] === STARTING SESSION ===');
   console.log('[checkout-session] Session ID:', sessionId);
-  console.log('[checkout-session] Supabase URL:', supabaseUrl);
   console.log('[checkout-session] Endpoint:', endpoint);
   console.log('[checkout-session] Host:', window.location.host);
-  console.log('[checkout-session] Origin:', window.location.origin);
 
   if (!supabaseUrl) {
     console.error('[checkout-session] CRITICAL: VITE_SUPABASE_URL is not defined!');
@@ -100,19 +97,18 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
       region: params.region,
       total_estimated: params.totalEstimated,
       items_snapshot: params.cartItems,
-      store_host: window.location.host, // Include in body as backup
+      store_host: window.location.host,
     };
     
-    console.log('[checkout-session] Request body:', JSON.stringify(body, null, 2));
+    console.log('[checkout-session] Sending request...');
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers: getSimpleHeaders(),
       body: JSON.stringify(body),
     });
 
     console.log('[checkout-session] Response status:', response.status);
-    console.log('[checkout-session] Response ok:', response.ok);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -121,7 +117,7 @@ export async function startCheckoutSession(params: CheckoutSessionParams): Promi
     }
 
     const result = await response.json();
-    console.log('[checkout-session] Session started successfully:', sessionId, result);
+    console.log('[checkout-session] Session started:', result);
     return { success: true, sessionId };
   } catch (error) {
     console.error('[checkout-session] Error starting session:', error);
@@ -138,7 +134,7 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
   try {
     await fetch(`${supabaseUrl}/functions/v1/checkout-session-heartbeat`, {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers: getSimpleHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
         tenant_slug: params.tenantSlug || undefined,
@@ -149,6 +145,7 @@ export async function heartbeatCheckoutSession(params: CheckoutSessionParams): P
         total_estimated: params.totalEstimated,
         items_snapshot: params.cartItems,
         step: params.step,
+        store_host: window.location.host,
       }),
     });
   } catch (error) {
@@ -168,13 +165,14 @@ export async function completeCheckoutSession(params: {
   try {
     await fetch(`${supabaseUrl}/functions/v1/checkout-session-complete`, {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers: getSimpleHeaders(),
       body: JSON.stringify({
         session_id: sessionId,
         tenant_slug: params.tenantSlug || undefined,
         order_id: params.orderId,
         customer_email: params.customerEmail?.toLowerCase().trim(),
         customer_phone: params.customerPhone?.replace(/\D/g, ''),
+        store_host: window.location.host,
       }),
     });
 
@@ -188,7 +186,7 @@ export async function completeCheckoutSession(params: {
 
 /**
  * End checkout session (mark as abandoned) when user exits checkout page
- * Uses fetch with keepalive for reliable delivery, with sendBeacon fallback
+ * Uses sendBeacon with text/plain for reliable delivery without CORS preflight
  */
 export function endCheckoutSession(): void {
   const sessionId = getCheckoutSessionId();
@@ -201,24 +199,28 @@ export function endCheckoutSession(): void {
   const url = `${supabaseUrl}/functions/v1/checkout-session-end`;
   const payload = JSON.stringify({
     session_id: sessionId,
+    store_host: window.location.host,
   });
 
   console.log('[checkout-session] Ending session:', sessionId);
 
-  // Primary: fetch with keepalive (most reliable)
+  // Use sendBeacon with text/plain (no CORS preflight)
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: 'text/plain' });
+    const sent = navigator.sendBeacon(url, blob);
+    console.log('[checkout-session] Beacon sent:', sent);
+    return;
+  }
+
+  // Fallback: fetch with keepalive
   try {
     fetch(url, {
       method: 'POST',
-      headers: getApiHeaders(),
+      headers: getSimpleHeaders(),
       body: payload,
       keepalive: true,
     }).catch(err => console.error('[checkout-session] End fetch failed:', err));
   } catch (error) {
-    // Fallback: sendBeacon (no custom headers, but still tries)
-    if (navigator.sendBeacon) {
-      const blob = new Blob([payload], { type: 'application/json' });
-      const sent = navigator.sendBeacon(url, blob);
-      console.log('[checkout-session] Beacon fallback sent:', sent);
-    }
+    console.error('[checkout-session] End error:', error);
   }
 }
