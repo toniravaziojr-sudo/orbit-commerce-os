@@ -52,35 +52,54 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   // Checkout session tracking refs
   const sessionStarted = useRef(false);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef(0);
 
-  // Start checkout session once on mount (or when items become available)
+  // Start checkout session once on mount - with retry for items loading
   useEffect(() => {
-    if (sessionStarted.current || items.length === 0) return;
+    const startSession = async () => {
+      if (sessionStarted.current) return;
+      
+      // Log immediately to verify effect runs
+      console.log('[checkout] Session effect running, items:', items.length, 'cartLoading:', cartLoading);
+      
+      // If cart is still loading, retry after a delay
+      if (cartLoading && retryCountRef.current < 5) {
+        retryCountRef.current++;
+        console.log('[checkout] Cart loading, retry #', retryCountRef.current);
+        setTimeout(startSession, 1000);
+        return;
+      }
+      
+      // Start session even if items are empty (to capture checkout entry)
+      sessionStarted.current = true;
+      
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      const shippingTotal = shipping.selected?.price || 0;
+      
+      console.log('[checkout] Starting session NOW, items:', items.length, 'host:', window.location.host);
+      
+      const result = await startCheckoutSession({
+        tenantSlug: tenantSlug || undefined,
+        cartItems: items.map(item => ({
+          product_id: item.product_id,
+          name: item.name,
+          sku: item.sku,
+          quantity: item.quantity,
+          price: item.price,
+          image_url: item.image_url,
+        })),
+        totalEstimated: subtotal + shippingTotal,
+        customerEmail: formData.customerEmail || undefined,
+        customerPhone: formData.customerPhone || undefined,
+        customerName: formData.customerName || undefined,
+        region: shipping.cep || undefined,
+      });
+      
+      console.log('[checkout] Session start result:', result);
+    };
     
-    sessionStarted.current = true;
-    
-    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const shippingTotal = shipping.selected?.price || 0;
-    
-    console.log('[checkout] Starting session, items:', items.length, 'host:', window.location.host);
-    
-    startCheckoutSession({
-      tenantSlug: tenantSlug || undefined,
-      cartItems: items.map(item => ({
-        product_id: item.product_id,
-        name: item.name,
-        sku: item.sku,
-        quantity: item.quantity,
-        price: item.price,
-        image_url: item.image_url,
-      })),
-      totalEstimated: subtotal + shippingTotal,
-      customerEmail: formData.customerEmail || undefined,
-      customerPhone: formData.customerPhone || undefined,
-      customerName: formData.customerName || undefined,
-      region: shipping.cep || undefined,
-    });
-  }, [items.length]);
+    startSession();
+  }, [cartLoading, items, shipping, tenantSlug]);
 
   // Heartbeat every 25 seconds while in checkout
   useEffect(() => {
