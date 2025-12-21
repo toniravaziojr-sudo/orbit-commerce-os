@@ -34,7 +34,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { getPublicProductUrl } from '@/lib/publicUrls';
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 
 interface ProductListProps {
   onCreateProduct: () => void;
@@ -55,6 +55,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
 export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps) {
   const { products, isLoading, deleteProduct, createProduct } = useProducts();
   const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
@@ -287,11 +288,13 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem 
                           onClick={() => {
-                            // Opens PUBLIC URL (no preview) - for sharing/testing as customer
-                            const url = currentTenant ? getPublicProductUrl(currentTenant.slug, product.slug, false) : null;
-                            if (url) window.open(url, '_blank');
+                            // Opens PUBLIC URL using canonical origin (shops or custom domain)
+                            if (primaryOrigin && product.slug) {
+                              const url = buildPublicStorefrontUrl(primaryOrigin, `/p/${product.slug}`);
+                              window.open(url, '_blank');
+                            }
                           }}
-                          disabled={!product.slug}
+                          disabled={!product.slug || !primaryOrigin}
                         >
                           <Eye className="mr-2 h-4 w-4" />
                           Visualizar
