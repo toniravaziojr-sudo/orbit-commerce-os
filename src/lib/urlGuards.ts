@@ -1,18 +1,35 @@
 // =============================================
 // URL GUARDS - Runtime protection for storefront URLs
-// Detects and auto-normalizes invalid URLs in production
+// Detects and handles invalid URLs in production
+// FAIL-SAFE MODE: Critical violations block navigation
 // =============================================
 
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from './canonicalDomainService';
+import { toast } from 'sonner';
 
 export type ViolationType = 'hardcoded_store_url' | 'app_domain_link' | 'preview_in_public';
+export type ViolationSeverity = 'critical' | 'warning';
 
 export interface UrlViolation {
   type: ViolationType;
+  severity: ViolationSeverity;
   original: string;
   normalized?: string;
   host: string;
   path: string;
+}
+
+// Determine severity of violation
+function getViolationSeverity(type: ViolationType): ViolationSeverity {
+  switch (type) {
+    case 'app_domain_link':
+    case 'hardcoded_store_url':
+      return 'critical';
+    case 'preview_in_public':
+      return 'warning';
+    default:
+      return 'warning';
+  }
 }
 
 // Check if current host is a custom domain (not platform subdomain, not app domain)
@@ -56,30 +73,33 @@ export function validateStorefrontUrl(url: string): UrlViolation | null {
   const host = getCurrentHost();
   const isCustom = isCustomDomain();
   
-  // In custom domain, /store/{slug} is a violation
-  if (isCustom && STORE_PATH_PATTERN.test(url)) {
-    return {
-      type: 'hardcoded_store_url',
-      original: url,
-      host,
-      path: url,
-    };
-  }
-  
-  // Links to app.comandocentral in public context are violations
+  // Links to app.comandocentral in public context are CRITICAL violations
   if (APP_DOMAIN_PATTERN.test(url)) {
     return {
       type: 'app_domain_link',
+      severity: 'critical',
       original: url,
       host,
       path: url,
     };
   }
   
-  // Preview query in public URL is a violation
+  // In custom domain, /store/{slug} is a CRITICAL violation
+  if (isCustom && STORE_PATH_PATTERN.test(url)) {
+    return {
+      type: 'hardcoded_store_url',
+      severity: 'critical',
+      original: url,
+      host,
+      path: url,
+    };
+  }
+  
+  // Preview query in public URL is a WARNING violation (can be auto-fixed)
   if (isCustom && PREVIEW_QUERY_PATTERN.test(url)) {
     return {
       type: 'preview_in_public',
+      severity: 'warning',
       original: url,
       host,
       path: url,
@@ -91,25 +111,34 @@ export function validateStorefrontUrl(url: string): UrlViolation | null {
 
 /**
  * Normalize a URL by removing /store/{slug} prefix for custom domains
+ * ONLY for warning-level violations (preview query)
+ * Critical violations should NOT be normalized - they should fail-safe
  */
-export function normalizeStorefrontUrl(url: string): { normalized: string; wasModified: boolean } {
-  const isCustom = isCustomDomain();
+export function normalizeStorefrontUrl(url: string, allowCritical = false): { normalized: string; wasModified: boolean; blocked: boolean } {
+  const violation = validateStorefrontUrl(url);
   
-  if (!isCustom) {
-    return { normalized: url, wasModified: false };
+  if (!violation) {
+    return { normalized: url, wasModified: false, blocked: false };
+  }
+  
+  // Critical violations: block by default unless explicitly allowed
+  if (violation.severity === 'critical' && !allowCritical) {
+    return { normalized: url, wasModified: false, blocked: true };
   }
   
   let normalized = url;
   let wasModified = false;
   
-  // Remove /store/{slug} prefix
-  const storeMatch = url.match(/^\/store\/[^/]+(.*)$/);
-  if (storeMatch) {
-    normalized = storeMatch[1] || '/';
-    wasModified = true;
+  // Remove /store/{slug} prefix (only if allowCritical=true)
+  if (allowCritical) {
+    const storeMatch = url.match(/^\/store\/[^/]+(.*)$/);
+    if (storeMatch) {
+      normalized = storeMatch[1] || '/';
+      wasModified = true;
+    }
   }
   
-  // Remove preview query param
+  // Remove preview query param (safe to do)
   if (PREVIEW_QUERY_PATTERN.test(normalized)) {
     normalized = normalized.replace(/([?&])preview=1(&|$)/, (_, p1, p2) => {
       return p2 === '&' ? p1 : '';
@@ -119,7 +148,7 @@ export function normalizeStorefrontUrl(url: string): { normalized: string; wasMo
     wasModified = true;
   }
   
-  return { normalized, wasModified };
+  return { normalized, wasModified, blocked: false };
 }
 
 /**
@@ -129,7 +158,7 @@ export function assertValidStorefrontUrl(url: string, context?: string): void {
   const violation = validateStorefrontUrl(url);
   
   if (violation) {
-    const message = `[URL Guard] Invalid storefront URL detected${context ? ` in ${context}` : ''}: "${url}" (${violation.type})`;
+    const message = `[URL Guard] Invalid storefront URL detected${context ? ` in ${context}` : ''}: "${url}" (${violation.type}, severity: ${violation.severity})`;
     
     if (import.meta.env.DEV) {
       console.error(message);
@@ -141,39 +170,83 @@ export function assertValidStorefrontUrl(url: string, context?: string): void {
   }
 }
 
-// Violation reporting (for telemetry)
-type ViolationReporter = (violation: UrlViolation & { tenantId?: string }) => void;
+// Violation reporting (via Edge Function for telemetry)
+let isReporting = false;
 
-let violationReporter: ViolationReporter | null = null;
-
-export function setViolationReporter(reporter: ViolationReporter): void {
-  violationReporter = reporter;
+export async function reportViolationToServer(violation: UrlViolation, tenantId?: string): Promise<void> {
+  // Debounce/dedupe: only report once per session per violation
+  const key = `violation-${violation.type}-${violation.path}`;
+  if (typeof sessionStorage !== 'undefined') {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  }
+  
+  if (isReporting) return;
+  isReporting = true;
+  
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) return;
+    
+    await fetch(`${supabaseUrl}/functions/v1/report-runtime-violation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        store_host: violation.host,
+        violation_type: violation.type,
+        path: violation.path,
+        details: {
+          severity: violation.severity,
+          original: violation.original,
+          tenant_id: tenantId,
+          user_agent: navigator.userAgent,
+          timestamp: new Date().toISOString()
+        }
+      })
+    });
+  } catch (e) {
+    console.warn('[URL Guard] Failed to report violation:', e);
+  } finally {
+    isReporting = false;
+  }
 }
 
 export function reportViolation(violation: UrlViolation, tenantId?: string): void {
-  if (violationReporter) {
-    violationReporter({ ...violation, tenantId });
-  }
-  
   // Always log in console
-  console.warn('[URL Guard] Violation reported:', violation);
+  console.warn('[URL Guard] Violation detected:', violation);
+  
+  // Report to server (async, non-blocking)
+  reportViolationToServer(violation, tenantId);
 }
 
 /**
- * Safe navigate wrapper - validates and normalizes URL before navigation
+ * Safe navigate wrapper - validates URL and handles violations
+ * FAIL-SAFE: Critical violations redirect to home with toast
  */
 export function safeNavigate(
   navigate: (path: string) => void,
   url: string,
+  homeUrl: string = '/',
   context?: string
 ): void {
   const violation = validateStorefrontUrl(url);
   
   if (violation) {
-    // Log violation
+    // Report violation
     reportViolation(violation);
     
-    // Try to normalize
+    if (violation.severity === 'critical') {
+      // FAIL-SAFE: Do not navigate to broken URL
+      console.error(`[URL Guard] BLOCKED critical navigation to "${url}" - redirecting to home`);
+      toast.error('Link inválido detectado', {
+        description: 'Você foi redirecionado para a página inicial.',
+        duration: 4000
+      });
+      navigate(homeUrl);
+      return;
+    }
+    
+    // Warning-level: try to normalize
     const { normalized, wasModified } = normalizeStorefrontUrl(url);
     
     if (wasModified) {
@@ -181,22 +254,26 @@ export function safeNavigate(
       navigate(normalized);
       return;
     }
-    
-    // If we can't normalize, still navigate but warn
-    console.warn(`[URL Guard] Could not normalize URL: "${url}"`);
   }
   
   navigate(url);
 }
 
 /**
- * Safe Link href - validates and returns normalized URL
+ * Safe Link href - validates and returns safe URL
+ * FAIL-SAFE: Critical violations return home URL
  */
-export function getSafeLinkHref(url: string): string {
+export function getSafeLinkHref(url: string, homeUrl: string = '/'): string {
   const violation = validateStorefrontUrl(url);
   
   if (violation) {
     reportViolation(violation);
+    
+    if (violation.severity === 'critical') {
+      // FAIL-SAFE: Return home instead of broken URL
+      console.error(`[URL Guard] BLOCKED critical link href "${url}" - returning home`);
+      return homeUrl;
+    }
     
     const { normalized, wasModified } = normalizeStorefrontUrl(url);
     
@@ -207,4 +284,12 @@ export function getSafeLinkHref(url: string): string {
   }
   
   return url;
+}
+
+/**
+ * Check if a URL should be blocked (critical violation)
+ */
+export function shouldBlockNavigation(url: string): boolean {
+  const violation = validateStorefrontUrl(url);
+  return violation?.severity === 'critical';
 }
