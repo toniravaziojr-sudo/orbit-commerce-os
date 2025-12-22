@@ -100,12 +100,13 @@ export default function Discounts() {
       <PageHeader
         title="Descontos"
         description="Gerencie cupons e descontos da sua loja"
-      >
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Criar desconto
-        </Button>
-      </PageHeader>
+        actions={
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Criar desconto
+          </Button>
+        }
+      />
 
       {/* Filters */}
       <div className="flex items-center gap-4">
