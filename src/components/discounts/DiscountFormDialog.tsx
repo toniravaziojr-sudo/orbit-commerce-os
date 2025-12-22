@@ -29,11 +29,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDiscounts, Discount, DiscountType, discountTypeLabels } from "@/hooks/useDiscounts";
-import { Percent, Tag, Truck } from "lucide-react";
+import { Percent, Tag, Truck, Sparkles } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
-  code: z.string().min(1, "Código é obrigatório").max(50, "Máximo 50 caracteres"),
+  code: z.string().max(50, "Máximo 50 caracteres").optional().nullable(),
   type: z.enum(["order_percent", "order_fixed", "free_shipping"]),
   value: z.number().min(0, "Valor deve ser positivo"),
   starts_at: z.string().optional().nullable(),
@@ -43,6 +43,7 @@ const formSchema = z.object({
   usage_limit_per_customer: z.number().min(1).optional().nullable(),
   min_subtotal: z.number().min(0).optional().nullable(),
   description: z.string().optional().nullable(),
+  auto_apply_first_purchase: z.boolean(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -71,6 +72,7 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
       usage_limit_per_customer: null,
       min_subtotal: null,
       description: null,
+      auto_apply_first_purchase: false,
     },
   });
 
@@ -88,6 +90,7 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
         usage_limit_per_customer: discount.usage_limit_per_customer,
         min_subtotal: discount.min_subtotal,
         description: discount.description,
+        auto_apply_first_purchase: (discount as any).auto_apply_first_purchase || false,
       });
     } else {
       form.reset({
@@ -102,6 +105,7 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
         usage_limit_per_customer: null,
         min_subtotal: null,
         description: null,
+        auto_apply_first_purchase: false,
       });
     }
   }, [discount, form]);
@@ -109,7 +113,9 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
   const onSubmit = async (values: FormValues) => {
     const data = {
       name: values.name,
-      code: values.code.toUpperCase().replace(/\s/g, ""),
+      code: values.auto_apply_first_purchase 
+        ? null 
+        : (values.code?.toUpperCase().replace(/\s/g, "") || null),
       type: values.type,
       value: values.value,
       is_active: values.is_active,
@@ -119,6 +125,7 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
       usage_limit_per_customer: values.usage_limit_per_customer || null,
       min_subtotal: values.min_subtotal || null,
       description: values.description || null,
+      auto_apply_first_purchase: values.auto_apply_first_purchase,
     };
 
     if (isEditing) {
@@ -370,6 +377,31 @@ export function DiscountFormDialog({ open, onOpenChange, discount }: DiscountFor
                     />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Auto-apply First Purchase */}
+            <FormField
+              control={form.control}
+              name="auto_apply_first_purchase"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                      Desconto de primeira compra
+                    </FormLabel>
+                    <FormDescription>
+                      Aplica automaticamente para clientes sem pedidos anteriores. Não requer código.
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

@@ -84,3 +84,6 @@ verify_jwt = false
 
 [functions.discount-validate]
 verify_jwt = false
+
+[functions.check-first-purchase-eligibility]
+verify_jwt = false
