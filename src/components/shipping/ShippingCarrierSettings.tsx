@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { 
   Settings, 
-  Truck, 
   CheckCircle, 
   Eye,
   EyeOff,
   Save,
   ExternalLink,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Calculator,
+  Package
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -82,6 +83,8 @@ export function ShippingCarrierSettings() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [formData, setFormData] = useState<Record<string, {
     enabled: boolean;
+    supportsQuote: boolean;
+    supportsTracking: boolean;
     fields: Record<string, string>;
   }>>({});
 
@@ -93,6 +96,8 @@ export function ShippingCarrierSettings() {
       const saved = getProvider(carrier.id);
       initialData[carrier.id] = {
         enabled: saved?.is_enabled ?? false,
+        supportsQuote: saved?.supports_quote ?? true,
+        supportsTracking: saved?.supports_tracking ?? true,
         fields: carrier.fields.reduce((acc, field) => {
           acc[field.key] = saved?.credentials?.[field.key] || '';
           return acc;
@@ -131,6 +136,26 @@ export function ShippingCarrierSettings() {
     }));
   };
 
+  const toggleSupportsQuote = (carrierId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [carrierId]: {
+        ...prev[carrierId],
+        supportsQuote: !prev[carrierId]?.supportsQuote,
+      },
+    }));
+  };
+
+  const toggleSupportsTracking = (carrierId: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [carrierId]: {
+        ...prev[carrierId],
+        supportsTracking: !prev[carrierId]?.supportsTracking,
+      },
+    }));
+  };
+
   const handleSave = async (carrierId: string) => {
     const data = formData[carrierId];
     if (!data) return;
@@ -138,6 +163,8 @@ export function ShippingCarrierSettings() {
     const input: ShippingProviderInput = {
       provider: carrierId,
       is_enabled: data.enabled,
+      supports_quote: data.supportsQuote,
+      supports_tracking: data.supportsTracking,
       credentials: data.fields,
     };
 
@@ -182,7 +209,7 @@ export function ShippingCarrierSettings() {
                 <p className="font-medium">Integração automática</p>
                 <p className="text-muted-foreground">
                   Configure as credenciais abaixo e o sistema automaticamente calculará fretes
-                  no checkout e carrinho.
+                  no checkout e carrinho. Você pode ativar múltiplas transportadoras simultaneamente.
                 </p>
               </div>
             </div>
@@ -191,9 +218,8 @@ export function ShippingCarrierSettings() {
       </Card>
 
       {CARRIER_DEFINITIONS.map((carrier) => {
-        const data = formData[carrier.id] || { enabled: false, fields: {} };
+        const data = formData[carrier.id] || { enabled: false, supportsQuote: true, supportsTracking: true, fields: {} };
         const configured = isConfigured(carrier.id);
-        const saved = getProvider(carrier.id);
 
         return (
           <Card key={carrier.id}>
@@ -217,17 +243,15 @@ export function ShippingCarrierSettings() {
                     <CardDescription>{carrier.description}</CardDescription>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor={`${carrier.id}-enabled`} className="text-sm">
-                      Ativo
-                    </Label>
-                    <Switch
-                      id={`${carrier.id}-enabled`}
-                      checked={data.enabled}
-                      onCheckedChange={() => toggleEnabled(carrier.id)}
-                    />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id={`${carrier.id}-enabled`}
+                    checked={data.enabled}
+                    onCheckedChange={() => toggleEnabled(carrier.id)}
+                  />
+                  <Label htmlFor={`${carrier.id}-enabled`} className="text-sm font-medium">
+                    Ativo
+                  </Label>
                 </div>
               </div>
             </CardHeader>
@@ -236,6 +260,46 @@ export function ShippingCarrierSettings() {
                 {carrier.features.map(feature => (
                   <Badge key={feature} variant="outline">{feature}</Badge>
                 ))}
+              </div>
+
+              {/* Toggles de funcionalidades */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <p className="text-sm font-medium text-muted-foreground">Funcionalidades habilitadas</p>
+                <div className="flex flex-wrap gap-6">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id={`${carrier.id}-quote`}
+                      checked={data.supportsQuote ?? true}
+                      onCheckedChange={() => toggleSupportsQuote(carrier.id)}
+                      disabled={!data.enabled}
+                    />
+                    <Label 
+                      htmlFor={`${carrier.id}-quote`} 
+                      className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
+                    >
+                      <Calculator className="h-4 w-4" />
+                      Cotação de Frete
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id={`${carrier.id}-tracking`}
+                      checked={data.supportsTracking ?? true}
+                      onCheckedChange={() => toggleSupportsTracking(carrier.id)}
+                      disabled={!data.enabled}
+                    />
+                    <Label 
+                      htmlFor={`${carrier.id}-tracking`} 
+                      className={`text-sm flex items-center gap-1.5 ${!data.enabled ? 'text-muted-foreground' : ''}`}
+                    >
+                      <Package className="h-4 w-4" />
+                      Rastreamento
+                    </Label>
+                  </div>
+                </div>
+                {!data.enabled && (
+                  <p className="text-xs text-muted-foreground">Ative a transportadora para configurar funcionalidades</p>
+                )}
               </div>
 
               <Separator />
