@@ -50,6 +50,7 @@ interface ShippingProviderRecord {
   credentials: Record<string, unknown>;
   settings: Record<string, unknown>;
   is_enabled: boolean;
+  supports_tracking?: boolean;
 }
 
 // ========== CONSTANTS =========
@@ -329,57 +330,107 @@ function noProviderAdapter(carrier: string): AdapterResult {
   };
 }
 
-// ========== MAIN LOGIC =========
+// ========== CARRIER INFERENCE ==========
 
-async function getCredentialsForTenant(
-  supabase: any,
-  tenantId: string,
-  carrier: string
-): Promise<ShippingProviderRecord | null> {
-  const normalizedCarrier = carrier.toLowerCase().trim();
+function inferCarrierFromTrackingCode(trackingCode: string): string {
+  if (!trackingCode) return 'unknown';
+  const code = trackingCode.toUpperCase().trim();
   
-  // Map carrier name to provider id
-  let providerName = normalizedCarrier;
-  if (normalizedCarrier.includes('correios') || normalizedCarrier.includes('correio')) {
-    providerName = 'correios';
-  } else if (normalizedCarrier.includes('loggi')) {
-    providerName = 'loggi';
+  // Correios: termina com BR
+  if (code.endsWith('BR')) {
+    return 'correios';
   }
   
-  // Query from shipping_providers (where UI saves credentials)
+  // Loggi: começa com BLI
+  if (code.startsWith('BLI')) {
+    return 'loggi';
+  }
+  
+  return 'unknown';
+}
+
+// ========== MAIN LOGIC =========
+
+interface ProviderCheckResult {
+  credentials: ShippingProviderRecord | null;
+  isActive: boolean;
+  supportsTracking: boolean;
+  skipReason?: string;
+}
+
+async function getProviderForShipment(
+  supabase: any,
+  tenantId: string,
+  carrier: string,
+  trackingCode: string
+): Promise<ProviderCheckResult> {
+  // Normalize carrier name
+  let normalizedCarrier = carrier?.toLowerCase().trim() || '';
+  
+  // Map common variations
+  if (normalizedCarrier.includes('correios') || normalizedCarrier.includes('correio')) {
+    normalizedCarrier = 'correios';
+  } else if (normalizedCarrier.includes('loggi')) {
+    normalizedCarrier = 'loggi';
+  } else if (normalizedCarrier === '' || normalizedCarrier === 'unknown') {
+    // Infer from tracking code pattern
+    normalizedCarrier = inferCarrierFromTrackingCode(trackingCode);
+    console.log(`[TrackingPoll] Inferred carrier from tracking code ${trackingCode}: ${normalizedCarrier}`);
+  }
+  
+  if (normalizedCarrier === 'unknown') {
+    return {
+      credentials: null,
+      isActive: false,
+      supportsTracking: false,
+      skipReason: 'carrier_unknown',
+    };
+  }
+
+  // Query shipping_providers
   const { data, error } = await supabase
     .from('shipping_providers')
-    .select('provider, credentials, settings, is_enabled')
+    .select('provider, credentials, settings, is_enabled, supports_tracking')
     .eq('tenant_id', tenantId)
-    .eq('provider', providerName)
+    .eq('provider', normalizedCarrier)
     .single();
 
   if (error || !data) {
-    // Fallback: try tenant_shipping_integrations
-    const { data: fallback, error: fallbackError } = await supabase
-      .from('tenant_shipping_integrations')
-      .select('carrier, credentials, settings, is_enabled')
-      .eq('tenant_id', tenantId)
-      .ilike('carrier', normalizedCarrier)
-      .single();
-    
-    if (fallbackError || !fallback) {
-      return null;
-    }
-    
     return {
-      provider: String(fallback.carrier || ''),
-      credentials: fallback.credentials as Record<string, unknown>,
-      settings: (fallback.settings as Record<string, unknown>) || {},
-      is_enabled: Boolean(fallback.is_enabled),
+      credentials: null,
+      isActive: false,
+      supportsTracking: false,
+      skipReason: 'provider_not_configured',
+    };
+  }
+
+  if (!data.is_enabled) {
+    return {
+      credentials: null,
+      isActive: false,
+      supportsTracking: false,
+      skipReason: 'provider_disabled',
+    };
+  }
+
+  if (!data.supports_tracking) {
+    return {
+      credentials: null,
+      isActive: true,
+      supportsTracking: false,
+      skipReason: 'tracking_not_supported',
     };
   }
 
   return {
-    provider: String(data.provider || ''),
-    credentials: data.credentials as Record<string, unknown>,
-    settings: (data.settings as Record<string, unknown>) || {},
-    is_enabled: Boolean(data.is_enabled),
+    credentials: {
+      provider: String(data.provider || ''),
+      credentials: data.credentials as Record<string, unknown>,
+      settings: (data.settings as Record<string, unknown>) || {},
+      is_enabled: Boolean(data.is_enabled),
+    },
+    isActive: true,
+    supportsTracking: true,
   };
 }
 
@@ -618,20 +669,58 @@ serve(async (req) => {
     stats.total = shipments.length;
     console.log(`[TrackingPoll] Processing ${shipments.length} shipments`);
 
-    // Cache credentials per tenant+carrier
-    const credentialsCache = new Map<string, ShippingProviderRecord | null>();
+    // Cache provider check results per tenant+carrier
+    const providerCache = new Map<string, ProviderCheckResult>();
 
     for (const shipment of shipments) {
       try {
-        const cacheKey = `${shipment.tenant_id}_${shipment.carrier.toLowerCase()}`;
+        const carrierNormalized = (shipment.carrier || '').toLowerCase();
+        const cacheKey = `${shipment.tenant_id}_${carrierNormalized || inferCarrierFromTrackingCode(shipment.tracking_code)}`;
         
-        if (!credentialsCache.has(cacheKey)) {
-          const creds = await getCredentialsForTenant(supabase, shipment.tenant_id, shipment.carrier);
-          credentialsCache.set(cacheKey, creds);
+        if (!providerCache.has(cacheKey)) {
+          const result = await getProviderForShipment(
+            supabase, 
+            shipment.tenant_id, 
+            shipment.carrier, 
+            shipment.tracking_code
+          );
+          providerCache.set(cacheKey, result);
         }
 
-        const credentials = credentialsCache.get(cacheKey) || null;
-        const result = await processShipment(supabase, shipment as ShipmentRecord, credentials);
+        const providerResult = providerCache.get(cacheKey)!;
+        
+        // Check if provider is disabled or doesn't support tracking
+        if (providerResult.skipReason) {
+          console.log(`[TrackingPoll] Skipping shipment ${shipment.id}: ${providerResult.skipReason}`);
+          
+          // Update shipment with skip reason and reschedule
+          const backoffMinutes = POLL_INTERVAL_MINUTES * 4; // Longer backoff for disabled providers
+          await supabase
+            .from('shipments')
+            .update({
+              last_polled_at: new Date().toISOString(),
+              next_poll_at: new Date(Date.now() + backoffMinutes * 60 * 1000).toISOString(),
+              last_poll_error: providerResult.skipReason,
+            })
+            .eq('id', shipment.id);
+          
+          // Register event for audit
+          await supabase
+            .from('shipment_events')
+            .insert({
+              tenant_id: shipment.tenant_id,
+              shipment_id: shipment.id,
+              status: shipment.delivery_status,
+              description: `Polling skipped: ${providerResult.skipReason}`,
+              occurred_at: new Date().toISOString(),
+              provider_event_id: `skip_${shipment.id}_${Date.now()}`,
+            });
+          
+          stats.noAdapter++;
+          continue;
+        }
+
+        const result = await processShipment(supabase, shipment as ShipmentRecord, providerResult.credentials);
 
         stats.processed++;
         

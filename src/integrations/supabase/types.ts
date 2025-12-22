@@ -2557,6 +2557,8 @@ export type Database = {
           is_enabled: boolean
           provider: string
           settings: Json
+          supports_quote: boolean
+          supports_tracking: boolean
           tenant_id: string
           updated_at: string
         }
@@ -2567,6 +2569,8 @@ export type Database = {
           is_enabled?: boolean
           provider: string
           settings?: Json
+          supports_quote?: boolean
+          supports_tracking?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -2577,6 +2581,8 @@ export type Database = {
           is_enabled?: boolean
           provider?: string
           settings?: Json
+          supports_quote?: boolean
+          supports_tracking?: boolean
           tenant_id?: string
           updated_at?: string
         }

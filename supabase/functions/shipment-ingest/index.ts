@@ -37,6 +37,46 @@ function normalizeStatus(externalStatus: string): string {
   return normalized || 'unknown';
 }
 
+// Inferir carrier pelo padrão do tracking_code
+function inferCarrierFromTrackingCode(trackingCode: string): string {
+  if (!trackingCode) return 'unknown';
+  const code = trackingCode.toUpperCase().trim();
+  
+  // Correios: termina com BR
+  if (code.endsWith('BR')) {
+    return 'correios';
+  }
+  
+  // Loggi: começa com BLI
+  if (code.startsWith('BLI')) {
+    return 'loggi';
+  }
+  
+  return 'unknown';
+}
+
+// Normalizar nome do carrier
+function normalizeCarrier(carrier: string, trackingCode: string): { carrier: string; inferred: boolean } {
+  if (!carrier) {
+    const inferred = inferCarrierFromTrackingCode(trackingCode);
+    return { carrier: inferred, inferred: inferred !== 'unknown' };
+  }
+  
+  const normalized = carrier.toLowerCase().trim();
+  
+  if (normalized.includes('correios') || normalized.includes('correio')) {
+    return { carrier: 'correios', inferred: false };
+  }
+  if (normalized.includes('loggi')) {
+    return { carrier: 'loggi', inferred: false };
+  }
+  if (normalized.includes('frenet')) {
+    return { carrier: 'frenet', inferred: false };
+  }
+  
+  return { carrier: normalized || 'unknown', inferred: false };
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -104,8 +144,11 @@ Deno.serve(async (req) => {
     const resolvedTenantId = order.tenant_id;
     const resolvedOrderId = order.id;
     const deliveryStatus = normalizeStatus(status || 'label_created');
+    
+    // Normalizar carrier (com inferência por tracking_code se necessário)
+    const { carrier: normalizedCarrier, inferred: carrierInferred } = normalizeCarrier(carrier, tracking_code);
 
-    console.log(`[shipment-ingest] Processing shipment for order ${order.order_number}, tracking: ${tracking_code}`);
+    console.log(`[shipment-ingest] Processing shipment for order ${order.order_number}, tracking: ${tracking_code}, carrier: ${normalizedCarrier}${carrierInferred ? ' (inferred)' : ''}`);
 
     // Verificar se já existe remessa com mesmo order_id + tracking_code (idempotência)
     const { data: existingShipment } = await supabase
@@ -126,8 +169,8 @@ Deno.serve(async (req) => {
           .update({
             delivery_status: deliveryStatus,
             last_status_at: new Date().toISOString(),
-            carrier,
-            metadata,
+            carrier: normalizedCarrier,
+            metadata: { ...metadata, carrier_inferred: carrierInferred },
             ...(deliveryStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
           })
           .eq('id', existingShipment.id);
@@ -150,13 +193,13 @@ Deno.serve(async (req) => {
         .insert({
           tenant_id: resolvedTenantId,
           order_id: resolvedOrderId,
-          carrier,
+          carrier: normalizedCarrier,
           tracking_code,
           delivery_status: deliveryStatus,
           last_status_at: new Date().toISOString(),
           source,
           source_id,
-          metadata,
+          metadata: { ...metadata, carrier_inferred: carrierInferred },
           ...(deliveryStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
         })
         .select('id')
@@ -174,15 +217,20 @@ Deno.serve(async (req) => {
     }
 
     // Registrar evento de rastreio
+    const eventDescription = carrierInferred 
+      ? `Status atualizado: ${deliveryStatus} (carrier inferido: ${normalizedCarrier})`
+      : `Status atualizado: ${deliveryStatus}`;
+      
     const { error: eventError } = await supabase
       .from('shipment_events')
       .insert({
         tenant_id: resolvedTenantId,
         shipment_id: shipmentId,
         status: deliveryStatus,
-        description: `Status atualizado: ${deliveryStatus}`,
+        description: eventDescription,
         occurred_at: new Date().toISOString(),
         raw_payload: body,
+        provider_event_id: carrierInferred ? `carrier_inferred_${shipmentId}` : null,
       });
 
     if (eventError) {
@@ -193,7 +241,7 @@ Deno.serve(async (req) => {
     // Atualizar também o pedido principal (para manter compatibilidade)
     const orderUpdate: Record<string, any> = {
       tracking_code,
-      shipping_carrier: carrier,
+      shipping_carrier: normalizedCarrier,
     };
 
     // Mapear delivery_status para shipping_status do pedido
@@ -234,8 +282,8 @@ Deno.serve(async (req) => {
     await supabase.from('order_history').insert({
       order_id: resolvedOrderId,
       action: isNew ? 'shipment_created' : 'shipment_updated',
-      description: `Rastreio ${tracking_code} (${carrier}): ${deliveryStatus}`,
-      new_value: { tracking_code, carrier, delivery_status: deliveryStatus },
+      description: `Rastreio ${tracking_code} (${normalizedCarrier}${carrierInferred ? ' - inferido' : ''}): ${deliveryStatus}`,
+      new_value: { tracking_code, carrier: normalizedCarrier, delivery_status: deliveryStatus, carrier_inferred: carrierInferred },
     });
 
     return new Response(

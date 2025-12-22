@@ -17,7 +17,7 @@ export interface ShippingRule {
 }
 
 export interface ShippingConfig {
-  provider: 'mock' | 'manual_table' | 'frenet' | 'external';
+  provider: 'mock' | 'manual_table' | 'frenet' | 'external' | 'multi';
   originZip: string;
   defaultPrice: number;
   defaultDays: number;
