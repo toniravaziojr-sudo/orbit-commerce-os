@@ -516,13 +516,16 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           customerPhone: formData.customerPhone,
         });
 
+        // Normalize orderNumber (remove # for URL safety - # becomes URL fragment)
+        const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
+
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
           // Credit card approved immediately
           setPaymentStatus('approved');
           clearCart();
           clearDraft();
           toast.success('Pedido realizado com sucesso!');
-          navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
+          navigate(`${urls.thankYou()}?pedido=${cleanOrderNumber}`);
         } else {
           // PIX/Boleto - redirect to thank you page with payment info
           // Store payment data in localStorage for the thank you page
@@ -542,8 +545,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           clearCart();
           clearDraft();
           
-          // Navigate to thank you page
-          navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
+          // Navigate to thank you page (using cleanOrderNumber defined above)
+          navigate(`${urls.thankYou()}?pedido=${cleanOrderNumber}`);
         }
       } else {
         throw new Error(result.error || 'Erro ao processar pagamento');

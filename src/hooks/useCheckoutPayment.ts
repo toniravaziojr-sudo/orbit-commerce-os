@@ -169,7 +169,8 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('pagarme-create-charge', {
         body: {
           tenant_id: tenantId,
-          checkout_id: orderId,
+          // Note: checkout_id removed - it has FK to checkouts table, not orders
+          // We use order_id for linking payment to order
           order_id: orderId,
           method,
           amount: Math.round(total * 100), // Convert to cents
