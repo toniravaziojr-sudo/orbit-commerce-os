@@ -61,6 +61,8 @@ export default function HealthMonitor() {
   }
 
   if (!isPlatformOperator) {
+    // Show toast and redirect
+    toast.error('Acesso restrito: você não tem permissão para acessar este painel.');
     return <Navigate to="/" replace />;
   }
 

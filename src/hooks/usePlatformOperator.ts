@@ -6,16 +6,13 @@ import { useAuth } from '@/hooks/useAuth';
  * 
  * Platform operators have access to cross-tenant monitoring tools like Health Monitor.
  * 
- * This is a provisional gate using email allowlist. In the future, this should
- * be migrated to a proper role-based system with a platform_operators table.
+ * SECURITY: This is a strict allowlist - only the specified email can access operator features.
+ * The check is case-insensitive and trims whitespace.
  */
 
-// Provisional allowlist of platform operator emails
-// TODO: Migrate to proper role-based system (platform_operators table)
+// Strict allowlist of platform operator emails - DO NOT ADD TEST EMAILS
 const PLATFORM_OPERATOR_EMAILS = [
-  'rafael@comandocentral.com.br',
-  'admin@comandocentral.com.br',
-  // Add more operator emails as needed
+  'respeiteohomem@gmail.com',
 ];
 
 export function usePlatformOperator() {
@@ -24,10 +21,12 @@ export function usePlatformOperator() {
   const isPlatformOperator = useMemo(() => {
     if (!user?.email) return false;
     
-    // Check if user email is in the allowlist
-    const email = user.email.toLowerCase();
+    // Normalize email: trim whitespace and lowercase
+    const normalizedEmail = user.email.trim().toLowerCase();
+    
+    // Check if user email is in the strict allowlist
     return PLATFORM_OPERATOR_EMAILS.some(
-      operatorEmail => operatorEmail.toLowerCase() === email
+      operatorEmail => operatorEmail.trim().toLowerCase() === normalizedEmail
     );
   }, [user?.email]);
   
