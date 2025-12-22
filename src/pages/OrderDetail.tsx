@@ -385,6 +385,18 @@ export default function OrderDetail() {
                   <span>{order.shipping_carrier}</span>
                 </div>
               )}
+              {order.shipping_service_name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Serviço</span>
+                  <span>{order.shipping_service_name}</span>
+                </div>
+              )}
+              {order.shipping_estimated_days && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Prazo estimado</span>
+                  <span>{order.shipping_estimated_days} dias úteis</span>
+                </div>
+              )}
               
               {/* Tracking Code - Editable (legado, mantido para compatibilidade) */}
               <div className="space-y-2">

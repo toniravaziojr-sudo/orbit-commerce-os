@@ -128,7 +128,10 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             city: shipping.city,
             state: shipping.state,
             postal_code: shipping.postalCode,
-            carrier: shippingOption?.label,
+            carrier: shippingOption?.carrier || shippingOption?.label || 'Frenet',
+            service_code: shippingOption?.code,
+            service_name: shippingOption?.label,
+            estimated_days: shippingOption?.deliveryDays,
           },
           items: items.map(item => ({
             product_id: item.product_id,

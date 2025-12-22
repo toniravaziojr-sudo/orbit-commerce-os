@@ -58,6 +58,9 @@ export interface Order {
   paid_at: string | null;
   shipping_status: ShippingStatus;
   shipping_carrier: string | null;
+  shipping_service_code: string | null;
+  shipping_service_name: string | null;
+  shipping_estimated_days: number | null;
   tracking_code: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
