@@ -7,8 +7,15 @@
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from './canonicalDomainService';
 import { toast } from 'sonner';
 
-export type ViolationType = 'hardcoded_store_url' | 'app_domain_link' | 'preview_in_public';
-export type ViolationSeverity = 'critical' | 'warning';
+export type ViolationType = 
+  | 'hardcoded_store_url' 
+  | 'app_domain_link' 
+  | 'preview_in_public'
+  | 'redirect_loop'
+  | 'wrong_canonical_origin'
+  | 'content_hardcoded_url';
+  
+export type ViolationSeverity = 'critical' | 'warning' | 'info';
 
 export interface UrlViolation {
   type: ViolationType;
@@ -20,13 +27,17 @@ export interface UrlViolation {
 }
 
 // Determine severity of violation
-function getViolationSeverity(type: ViolationType): ViolationSeverity {
+export function getViolationSeverity(type: ViolationType): ViolationSeverity {
   switch (type) {
     case 'app_domain_link':
     case 'hardcoded_store_url':
+    case 'redirect_loop':
       return 'critical';
     case 'preview_in_public':
+    case 'wrong_canonical_origin':
       return 'warning';
+    case 'content_hardcoded_url':
+      return 'info';
     default:
       return 'warning';
   }
@@ -292,4 +303,169 @@ export function getSafeLinkHref(url: string, homeUrl: string = '/'): string {
 export function shouldBlockNavigation(url: string): boolean {
   const violation = validateStorefrontUrl(url);
   return violation?.severity === 'critical';
+}
+
+/**
+ * Check if current host is a tenant host (custom domain or platform subdomain)
+ */
+export function isOnTenantHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  const hostname = window.location.hostname.toLowerCase().replace(/^www\./, '');
+  
+  // Platform subdomain is a tenant host
+  if (isPlatformSubdomain(hostname)) return true;
+  
+  // Custom domain is a tenant host
+  if (isCustomDomain()) return true;
+  
+  return false;
+}
+
+// =============================================
+// REDIRECT LOOP DETECTION
+// =============================================
+
+const REDIRECT_HISTORY_KEY = 'cc_redirect_history';
+const MAX_REDIRECTS_IN_WINDOW = 5;
+const REDIRECT_WINDOW_MS = 10000; // 10 seconds
+
+interface RedirectEntry {
+  url: string;
+  timestamp: number;
+}
+
+/**
+ * Record a redirect and check for loops
+ * Returns true if a loop is detected
+ */
+export function recordRedirectAndCheckLoop(targetUrl: string): boolean {
+  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') {
+    return false;
+  }
+  
+  const now = Date.now();
+  let history: RedirectEntry[] = [];
+  
+  try {
+    const stored = sessionStorage.getItem(REDIRECT_HISTORY_KEY);
+    if (stored) {
+      history = JSON.parse(stored);
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  
+  // Remove old entries
+  history = history.filter(entry => now - entry.timestamp < REDIRECT_WINDOW_MS);
+  
+  // Check if this URL was visited recently (potential loop)
+  const recentVisitToSameUrl = history.filter(entry => entry.url === targetUrl);
+  
+  if (recentVisitToSameUrl.length >= 2) {
+    // Clear history to prevent permanent blocking
+    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
+    
+    // Report the loop
+    const host = getCurrentHost();
+    reportViolation({
+      type: 'redirect_loop',
+      severity: 'critical',
+      original: targetUrl,
+      host,
+      path: targetUrl,
+    });
+    
+    return true;
+  }
+  
+  // Check total redirects
+  if (history.length >= MAX_REDIRECTS_IN_WINDOW) {
+    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
+    
+    const host = getCurrentHost();
+    reportViolation({
+      type: 'redirect_loop',
+      severity: 'critical',
+      original: targetUrl,
+      host,
+      path: `(${history.length + 1} redirects in ${REDIRECT_WINDOW_MS}ms)`,
+    });
+    
+    return true;
+  }
+  
+  // Add new entry
+  history.push({ url: targetUrl, timestamp: now });
+  
+  try {
+    sessionStorage.setItem(REDIRECT_HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // Ignore storage errors
+  }
+  
+  return false;
+}
+
+/**
+ * Clear redirect history (call after successful page load)
+ */
+export function clearRedirectHistory(): void {
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
+  }
+}
+
+// =============================================
+// CONTENT SCANNING (for stored content)
+// =============================================
+
+/**
+ * Scan a string for URL violations (useful for stored content)
+ */
+export function scanContentForViolations(content: string): UrlViolation[] {
+  const violations: UrlViolation[] = [];
+  const host = getCurrentHost();
+  
+  // Check for /store/ patterns
+  const storeMatches = content.match(/\/store\/[a-z0-9_-]+/gi);
+  if (storeMatches) {
+    for (const match of new Set(storeMatches)) {
+      violations.push({
+        type: 'content_hardcoded_url',
+        severity: 'info',
+        original: match,
+        host,
+        path: 'stored_content',
+      });
+    }
+  }
+  
+  // Check for app domain
+  const appMatches = content.match(/https?:\/\/app\.comandocentral\.com\.br[^\s"']*/gi);
+  if (appMatches) {
+    for (const match of new Set(appMatches)) {
+      violations.push({
+        type: 'app_domain_link',
+        severity: 'critical',
+        original: match,
+        host,
+        path: 'stored_content',
+      });
+    }
+  }
+  
+  // Check for preview params
+  const previewMatches = content.match(/[?&]preview=1/gi);
+  if (previewMatches) {
+    violations.push({
+      type: 'preview_in_public',
+      severity: 'warning',
+      original: 'preview=1',
+      host,
+      path: 'stored_content',
+    });
+  }
+  
+  return violations;
 }
