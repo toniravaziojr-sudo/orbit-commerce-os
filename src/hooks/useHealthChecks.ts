@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlatformOperator } from '@/hooks/usePlatformOperator';
 
 export interface HealthCheckTarget {
   id: string;
@@ -40,13 +41,38 @@ export interface HealthCheck {
   created_at: string;
 }
 
-export function useHealthCheckTargets() {
+// Aggregated stats for platform operator view
+export interface AggregatedHealthStats {
+  totalTenants: number;
+  tenantsWithIssues: number;
+  totalChecks: number;
+  passedChecks: number;
+  failedChecks: number;
+  partialChecks: number;
+  uptimePercent: number;
+  lastCheckAt: string | null;
+}
+
+export function useHealthCheckTargets(allTenants = false) {
   const { currentTenant } = useAuth();
+  const { isPlatformOperator } = usePlatformOperator();
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['health-check-targets', tenantId],
+    queryKey: ['health-check-targets', allTenants ? 'all' : tenantId],
     queryFn: async () => {
+      // Platform operators can see all targets
+      if (allTenants && isPlatformOperator) {
+        const { data, error } = await supabase
+          .from('system_health_check_targets')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return data as HealthCheckTarget[];
+      }
+      
+      // Regular users only see their tenant's targets
       if (!tenantId) return [];
 
       const { data, error } = await supabase
@@ -58,21 +84,36 @@ export function useHealthCheckTargets() {
       if (error) throw error;
       return data as HealthCheckTarget[];
     },
-    enabled: !!tenantId,
+    enabled: allTenants ? isPlatformOperator : !!tenantId,
   });
 }
 
-export function useHealthChecks(days: number = 7) {
+export function useHealthChecks(days: number = 7, allTenants = false) {
   const { currentTenant } = useAuth();
+  const { isPlatformOperator } = usePlatformOperator();
   const tenantId = currentTenant?.id;
 
   return useQuery({
-    queryKey: ['health-checks', tenantId, days],
+    queryKey: ['health-checks', allTenants ? 'all' : tenantId, days],
     queryFn: async () => {
-      if (!tenantId) return [];
-
       const since = new Date();
       since.setDate(since.getDate() - days);
+
+      // Platform operators can see all checks
+      if (allTenants && isPlatformOperator) {
+        const { data, error } = await supabase
+          .from('system_health_checks')
+          .select('*')
+          .gte('ran_at', since.toISOString())
+          .order('ran_at', { ascending: false })
+          .limit(500);
+
+        if (error) throw error;
+        return data as HealthCheck[];
+      }
+
+      // Regular users only see their tenant's checks
+      if (!tenantId) return [];
 
       const { data, error } = await supabase
         .from('system_health_checks')
@@ -85,7 +126,7 @@ export function useHealthChecks(days: number = 7) {
       if (error) throw error;
       return data as HealthCheck[];
     },
-    enabled: !!tenantId,
+    enabled: allTenants ? isPlatformOperator : !!tenantId,
     refetchInterval: 60000, // Refresh every minute
   });
 }
@@ -107,6 +148,57 @@ export function useHealthCheckStats() {
   }
 
   return stats;
+}
+
+// Aggregated stats for platform operator view
+export function useAggregatedHealthStats() {
+  const { data: checks = [] } = useHealthChecks(1, true); // Last 24h, all tenants
+  const { isPlatformOperator } = usePlatformOperator();
+
+  if (!isPlatformOperator || checks.length === 0) {
+    return {
+      totalTenants: 0,
+      tenantsWithIssues: 0,
+      totalChecks: 0,
+      passedChecks: 0,
+      failedChecks: 0,
+      partialChecks: 0,
+      uptimePercent: 0,
+      lastCheckAt: null,
+    } as AggregatedHealthStats;
+  }
+
+  // Group by tenant
+  const tenantMap = new Map<string, HealthCheck[]>();
+  checks.forEach(check => {
+    const existing = tenantMap.get(check.tenant_id) || [];
+    existing.push(check);
+    tenantMap.set(check.tenant_id, existing);
+  });
+
+  // Count tenants with issues (any fail in last 24h)
+  let tenantsWithIssues = 0;
+  tenantMap.forEach(tenantChecks => {
+    if (tenantChecks.some(c => c.status === 'fail')) {
+      tenantsWithIssues++;
+    }
+  });
+
+  const passed = checks.filter(c => c.status === 'pass').length;
+  const failed = checks.filter(c => c.status === 'fail').length;
+  const partial = checks.filter(c => c.status === 'partial').length;
+  const uptimePercent = checks.length > 0 ? Math.round((passed / checks.length) * 100) : 0;
+
+  return {
+    totalTenants: tenantMap.size,
+    tenantsWithIssues,
+    totalChecks: checks.length,
+    passedChecks: passed,
+    failedChecks: failed,
+    partialChecks: partial,
+    uptimePercent,
+    lastCheckAt: checks[0]?.ran_at ?? null,
+  } as AggregatedHealthStats;
 }
 
 export function useCreateHealthCheckTarget() {

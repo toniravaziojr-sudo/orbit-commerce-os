@@ -26,7 +26,6 @@ import {
   Star,
   TrendingUp,
   Percent,
-  HeartPulse,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -96,7 +95,6 @@ const navigation: NavGroup[] = [
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },
-      { title: "Health Monitor", href: "/health-monitor", icon: HeartPulse },
       { title: "Configurações", href: "/settings", icon: Settings },
     ],
   },
