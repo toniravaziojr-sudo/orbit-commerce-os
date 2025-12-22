@@ -1,6 +1,7 @@
 // ============================================
-// FRENET QUOTE - Shipping quote
-// Uses database config first, falls back to Secrets
+// FRENET QUOTE - Shipping quote (PUBLIC - verify_jwt=false)
+// Resolves tenant by domain, NEVER trusts client tenant_id
+// Uses database config, falls back to Secrets
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -8,26 +9,25 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-store-host',
 };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-// Fallback to environment secrets
 const ENV_FRENET_TOKEN = Deno.env.get('FRENET_TOKEN');
 
 interface ShippingQuoteRequest {
-  tenant_id: string;
-  seller_cep?: string; // Optional - will use config if not provided
+  store_host?: string;        // Domain-aware: host do storefront
+  tenant_id?: string;         // Fallback apenas para casos internos
+  seller_cep?: string;
   recipient_cep: string;
   items: Array<{
-    weight: number; // kg
-    height: number; // cm
-    width: number;  // cm
-    length: number; // cm
+    weight: number;
+    height: number;
+    width: number;
+    length: number;
     quantity: number;
-    price: number;  // R$
+    price: number;
   }>;
 }
 
@@ -41,13 +41,56 @@ interface FrenetShippingService {
   Msg: string | null;
 }
 
-// Get Frenet credentials from database or fallback to Secrets
+// Resolve tenant by host (domain-aware)
+async function resolveTenantByHost(supabase: any, host: string): Promise<string | null> {
+  const normalizedHost = host.toLowerCase().trim().replace(/:\d+$/, '');
+  console.log('[Frenet] Resolving tenant for host:', normalizedHost);
+
+  // Check custom domains first
+  const { data: customDomain } = await supabase
+    .from('tenant_domains')
+    .select('tenant_id')
+    .eq('domain', normalizedHost)
+    .eq('status', 'verified')
+    .maybeSingle();
+
+  if (customDomain?.tenant_id) {
+    console.log('[Frenet] Resolved via custom domain:', customDomain.tenant_id);
+    return customDomain.tenant_id;
+  }
+
+  // Check .shops subdomain pattern
+  const shopsMatch = normalizedHost.match(/^([a-z0-9-]+)\.shops\./);
+  if (shopsMatch) {
+    const slug = shopsMatch[1];
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', slug)
+      .maybeSingle();
+
+    if (tenant?.id) {
+      console.log('[Frenet] Resolved via shops subdomain:', tenant.id);
+      return tenant.id;
+    }
+  }
+
+  // Localhost/dev: try to extract tenant from any subdomain pattern
+  if (normalizedHost.includes('localhost') || normalizedHost.includes('127.0.0.1')) {
+    console.log('[Frenet] Localhost detected, will need tenant_id fallback');
+    return null;
+  }
+
+  console.log('[Frenet] Could not resolve tenant from host');
+  return null;
+}
+
+// Get Frenet credentials from database or fallback
 async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
   token: string;
   originCep: string;
   source: 'database' | 'fallback';
 }> {
-  // Try database first
   const { data: provider } = await supabase
     .from('shipping_providers')
     .select('credentials, settings, is_enabled')
@@ -57,7 +100,6 @@ async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
 
   if (provider?.is_enabled && provider?.credentials?.token) {
     console.log('[Frenet] Using database credentials');
-    // Check seller_cep in both credentials and settings
     const originCep = provider.credentials.seller_cep || provider.settings?.origin_cep || '01310100';
     return {
       token: provider.credentials.token,
@@ -66,12 +108,11 @@ async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
     };
   }
 
-  // Fallback to environment secrets
   if (ENV_FRENET_TOKEN) {
     console.log('[Frenet] Using fallback (Secrets)');
     return {
       token: ENV_FRENET_TOKEN,
-      originCep: '01310100', // Default CEP for fallback
+      originCep: '01310100',
       source: 'fallback',
     };
   }
@@ -80,23 +121,21 @@ async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const body: ShippingQuoteRequest = await req.json();
-    console.log('Frenet quote request:', JSON.stringify(body));
+    
+    // Get host from header or body
+    const hostHeader = req.headers.get('x-store-host') || req.headers.get('origin') || '';
+    const storeHost = body.store_host || new URL(hostHeader || 'http://localhost').host;
+    
+    console.log('[Frenet] Request host:', storeHost);
+    console.log('[Frenet] Quote request:', JSON.stringify({ ...body, store_host: storeHost }));
 
-    const { tenant_id, recipient_cep, items } = body;
-
-    if (!tenant_id) {
-      return new Response(
-        JSON.stringify({ error: 'tenant_id is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const { recipient_cep, items } = body;
 
     if (!recipient_cep || !items?.length) {
       return new Response(
@@ -107,11 +146,25 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Get credentials from database or fallback
-    const credentials = await getFrenetCredentials(supabase, tenant_id);
+    // SECURITY: Resolve tenant by host, not by client-provided tenant_id
+    let tenantId = await resolveTenantByHost(supabase, storeHost);
+    
+    // Fallback for localhost/dev only
+    if (!tenantId && body.tenant_id) {
+      console.log('[Frenet] Using fallback tenant_id (dev mode):', body.tenant_id);
+      tenantId = body.tenant_id;
+    }
+
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ error: 'Não foi possível identificar a loja' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const credentials = await getFrenetCredentials(supabase, tenantId);
     console.log(`[Frenet] Using ${credentials.source} credentials, origin CEP: ${credentials.originCep}`);
 
-    // Use provided seller_cep or config origin_cep
     const sellerCep = body.seller_cep || credentials.originCep;
 
     // Calculate totals
@@ -129,18 +182,16 @@ serve(async (req) => {
       totalValue += item.price * item.quantity;
     }
 
-    // Ensure minimum dimensions
     totalWeight = Math.max(totalWeight, 0.3);
     totalHeight = Math.max(totalHeight, 2);
     totalWidth = Math.max(totalWidth, 11);
     totalLength = Math.max(totalLength, 16);
 
-    // Frenet API request
     const frenetPayload = {
       SellerCEP: sellerCep.replace(/\D/g, ''),
       RecipientCEP: recipient_cep.replace(/\D/g, ''),
       ShipmentInvoiceValue: totalValue,
-      ShippingServiceCode: null, // Get all services
+      ShippingServiceCode: null,
       ShippingItemArray: [{
         Height: totalHeight,
         Length: totalLength,
@@ -153,7 +204,7 @@ serve(async (req) => {
       RecipientCountry: 'BR'
     };
 
-    console.log('Frenet API payload:', JSON.stringify(frenetPayload));
+    console.log('[Frenet] API payload:', JSON.stringify(frenetPayload));
 
     const frenetResponse = await fetch('https://api.frenet.com.br/shipping/quote', {
       method: 'POST',
@@ -166,17 +217,16 @@ serve(async (req) => {
     });
 
     const frenetData = await frenetResponse.json();
-    console.log('Frenet API response:', JSON.stringify(frenetData));
+    console.log('[Frenet] API response:', JSON.stringify(frenetData));
 
     if (!frenetResponse.ok) {
-      console.error('Frenet API error:', frenetData);
+      console.error('[Frenet] API error:', frenetData);
       return new Response(
         JSON.stringify({ error: 'Frenet API error', details: frenetData }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse shipping services - include free shipping options (price = 0)
     const services: FrenetShippingService[] = frenetData.ShippingSevicesArray || [];
     
     const options = services
@@ -189,14 +239,15 @@ serve(async (req) => {
           label: `${s.Carrier} - ${s.ServiceDescription}`,
           carrier: s.Carrier,
           service: s.ServiceDescription,
-          price: price, // Keep as number for frontend
-          deliveryDays: deliveryDays, // Keep as number for frontend
+          service_code: s.ServiceCode,
+          price: price,
+          deliveryDays: deliveryDays,
           isFree: price === 0
         };
       })
       .sort((a, b) => a.price - b.price);
 
-    console.log('Parsed shipping options:', JSON.stringify(options));
+    console.log('[Frenet] Parsed options:', options.length);
 
     return new Response(
       JSON.stringify({
@@ -217,7 +268,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Frenet quote error:', error);
+    console.error('[Frenet] Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: 'Internal server error', message }),
