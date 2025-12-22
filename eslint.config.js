@@ -23,4 +23,31 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  // ========================================================
+  // ANTI-REGRESSION: Proibir URLs hardcoded no Storefront
+  // ========================================================
+  {
+    files: [
+      "src/pages/storefront/**/*.{ts,tsx}",
+      "src/components/storefront/**/*.{ts,tsx}",
+    ],
+    rules: {
+      // Proibir strings literais contendo "/store/" em navegação pública
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/\\/store\\//]",
+          message: "❌ URL hardcoded detectada! Use useStorefrontUrls() ou publicUrls helpers. Nunca monte rotas com '/store/' no storefront.",
+        },
+        {
+          selector: "TemplateLiteral[quasis.0.value.raw=/\\/store\\//]",
+          message: "❌ Template string com '/store/' detectado! Use useStorefrontUrls() ou publicUrls helpers.",
+        },
+        {
+          selector: "TemplateLiteral[quasis.0.value.raw=/tenantSlug/]",
+          message: "❌ tenantSlug em template string detectado! Use useStorefrontUrls() para gerar URLs domain-aware.",
+        },
+      ],
+    },
+  },
 );
