@@ -87,3 +87,7 @@ verify_jwt = false
 
 [functions.check-first-purchase-eligibility]
 verify_jwt = false
+
+[functions.health-check-run]
+verify_jwt = false
+schedule = "*/5 * * * *"
