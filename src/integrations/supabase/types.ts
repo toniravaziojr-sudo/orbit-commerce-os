@@ -815,6 +815,126 @@ export type Database = {
           },
         ]
       }
+      discount_redemptions: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_email: string
+          discount_id: string
+          id: string
+          order_id: string | null
+          redeemed_at: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          customer_email: string
+          discount_id: string
+          id?: string
+          order_id?: string | null
+          redeemed_at?: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_email?: string
+          discount_id?: string
+          id?: string
+          order_id?: string | null
+          redeemed_at?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discount_redemptions_discount_id_fkey"
+            columns: ["discount_id"]
+            isOneToOne: false
+            referencedRelation: "discounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_redemptions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_redemptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      discounts: {
+        Row: {
+          code: string | null
+          created_at: string
+          description: string | null
+          ends_at: string | null
+          id: string
+          is_active: boolean
+          min_subtotal: number | null
+          name: string
+          starts_at: string | null
+          tenant_id: string
+          type: string
+          updated_at: string
+          usage_limit_per_customer: number | null
+          usage_limit_total: number | null
+          value: number
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          min_subtotal?: number | null
+          name: string
+          starts_at?: string | null
+          tenant_id: string
+          type: string
+          updated_at?: string
+          usage_limit_per_customer?: number | null
+          usage_limit_total?: number | null
+          value?: number
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          description?: string | null
+          ends_at?: string | null
+          id?: string
+          is_active?: boolean
+          min_subtotal?: number | null
+          name?: string
+          starts_at?: string | null
+          tenant_id?: string
+          type?: string
+          updated_at?: string
+          usage_limit_per_customer?: number | null
+          usage_limit_total?: number | null
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events_inbox: {
         Row: {
           created_at: string
@@ -2937,6 +3057,11 @@ export type Database = {
       }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
+      get_discount_usage: { Args: { p_discount_id: string }; Returns: number }
+      get_discount_usage_by_customer: {
+        Args: { p_discount_id: string; p_email: string }
+        Returns: number
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
