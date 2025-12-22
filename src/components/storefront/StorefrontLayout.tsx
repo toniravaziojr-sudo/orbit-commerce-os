@@ -2,6 +2,7 @@ import { Outlet, useParams } from 'react-router-dom';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
+import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 
@@ -19,17 +20,19 @@ export function StorefrontLayout() {
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // CartProvider wraps EVERYTHING to persist state across navigation and loading states
+  // CartProvider and DiscountProvider wrap EVERYTHING to persist state across navigation
   return (
     <CartProvider tenantSlug={tenantSlug || ''}>
-      <StorefrontLayoutContent
-        tenant={tenant}
-        tenantSlug={tenantSlug || ''}
-        customDomain={customDomain}
-        isLoading={isLoading || isDomainLoading}
-        isPublished={isPublished}
-        isPreview={isPreview}
-      />
+      <DiscountProvider>
+        <StorefrontLayoutContent
+          tenant={tenant}
+          tenantSlug={tenantSlug || ''}
+          customDomain={customDomain}
+          isLoading={isLoading || isDomainLoading}
+          isPublished={isPublished}
+          isPreview={isPreview}
+        />
+      </DiscountProvider>
     </CartProvider>
   );
 }

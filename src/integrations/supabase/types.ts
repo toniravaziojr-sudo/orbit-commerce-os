@@ -1578,7 +1578,11 @@ export type Database = {
           customer_notes: string | null
           customer_phone: string | null
           delivered_at: string | null
+          discount_code: string | null
+          discount_name: string | null
           discount_total: number
+          discount_type: string | null
+          free_shipping: boolean
           id: string
           internal_notes: string | null
           order_number: string
@@ -1625,7 +1629,11 @@ export type Database = {
           customer_notes?: string | null
           customer_phone?: string | null
           delivered_at?: string | null
+          discount_code?: string | null
+          discount_name?: string | null
           discount_total?: number
+          discount_type?: string | null
+          free_shipping?: boolean
           id?: string
           internal_notes?: string | null
           order_number: string
@@ -1672,7 +1680,11 @@ export type Database = {
           customer_notes?: string | null
           customer_phone?: string | null
           delivered_at?: string | null
+          discount_code?: string | null
+          discount_name?: string | null
           discount_total?: number
+          discount_type?: string | null
+          free_shipping?: boolean
           id?: string
           internal_notes?: string | null
           order_number?: string

@@ -14,13 +14,15 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2 } from 'lucide-react';
+import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2, Tag } from 'lucide-react';
 import { useCart, CartItem } from '@/contexts/CartContext';
+import { useDiscount } from '@/contexts/DiscountContext';
 import { useBenefit, useShipping } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
 import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
 import { Progress } from '@/components/ui/progress';
+import { CouponInput } from '@/components/storefront/CouponInput';
 
 interface MiniCartDrawerProps {
   open: boolean;
@@ -37,12 +39,24 @@ export function MiniCartDrawer({
 }: MiniCartDrawerProps) {
   const navigate = useNavigate();
   const { items, shipping, subtotal, updateQuantity, removeItem, setShippingCep, setShippingOptions, selectShipping } = useCart();
+  const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount } = useDiscount();
+
+  // Build store host for discount validation
+  const storeHost = `${tenantSlug}.shops.${window.location.hostname.includes('localhost') ? 'comandocentral.com.br' : window.location.hostname.split('.').slice(-2).join('.')}`;
+
+  // Calculate discount
+  const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
+  
+  // Handle free shipping from coupon
+  const effectiveShipping = appliedDiscount?.free_shipping 
+    ? { ...shipping.selected, isFree: true, price: 0 }
+    : shipping.selected;
 
   // Use centralized totals calculation
   const totals = calculateCartTotals({
     items,
-    selectedShipping: shipping.selected,
-    discountAmount: 0,
+    selectedShipping: effectiveShipping,
+    discountAmount,
   });
 
   const handleCheckout = () => {
@@ -111,6 +125,20 @@ export function MiniCartDrawer({
   // Footer component - summary + CTAs
   const Footer = (
     <div className="border-t px-4 py-4 space-y-4 bg-background">
+      {/* Coupon Input */}
+      {items.length > 0 && (
+        <CouponInput
+          storeHost={storeHost}
+          subtotal={subtotal}
+          appliedDiscount={appliedDiscount}
+          onApply={(discount) => {
+            applyDiscount(storeHost, discount.discount_code, subtotal);
+          }}
+          onRemove={removeDiscount}
+          compact
+        />
+      )}
+
       {/* Summary */}
       {items.length > 0 && (
         <div className="space-y-2 text-sm">
@@ -119,11 +147,22 @@ export function MiniCartDrawer({
             <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
           </div>
           
+          {/* Discount */}
+          {appliedDiscount && totals.discountTotal > 0 && (
+            <div className="flex justify-between text-green-600">
+              <span className="flex items-center gap-1">
+                <Tag className="h-3 w-3" />
+                Desconto
+              </span>
+              <span>-{formatCurrency(totals.discountTotal)}</span>
+            </div>
+          )}
+          
           {/* Shipping status */}
           <div className="flex justify-between">
             <span>Frete:</span>
-            {shipping.selected ? (
-              shipping.selected.isFree ? (
+            {effectiveShipping ? (
+              effectiveShipping.isFree ? (
                 <span className="text-green-600 font-medium">Grátis</span>
               ) : (
                 <span className="font-medium">{formatCurrency(totals.shippingTotal)}</span>

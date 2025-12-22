@@ -5,9 +5,10 @@
 
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
+import { useDiscount } from '@/contexts/DiscountContext';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ShoppingBag, ArrowRight } from 'lucide-react';
+import { ShoppingBag, ArrowRight, Tag } from 'lucide-react';
 import { calculateCartTotals, formatCurrency, debugCartTotals } from '@/lib/cartTotals';
 
 interface CartSummaryProps {
@@ -18,12 +19,22 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { items, shipping } = useCart();
+  const { appliedDiscount, getDiscountAmount } = useDiscount();
+
+  // Calculate discount amount based on current subtotal
+  const rawSubtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discountAmount = getDiscountAmount(rawSubtotal, shipping.selected?.price || 0);
+  
+  // Handle free shipping from coupon
+  const effectiveShipping = appliedDiscount?.free_shipping 
+    ? { ...shipping.selected, isFree: true, price: 0 }
+    : shipping.selected;
 
   // Use centralized totals calculation
   const totals = calculateCartTotals({
     items,
-    selectedShipping: shipping.selected,
-    discountAmount: 0,
+    selectedShipping: effectiveShipping,
+    discountAmount,
   });
 
   // Debug helper (dev only, triggered by ?debugCart=1)
@@ -57,6 +68,12 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           <div>
             <p className="text-sm text-muted-foreground">Total</p>
             <p className="text-xl font-bold">{formatCurrency(totals.grandTotal)}</p>
+            {appliedDiscount && (
+              <p className="text-xs text-green-600 flex items-center gap-1">
+                <Tag className="h-3 w-3" />
+                {appliedDiscount.discount_code}
+              </p>
+            )}
           </div>
           <Button 
             size="lg" 
@@ -84,16 +101,33 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
               <span>{formatCurrency(totals.subtotal)}</span>
             </div>
 
-            {shipping.selected && (
+            {appliedDiscount && totals.discountTotal > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span className="flex items-center gap-1">
+                  <Tag className="h-3 w-3" />
+                  Desconto ({appliedDiscount.discount_code})
+                </span>
+                <span>-{formatCurrency(totals.discountTotal)}</span>
+              </div>
+            )}
+
+            {effectiveShipping && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Frete ({shipping.selected.label})</span>
+                <span className="text-muted-foreground">Frete ({effectiveShipping.label})</span>
                 <span>
-                  {shipping.selected.isFree ? (
+                  {effectiveShipping.isFree ? (
                     <span className="text-green-600">Grátis</span>
                   ) : (
                     formatCurrency(totals.shippingTotal)
                   )}
                 </span>
+              </div>
+            )}
+
+            {appliedDiscount?.free_shipping && (
+              <div className="text-xs text-green-600 flex items-center gap-1">
+                <Tag className="h-3 w-3" />
+                Frete grátis aplicado via cupom
               </div>
             )}
 
@@ -137,11 +171,21 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
           <span>{formatCurrency(totals.subtotal)}</span>
         </div>
 
-        {shipping.selected && (
+        {appliedDiscount && totals.discountTotal > 0 && (
+          <div className="flex justify-between text-green-600">
+            <span className="flex items-center gap-1">
+              <Tag className="h-3 w-3" />
+              Desconto
+            </span>
+            <span>-{formatCurrency(totals.discountTotal)}</span>
+          </div>
+        )}
+
+        {effectiveShipping && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">Frete</span>
             <span>
-              {shipping.selected.isFree ? (
+              {effectiveShipping.isFree ? (
                 <span className="text-green-600">Grátis</span>
               ) : (
                 formatCurrency(totals.shippingTotal)
