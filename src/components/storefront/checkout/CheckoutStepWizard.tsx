@@ -36,6 +36,7 @@ import {
   completeCheckoutSession,
   getCheckoutSessionId,
   captureCheckoutContact,
+  endCheckoutSession,
 } from '@/lib/checkoutSession';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
@@ -92,6 +93,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // Checkout session tracking refs
   const sessionStartedRef = useRef(false);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const exitFiredRef = useRef(false);
 
   // Calculate discount
   const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
@@ -143,13 +145,49 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   }, []); // Empty deps - run once on mount
 
   // ===== EXIT EVENT LISTENERS =====
-  // NOTE: We intentionally do NOT call endCheckoutSession() on exit events
-  // The server-side sweep job handles abandonment after 30 minutes of inactivity
-  // This prevents false "abandoned" status when user is still actively browsing
-  // (e.g., switching tabs, opening DevTools, clicking links within checkout)
-  //
-  // The heartbeat (every 25s) keeps the session "alive"
-  // If heartbeat stops for 30+ min, sweep marks it as abandoned
+  // Register exit time when user leaves the page (via sendBeacon)
+  // This does NOT mark as abandoned - only records the exit time
+  // The server-side sweep will determine abandonment after 30min of inactivity
+  useEffect(() => {
+    const handlePageExit = () => {
+      // Only fire once per session
+      if (exitFiredRef.current) return;
+      exitFiredRef.current = true;
+      
+      // Clear heartbeat to stop sending
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      
+      // Register exit time (via sendBeacon - reliable for page close)
+      // This does NOT mark as abandoned - just records last_seen_at
+      endCheckoutSession();
+    };
+
+    // pagehide is the most reliable event for page close/navigation
+    window.addEventListener('pagehide', handlePageExit);
+    // beforeunload as fallback for older browsers
+    window.addEventListener('beforeunload', handlePageExit);
+    // visibilitychange for tab switching (only on hide, reset on show)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // Don't mark exitFired - just update last_seen_at when tab is hidden
+        // The sweep will use this to determine inactivity
+        endCheckoutSession();
+      } else if (document.visibilityState === 'visible') {
+        // User came back - reset exit flag so next hide fires
+        exitFiredRef.current = false;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageExit);
+      window.removeEventListener('beforeunload', handlePageExit);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   // Heartbeat every 25 seconds
   useEffect(() => {

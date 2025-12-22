@@ -1,7 +1,8 @@
 // ============================================
-// CHECKOUT SESSION END - Marks session as abandoned
+// CHECKOUT SESSION END - Registers that user left the checkout
+// DOES NOT mark as abandoned - only updates ended_at/last_seen_at
+// Abandonment is determined by server-side sweep after 30min inactivity
 // Accepts text/plain to avoid CORS preflight (important for sendBeacon)
-// Resolves session directly by ID (no tenant required from client)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -47,7 +48,7 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[checkout-session-end] Ending session: ${session_id}, store_host: ${store_host}`);
+    console.log(`[checkout-session-end] Registering exit for session: ${session_id}, store_host: ${store_host}`);
 
     // Find session directly by ID (no tenant needed - session_id is unique)
     const { data: session } = await supabase
@@ -63,26 +64,33 @@ serve(async (req) => {
       });
     }
 
-    // Skip if already abandoned/converted or has order
-    if (session.status !== 'active' || session.order_id) {
-      console.log(`[checkout-session-end] Session ${session_id} skipped (status: ${session.status}, has_order: ${!!session.order_id})`);
+    // Skip if already completed/abandoned or has order
+    if (session.status === 'completed' || session.order_id) {
+      console.log(`[checkout-session-end] Session ${session_id} already completed, skipping`);
       return new Response(JSON.stringify({ 
         success: true, 
         action: 'skipped', 
+        reason: 'already_completed',
         status: session.status 
       }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    // Mark as abandoned
+    // IMPORTANT: DO NOT mark as abandoned here!
+    // Only update ended_at and last_seen_at to record the exit time
+    // The sweep job will determine abandonment after 30min of inactivity
     const now = new Date().toISOString();
     const { error } = await supabase
       .from('checkout_sessions')
       .update({ 
-        status: 'abandoned', 
-        abandoned_at: now, 
-        last_seen_at: now 
+        last_seen_at: now,
+        // Keep status as 'active' - let sweep decide if it becomes abandoned
+        // Just record that the user has left the page
+        metadata: {
+          ended_at: now,
+          ended_reason: 'page_exit'
+        }
       })
       .eq('id', session_id);
 
@@ -91,9 +99,14 @@ serve(async (req) => {
       throw error;
     }
 
-    console.log(`[checkout-session-end] Session ${session_id} marked abandoned`);
+    console.log(`[checkout-session-end] Session ${session_id} exit recorded (status remains: ${session.status})`);
 
-    return new Response(JSON.stringify({ success: true, status: 'abandoned' }), { 
+    return new Response(JSON.stringify({ 
+      success: true, 
+      action: 'exit_recorded',
+      status: session.status,
+      message: 'Exit time recorded, abandonment determined by sweep'
+    }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });
 
