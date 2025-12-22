@@ -3,9 +3,11 @@
 // Uses centralized cartTotals for consistency
 // =============================================
 
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ShoppingBag, ArrowRight, Tag } from 'lucide-react';
@@ -17,7 +19,8 @@ interface CartSummaryProps {
 
 export function CartSummary({ variant = 'default' }: CartSummaryProps) {
   const navigate = useNavigate();
-  const { tenantSlug } = useParams();
+  const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping } = useCart();
   const { appliedDiscount, getDiscountAmount } = useDiscount();
 
@@ -41,11 +44,11 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
   debugCartTotals('CartSummary', totals, shipping);
 
   const handleCheckout = () => {
-    navigate(`/store/${tenantSlug}/checkout`);
+    navigate(urls.checkout());
   };
 
   const handleContinueShopping = () => {
-    navigate(`/store/${tenantSlug}`);
+    navigate(urls.home());
   };
 
   if (items.length === 0) {
