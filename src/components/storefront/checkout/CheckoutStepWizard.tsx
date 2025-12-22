@@ -5,9 +5,11 @@
 // =============================================
 
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
@@ -63,7 +65,8 @@ interface CheckoutStepWizardProps {
 
 export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const navigate = useNavigate();
-  const { tenantSlug } = useParams();
+  const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
@@ -74,8 +77,11 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
   
-  // Build store host for discount validation
-  const storeHost = `${tenantSlug}.shops.${window.location.hostname.includes('localhost') ? 'comandocentral.com.br' : window.location.hostname.split('.').slice(-2).join('.')}`;
+  // Build store host for discount validation - use actual hostname for custom domains
+  const hostname = window.location.hostname.toLowerCase();
+  const storeHost = hostname.includes('shops.') || hostname.includes('localhost') 
+    ? `${tenantSlug}.shops.comandocentral.com.br`
+    : hostname;
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
@@ -604,7 +610,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       {/* Back link */}
       <div className="mb-4">
         <Link 
-          to={`/store/${tenantSlug}/cart`}
+          to={urls.cart()}
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />
@@ -732,8 +738,25 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           </div>
         </div>
 
-        {/* Sidebar - Order summary */}
-        <div className="lg:col-span-1">
+        {/* Sidebar - Order summary + Coupon */}
+        <div className="lg:col-span-1 space-y-4">
+          {/* Coupon input */}
+          <div className="bg-card border rounded-lg p-4">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Cupom de desconto
+            </h3>
+            <CouponInput
+              storeHost={storeHost}
+              subtotal={subtotal}
+              appliedDiscount={appliedDiscount}
+              onApply={(discount) => {
+                applyDiscount(storeHost, discount.discount_code, subtotal);
+              }}
+              onRemove={removeDiscount}
+            />
+          </div>
+
           <OrderSummarySidebar 
             items={items} 
             totals={totals} 
