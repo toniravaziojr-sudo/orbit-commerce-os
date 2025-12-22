@@ -1,7 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+// =============================================
+// USE SHIPMENTS - Hook para gerenciar remessas/entregas
+// Suporta tanto a tabela orders (legado) quanto shipments (novo)
+// =============================================
+
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
+// Tipos legados (baseado em orders)
 export interface Shipment {
   id: string;
   order_number: string;
@@ -28,6 +35,80 @@ interface UseShipmentsOptions {
   pageSize?: number;
   status?: string;
 }
+
+// =============================================
+// NOVOS TIPOS - Baseado na tabela shipments
+// =============================================
+
+export type DeliveryStatus = 
+  | 'label_created'
+  | 'posted'
+  | 'in_transit'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'failed'
+  | 'returned'
+  | 'canceled'
+  | 'unknown';
+
+export interface ShipmentRecord {
+  id: string;
+  tenant_id: string;
+  order_id: string;
+  carrier: string;
+  tracking_code: string;
+  delivery_status: DeliveryStatus;
+  last_status_at: string;
+  estimated_delivery_at: string | null;
+  delivered_at: string | null;
+  source: string;
+  source_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ShipmentEvent {
+  id: string;
+  tenant_id: string;
+  shipment_id: string;
+  status: string;
+  description: string | null;
+  location: string | null;
+  occurred_at: string;
+  raw_payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// Labels para exibição
+export const deliveryStatusLabels: Record<DeliveryStatus, string> = {
+  label_created: 'Etiqueta Gerada',
+  posted: 'Postado',
+  in_transit: 'Em Trânsito',
+  out_for_delivery: 'Saiu para Entrega',
+  delivered: 'Entregue',
+  failed: 'Falha na Entrega',
+  returned: 'Devolvido',
+  canceled: 'Cancelado',
+  unknown: 'Desconhecido',
+};
+
+// Cores para badges
+export const deliveryStatusColors: Record<DeliveryStatus, string> = {
+  label_created: 'bg-gray-100 text-gray-800',
+  posted: 'bg-blue-100 text-blue-800',
+  in_transit: 'bg-yellow-100 text-yellow-800',
+  out_for_delivery: 'bg-orange-100 text-orange-800',
+  delivered: 'bg-green-100 text-green-800',
+  failed: 'bg-red-100 text-red-800',
+  returned: 'bg-purple-100 text-purple-800',
+  canceled: 'bg-gray-100 text-gray-800',
+  unknown: 'bg-gray-100 text-gray-800',
+};
+
+// =============================================
+// HOOK LEGADO - Baseado em orders (mantido para compatibilidade)
+// =============================================
 
 export function useShipments(options: UseShipmentsOptions = {}) {
   const { currentTenant } = useAuth();
@@ -72,25 +153,21 @@ export function useShipments(options: UseShipmentsOptions = {}) {
     queryFn: async () => {
       if (!currentTenant?.id) return { pendingCount: 0, inTransitCount: 0, deliveredCount: 0, deliveryRate: 0 };
 
-      // Get current month start
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-      // Get pending shipments
       const { count: pendingCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
         .in('shipping_status', ['pending', 'processing']);
 
-      // Get in transit shipments
       const { count: inTransitCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .eq('tenant_id', currentTenant.id)
         .in('shipping_status', ['shipped', 'in_transit', 'out_for_delivery']);
 
-      // Get delivered this month
       const { count: deliveredCount } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
@@ -98,7 +175,6 @@ export function useShipments(options: UseShipmentsOptions = {}) {
         .eq('shipping_status', 'delivered')
         .gte('delivered_at', monthStart);
 
-      // Calculate delivery rate (delivered / total shipped)
       const { count: totalShipped } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
@@ -124,4 +200,86 @@ export function useShipments(options: UseShipmentsOptions = {}) {
     isLoading: shipmentsQuery.isLoading,
     isStatsLoading: statsQuery.isLoading,
   };
+}
+
+// =============================================
+// NOVOS HOOKS - Baseados na tabela shipments
+// =============================================
+
+// Hook para buscar remessas de um pedido específico
+export function useOrderShipments(orderId: string | undefined) {
+  return useQuery({
+    queryKey: ['order-shipments', orderId],
+    queryFn: async () => {
+      if (!orderId) return [];
+
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data as ShipmentRecord[];
+    },
+    enabled: !!orderId,
+  });
+}
+
+// Hook para buscar eventos de uma remessa
+export function useShipmentEvents(shipmentId: string | undefined) {
+  return useQuery({
+    queryKey: ['shipment-events', shipmentId],
+    queryFn: async () => {
+      if (!shipmentId) return [];
+
+      const { data, error } = await supabase
+        .from('shipment_events')
+        .select('*')
+        .eq('shipment_id', shipmentId)
+        .order('occurred_at', { ascending: false });
+
+      if (error) throw error;
+      return data as ShipmentEvent[];
+    },
+    enabled: !!shipmentId,
+  });
+}
+
+// Hook para criar/atualizar remessa via edge function
+export function useIngestShipment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      order_id?: string;
+      order_number?: string;
+      tracking_code: string;
+      carrier: string;
+      status?: string;
+      source?: string;
+      source_id?: string;
+      metadata?: Record<string, unknown>;
+    }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipment-ingest', {
+        body: data,
+      });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao processar remessa');
+
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(result.is_new ? 'Remessa criada!' : 'Remessa atualizada!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao processar remessa:', error);
+      toast.error('Erro ao processar remessa');
+    },
+  });
 }
