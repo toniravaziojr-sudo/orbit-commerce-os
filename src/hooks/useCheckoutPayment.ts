@@ -53,6 +53,15 @@ export interface CardData {
   cvv: string;
 }
 
+export interface DiscountData {
+  discount_id: string;
+  discount_code: string;
+  discount_name: string;
+  discount_type: string;
+  discount_amount: number;
+  free_shipping: boolean;
+}
+
 interface UseCheckoutPaymentOptions {
   tenantId: string;
 }
@@ -69,6 +78,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     customer,
     card,
     checkoutSessionId,
+    discount,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -77,6 +87,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     customer: CustomerData;
     card?: CardData;
     checkoutSessionId?: string;
+    discount?: DiscountData;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -84,14 +95,18 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     try {
       console.log('[Checkout] Starting payment process via edge functions');
       
-      // Calculate totals
+      // Calculate totals (discount is already applied if present)
       const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
       const shippingTotal = typeof shippingOption?.price === 'string' 
         ? parseFloat(shippingOption.price) || 0 
         : (shippingOption?.price || 0);
-      const total = subtotal + shippingTotal;
       
-      console.log('[Checkout] Totals:', { subtotal, shippingTotal, total });
+      // Apply discount
+      const discountAmount = discount?.discount_amount || 0;
+      const effectiveShippingTotal = discount?.free_shipping ? 0 : shippingTotal;
+      const total = Math.max(0, subtotal - discountAmount + effectiveShippingTotal);
+      
+      console.log('[Checkout] Totals:', { subtotal, shippingTotal: effectiveShippingTotal, discountAmount, total });
 
       // 1. Create order via edge function (handles customer, order, order_items)
       console.log('[Checkout] Step 1: Creating order via edge function');
@@ -125,8 +140,18 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
           })),
           payment_method: method,
           subtotal,
-          shipping_total: shippingTotal,
+          shipping_total: effectiveShippingTotal,
+          discount_total: discountAmount,
           total,
+          // Discount data for persistence and redemption
+          discount: discount ? {
+            discount_id: discount.discount_id,
+            discount_code: discount.discount_code,
+            discount_name: discount.discount_name,
+            discount_type: discount.discount_type,
+            discount_amount: discount.discount_amount,
+            free_shipping: discount.free_shipping,
+          } : undefined,
         },
       });
 

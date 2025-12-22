@@ -7,18 +7,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
+import { useDiscount } from '@/contexts/DiscountContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
 import { PaymentMethodSelector } from './PaymentMethodSelector';
 import { PaymentResultDisplay } from './PaymentResult';
+import { CouponInput } from '@/components/storefront/CouponInput';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff } from 'lucide-react';
+import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
 import { useShipping, useCanonicalDomain } from '@/contexts/StorefrontConfigContext';
@@ -62,7 +64,8 @@ interface CheckoutStepWizardProps {
 export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
-  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart } = useCart();
+  const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
+  const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
@@ -70,6 +73,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
+  
+  // Build store host for discount validation
+  const storeHost = `${tenantSlug}.shops.${window.location.hostname.includes('localhost') ? 'comandocentral.com.br' : window.location.hostname.split('.').slice(-2).join('.')}`;
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
@@ -88,11 +94,19 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const sessionStartedRef = useRef(false);
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Calculate discount
+  const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
+  
+  // Handle free shipping from coupon
+  const effectiveShipping = appliedDiscount?.free_shipping 
+    ? { ...shipping.selected, isFree: true, price: 0 }
+    : shipping.selected;
+
   // Use centralized totals
   const totals = calculateCartTotals({
     items,
-    selectedShipping: shipping.selected,
-    discountAmount: 0,
+    selectedShipping: effectiveShipping,
+    discountAmount,
   });
 
   // Ref to track if exit event already fired (prevent duplicates)
@@ -200,6 +214,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       }
     };
   }, [items, totals.grandTotal, formData.customerEmail, formData.customerPhone, formData.customerName, currentStep, shipping.cep, tenantSlug]);
+
+  // Revalidate discount on mount and when cart changes
+  useEffect(() => {
+    if (appliedDiscount && subtotal > 0) {
+      revalidateDiscount(storeHost, subtotal, shipping.selected?.price || 0, formData.customerEmail || undefined);
+    }
+  }, [subtotal, shipping.selected?.price]);
 
   // Load saved email from localStorage for returning customers
   useEffect(() => {
@@ -475,7 +496,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           state: formData.shippingState,
           postalCode: formData.shippingPostalCode,
         },
-        shippingOption: shipping.selected,
+        shippingOption: effectiveShipping,
         customer: {
           name: formData.customerName,
           email: formData.customerEmail,
@@ -483,6 +504,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           cpf: formData.customerCpf,
         },
         card: paymentMethod === 'credit_card' ? cardData : undefined,
+        // Pass discount data
+        discount: appliedDiscount ? {
+          discount_id: appliedDiscount.discount_id,
+          discount_code: appliedDiscount.discount_code,
+          discount_name: appliedDiscount.discount_name,
+          discount_type: appliedDiscount.discount_type,
+          discount_amount: discountAmount,
+          free_shipping: appliedDiscount.free_shipping,
+        } : undefined,
       });
 
       if (result.success) {

@@ -24,6 +24,15 @@ interface OrderItem {
   image_url?: string;
 }
 
+interface DiscountData {
+  discount_id: string;
+  discount_code: string;
+  discount_name: string;
+  discount_type: string;
+  discount_amount: number;
+  free_shipping: boolean;
+}
+
 interface CreateOrderRequest {
   tenant_id: string;
   customer: {
@@ -46,7 +55,9 @@ interface CreateOrderRequest {
   payment_method: 'pix' | 'boleto' | 'credit_card';
   subtotal: number;
   shipping_total: number;
+  discount_total?: number;
   total: number;
+  discount?: DiscountData;
 }
 
 function normalizeEmail(email: string): string {
@@ -150,6 +161,7 @@ serve(async (req) => {
         payment_method: payload.payment_method,
         subtotal: payload.subtotal,
         shipping_total: payload.shipping_total,
+        discount_total: payload.discount_total || 0,
         total: payload.total,
         shipping_street: payload.shipping.street,
         shipping_number: payload.shipping.number,
@@ -159,6 +171,11 @@ serve(async (req) => {
         shipping_state: payload.shipping.state,
         shipping_postal_code: payload.shipping.postal_code,
         shipping_carrier: payload.shipping.carrier || null,
+        // Discount fields
+        discount_code: payload.discount?.discount_code || null,
+        discount_name: payload.discount?.discount_name || null,
+        discount_type: payload.discount?.discount_type || null,
+        free_shipping: payload.discount?.free_shipping || false,
       })
       .select('id')
       .single();
@@ -190,9 +207,28 @@ serve(async (req) => {
 
     if (itemsError) {
       console.error('[checkout-create-order] Error creating order items:', itemsError);
-      // Non-blocking - order was created
-    } else {
-      console.log('[checkout-create-order] Order items created');
+    }
+
+    // 5. Create discount redemption if discount was applied
+    if (payload.discount?.discount_id) {
+      console.log('[checkout-create-order] Creating discount redemption');
+      const { error: redemptionError } = await supabase
+        .from('discount_redemptions')
+        .insert({
+          tenant_id: payload.tenant_id,
+          discount_id: payload.discount.discount_id,
+          order_id: orderId,
+          customer_email: normalizedEmail,
+          amount: payload.discount.discount_amount,
+          status: 'applied',
+        });
+
+      if (redemptionError) {
+        console.error('[checkout-create-order] Error creating redemption:', redemptionError);
+        // Non-blocking - order was created
+      } else {
+        console.log('[checkout-create-order] Discount redemption created');
+      }
     }
 
     return new Response(JSON.stringify({
