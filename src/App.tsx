@@ -39,6 +39,7 @@ import Discounts from "@/pages/Discounts";
 import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
+import HealthMonitor from "@/pages/HealthMonitor";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -201,6 +202,7 @@ const App = () => {
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/builder" element={<StorefrontBuilder />} />
                   <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
+                  <Route path="/health-monitor" element={<HealthMonitor />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
                 </Route>
               )}

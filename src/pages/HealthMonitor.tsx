@@ -56,7 +56,7 @@ export default function HealthMonitor() {
   };
 
   return (
-    <AppShell>
+    <>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -262,6 +262,6 @@ export default function HealthMonitor() {
         check={selectedCheck}
         onOpenChange={(open) => !open && setSelectedCheck(null)}
       />
-    </AppShell>
+    </>
   );
 }
