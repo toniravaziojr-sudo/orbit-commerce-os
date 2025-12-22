@@ -49,8 +49,8 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
     try {
       let options;
       
-      // Use async quote for Frenet provider
-      if (config.provider === 'frenet') {
+      // Use async quote for multi-provider or Frenet
+      if (config.provider === 'frenet' || config.provider === 'multi') {
         const cartItems = items.map(item => ({
           weight: 0.3,
           height: 10,
@@ -190,7 +190,14 @@ export function CheckoutShipping({ disabled = false }: CheckoutShippingProps) {
                     disabled={disabled}
                   />
                   <div>
-                    <p className="font-medium">{option.label}</p>
+                    <p className="font-medium">
+                      {option.label}
+                      {option.carrier && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          ({option.carrier})
+                        </span>
+                      )}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {option.deliveryDays} {option.deliveryDays === 1 ? 'dia útil' : 'dias úteis'}
                     </p>

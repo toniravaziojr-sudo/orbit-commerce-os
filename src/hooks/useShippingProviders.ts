@@ -13,6 +13,8 @@ export interface ShippingProvider {
   tenant_id: string;
   provider: string;
   is_enabled: boolean;
+  supports_quote: boolean;
+  supports_tracking: boolean;
   credentials: Record<string, string>;
   settings: Record<string, any>;
   created_at: string;
@@ -22,6 +24,8 @@ export interface ShippingProvider {
 export interface ShippingProviderInput {
   provider: string;
   is_enabled: boolean;
+  supports_quote?: boolean;
+  supports_tracking?: boolean;
   credentials: Record<string, string>;
   settings?: Record<string, any>;
 }
@@ -58,6 +62,8 @@ export function useShippingProviders() {
           .from('shipping_providers')
           .update({
             is_enabled: input.is_enabled,
+            supports_quote: input.supports_quote ?? true,
+            supports_tracking: input.supports_tracking ?? true,
             credentials: input.credentials,
             settings: input.settings || {},
             updated_at: new Date().toISOString(),
@@ -75,6 +81,8 @@ export function useShippingProviders() {
             tenant_id: currentTenant.id,
             provider: input.provider,
             is_enabled: input.is_enabled,
+            supports_quote: input.supports_quote ?? true,
+            supports_tracking: input.supports_tracking ?? true,
             credentials: input.credentials,
             settings: input.settings || {},
           })

@@ -129,27 +129,26 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
 
       if (storeError) throw storeError;
 
-      // Also check shipping_providers for active Frenet integration
-      // Only select non-sensitive fields - credentials used server-side only
-      const { data: shippingProvider } = await supabase
+      // Check for any active shipping providers with quote support
+      const { data: shippingProviders } = await supabase
         .from('shipping_providers')
-        .select('provider, is_enabled')
+        .select('provider, is_enabled, supports_quote')
         .eq('tenant_id', tenantId)
         .eq('is_enabled', true)
-        .eq('provider', 'frenet')
-        .maybeSingle();
+        .eq('supports_quote', true);
 
       let shippingConfig = parseShippingConfig(storeData?.shipping_config);
 
-      // If Frenet provider is active in shipping_providers, override store_settings config
-      // Origin CEP will come from edge function (using secure credentials)
-      if (shippingProvider?.is_enabled && shippingProvider.provider === 'frenet') {
+      // If any provider with quote support is active, use multi-provider edge function
+      const hasActiveQuoteProviders = shippingProviders && shippingProviders.length > 0;
+      if (hasActiveQuoteProviders) {
+        const activeProviders = shippingProviders.map(p => p.provider);
         shippingConfig = {
           ...shippingConfig,
-          provider: 'frenet',
-          frenetEnabled: true,
+          provider: 'multi', // Signal to use shipping-quote aggregator
+          frenetEnabled: activeProviders.includes('frenet'),
         };
-        console.log('[StorefrontConfigContext] Frenet provider active - using edge function for quotes');
+        console.log('[StorefrontConfigContext] Active quote providers:', activeProviders.join(', '));
       }
       
       return {
@@ -226,10 +225,10 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
             isFree: isFreeShipping,
           });
         }
-      } else if (shippingConfig.provider === 'frenet') {
-        // Frenet provider: this function should not be called for Frenet
+      } else if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
+        // Multi-provider or Frenet: this function should not be called
         // Return empty to signal that quoteAsync should be used instead
-        console.log('[StorefrontConfigContext] Frenet provider active - use quoteAsync for real quotes');
+        console.log('[StorefrontConfigContext] Multi-provider active - use quoteAsync for real quotes');
       }
 
       return quotes;
@@ -247,13 +246,18 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
       const isFreeShipping = shippingConfig.freeShippingThreshold != null && 
         cartTotal >= shippingConfig.freeShippingThreshold;
 
-      // If using Frenet, call the Edge Function with tenant_id
-      if (shippingConfig.provider === 'frenet') {
+      // If using multi-provider or Frenet, call the shipping-quote Edge Function
+      if (shippingConfig.provider === 'multi' || shippingConfig.provider === 'frenet') {
         try {
-          console.log('[StorefrontConfigContext] Calling frenet-quote with tenant:', tenantId);
-          const { data, error } = await supabase.functions.invoke('frenet-quote', {
+          console.log('[StorefrontConfigContext] Calling shipping-quote with tenant:', tenantId);
+          
+          // Use shipping-quote for multi-provider, fallback to frenet-quote for backwards compatibility
+          const functionName = shippingConfig.provider === 'multi' ? 'shipping-quote' : 'frenet-quote';
+          
+          const { data, error } = await supabase.functions.invoke(functionName, {
             body: {
-              tenant_id: tenantId, // Edge function will get seller_cep from database
+              tenant_id: tenantId, // Edge function will get credentials from database
+              store_host: window.location.host, // For domain-aware resolution
               recipient_cep: cep,
               items: items.map(item => ({
                 weight: item.weight || 0.3,
@@ -267,7 +271,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
           });
 
           if (error) {
-            console.error('[StorefrontConfigContext] Frenet quote error:', error);
+            console.error('[StorefrontConfigContext] Shipping quote error:', error);
             // Fallback to default
             return [{
               price: isFreeShipping ? 0 : shippingConfig.defaultPrice,
@@ -277,21 +281,31 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
             }];
           }
 
-          console.log('[StorefrontConfigContext] Frenet quote response:', data);
+          console.log('[StorefrontConfigContext] Shipping quote response:', data);
 
           if (data?.options && data.options.length > 0) {
-            return data.options.map((opt: { code?: string; label: string; carrier?: string; price: unknown; deliveryDays: unknown }) => {
+            return data.options.map((opt: { 
+              service_code?: string; 
+              code?: string;
+              service_name?: string;
+              label?: string; 
+              carrier?: string; 
+              price: unknown; 
+              estimated_days?: unknown;
+              deliveryDays?: unknown;
+            }) => {
               // Safe conversion - handle string/number/undefined
               const safePrice = typeof opt.price === 'number' 
                 ? opt.price 
                 : parseFloat(String(opt.price)) || 0;
-              const safeDays = typeof opt.deliveryDays === 'number' 
-                ? opt.deliveryDays 
-                : parseInt(String(opt.deliveryDays), 10) || 5;
+              const rawDays = opt.estimated_days ?? opt.deliveryDays;
+              const safeDays = typeof rawDays === 'number' 
+                ? rawDays 
+                : parseInt(String(rawDays), 10) || 5;
               
               return {
-                code: opt.code,
-                label: opt.label,
+                code: opt.service_code || opt.code,
+                label: opt.service_name || opt.label || 'Frete',
                 carrier: opt.carrier,
                 price: isFreeShipping ? 0 : safePrice,
                 deliveryDays: safeDays,
@@ -300,7 +314,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
             });
           }
         } catch (err) {
-          console.error('[StorefrontConfigContext] Frenet quote exception:', err);
+          console.error('[StorefrontConfigContext] Shipping quote exception:', err);
         }
         
         // Fallback
@@ -312,7 +326,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         }];
       }
 
-      // For non-Frenet providers, use sync quote
+      // For non-provider configs, use sync quote
       return quote(cep, cartTotal);
     };
   }, [shippingConfig, quote, tenantId]);
