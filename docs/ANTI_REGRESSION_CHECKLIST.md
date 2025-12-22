@@ -126,7 +126,60 @@ npm run lint
 
 # Build (inclui lint)
 npm run build
+
+# E2E tests (local)
+npx playwright test
+
+# E2E tests em domínio específico
+STOREFRONT_BASE_URL=https://loja.example.com npx playwright test
+
+# E2E com UI interativa
+npx playwright test --ui
 ```
+
+---
+
+## 🧪 Testes E2E (Playwright)
+
+### Instalação inicial (uma vez)
+```bash
+npx playwright install
+```
+
+### Executando testes
+
+**Local (dev server):**
+```bash
+npx playwright test
+```
+
+**Em domínio custom:**
+```bash
+STOREFRONT_BASE_URL=https://loja.respeiteohomem.com.br npx playwright test
+```
+
+**Em domínio platform:**
+```bash
+STOREFRONT_BASE_URL=https://respeite-o-homem.shops.comandocentral.com.br npx playwright test
+```
+
+### Testes incluídos
+
+| Teste | Descrição |
+|-------|-----------|
+| Home → Product → Cart | Navegação básica e validação de URLs |
+| Cart → Checkout | Botão "Finalizar compra" funciona |
+| Coupon field exists | Campo de cupom renderiza no cart/checkout |
+| Checkout session tracking | Chamadas de session start/heartbeat |
+| Account → Orders | Navegação da área do cliente |
+| No app.comandocentral URLs | Nenhum link público aponta para admin |
+
+### Validações automáticas
+
+Em **custom domain**, os testes falham se:
+- Qualquer URL contiver `/store/{slug}`
+- Qualquer link apontar para `app.comandocentral.com.br`
+- Houver 404 na navegação principal
 
 ---
 
@@ -137,6 +190,8 @@ npm run build
 - `src/lib/canonicalUrls.ts` - URLs canônicas para SEO
 - `src/lib/devGuards.ts` - Runtime safeguards (dev only)
 - `scripts/check-hardcoded-urls.js` - Script de verificação
+- `e2e/storefront-navigation.spec.ts` - Testes E2E Playwright
+- `playwright.config.ts` - Configuração Playwright
 - `eslint.config.js` - Regras de lint anti-hardcode
 
 ---
@@ -158,6 +213,11 @@ npm run build
 1. Identificar o contexto no warning
 2. Substituir o código por helper domain-aware
 3. Testar em ambos os domínios
+
+### "Testes E2E falhando"
+1. Rodar com `--ui` para ver visualmente: `npx playwright test --ui`
+2. Verificar se a base URL está correta
+3. Checar se há produtos/categorias no storefront para navegar
 
 ### "Preciso de uma URL que não existe no helper"
 1. Adicionar novo método em `useStorefrontUrls.ts`
