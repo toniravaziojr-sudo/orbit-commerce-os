@@ -72,12 +72,12 @@ serve(async (req) => {
       );
     }
 
-    // Resolver tenant pelo host
+    // Resolver tenant pelo host (usar status = 'verified' em vez de is_active)
     const { data: domain } = await supabase
       .from("tenant_domains")
       .select("tenant_id")
       .eq("domain", store_host.toLowerCase())
-      .eq("is_active", true)
+      .eq("status", "verified")
       .maybeSingle();
 
     let tenantId = domain?.tenant_id;
