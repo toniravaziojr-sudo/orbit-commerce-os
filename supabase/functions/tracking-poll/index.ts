@@ -45,9 +45,10 @@ interface AdapterResult {
   error?: string;
 }
 
-interface TenantCredentials {
-  carrier: string;
+interface ShippingProviderRecord {
+  provider: string;
   credentials: Record<string, unknown>;
+  settings: Record<string, unknown>;
   is_enabled: boolean;
 }
 
@@ -57,6 +58,10 @@ const POLL_INTERVAL_MINUTES = parseInt(Deno.env.get('TRACKING_POLL_INTERVAL_MINU
 const MAX_SHIPMENTS_PER_RUN = parseInt(Deno.env.get('TRACKING_MAX_PER_RUN') || '50', 10);
 const MAX_ERROR_COUNT = 10;
 const BACKOFF_MULTIPLIER = 2;
+
+// Correios API endpoints
+const CORREIOS_AUTH_URL = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
+const CORREIOS_RASTRO_URL = 'https://api.correios.com.br/srorastro/v1/objetos';
 
 // Mapping shipping_status enum to delivery_status
 const deliveryToShippingStatus: Record<DeliveryStatus, string> = {
@@ -71,25 +76,90 @@ const deliveryToShippingStatus: Record<DeliveryStatus, string> = {
   'unknown': 'pending',
 };
 
-// ========== ADAPTERS =========
+// ========== CORREIOS OAUTH2 =========
 
-// Correios Adapter (requires credentials)
-async function fetchCorreiosEvents(
-  trackingCode: string, 
-  credentials: Record<string, unknown>
-): Promise<AdapterResult> {
+interface CorreiosToken {
+  token: string;
+  expiraEm: string;
+}
+
+// Token cache per tenant (in-memory, resets each invocation)
+const tokenCache = new Map<string, { token: string; expiresAt: Date }>();
+
+async function getCorreiosToken(
+  credentials: Record<string, unknown>,
+  tenantId: string
+): Promise<string | null> {
+  const usuario = credentials.usuario as string;
+  const senha = credentials.senha as string;
+  const cartaoPostagem = credentials.cartao_postagem as string;
+
+  if (!usuario || !senha || !cartaoPostagem) {
+    console.error('[Correios] Missing credentials (usuario, senha, cartao_postagem)');
+    return null;
+  }
+
+  // Check cache
+  const cached = tokenCache.get(tenantId);
+  if (cached && cached.expiresAt > new Date()) {
+    console.log('[Correios] Using cached token');
+    return cached.token;
+  }
+
   try {
-    const usuario = credentials.usuario as string;
-    const senha = credentials.senha as string;
-    const token = credentials.token as string;
+    // Step 1: Authenticate with cartão postagem
+    const authString = btoa(`${usuario}:${senha}`);
     
-    if (!usuario || !token) {
-      return { success: false, events: [], error: 'missing_credentials' };
+    const response = await fetch(CORREIOS_AUTH_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${authString}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        numero: cartaoPostagem,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Correios] Auth error:', response.status, errorText);
+      return null;
     }
 
-    // Correios API Rastro v2
+    const data: CorreiosToken = await response.json();
+    
+    // Cache token (expires in ~1 hour, cache for 50 min to be safe)
+    const expiresAt = new Date(Date.now() + 50 * 60 * 1000);
+    tokenCache.set(tenantId, { token: data.token, expiresAt });
+    
+    console.log('[Correios] Token obtained successfully');
+    return data.token;
+  } catch (error) {
+    console.error('[Correios] Token fetch error:', error);
+    return null;
+  }
+}
+
+// ========== ADAPTERS =========
+
+// Correios Adapter with OAuth2
+async function fetchCorreiosEvents(
+  trackingCode: string, 
+  credentials: Record<string, unknown>,
+  tenantId: string
+): Promise<AdapterResult> {
+  try {
+    const token = await getCorreiosToken(credentials, tenantId);
+    
+    if (!token) {
+      return { success: false, events: [], error: 'auth_failed' };
+    }
+
+    // Fetch tracking events
     const response = await fetch(
-      `https://api.correios.com.br/srorastro/v1/objetos/${trackingCode}?resultado=T`,
+      `${CORREIOS_RASTRO_URL}/${trackingCode}?resultado=T`,
       {
         method: 'GET',
         headers: {
@@ -102,20 +172,39 @@ async function fetchCorreiosEvents(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Correios] API error:', response.status, errorText);
+      
+      // If 401, token might be invalid - clear cache
+      if (response.status === 401) {
+        tokenCache.delete(tenantId);
+      }
+      
       return { success: false, events: [], error: `api_error_${response.status}` };
     }
 
     const data = await response.json();
-    const eventos = data.objetos?.[0]?.eventos || [];
+    const objetos = data.objetos || [];
     
-    const events: TrackingEvent[] = eventos.map((e: Record<string, unknown>, idx: number) => ({
-      provider_event_id: `correios_${trackingCode}_${idx}`,
-      status: mapCorreiosStatus(e.codigo as string, e.tipo as string),
-      description: e.descricao as string || 'Evento',
-      location: formatCorreiosLocation(e.unidade as Record<string, unknown>),
-      occurred_at: e.dtHrCriado as string || new Date().toISOString(),
-    }));
+    if (objetos.length === 0) {
+      return { success: true, events: [] };
+    }
+    
+    const objeto = objetos[0];
+    const eventos = objeto.eventos || [];
+    
+    const events: TrackingEvent[] = eventos.map((e: Record<string, unknown>, idx: number) => {
+      const dtHrCriado = e.dtHrCriado as string;
+      const unidade = e.unidade as Record<string, unknown>;
+      
+      return {
+        provider_event_id: `correios_${trackingCode}_${dtHrCriado || idx}`,
+        status: mapCorreiosStatus(e.codigo as string, e.tipo as string),
+        description: (e.descricao as string) || 'Evento',
+        location: formatCorreiosLocation(unidade),
+        occurred_at: dtHrCriado || new Date().toISOString(),
+      };
+    });
 
+    console.log(`[Correios] Found ${events.length} events for ${trackingCode}`);
     return { success: true, events };
   } catch (error) {
     console.error('[Correios] Fetch error:', error);
@@ -124,24 +213,47 @@ async function fetchCorreiosEvents(
 }
 
 function mapCorreiosStatus(codigo: string, tipo: string): DeliveryStatus {
-  // Mapping based on Correios status codes
-  // https://www.correios.com.br/atendimento/developers/arquivos/manual-rastro-objetos
-  if (codigo === 'BDE' && tipo === '01') return 'delivered'; // Entregue
-  if (codigo === 'BDE' && tipo === '23') return 'delivered'; // Entregue
-  if (codigo === 'OEC') return 'out_for_delivery'; // Saiu para entrega
-  if (codigo === 'LDI' || codigo === 'RO') return 'in_transit'; // Em trânsito
-  if (codigo === 'PAR' || codigo === 'PO') return 'posted'; // Postado
-  if (codigo === 'BDR' || codigo === 'BDI') return 'failed'; // Tentativa de entrega falha
-  if (codigo === 'BLQ') return 'failed'; // Bloqueado
-  if (codigo === 'LDE') return 'returned'; // Devolvido
+  // Correios status codes mapping
+  // BDE = Entregue, OEC = Saiu para entrega, etc.
+  if (!codigo) return 'unknown';
+  
+  const code = codigo.toUpperCase();
+  
+  // Delivered
+  if (code === 'BDE') return 'delivered';
+  
+  // Out for delivery
+  if (code === 'OEC') return 'out_for_delivery';
+  
+  // In transit
+  if (['LDI', 'RO', 'DO', 'PAR', 'OEI'].includes(code)) return 'in_transit';
+  
+  // Posted
+  if (['PO', 'POI'].includes(code)) return 'posted';
+  
+  // Failed delivery attempt
+  if (['BDR', 'BDI', 'LDE'].includes(code)) {
+    if (tipo === '01') return 'failed';
+    return 'failed';
+  }
+  
+  // Returned
+  if (code === 'BLQ' && tipo === '70') return 'returned';
+  
+  // Default to in_transit for other codes
   return 'in_transit';
 }
 
 function formatCorreiosLocation(unidade: Record<string, unknown> | undefined): string {
   if (!unidade) return '';
-  const cidade = unidade.cidade as string || '';
-  const uf = unidade.uf as string || '';
-  return [cidade, uf].filter(Boolean).join(' - ');
+  const endereco = unidade.endereco as Record<string, unknown>;
+  if (endereco) {
+    const cidade = endereco.cidade as string || '';
+    const uf = endereco.uf as string || '';
+    return [cidade, uf].filter(Boolean).join(' - ');
+  }
+  const nome = unidade.nome as string || '';
+  return nome;
 }
 
 // Loggi Adapter (placeholder - requires API setup)
@@ -157,7 +269,7 @@ async function fetchLoggiEvents(
       return { success: false, events: [], error: 'missing_credentials' };
     }
 
-    // Loggi API v1
+    // Loggi API (placeholder - needs real implementation)
     const response = await fetch(
       `https://api.loggi.com/v1/companies/${companyId}/packages/${trackingCode}/tracking`,
       {
@@ -181,9 +293,9 @@ async function fetchLoggiEvents(
     const events: TrackingEvent[] = trackingList.map((e: Record<string, unknown>, idx: number) => ({
       provider_event_id: `loggi_${trackingCode}_${idx}`,
       status: mapLoggiStatus(e.status as string),
-      description: e.description as string || 'Evento',
-      location: e.location as string || '',
-      occurred_at: e.timestamp as string || new Date().toISOString(),
+      description: (e.description as string) || 'Evento',
+      location: (e.location as string) || '',
+      occurred_at: (e.timestamp as string) || new Date().toISOString(),
     }));
 
     return { success: true, events };
@@ -223,38 +335,76 @@ async function getCredentialsForTenant(
   supabase: any,
   tenantId: string,
   carrier: string
-): Promise<TenantCredentials | null> {
+): Promise<ShippingProviderRecord | null> {
   const normalizedCarrier = carrier.toLowerCase().trim();
   
+  // Map carrier name to provider id
+  let providerName = normalizedCarrier;
+  if (normalizedCarrier.includes('correios') || normalizedCarrier.includes('correio')) {
+    providerName = 'correios';
+  } else if (normalizedCarrier.includes('loggi')) {
+    providerName = 'loggi';
+  }
+  
+  // Query from shipping_providers (where UI saves credentials)
   const { data, error } = await supabase
-    .from('tenant_shipping_integrations')
-    .select('carrier, credentials, is_enabled')
+    .from('shipping_providers')
+    .select('provider, credentials, settings, is_enabled')
     .eq('tenant_id', tenantId)
-    .ilike('carrier', normalizedCarrier)
+    .eq('provider', providerName)
     .single();
 
   if (error || !data) {
-    return null;
+    // Fallback: try tenant_shipping_integrations
+    const { data: fallback, error: fallbackError } = await supabase
+      .from('tenant_shipping_integrations')
+      .select('carrier, credentials, settings, is_enabled')
+      .eq('tenant_id', tenantId)
+      .ilike('carrier', normalizedCarrier)
+      .single();
+    
+    if (fallbackError || !fallback) {
+      return null;
+    }
+    
+    return {
+      provider: String(fallback.carrier || ''),
+      credentials: fallback.credentials as Record<string, unknown>,
+      settings: (fallback.settings as Record<string, unknown>) || {},
+      is_enabled: Boolean(fallback.is_enabled),
+    };
   }
 
-  return data as TenantCredentials;
+  return {
+    provider: String(data.provider || ''),
+    credentials: data.credentials as Record<string, unknown>,
+    settings: (data.settings as Record<string, unknown>) || {},
+    is_enabled: Boolean(data.is_enabled),
+  };
 }
 
 async function fetchTrackingEvents(
   carrier: string,
   trackingCode: string,
-  credentials: Record<string, unknown> | null
+  credentials: ShippingProviderRecord | null,
+  tenantId: string
 ): Promise<AdapterResult> {
   const normalizedCarrier = carrier.toLowerCase().trim();
 
+  // Correios
   if (normalizedCarrier.includes('correios') || normalizedCarrier.includes('correio')) {
-    if (!credentials) return noProviderAdapter(carrier);
-    return fetchCorreiosEvents(trackingCode, credentials);
+    if (!credentials || !credentials.is_enabled) {
+      return noProviderAdapter(carrier);
+    }
+    return fetchCorreiosEvents(trackingCode, credentials.credentials, tenantId);
   }
 
+  // Loggi
   if (normalizedCarrier.includes('loggi')) {
-    if (!credentials) return noProviderAdapter(carrier);
-    return fetchLoggiEvents(trackingCode, credentials);
+    if (!credentials || !credentials.is_enabled) {
+      return noProviderAdapter(carrier);
+    }
+    return fetchLoggiEvents(trackingCode, credentials.credentials);
   }
 
   // Other carriers - no adapter yet
@@ -264,14 +414,15 @@ async function fetchTrackingEvents(
 async function processShipment(
   supabase: any,
   shipment: ShipmentRecord,
-  credentials: TenantCredentials | null
+  credentials: ShippingProviderRecord | null
 ): Promise<{ updated: boolean; newStatus?: DeliveryStatus; error?: string }> {
   const { id, tenant_id, order_id, carrier, tracking_code, delivery_status } = shipment;
   
   const result = await fetchTrackingEvents(
     carrier, 
     tracking_code, 
-    credentials?.credentials || null
+    credentials,
+    tenant_id
   );
 
   if (!result.success) {
@@ -405,6 +556,8 @@ async function processShipment(
       if (!eventError.message?.includes('duplicate')) {
         console.error('[ProcessShipment] Emit event error:', eventError);
       }
+    } else {
+      console.log(`[ProcessShipment] Emitted shipment.status_changed event for ${id}: ${delivery_status} -> ${lastEventStatus}`);
     }
   }
 
@@ -438,7 +591,7 @@ serve(async (req) => {
     const { data: shipments, error: fetchError } = await supabase
       .from('shipments')
       .select('id, tenant_id, order_id, carrier, tracking_code, delivery_status, last_status_at, next_poll_at, poll_error_count')
-      .not('delivery_status', 'in', '(\"delivered\",\"returned\",\"canceled\")')
+      .not('delivery_status', 'in', '("delivered","returned","canceled")')
       .not('tracking_code', 'is', null)
       .or(`next_poll_at.is.null,next_poll_at.lte.${now}`)
       .lt('poll_error_count', MAX_ERROR_COUNT)
@@ -466,7 +619,7 @@ serve(async (req) => {
     console.log(`[TrackingPoll] Processing ${shipments.length} shipments`);
 
     // Cache credentials per tenant+carrier
-    const credentialsCache = new Map<string, TenantCredentials | null>();
+    const credentialsCache = new Map<string, ShippingProviderRecord | null>();
 
     for (const shipment of shipments) {
       try {
