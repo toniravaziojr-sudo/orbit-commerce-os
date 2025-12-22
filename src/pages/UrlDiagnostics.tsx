@@ -31,8 +31,10 @@ import {
   UrlDiagnostic,
   getPublicHomeUrl,
   getPublicCartUrl,
-  getPublicCheckoutUrl
+  getPublicCheckoutUrl,
+  getCanonicalStoreBaseUrl,
 } from '@/lib/publicUrls';
+import { useTenantCanonicalDomain, getTenantCanonicalOrigin } from '@/hooks/useTenantCanonicalDomain';
 
 interface DiagnosticsData {
   home: UrlDiagnostic;
@@ -81,17 +83,19 @@ function EntityIcon({ type }: { type: string }) {
   }
 }
 
-function DiagnosticRow({ diagnostic }: { diagnostic: UrlDiagnostic }) {
+function DiagnosticRow({ diagnostic, canonicalOrigin }: { diagnostic: UrlDiagnostic; canonicalOrigin: string }) {
   const copyUrl = () => {
     if (diagnostic.publicUrl) {
-      navigator.clipboard.writeText(window.location.origin + diagnostic.publicUrl);
+      // Use canonical origin (custom domain or platform subdomain), NOT window.location.origin
+      navigator.clipboard.writeText(canonicalOrigin + diagnostic.publicUrl);
       toast.success('URL copiada!');
     }
   };
 
   const openUrl = () => {
     if (diagnostic.publicUrl) {
-      window.open(diagnostic.publicUrl, '_blank');
+      // Open using canonical origin
+      window.open(canonicalOrigin + diagnostic.publicUrl, '_blank');
     }
   };
 
@@ -102,7 +106,7 @@ function DiagnosticRow({ diagnostic }: { diagnostic: UrlDiagnostic }) {
         <div className="min-w-0 flex-1">
           <div className="font-medium text-sm truncate">{diagnostic.entityName}</div>
           <div className="text-xs text-muted-foreground font-mono truncate">
-            {diagnostic.publicUrl || diagnostic.entitySlug || '(sem URL)'}
+            {diagnostic.publicUrl ? `${canonicalOrigin}${diagnostic.publicUrl}` : diagnostic.entitySlug || '(sem URL)'}
           </div>
         </div>
       </div>
@@ -140,6 +144,12 @@ function DiagnosticRow({ diagnostic }: { diagnostic: UrlDiagnostic }) {
 export default function UrlDiagnostics() {
   const { currentTenant } = useAuth();
   const [search, setSearch] = useState('');
+  
+  // Get the canonical domain for this tenant
+  const { domain: customDomain } = useTenantCanonicalDomain(currentTenant?.id);
+  
+  // Compute the canonical origin (custom domain or platform subdomain)
+  const canonicalOrigin = getTenantCanonicalOrigin(customDomain, currentTenant?.slug);
 
   const { data: diagnostics, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['url-diagnostics', currentTenant?.id],
@@ -327,9 +337,9 @@ export default function UrlDiagnostics() {
               <CardTitle className="text-base">Páginas do Sistema</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1">
-              <DiagnosticRow diagnostic={diagnostics.home} />
-              <DiagnosticRow diagnostic={diagnostics.cart} />
-              <DiagnosticRow diagnostic={diagnostics.checkout} />
+              <DiagnosticRow diagnostic={diagnostics.home} canonicalOrigin={canonicalOrigin} />
+              <DiagnosticRow diagnostic={diagnostics.cart} canonicalOrigin={canonicalOrigin} />
+              <DiagnosticRow diagnostic={diagnostics.checkout} canonicalOrigin={canonicalOrigin} />
             </CardContent>
           </Card>
 
@@ -352,7 +362,7 @@ export default function UrlDiagnostics() {
                 </p>
               ) : (
                 filterDiagnostics(diagnostics.products).map((d, i) => (
-                  <DiagnosticRow key={i} diagnostic={d} />
+                  <DiagnosticRow key={i} diagnostic={d} canonicalOrigin={canonicalOrigin} />
                 ))
               )}
             </CardContent>
@@ -377,7 +387,7 @@ export default function UrlDiagnostics() {
                 </p>
               ) : (
                 filterDiagnostics(diagnostics.categories).map((d, i) => (
-                  <DiagnosticRow key={i} diagnostic={d} />
+                  <DiagnosticRow key={i} diagnostic={d} canonicalOrigin={canonicalOrigin} />
                 ))
               )}
             </CardContent>
@@ -402,7 +412,7 @@ export default function UrlDiagnostics() {
                 </p>
               ) : (
                 filterDiagnostics(diagnostics.pages).map((d, i) => (
-                  <DiagnosticRow key={i} diagnostic={d} />
+                  <DiagnosticRow key={i} diagnostic={d} canonicalOrigin={canonicalOrigin} />
                 ))
               )}
             </CardContent>
@@ -427,7 +437,7 @@ export default function UrlDiagnostics() {
                 </p>
               ) : (
                 filterDiagnostics(diagnostics.landingPages).map((d, i) => (
-                  <DiagnosticRow key={i} diagnostic={d} />
+                  <DiagnosticRow key={i} diagnostic={d} canonicalOrigin={canonicalOrigin} />
                 ))
               )}
             </CardContent>

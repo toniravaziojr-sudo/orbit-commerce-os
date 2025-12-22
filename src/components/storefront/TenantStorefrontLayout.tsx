@@ -2,11 +2,12 @@
 // TENANT STOREFRONT LAYOUT
 // Wrapper for storefront when accessed via custom domain or platform subdomain
 // Resolves tenant from hostname instead of URL param
-// Handles canonical redirects (301) to primary public host
+// POLICY: "Domínio muda, tudo muda" - SEM REDIRECTS
+// When custom domain is active, platform subdomain shows "domain disabled" page
 // =============================================
 
-import { useEffect, createContext, useContext } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { createContext, useContext, Suspense, lazy } from 'react';
+import { Outlet } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
@@ -125,7 +126,6 @@ function useTenantFromHostname(): { data: ResolveResult | null; isLoading: boole
 }
 
 export function TenantStorefrontLayout() {
-  const location = useLocation();
   const { data: resolveResult, isLoading: isTenantLoading, error } = useTenantFromHostname();
   
   const tenant = resolveResult?.tenant || null;
@@ -141,37 +141,11 @@ export function TenantStorefrontLayout() {
   const searchParams = new URLSearchParams(window.location.search);
   const isPreview = searchParams.get('preview') === '1';
 
-  // Handle canonical redirect (301) - ONLY redirect to different host, never based on path
-  // The Worker handles path translation, so the browser URL is already clean
-  useEffect(() => {
-    if (!resolveResult || isPreview) return;
-    
-    // ONLY redirect if we need to go to a DIFFERENT HOST (e.g., platform subdomain → custom domain)
-    // NEVER redirect based on pathname - the Worker handles path translation transparently
-    if (resolveResult.shouldRedirect) {
-      const currentHost = window.location.host.toLowerCase().replace(/^www\./, '');
-      const targetHost = new URL(resolveResult.canonicalOrigin).host.toLowerCase().replace(/^www\./, '');
-      
-      // Only redirect if actually on a different host
-      if (currentHost !== targetHost) {
-        // Build clean query string (remove preview params)
-        const params = new URLSearchParams(location.search);
-        params.delete('preview');
-        params.delete('previewId');
-        params.delete('draft');
-        const queryString = params.toString();
-        
-        // Use current path as-is (it's already clean in the browser)
-        const redirectUrl = `${resolveResult.canonicalOrigin}${location.pathname}${queryString ? `?${queryString}` : ''}`;
-        
-        console.log(`[TenantStorefrontLayout] Canonical redirect to: ${redirectUrl}`);
-        window.location.replace(redirectUrl);
-      }
-    }
-  }, [resolveResult, location.pathname, location.search, isPreview]);
+  // NO REDIRECTS - DomainDisabledGuard handles showing "domain disabled" page
+  // when accessing .shops subdomain while custom domain is active
 
-  // Show loading while resolving tenant or redirecting
-  if (isTenantLoading || isStoreLoading || isDomainLoading || (resolveResult?.shouldRedirect && !isPreview)) {
+  // Show loading while resolving tenant
+  if (isTenantLoading || isStoreLoading || isDomainLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -203,23 +177,30 @@ export function TenantStorefrontLayout() {
     );
   }
 
+  // Lazy load DomainDisabledGuard
+  const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
+
   return (
     <CartProvider tenantSlug={tenantSlug}>
       <DiscountProvider>
         <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
-          <div className="min-h-screen flex flex-col bg-white">
-            {isPreview && (
-              <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
-                Modo de pré-visualização - Esta página não está publicada
+          <Suspense fallback={null}>
+            <DomainDisabledGuard tenantSlug={tenantSlug}>
+              <div className="min-h-screen flex flex-col bg-white">
+                {isPreview && (
+                  <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+                    Modo de pré-visualização - Esta página não está publicada
+                  </div>
+                )}
+                <main className="flex-1">
+                  {/* Pass tenantSlug via context since it's not in URL */}
+                  <TenantSlugContext.Provider value={tenantSlug}>
+                    <Outlet />
+                  </TenantSlugContext.Provider>
+                </main>
               </div>
-            )}
-            <main className="flex-1">
-              {/* Pass tenantSlug via context since it's not in URL */}
-              <TenantSlugContext.Provider value={tenantSlug}>
-                <Outlet />
-              </TenantSlugContext.Provider>
-            </main>
-          </div>
+            </DomainDisabledGuard>
+          </Suspense>
         </StorefrontConfigProvider>
       </DiscountProvider>
     </CartProvider>
