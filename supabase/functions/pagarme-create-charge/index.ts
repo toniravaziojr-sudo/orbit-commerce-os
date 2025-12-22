@@ -19,7 +19,8 @@ const ENV_PAGARME_API_KEY = Deno.env.get('PAGARME_API_KEY');
 const ENV_PAGARME_ACCOUNT_ID = Deno.env.get('PAGARME_ACCOUNT_ID');
 
 interface ChargeRequest {
-  checkout_id: string;
+  checkout_id?: string;
+  order_id?: string; // NEW: order_id for linking payment to order
   tenant_id: string;
   method: 'pix' | 'boleto' | 'credit_card';
   amount: number; // in cents
@@ -112,7 +113,13 @@ serve(async (req) => {
 
   try {
     const payload: ChargeRequest = await req.json();
-    console.log('Creating charge:', { method: payload.method, amount: payload.amount, checkout_id: payload.checkout_id, tenant_id: payload.tenant_id });
+    console.log('Creating charge:', { 
+      method: payload.method, 
+      amount: payload.amount, 
+      checkout_id: payload.checkout_id, 
+      order_id: payload.order_id,
+      tenant_id: payload.tenant_id 
+    });
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
@@ -125,6 +132,9 @@ serve(async (req) => {
     if (!methodEnabled) {
       throw new Error(`Método de pagamento ${payload.method} não está habilitado`);
     }
+
+    // Use order_id or checkout_id for reference
+    const referenceId = payload.order_id || payload.checkout_id || `temp-${Date.now()}`;
 
     // Build Pagar.me order request
     const orderPayload: any = {
@@ -145,11 +155,12 @@ serve(async (req) => {
         amount: payload.amount,
         description: 'Pedido',
         quantity: 1,
-        code: payload.checkout_id,
+        code: referenceId,
       }],
       payments: [],
       metadata: {
         checkout_id: payload.checkout_id,
+        order_id: payload.order_id,
         tenant_id: payload.tenant_id,
         credential_source: credentials.source,
       },
@@ -169,7 +180,7 @@ serve(async (req) => {
         boleto: {
           instructions: 'Não receber após o vencimento',
           due_at: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days
-          document_number: payload.checkout_id.substring(0, 16),
+          document_number: referenceId.substring(0, 16),
           type: 'DM',
         },
       });
@@ -219,11 +230,12 @@ serve(async (req) => {
       throw new Error(pagarmeResponse.message || 'Failed to create charge');
     }
 
-    // Save transaction to database
+    // Save transaction to database with order_id
     const charge = pagarmeResponse.charges?.[0];
     const transactionData = {
       tenant_id: payload.tenant_id,
-      checkout_id: payload.checkout_id,
+      order_id: payload.order_id || null, // Link to order for get-order lookup
+      checkout_id: payload.checkout_id || null,
       provider: 'pagarme',
       provider_transaction_id: pagarmeResponse.id,
       method: payload.method,
@@ -244,6 +256,8 @@ serve(async (req) => {
         boleto_due_date: charge?.last_transaction?.due_at,
       },
     };
+    
+    console.log('[Pagar.me] Saving transaction with order_id:', payload.order_id, 'PIX qr_code:', !!charge?.last_transaction?.qr_code);
 
     const { data: transaction, error: dbError } = await supabase
       .from('payment_transactions')
