@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Search, Filter, Calendar, MapPin, ShoppingCart, Eye, X } from 'lucide-react';
+import { Search, Filter, Calendar, MapPin, ShoppingCart, Eye, X, RefreshCw, Play } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCheckoutSessions, useCheckoutSessionsStats, CheckoutSession } from '@/hooks/useCheckoutSessions';
 import { StatCard } from '@/components/ui/stat-card';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 const BRAZILIAN_STATES = [
   'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG',
@@ -88,8 +90,10 @@ export default function AbandonedCheckouts() {
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedSession, setSelectedSession] = useState<CheckoutSession | null>(null);
+  const [isRunningSweep, setIsRunningSweep] = useState(false);
+  const { toast } = useToast();
 
-  const { data: sessions, isLoading } = useCheckoutSessions({
+  const { data: sessions, isLoading, refetch } = useCheckoutSessions({
     search,
     status: status === 'all' ? undefined : status,
     startDate,
@@ -97,7 +101,7 @@ export default function AbandonedCheckouts() {
     region,
   });
 
-  const { data: stats } = useCheckoutSessionsStats();
+  const { data: stats, refetch: refetchStats } = useCheckoutSessionsStats();
 
   const clearFilters = () => {
     setSearch('');
@@ -109,12 +113,72 @@ export default function AbandonedCheckouts() {
 
   const hasActiveFilters = search || status !== 'all' || region !== 'all' || startDate || endDate;
 
+  const handleRunSweep = async () => {
+    setIsRunningSweep(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('Não autenticado');
+      }
+
+      const response = await supabase.functions.invoke('scheduler-tick', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+
+      const result = response.data;
+      const abandonedCount = result?.aggregated?.total_sessions_abandoned || result?.passes?.[0]?.abandon_sweep?.sessions_abandoned || 0;
+      
+      toast({
+        title: 'Sweep executado',
+        description: `${abandonedCount} sessão(ões) marcada(s) como abandonada(s).`,
+      });
+
+      // Refresh data
+      refetch();
+      refetchStats();
+    } catch (error: any) {
+      console.error('Error running sweep:', error);
+      toast({
+        title: 'Erro ao executar sweep',
+        description: error.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsRunningSweep(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Checkouts Abandonados"
-        description="Acompanhe e recupere vendas não finalizadas"
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Checkouts Abandonados"
+          description="Acompanhe e recupere vendas não finalizadas"
+        />
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => { refetch(); refetchStats(); }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Atualizar
+          </Button>
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            onClick={handleRunSweep}
+            disabled={isRunningSweep}
+          >
+            <Play className="h-4 w-4 mr-2" />
+            {isRunningSweep ? 'Executando...' : 'Run sweep now'}
+          </Button>
+        </div>
+      </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
