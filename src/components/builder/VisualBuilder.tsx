@@ -207,8 +207,13 @@ export function VisualBuilder({
       ctx.afterHeaderSlot = categoryHeaderSlot;
     }
     
+    // For Product template, add product settings to context
+    if (pageType === 'product') {
+      (ctx as any).productSettings = productSettings;
+    }
+    
     return ctx;
-  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport]);
+  }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings]);
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
