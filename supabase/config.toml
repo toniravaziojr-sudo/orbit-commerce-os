@@ -104,3 +104,6 @@ verify_jwt = false
 
 [functions.health-monitor-admin]
 verify_jwt = true
+
+[functions.shipment-ingest]
+verify_jwt = false
