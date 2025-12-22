@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useOrderDetails, useOrders, type OrderStatus } from '@/hooks/useOrders';
+import { ShipmentSection } from '@/components/orders/ShipmentSection';
 
 const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -362,12 +363,19 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
-          {/* Shipping */}
+          {/* Shipments Section - NEW */}
+          <ShipmentSection 
+            orderId={order.id} 
+            orderTrackingCode={order.tracking_code}
+            orderCarrier={order.shipping_carrier}
+          />
+
+          {/* Shipping Address */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Truck className="h-5 w-5" />
-                Entrega
+                <MapPin className="h-5 w-5" />
+                Endereço de Entrega
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -378,7 +386,7 @@ export default function OrderDetail() {
                 </div>
               )}
               
-              {/* Tracking Code - Editable */}
+              {/* Tracking Code - Editable (legado, mantido para compatibilidade) */}
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Código de Rastreio</span>

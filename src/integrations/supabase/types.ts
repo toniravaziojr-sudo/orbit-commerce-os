@@ -2408,6 +2408,123 @@ export type Database = {
           },
         ]
       }
+      shipment_events: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          location: string | null
+          occurred_at: string
+          raw_payload: Json | null
+          shipment_id: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          occurred_at?: string
+          raw_payload?: Json | null
+          shipment_id: string
+          status: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          location?: string | null
+          occurred_at?: string
+          raw_payload?: Json | null
+          shipment_id?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_events_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipments: {
+        Row: {
+          carrier: string
+          created_at: string
+          delivered_at: string | null
+          delivery_status: Database["public"]["Enums"]["delivery_status"]
+          estimated_delivery_at: string | null
+          id: string
+          last_status_at: string
+          metadata: Json | null
+          order_id: string
+          source: string | null
+          source_id: string | null
+          tenant_id: string
+          tracking_code: string
+          updated_at: string
+        }
+        Insert: {
+          carrier: string
+          created_at?: string
+          delivered_at?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status"]
+          estimated_delivery_at?: string | null
+          id?: string
+          last_status_at?: string
+          metadata?: Json | null
+          order_id: string
+          source?: string | null
+          source_id?: string | null
+          tenant_id: string
+          tracking_code: string
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string
+          created_at?: string
+          delivered_at?: string | null
+          delivery_status?: Database["public"]["Enums"]["delivery_status"]
+          estimated_delivery_at?: string | null
+          id?: string
+          last_status_at?: string
+          metadata?: Json | null
+          order_id?: string
+          source?: string | null
+          source_id?: string | null
+          tenant_id?: string
+          tracking_code?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipping_providers: {
         Row: {
           created_at: string
@@ -3250,6 +3367,16 @@ export type Database = {
         | "support"
         | "finance"
         | "viewer"
+      delivery_status:
+        | "label_created"
+        | "posted"
+        | "in_transit"
+        | "out_for_delivery"
+        | "delivered"
+        | "failed"
+        | "returned"
+        | "canceled"
+        | "unknown"
       order_status:
         | "pending"
         | "awaiting_payment"
@@ -3411,6 +3538,17 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
+      delivery_status: [
+        "label_created",
+        "posted",
+        "in_transit",
+        "out_for_delivery",
+        "delivered",
+        "failed",
+        "returned",
+        "canceled",
+        "unknown",
+      ],
       order_status: [
         "pending",
         "awaiting_payment",
