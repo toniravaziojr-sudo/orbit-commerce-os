@@ -50,6 +50,9 @@ interface CreateOrderRequest {
     state: string;
     postal_code: string;
     carrier?: string;
+    service_code?: string;
+    service_name?: string;
+    estimated_days?: number;
   };
   items: OrderItem[];
   payment_method: 'pix' | 'boleto' | 'credit_card';
