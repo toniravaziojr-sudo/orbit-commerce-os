@@ -42,8 +42,25 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const [user, setUser] = useState<any>(null);
   
   // Get order identifier from URL - normalize by removing # and trimming
+  // CRITICAL: The # in URL becomes fragment, so we also need to check window.location.hash
   const rawOrderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
-  const orderParam = rawOrderParam ? rawOrderParam.replace(/^#/, '').trim() : null;
+  
+  // Also check if order number was passed as hash (legacy/malformed URLs like ?pedido=#5001)
+  const hashValue = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '').trim() : '';
+  
+  // Normalize: remove # prefix, trim, decode URI component
+  const orderParam = useMemo(() => {
+    // First try query param
+    if (rawOrderParam) {
+      const cleaned = decodeURIComponent(rawOrderParam).replace(/^#/, '').trim();
+      if (cleaned) return cleaned;
+    }
+    // Fallback to hash (for malformed URLs where # was in the value)
+    if (hashValue) return hashValue;
+    return null;
+  }, [rawOrderParam, hashValue]);
+
+  console.log('[ThankYou] Order param:', { rawOrderParam, hashValue, orderParam });
   
   // Fetch real order data from database (includes payment_instructions)
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);

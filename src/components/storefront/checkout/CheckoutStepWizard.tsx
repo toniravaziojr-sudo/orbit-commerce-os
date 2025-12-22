@@ -516,8 +516,10 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           customerPhone: formData.customerPhone,
         });
 
-        // Normalize orderNumber (remove # for URL safety - # becomes URL fragment)
+        // CRITICAL: Remove # from orderNumber for URL - # is URL fragment and breaks parsing
+        // The order_number in DB has # (e.g., "#5001") but URL must NOT have it
         const cleanOrderNumber = result.orderNumber?.replace(/^#/, '').trim() || '';
+        console.log('[Checkout] Navigating to thankYou with cleanOrderNumber:', cleanOrderNumber);
 
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
           // Credit card approved immediately
@@ -525,12 +527,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           clearCart();
           clearDraft();
           toast.success('Pedido realizado com sucesso!');
-          navigate(`${urls.thankYou()}?pedido=${cleanOrderNumber}`);
+          // Use direct navigate to avoid any URL manipulation issues
+          navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
-          // PIX/Boleto - redirect to thank you page with payment info
-          // Store payment data in localStorage for the thank you page
+          // PIX/Boleto - redirect to thank you page
+          // NOTE: Payment data should be loaded from server (get-order), not localStorage
+          // localStorage is only kept as fallback/cache
           if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
-            localStorage.setItem(`pending_payment_${result.orderNumber}`, JSON.stringify({
+            localStorage.setItem(`pending_payment_${cleanOrderNumber}`, JSON.stringify({
               method: paymentMethod,
               pixQrCode: result.pixQrCode,
               pixQrCodeUrl: result.pixQrCodeUrl,
@@ -545,8 +549,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           clearCart();
           clearDraft();
           
-          // Navigate to thank you page (using cleanOrderNumber defined above)
-          navigate(`${urls.thankYou()}?pedido=${cleanOrderNumber}`);
+          // Navigate to thank you page with clean order number (no #)
+          navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         }
       } else {
         throw new Error(result.error || 'Erro ao processar pagamento');

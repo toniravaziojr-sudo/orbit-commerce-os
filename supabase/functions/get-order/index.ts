@@ -29,11 +29,20 @@ serve(async (req) => {
     const payload: GetOrderRequest = await req.json();
     console.log('[get-order] Request:', payload);
 
-    // Normalize order_number by removing # prefix (it can break URL parsing)
+    // Normalize order_number - accept with or without # prefix
+    // The DB stores order_number WITH # (e.g., "#5001")
+    // The client may send "5001" or "#5001" - we need to handle both
     const order_id = payload.order_id;
-    const order_number = payload.order_number?.replace(/^#/, '').trim();
+    const rawOrderNumber = payload.order_number?.replace(/^#/, '').trim();
+    
+    // The DB has the # prefix, so we need to search with it
+    const order_number_with_hash = rawOrderNumber ? `#${rawOrderNumber}` : null;
+    // Also keep version without hash for fallback search
+    const order_number_without_hash = rawOrderNumber;
 
-    if (!order_id && !order_number) {
+    console.log('[get-order] Normalized:', { order_id, order_number_with_hash, order_number_without_hash });
+
+    if (!order_id && !rawOrderNumber) {
       return new Response(JSON.stringify({
         success: false,
         error: 'order_id or order_number is required',
@@ -72,8 +81,9 @@ serve(async (req) => {
       order = data;
     }
 
-    // If not found by ID, try by order_number
-    if (!order && order_number) {
+    // If not found by ID, try by order_number (with # prefix as stored in DB)
+    if (!order && order_number_with_hash) {
+      console.log('[get-order] Searching by order_number with hash:', order_number_with_hash);
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -85,7 +95,7 @@ serve(async (req) => {
           shipping_street, shipping_number, shipping_complement,
           shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
         `)
-        .eq('order_number', order_number)
+        .eq('order_number', order_number_with_hash)
         .maybeSingle();
       
       if (error) {
@@ -95,7 +105,31 @@ serve(async (req) => {
       order = data;
     }
 
-    // Also try order_id as order_number (fallback)
+    // Fallback: try without # prefix (for legacy order formats like PED-25-000057)
+    if (!order && order_number_without_hash) {
+      console.log('[get-order] Fallback search without hash:', order_number_without_hash);
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          id, order_number, status, payment_status, shipping_status, payment_method,
+          total, subtotal, shipping_total, discount_total,
+          created_at, paid_at, shipped_at, delivered_at,
+          tracking_code, shipping_carrier,
+          customer_name, customer_email, customer_phone,
+          shipping_street, shipping_number, shipping_complement,
+          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
+        `)
+        .eq('order_number', order_number_without_hash)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('[get-order] Error finding without hash:', error);
+        throw error;
+      }
+      order = data;
+    }
+
+    // Also try order_id as order_number (fallback for UUID-like strings)
     if (!order && order_id && !isUUID) {
       const { data, error } = await supabase
         .from('orders')

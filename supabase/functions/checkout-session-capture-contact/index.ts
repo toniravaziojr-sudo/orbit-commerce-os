@@ -15,6 +15,7 @@ const corsHeaders = {
 
 /**
  * Resolve tenant from hostname (custom domain or platform subdomain)
+ * Also handles development/preview environments
  */
 async function resolveTenantFromHost(
   // deno-lint-ignore no-explicit-any
@@ -31,6 +32,7 @@ async function resolveTenantFromHost(
   
   if (platformMatch) {
     const slug = platformMatch[1];
+    console.log(`[checkout-session-capture-contact] Platform subdomain detected, slug: ${slug}`);
     const { data: tenant } = await supabase
       .from('tenants')
       .select('id')
@@ -48,9 +50,13 @@ async function resolveTenantFromHost(
     .maybeSingle();
   
   if (domainRecord?.tenant_id) {
+    console.log(`[checkout-session-capture-contact] Custom domain found, tenant_id: ${domainRecord.tenant_id}`);
     return domainRecord.tenant_id;
   }
   
+  // FALLBACK: For development/preview (lovableproject.com), get tenant from session
+  // The session was created with the correct tenant_id, so we can use that
+  console.log(`[checkout-session-capture-contact] No domain match, will try to get tenant from session`);
   return null;
 }
 
@@ -123,12 +129,30 @@ serve(async (req) => {
       }
     }
 
+    // FALLBACK: Get tenant from the session itself (for dev/preview environments)
+    if (!tenantId && session_id) {
+      console.log(`[checkout-session-capture-contact] Fallback: getting tenant from session ${session_id}`);
+      const { data: session } = await supabase
+        .from('checkout_sessions')
+        .select('tenant_id')
+        .eq('id', session_id)
+        .single();
+      
+      if (session?.tenant_id) {
+        tenantId = session.tenant_id;
+        console.log(`[checkout-session-capture-contact] Got tenant from session: ${tenantId}`);
+      }
+    }
+
     if (!tenantId) {
+      console.error('[checkout-session-capture-contact] Could not resolve tenant for host:', store_host);
       return new Response(JSON.stringify({ error: 'Could not resolve tenant' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    console.log(`[checkout-session-capture-contact] Tenant resolved: ${tenantId}`);
 
     // Update session with contact info and set contact_captured_at
     const updateData: Record<string, unknown> = {
