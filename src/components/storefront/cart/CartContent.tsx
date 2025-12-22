@@ -12,7 +12,7 @@ import { BuyTogetherSection } from './BuyTogetherSection';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
-import { useParams } from 'react-router-dom';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
 
 interface CartContentProps {
   tenantId: string;
@@ -20,12 +20,15 @@ interface CartContentProps {
 
 export function CartContent({ tenantId }: CartContentProps) {
   const { items, subtotal } = useCart();
-  const { tenantSlug } = useParams();
+  const tenantSlug = useTenantSlug();
   const { appliedDiscount, applyDiscount, removeDiscount } = useDiscount();
   const hasItems = items.length > 0;
 
-  // Build store host for discount validation
-  const storeHost = `${tenantSlug}.shops.${window.location.hostname.includes('localhost') ? 'comandocentral.com.br' : window.location.hostname.split('.').slice(-2).join('.')}`;
+  // Build store host for discount validation - use actual hostname for custom domains
+  const hostname = window.location.hostname.toLowerCase();
+  const storeHost = hostname.includes('shops.') || hostname.includes('localhost') 
+    ? `${tenantSlug}.shops.comandocentral.com.br`
+    : hostname;
 
   return (
     <div className="container mx-auto px-4 py-8">
