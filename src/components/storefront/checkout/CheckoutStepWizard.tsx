@@ -34,7 +34,6 @@ import {
   startCheckoutSession,
   heartbeatCheckoutSession,
   completeCheckoutSession,
-  endCheckoutSession,
   getCheckoutSessionId,
   captureCheckoutContact,
 } from '@/lib/checkoutSession';
@@ -109,9 +108,6 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     discountAmount,
   });
 
-  // Ref to track if exit event already fired (prevent duplicates)
-  const exitFiredRef = useRef(false);
-
   // ===== CHECKOUT SESSION TRACKING =====
   // Start session IMMEDIATELY on mount
   useEffect(() => {
@@ -135,56 +131,25 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
     initSession();
 
-    // Cleanup: end session on unmount (navigation within SPA)
+    // Cleanup: just clear heartbeat - DO NOT mark as abandoned
+    // Abandoned status should ONLY be set by server-side sweep after 30min inactivity
     return () => {
       if (heartbeatIntervalRef.current) {
         clearInterval(heartbeatIntervalRef.current);
       }
-      if (!exitFiredRef.current) {
-        exitFiredRef.current = true;
-        endCheckoutSession();
-      }
+      // NOTE: We intentionally do NOT call endCheckoutSession() here
+      // The sweep job will mark sessions as abandoned after 30min of no heartbeat
     };
   }, []); // Empty deps - run once on mount
 
   // ===== EXIT EVENT LISTENERS =====
-  // Handle page exit: pagehide, visibilitychange, beforeunload
-  useEffect(() => {
-    const handleExit = () => {
-      if (exitFiredRef.current) return;
-      exitFiredRef.current = true;
-      endCheckoutSession();
-    };
-
-    // pagehide - best for mobile/Safari
-    const handlePageHide = (e: PageTransitionEvent) => {
-      // Only fire if page is actually being unloaded
-      if (e.persisted) return; // Page is going into bfcache, not unloading
-      handleExit();
-    };
-
-    // visibilitychange - when tab becomes hidden
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        handleExit();
-      }
-    };
-
-    // beforeunload - fallback for desktop browsers
-    const handleBeforeUnload = () => {
-      handleExit();
-    };
-
-    window.addEventListener('pagehide', handlePageHide);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('pagehide', handlePageHide);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
+  // NOTE: We intentionally do NOT call endCheckoutSession() on exit events
+  // The server-side sweep job handles abandonment after 30 minutes of inactivity
+  // This prevents false "abandoned" status when user is still actively browsing
+  // (e.g., switching tabs, opening DevTools, clicking links within checkout)
+  //
+  // The heartbeat (every 25s) keeps the session "alive"
+  // If heartbeat stops for 30+ min, sweep marks it as abandoned
 
   // Heartbeat every 25 seconds
   useEffect(() => {
