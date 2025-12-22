@@ -78,6 +78,7 @@ function ProductCTAs({
   tenantSlug,
   isPreview,
   isEditing,
+  isInteractMode,
   openMiniCartOnAdd,
   onOpenMiniCart,
 }: {
@@ -91,14 +92,17 @@ function ProductCTAs({
   tenantSlug: string;
   isPreview?: boolean;
   isEditing?: boolean;
+  isInteractMode?: boolean;
   openMiniCartOnAdd?: boolean;
   onOpenMiniCart?: () => void;
 }) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
   
-  // Find if product already in cart (only in Preview/Public mode)
-  const cartItem = !isEditing ? items.find(i => i.product_id === productId) : null;
+  // Find if product already in cart (only in Preview/Public/Interact mode)
+  // In interact mode, we want to allow cart operations
+  const shouldAllowCartOps = !isEditing || isInteractMode;
+  const cartItem = shouldAllowCartOps ? items.find(i => i.product_id === productId) : null;
   const cartQuantity = cartItem?.quantity || 0;
   
   // Local quantity state - always starts at 1 and resets on product change
@@ -192,6 +196,9 @@ function ProductCTAs({
     handleQuantityChange(quantity + 1);
   };
 
+  // In interact mode, buttons should work even though technically we're in the editor
+  const disableInteraction = isEditing && !isInteractMode;
+
   return (
     <div className="space-y-3 pt-2">
       {/* Quantity selector + Comprar agora in row */}
@@ -201,7 +208,7 @@ function ProductCTAs({
           <button
             type="button"
             onClick={decrementQuantity}
-            disabled={quantity <= 1 || isEditing}
+            disabled={quantity <= 1 || disableInteraction}
             className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
           >
             <Minus className="w-4 h-4" />
@@ -210,7 +217,7 @@ function ProductCTAs({
           <button
             type="button"
             onClick={incrementQuantity}
-            disabled={quantity >= maxQuantity || isEditing}
+            disabled={quantity >= maxQuantity || disableInteraction}
             className="w-10 h-10 flex items-center justify-center hover:bg-muted transition-colors disabled:opacity-50"
           >
             <Plus className="w-4 h-4" />
@@ -220,7 +227,7 @@ function ProductCTAs({
         {/* Comprar Agora */}
         <Button
           onClick={handleBuyNow}
-          disabled={isOutOfStock || isAddingToCart || isEditing}
+          disabled={isOutOfStock || isAddingToCart || disableInteraction}
           className="flex-1 h-10 rounded-full bg-foreground text-background hover:bg-foreground/90 font-semibold uppercase tracking-wide text-sm"
         >
           {isAddingToCart ? (
@@ -235,7 +242,7 @@ function ProductCTAs({
       <Button
         variant="outline"
         onClick={handleAddToCart}
-        disabled={isOutOfStock || isAddingToCart || isEditing}
+        disabled={isOutOfStock || isAddingToCart || disableInteraction}
         className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
       >
         {isAddingToCart ? (
@@ -254,7 +261,7 @@ function ProductCTAs({
       <Button
         variant="outline"
         onClick={handleWhatsApp}
-        disabled={isEditing}
+        disabled={disableInteraction}
         className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700"
       >
         <MessageCircle className="w-5 h-5 mr-2" />
@@ -274,6 +281,7 @@ interface BlockRendererProps {
   context: BlockRenderContext;
   isSelected?: boolean;
   isEditing?: boolean;
+  isInteractMode?: boolean;
   onSelect?: (id: string) => void;
   onAddBlock?: (type: string, parentId: string, index: number) => void;
   onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
@@ -290,6 +298,7 @@ export function BlockRenderer({
   context, 
   isSelected = false,
   isEditing = false,
+  isInteractMode = false,
   onSelect,
   onAddBlock,
   onMoveBlock,
@@ -366,6 +375,7 @@ export function BlockRenderer({
               node={child}
               context={context}
               isEditing={isEditing}
+              isInteractMode={isInteractMode}
               onSelect={onSelect}
               onAddBlock={onAddBlock}
               onMoveBlock={onMoveBlock}
@@ -454,6 +464,7 @@ export function BlockRenderer({
         {...node.props} 
         context={context}
         isEditing={isEditing}
+        isInteractMode={isInteractMode}
         block={node}
       >
         {renderChildren()}
@@ -1333,7 +1344,7 @@ function ProductCardBlock({ productId, showPrice = true, showButton = true, isEd
   );
 }
 
-function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
+function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractMode }: any) {
   // Read ALL settings from context (set by StorefrontProduct) or use defaults
   const productSettings = context?.productSettings || {};
   const showGallery = productSettings.showGallery !== false;
@@ -1608,6 +1619,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing }: any) {
             tenantSlug={tenantSlug}
             isPreview={context?.isPreview}
             isEditing={isEditing}
+            isInteractMode={isInteractMode}
             openMiniCartOnAdd={openMiniCartOnAdd}
             onOpenMiniCart={() => setMiniCartOpen(true)}
           />

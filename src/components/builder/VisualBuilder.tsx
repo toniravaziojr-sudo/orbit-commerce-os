@@ -53,6 +53,7 @@ export function VisualBuilder({
 }: VisualBuilderProps) {
   const navigate = useNavigate();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [isInteractMode, setIsInteractMode] = useState(false);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
@@ -527,6 +528,7 @@ export function VisualBuilder({
         pageSlug={pageSlug}
         isDirty={store.isDirty}
         isPreviewMode={isPreviewMode}
+        isInteractMode={isInteractMode}
         canUndo={store.canUndo}
         canRedo={store.canRedo}
         isSaving={saveDraft.isPending}
@@ -536,6 +538,7 @@ export function VisualBuilder({
         onSave={handleSave}
         onPublish={handlePublish}
         onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
+        onToggleInteract={() => setIsInteractMode(!isInteractMode)}
         onReset={handleReset}
         onViewHistory={() => setShowVersionHistory(true)}
         onBack={handleBack}
@@ -615,6 +618,7 @@ export function VisualBuilder({
             onDeleteBlock={handleDeleteBlockById}
             onToggleHidden={handleToggleHidden}
             isPreviewMode={isPreviewMode}
+            isInteractMode={isInteractMode}
             viewport={canvasViewport}
             onViewportChange={setCanvasViewport}
           />

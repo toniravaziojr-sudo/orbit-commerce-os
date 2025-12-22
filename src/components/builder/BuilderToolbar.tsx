@@ -36,6 +36,7 @@ import {
   Save,
   Upload,
   Eye,
+  MousePointer2,
   MoreVertical,
   RotateCcw,
   History,
@@ -58,6 +59,7 @@ interface BuilderToolbarProps {
   pageSlug?: string; // For institutional/landing pages
   isDirty: boolean;
   isPreviewMode: boolean;
+  isInteractMode: boolean;
   canUndo: boolean;
   canRedo: boolean;
   isSaving?: boolean;
@@ -67,6 +69,7 @@ interface BuilderToolbarProps {
   onSave: () => void;
   onPublish: () => void;
   onTogglePreview: () => void;
+  onToggleInteract: () => void;
   onReset?: () => void;
   onViewHistory?: () => void;
   onSettings?: () => void;
@@ -85,6 +88,7 @@ export function BuilderToolbar({
   pageSlug,
   isDirty,
   isPreviewMode,
+  isInteractMode,
   canUndo,
   canRedo,
   isSaving = false,
@@ -94,6 +98,7 @@ export function BuilderToolbar({
   onSave,
   onPublish,
   onTogglePreview,
+  onToggleInteract,
   onReset,
   onViewHistory,
   onBack,
@@ -299,6 +304,22 @@ export function BuilderToolbar({
 
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {/* Interact Mode Toggle - Only when not in preview */}
+        {!isPreviewMode && (
+          <Button
+            variant={isInteractMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={onToggleInteract}
+            className="gap-1"
+            title="Modo Interagir: clique e teste os botões no canvas"
+          >
+            <MousePointer2 className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {isInteractMode ? 'Editar' : 'Testar'}
+            </span>
+          </Button>
+        )}
+
         {/* Preview Button */}
         <Button
           variant={isPreviewMode ? 'default' : 'outline'}
