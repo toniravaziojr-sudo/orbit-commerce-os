@@ -41,8 +41,11 @@ export function MiniCartDrawer({
   const { items, shipping, subtotal, updateQuantity, removeItem, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount } = useDiscount();
 
-  // Build store host for discount validation
-  const storeHost = `${tenantSlug}.shops.${window.location.hostname.includes('localhost') ? 'comandocentral.com.br' : window.location.hostname.split('.').slice(-2).join('.')}`;
+  // Build store host for discount validation - use actual hostname for custom domains
+  const hostname = window.location.hostname.toLowerCase();
+  const storeHost = hostname.includes('shops.') || hostname.includes('localhost') 
+    ? `${tenantSlug}.shops.comandocentral.com.br`
+    : hostname;
 
   // Calculate discount
   const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
