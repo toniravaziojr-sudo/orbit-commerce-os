@@ -1602,9 +1602,12 @@ export type Database = {
           shipping_city: string | null
           shipping_complement: string | null
           shipping_country: string | null
+          shipping_estimated_days: number | null
           shipping_neighborhood: string | null
           shipping_number: string | null
           shipping_postal_code: string | null
+          shipping_service_code: string | null
+          shipping_service_name: string | null
           shipping_state: string | null
           shipping_status: Database["public"]["Enums"]["shipping_status"]
           shipping_street: string | null
@@ -1653,9 +1656,12 @@ export type Database = {
           shipping_city?: string | null
           shipping_complement?: string | null
           shipping_country?: string | null
+          shipping_estimated_days?: number | null
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
+          shipping_service_code?: string | null
+          shipping_service_name?: string | null
           shipping_state?: string | null
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null
@@ -1704,9 +1710,12 @@ export type Database = {
           shipping_city?: string | null
           shipping_complement?: string | null
           shipping_country?: string | null
+          shipping_estimated_days?: number | null
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
+          shipping_service_code?: string | null
+          shipping_service_name?: string | null
           shipping_state?: string | null
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null

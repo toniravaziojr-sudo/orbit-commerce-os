@@ -174,6 +174,10 @@ serve(async (req) => {
         shipping_state: payload.shipping.state,
         shipping_postal_code: payload.shipping.postal_code,
         shipping_carrier: payload.shipping.carrier || null,
+        // Shipping service details (from Frenet or other provider)
+        shipping_service_code: payload.shipping.service_code || null,
+        shipping_service_name: payload.shipping.service_name || null,
+        shipping_estimated_days: payload.shipping.estimated_days || null,
         // Discount fields
         discount_code: payload.discount?.discount_code || null,
         discount_name: payload.discount?.discount_name || null,
