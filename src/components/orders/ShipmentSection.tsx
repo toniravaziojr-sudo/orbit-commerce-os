@@ -3,13 +3,14 @@
 // =============================================
 
 import { useState } from 'react';
-import { Package, Truck, ExternalLink, ChevronDown, ChevronUp, Clock } from 'lucide-react';
+import { Package, Truck, ExternalLink, ChevronDown, ChevronUp, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   useOrderShipments, 
   useShipmentEvents,
@@ -173,6 +174,43 @@ function ShipmentItem({ shipment, isFirst }: { shipment: ShipmentRecord; isFirst
               <span className="text-muted-foreground">Origem</span>
               <span className="capitalize">{shipment.source}</span>
             </div>
+
+            {/* Info de polling */}
+            {shipment.last_polled_at && (
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Última consulta</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-1">
+                        {shipment.last_poll_error === 'no_provider_adapter' ? (
+                          <AlertCircle className="h-3 w-3 text-yellow-500" />
+                        ) : shipment.poll_error_count > 0 ? (
+                          <AlertCircle className="h-3 w-3 text-red-500" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3 text-green-500" />
+                        )}
+                        <span className="text-xs">{formatDate(shipment.last_polled_at)}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {shipment.last_poll_error === 'no_provider_adapter' ? (
+                        <p>Aguardando integração com transportadora</p>
+                      ) : shipment.poll_error_count > 0 ? (
+                        <p>Erro: {shipment.last_poll_error} ({shipment.poll_error_count}x)</p>
+                      ) : (
+                        <p>Atualização automática ativa</p>
+                      )}
+                      {shipment.next_poll_at && (
+                        <p className="text-xs text-muted-foreground">
+                          Próxima: {formatDate(shipment.next_poll_at)}
+                        </p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+            )}
 
             {/* Link externo de rastreio */}
             <div className="pt-2">

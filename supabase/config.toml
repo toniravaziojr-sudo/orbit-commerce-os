@@ -107,3 +107,7 @@ verify_jwt = true
 
 [functions.shipment-ingest]
 verify_jwt = false
+
+[functions.tracking-poll]
+verify_jwt = false
+schedule = "*/10 * * * *"

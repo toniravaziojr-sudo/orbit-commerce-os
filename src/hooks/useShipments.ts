@@ -66,6 +66,11 @@ export interface ShipmentRecord {
   metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  // Campos de polling
+  last_polled_at: string | null;
+  next_poll_at: string | null;
+  poll_error_count: number;
+  last_poll_error: string | null;
 }
 
 export interface ShipmentEvent {
@@ -76,6 +81,7 @@ export interface ShipmentEvent {
   description: string | null;
   location: string | null;
   occurred_at: string;
+  provider_event_id: string | null;
   raw_payload: Record<string, unknown> | null;
   created_at: string;
 }
