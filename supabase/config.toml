@@ -95,3 +95,6 @@ schedule = "*/5 * * * *"
 [functions.scan-content-urls]
 verify_jwt = false
 schedule = "0 3 * * *"
+
+[functions.report-runtime-violation]
+verify_jwt = false

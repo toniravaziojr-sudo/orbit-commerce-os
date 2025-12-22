@@ -523,6 +523,31 @@ Deno.serve(async (req) => {
         });
       }
 
+      // Check for accumulated runtime violations (proactive alert)
+      const { count: violationCount } = await supabase
+        .from('storefront_runtime_violations')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', target.tenant_id)
+        .eq('is_resolved', false)
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+
+      if (violationCount && violationCount >= 5) {
+        console.log(`[health-check-run] High violation count (${violationCount}) for tenant ${target.tenant_id}`);
+        
+        // Emit alert event (idempotency by 6 hours to avoid spam)
+        await supabase.from('events_inbox').insert({
+          tenant_id: target.tenant_id,
+          provider: 'internal',
+          event_type: 'system.violations.accumulated',
+          idempotency_key: `violations-accumulated-${target.tenant_id}-${Math.floor(Date.now() / (6 * 60 * 60 * 1000))}`,
+          payload_raw: {
+            violation_count: violationCount,
+            target_label: target.label,
+            message: `Detectadas ${violationCount} violações de URL não resolvidas nas últimas 24h`
+          }
+        });
+      }
+
       results.push({ target, suites });
     }
 
