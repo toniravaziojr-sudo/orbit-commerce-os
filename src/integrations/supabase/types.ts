@@ -254,6 +254,7 @@ export type Database = {
         Row: {
           abandoned_at: string | null
           cart_id: string | null
+          contact_captured_at: string | null
           converted_at: string | null
           created_at: string
           currency: string
@@ -278,6 +279,7 @@ export type Database = {
         Insert: {
           abandoned_at?: string | null
           cart_id?: string | null
+          contact_captured_at?: string | null
           converted_at?: string | null
           created_at?: string
           currency?: string
@@ -302,6 +304,7 @@ export type Database = {
         Update: {
           abandoned_at?: string | null
           cart_id?: string | null
+          contact_captured_at?: string | null
           converted_at?: string | null
           created_at?: string
           currency?: string

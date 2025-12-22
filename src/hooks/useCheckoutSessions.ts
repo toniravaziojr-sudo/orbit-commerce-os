@@ -57,6 +57,10 @@ export function useCheckoutSessions(filters: CheckoutSessionsFilters = {}) {
       params.set('tenant_id', `eq.${currentTenant.id}`);
       params.set('order', 'started_at.desc');
       
+      // IMPORTANTE: Só mostrar sessões com contato capturado (email ou telefone)
+      // Sessões sem contato não são úteis para recuperação
+      params.set('contact_captured_at', 'not.is.null');
+      
       // Filtrar por status - agora suporta active também
       if (filters.status === 'abandoned') {
         params.set('status', 'eq.abandoned');
@@ -125,9 +129,11 @@ export function useCheckoutSessionsStats() {
       }
 
       // Buscar apenas os campos necessários para stats
+      // IMPORTANTE: Só contar sessões com contato capturado
       const params = new URLSearchParams();
       params.set('tenant_id', `eq.${currentTenant.id}`);
       params.set('select', 'status,total_estimated');
+      params.set('contact_captured_at', 'not.is.null');
 
       const response = await fetch(`${supabaseUrl}/rest/v1/checkout_sessions?${params.toString()}`, {
         method: 'GET',
