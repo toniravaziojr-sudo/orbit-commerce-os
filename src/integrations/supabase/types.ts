@@ -2834,6 +2834,107 @@ export type Database = {
           },
         ]
       }
+      system_health_check_targets: {
+        Row: {
+          created_at: string
+          id: string
+          is_enabled: boolean
+          label: string
+          shops_base_url: string | null
+          storefront_base_url: string
+          tenant_id: string
+          test_coupon_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label: string
+          shops_base_url?: string | null
+          storefront_base_url: string
+          tenant_id: string
+          test_coupon_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          shops_base_url?: string | null
+          storefront_base_url?: string
+          tenant_id?: string
+          test_coupon_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_health_check_targets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_health_checks: {
+        Row: {
+          check_suite: string
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          environment: string
+          id: string
+          ran_at: string
+          status: string
+          summary: string | null
+          target_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          check_suite: string
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          environment?: string
+          id?: string
+          ran_at?: string
+          status: string
+          summary?: string | null
+          target_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          check_suite?: string
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          environment?: string
+          id?: string
+          ran_at?: string
+          status?: string
+          summary?: string | null
+          target_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_health_checks_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "system_health_check_targets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_health_checks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_domains: {
         Row: {
           created_at: string
