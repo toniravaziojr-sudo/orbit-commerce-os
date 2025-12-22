@@ -3,7 +3,9 @@
 // =============================================
 
 import { useState, useEffect } from 'react';
-import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { usePublicTemplate } from '@/hooks/usePublicTemplate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export default function StorefrontAccount() {
-  const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -85,7 +88,7 @@ export default function StorefrontAccount() {
     try {
       await supabase.auth.signOut();
       toast.success('Você saiu da sua conta');
-      navigate(`/store/${tenantSlug}`);
+      navigate(urls.home());
     } catch (error) {
       toast.error('Erro ao sair. Tente novamente.');
     } finally {
@@ -122,7 +125,7 @@ export default function StorefrontAccount() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <Link to={`/store/${tenantSlug}/conta/login`}>
+                <Link to={urls.account() + '/login'}>
                   <Button className="w-full h-12">
                     Entrar
                   </Button>
@@ -133,7 +136,7 @@ export default function StorefrontAccount() {
                 </p>
 
                 <div className="pt-4 border-t">
-                  <Link to={`/store/${tenantSlug}`}>
+                  <Link to={urls.home()}>
                     <Button variant="ghost">
                       <ShoppingBag className="h-4 w-4 mr-2" />
                       Voltar à loja
@@ -203,7 +206,7 @@ export default function StorefrontAccount() {
               </CardHeader>
               <CardContent>
                 <Link 
-                  to={`/store/${tenantSlug}/conta/pedidos${isDemoMode ? '?demoAccount=1' : ''}`}
+                  to={`${urls.accountOrders()}${isDemoMode ? '?demoAccount=1' : ''}`}
                 >
                   <Button className="w-full">
                     Ver pedidos
@@ -238,7 +241,7 @@ export default function StorefrontAccount() {
 
           {/* Actions */}
           <div className="mt-8 flex flex-col items-center gap-4">
-            <Link to={`/store/${tenantSlug}`}>
+            <Link to={urls.home()}>
               <Button variant="ghost">
                 <ShoppingBag className="h-4 w-4 mr-2" />
                 Voltar à loja
