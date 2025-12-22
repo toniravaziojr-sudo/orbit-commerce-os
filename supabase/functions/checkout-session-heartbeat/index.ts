@@ -139,10 +139,41 @@ serve(async (req) => {
       });
     }
 
-    // Atualizar last_seen_at e dados do cliente
+    // Primeiro, verificar se a sessão existe e seu status atual
+    const { data: existingSession } = await supabase
+      .from('checkout_sessions')
+      .select('id, status, abandoned_at')
+      .eq('id', session_id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (!existingSession) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        session_id,
+        reason: 'session_not_found',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // REATIVAÇÃO: Se sessão estava abandonada, heartbeat reativa para active
+    const wasAbandoned = existingSession.status === 'abandoned';
+    
     const updateData: Record<string, unknown> = {
       last_seen_at: new Date().toISOString(),
     };
+
+    if (wasAbandoned) {
+      updateData.status = 'active';
+      updateData.metadata = {
+        reopened_at: new Date().toISOString(),
+        reopened_by: 'heartbeat',
+        previous_status: 'abandoned',
+        previous_abandoned_at: existingSession.abandoned_at,
+      };
+      console.log(`[checkout-session-heartbeat] REACTIVATING abandoned session ${session_id}`);
+    }
 
     // Atualizar campos opcionais se fornecidos
     if (customer_email) updateData.customer_email = customer_email;
@@ -151,23 +182,24 @@ serve(async (req) => {
     if (region) updateData.region = region;
     if (total_estimated !== undefined) updateData.total_estimated = total_estimated;
     if (items_snapshot) updateData.items_snapshot = items_snapshot;
-    if (step) updateData.metadata = { step };
+    if (step && !wasAbandoned) updateData.metadata = { step };
 
+    // Só atualiza se status é 'active' OU se estava 'abandoned' (para reativar)
     const { data, error } = await supabase
       .from('checkout_sessions')
       .update(updateData)
       .eq('id', session_id)
       .eq('tenant_id', tenantId)
-      .eq('status', 'active') // Só atualiza se ainda active
+      .in('status', ['active', 'abandoned'])
       .select('id, status')
       .single();
 
     if (error) {
-      // Pode não existir ou já ter sido convertido/abandonado
+      console.error('[checkout-session-heartbeat] Update error:', error);
       return new Response(JSON.stringify({ 
         success: false, 
         session_id,
-        reason: 'session_not_active',
+        reason: 'update_failed',
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -177,6 +209,7 @@ serve(async (req) => {
       success: true, 
       session_id: data.id,
       status: data.status,
+      was_reactivated: wasAbandoned,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

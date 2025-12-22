@@ -1,7 +1,6 @@
 // ============================================
-// CHECKOUT SESSION END - Registers that user left the checkout
-// DOES NOT mark as abandoned - only updates ended_at/last_seen_at
-// Abandonment is determined by server-side sweep after 30min inactivity
+// CHECKOUT SESSION END - Marks session as abandoned when client leaves
+// IMMEDIATELY marks as abandoned if contact was captured and no order exists
 // Accepts text/plain to avoid CORS preflight (important for sendBeacon)
 // ============================================
 
@@ -48,23 +47,25 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[checkout-session-end] Registering exit for session: ${session_id}, store_host: ${store_host}`);
+    console.log(`[checkout-session-end] Processing exit for session: ${session_id}, store_host: ${store_host}`);
 
-    // Find session directly by ID (no tenant needed - session_id is unique)
-    const { data: session } = await supabase
+    // Find session directly by ID (session_id is unique)
+    const { data: session, error: fetchError } = await supabase
       .from('checkout_sessions')
-      .select('id, status, order_id, tenant_id')
+      .select('id, status, order_id, contact_captured_at, tenant_id, customer_email, customer_phone')
       .eq('id', session_id)
       .single();
 
-    if (!session) {
+    if (fetchError || !session) {
       console.log(`[checkout-session-end] Session ${session_id} not found`);
       return new Response(JSON.stringify({ success: false, reason: 'not_found' }), { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       });
     }
 
-    // Skip if already completed/abandoned or has order
+    const now = new Date().toISOString();
+
+    // Skip if already completed or has order
     if (session.status === 'completed' || session.order_id) {
       console.log(`[checkout-session-end] Session ${session_id} already completed, skipping`);
       return new Response(JSON.stringify({ 
@@ -77,35 +78,71 @@ serve(async (req) => {
       });
     }
 
-    // IMPORTANT: DO NOT mark as abandoned here!
-    // Only update ended_at and last_seen_at to record the exit time
-    // The sweep job will determine abandonment after 30min of inactivity
-    const now = new Date().toISOString();
-    const { error } = await supabase
+    // REGRA PRINCIPAL: Fechar = Abandonar (se houver contato capturado)
+    // Se contact_captured_at IS NOT NULL e order_id IS NULL e status != 'completed':
+    // => marcar como abandoned imediatamente
+    const hasContact = session.contact_captured_at !== null;
+    const noOrder = session.order_id === null;
+    const notCompleted = session.status !== 'completed';
+
+    if (hasContact && noOrder && notCompleted) {
+      // MARCA COMO ABANDONADO IMEDIATAMENTE
+      const { error: updateError } = await supabase
+        .from('checkout_sessions')
+        .update({ 
+          status: 'abandoned',
+          abandoned_at: now,
+          last_seen_at: now,
+          metadata: {
+            ended_at: now,
+            ended_reason: 'page_exit',
+            abandoned_by: 'checkout-session-end'
+          }
+        })
+        .eq('id', session_id);
+
+      if (updateError) {
+        console.error('[checkout-session-end] Update error:', updateError);
+        throw updateError;
+      }
+
+      console.log(`[checkout-session-end] Session ${session_id} MARKED AS ABANDONED (contact captured, no order)`);
+
+      return new Response(JSON.stringify({ 
+        success: true, 
+        action: 'abandoned',
+        status: 'abandoned',
+        message: 'Session marked as abandoned immediately (contact captured, page exit)'
+      }), { 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // Se não tem contato capturado, apenas registra o exit (não marca como abandonado)
+    // Essas sessões sem contato não contam como abandono
+    const { error: updateError } = await supabase
       .from('checkout_sessions')
       .update({ 
         last_seen_at: now,
-        // Keep status as 'active' - let sweep decide if it becomes abandoned
-        // Just record that the user has left the page
         metadata: {
           ended_at: now,
-          ended_reason: 'page_exit'
+          ended_reason: 'page_exit_no_contact'
         }
       })
       .eq('id', session_id);
 
-    if (error) {
-      console.error('[checkout-session-end] Update error:', error);
-      throw error;
+    if (updateError) {
+      console.error('[checkout-session-end] Update error:', updateError);
+      throw updateError;
     }
 
-    console.log(`[checkout-session-end] Session ${session_id} exit recorded (status remains: ${session.status})`);
+    console.log(`[checkout-session-end] Session ${session_id} exit recorded (no contact - not marked as abandoned)`);
 
     return new Response(JSON.stringify({ 
       success: true, 
       action: 'exit_recorded',
       status: session.status,
-      message: 'Exit time recorded, abandonment determined by sweep'
+      message: 'Exit recorded but not abandoned (no contact captured)'
     }), { 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
     });

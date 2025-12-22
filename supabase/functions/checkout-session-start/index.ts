@@ -207,7 +207,7 @@ serve(async (req) => {
     // Check if session already exists
     const { data: existing } = await supabase
       .from('checkout_sessions')
-      .select('id, status')
+      .select('id, status, abandoned_at')
       .eq('id', session_id)
       .eq('tenant_id', tenantId)
       .single();
@@ -217,6 +217,19 @@ serve(async (req) => {
       const updateData: Record<string, unknown> = {
         last_seen_at: new Date().toISOString(),
       };
+
+      // REATIVAÇÃO: Se sessão estava abandonada, reativar para active
+      const wasAbandoned = existing.status === 'abandoned';
+      if (wasAbandoned) {
+        updateData.status = 'active';
+        // Registrar reabertura em metadata (preservando histórico)
+        updateData.metadata = {
+          reopened_at: new Date().toISOString(),
+          previous_status: 'abandoned',
+          previous_abandoned_at: existing.abandoned_at,
+        };
+        console.log(`[checkout-session-start] REACTIVATING abandoned session ${session_id}`);
+      }
 
       if (customer_email) updateData.customer_email = customer_email;
       if (customer_phone) updateData.customer_phone = customer_phone;
@@ -236,12 +249,15 @@ serve(async (req) => {
         throw updateError;
       }
 
-      console.log(`[checkout-session-start] Session ${session_id} updated`);
+      const newStatus = wasAbandoned ? 'active' : existing.status;
+      console.log(`[checkout-session-start] Session ${session_id} updated (status: ${newStatus}, reactivated: ${wasAbandoned})`);
+      
       return new Response(JSON.stringify({ 
         success: true, 
         session_id, 
-        action: 'updated',
-        status: existing.status,
+        action: wasAbandoned ? 'reactivated' : 'updated',
+        status: newStatus,
+        was_abandoned: wasAbandoned,
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
