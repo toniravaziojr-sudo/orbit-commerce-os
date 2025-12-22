@@ -18,10 +18,21 @@ node scripts/check-hardcoded-urls.js
 ```
 Escaneia o código e lista todas as violações com arquivo e linha.
 
-### 3. Runtime safeguard (dev only)
-Em modo desenvolvimento, warnings no console se uma URL gerada contiver:
-- `/store/{slug}` em domínio custom
-- `app.comandocentral.com.br` em link público
+### 3. Runtime Guards (produção + dev)
+- **Auto-normalização**: URLs inválidas são corrigidas automaticamente antes da navegação
+- **Telemetria**: Violações são registradas em `storefront_runtime_violations` para análise
+- **Arquivo**: `src/lib/urlGuards.ts`
+
+### 4. Health Monitor (automático)
+- **Edge function agendada**: `health-check-run` roda a cada 5 minutos
+- **Verifica**: domínios acessíveis, ausência de URLs hardcoded no HTML, checkout tracking, cupons
+- **Alertas**: falhas críticas geram eventos em `events_inbox`
+- **Dashboard**: `/health-monitor` no admin
+
+### 5. Scanner de Conteúdo (automático)
+- **Edge function agendada**: `scan-content-urls` roda diariamente às 3h
+- **Verifica**: URLs hardcoded em templates, páginas, menus (banco de dados)
+- **Registra**: violações em `storefront_runtime_violations`
 
 ---
 

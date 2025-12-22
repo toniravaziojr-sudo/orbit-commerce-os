@@ -91,3 +91,7 @@ verify_jwt = false
 [functions.health-check-run]
 verify_jwt = false
 schedule = "*/5 * * * *"
+
+[functions.scan-content-urls]
+verify_jwt = false
+schedule = "0 3 * * *"

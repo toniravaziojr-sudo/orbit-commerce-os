@@ -14,6 +14,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -168,46 +169,52 @@ export default function Dashboard() {
         </Card>
 
         {/* Attention Required */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">
-              Atenção Agora
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {DEMO_ATTENTION_ITEMS.map((item, index) => {
-                const Icon = item.icon;
-                const iconColors = {
-                  warning: "text-warning bg-warning/10",
-                  info: "text-info bg-info/10",
-                  destructive: "text-destructive bg-destructive/10",
-                };
-                return (
-                  <div
-                    key={index}
-                    className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
-                  >
+        <div className="space-y-6">
+          {/* Storefront Health Card */}
+          <StorefrontHealthCard />
+          
+          {/* Other attention items */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg font-semibold">
+                Atenção Agora
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {DEMO_ATTENTION_ITEMS.map((item, index) => {
+                  const Icon = item.icon;
+                  const iconColors = {
+                    warning: "text-warning bg-warning/10",
+                    info: "text-info bg-info/10",
+                    destructive: "text-destructive bg-destructive/10",
+                  };
+                  return (
                     <div
-                      className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconColors[item.variant]}`}
+                      key={index}
+                      className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-4 transition-colors hover:bg-muted/50 cursor-pointer"
                     >
-                      <Icon className="h-5 w-5" />
+                      <div
+                        className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconColors[item.variant]}`}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground">
+                          {item.title}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.description}
+                        </p>
+                      </div>
+                      <ArrowRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground">
-                        {item.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.description}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Quick Actions */}

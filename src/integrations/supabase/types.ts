@@ -2802,6 +2802,50 @@ export type Database = {
           },
         ]
       }
+      storefront_runtime_violations: {
+        Row: {
+          created_at: string
+          details: Json | null
+          host: string
+          id: string
+          path: string
+          resolved_at: string | null
+          source: string | null
+          tenant_id: string
+          violation_type: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          host: string
+          id?: string
+          path: string
+          resolved_at?: string | null
+          source?: string | null
+          tenant_id: string
+          violation_type: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          host?: string
+          id?: string
+          path?: string
+          resolved_at?: string | null
+          source?: string | null
+          tenant_id?: string
+          violation_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_runtime_violations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       storefront_templates: {
         Row: {
           id: string
