@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Loader2, ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { getPublicProductUrl } from '@/lib/publicUrls';
 
 interface BannerProductsBlockProps {
   title?: string;
@@ -147,7 +148,7 @@ export function BannerProductsBlock({
             ) : productCount > 0 ? (
               displayProducts.map((product, index) => {
                 const productImageUrl = getProductImage(product);
-                const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
+                const productUrl = getPublicProductUrl(context?.tenantSlug || '', product.slug) || '/';
                 
                 // For 3 products, make the 3rd span full width
                 const isLastOfThree = productCount === 3 && index === 2;

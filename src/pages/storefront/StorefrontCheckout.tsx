@@ -12,6 +12,7 @@ import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutSte
 import { Loader2 } from 'lucide-react';
 import { isPreviewUrl } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { getStoreBaseUrl } from '@/lib/publicUrls';
 
 export default function StorefrontCheckout() {
   const tenantSlug = useTenantSlug();
@@ -22,8 +23,8 @@ export default function StorefrontCheckout() {
   useEffect(() => {
     if (isPreviewUrl(searchParams)) {
       // Remove preview params and redirect to clean URL
-      const basePath = tenantSlug ? `/store/${tenantSlug}/checkout` : '/checkout';
-      navigate(basePath, { replace: true });
+      const basePath = getStoreBaseUrl(tenantSlug || '');
+      navigate(`${basePath}/checkout`, { replace: true });
     }
   }, [searchParams, tenantSlug, navigate]);
 

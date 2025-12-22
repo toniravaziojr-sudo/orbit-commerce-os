@@ -8,7 +8,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
 import { ChevronRight, Loader2, ImageIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { getPublicCategoryUrl } from '@/lib/publicUrls';
+import { getPublicCategoryUrl, getPublicProductUrl } from '@/lib/publicUrls';
 import { useIsMobile } from '@/hooks/use-mobile';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useCallback, useMemo } from 'react';
@@ -105,7 +105,7 @@ export function CollectionSectionBlock({
 
   const ProductCard = ({ product }: { product: typeof products[0] }) => {
     const imageUrl = getProductImage(product);
-    const productUrl = `/store/${context?.tenantSlug}/product/${product.slug}`;
+    const productUrl = getPublicProductUrl(context?.tenantSlug || '', product.slug) || '/';
     const rating = ratingsMap?.get(product.id);
     
     return (

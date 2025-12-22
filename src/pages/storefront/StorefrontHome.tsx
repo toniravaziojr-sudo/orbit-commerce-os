@@ -11,6 +11,7 @@ import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRe
 import { BlockRenderContext } from '@/lib/builder/types';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { getStoreBaseUrl } from '@/lib/publicUrls';
 
 export default function StorefrontHome() {
   const tenantSlug = useTenantSlug();
@@ -34,7 +35,7 @@ export default function StorefrontHome() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
-      const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+      const basePath = getStoreBaseUrl(tenantSlug || '');
       const cleanPath = `${basePath}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath || '/', { replace: true });
     }

@@ -14,6 +14,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { getStoreBaseUrl } from '@/lib/publicUrls';
 
 interface CategorySettings {
   showCategoryName?: boolean;
@@ -168,7 +169,7 @@ export default function StorefrontCategory() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
-      const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+      const basePath = getStoreBaseUrl(tenantSlug || '');
       const cleanPath = `${basePath}/c/${categorySlug}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
