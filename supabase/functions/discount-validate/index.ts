@@ -51,9 +51,19 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: ValidateDiscountRequest = await req.json();
-    const { store_host, code, subtotal, shipping_price = 0, customer_email } = body;
+    const { store_host: rawStoreHost, code, subtotal, shipping_price = 0, customer_email } = body;
 
-    console.log("[discount-validate] Request:", { store_host, code, subtotal, shipping_price, customer_email });
+    // Normalize store_host: lowercase, trim, remove port if present
+    const store_host = (rawStoreHost || '').toLowerCase().trim().split(':')[0];
+
+    console.log("[discount-validate] Request:", { 
+      raw_store_host: rawStoreHost, 
+      normalized_store_host: store_host, 
+      code, 
+      subtotal, 
+      shipping_price, 
+      customer_email 
+    });
 
     if (!store_host || !code) {
       return new Response(

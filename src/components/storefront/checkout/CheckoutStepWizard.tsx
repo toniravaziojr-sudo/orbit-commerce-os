@@ -29,6 +29,7 @@ import { useShipping, useCanonicalDomain } from '@/contexts/StorefrontConfigCont
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
+import { getStoreHost } from '@/lib/storeHost';
 import {
   startCheckoutSession,
   heartbeatCheckoutSession,
@@ -77,11 +78,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
   
-  // Build store host for discount validation - use actual hostname for custom domains
-  const hostname = window.location.hostname.toLowerCase();
-  const storeHost = hostname.includes('shops.') || hostname.includes('localhost') 
-    ? `${tenantSlug}.shops.comandocentral.com.br`
-    : hostname;
+  // Use centralized store host helper - always sends actual browser host
+  const storeHost = getStoreHost();
   
   const [currentStep, setCurrentStep] = useState<CheckoutStep>(1);
   const [formData, setFormData] = useState<ExtendedFormData>(initialExtendedFormData);
