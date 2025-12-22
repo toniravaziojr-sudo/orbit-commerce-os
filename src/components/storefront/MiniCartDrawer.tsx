@@ -23,6 +23,7 @@ import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout
 import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
 import { Progress } from '@/components/ui/progress';
 import { CouponInput } from '@/components/storefront/CouponInput';
+import { getStoreHost } from '@/lib/storeHost';
 
 interface MiniCartDrawerProps {
   open: boolean;
@@ -41,11 +42,8 @@ export function MiniCartDrawer({
   const { items, shipping, subtotal, updateQuantity, removeItem, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount } = useDiscount();
 
-  // Build store host for discount validation - use actual hostname for custom domains
-  const hostname = window.location.hostname.toLowerCase();
-  const storeHost = hostname.includes('shops.') || hostname.includes('localhost') 
-    ? `${tenantSlug}.shops.comandocentral.com.br`
-    : hostname;
+  // Use centralized store host helper - always sends actual browser host
+  const storeHost = getStoreHost();
 
   // Calculate discount
   const discountAmount = getDiscountAmount(subtotal, shipping.selected?.price || 0);
