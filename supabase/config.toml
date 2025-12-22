@@ -70,6 +70,9 @@ schedule = "* * * * *"
 [functions.checkout-session-start]
 verify_jwt = false
 
+[functions.checkout-session-capture-contact]
+verify_jwt = false
+
 [functions.checkout-session-heartbeat]
 verify_jwt = false
 
