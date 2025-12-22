@@ -21,6 +21,7 @@ interface BuilderCanvasProps {
   onDeleteBlock?: (blockId: string) => void;
   onToggleHidden?: (blockId: string) => void;
   isPreviewMode?: boolean;
+  isInteractMode?: boolean;
   viewport?: ViewportSize;
   onViewportChange?: (viewport: ViewportSize) => void;
 }
@@ -44,6 +45,7 @@ export function BuilderCanvas({
   onDeleteBlock,
   onToggleHidden,
   isPreviewMode = false,
+  isInteractMode = false,
   viewport: controlledViewport,
   onViewportChange,
 }: BuilderCanvasProps) {
@@ -110,6 +112,15 @@ export function BuilderCanvas({
 
   return (
     <div className="h-full flex flex-col">
+      {/* Interact Mode Banner */}
+      {isInteractMode && !isPreviewMode && (
+        <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 text-center">
+          <span className="text-sm font-medium text-primary">
+            🖱️ Modo Testar ativo — clique nos botões para testar. Pressione ESC ou clique em "Editar" para voltar.
+          </span>
+        </div>
+      )}
+
       {/* Viewport Controls */}
       {!isPreviewMode && (
         <div className="flex items-center justify-center gap-1 py-2 px-4 bg-background border-b">
@@ -160,13 +171,14 @@ export function BuilderCanvas({
               node={content}
               context={{ ...context, viewport }}
               isSelected={selectedBlockId === content.id}
-              isEditing={!isPreviewMode}
-              onSelect={onSelectBlock}
-              onAddBlock={onAddBlock}
-              onMoveBlock={onMoveBlock}
-              onDuplicateBlock={onDuplicateBlock}
-              onDeleteBlock={onDeleteBlock}
-              onToggleHidden={onToggleHidden}
+              isEditing={!isPreviewMode && !isInteractMode}
+              isInteractMode={isInteractMode}
+              onSelect={isInteractMode ? undefined : onSelectBlock}
+              onAddBlock={isInteractMode ? undefined : onAddBlock}
+              onMoveBlock={isInteractMode ? undefined : onMoveBlock}
+              onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
+              onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
+              onToggleHidden={isInteractMode ? undefined : onToggleHidden}
             />
           </div>
         </div>
@@ -176,7 +188,9 @@ export function BuilderCanvas({
       {!isPreviewMode && (
         <div className="flex items-center justify-between px-4 py-2 bg-background border-t text-xs text-muted-foreground">
           <span className="truncate">
-            {selectedBlockId ? (
+            {isInteractMode ? (
+              <span className="text-primary font-medium">Modo Testar — interaja com os elementos</span>
+            ) : selectedBlockId ? (
               <>Bloco selecionado: <code className="bg-muted px-1 py-0.5 rounded">{selectedBlockId}</code></>
             ) : (
               'Arraste blocos do menu ou clique para editar'
