@@ -62,6 +62,7 @@ import StorefrontAccountLogin from "@/pages/storefront/StorefrontAccountLogin";
 import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccountForgotPassword";
 import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
 import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
+import StorefrontResetPassword from "@/pages/storefront/StorefrontResetPassword";
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
@@ -127,6 +128,8 @@ const App = () => {
                   <Route path="conta" element={<StorefrontAccount />} />
                   <Route path="conta/login" element={<StorefrontAccountLogin />} />
                   <Route path="conta/esqueci-senha" element={<StorefrontAccountForgotPassword />} />
+                  <Route path="conta/redefinir-senha" element={<StorefrontResetPassword />} />
+                  <Route path="minha-conta/redefinir-senha" element={<StorefrontResetPassword />} />
                   <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                   <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
                 </Route>
@@ -146,6 +149,8 @@ const App = () => {
                 <Route path="conta" element={<StorefrontAccount />} />
                 <Route path="conta/login" element={<StorefrontAccountLogin />} />
                 <Route path="conta/esqueci-senha" element={<StorefrontAccountForgotPassword />} />
+                <Route path="conta/redefinir-senha" element={<StorefrontResetPassword />} />
+                <Route path="minha-conta/redefinir-senha" element={<StorefrontResetPassword />} />
                 <Route path="conta/pedidos" element={<StorefrontOrdersList />} />
                 <Route path="conta/pedidos/:orderId" element={<StorefrontOrderDetail />} />
               </Route>

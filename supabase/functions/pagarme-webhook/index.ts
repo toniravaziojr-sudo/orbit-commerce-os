@@ -123,7 +123,9 @@ serve(async (req) => {
       case 'paid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        newOrderStatus = 'confirmed';
+        // IMPORTANTE: usar 'paid' que é um valor válido do enum order_status
+        // Valores válidos: pending,awaiting_payment,paid,processing,shipped,in_transit,delivered,cancelled,returned
+        newOrderStatus = 'paid';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount || existingTransaction.amount;
         break;
@@ -145,7 +147,8 @@ serve(async (req) => {
       case 'overpaid':
         newTransactionStatus = 'paid';
         newPaymentStatus = 'approved';
-        newOrderStatus = 'confirmed';
+        // IMPORTANTE: usar 'paid' que é um valor válido do enum order_status
+        newOrderStatus = 'paid';
         paidAt = new Date().toISOString();
         paidAmount = charge?.paid_amount || charge?.amount;
         break;
