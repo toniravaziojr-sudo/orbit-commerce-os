@@ -93,13 +93,22 @@ export function getTenantCanonicalOrigin(customDomain: string | null, tenantSlug
 
 /**
  * Get the full canonical base URL for a tenant's store
+ * NOTE: For platform subdomain and custom domains, the path is just the origin (no /store/{slug})
  */
 export function getTenantPublicBaseUrl(tenantSlug: string, customDomain: string | null): string {
   const origin = getTenantCanonicalOrigin(customDomain, tenantSlug);
   
-  // On custom domain or platform subdomain, the store path is included via routing
-  // For platform subdomain: https://tenant.shops.domain/store/tenant
-  // For custom domain: https://custom.domain/store/tenant
+  // For custom domain or platform subdomain, just return the origin (domain-aware routing)
+  if (customDomain) {
+    return origin;
+  }
+  
+  // For platform subdomain, also just return the origin
+  if (tenantSlug && origin.includes(`${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}`)) {
+    return origin;
+  }
+  
+  // Only for legacy/fallback origin, use /store/{tenantSlug}
   return `${origin}/store/${tenantSlug}`;
 }
 

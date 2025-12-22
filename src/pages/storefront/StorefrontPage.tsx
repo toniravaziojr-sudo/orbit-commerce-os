@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getEffectiveSeo, applySeoToDocument } from '@/lib/seo';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { getStoreBaseUrl } from '@/lib/publicUrls';
 
 export default function StorefrontPage() {
   const tenantSlug = useTenantSlug();
@@ -96,8 +97,8 @@ export default function StorefrontPage() {
   // Redirect to public URL if preview mode is requested but user can't access preview
   useEffect(() => {
     if (isPreviewMode && !canPreview && !pageData.isLoading) {
-      const basePath = tenantSlug ? `/store/${tenantSlug}/page/${pageSlug}` : `/page/${pageSlug}`;
-      const cleanPath = `${basePath}${getCleanQueryString(searchParams)}`;
+      const basePath = getStoreBaseUrl(tenantSlug || '');
+      const cleanPath = `${basePath}/page/${pageSlug}${getCleanQueryString(searchParams)}`;
       navigate(cleanPath, { replace: true });
     }
   }, [isPreviewMode, canPreview, pageData.isLoading, tenantSlug, pageSlug, searchParams, navigate]);

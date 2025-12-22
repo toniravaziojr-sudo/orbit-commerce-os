@@ -1,7 +1,7 @@
 // =============================================
 // URL GUARDS - Runtime protection for storefront URLs
 // Detects and handles invalid URLs in production
-// FAIL-SAFE MODE: Critical violations block navigation
+// POLICY: "Domínio muda, tudo muda" - SEM REDIRECTS
 // =============================================
 
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from './canonicalDomainService';
@@ -11,8 +11,8 @@ export type ViolationType =
   | 'hardcoded_store_url' 
   | 'app_domain_link' 
   | 'preview_in_public'
-  | 'redirect_loop'
-  | 'wrong_canonical_origin'
+  | 'host_disabled'        // NEW: Access to disabled host when custom is active
+  | 'wrong_public_origin'  // NEW: Link generated with wrong origin
   | 'content_hardcoded_url';
   
 export type ViolationSeverity = 'critical' | 'warning' | 'info';
@@ -31,10 +31,10 @@ export function getViolationSeverity(type: ViolationType): ViolationSeverity {
   switch (type) {
     case 'app_domain_link':
     case 'hardcoded_store_url':
-    case 'redirect_loop':
+    case 'host_disabled':
       return 'critical';
     case 'preview_in_public':
-    case 'wrong_canonical_origin':
+    case 'wrong_public_origin':
       return 'warning';
     case 'content_hardcoded_url':
       return 'info';
@@ -76,6 +76,59 @@ export function getCurrentHost(): string {
 const STORE_PATH_PATTERN = /\/store\/[^/]+/i;
 const APP_DOMAIN_PATTERN = /app\.comandocentral\.com\.br/i;
 const PREVIEW_QUERY_PATTERN = /[?&]preview=1/i;
+
+/**
+ * Check if the current host is the canonical public host for this tenant
+ * @param tenantSlug - The tenant's slug
+ * @param customDomain - The verified custom domain (if any)
+ */
+export function isOnCanonicalPublicHost(tenantSlug: string, customDomain: string | null): boolean {
+  if (typeof window === 'undefined') return true; // SSR safe
+  
+  const currentHost = getCurrentHost();
+  
+  // If custom domain is active (verified + ssl_active), that's the only canonical host
+  if (customDomain) {
+    const normalizedCustom = customDomain.toLowerCase().replace(/^www\./, '');
+    return currentHost === normalizedCustom;
+  }
+  
+  // Otherwise, platform subdomain is canonical
+  const expectedHost = `${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}.${SAAS_CONFIG.domain}`;
+  return currentHost === expectedHost;
+}
+
+/**
+ * Check if current host is disabled (shops subdomain when custom is active)
+ * Returns the canonical host that SHOULD be used, or null if current host is OK
+ */
+export function getHostDisabledInfo(tenantSlug: string, customDomain: string | null): { isDisabled: boolean; canonicalHost: string | null } {
+  if (typeof window === 'undefined') return { isDisabled: false, canonicalHost: null };
+  
+  // If no custom domain, nothing is disabled
+  if (!customDomain) {
+    return { isDisabled: false, canonicalHost: null };
+  }
+  
+  const currentHost = getCurrentHost();
+  const normalizedCustom = customDomain.toLowerCase().replace(/^www\./, '');
+  
+  // Already on custom domain - all good
+  if (currentHost === normalizedCustom) {
+    return { isDisabled: false, canonicalHost: null };
+  }
+  
+  // Check if on platform subdomain for this tenant
+  const platformHost = `${tenantSlug}.${SAAS_CONFIG.storefrontSubdomain}.${SAAS_CONFIG.domain}`;
+  
+  if (currentHost === platformHost) {
+    // Platform subdomain is DISABLED when custom is active
+    return { isDisabled: true, canonicalHost: normalizedCustom };
+  }
+  
+  // On some other host - could be a violation
+  return { isDisabled: false, canonicalHost: null };
+}
 
 /**
  * Validate a URL and return violation if found
@@ -210,7 +263,7 @@ export async function reportViolationToServer(violation: UrlViolation, tenantId?
           severity: violation.severity,
           original: violation.original,
           tenant_id: tenantId,
-          user_agent: navigator.userAgent,
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
           timestamp: new Date().toISOString()
         }
       })
@@ -320,100 +373,6 @@ export function isOnTenantHost(): boolean {
   if (isCustomDomain()) return true;
   
   return false;
-}
-
-// =============================================
-// REDIRECT LOOP DETECTION
-// =============================================
-
-const REDIRECT_HISTORY_KEY = 'cc_redirect_history';
-const MAX_REDIRECTS_IN_WINDOW = 5;
-const REDIRECT_WINDOW_MS = 10000; // 10 seconds
-
-interface RedirectEntry {
-  url: string;
-  timestamp: number;
-}
-
-/**
- * Record a redirect and check for loops
- * Returns true if a loop is detected
- */
-export function recordRedirectAndCheckLoop(targetUrl: string): boolean {
-  if (typeof window === 'undefined' || typeof sessionStorage === 'undefined') {
-    return false;
-  }
-  
-  const now = Date.now();
-  let history: RedirectEntry[] = [];
-  
-  try {
-    const stored = sessionStorage.getItem(REDIRECT_HISTORY_KEY);
-    if (stored) {
-      history = JSON.parse(stored);
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  
-  // Remove old entries
-  history = history.filter(entry => now - entry.timestamp < REDIRECT_WINDOW_MS);
-  
-  // Check if this URL was visited recently (potential loop)
-  const recentVisitToSameUrl = history.filter(entry => entry.url === targetUrl);
-  
-  if (recentVisitToSameUrl.length >= 2) {
-    // Clear history to prevent permanent blocking
-    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
-    
-    // Report the loop
-    const host = getCurrentHost();
-    reportViolation({
-      type: 'redirect_loop',
-      severity: 'critical',
-      original: targetUrl,
-      host,
-      path: targetUrl,
-    });
-    
-    return true;
-  }
-  
-  // Check total redirects
-  if (history.length >= MAX_REDIRECTS_IN_WINDOW) {
-    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
-    
-    const host = getCurrentHost();
-    reportViolation({
-      type: 'redirect_loop',
-      severity: 'critical',
-      original: targetUrl,
-      host,
-      path: `(${history.length + 1} redirects in ${REDIRECT_WINDOW_MS}ms)`,
-    });
-    
-    return true;
-  }
-  
-  // Add new entry
-  history.push({ url: targetUrl, timestamp: now });
-  
-  try {
-    sessionStorage.setItem(REDIRECT_HISTORY_KEY, JSON.stringify(history));
-  } catch {
-    // Ignore storage errors
-  }
-  
-  return false;
-}
-
-/**
- * Clear redirect history (call after successful page load)
- */
-export function clearRedirectHistory(): void {
-  if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.removeItem(REDIRECT_HISTORY_KEY);
-  }
 }
 
 // =============================================

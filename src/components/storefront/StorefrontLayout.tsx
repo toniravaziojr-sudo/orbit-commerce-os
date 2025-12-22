@@ -84,12 +84,12 @@ function StorefrontLayoutContent({
     );
   }
 
-  const CanonicalRedirectGuard = lazy(() => import('./CanonicalRedirectGuard'));
+  const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
 
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
       <Suspense fallback={null}>
-        <CanonicalRedirectGuard>
+        <DomainDisabledGuard tenantSlug={tenantSlug}>
           <div className="min-h-screen flex flex-col bg-white">
             {isPreview && (
               <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
@@ -100,7 +100,7 @@ function StorefrontLayoutContent({
               <Outlet />
             </main>
           </div>
-        </CanonicalRedirectGuard>
+        </DomainDisabledGuard>
       </Suspense>
     </StorefrontConfigProvider>
   );
