@@ -2415,6 +2415,7 @@ export type Database = {
           id: string
           location: string | null
           occurred_at: string
+          provider_event_id: string | null
           raw_payload: Json | null
           shipment_id: string
           status: string
@@ -2426,6 +2427,7 @@ export type Database = {
           id?: string
           location?: string | null
           occurred_at?: string
+          provider_event_id?: string | null
           raw_payload?: Json | null
           shipment_id: string
           status: string
@@ -2437,6 +2439,7 @@ export type Database = {
           id?: string
           location?: string | null
           occurred_at?: string
+          provider_event_id?: string | null
           raw_payload?: Json | null
           shipment_id?: string
           status?: string
@@ -2467,9 +2470,13 @@ export type Database = {
           delivery_status: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at: string | null
           id: string
+          last_poll_error: string | null
+          last_polled_at: string | null
           last_status_at: string
           metadata: Json | null
+          next_poll_at: string | null
           order_id: string
+          poll_error_count: number | null
           source: string | null
           source_id: string | null
           tenant_id: string
@@ -2483,9 +2490,13 @@ export type Database = {
           delivery_status?: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at?: string | null
           id?: string
+          last_poll_error?: string | null
+          last_polled_at?: string | null
           last_status_at?: string
           metadata?: Json | null
+          next_poll_at?: string | null
           order_id: string
+          poll_error_count?: number | null
           source?: string | null
           source_id?: string | null
           tenant_id: string
@@ -2499,9 +2510,13 @@ export type Database = {
           delivery_status?: Database["public"]["Enums"]["delivery_status"]
           estimated_delivery_at?: string | null
           id?: string
+          last_poll_error?: string | null
+          last_polled_at?: string | null
           last_status_at?: string
           metadata?: Json | null
+          next_poll_at?: string | null
           order_id?: string
+          poll_error_count?: number | null
           source?: string | null
           source_id?: string | null
           tenant_id?: string
@@ -3198,6 +3213,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "tenant_invites_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_shipping_integrations: {
+        Row: {
+          carrier: string
+          created_at: string
+          credentials: Json
+          id: string
+          is_enabled: boolean
+          settings: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          carrier: string
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_enabled?: boolean
+          settings?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          carrier?: string
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_enabled?: boolean
+          settings?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_shipping_integrations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
