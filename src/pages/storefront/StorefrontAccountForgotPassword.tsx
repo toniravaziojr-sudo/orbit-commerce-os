@@ -67,9 +67,15 @@ export default function StorefrontAccountForgotPassword() {
     setIsLoading(true);
 
     try {
-      // Use canonical origin (custom domain or platform subdomain) with clean URL
+      // IMPORTANTE: Usar a URL atual do storefront (domain-aware)
+      // Garante que o link de reset redireciona para o storefront, não para o admin
+      const currentOrigin = window.location.origin;
+      const redirectUrl = `${currentOrigin}/conta/redefinir-senha`;
+      
+      console.log('[StorefrontAccountForgotPassword] Reset password redirect:', redirectUrl);
+      
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${canonicalOrigin}/conta/redefinir-senha`,
+        redirectTo: redirectUrl,
       });
 
       if (resetError) {

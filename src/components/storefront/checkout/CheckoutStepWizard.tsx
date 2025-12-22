@@ -378,12 +378,42 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     try {
       // When leaving step 1 (personal data), capture contact for abandoned checkout tracking
       if (currentStep === 1) {
-        // Non-blocking - capture contact in background
-        captureCheckoutContact({
+        // BLOCKING: Ensure session exists before capturing contact
+        // This is critical for abandoned checkout tracking
+        const sessionId = getCheckoutSessionId();
+        if (!sessionId) {
+          console.log('[Checkout] No session ID, starting new session before capture...');
+          await startCheckoutSession({
+            tenantSlug: tenantSlug || undefined,
+            cartItems: items.map(item => ({
+              product_id: item.product_id,
+              name: item.name,
+              sku: item.sku,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+            totalEstimated: totals.grandTotal,
+            customerEmail: formData.customerEmail,
+            customerPhone: formData.customerPhone,
+            customerName: formData.customerName,
+            region: shipping.cep || undefined,
+          });
+        }
+        
+        // Now capture contact (BLOCKING to ensure it works)
+        const captureSuccess = await captureCheckoutContact({
           customerName: formData.customerName,
           customerEmail: formData.customerEmail,
           customerPhone: formData.customerPhone,
-        }).catch(err => console.error('[Checkout] Error capturing contact:', err));
+        });
+        
+        if (!captureSuccess) {
+          console.warn('[Checkout] Failed to capture contact for abandoned cart tracking');
+          // Show a toast but don't block the user
+          toast.info('Continuando...', { description: 'Seu carrinho está sendo salvo' });
+        } else {
+          console.log('[Checkout] Contact captured successfully for abandoned cart tracking');
+        }
       }
 
       // When leaving step 2 (address), calculate shipping
