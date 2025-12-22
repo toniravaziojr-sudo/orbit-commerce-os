@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
@@ -36,6 +37,7 @@ interface CheckoutContentProps {
 export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const navigate = useNavigate();
   const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { processPayment, isProcessing, paymentResult } = useCheckoutPayment({ tenantId });
@@ -267,7 +269,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
         setPaymentStatus('approved');
         clearCart(); clearDraft();
         toast.success('Pedido realizado com sucesso!');
-        navigate(`/store/${tenantSlug}/obrigado?pedido=${result.orderNumber}`);
+        navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
       } else {
         setPaymentStatus('pending_payment');
         clearCart(); clearDraft();
@@ -280,7 +282,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   };
 
   const handleRetry = () => { setPaymentStatus('idle'); setPaymentError(null); };
-  const handleViewOrders = () => navigate(`/store/${tenantSlug}/conta/pedidos`);
+  const handleViewOrders = () => navigate(urls.accountOrders());
 
   if (cartLoading) {
     return <div className="container mx-auto px-4 py-12 flex items-center justify-center gap-3">
@@ -294,7 +296,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       <ShoppingCart className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
       <h2 className="text-2xl font-bold mb-2">Seu carrinho está vazio</h2>
       <p className="text-muted-foreground mb-6">Adicione produtos antes de finalizar.</p>
-      <Link to={`/store/${tenantSlug}`}><Button><ArrowLeft className="h-4 w-4 mr-2" />Voltar para a loja</Button></Link>
+      <Link to={urls.home()}><Button><ArrowLeft className="h-4 w-4 mr-2" />Voltar para a loja</Button></Link>
     </div>;
   }
 
@@ -309,7 +311,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <Link 
-          to={`/store/${tenantSlug}/cart`}
+          to={urls.cart()}
           className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4 mr-1" />

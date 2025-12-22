@@ -11,9 +11,11 @@ import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRe
 import type { BlockRenderContext } from '@/lib/builder/types';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 export default function StorefrontThankYou() {
   const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
@@ -36,11 +38,10 @@ export default function StorefrontThankYou() {
   useEffect(() => {
     if (isPreviewMode && !canPreview && !template.isLoading) {
       const cleanParams = getCleanQueryString(searchParams);
-      const basePath = tenantSlug ? `/store/${tenantSlug}/obrigado` : '/obrigado';
-      const cleanPath = `${basePath}${cleanParams}`;
+      const cleanPath = `${urls.thankYou()}${cleanParams}`;
       navigate(cleanPath, { replace: true });
     }
-  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate]);
+  }, [isPreviewMode, canPreview, template.isLoading, tenantSlug, searchParams, navigate, urls]);
 
   // Build context for block rendering with order data
   const context: BlockRenderContext = {

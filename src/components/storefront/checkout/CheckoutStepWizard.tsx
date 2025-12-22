@@ -538,7 +538,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           clearCart();
           clearDraft();
           toast.success('Pedido realizado com sucesso!');
-          navigate(`/store/${tenantSlug}/obrigado?pedido=${result.orderNumber}`);
+          navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
         } else {
           // PIX/Boleto - pending payment (show QR code or boleto)
           setPaymentStatus('pending_payment');
@@ -582,7 +582,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           <p className="text-muted-foreground mb-6">
             Adicione produtos ao carrinho antes de finalizar a compra.
           </p>
-          <Link to={`/store/${tenantSlug}`}>
+          <Link to={urls.home()}>
             <Button>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar para a loja
@@ -595,7 +595,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
   // Show payment result for PIX/Boleto (pending payment)
   if (paymentStatus === 'pending_payment' && paymentResult) {
-    const handleViewOrders = () => navigate(`/store/${tenantSlug}/conta/pedidos`);
+    const handleViewOrders = () => navigate(urls.accountOrders());
     return (
       <div className="container mx-auto px-4 py-8 max-w-lg">
         <PaymentResultDisplay result={paymentResult} method={paymentMethod} onContinue={handleViewOrders} />

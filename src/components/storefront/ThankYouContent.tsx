@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 interface ThankYouContentProps {
   tenantSlug: string;
@@ -19,6 +20,7 @@ interface ThankYouContentProps {
 export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: ThankYouContentProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const urls = useStorefrontUrls(tenantSlug);
   
   // Get order identifier from URL (supports: pedido, orderId, orderNumber for backward compatibility)
   const orderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
@@ -27,11 +29,11 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);
 
   const handleViewOrders = () => {
-    navigate(`/store/${tenantSlug}/conta/pedidos${isPreview ? '?preview=1' : ''}`);
+    navigate(urls.accountOrders());
   };
 
   const handleGoHome = () => {
-    navigate(`/store/${tenantSlug}${isPreview ? '?preview=1' : ''}`);
+    navigate(urls.home());
   };
 
   const handleWhatsApp = () => {

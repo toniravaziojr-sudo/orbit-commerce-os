@@ -1971,10 +1971,12 @@ function AccountHubBlock({ context, isEditing }: any) {
   const { useSearchParams, Link } = require('react-router-dom');
   const { usePublicStorefront } = require('@/hooks/useStorefront');
   const { getWhatsAppHref } = require('@/lib/contactHelpers');
+  const { getStoreBaseUrl } = require('@/lib/publicUrls');
   
   const [searchParams] = useSearchParams();
   const isDemoMode = searchParams.has('demoAccount');
   const { storeSettings } = usePublicStorefront(tenantSlug);
+  const basePath = getStoreBaseUrl(tenantSlug);
   
   const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
   const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
@@ -2010,7 +2012,7 @@ function AccountHubBlock({ context, isEditing }: any) {
               <p className="text-sm text-muted-foreground">Acompanhe seus pedidos e entregas</p>
             </div>
           </div>
-          <Link to={`/store/${tenantSlug}/conta/pedidos${isDemoMode ? '?demoAccount=1' : ''}`}>
+          <Link to={`${basePath}/conta/pedidos${isDemoMode ? '?demoAccount=1' : ''}`}>
             <Button className="w-full">Ver pedidos</Button>
           </Link>
         </div>
@@ -2029,7 +2031,7 @@ function AccountHubBlock({ context, isEditing }: any) {
       </div>
       
       <div className="mt-8 text-center">
-        <Link to={`/store/${tenantSlug}`}>
+        <Link to={basePath || '/'}>
           <Button variant="ghost">🛒 Voltar à loja</Button>
         </Link>
       </div>

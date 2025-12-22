@@ -9,16 +9,17 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 export default function StorefrontMyOrders() {
   const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const navigate = useNavigate();
 
   useEffect(() => {
     // Redirect imediato para /conta
-    const basePath = tenantSlug ? `/store/${tenantSlug}/conta` : '/conta';
-    navigate(basePath, { replace: true });
-  }, [tenantSlug, navigate]);
+    navigate(urls.account(), { replace: true });
+  }, [navigate, urls]);
 
   // Spinner mínimo enquanto redireciona (evita flash branco)
   return (

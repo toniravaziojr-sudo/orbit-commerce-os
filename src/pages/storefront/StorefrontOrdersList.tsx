@@ -17,10 +17,11 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 export default function StorefrontOrdersList() {
   const tenantSlug = useTenantSlug();
-  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+  const urls = useStorefrontUrls(tenantSlug);
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
 
@@ -82,7 +83,7 @@ export default function StorefrontOrdersList() {
         <div className="container mx-auto max-w-3xl">
           {/* Back link */}
           <Link 
-            to={`${basePath}/conta`}
+            to={urls.account()}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -110,7 +111,7 @@ export default function StorefrontOrdersList() {
                     : 'Faça login para ver seus pedidos.'
                   }
                 </p>
-                <Link to={`${basePath}`}>
+                <Link to={urls.home()}>
                   <Button>
                     <ShoppingBag className="h-4 w-4 mr-2" />
                     Ir às compras
@@ -131,7 +132,7 @@ export default function StorefrontOrdersList() {
 
               <TabsContent value="all" className="space-y-4">
                 {orders.map(order => (
-                  <OrderCard key={order.id} order={order} basePath={basePath} />
+                  <OrderCard key={order.id} order={order} urls={urls} />
                 ))}
               </TabsContent>
 
@@ -140,7 +141,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido em andamento.</p>
                 ) : (
                   inProgressOrders.map(order => (
-                    <OrderCard key={order.id} order={order} basePath={basePath} />
+                    <OrderCard key={order.id} order={order} urls={urls} />
                   ))
                 )}
               </TabsContent>
@@ -150,7 +151,7 @@ export default function StorefrontOrdersList() {
                   <p className="text-center text-muted-foreground py-8">Nenhum pedido finalizado.</p>
                 ) : (
                   completedOrders.map(order => (
-                    <OrderCard key={order.id} order={order} basePath={basePath} />
+                    <OrderCard key={order.id} order={order} urls={urls} />
                   ))
                 )}
               </TabsContent>
@@ -170,10 +171,10 @@ export default function StorefrontOrdersList() {
 // Order card component
 function OrderCard({ 
   order, 
-  basePath,
+  urls,
 }: { 
   order: ReturnType<typeof useCustomerOrders>['orders'][0]; 
-  basePath: string;
+  urls: ReturnType<typeof useStorefrontUrls>;
 }) {
   const statusInfo = getOrderStatusInfo(order.status);
   const orderDate = format(new Date(order.created_at), "dd 'de' MMM 'de' yyyy", { locale: ptBR });
@@ -199,7 +200,7 @@ function OrderCard({
             </p>
             <p className="font-semibold">{formatCurrency(order.total)}</p>
           </div>
-          <Link to={`${basePath}/conta/pedidos/${order.id}`}>
+          <Link to={urls.accountOrderDetail(order.id)}>
             <Button variant="outline" size="sm">
               Ver detalhes
               <ChevronRight className="h-4 w-4 ml-1" />

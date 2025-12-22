@@ -22,10 +22,11 @@ import { ptBR } from 'date-fns/locale';
 import { formatCurrency } from '@/lib/cartTotals';
 import { getWhatsAppHref } from '@/lib/contactHelpers';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 export default function StorefrontOrderDetail() {
   const tenantSlug = useTenantSlug();
-  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+  const urls = useStorefrontUrls(tenantSlug);
   const { orderId } = useParams<{ orderId: string }>();
   const [searchParams] = useSearchParams();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -89,7 +90,7 @@ export default function StorefrontOrderDetail() {
             <p className="text-muted-foreground mb-6">
               Não conseguimos encontrar este pedido. Verifique o link ou entre em contato.
             </p>
-            <Link to={`${basePath}/conta/pedidos`}>
+            <Link to={urls.accountOrders()}>
               <Button>Voltar aos pedidos</Button>
             </Link>
           </div>
@@ -114,7 +115,7 @@ export default function StorefrontOrderDetail() {
         <div className="container mx-auto max-w-3xl">
           {/* Back link */}
           <Link 
-            to={`${basePath}/conta/pedidos`}
+            to={urls.accountOrders()}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
