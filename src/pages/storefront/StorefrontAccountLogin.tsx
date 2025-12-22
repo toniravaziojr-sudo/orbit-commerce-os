@@ -17,9 +17,11 @@ import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 
 export default function StorefrontAccountLogin() {
   const tenantSlug = useTenantSlug();
+  const urls = useStorefrontUrls(tenantSlug);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
@@ -31,8 +33,8 @@ export default function StorefrontAccountLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
-  const redirectTo = searchParams.get('redirect') || `${basePath}/conta`;
+  // Use domain-aware URLs - no hardcoded /store/{tenantSlug}
+  const redirectTo = searchParams.get('redirect') || urls.account();
 
   // Build context
   const context: BlockRenderContext = {
@@ -112,7 +114,7 @@ export default function StorefrontAccountLogin() {
         <div className="container mx-auto max-w-md">
           {/* Back link */}
           <Link 
-            to={`${basePath}`}
+            to={urls.home()}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -154,7 +156,7 @@ export default function StorefrontAccountLogin() {
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Senha</Label>
                     <Link 
-                      to={`${basePath}/conta/esqueci-senha`}
+                      to={`${urls.account()}/esqueci-senha`}
                       className="text-xs text-primary hover:underline"
                     >
                       Esqueceu a senha?

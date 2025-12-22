@@ -16,12 +16,13 @@ import { BlockRenderer } from '@/components/builder/BlockRenderer';
 import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
+import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { useCanonicalDomain } from '@/contexts/StorefrontConfigContext';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 
 export default function StorefrontAccountForgotPassword() {
   const tenantSlug = useTenantSlug();
-  const basePath = tenantSlug ? `/store/${tenantSlug}` : '';
+  const urls = useStorefrontUrls(tenantSlug);
   const { storeSettings, headerMenu, footerMenu, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const homeTemplate = usePublicTemplate(tenantSlug || '', 'home');
   
@@ -104,7 +105,7 @@ export default function StorefrontAccountForgotPassword() {
         <div className="container mx-auto max-w-md">
           {/* Back link */}
           <Link 
-            to={`${basePath}/conta/login`}
+            to={`${urls.account()}/login`}
             className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -134,7 +135,7 @@ export default function StorefrontAccountForgotPassword() {
                       Verifique sua caixa de entrada e spam.
                     </p>
                   </div>
-                  <Link to={`${basePath}/conta/login`}>
+                  <Link to={`${urls.account()}/login`}>
                     <Button variant="outline" className="w-full">
                       Voltar ao login
                     </Button>

@@ -230,12 +230,14 @@ serve(async (req) => {
       throw new Error(pagarmeResponse.message || 'Failed to create charge');
     }
 
-    // Save transaction to database with order_id
+    // Save transaction to database with order_id only
+    // Note: checkout_id is NOT used here because it has FK to checkouts table
+    // and we're now linking via order_id (FK to orders table)
     const charge = pagarmeResponse.charges?.[0];
     const transactionData = {
       tenant_id: payload.tenant_id,
       order_id: payload.order_id || null, // Link to order for get-order lookup
-      checkout_id: payload.checkout_id || null,
+      checkout_id: null, // Explicitly null - don't use checkout_id as it may cause FK errors
       provider: 'pagarme',
       provider_transaction_id: pagarmeResponse.id,
       method: payload.method,

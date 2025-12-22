@@ -41,8 +41,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
   
-  // Get order identifier from URL
-  const orderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
+  // Get order identifier from URL - normalize by removing # and trimming
+  const rawOrderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
+  const orderParam = rawOrderParam ? rawOrderParam.replace(/^#/, '').trim() : null;
   
   // Fetch real order data from database (includes payment_instructions)
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);

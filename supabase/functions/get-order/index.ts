@@ -29,7 +29,9 @@ serve(async (req) => {
     const payload: GetOrderRequest = await req.json();
     console.log('[get-order] Request:', payload);
 
-    const { order_id, order_number } = payload;
+    // Normalize order_number by removing # prefix (it can break URL parsing)
+    const order_id = payload.order_id;
+    const order_number = payload.order_number?.replace(/^#/, '').trim();
 
     if (!order_id && !order_number) {
       return new Response(JSON.stringify({

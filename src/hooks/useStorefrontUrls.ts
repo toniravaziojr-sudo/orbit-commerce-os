@@ -99,7 +99,9 @@ export function useStorefrontUrls(tenantSlug: string): StorefrontUrls {
       
       thankYou: (orderNumber?: string) => {
         const base = `${basePath}/obrigado`;
-        return orderNumber ? `${base}?order=${orderNumber}` : base;
+        // Use 'pedido' param, normalize orderNumber (remove # for URL safety)
+        const cleanOrderNumber = orderNumber?.replace(/^#/, '').trim();
+        return cleanOrderNumber ? `${base}?pedido=${cleanOrderNumber}` : base;
       },
       
       page: (pageSlug: string | undefined) => {
