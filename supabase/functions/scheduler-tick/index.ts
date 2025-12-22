@@ -94,10 +94,12 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
 
   try {
     const thresholdTime = new Date(Date.now() - ABANDON_THRESHOLD_MINUTES * 60 * 1000).toISOString();
-    console.log(`[abandon-sweep] Looking for sessions started before ${thresholdTime}`);
+    console.log(`[abandon-sweep] Looking for sessions started before ${thresholdTime} WITH contact captured`);
 
+    // REGRA: Só marcar como abandonado sessões COM contato capturado (email ou phone)
     // Usar fetch direto para evitar problemas de tipagem com tabela nova
-    const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&started_at=lte.${encodeURIComponent(thresholdTime)}&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at`;
+    // Filtro: contact_captured_at IS NOT NULL
+    const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&started_at=lte.${encodeURIComponent(thresholdTime)}&contact_captured_at=not.is.null&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at,contact_captured_at`;
     
     const fetchResponse = await fetch(selectUrl, {
       method: 'GET',

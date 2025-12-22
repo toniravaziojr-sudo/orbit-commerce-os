@@ -1,7 +1,7 @@
 // ============================================
 // GET ORDER - Secure order lookup for thank-you page
 // Uses service role to bypass RLS
-// Returns order + items by ID or order_number
+// Returns order + items + payment instructions (PIX/Boleto)
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -52,7 +52,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id, order_number, status, payment_status, shipping_status,
+          id, order_number, status, payment_status, shipping_status, payment_method,
           total, subtotal, shipping_total, discount_total,
           created_at, paid_at, shipped_at, delivered_at,
           tracking_code, shipping_carrier,
@@ -75,7 +75,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id, order_number, status, payment_status, shipping_status,
+          id, order_number, status, payment_status, shipping_status, payment_method,
           total, subtotal, shipping_total, discount_total,
           created_at, paid_at, shipped_at, delivered_at,
           tracking_code, shipping_carrier,
@@ -98,7 +98,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from('orders')
         .select(`
-          id, order_number, status, payment_status, shipping_status,
+          id, order_number, status, payment_status, shipping_status, payment_method,
           total, subtotal, shipping_total, discount_total,
           created_at, paid_at, shipped_at, delivered_at,
           tracking_code, shipping_carrier,
@@ -136,6 +136,43 @@ serve(async (req) => {
       console.error('[get-order] Error fetching items:', itemsError);
     }
 
+    // Fetch payment transaction for PIX/Boleto data (if payment pending)
+    let paymentInstructions = null;
+    if (order.payment_status === 'pending') {
+      const { data: transaction, error: txError } = await supabase
+        .from('payment_transactions')
+        .select('id, method, status, payment_data, created_at')
+        .eq('order_id', order.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (txError) {
+        console.error('[get-order] Error fetching payment transaction:', txError);
+      }
+
+      if (transaction?.payment_data) {
+        const pd = transaction.payment_data as Record<string, unknown>;
+        paymentInstructions = {
+          method: transaction.method,
+          status: transaction.status,
+          // PIX data
+          pix_qr_code: pd.qr_code || null,
+          pix_qr_code_url: pd.qr_code_url || null,
+          pix_expires_at: pd.pix_expires_at || null,
+          // Boleto data
+          boleto_url: pd.boleto_url || null,
+          boleto_barcode: pd.boleto_barcode || null,
+          boleto_due_date: pd.boleto_due_date || null,
+        };
+        console.log('[get-order] Payment instructions found:', {
+          method: transaction.method,
+          has_pix_qr: !!pd.qr_code,
+          has_boleto: !!pd.boleto_url,
+        });
+      }
+    }
+
     console.log('[get-order] Found order:', order.order_number, 'with', items?.length || 0, 'items');
 
     return new Response(JSON.stringify({
@@ -143,6 +180,7 @@ serve(async (req) => {
       order: {
         ...order,
         items: items || [],
+        payment_instructions: paymentInstructions,
       },
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

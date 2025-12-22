@@ -1,10 +1,11 @@
 // =============================================
 // THANK YOU CONTENT - Order confirmation page content
-// Loads REAL order data from database
+// Loads REAL order data from database (SERVER-SIDE)
 // Shows PIX/Boleto payment info + Account creation
+// PIX data is fetched from server, not localStorage (reliable)
 // =============================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle, Clock, Copy, ExternalLink, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,14 +17,15 @@ import { CreateAccountSection } from '@/components/storefront/CreateAccountSecti
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-interface PendingPaymentData {
-  method: 'pix' | 'boleto';
-  pixQrCode?: string;
-  pixQrCodeUrl?: string;
-  pixExpiresAt?: string;
-  boletoUrl?: string;
-  boletoBarcode?: string;
-  boletoDueDate?: string;
+interface PaymentInstructions {
+  method: string;
+  status: string;
+  pix_qr_code: string | null;
+  pix_qr_code_url: string | null;
+  pix_expires_at: string | null;
+  boleto_url: string | null;
+  boleto_barcode: string | null;
+  boleto_due_date: string | null;
 }
 
 interface ThankYouContentProps {
@@ -36,15 +38,20 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urls = useStorefrontUrls(tenantSlug);
-  const [pendingPayment, setPendingPayment] = useState<PendingPaymentData | null>(null);
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
   
   // Get order identifier from URL
   const orderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
   
-  // Fetch real order data from database
+  // Fetch real order data from database (includes payment_instructions)
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);
+
+  // Extract payment instructions from server response
+  const paymentInstructions = useMemo<PaymentInstructions | null>(() => {
+    if (!order?.payment_instructions) return null;
+    return order.payment_instructions as PaymentInstructions;
+  }, [order?.payment_instructions]);
 
   // Check auth state
   useEffect(() => {
@@ -52,18 +59,6 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
       setUser(session?.user ?? null);
     });
   }, []);
-
-  // Load pending payment data from localStorage
-  useEffect(() => {
-    if (orderParam) {
-      const storedData = localStorage.getItem(`pending_payment_${orderParam}`);
-      if (storedData) {
-        try {
-          setPendingPayment(JSON.parse(storedData));
-        } catch {}
-      }
-    }
-  }, [orderParam]);
 
   const handleViewOrders = () => navigate(urls.accountOrders());
   const handleGoHome = () => navigate(urls.home());
@@ -190,8 +185,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
         </p>
       </div>
 
-      {/* PIX Payment Section */}
-      {pendingPayment?.method === 'pix' && pendingPayment.pixQrCode && order?.payment_status === 'pending' && (
+      {/* PIX Payment Section - SERVER-SIDE DATA */}
+      {paymentInstructions?.method === 'pix' && paymentInstructions.pix_qr_code && order?.payment_status === 'pending' && (
         <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-sm font-medium">
             <Clock className="h-4 w-4" />
@@ -200,10 +195,10 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
 
           <h3 className="text-lg font-semibold">Escaneie o QR Code para pagar</h3>
           
-          {pendingPayment.pixQrCodeUrl ? (
+          {paymentInstructions.pix_qr_code_url ? (
             <div className="flex justify-center">
               <img 
-                src={pendingPayment.pixQrCodeUrl} 
+                src={paymentInstructions.pix_qr_code_url} 
                 alt="QR Code PIX" 
                 className="w-48 h-48 bg-white p-2 rounded-lg"
               />
@@ -220,23 +215,23 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
 
           <div className="flex gap-2">
             <code className="flex-1 bg-background p-3 rounded border text-xs break-all text-left">
-              {pendingPayment.pixQrCode}
+              {paymentInstructions.pix_qr_code}
             </code>
-            <Button variant="outline" size="icon" onClick={() => copyToClipboard(pendingPayment.pixQrCode!)}>
+            <Button variant="outline" size="icon" onClick={() => copyToClipboard(paymentInstructions.pix_qr_code!)}>
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
             </Button>
           </div>
 
-          {pendingPayment.pixExpiresAt && (
+          {paymentInstructions.pix_expires_at && (
             <p className="text-sm text-muted-foreground">
-              Expira em: {new Date(pendingPayment.pixExpiresAt).toLocaleString('pt-BR')}
+              Expira em: {new Date(paymentInstructions.pix_expires_at).toLocaleString('pt-BR')}
             </p>
           )}
         </div>
       )}
 
-      {/* Boleto Payment Section */}
-      {pendingPayment?.method === 'boleto' && pendingPayment.boletoUrl && order?.payment_status === 'pending' && (
+      {/* Boleto Payment Section - SERVER-SIDE DATA */}
+      {paymentInstructions?.method === 'boleto' && paymentInstructions.boleto_url && order?.payment_status === 'pending' && (
         <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
             <Clock className="h-4 w-4" />
@@ -245,28 +240,28 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
 
           <h3 className="text-lg font-semibold">Seu boleto foi gerado!</h3>
 
-          <Button onClick={() => window.open(pendingPayment.boletoUrl, '_blank')} className="w-full">
+          <Button onClick={() => window.open(paymentInstructions.boleto_url!, '_blank')} className="w-full">
             <ExternalLink className="h-4 w-4 mr-2" />
             Visualizar Boleto
           </Button>
 
-          {pendingPayment.boletoBarcode && (
+          {paymentInstructions.boleto_barcode && (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">Código de barras:</p>
               <div className="flex gap-2">
                 <code className="flex-1 bg-background p-3 rounded border text-xs break-all text-left font-mono">
-                  {pendingPayment.boletoBarcode}
+                  {paymentInstructions.boleto_barcode}
                 </code>
-                <Button variant="outline" size="icon" onClick={() => copyToClipboard(pendingPayment.boletoBarcode!)}>
+                <Button variant="outline" size="icon" onClick={() => copyToClipboard(paymentInstructions.boleto_barcode!)}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
             </div>
           )}
 
-          {pendingPayment.boletoDueDate && (
+          {paymentInstructions.boleto_due_date && (
             <p className="text-sm text-muted-foreground">
-              Vencimento: {new Date(pendingPayment.boletoDueDate).toLocaleDateString('pt-BR')}
+              Vencimento: {new Date(paymentInstructions.boleto_due_date).toLocaleDateString('pt-BR')}
             </p>
           )}
         </div>

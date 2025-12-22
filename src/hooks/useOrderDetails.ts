@@ -6,11 +6,23 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface PaymentInstructions {
+  method: string;
+  status: string;
+  pix_qr_code: string | null;
+  pix_qr_code_url: string | null;
+  pix_expires_at: string | null;
+  boleto_url: string | null;
+  boleto_barcode: string | null;
+  boleto_due_date: string | null;
+}
+
 export interface OrderDetails {
   id: string;
   order_number: string;
   status: string;
   payment_status: string;
+  payment_method?: string;
   shipping_status: string;
   total: number;
   subtotal: number;
@@ -41,6 +53,7 @@ export interface OrderDetails {
     total_price: number;
     sku: string;
   }[];
+  payment_instructions?: PaymentInstructions | null;
 }
 
 // Fetch order by ID or order_number via edge function (secure, bypasses RLS)
