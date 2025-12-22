@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions.reconcile-payments]
 verify_jwt = false
+
+[functions.discount-validate]
+verify_jwt = false

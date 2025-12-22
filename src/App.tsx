@@ -35,6 +35,7 @@ import LandingPages from "@/pages/LandingPages";
 
 import Reviews from "@/pages/Reviews";
 import Offers from "@/pages/Offers";
+import Discounts from "@/pages/Discounts";
 import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
@@ -174,6 +175,7 @@ const App = () => {
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/categories" element={<Categories />} />
+                  <Route path="/discounts" element={<Discounts />} />
                   <Route path="/menus" element={<Menus />} />
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
