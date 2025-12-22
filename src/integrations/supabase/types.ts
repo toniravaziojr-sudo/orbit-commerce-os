@@ -875,6 +875,7 @@ export type Database = {
       }
       discounts: {
         Row: {
+          auto_apply_first_purchase: boolean
           code: string | null
           created_at: string
           description: string | null
@@ -892,6 +893,7 @@ export type Database = {
           value: number
         }
         Insert: {
+          auto_apply_first_purchase?: boolean
           code?: string | null
           created_at?: string
           description?: string | null
@@ -909,6 +911,7 @@ export type Database = {
           value?: number
         }
         Update: {
+          auto_apply_first_purchase?: boolean
           code?: string | null
           created_at?: string
           description?: string | null

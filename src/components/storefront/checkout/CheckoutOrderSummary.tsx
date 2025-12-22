@@ -1,14 +1,17 @@
 // =============================================
 // CHECKOUT ORDER SUMMARY - Sidebar desktop, collapsible mobile
 // Uses centralized cartTotals for consistency
+// Supports discount display and free shipping badge
 // =============================================
 
 import { useState } from 'react';
 import { useCart } from '@/contexts/CartContext';
+import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ChevronDown, ChevronUp, Loader2, ShoppingBag } from 'lucide-react';
+import { ChevronDown, ChevronUp, Loader2, ShoppingBag, Tag } from 'lucide-react';
 import { calculateCartTotals, formatCurrency, formatPrice, debugCartTotals } from '@/lib/cartTotals';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
@@ -17,16 +20,29 @@ interface CheckoutOrderSummaryProps {
   onSubmit: () => void;
   paymentStatus: PaymentStatus;
   discount?: number;
+  appliedDiscount?: AppliedDiscount | null;
+  freeShipping?: boolean;
 }
 
-export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: CheckoutOrderSummaryProps) {
+export function CheckoutOrderSummary({ 
+  onSubmit, 
+  paymentStatus, 
+  discount = 0,
+  appliedDiscount,
+  freeShipping = false,
+}: CheckoutOrderSummaryProps) {
   const { items, shipping } = useCart();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Handle free shipping from discount
+  const effectiveShipping = freeShipping 
+    ? (shipping.selected ? { ...shipping.selected, price: 0, isFree: true } : null)
+    : shipping.selected;
 
   // Use centralized totals calculation
   const totals = calculateCartTotals({
     items,
-    selectedShipping: shipping.selected,
+    selectedShipping: effectiveShipping,
     discountAmount: discount,
   });
 
@@ -67,12 +83,12 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
         <span>{formatCurrency(totals.subtotal)}</span>
       </div>
       
-      {shipping.selected && (
+      {effectiveShipping && (
         <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Frete ({shipping.selected.label})</span>
+          <span className="text-muted-foreground">Frete ({effectiveShipping.label})</span>
           <span>
-            {shipping.selected.isFree ? (
-              <span className="text-green-600">Grátis</span>
+            {effectiveShipping.isFree || freeShipping ? (
+              <span className="text-green-600 font-medium">Grátis</span>
             ) : (
               formatCurrency(totals.shippingTotal)
             )}
@@ -80,10 +96,29 @@ export function CheckoutOrderSummary({ onSubmit, paymentStatus, discount = 0 }: 
         </div>
       )}
 
-      {totals.discountTotal > 0 && (
+      {/* Discount line with coupon badge */}
+      {(totals.discountTotal > 0 || appliedDiscount) && (
         <div className="flex justify-between text-sm text-green-600">
-          <span>Desconto</span>
+          <span className="flex items-center gap-1.5">
+            <Tag className="h-3.5 w-3.5" />
+            {appliedDiscount?.discount_name || 'Desconto'}
+            {appliedDiscount?.discount_code && (
+              <Badge variant="secondary" className="text-xs px-1.5 py-0 font-mono">
+                {appliedDiscount.discount_code}
+              </Badge>
+            )}
+          </span>
           <span>- {formatCurrency(totals.discountTotal)}</span>
+        </div>
+      )}
+
+      {/* Free shipping badge (separate from discount) */}
+      {freeShipping && !effectiveShipping && (
+        <div className="flex justify-between text-sm text-green-600">
+          <span className="flex items-center gap-1.5">
+            <Tag className="h-3.5 w-3.5" />
+            Frete grátis aplicado
+          </span>
         </div>
       )}
 

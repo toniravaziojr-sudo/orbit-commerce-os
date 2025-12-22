@@ -1,10 +1,10 @@
 // =============================================
 // DISCOUNT CONTEXT - Global state for applied coupon
 // Single source of truth for discounts in storefront
+// Supports manual coupon + auto-apply first purchase
 // =============================================
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 
 export interface AppliedDiscount {
@@ -15,6 +15,7 @@ export interface AppliedDiscount {
   discount_value: number;
   discount_amount: number;
   free_shipping: boolean;
+  is_auto_applied?: boolean;
 }
 
 interface DiscountContextType {
@@ -34,27 +35,42 @@ interface DiscountContextType {
     shippingPrice?: number,
     customerEmail?: string
   ) => Promise<void>;
+  checkFirstPurchaseEligibility: (
+    storeHost: string,
+    customerEmail: string,
+    subtotal: number,
+    shippingPrice?: number
+  ) => Promise<boolean>;
   getDiscountAmount: (subtotal: number, shippingPrice?: number) => number;
 }
 
 const DiscountContext = createContext<DiscountContextType | null>(null);
 
-const STORAGE_KEY_PREFIX = 'coupon_';
+// Use tenant-scoped storage key based on hostname (works for custom domains)
+function getStorageKey(): string {
+  const hostname = typeof window !== 'undefined' 
+    ? window.location.hostname.toLowerCase().replace(/^www\./, '') 
+    : 'default';
+  return `coupon_${hostname}`;
+}
 
 interface DiscountProviderProps {
   children: ReactNode;
 }
 
 export function DiscountProvider({ children }: DiscountProviderProps) {
-  const { tenantSlug } = useParams();
   const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscount | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  const [storageKey, setStorageKey] = useState<string>('');
   
-  const storageKey = `${STORAGE_KEY_PREFIX}${tenantSlug || 'default'}`;
+  // Set storage key on mount (client-side only)
+  useEffect(() => {
+    setStorageKey(getStorageKey());
+  }, []);
 
   // Load from localStorage on mount
   useEffect(() => {
-    if (!tenantSlug) return;
+    if (!storageKey) return;
     
     try {
       const stored = localStorage.getItem(storageKey);
@@ -68,18 +84,18 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
       console.error('[DiscountContext] Error loading from localStorage:', e);
       localStorage.removeItem(storageKey);
     }
-  }, [storageKey, tenantSlug]);
+  }, [storageKey]);
 
   // Persist to localStorage when discount changes
   useEffect(() => {
-    if (!tenantSlug) return;
+    if (!storageKey) return;
     
     if (appliedDiscount) {
       localStorage.setItem(storageKey, JSON.stringify(appliedDiscount));
     } else {
       localStorage.removeItem(storageKey);
     }
-  }, [appliedDiscount, storageKey, tenantSlug]);
+  }, [appliedDiscount, storageKey]);
 
   const applyDiscount = useCallback(async (
     storeHost: string,
@@ -126,6 +142,7 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
         discount_value: data.discount_value,
         discount_amount: data.discount_amount,
         free_shipping: data.free_shipping,
+        is_auto_applied: false,
       };
 
       setAppliedDiscount(discount);
@@ -192,10 +209,73 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
         discount_value: data.discount_value,
         discount_amount: data.discount_amount,
         free_shipping: data.free_shipping,
+        is_auto_applied: appliedDiscount.is_auto_applied,
       });
     } catch (err) {
       console.error('[DiscountContext] Error revalidating discount:', err);
       // Keep current discount on network error
+    } finally {
+      setIsValidating(false);
+    }
+  }, [appliedDiscount]);
+
+  // Check and auto-apply first purchase discount
+  const checkFirstPurchaseEligibility = useCallback(async (
+    storeHost: string,
+    customerEmail: string,
+    subtotal: number,
+    shippingPrice: number = 0
+  ): Promise<boolean> => {
+    // Don't check if already has a discount applied
+    if (appliedDiscount) return false;
+    if (!customerEmail || !customerEmail.includes('@')) return false;
+
+    setIsValidating(true);
+
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-first-purchase-eligibility`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          },
+          body: JSON.stringify({
+            store_host: storeHost,
+            customer_email: customerEmail.trim(),
+            subtotal,
+            shipping_price: shippingPrice,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.eligible) {
+        console.log('[DiscountContext] Not eligible for first purchase:', data.reason);
+        return false;
+      }
+
+      const discount: AppliedDiscount = {
+        discount_id: data.discount_id,
+        discount_name: data.discount_name,
+        discount_code: data.discount_code,
+        discount_type: data.discount_type,
+        discount_value: data.discount_value,
+        discount_amount: data.discount_amount,
+        free_shipping: data.free_shipping,
+        is_auto_applied: true,
+      };
+
+      setAppliedDiscount(discount);
+      toast.success(`Desconto de primeira compra aplicado: ${data.discount_name}!`, {
+        duration: 5000,
+      });
+      return true;
+    } catch (err) {
+      console.error('[DiscountContext] Error checking first purchase eligibility:', err);
+      return false;
     } finally {
       setIsValidating(false);
     }
@@ -224,6 +304,7 @@ export function DiscountProvider({ children }: DiscountProviderProps) {
         applyDiscount,
         removeDiscount,
         revalidateDiscount,
+        checkFirstPurchaseEligibility,
         getDiscountAmount,
       }}
     >
@@ -242,6 +323,7 @@ export function useDiscount() {
       applyDiscount: async () => false,
       removeDiscount: () => {},
       revalidateDiscount: async () => {},
+      checkFirstPurchaseEligibility: async () => false,
       getDiscountAmount: () => 0,
     };
   }

@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useCart } from '@/contexts/CartContext';
-import { useDiscount } from '@/contexts/DiscountContext';
+import { useDiscount, AppliedDiscount } from '@/contexts/DiscountContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
@@ -65,7 +65,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const navigate = useNavigate();
   const { tenantSlug } = useParams();
   const { items, shipping, setShippingCep, setShippingOptions, selectShipping, isLoading: cartLoading, clearCart, subtotal } = useCart();
-  const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount } = useDiscount();
+  const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount, revalidateDiscount, checkFirstPurchaseEligibility } = useDiscount();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
@@ -279,7 +279,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   }, [formData, isHydrated]);
 
   // Check if email exists when user leaves email field
-  // Note: This is a non-blocking check. If RLS blocks the query, we assume new customer.
+  // Also check for first purchase eligibility
   const checkExistingEmail = async (email: string) => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
     
@@ -296,6 +296,16 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       // For anonymous checkout, we can't query customers table due to RLS
       // Just default to new customer - account creation is optional anyway
       setIsExistingCustomer(false);
+      
+      // Check for first purchase discount eligibility
+      if (!appliedDiscount) {
+        await checkFirstPurchaseEligibility(
+          storeHost,
+          email,
+          subtotal,
+          shipping.selected?.price || 0
+        );
+      }
     } catch (error) {
       console.error('Error checking email:', error);
       setIsExistingCustomer(false);
@@ -724,7 +734,13 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
         {/* Sidebar - Order summary */}
         <div className="lg:col-span-1">
-          <OrderSummarySidebar items={items} totals={totals} shipping={shipping.selected} />
+          <OrderSummarySidebar 
+            items={items} 
+            totals={totals} 
+            shipping={effectiveShipping} 
+            appliedDiscount={appliedDiscount}
+            freeShipping={appliedDiscount?.free_shipping}
+          />
         </div>
       </div>
     </div>
@@ -1185,11 +1201,15 @@ function Step4Payment({
 function OrderSummarySidebar({ 
   items, 
   totals, 
-  shipping 
+  shipping,
+  appliedDiscount,
+  freeShipping,
 }: { 
   items: any[];
   totals: ReturnType<typeof calculateCartTotals>;
   shipping: any;
+  appliedDiscount?: AppliedDiscount | null;
+  freeShipping?: boolean;
 }) {
   return (
     <div className="bg-card border rounded-lg p-4 sticky top-4">
@@ -1224,13 +1244,34 @@ function OrderSummarySidebar({
         </div>
         <div className="flex justify-between text-muted-foreground">
           <span>Frete</span>
-          <span>{shipping ? formatCurrency(totals.shippingTotal) : 'A calcular'}</span>
+          <span>
+            {!shipping ? 'A calcular' : freeShipping ? (
+              <span className="text-green-600 font-medium">Grátis</span>
+            ) : (
+              formatCurrency(totals.shippingTotal)
+            )}
+          </span>
         </div>
         {shipping && (
           <div className="text-xs text-muted-foreground">
             {shipping.label} • {shipping.deliveryDays} dia(s)
           </div>
         )}
+
+        {/* Discount line */}
+        {(totals.discountTotal > 0 || appliedDiscount) && (
+          <div className="flex justify-between text-green-600">
+            <span className="flex items-center gap-1">
+              <Tag className="h-3.5 w-3.5" />
+              {appliedDiscount?.discount_name || 'Desconto'}
+              {appliedDiscount?.is_auto_applied && (
+                <span className="text-xs font-normal">(automático)</span>
+              )}
+            </span>
+            <span>- {formatCurrency(totals.discountTotal)}</span>
+          </div>
+        )}
+
         <div className="flex justify-between font-bold text-base pt-2 border-t">
           <span>Total</span>
           <span>{formatCurrency(totals.grandTotal)}</span>
