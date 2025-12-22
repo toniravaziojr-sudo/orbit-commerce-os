@@ -25,6 +25,7 @@ import {
   Rocket,
   Star,
   TrendingUp,
+  Percent,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -58,6 +59,7 @@ const navigation: NavGroup[] = [
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },
+      { title: "Descontos", href: "/discounts", icon: Percent },
     ],
   },
   {
