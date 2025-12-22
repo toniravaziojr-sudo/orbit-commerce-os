@@ -6,9 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Tempo de abandono em minutos (fallback para quando o evento pagehide não chega)
-// Produção = 30 min
-const ABANDON_THRESHOLD_MINUTES = 30;
+// Tempo de abandono em minutos baseado em INATIVIDADE (last_seen_at)
+// Produção = 30 min, Preview/Dev = usar env CHECKOUT_ABANDON_MINUTES para testes rápidos
+const ABANDON_THRESHOLD_MINUTES = parseInt(Deno.env.get('CHECKOUT_ABANDON_MINUTES') || '30', 10);
 
 // Security: Verify the request is from an authorized source
 async function isAuthorizedRequest(req: Request): Promise<boolean> {
@@ -82,9 +82,11 @@ interface CheckoutSession {
   total_estimated: number | null;
   items_snapshot: unknown[];
   started_at: string;
+  last_seen_at: string | null;
+  contact_captured_at: string | null;
 }
 
-// Detectar e marcar checkouts abandonados
+// Detectar e marcar checkouts abandonados baseado em INATIVIDADE (last_seen_at)
 async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string): Promise<AbandonSweepStats> {
   const stats: AbandonSweepStats = {
     sessions_abandoned: 0,
@@ -94,12 +96,11 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
 
   try {
     const thresholdTime = new Date(Date.now() - ABANDON_THRESHOLD_MINUTES * 60 * 1000).toISOString();
-    console.log(`[abandon-sweep] Looking for sessions started before ${thresholdTime} WITH contact captured`);
+    console.log(`[abandon-sweep] Threshold: ${ABANDON_THRESHOLD_MINUTES} min. Looking for sessions inactive before ${thresholdTime}`);
 
-    // REGRA: Só marcar como abandonado sessões COM contato capturado (email ou phone)
-    // Usar fetch direto para evitar problemas de tipagem com tabela nova
-    // Filtro: contact_captured_at IS NOT NULL
-    const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&started_at=lte.${encodeURIComponent(thresholdTime)}&contact_captured_at=not.is.null&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at,contact_captured_at`;
+    // Buscar sessões ativas COM contato capturado
+    // Filtro: status=active, contact_captured_at IS NOT NULL, order_id IS NULL
+    const selectUrl = `${supabaseUrl}/rest/v1/checkout_sessions?status=eq.active&order_id=is.null&contact_captured_at=not.is.null&limit=100&select=id,tenant_id,customer_email,customer_phone,customer_name,total_estimated,items_snapshot,started_at,last_seen_at,contact_captured_at`;
     
     const fetchResponse = await fetch(selectUrl, {
       method: 'GET',
@@ -120,15 +121,36 @@ async function runAbandonSweep(supabaseUrl: string, supabaseServiceKey: string):
     const activeSessions: CheckoutSession[] = await fetchResponse.json();
 
     if (!activeSessions || activeSessions.length === 0) {
-      console.log('[abandon-sweep] No sessions to abandon');
+      console.log('[abandon-sweep] No active sessions with contact captured');
       return stats;
     }
 
-    console.log(`[abandon-sweep] Found ${activeSessions.length} sessions to abandon`);
+    console.log(`[abandon-sweep] Found ${activeSessions.length} active sessions to evaluate`);
 
-    const now = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const thresholdMs = ABANDON_THRESHOLD_MINUTES * 60 * 1000;
 
-    for (const session of activeSessions) {
+    // Avaliar cada sessão baseado em last_activity_at = COALESCE(last_seen_at, contact_captured_at, started_at)
+    const sessionsToAbandon = activeSessions.filter(session => {
+      const lastActivity = session.last_seen_at || session.contact_captured_at || session.started_at;
+      const lastActivityTime = new Date(lastActivity).getTime();
+      const inactiveMs = now.getTime() - lastActivityTime;
+      const shouldAbandon = inactiveMs >= thresholdMs;
+      
+      console.log(`[abandon-sweep] Session ${session.id}: last_activity=${lastActivity}, inactive=${Math.round(inactiveMs/1000/60)}min, abandon=${shouldAbandon}`);
+      
+      return shouldAbandon;
+    });
+
+    if (sessionsToAbandon.length === 0) {
+      console.log('[abandon-sweep] No sessions exceeded inactivity threshold');
+      return stats;
+    }
+
+    console.log(`[abandon-sweep] ${sessionsToAbandon.length} sessions to mark as abandoned`);
+
+    for (const session of sessionsToAbandon) {
       try {
         // Marcar como abandonado via REST
         const updateUrl = `${supabaseUrl}/rest/v1/checkout_sessions?id=eq.${session.id}&status=eq.active`;
