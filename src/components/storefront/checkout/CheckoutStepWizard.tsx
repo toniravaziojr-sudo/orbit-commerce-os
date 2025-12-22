@@ -36,6 +36,7 @@ import {
   completeCheckoutSession,
   endCheckoutSession,
   getCheckoutSessionId,
+  captureCheckoutContact,
 } from '@/lib/checkoutSession';
 
 type PaymentStatus = 'idle' | 'processing' | 'approved' | 'pending_payment' | 'failed';
@@ -48,16 +49,11 @@ const STEPS = [
   { id: 4, label: 'Pagamento', icon: CreditCard },
 ] as const;
 
-// Extended form data to include password
-interface ExtendedFormData extends CheckoutFormData {
-  password: string;
-  confirmPassword: string;
-}
+// Form data without password (moved to Thank You page)
+type ExtendedFormData = CheckoutFormData;
 
 const initialExtendedFormData: ExtendedFormData = {
   ...initialCheckoutFormData,
-  password: '',
-  confirmPassword: '',
 };
 
 interface CheckoutStepWizardProps {
@@ -341,12 +337,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       if (!formData.customerPhone.trim()) errors.customerPhone = 'Telefone é obrigatório';
       if (!formData.customerCpf.trim()) errors.customerCpf = 'CPF é obrigatório';
       
-      // Password validation for new customers
-      if (!isExistingCustomer) {
-        if (!formData.password) errors.password = 'Crie uma senha para sua conta';
-        else if (formData.password.length < 6) errors.password = 'Senha deve ter no mínimo 6 caracteres';
-        if (formData.password !== formData.confirmPassword) errors.confirmPassword = 'Senhas não conferem';
-      }
+      // No password validation in checkout - account creation moved to Thank You page
     }
 
     if (step === 2) {
@@ -385,6 +376,16 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     setTransitionError(null);
 
     try {
+      // When leaving step 1 (personal data), capture contact for abandoned checkout tracking
+      if (currentStep === 1) {
+        // Non-blocking - capture contact in background
+        captureCheckoutContact({
+          customerName: formData.customerName,
+          customerEmail: formData.customerEmail,
+          customerPhone: formData.customerPhone,
+        }).catch(err => console.error('[Checkout] Error capturing contact:', err));
+      }
+
       // When leaving step 2 (address), calculate shipping
       if (currentStep === 2) {
         await calculateShippingOptions();
@@ -472,30 +473,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       // Save email for returning customer recognition
       localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
       
-      // Create account for new customers BEFORE payment
-      if (!isExistingCustomer && formData.password) {
-        try {
-          const { error: signUpError } = await supabase.auth.signUp({
-            email: formData.customerEmail,
-            password: formData.password,
-            options: {
-              // Use canonical origin (custom domain or platform subdomain) with clean URL
-              emailRedirectTo: `${canonicalOrigin}/conta`,
-              data: {
-                full_name: formData.customerName,
-              }
-            }
-          });
-          
-          if (signUpError) {
-            console.error('Error creating account:', signUpError);
-          } else {
-            toast.success('Conta criada! Verifique seu email para confirmar.', { duration: 5000 });
-          }
-        } catch (error) {
-          console.error('Error creating account:', error);
-        }
-      }
+      // Account creation is now handled on the Thank You page (PONTO 2)
 
       // Process REAL payment via Pagar.me
       const result = await processPayment({
@@ -530,6 +508,14 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       });
 
       if (result.success) {
+        // Complete checkout session
+        completeCheckoutSession({
+          tenantSlug: tenantSlug || undefined,
+          orderId: result.orderId || '',
+          customerEmail: formData.customerEmail,
+          customerPhone: formData.customerPhone,
+        });
+
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
           // Credit card approved immediately
           setPaymentStatus('approved');
@@ -538,10 +524,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           toast.success('Pedido realizado com sucesso!');
           navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
         } else {
-          // PIX/Boleto - pending payment (show QR code or boleto)
+          // PIX/Boleto - redirect to thank you page with payment info
+          // Store payment data in localStorage for the thank you page
+          if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
+            localStorage.setItem(`pending_payment_${result.orderNumber}`, JSON.stringify({
+              method: paymentMethod,
+              pixQrCode: result.pixQrCode,
+              pixQrCodeUrl: result.pixQrCodeUrl,
+              pixExpiresAt: result.pixExpiresAt,
+              boletoUrl: result.boletoUrl,
+              boletoBarcode: result.boletoBarcode,
+              boletoDueDate: result.boletoDueDate,
+            }));
+          }
+          
           setPaymentStatus('pending_payment');
           clearCart();
           clearDraft();
+          
+          // Navigate to thank you page
+          navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
         }
       } else {
         throw new Error(result.error || 'Erro ao processar pagamento');
@@ -843,8 +845,7 @@ function Step1PersonalData({
   isExistingCustomer: boolean;
   isCheckingEmail: boolean;
 }) {
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Password fields removed - account creation moved to Thank You page
 
   return (
     <div className="space-y-6">
@@ -916,78 +917,17 @@ function Step1PersonalData({
           {errors.customerCpf && <p className="text-sm text-destructive mt-1">{errors.customerCpf}</p>}
         </div>
 
-        {/* Password section - only for new customers */}
-        {!isExistingCustomer && (
-          <div className="pt-4 border-t mt-4">
-            <div className="flex items-start gap-2 mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-700 dark:text-blue-300">Crie sua conta</p>
-                <p className="text-blue-600 dark:text-blue-400">Esta senha será usada para acessar sua conta e acompanhar seus pedidos.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="password">Senha *</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => onChange('password', e.target.value)}
-                    placeholder="Mínimo 6 caracteres"
-                    disabled={disabled}
-                    className={errors.password ? 'border-destructive pr-10' : 'pr-10'}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {errors.password && <p className="text-sm text-destructive mt-1">{errors.password}</p>}
-              </div>
-              <div>
-                <Label htmlFor="confirmPassword">Confirmar senha *</Label>
-                <div className="relative">
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    value={formData.confirmPassword}
-                    onChange={(e) => onChange('confirmPassword', e.target.value)}
-                    placeholder="Repita a senha"
-                    disabled={disabled}
-                    className={errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10'}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {errors.confirmPassword && <p className="text-sm text-destructive mt-1">{errors.confirmPassword}</p>}
-              </div>
+        {/* Info about account creation - now on Thank You page */}
+        <div className="pt-4 border-t mt-4">
+          <div className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg">
+            <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-foreground">Após a compra, você poderá criar sua conta</p>
+              <p className="text-muted-foreground">E acompanhar seus pedidos em "Minha Conta".</p>
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Existing customer - show login hint */}
-        {isExistingCustomer && (
-          <div className="pt-4 border-t mt-4">
-            <div className="flex items-start gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-              <Check className="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-green-700 dark:text-green-300">Você já tem uma conta!</p>
-                <p className="text-green-600 dark:text-green-400">Após a compra, acesse "Minha Conta" para ver seus pedidos.</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

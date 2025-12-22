@@ -71,6 +71,55 @@ export interface CheckoutSessionParams {
   step?: string;
 }
 
+export interface CaptureContactParams {
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+}
+
+/**
+ * Capture contact info - marks session as recoverable for abandoned cart
+ * Called when user completes step 1 (personal data)
+ */
+export async function captureCheckoutContact(params: CaptureContactParams): Promise<boolean> {
+  const sessionId = getCheckoutSessionId();
+  if (!sessionId) return false;
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  if (!supabaseUrl) return false;
+
+  // Must have at least email or phone
+  if (!params.customerEmail && !params.customerPhone) {
+    console.warn('[checkout-session] captureContact: email or phone required');
+    return false;
+  }
+
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/checkout-session-capture-contact`, {
+      method: 'POST',
+      headers: getSimpleHeaders(),
+      body: JSON.stringify({
+        session_id: sessionId,
+        customer_name: params.customerName,
+        customer_email: params.customerEmail?.toLowerCase().trim(),
+        customer_phone: params.customerPhone?.replace(/\D/g, ''),
+        store_host: window.location.host,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[checkout-session] captureContact failed:', response.status);
+      return false;
+    }
+
+    console.log('[checkout-session] Contact captured successfully');
+    return true;
+  } catch (error) {
+    console.error('[checkout-session] captureContact error:', error);
+    return false;
+  }
+}
+
 export async function startCheckoutSession(params: CheckoutSessionParams): Promise<{ success: boolean; sessionId: string }> {
   const sessionId = getOrCreateCheckoutSessionId();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

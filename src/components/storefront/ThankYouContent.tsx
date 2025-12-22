@@ -1,15 +1,30 @@
 // =============================================
 // THANK YOU CONTENT - Order confirmation page content
 // Loads REAL order data from database
+// Shows PIX/Boleto payment info + Account creation
 // =============================================
 
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle } from 'lucide-react';
+import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle, Clock, Copy, ExternalLink, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
+import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface PendingPaymentData {
+  method: 'pix' | 'boleto';
+  pixQrCode?: string;
+  pixQrCodeUrl?: string;
+  pixExpiresAt?: string;
+  boletoUrl?: string;
+  boletoBarcode?: string;
+  boletoDueDate?: string;
+}
 
 interface ThankYouContentProps {
   tenantSlug: string;
@@ -21,26 +36,54 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const urls = useStorefrontUrls(tenantSlug);
+  const [pendingPayment, setPendingPayment] = useState<PendingPaymentData | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [user, setUser] = useState<any>(null);
   
-  // Get order identifier from URL (supports: pedido, orderId, orderNumber for backward compatibility)
+  // Get order identifier from URL
   const orderParam = searchParams.get('pedido') || searchParams.get('orderId') || searchParams.get('orderNumber');
   
   // Fetch real order data from database
   const { data: order, isLoading, error } = useOrderDetails(orderParam || undefined);
 
-  const handleViewOrders = () => {
-    navigate(urls.accountOrders());
-  };
+  // Check auth state
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+  }, []);
 
-  const handleGoHome = () => {
-    navigate(urls.home());
-  };
+  // Load pending payment data from localStorage
+  useEffect(() => {
+    if (orderParam) {
+      const storedData = localStorage.getItem(`pending_payment_${orderParam}`);
+      if (storedData) {
+        try {
+          setPendingPayment(JSON.parse(storedData));
+        } catch {}
+      }
+    }
+  }, [orderParam]);
+
+  const handleViewOrders = () => navigate(urls.accountOrders());
+  const handleGoHome = () => navigate(urls.home());
 
   const handleWhatsApp = () => {
     const phone = (whatsAppNumber || '+55 11 91955-5920').replace(/\D/g, '');
     const orderNumber = order?.order_number || orderParam || 'N/A';
     const message = encodeURIComponent(`Olá! Gostaria de informações sobre meu pedido #${orderNumber}`);
     window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success('Código copiado!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Erro ao copiar');
+    }
   };
 
   // Loading state
@@ -146,6 +189,99 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
           {paymentInfo.text}
         </p>
       </div>
+
+      {/* PIX Payment Section */}
+      {pendingPayment?.method === 'pix' && pendingPayment.pixQrCode && order?.payment_status === 'pending' && (
+        <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-700 text-sm font-medium">
+            <Clock className="h-4 w-4" />
+            Aguardando pagamento PIX
+          </div>
+
+          <h3 className="text-lg font-semibold">Escaneie o QR Code para pagar</h3>
+          
+          {pendingPayment.pixQrCodeUrl ? (
+            <div className="flex justify-center">
+              <img 
+                src={pendingPayment.pixQrCodeUrl} 
+                alt="QR Code PIX" 
+                className="w-48 h-48 bg-white p-2 rounded-lg"
+              />
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <div className="w-48 h-48 bg-white p-4 rounded-lg flex items-center justify-center">
+                <QrCode className="w-32 h-32 text-muted-foreground" />
+              </div>
+            </div>
+          )}
+
+          <p className="text-sm text-muted-foreground">Ou copie o código PIX:</p>
+
+          <div className="flex gap-2">
+            <code className="flex-1 bg-background p-3 rounded border text-xs break-all text-left">
+              {pendingPayment.pixQrCode}
+            </code>
+            <Button variant="outline" size="icon" onClick={() => copyToClipboard(pendingPayment.pixQrCode!)}>
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+            </Button>
+          </div>
+
+          {pendingPayment.pixExpiresAt && (
+            <p className="text-sm text-muted-foreground">
+              Expira em: {new Date(pendingPayment.pixExpiresAt).toLocaleString('pt-BR')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Boleto Payment Section */}
+      {pendingPayment?.method === 'boleto' && pendingPayment.boletoUrl && order?.payment_status === 'pending' && (
+        <div className="border rounded-lg p-6 bg-muted/30 text-center space-y-4 mb-6">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+            <Clock className="h-4 w-4" />
+            Boleto gerado
+          </div>
+
+          <h3 className="text-lg font-semibold">Seu boleto foi gerado!</h3>
+
+          <Button onClick={() => window.open(pendingPayment.boletoUrl, '_blank')} className="w-full">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Visualizar Boleto
+          </Button>
+
+          {pendingPayment.boletoBarcode && (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">Código de barras:</p>
+              <div className="flex gap-2">
+                <code className="flex-1 bg-background p-3 rounded border text-xs break-all text-left font-mono">
+                  {pendingPayment.boletoBarcode}
+                </code>
+                <Button variant="outline" size="icon" onClick={() => copyToClipboard(pendingPayment.boletoBarcode!)}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {pendingPayment.boletoDueDate && (
+            <p className="text-sm text-muted-foreground">
+              Vencimento: {new Date(pendingPayment.boletoDueDate).toLocaleDateString('pt-BR')}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Account Creation Section - only for non-authenticated users */}
+      {!user && order?.customer_email && (
+        <div className="mb-6">
+          <CreateAccountSection 
+            customerEmail={order.customer_email} 
+            customerName={order.customer_name}
+            tenantSlug={tenantSlug}
+          />
+        </div>
+      )}
 
       {/* Order Summary */}
       {order && order.items.length > 0 && (
