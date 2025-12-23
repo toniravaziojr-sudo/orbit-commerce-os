@@ -307,19 +307,39 @@ async function quoteCorreios(
     const altura = String(Math.max(2, Math.round(totals.height)));
 
     // Build batch request
-    const parametrosProduto = serviceCodes.map((code, index) => ({
-      coProduto: code,
-      nuRequisicao: String(index + 1).padStart(4, '0'),
-      cepOrigem: cleanOrigin,
-      cepDestino: cleanDestination,
-      psObjeto: weightGrams,
-      tpObjeto: '2', // 2 = package
-      comprimento,
-      largura,
-      altura,
-      vlDeclarado: String(Math.round(totals.value * 100) / 100),
-      ...(contrato ? { nuContrato: contrato, nuDR: parseInt(dr || '0', 10) } : {}),
-    }));
+    // servicosAdicionais is required for VD (Valor Declarado) when using contract services
+    // VD codes: 019 = Valor Declarado Nacional, 064 = VD para SEDEX em alguns contratos
+    // Minimum declared value is R$24,00
+    const valorDeclarado = Math.max(24, Math.round(totals.value * 100) / 100);
+    
+    const parametrosProduto = serviceCodes.map((code, index) => {
+      const baseParams: Record<string, unknown> = {
+        coProduto: code,
+        nuRequisicao: String(index + 1).padStart(4, '0'),
+        cepOrigem: cleanOrigin,
+        cepDestino: cleanDestination,
+        psObjeto: weightGrams,
+        tpObjeto: '2', // 2 = package
+        comprimento,
+        largura,
+        altura,
+      };
+      
+      // Add contract info if available
+      if (contrato) {
+        baseParams.nuContrato = contrato;
+        baseParams.nuDR = parseInt(dr || '0', 10);
+      }
+      
+      // Add servicosAdicionais for Valor Declarado
+      // Use code 019 for VD Nacional (works for both PAC and SEDEX in most contracts)
+      baseParams.servicosAdicionais = [{
+        coServAdicional: '019',
+        vlDeclarado: String(valorDeclarado),
+      }];
+      
+      return baseParams;
+    });
 
     const pricePayload = {
       idLote: '001',
