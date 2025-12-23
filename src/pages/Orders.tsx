@@ -24,6 +24,7 @@ export default function Orders() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [paymentFilter, setPaymentFilter] = useState('all');
+  const [shippingFilter, setShippingFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
   const handleSearchChange = (value: string) => {
@@ -44,6 +45,11 @@ export default function Orders() {
     setCurrentPage(1);
   };
 
+  const handleShippingChange = (value: string) => {
+    setShippingFilter(value);
+    setCurrentPage(1);
+  };
+
   const { 
     orders, 
     totalCount, 
@@ -56,6 +62,7 @@ export default function Orders() {
     search: debouncedSearch,
     status: statusFilter,
     paymentStatus: paymentFilter,
+    shippingStatus: shippingFilter,
   });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -132,7 +139,7 @@ export default function Orders() {
                 onChange={(e) => handleSearchChange(e.target.value)}
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Status" />
@@ -147,6 +154,22 @@ export default function Orders() {
                   <SelectItem value="in_transit">Em Trânsito</SelectItem>
                   <SelectItem value="delivered">Entregue</SelectItem>
                   <SelectItem value="cancelled">Cancelado</SelectItem>
+                  <SelectItem value="returned">Devolvido</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={shippingFilter} onValueChange={handleShippingChange}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Envio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos envios</SelectItem>
+                  <SelectItem value="pending">Sem rastreio</SelectItem>
+                  <SelectItem value="processing">Etiqueta gerada</SelectItem>
+                  <SelectItem value="shipped">Postado</SelectItem>
+                  <SelectItem value="in_transit">Em trânsito</SelectItem>
+                  <SelectItem value="out_for_delivery">Saiu p/ entrega</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                  <SelectItem value="failed">Falha</SelectItem>
                   <SelectItem value="returned">Devolvido</SelectItem>
                 </SelectContent>
               </Select>
