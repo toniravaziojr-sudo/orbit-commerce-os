@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight, FlaskConical } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,14 @@ import {
 } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
-import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
+import { useOrders, type Order, type OrderStatus, useCreateTestOrder } from '@/hooks/useOrders';
+import { useAuth } from '@/hooks/useAuth';
 
 const PAGE_SIZE = 50;
 
 export default function Orders() {
   const navigate = useNavigate();
+  const { hasRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -65,6 +67,20 @@ export default function Orders() {
     shippingStatus: shippingFilter,
   });
 
+  const createTestOrder = useCreateTestOrder();
+  const canCreateTestOrder = hasRole('owner') || hasRole('admin');
+
+  const handleCreateTestOrder = () => {
+    createTestOrder.mutate(undefined, {
+      onSuccess: (data) => {
+        refetch();
+        if (data?.order?.id) {
+          navigate(`/orders/${data.order.id}`);
+        }
+      },
+    });
+  };
+
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const handleView = (order: Order) => {
@@ -87,6 +103,17 @@ export default function Orders() {
         description="Gestão de pedidos, pagamentos e envios"
         actions={
           <div className="flex gap-3">
+            {canCreateTestOrder && (
+              <Button 
+                variant="outline" 
+                className="gap-2"
+                onClick={handleCreateTestOrder}
+                disabled={createTestOrder.isPending}
+              >
+                <FlaskConical className="h-4 w-4" />
+                {createTestOrder.isPending ? 'Criando...' : 'Criar pedido teste'}
+              </Button>
+            )}
             <Button variant="outline" className="gap-2">
               <Download className="h-4 w-4" />
               Exportar
