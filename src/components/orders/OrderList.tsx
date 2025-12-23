@@ -72,9 +72,13 @@ const paymentStatusConfig: Record<string, { label: string; variant: 'default' | 
   cancelled: { label: 'Cancelado', variant: 'destructive' },
 };
 
-const shippingStatusConfig: Record<ShippingStatus | 'unknown', { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Truck }> = {
+// Extended type to include both database values and UI-specific values
+type ExtendedShippingStatus = ShippingStatus | 'unknown' | 'posted';
+
+const shippingStatusConfig: Record<ExtendedShippingStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Truck }> = {
   pending: { label: 'Sem rastreio', variant: 'outline', icon: Package },
   processing: { label: 'Etiqueta gerada', variant: 'secondary', icon: Tag },
+  posted: { label: 'Postado', variant: 'default', icon: Truck },
   shipped: { label: 'Postado', variant: 'default', icon: Truck },
   in_transit: { label: 'Em trânsito', variant: 'default', icon: Truck },
   out_for_delivery: { label: 'Saiu p/ entrega', variant: 'default', icon: MapPin },
@@ -162,8 +166,8 @@ export function OrderList({
               const paymentConfig = paymentStatusConfig[order.payment_status];
               const StatusIcon = statusConfig.icon;
               
-              // Shipping status with fallback
-              const shippingStatus = order.shipping_status || 'unknown';
+              // Shipping status with fallback (cast to extended type to handle all possible values)
+              const shippingStatus = (order.shipping_status || 'unknown') as ExtendedShippingStatus;
               const shippingConfig = shippingStatusConfig[shippingStatus] || shippingStatusConfig['unknown'];
               const ShippingIcon = shippingConfig.icon;
 
