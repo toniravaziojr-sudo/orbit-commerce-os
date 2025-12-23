@@ -231,47 +231,120 @@ async function fetchCorreiosEvents(
 }
 
 function mapCorreiosStatus(codigo: string, tipo: string, descricao?: string): DeliveryStatus {
-  // Correios status codes mapping
-  // BDE = Entregue, OEC = Saiu para entrega, etc.
+  // Correios status codes mapping - comprehensive coverage
+  // BDE = Entregue, OEC = Saiu para entrega, PO = Postado, etc.
+  
+  let mappedStatus: DeliveryStatus = 'unknown';
   
   // First check description for better mapping (sometimes codigo is empty or generic)
   if (descricao) {
-    const desc = descricao.toLowerCase();
-    if (desc.includes('entregue')) return 'delivered';
-    if (desc.includes('saiu para entrega') || desc.includes('out for delivery')) return 'out_for_delivery';
-    if (desc.includes('objeto postado') || desc.includes('postado')) return 'posted';
-    if (desc.includes('etiqueta') || desc.includes('aguardando postagem')) return 'label_created';
-    if (desc.includes('devolvido') || desc.includes('devolução')) return 'returned';
-    if (desc.includes('não entregue') || desc.includes('falha')) return 'failed';
-    if (desc.includes('em trânsito') || desc.includes('encaminhado') || desc.includes('objeto em transferência')) return 'in_transit';
+    const desc = descricao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // DELIVERED - highest priority
+    if (desc.includes('entregue ao destinatario') || 
+        desc.includes('objeto entregue') || 
+        desc.includes('entregue')) {
+      return 'delivered';
+    }
+    
+    // OUT FOR DELIVERY
+    if (desc.includes('saiu para entrega') || 
+        desc.includes('objeto saiu para entrega') ||
+        desc.includes('out for delivery')) {
+      return 'out_for_delivery';
+    }
+    
+    // RETURNED
+    if (desc.includes('devolvido ao remetente') ||
+        desc.includes('objeto devolvido') ||
+        desc.includes('em devolucao') ||
+        desc.includes('devolvido')) {
+      return 'returned';
+    }
+    
+    // FAILED
+    if (desc.includes('tentativa de entrega nao efetuada') ||
+        desc.includes('destinatario ausente') ||
+        desc.includes('endereco incorreto') ||
+        desc.includes('endereco insuficiente') ||
+        desc.includes('nao entregue') ||
+        desc.includes('objeto nao entregue') ||
+        desc.includes('falha na entrega')) {
+      return 'failed';
+    }
+    
+    // CANCELED
+    if (desc.includes('postagem cancelada') ||
+        desc.includes('objeto cancelado')) {
+      return 'canceled';
+    }
+    
+    // IN TRANSIT - check before POSTED since transit events come after posting
+    if (desc.includes('encaminhado') || 
+        desc.includes('objeto encaminhado') ||
+        desc.includes('em transito') ||
+        desc.includes('objeto em transferencia') ||
+        desc.includes('saiu de') ||
+        desc.includes('chegou em') ||
+        desc.includes('recebido na unidade') ||
+        desc.includes('objeto recebido') ||
+        desc.includes('fiscalizacao aduaneira finalizada') ||
+        desc.includes('liberado sem tributacao')) {
+      return 'in_transit';
+    }
+    
+    // POSTED - after checking transit
+    if (desc.includes('objeto postado') || 
+        desc.includes('objeto coletado') ||
+        (desc.includes('postado') && !desc.includes('aguardando postagem'))) {
+      return 'posted';
+    }
+    
+    // LABEL CREATED - last check for description
+    if (desc.includes('etiqueta') || 
+        desc.includes('aguardando postagem') ||
+        desc.includes('objeto aguardando') ||
+        desc.includes('pre-postagem')) {
+      return 'label_created';
+    }
   }
   
-  if (!codigo) return 'unknown';
-  
-  const code = codigo.toUpperCase();
-  
-  // Delivered
-  if (code === 'BDE') return 'delivered';
-  
-  // Out for delivery
-  if (code === 'OEC') return 'out_for_delivery';
-  
-  // In transit
-  if (['LDI', 'RO', 'DO', 'PAR', 'OEI'].includes(code)) return 'in_transit';
-  
-  // Posted
-  if (['PO', 'POI'].includes(code)) return 'posted';
-  
-  // Failed delivery attempt
-  if (['BDR', 'BDI', 'LDE'].includes(code)) {
-    return 'failed';
+  // Now check by codigo (fallback)
+  if (codigo) {
+    const code = codigo.toUpperCase();
+    
+    // Delivered
+    if (['BDE', 'BDI'].includes(code)) {
+      mappedStatus = 'delivered';
+    }
+    // Out for delivery
+    else if (code === 'OEC') {
+      mappedStatus = 'out_for_delivery';
+    }
+    // In transit
+    else if (['LDI', 'RO', 'DO', 'PAR', 'OEI', 'FC', 'LDE'].includes(code)) {
+      mappedStatus = 'in_transit';
+    }
+    // Posted
+    else if (['PO', 'POI'].includes(code)) {
+      mappedStatus = 'posted';
+    }
+    // Failed delivery attempt
+    else if (['BDR', 'PMT'].includes(code)) {
+      mappedStatus = 'failed';
+    }
+    // Returned
+    else if (code === 'BLQ' && tipo === '70') {
+      mappedStatus = 'returned';
+    }
   }
   
-  // Returned
-  if (code === 'BLQ' && tipo === '70') return 'returned';
+  // Log unknown status for debugging (sanitized)
+  if (mappedStatus === 'unknown' && (codigo || descricao)) {
+    console.warn(`[Correios] Unmapped status - codigo: ${codigo || 'null'}, tipo: ${tipo || 'null'}, descricao: ${descricao?.substring(0, 50) || 'null'}`);
+  }
   
-  // Default to unknown for codes we don't recognize
-  return 'unknown';
+  return mappedStatus;
 }
 
 function formatCorreiosLocation(unidade: Record<string, unknown> | undefined): string {
