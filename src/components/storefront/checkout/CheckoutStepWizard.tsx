@@ -462,8 +462,8 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
       setShippingCep(cep);
       
       let options;
-      // Use async quote for Frenet provider
-      if (shippingConfig.provider === 'frenet') {
+      // Use async quote for multi-provider or Frenet
+      if (shippingConfig.provider === 'frenet' || shippingConfig.provider === 'multi') {
         const cartItems = items.map(item => ({
           weight: 0.3,
           height: 10,
@@ -474,6 +474,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         }));
         options = await quoteAsync(cep, totals.subtotal, cartItems);
       } else {
+        // Sync quote for mock/manual providers
         options = quote(cep, totals.subtotal);
       }
       
