@@ -307,9 +307,8 @@ async function quoteCorreios(
     const altura = String(Math.max(2, Math.round(totals.height)));
 
     // Build batch request
-    // servicosAdicionais is required for VD (Valor Declarado) when using contract services
-    // VD codes: 019 = Valor Declarado Nacional, 064 = VD para SEDEX em alguns contratos
-    // Minimum declared value is R$24,00
+    // vlDeclarado goes at root level (not inside servicosAdicionais)
+    // servicosAdicionais with code 019 is NOT required and causes errors with PAC
     const valorDeclarado = Math.max(24, Math.round(totals.value * 100) / 100);
     
     const parametrosProduto = serviceCodes.map((code, index) => {
@@ -323,6 +322,8 @@ async function quoteCorreios(
         comprimento,
         largura,
         altura,
+        // Valor declarado at root level - required by the API
+        vlDeclarado: String(valorDeclarado),
       };
       
       // Add contract info if available
@@ -330,13 +331,6 @@ async function quoteCorreios(
         baseParams.nuContrato = contrato;
         baseParams.nuDR = parseInt(dr || '0', 10);
       }
-      
-      // Add servicosAdicionais for Valor Declarado
-      // Use code 019 for VD Nacional (works for both PAC and SEDEX in most contracts)
-      baseParams.servicosAdicionais = [{
-        coServAdicional: '019',
-        vlDeclarado: String(valorDeclarado),
-      }];
       
       return baseParams;
     });
