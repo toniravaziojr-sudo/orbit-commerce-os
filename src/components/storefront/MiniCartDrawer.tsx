@@ -330,8 +330,8 @@ function MiniCartShipping({
     try {
       let options;
       
-      // Use async quote for Frenet provider
-      if (config.provider === 'frenet') {
+      // Use async quote for multi-provider or Frenet
+      if (config.provider === 'frenet' || config.provider === 'multi') {
         const cartItems = items.map(item => ({
           weight: 0.3,
           height: 10,
@@ -342,6 +342,7 @@ function MiniCartShipping({
         }));
         options = await quoteAsync(cepDigits, subtotal, cartItems);
       } else {
+        // Sync quote for mock/manual providers
         options = quote(cepDigits, subtotal);
       }
       
