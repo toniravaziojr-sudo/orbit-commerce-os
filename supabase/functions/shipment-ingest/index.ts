@@ -311,12 +311,11 @@ Deno.serve(async (req) => {
       'delivered': 'delivered',
       'failed': 'failed',
       'returned': 'returned',
+      'unknown': 'processing', // Unknown with tracking code = at least processing
     };
 
-    const newShippingStatus = shippingStatusMap[deliveryStatus];
-    if (newShippingStatus) {
-      orderUpdate.shipping_status = newShippingStatus;
-    }
+    const newShippingStatus = shippingStatusMap[deliveryStatus] || 'processing';
+    orderUpdate.shipping_status = newShippingStatus;
 
     if (deliveryStatus === 'posted' || deliveryStatus === 'in_transit') {
       orderUpdate.shipped_at = new Date().toISOString();
