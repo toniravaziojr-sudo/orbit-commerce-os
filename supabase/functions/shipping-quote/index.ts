@@ -307,9 +307,10 @@ async function quoteCorreios(
     const altura = String(Math.max(2, Math.round(totals.height)));
 
     // Build batch request
-    // vlDeclarado goes at root level (not inside servicosAdicionais)
-    // servicosAdicionais with code 019 is NOT required and causes errors with PAC
+    // Try quoting WITHOUT servicosAdicionais first - most contracts work without it
+    // ERP-052 (VD required) vs ERP-054 (VD not allowed) depends on contract config
     const valorDeclarado = Math.max(24, Math.round(totals.value * 100) / 100);
+    const requireDeclaredValue = provider.settings?.require_declared_value === true;
     
     const parametrosProduto = serviceCodes.map((code, index) => {
       const baseParams: Record<string, unknown> = {
@@ -322,14 +323,20 @@ async function quoteCorreios(
         comprimento,
         largura,
         altura,
-        // Valor declarado at root level - required by the API
-        vlDeclarado: String(valorDeclarado),
       };
       
       // Add contract info if available
       if (contrato) {
         baseParams.nuContrato = contrato;
         baseParams.nuDR = parseInt(dr || '0', 10);
+      }
+      
+      // Only add Valor Declarado if explicitly required in provider settings
+      if (requireDeclaredValue) {
+        baseParams.servicosAdicionais = [{
+          coServAdicional: '019',
+          vlDeclarado: String(valorDeclarado),
+        }];
       }
       
       return baseParams;
