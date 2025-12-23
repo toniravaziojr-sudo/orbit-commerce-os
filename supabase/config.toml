@@ -114,3 +114,6 @@ schedule = "*/10 * * * *"
 
 [functions.shipping-quote]
 verify_jwt = false
+
+[functions.admin-create-test-order]
+verify_jwt = true

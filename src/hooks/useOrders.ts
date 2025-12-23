@@ -508,3 +508,34 @@ export function useOrderDetails(orderId: string | undefined) {
     updateTrackingCode,
   };
 }
+
+// Hook to create a test order for tracking validation
+export function useCreateTestOrder() {
+  const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('admin-create-test-order', {});
+      
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      return data as {
+        success: boolean;
+        order: { id: string; order_number: string };
+        shipment: { id: string } | null;
+        message: string;
+      };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      toast.success(data.message || 'Pedido de teste criado com sucesso!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao criar pedido de teste:', error);
+      toast.error(error.message || 'Erro ao criar pedido de teste');
+    },
+  });
+}
