@@ -188,91 +188,105 @@ async function quoteFrenet(
 }
 
 // Correios Quote Adapter - API REST v1
-// Docs: https://www.correios.com.br/atendimento/developers/manuais/manual-api-preco-1
+// Supports both Token (CWS) and OAuth2 authentication
+// Docs: https://cws.correios.com.br/dashboard/pesquisa
 async function quoteCorreios(
   provider: ProviderRecord,
   originCep: string,
   recipientCep: string,
   totals: { weight: number; height: number; width: number; length: number; value: number }
 ): Promise<ShippingOption[]> {
-  const usuario = provider.credentials.usuario as string;
-  const senha = provider.credentials.senha as string;
-  const cartaoPostagem = provider.credentials.cartao_postagem as string;
-  const contrato = provider.credentials.contrato as string;
-  const dr = provider.credentials.dr as string;
-
-  if (!usuario || !senha) {
-    console.log('[Correios] Missing credentials - usuario:', !!usuario, 'senha:', !!senha);
-    return [];
-  }
+  // Check auth mode - default to 'token' if token is provided, otherwise 'oauth'
+  const authMode = provider.credentials.auth_mode as string || 
+    (provider.credentials.token ? 'token' : 'oauth');
+  
+  let token: string;
 
   try {
-    // Step 1: Get OAuth2 token using Basic Auth
-    // Can use /v1/autentica (simple) or /v1/autentica/cartaopostagem (with cartao)
-    const authString = btoa(`${usuario}:${senha}`);
-    
-    // Step 1: Authenticate - use simple auth first, then use token for cartao postagem
-    // The API requires Basic Auth with CNPJ/CPF as user and password
-    console.log('[Correios] Authenticating user:', usuario);
-    
-    // First, try simple authentication to get base token
-    const authHeaders: Record<string, string> = {
-      'Authorization': `Basic ${authString}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    };
-    
-    // For cartao postagem endpoint, the body should include the card number
-    let authUrl: string;
-    let authBody: string | undefined;
-    
-    if (cartaoPostagem) {
-      // Use cartao postagem endpoint with the card number in body
-      authUrl = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
-      authBody = JSON.stringify({ numero: cartaoPostagem });
-      console.log('[Correios] Auth with cartaoPostagem:', cartaoPostagem);
+    if (authMode === 'token') {
+      // Token mode - use static token from CWS portal
+      token = provider.credentials.token as string;
+      
+      if (!token) {
+        console.log('[Correios] Token mode selected but no token provided');
+        return [];
+      }
+      
+      console.log('[Correios] Using static token from CWS (auth_mode: token)');
     } else {
-      // Simple auth endpoint (no body needed)
-      authUrl = 'https://api.correios.com.br/token/v1/autentica';
-      console.log('[Correios] Auth with simple endpoint (no cartao)');
-    }
-    
-    console.log('[Correios] Auth URL:', authUrl, 'Body:', authBody || 'none');
-    
-    // Make auth request
-    let authResponse = await fetch(authUrl, {
-      method: 'POST',
-      headers: authHeaders,
-      body: authBody,
-    });
+      // OAuth mode - authenticate with usuario/senha
+      const usuario = provider.credentials.usuario as string;
+      const senha = provider.credentials.senha as string;
+      const cartaoPostagem = provider.credentials.cartao_postagem as string;
 
-    // If cartaopostagem auth fails, try simple auth as fallback
-    if (!authResponse.ok && cartaoPostagem) {
-      console.log('[Correios] Cartao postagem auth failed, trying simple auth...');
-      authResponse = await fetch('https://api.correios.com.br/token/v1/autentica', {
+      if (!usuario || !senha) {
+        console.log('[Correios] OAuth mode but missing credentials - usuario:', !!usuario, 'senha:', !!senha);
+        return [];
+      }
+
+      console.log('[Correios] Authenticating via OAuth2 - user:', usuario);
+      
+      const authString = btoa(`${usuario}:${senha}`);
+      const authHeaders: Record<string, string> = {
+        'Authorization': `Basic ${authString}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      };
+      
+      let authUrl: string;
+      let authBody: string | undefined;
+      
+      if (cartaoPostagem) {
+        authUrl = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
+        authBody = JSON.stringify({ numero: cartaoPostagem });
+        console.log('[Correios] Auth with cartaoPostagem:', cartaoPostagem);
+      } else {
+        authUrl = 'https://api.correios.com.br/token/v1/autentica';
+        console.log('[Correios] Auth with simple endpoint (no cartao)');
+      }
+      
+      console.log('[Correios] Auth URL:', authUrl);
+      
+      let authResponse = await fetch(authUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Basic ${authString}`,
-          'Accept': 'application/json',
-        },
+        headers: authHeaders,
+        body: authBody,
       });
+
+      // Fallback to simple auth if cartao postagem fails
+      if (!authResponse.ok && cartaoPostagem) {
+        console.log('[Correios] Cartao postagem auth failed, trying simple auth...');
+        authResponse = await fetch('https://api.correios.com.br/token/v1/autentica', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authString}`,
+            'Accept': 'application/json',
+          },
+        });
+      }
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text();
+        console.error('[Correios] OAuth auth failed:', authResponse.status, errorText);
+        return [];
+      }
+
+      const authData = await authResponse.json();
+      token = authData.token;
+
+      if (!token) {
+        console.error('[Correios] No token in auth response:', JSON.stringify(authData));
+        return [];
+      }
+
+      console.log('[Correios] OAuth successful, token expires:', authData.expiraEm);
     }
+    
+    console.log('[Correios] Token obtained, proceeding with price quote');
 
-    if (!authResponse.ok) {
-      const errorText = await authResponse.text();
-      console.error('[Correios] Auth failed:', authResponse.status, errorText);
-      return [];
-    }
-
-    const authData = await authResponse.json();
-    const token = authData.token;
-
-    if (!token) {
-      console.error('[Correios] No token in auth response:', JSON.stringify(authData));
-      return [];
-    }
-
-    console.log('[Correios] Auth successful, token received, expira em:', authData.expiraEm);
+    // Get optional contract info from credentials
+    const contrato = provider.credentials.contrato as string;
+    const dr = provider.credentials.dr as string;
 
     // Step 2: Get prices using POST /v1/nacional (batch) or GET /v1/nacional/{coProduto}
     // Using POST for batch request of multiple services at once
