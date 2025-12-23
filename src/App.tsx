@@ -40,6 +40,7 @@ import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import HealthMonitor from "@/pages/HealthMonitor";
+import Shipments from "@/pages/Shipments";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
@@ -178,6 +179,7 @@ const App = () => {
                   <Route path="/executions" element={<Executions />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/orders/:id" element={<OrderDetail />} />
+                  <Route path="/shipments" element={<Shipments />} />
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/categories" element={<Categories />} />

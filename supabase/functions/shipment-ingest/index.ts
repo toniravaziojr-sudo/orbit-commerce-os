@@ -55,26 +55,59 @@ function inferCarrierFromTrackingCode(trackingCode: string): string {
   return 'unknown';
 }
 
-// Normalizar nome do carrier
-function normalizeCarrier(carrier: string, trackingCode: string): { carrier: string; inferred: boolean } {
+// Validar se carrier informado conflita com padrão do tracking_code
+// Retorna: carrier normalizado, se foi inferido, e se houve conflito
+function validateAndNormalizeCarrier(
+  carrier: string | null | undefined, 
+  trackingCode: string
+): { carrier: string; inferred: boolean; conflict: boolean; originalCarrier?: string } {
+  const inferredCarrier = inferCarrierFromTrackingCode(trackingCode);
+  
+  // Caso 1: carrier não informado - usar inferido
   if (!carrier) {
-    const inferred = inferCarrierFromTrackingCode(trackingCode);
-    return { carrier: inferred, inferred: inferred !== 'unknown' };
+    return { 
+      carrier: inferredCarrier !== 'unknown' ? inferredCarrier : 'unknown', 
+      inferred: inferredCarrier !== 'unknown',
+      conflict: false
+    };
   }
   
+  // Normalizar o carrier informado
   const normalized = carrier.toLowerCase().trim();
+  let normalizedCarrier = 'unknown';
   
   if (normalized.includes('correios') || normalized.includes('correio')) {
-    return { carrier: 'correios', inferred: false };
-  }
-  if (normalized.includes('loggi')) {
-    return { carrier: 'loggi', inferred: false };
-  }
-  if (normalized.includes('frenet')) {
-    return { carrier: 'frenet', inferred: false };
+    normalizedCarrier = 'correios';
+  } else if (normalized.includes('loggi')) {
+    normalizedCarrier = 'loggi';
+  } else if (normalized.includes('frenet')) {
+    normalizedCarrier = 'frenet';
+  } else {
+    normalizedCarrier = normalized || 'unknown';
   }
   
-  return { carrier: normalized || 'unknown', inferred: false };
+  // Caso 2: carrier informado e inferência disponível - verificar conflito
+  if (inferredCarrier !== 'unknown' && normalizedCarrier !== 'unknown' && normalizedCarrier !== inferredCarrier) {
+    // MODO SAFE: quando há conflito, usar 'unknown' e deixar polling inferir
+    console.warn(
+      `[shipment-ingest] CARRIER CONFLICT: informed='${carrier}' (normalized: ${normalizedCarrier}), ` +
+      `but tracking_code '${trackingCode.slice(-4)}...' suggests '${inferredCarrier}'. ` +
+      `Applying SAFE mode: setting carrier='unknown' to let tracking-poll infer correctly.`
+    );
+    return { 
+      carrier: 'unknown', 
+      inferred: false, 
+      conflict: true,
+      originalCarrier: carrier
+    };
+  }
+  
+  // Caso 3: sem conflito - usar carrier informado normalizado
+  return { 
+    carrier: normalizedCarrier, 
+    inferred: false, 
+    conflict: false 
+  };
 }
 
 Deno.serve(async (req) => {
@@ -145,10 +178,25 @@ Deno.serve(async (req) => {
     const resolvedOrderId = order.id;
     const deliveryStatus = normalizeStatus(status || 'label_created');
     
-    // Normalizar carrier (com inferência por tracking_code se necessário)
-    const { carrier: normalizedCarrier, inferred: carrierInferred } = normalizeCarrier(carrier, tracking_code);
+    // Validar e normalizar carrier (com detecção de conflito)
+    const { 
+      carrier: normalizedCarrier, 
+      inferred: carrierInferred, 
+      conflict: carrierConflict,
+      originalCarrier 
+    } = validateAndNormalizeCarrier(carrier, tracking_code);
 
-    console.log(`[shipment-ingest] Processing shipment for order ${order.order_number}, tracking: ${tracking_code}, carrier: ${normalizedCarrier}${carrierInferred ? ' (inferred)' : ''}`);
+    // Mascarar tracking_code no log para segurança
+    const maskedTracking = tracking_code.length > 4 
+      ? `...${tracking_code.slice(-4)}` 
+      : tracking_code;
+
+    console.log(
+      `[shipment-ingest] Processing shipment for order ${order.order_number}, ` +
+      `tracking: ${maskedTracking}, carrier: ${normalizedCarrier}` +
+      `${carrierInferred ? ' (inferred)' : ''}` +
+      `${carrierConflict ? ` (CONFLICT: original was '${originalCarrier}')` : ''}`
+    );
 
     // Verificar se já existe remessa com mesmo order_id + tracking_code (idempotência)
     const { data: existingShipment } = await supabase
@@ -170,7 +218,12 @@ Deno.serve(async (req) => {
             delivery_status: deliveryStatus,
             last_status_at: new Date().toISOString(),
             carrier: normalizedCarrier,
-            metadata: { ...metadata, carrier_inferred: carrierInferred },
+            metadata: { 
+              ...metadata, 
+              carrier_inferred: carrierInferred,
+              carrier_conflict: carrierConflict,
+              original_carrier: carrierConflict ? originalCarrier : undefined,
+            },
             ...(deliveryStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
           })
           .eq('id', existingShipment.id);
@@ -199,7 +252,12 @@ Deno.serve(async (req) => {
           last_status_at: new Date().toISOString(),
           source,
           source_id,
-          metadata: { ...metadata, carrier_inferred: carrierInferred },
+          metadata: { 
+            ...metadata, 
+            carrier_inferred: carrierInferred,
+            carrier_conflict: carrierConflict,
+            original_carrier: carrierConflict ? originalCarrier : undefined,
+          },
           ...(deliveryStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
         })
         .select('id')

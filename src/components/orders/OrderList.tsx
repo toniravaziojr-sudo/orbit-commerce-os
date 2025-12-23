@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { 
   Package, 
   MoreHorizontal, 
@@ -8,7 +7,12 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  RotateCcw
+  RotateCcw,
+  MapPin,
+  AlertTriangle,
+  Tag,
+  PackageCheck,
+  PackageX,
 } from 'lucide-react';
 import {
   Table,
@@ -30,9 +34,15 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { Order, OrderStatus } from '@/hooks/useOrders';
+import type { Order, OrderStatus, ShippingStatus } from '@/hooks/useOrders';
 
 interface OrderListProps {
   orders: Order[];
@@ -61,6 +71,24 @@ const paymentStatusConfig: Record<string, { label: string; variant: 'default' | 
   refunded: { label: 'Reembolsado', variant: 'destructive' },
   cancelled: { label: 'Cancelado', variant: 'destructive' },
 };
+
+const shippingStatusConfig: Record<ShippingStatus | 'unknown', { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Truck }> = {
+  pending: { label: 'Sem rastreio', variant: 'outline', icon: Package },
+  processing: { label: 'Etiqueta gerada', variant: 'secondary', icon: Tag },
+  shipped: { label: 'Postado', variant: 'default', icon: Truck },
+  in_transit: { label: 'Em trânsito', variant: 'default', icon: Truck },
+  out_for_delivery: { label: 'Saiu p/ entrega', variant: 'default', icon: MapPin },
+  delivered: { label: 'Entregue', variant: 'default', icon: PackageCheck },
+  returned: { label: 'Devolvido', variant: 'destructive', icon: RotateCcw },
+  failed: { label: 'Falha', variant: 'destructive', icon: AlertTriangle },
+  unknown: { label: 'Sem rastreio', variant: 'outline', icon: PackageX },
+};
+
+function maskTrackingCode(code: string | null): string {
+  if (!code) return '—';
+  if (code.length <= 4) return code;
+  return `...${code.slice(-4)}`;
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -113,60 +141,83 @@ export function OrderList({
   }
 
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Pedido</TableHead>
-            <TableHead>Cliente</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Pagamento</TableHead>
-            <TableHead className="text-right">Total</TableHead>
-            <TableHead>Data</TableHead>
-            <TableHead className="w-12"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {orders.map((order) => {
-            const statusConfig = orderStatusConfig[order.status];
-            const paymentConfig = paymentStatusConfig[order.payment_status];
-            const StatusIcon = statusConfig.icon;
+    <TooltipProvider>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Pedido</TableHead>
+              <TableHead>Cliente</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Envio</TableHead>
+              <TableHead>Pagamento</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead>Data</TableHead>
+              <TableHead className="w-12"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {orders.map((order) => {
+              const statusConfig = orderStatusConfig[order.status];
+              const paymentConfig = paymentStatusConfig[order.payment_status];
+              const StatusIcon = statusConfig.icon;
+              
+              // Shipping status with fallback
+              const shippingStatus = order.shipping_status || 'unknown';
+              const shippingConfig = shippingStatusConfig[shippingStatus] || shippingStatusConfig['unknown'];
+              const ShippingIcon = shippingConfig.icon;
 
-            return (
-              <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
-                <TableCell onClick={() => onView(order)}>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
-                      <Package className="h-5 w-5 text-primary" />
+              return (
+                <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableCell onClick={() => onView(order)}>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
+                        <Package className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{order.order_number}</p>
+                      </div>
                     </div>
+                  </TableCell>
+                  <TableCell>
                     <div>
-                      <p className="font-medium">{order.order_number}</p>
+                      <p className="font-medium">{order.customer_name}</p>
+                      <p className="text-sm text-muted-foreground">{order.customer_email}</p>
                     </div>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{order.customer_name}</p>
-                    <p className="text-sm text-muted-foreground">{order.customer_email}</p>
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={statusConfig.variant} className="gap-1">
-                    <StatusIcon className="h-3 w-3" />
-                    {statusConfig.label}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={paymentConfig.variant}>
-                    {paymentConfig.label}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(order.total)}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-sm">
-                  {formatDate(order.created_at)}
-                </TableCell>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={statusConfig.variant} className="gap-1">
+                      <StatusIcon className="h-3 w-3" />
+                      {statusConfig.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant={shippingConfig.variant} className="gap-1 cursor-help">
+                          <ShippingIcon className="h-3 w-3" />
+                          {shippingConfig.label}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        <div className="space-y-1">
+                          <p><strong>Transportadora:</strong> {order.shipping_carrier || 'Não informada'}</p>
+                          <p><strong>Rastreio:</strong> {maskTrackingCode(order.tracking_code)}</p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={paymentConfig.variant}>
+                      {paymentConfig.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(order.total)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm">
+                    {formatDate(order.created_at)}
+                  </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -202,9 +253,10 @@ export function OrderList({
                 </TableCell>
               </TableRow>
             );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </TooltipProvider>
   );
 }

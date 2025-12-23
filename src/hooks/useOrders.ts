@@ -151,6 +151,7 @@ export function useOrders(options?: {
   search?: string; 
   status?: string;
   paymentStatus?: string;
+  shippingStatus?: string;
 }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
@@ -159,9 +160,10 @@ export function useOrders(options?: {
   const search = options?.search ?? '';
   const status = options?.status ?? 'all';
   const paymentStatus = options?.paymentStatus ?? 'all';
+  const shippingStatus = options?.shippingStatus ?? 'all';
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus],
+    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus],
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
@@ -179,6 +181,9 @@ export function useOrders(options?: {
       }
       if (paymentStatus && paymentStatus !== 'all') {
         query = query.eq('payment_status', paymentStatus as PaymentStatus);
+      }
+      if (shippingStatus && shippingStatus !== 'all') {
+        query = query.eq('shipping_status', shippingStatus as ShippingStatus);
       }
 
       // Apply pagination
