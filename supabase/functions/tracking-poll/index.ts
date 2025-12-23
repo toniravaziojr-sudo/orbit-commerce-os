@@ -180,6 +180,7 @@ async function fetchCorreiosEvents(
         headers: {
           'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
+          'Accept-Language': 'pt-BR',
         },
       }
     );
