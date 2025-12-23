@@ -211,11 +211,12 @@ async function fetchCorreiosEvents(
     const events: TrackingEvent[] = eventos.map((e: Record<string, unknown>, idx: number) => {
       const dtHrCriado = e.dtHrCriado as string;
       const unidade = e.unidade as Record<string, unknown>;
+      const descricao = e.descricao as string;
       
       return {
         provider_event_id: `correios_${trackingCode}_${dtHrCriado || idx}`,
-        status: mapCorreiosStatus(e.codigo as string, e.tipo as string),
-        description: (e.descricao as string) || 'Evento',
+        status: mapCorreiosStatus(e.codigo as string, e.tipo as string, descricao),
+        description: descricao || 'Evento',
         location: formatCorreiosLocation(unidade),
         occurred_at: dtHrCriado || new Date().toISOString(),
       };
@@ -229,9 +230,22 @@ async function fetchCorreiosEvents(
   }
 }
 
-function mapCorreiosStatus(codigo: string, tipo: string): DeliveryStatus {
+function mapCorreiosStatus(codigo: string, tipo: string, descricao?: string): DeliveryStatus {
   // Correios status codes mapping
   // BDE = Entregue, OEC = Saiu para entrega, etc.
+  
+  // First check description for better mapping (sometimes codigo is empty or generic)
+  if (descricao) {
+    const desc = descricao.toLowerCase();
+    if (desc.includes('entregue')) return 'delivered';
+    if (desc.includes('saiu para entrega') || desc.includes('out for delivery')) return 'out_for_delivery';
+    if (desc.includes('objeto postado') || desc.includes('postado')) return 'posted';
+    if (desc.includes('etiqueta') || desc.includes('aguardando postagem')) return 'label_created';
+    if (desc.includes('devolvido') || desc.includes('devolução')) return 'returned';
+    if (desc.includes('não entregue') || desc.includes('falha')) return 'failed';
+    if (desc.includes('em trânsito') || desc.includes('encaminhado') || desc.includes('objeto em transferência')) return 'in_transit';
+  }
+  
   if (!codigo) return 'unknown';
   
   const code = codigo.toUpperCase();
@@ -250,15 +264,14 @@ function mapCorreiosStatus(codigo: string, tipo: string): DeliveryStatus {
   
   // Failed delivery attempt
   if (['BDR', 'BDI', 'LDE'].includes(code)) {
-    if (tipo === '01') return 'failed';
     return 'failed';
   }
   
   // Returned
   if (code === 'BLQ' && tipo === '70') return 'returned';
   
-  // Default to in_transit for other codes
-  return 'in_transit';
+  // Default to unknown for codes we don't recognize
+  return 'unknown';
 }
 
 function formatCorreiosLocation(unidade: Record<string, unknown> | undefined): string {
@@ -526,8 +539,17 @@ async function processShipment(
   }
 
   // Insert new events (idempotent via unique constraint on shipment_id + provider_event_id)
-  let lastEventStatus = delivery_status;
-  let lastEventAt = shipment.last_status_at;
+  // Sort events by occurred_at descending to find the most recent
+  const sortedEvents = [...result.events].sort((a, b) => 
+    new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+  );
+  
+  // The most recent event determines the current status
+  const mostRecentEvent = sortedEvents[0];
+  let lastEventStatus = mostRecentEvent?.status || delivery_status;
+  let lastEventAt = mostRecentEvent?.occurred_at || shipment.last_status_at;
+  
+  console.log(`[ProcessShipment] Most recent event: status=${lastEventStatus}, occurred_at=${lastEventAt}, events_count=${result.events.length}`);
 
   for (const event of result.events) {
     // Skip events without provider_event_id (can't dedupe them properly)
@@ -566,12 +588,6 @@ async function processShipment(
       } else {
         console.log(`[ProcessShipment] Inserted event: ${event.status} for shipment ${id}`);
       }
-    }
-
-    // Track the most recent event
-    if (new Date(event.occurred_at) >= new Date(lastEventAt)) {
-      lastEventStatus = event.status;
-      lastEventAt = event.occurred_at;
     }
   }
 
