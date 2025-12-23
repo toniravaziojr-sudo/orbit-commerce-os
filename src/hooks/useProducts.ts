@@ -332,3 +332,54 @@ export function useCategories() {
     reorderCategories,
   };
 }
+
+// Hook to get products with their primary image
+export interface ProductWithImage extends Product {
+  primary_image_url: string | null;
+}
+
+export function useProductsWithImages() {
+  const { currentTenant } = useAuth();
+
+  const productsQuery = useQuery({
+    queryKey: ['products-with-images', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      
+      // Get products
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('*')
+        .eq('tenant_id', currentTenant.id)
+        .eq('status', 'active')
+        .order('name', { ascending: true });
+
+      if (productsError) throw productsError;
+
+      // Get primary images for all products
+      const productIds = products.map(p => p.id);
+      const { data: images, error: imagesError } = await supabase
+        .from('product_images')
+        .select('product_id, url')
+        .in('product_id', productIds)
+        .eq('is_primary', true);
+
+      if (imagesError) throw imagesError;
+
+      // Map images to products
+      const imageMap = new Map(images?.map(img => [img.product_id, img.url]) ?? []);
+      
+      return products.map(product => ({
+        ...product,
+        primary_image_url: imageMap.get(product.id) || null,
+      })) as ProductWithImage[];
+    },
+    enabled: !!currentTenant?.id,
+  });
+
+  return {
+    products: productsQuery.data ?? [],
+    isLoading: productsQuery.isLoading,
+    error: productsQuery.error,
+  };
+}
