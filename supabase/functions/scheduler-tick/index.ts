@@ -28,10 +28,18 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
   
   const token = authHeader.replace('Bearer ', '');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
   
-  // Allow service role key (for internal system calls)
+  // Allow service role key (for internal system calls / pg_cron)
   if (token === supabaseServiceKey) {
     console.log('[scheduler-tick] Authorized: Service role key');
+    return true;
+  }
+  
+  // Allow anon key when called from pg_cron/pg_net (scheduled cron job)
+  // pg_cron typically sends the anon key in Authorization header
+  if (token === supabaseAnonKey) {
+    console.log('[scheduler-tick] Authorized: Anon key (pg_cron scheduled call)');
     return true;
   }
   
