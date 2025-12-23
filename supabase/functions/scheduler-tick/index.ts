@@ -28,7 +28,11 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
   
   const token = authHeader.replace('Bearer ', '');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
+  
+  // Try multiple possible env var names for anon key
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') 
+    || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') 
+    || '';
   
   // Allow service role key (for internal system calls / pg_cron)
   if (token === supabaseServiceKey) {
@@ -38,8 +42,16 @@ async function isAuthorizedRequest(req: Request): Promise<boolean> {
   
   // Allow anon key when called from pg_cron/pg_net (scheduled cron job)
   // pg_cron typically sends the anon key in Authorization header
-  if (token === supabaseAnonKey) {
+  if (supabaseAnonKey && token === supabaseAnonKey) {
     console.log('[scheduler-tick] Authorized: Anon key (pg_cron scheduled call)');
+    return true;
+  }
+  
+  // Also check if the token is the hardcoded anon key from pg_cron job
+  // This is a fallback for cases where env vars aren't matching
+  const expectedAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qc3NlemZqaGR2dm5jc3F5aHlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU1ODcyMDksImV4cCI6MjA4MTE2MzIwOX0.xijqzFrwy221qrnnwU2PAH7Kk6Qm2AlfXhbk6uEVAVg';
+  if (token === expectedAnonKey) {
+    console.log('[scheduler-tick] Authorized: Matched known anon key from pg_cron');
     return true;
   }
   
@@ -245,6 +257,12 @@ interface ReconcilePaymentsStats {
   errors: number;
 }
 
+interface TrackingPollStats {
+  polled: number;
+  updated: number;
+  errors_count: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -263,6 +281,7 @@ interface TickStats {
   };
   abandon_sweep: AbandonSweepStats;
   reconcile_payments: ReconcilePaymentsStats;
+  tracking_poll: TrackingPollStats;
 }
 
 interface AggregatedStats {
@@ -278,6 +297,8 @@ interface AggregatedStats {
     notifications_failed: number;
     sessions_abandoned: number;
     payments_reconciled: number;
+    shipments_polled: number;
+    shipments_updated: number;
   };
   passes: TickStats[];
 }
@@ -328,6 +349,8 @@ serve(async (req) => {
       notifications_failed: 0,
       sessions_abandoned: 0,
       payments_reconciled: 0,
+      shipments_polled: 0,
+      shipments_updated: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -359,6 +382,11 @@ serve(async (req) => {
           updated: 0,
           unchanged: 0,
           errors: 0,
+        },
+        tracking_poll: {
+          polled: 0,
+          updated: 0,
+          errors_count: 0,
         },
       };
 
@@ -470,6 +498,40 @@ serve(async (req) => {
         } catch (error) {
           console.error(`[scheduler-tick] reconcile-payments exception:`, error);
           passStats.reconcile_payments.errors = 1;
+        }
+      }
+
+      // --- Step 5: Call tracking-poll (only on first pass to avoid duplicate polling) ---
+      if (pass === 1) {
+        try {
+          console.log(`[scheduler-tick] Calling tracking-poll...`);
+          const trackingResponse = await fetch(`${supabaseUrl}/functions/v1/tracking-poll`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({}),
+          });
+
+          if (trackingResponse.ok) {
+            const trackingResult = await trackingResponse.json();
+            console.log(`[scheduler-tick] tracking-poll result:`, trackingResult);
+            
+            passStats.tracking_poll.polled = trackingResult.shipments_checked ?? 0;
+            passStats.tracking_poll.updated = trackingResult.shipments_updated ?? 0;
+            passStats.tracking_poll.errors_count = trackingResult.errors ?? 0;
+            
+            aggregatedTotals.shipments_polled += passStats.tracking_poll.polled;
+            aggregatedTotals.shipments_updated += passStats.tracking_poll.updated;
+          } else {
+            const errorText = await trackingResponse.text();
+            console.error(`[scheduler-tick] tracking-poll error: ${trackingResponse.status} - ${errorText}`);
+            passStats.tracking_poll.errors_count = 1;
+          }
+        } catch (error) {
+          console.error(`[scheduler-tick] tracking-poll exception:`, error);
+          passStats.tracking_poll.errors_count = 1;
         }
       }
 
