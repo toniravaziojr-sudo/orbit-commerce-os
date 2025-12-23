@@ -359,48 +359,104 @@ function formatCorreiosLocation(unidade: Record<string, unknown> | undefined): s
   return nome;
 }
 
-// Loggi Adapter (placeholder - requires API setup)
+// Loggi Adapter - OAuth2 authentication
+// Docs: https://docs.api.loggi.com/reference/trackpackagetrackingcode
 async function fetchLoggiEvents(
   trackingCode: string,
-  credentials: Record<string, unknown>
+  credentials: Record<string, unknown>,
+  tenantId: string
 ): Promise<AdapterResult> {
   try {
-    const companyId = credentials.company_id as string;
-    const apiKey = credentials.api_key as string;
+    const clientId = credentials.client_id as string;
+    const clientSecret = credentials.client_secret as string;
+    const shipperId = credentials.shipper_id as string;
+    let companyId = credentials.company_id as string;
 
-    if (!companyId || !apiKey) {
+    if (!clientId || !clientSecret) {
+      console.error('[Loggi] Missing OAuth2 credentials (client_id, client_secret)');
       return { success: false, events: [], error: 'missing_credentials' };
     }
 
-    // Loggi API (placeholder - needs real implementation)
-    const response = await fetch(
+    // Step 1: Authenticate with OAuth2
+    console.log('[Loggi] Authenticating with OAuth2...');
+    const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!authResponse.ok) {
+      const errorText = await authResponse.text();
+      console.error('[Loggi] OAuth2 auth error:', authResponse.status, errorText);
+      return { success: false, events: [], error: 'auth_failed' };
+    }
+
+    const authData = await authResponse.json();
+    const token = authData.idToken;
+
+    if (!token) {
+      console.error('[Loggi] No token in auth response');
+      return { success: false, events: [], error: 'auth_failed' };
+    }
+
+    // Use shipper_id as fallback for company_id
+    if (!companyId && shipperId) {
+      companyId = shipperId;
+    }
+
+    if (!companyId) {
+      console.error('[Loggi] No company_id or shipper_id available');
+      return { success: false, events: [], error: 'missing_company_id' };
+    }
+
+    // Step 2: Fetch tracking events
+    console.log(`[Loggi] Fetching tracking for ${trackingCode}...`);
+    const trackingResponse = await fetch(
       `https://api.loggi.com/v1/companies/${companyId}/packages/${trackingCode}/tracking`,
       {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'Authorization': `Bearer ${token}`,
           'Accept': 'application/json',
         },
       }
     );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[Loggi] API error:', response.status, errorText);
-      return { success: false, events: [], error: `api_error_${response.status}` };
+    if (!trackingResponse.ok) {
+      const errorText = await trackingResponse.text();
+      console.error('[Loggi] Tracking API error:', trackingResponse.status, errorText);
+      return { success: false, events: [], error: `api_error_${trackingResponse.status}` };
     }
 
-    const data = await response.json();
-    const trackingList = data.tracking || [];
-    
-    const events: TrackingEvent[] = trackingList.map((e: Record<string, unknown>, idx: number) => ({
-      provider_event_id: `loggi_${trackingCode}_${idx}`,
-      status: mapLoggiStatus(e.status as string),
-      description: (e.description as string) || 'Evento',
-      location: (e.location as string) || '',
-      occurred_at: (e.timestamp as string) || new Date().toISOString(),
-    }));
+    const data = await trackingResponse.json();
+    console.log('[Loggi] Tracking response:', JSON.stringify(data).substring(0, 500));
 
+    // Parse tracking events
+    const trackingList = data.tracking || data.events || data.history || [];
+    
+    const events: TrackingEvent[] = trackingList.map((e: Record<string, unknown>, idx: number) => {
+      const eventId = e.id || e.event_id || `${idx}`;
+      const timestamp = e.timestamp || e.created_at || e.occurred_at || new Date().toISOString();
+      const status = e.status || e.event_type || '';
+      const description = e.description || e.message || e.event_description || '';
+      const location = e.location || e.address || '';
+
+      return {
+        provider_event_id: `loggi_${trackingCode}_${eventId}`,
+        status: mapLoggiStatus(String(status), String(description)),
+        description: String(description) || 'Evento Loggi',
+        location: typeof location === 'string' ? location : '',
+        occurred_at: String(timestamp),
+      };
+    });
+
+    console.log(`[Loggi] Found ${events.length} events for ${trackingCode}`);
     return { success: true, events };
   } catch (error) {
     console.error('[Loggi] Fetch error:', error);
@@ -408,18 +464,69 @@ async function fetchLoggiEvents(
   }
 }
 
-function mapLoggiStatus(status: string): DeliveryStatus {
+function mapLoggiStatus(status: string, description?: string): DeliveryStatus {
+  const statusLower = status?.toLowerCase() || '';
+  const descLower = (description || '').toLowerCase();
+  
+  // Check by status code first
   const statusMap: Record<string, DeliveryStatus> = {
     'created': 'label_created',
+    'label_created': 'label_created',
+    'awaiting_pickup': 'label_created',
     'picked_up': 'posted',
+    'collected': 'posted',
     'in_transit': 'in_transit',
+    'hub_transfer': 'in_transit',
+    'at_hub': 'in_transit',
     'out_for_delivery': 'out_for_delivery',
+    'last_mile': 'out_for_delivery',
     'delivered': 'delivered',
+    'completed': 'delivered',
     'failed': 'failed',
+    'failed_delivery': 'failed',
+    'not_delivered': 'failed',
     'returned': 'returned',
+    'returning': 'returned',
     'cancelled': 'canceled',
+    'canceled': 'canceled',
   };
-  return statusMap[status?.toLowerCase()] || 'unknown';
+  
+  if (statusMap[statusLower]) {
+    return statusMap[statusLower];
+  }
+  
+  // Fallback: check description
+  if (descLower.includes('entregue') || descLower.includes('delivered')) {
+    return 'delivered';
+  }
+  if (descLower.includes('saiu para entrega') || descLower.includes('out for delivery')) {
+    return 'out_for_delivery';
+  }
+  if (descLower.includes('trânsito') || descLower.includes('transit') || descLower.includes('encaminhado')) {
+    return 'in_transit';
+  }
+  if (descLower.includes('coletado') || descLower.includes('postado') || descLower.includes('picked')) {
+    return 'posted';
+  }
+  if (descLower.includes('etiqueta') || descLower.includes('aguardando coleta')) {
+    return 'label_created';
+  }
+  if (descLower.includes('não entregue') || descLower.includes('falha')) {
+    return 'failed';
+  }
+  if (descLower.includes('devolvido') || descLower.includes('return')) {
+    return 'returned';
+  }
+  if (descLower.includes('cancelado') || descLower.includes('cancel')) {
+    return 'canceled';
+  }
+  
+  // Log unknown for debugging
+  if (status || description) {
+    console.warn(`[Loggi] Unmapped status - status: ${status}, description: ${description?.substring(0, 50)}`);
+  }
+  
+  return 'unknown';
 }
 
 // Fallback adapter (no provider available)
@@ -557,7 +664,7 @@ async function fetchTrackingEvents(
     if (!credentials || !credentials.is_enabled) {
       return noProviderAdapter(carrier);
     }
-    return fetchLoggiEvents(trackingCode, credentials.credentials);
+    return fetchLoggiEvents(trackingCode, credentials.credentials, tenantId);
   }
 
   // Other carriers - no adapter yet

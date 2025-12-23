@@ -42,14 +42,24 @@ function inferCarrierFromTrackingCode(trackingCode: string): string {
   if (!trackingCode) return 'unknown';
   const code = trackingCode.toUpperCase().trim();
   
-  // Correios: termina com BR
-  if (code.endsWith('BR')) {
+  // Correios: termina com BR (padrão internacional) - ex: AB123456789BR
+  if (code.endsWith('BR') && /^[A-Z]{2}\d{9}BR$/i.test(code)) {
     return 'correios';
   }
   
-  // Loggi: começa com BLI
-  if (code.startsWith('BLI')) {
+  // Loggi: vários padrões conhecidos
+  // - Começa com BLI
+  // - Começa com LGG
+  // - Formato numérico longo da Loggi (12+ dígitos)
+  if (code.startsWith('BLI') || code.startsWith('LGG') || code.startsWith('LOGGI')) {
     return 'loggi';
+  }
+  
+  // Loggi: padrão numérico puro (alguns trackings são apenas números)
+  if (/^\d{12,}$/.test(code)) {
+    // Números puros com 12+ dígitos - podem ser Loggi
+    // Não assumir, deixar como unknown para validação manual
+    return 'unknown';
   }
   
   return 'unknown';

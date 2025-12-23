@@ -428,62 +428,147 @@ async function quoteCorreios(
 }
 
 // Loggi Quote Adapter
+// Auth: OAuth2 com client_id/client_secret para obter token
+// Docs: https://docs.api.loggi.com/reference/quotationapi
 async function quoteLoggi(
   provider: ProviderRecord,
   originCep: string,
   recipientCep: string,
   totals: { weight: number; height: number; width: number; length: number; value: number }
 ): Promise<ShippingOption[]> {
-  const apiKey = provider.credentials.api_key as string;
-  const companyId = provider.credentials.company_id as string;
+  const clientId = provider.credentials.client_id as string;
+  const clientSecret = provider.credentials.client_secret as string;
+  const shipperId = provider.credentials.shipper_id as string;
+  // company_id será obtido via handshake ou diretamente se já configurado
+  let companyId = provider.credentials.company_id as string;
 
-  if (!apiKey || !companyId) {
-    console.log('[Loggi] Missing credentials for quote');
+  if (!clientId || !clientSecret) {
+    console.log('[Loggi] Missing credentials for quote (client_id or client_secret)');
     return [];
   }
 
   try {
-    const response = await fetch(
-      `https://api.loggi.com/v1/companies/${companyId}/shipping/quote`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          origin: { cep: originCep.replace(/\D/g, '') },
-          destination: { cep: recipientCep.replace(/\D/g, '') },
-          packages: [{
-            weight: totals.weight,
-            height: totals.height,
-            width: totals.width,
-            length: totals.length,
-          }],
-          declared_value: totals.value,
-        }),
-      }
-    );
+    // Step 1: Obter token OAuth2
+    console.log('[Loggi] Authenticating with OAuth2...');
+    const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
 
-    if (!response.ok) {
-      console.error('[Loggi] API error:', response.status);
+    if (!authResponse.ok) {
+      const errorText = await authResponse.text();
+      console.error('[Loggi] OAuth2 auth error:', authResponse.status, errorText);
       return [];
     }
 
-    const data = await response.json();
-    const services = data.services || [];
+    const authData = await authResponse.json();
+    const token = authData.idToken;
 
-    return services.map((s: any) => ({
-      source_provider: 'loggi',
-      carrier: 'Loggi',
-      service_code: s.code || 'loggi_standard',
-      service_name: s.name || 'Loggi',
-      price: parseFloat(s.price) || 0,
-      estimated_days: parseInt(s.delivery_days, 10) || 0,
-      metadata: {
-        original_response: s,
+    if (!token) {
+      console.error('[Loggi] No token in auth response');
+      return [];
+    }
+
+    console.log('[Loggi] OAuth2 authentication successful');
+
+    // Se não tiver companyId, usar shipperId como fallback
+    if (!companyId && shipperId) {
+      companyId = shipperId;
+    }
+
+    if (!companyId) {
+      console.error('[Loggi] No company_id or shipper_id available');
+      return [];
+    }
+
+    // Step 2: Fazer cotação
+    const quotePayload = {
+      pickup: {
+        address: {
+          zip_code: originCep.replace(/\D/g, ''),
+        },
       },
-    }));
+      delivery: {
+        address: {
+          zip_code: recipientCep.replace(/\D/g, ''),
+        },
+      },
+      packages: [{
+        weight_g: Math.round(totals.weight * 1000), // Convert to grams
+        height_cm: Math.round(totals.height),
+        width_cm: Math.round(totals.width),
+        length_cm: Math.round(totals.length),
+      }],
+      declared_value: Math.round(totals.value * 100), // Convert to cents
+    };
+
+    console.log('[Loggi] Requesting quote with:', JSON.stringify(quotePayload));
+
+    const quoteResponse = await fetch(
+      `https://api.loggi.com/v1/companies/${companyId}/quotations`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(quotePayload),
+      }
+    );
+
+    if (!quoteResponse.ok) {
+      const errorText = await quoteResponse.text();
+      console.error('[Loggi] Quote API error:', quoteResponse.status, errorText);
+      return [];
+    }
+
+    const quoteData = await quoteResponse.json();
+    console.log('[Loggi] Quote response:', JSON.stringify(quoteData));
+
+    // Parse response - estrutura pode variar
+    const options: ShippingOption[] = [];
+    
+    // Loggi retorna opções de entrega com preço e prazo
+    if (quoteData.quotations && Array.isArray(quoteData.quotations)) {
+      for (const q of quoteData.quotations) {
+        options.push({
+          source_provider: 'loggi',
+          carrier: 'Loggi',
+          service_code: q.service_type || 'loggi_standard',
+          service_name: q.service_name || 'Loggi Express',
+          price: (q.price_cents || q.price || 0) / 100, // Convert from cents
+          estimated_days: q.estimated_delivery_days || q.delivery_days || 3,
+          metadata: {
+            quotation_id: q.id,
+            service_type: q.service_type,
+          },
+        });
+      }
+    } else if (quoteData.price !== undefined) {
+      // Resposta simples com um único preço
+      options.push({
+        source_provider: 'loggi',
+        carrier: 'Loggi',
+        service_code: 'loggi_standard',
+        service_name: 'Loggi Express',
+        price: (quoteData.price_cents || quoteData.price || 0) / 100,
+        estimated_days: quoteData.estimated_delivery_days || 3,
+        metadata: {
+          quotation_id: quoteData.id,
+        },
+      });
+    }
+
+    console.log(`[Loggi] Returning ${options.length} options`);
+    return options;
   } catch (error) {
     console.error('[Loggi] Quote error:', error);
     return [];
