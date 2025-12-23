@@ -258,7 +258,7 @@ export default function Shipments() {
                 disabled={isPolling}
               >
                 <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
-                {isPolling ? 'Executando...' : 'Executar tracking'}
+                {isPolling ? 'Atualizando...' : 'Atualizar rastreios'}
               </Button>
             )
           }
