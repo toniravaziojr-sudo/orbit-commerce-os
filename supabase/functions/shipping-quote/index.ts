@@ -187,7 +187,8 @@ async function quoteFrenet(
   }
 }
 
-// Correios Quote Adapter - OAuth2 API
+// Correios Quote Adapter - API REST v1
+// Docs: https://www.correios.com.br/atendimento/developers/manuais/manual-api-preco-1
 async function quoteCorreios(
   provider: ProviderRecord,
   originCep: string,
@@ -197,25 +198,49 @@ async function quoteCorreios(
   const usuario = provider.credentials.usuario as string;
   const senha = provider.credentials.senha as string;
   const cartaoPostagem = provider.credentials.cartao_postagem as string;
+  const contrato = provider.credentials.contrato as string;
+  const dr = provider.credentials.dr as string;
 
-  if (!usuario || !senha || !cartaoPostagem) {
-    console.log('[Correios] Missing credentials - usuario:', !!usuario, 'senha:', !!senha, 'cartao:', !!cartaoPostagem);
+  if (!usuario || !senha) {
+    console.log('[Correios] Missing credentials - usuario:', !!usuario, 'senha:', !!senha);
     return [];
   }
 
   try {
     // Step 1: Get OAuth2 token using Basic Auth
+    // Can use /v1/autentica (simple) or /v1/autentica/cartaopostagem (with cartao)
     const authString = btoa(`${usuario}:${senha}`);
-    console.log('[Correios] Authenticating with cartaoPostagem:', cartaoPostagem);
     
-    const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
+    let authUrl = 'https://api.correios.com.br/token/v1/autentica';
+    let authBody: string | undefined;
+    
+    if (cartaoPostagem) {
+      authUrl = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
+      authBody = JSON.stringify({ numero: cartaoPostagem });
+      console.log('[Correios] Authenticating with cartaoPostagem:', cartaoPostagem);
+    } else if (contrato) {
+      authUrl = 'https://api.correios.com.br/token/v1/autentica/contrato';
+      authBody = JSON.stringify({ numero: contrato, dr: parseInt(dr || '0', 10) });
+      console.log('[Correios] Authenticating with contrato:', contrato);
+    } else {
+      console.log('[Correios] Authenticating with simple auth (no cartao/contrato)');
+    }
+    
+    const authHeaders: Record<string, string> = {
+      'Authorization': `Basic ${authString}`,
+      'Accept': 'application/json',
+    };
+    
+    if (authBody) {
+      authHeaders['Content-Type'] = 'application/json';
+    }
+    
+    console.log('[Correios] Auth URL:', authUrl);
+    
+    const authResponse = await fetch(authUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Basic ${authString}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({ numero: cartaoPostagem }),
+      headers: authHeaders,
+      body: authBody,
     });
 
     if (!authResponse.ok) {
@@ -228,79 +253,119 @@ async function quoteCorreios(
     const token = authData.token;
 
     if (!token) {
-      console.error('[Correios] No token in auth response:', authData);
+      console.error('[Correios] No token in auth response:', JSON.stringify(authData));
       return [];
     }
 
-    console.log('[Correios] Auth successful, got token');
+    console.log('[Correios] Auth successful, token received');
 
-    // Step 2: Get price and deadline for each service
-    // Default services: SEDEX (04014) and PAC (04510)
-    const serviceCodes = (provider.settings?.service_codes as string[]) || ['04014', '04510'];
-    const options: ShippingOption[] = [];
-
-    // Clean CEPs
+    // Step 2: Get prices using POST /v1/nacional (batch) or GET /v1/nacional/{coProduto}
+    // Using POST for batch request of multiple services at once
+    // Default services: SEDEX (03220) and PAC (03298) - new codes for contract
+    // Or old codes: SEDEX (04014) and PAC (04510)
+    const serviceCodes = (provider.settings?.service_codes as string[]) || ['03220', '03298'];
+    
+    // Clean CEPs (numbers only)
     const cleanOrigin = originCep.replace(/\D/g, '');
     const cleanDestination = recipientCep.replace(/\D/g, '');
+    
+    // Weight in grams, minimum 300g
+    const weightGrams = String(Math.max(300, Math.round(totals.weight * 1000)));
+    
+    // Dimensions with minimum values
+    const comprimento = String(Math.max(16, Math.round(totals.length)));
+    const largura = String(Math.max(11, Math.round(totals.width)));
+    const altura = String(Math.max(2, Math.round(totals.height)));
 
-    for (const serviceCode of serviceCodes) {
-      try {
-        const params = new URLSearchParams({
-          cepOrigem: cleanOrigin,
-          cepDestino: cleanDestination,
-          psObjeto: String(Math.max(300, Math.round(totals.weight * 1000))), // weight in grams, min 300g
-          tpObjeto: '2', // 2 = package
-          comprimento: String(Math.max(16, Math.round(totals.length))),
-          largura: String(Math.max(11, Math.round(totals.width))),
-          altura: String(Math.max(2, Math.round(totals.height))),
-          vlDeclarado: String(Math.round(totals.value * 100) / 100),
-        });
+    // Build batch request
+    const parametrosProduto = serviceCodes.map((code, index) => ({
+      coProduto: code,
+      nuRequisicao: String(index + 1).padStart(4, '0'),
+      cepOrigem: cleanOrigin,
+      cepDestino: cleanDestination,
+      psObjeto: weightGrams,
+      tpObjeto: '2', // 2 = package
+      comprimento,
+      largura,
+      altura,
+      vlDeclarado: String(Math.round(totals.value * 100) / 100),
+      ...(contrato ? { nuContrato: contrato, nuDR: parseInt(dr || '0', 10) } : {}),
+    }));
 
-        const priceUrl = `https://api.correios.com.br/preco/v1/nacional/${serviceCode}?${params}`;
-        console.log('[Correios] Fetching price:', priceUrl);
+    const pricePayload = {
+      idLote: '001',
+      parametrosProduto,
+    };
 
-        const priceResponse = await fetch(priceUrl, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': 'application/json',
+    console.log('[Correios] Price request payload:', JSON.stringify(pricePayload));
+
+    const priceResponse = await fetch('https://api.correios.com.br/preco/v1/nacional', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(pricePayload),
+    });
+
+    if (!priceResponse.ok) {
+      const errorText = await priceResponse.text();
+      console.error('[Correios] Price API error:', priceResponse.status, errorText);
+      return [];
+    }
+
+    const priceResults = await priceResponse.json();
+    console.log('[Correios] Price response:', JSON.stringify(priceResults));
+
+    // Map service codes to readable names
+    const serviceNameMap: Record<string, string> = {
+      '03220': 'SEDEX',
+      '03298': 'PAC',
+      '04014': 'SEDEX',
+      '04510': 'PAC',
+      '04065': 'SEDEX 10',
+      '04707': 'PAC Mini',
+      '03158': 'SEDEX 10',
+      '03140': 'SEDEX 12',
+    };
+
+    // Parse response - it's an array of results
+    const results = Array.isArray(priceResults) ? priceResults : [priceResults];
+    const options: ShippingOption[] = [];
+
+    for (const result of results) {
+      const coProduto = result.coProduto;
+      
+      // Check for errors
+      if (result.txErro) {
+        console.log(`[Correios] Service ${coProduto} error: ${result.txErro}`);
+        continue;
+      }
+
+      // Parse price - can be string with comma as decimal separator
+      const priceStr = result.pcFinal || result.pcBase || '0';
+      const price = parseFloat(String(priceStr).replace(',', '.')) || 0;
+      
+      // Parse delivery time
+      const days = parseInt(result.prazoEntrega, 10) || 0;
+
+      if (price > 0) {
+        const serviceName = serviceNameMap[coProduto] || `Correios ${coProduto}`;
+        
+        options.push({
+          source_provider: 'correios',
+          carrier: 'Correios',
+          service_code: coProduto,
+          service_name: serviceName,
+          price,
+          estimated_days: days,
+          metadata: {
+            pc_base: result.pcBase,
+            pc_final: result.pcFinal,
+            prazo_entrega: result.prazoEntrega,
           },
         });
-
-        if (!priceResponse.ok) {
-          const errorText = await priceResponse.text();
-          console.error(`[Correios] Price API error for ${serviceCode}:`, priceResponse.status, errorText);
-          continue;
-        }
-
-        const priceData = await priceResponse.json();
-        console.log(`[Correios] Price response for ${serviceCode}:`, priceData);
-
-        // Map service codes to readable names
-        const serviceName = serviceCode === '04014' ? 'SEDEX' : 
-                           serviceCode === '04510' ? 'PAC' : 
-                           serviceCode === '04065' ? 'SEDEX 10' :
-                           serviceCode === '04707' ? 'PAC Mini' :
-                           `Correios ${serviceCode}`;
-
-        const price = parseFloat(priceData.pcFinal) || parseFloat(priceData.pcBase) || 0;
-        const days = parseInt(priceData.prazoEntrega, 10) || 0;
-
-        if (price > 0) {
-          options.push({
-            source_provider: 'correios',
-            carrier: 'Correios',
-            service_code: serviceCode,
-            service_name: serviceName,
-            price,
-            estimated_days: days,
-            metadata: {
-              pc_base: priceData.pcBase,
-              pc_final: priceData.pcFinal,
-            },
-          });
-        }
-      } catch (serviceError) {
-        console.error(`[Correios] Service ${serviceCode} error:`, serviceError);
       }
     }
 
