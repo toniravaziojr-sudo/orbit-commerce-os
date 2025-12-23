@@ -136,10 +136,10 @@ Deno.serve(async (req) => {
       metadata = {},
     } = body;
 
-    // Validação básica
-    if (!tracking_code || !carrier) {
+    // Validação básica - apenas tracking_code é obrigatório (carrier pode ser inferido)
+    if (!tracking_code) {
       return new Response(
-        JSON.stringify({ success: false, error: "tracking_code e carrier são obrigatórios" }),
+        JSON.stringify({ success: false, error: "tracking_code é obrigatório" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
