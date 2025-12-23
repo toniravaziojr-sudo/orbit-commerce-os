@@ -77,7 +77,7 @@ const deliveryToShippingStatus: Record<DeliveryStatus, string> = {
   'unknown': 'pending',
 };
 
-// ========== CORREIOS OAUTH2 =========
+// ========== CORREIOS AUTH (Token ou OAuth2) =========
 
 interface CorreiosToken {
   token: string;
@@ -91,12 +91,26 @@ async function getCorreiosToken(
   credentials: Record<string, unknown>,
   tenantId: string
 ): Promise<string | null> {
+  const authMode = credentials.auth_mode as string || 'oauth2';
+  
+  // Mode 1: Pre-generated token (CWS portal)
+  if (authMode === 'token' || authMode === 'token_cws') {
+    const preToken = credentials.token as string;
+    if (preToken && preToken.length > 50) {
+      console.log('[Correios] Using pre-generated token (CWS)');
+      return preToken;
+    }
+    console.error('[Correios] Token mode selected but no valid token found');
+    return null;
+  }
+  
+  // Mode 2: OAuth2 (usuario/senha + cartão postagem)
   const usuario = credentials.usuario as string;
   const senha = credentials.senha as string;
   const cartaoPostagem = credentials.cartao_postagem as string;
 
   if (!usuario || !senha || !cartaoPostagem) {
-    console.error('[Correios] Missing credentials (usuario, senha, cartao_postagem)');
+    console.error('[Correios] Missing OAuth2 credentials (usuario, senha, cartao_postagem)');
     return null;
   }
 
@@ -108,7 +122,7 @@ async function getCorreiosToken(
   }
 
   try {
-    // Step 1: Authenticate with cartão postagem
+    // Authenticate with cartão postagem
     const authString = btoa(`${usuario}:${senha}`);
     
     const response = await fetch(CORREIOS_AUTH_URL, {
@@ -125,7 +139,7 @@ async function getCorreiosToken(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Correios] Auth error:', response.status, errorText);
+      console.error('[Correios] OAuth2 auth error:', response.status, errorText);
       return null;
     }
 
@@ -135,7 +149,7 @@ async function getCorreiosToken(
     const expiresAt = new Date(Date.now() + 50 * 60 * 1000);
     tokenCache.set(tenantId, { token: data.token, expiresAt });
     
-    console.log('[Correios] Token obtained successfully');
+    console.log('[Correios] OAuth2 token obtained successfully');
     return data.token;
   } catch (error) {
     console.error('[Correios] Token fetch error:', error);
