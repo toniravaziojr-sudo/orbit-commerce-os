@@ -26,6 +26,7 @@ import {
   Star,
   TrendingUp,
   Percent,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -55,6 +56,7 @@ const navigation: NavGroup[] = [
     label: "E-commerce",
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
+      { title: "Rastreios", href: "/shipments", icon: Truck },
       { title: "Checkouts Abandonados", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },

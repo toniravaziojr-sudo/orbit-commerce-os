@@ -125,16 +125,17 @@ function formatDate(date: string | null): string {
 }
 
 export default function Shipments() {
-  const { currentTenant, user } = useAuth();
+  const { currentTenant, user, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedShipment, setSelectedShipment] = useState<ShipmentRecord | null>(null);
   const [isPolling, setIsPolling] = useState(false);
+  const [lastPollResult, setLastPollResult] = useState<{ timestamp: string; processed: number; updated: number; errors: number } | null>(null);
   
-  // Owner/Admin check for debug features
-  const isOwnerOrAdmin = user?.email?.includes('admin') || user?.email?.includes('owner') || true; // Simplified check
+  // Owner/Admin check for debug features (real check using hasRole)
+  const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
   
   // Fetch shipments
   const { data: shipments, isLoading } = useQuery({
@@ -185,7 +186,28 @@ export default function Shipments() {
     enabled: !!selectedShipment?.id,
   });
   
-  // Manual poll mutation (debug feature)
+  // Fetch last poll info from most recent shipment update
+  const { data: lastPollInfo } = useQuery({
+    queryKey: ['last-poll-info', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return null;
+      
+      // Get the most recently polled shipment to show last poll time
+      const { data } = await supabase
+        .from('shipments')
+        .select('last_polled_at')
+        .eq('tenant_id', currentTenant.id)
+        .not('last_polled_at', 'is', null)
+        .order('last_polled_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      return data?.last_polled_at || null;
+    },
+    enabled: !!currentTenant?.id,
+  });
+  
+  // Manual poll mutation (debug feature - owner/admin only)
   const runTrackingPoll = useMutation({
     mutationFn: async () => {
       setIsPolling(true);
@@ -194,8 +216,16 @@ export default function Shipments() {
       return data;
     },
     onSuccess: (data) => {
-      toast.success(`Tracking executado: ${data.stats?.processed || 0} processados, ${data.stats?.updated || 0} atualizados`);
+      const stats = data.stats || {};
+      setLastPollResult({
+        timestamp: new Date().toISOString(),
+        processed: stats.processed || 0,
+        updated: stats.updated || 0,
+        errors: stats.errors || 0,
+      });
+      toast.success(`Tracking executado: ${stats.processed || 0} processados, ${stats.updated || 0} atualizados`);
       queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['last-poll-info'] });
     },
     onError: (error: Error) => {
       toast.error(`Erro ao executar tracking: ${error.message}`);
@@ -233,6 +263,48 @@ export default function Shipments() {
             )
           }
         />
+        
+        {/* Observability Info - Last Poll Status */}
+        {(lastPollInfo || lastPollResult) && (
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="py-3">
+              <div className="flex items-center gap-6 text-sm">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Última verificação:</span>
+                  <span className="font-medium">
+                    {lastPollResult?.timestamp 
+                      ? formatDate(lastPollResult.timestamp)
+                      : lastPollInfo 
+                        ? formatDate(lastPollInfo)
+                        : '—'}
+                  </span>
+                </div>
+                {lastPollResult && (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Processados:</span>
+                      <Badge variant="outline">{lastPollResult.processed}</Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Atualizados:</span>
+                      <Badge variant="default">{lastPollResult.updated}</Badge>
+                    </div>
+                    {lastPollResult.errors > 0 && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Erros:</span>
+                        <Badge variant="destructive">{lastPollResult.errors}</Badge>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="ml-auto text-xs text-muted-foreground">
+                  Schedule: a cada 10 min (automático)
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-4">
