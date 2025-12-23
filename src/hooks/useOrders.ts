@@ -467,6 +467,7 @@ export function useOrderDetails(orderId: string | undefined) {
     mutationFn: async ({ orderId, trackingCode, carrier }: { orderId: string; trackingCode: string; carrier?: string }) => {
       const { data: { user } } = await supabase.auth.getUser();
 
+      // First, update the order with tracking code
       const updateData: Record<string, unknown> = { tracking_code: trackingCode };
       if (carrier) {
         updateData.shipping_carrier = carrier;
@@ -478,6 +479,29 @@ export function useOrderDetails(orderId: string | undefined) {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      // Then, create/update shipment via shipment-ingest edge function
+      // This ensures the shipment appears in the tracking list
+      try {
+        const { data: ingestResult, error: ingestError } = await supabase.functions.invoke('shipment-ingest', {
+          body: {
+            order_id: orderId,
+            tracking_code: trackingCode,
+            carrier: carrier || null,
+            source: 'admin_manual',
+          }
+        });
+
+        if (ingestError) {
+          console.error('Error ingesting shipment:', ingestError);
+          // Don't fail the whole operation, order was updated
+        } else {
+          console.log('Shipment ingested:', ingestResult);
+        }
+      } catch (ingestErr) {
+        console.error('Exception ingesting shipment:', ingestErr);
+        // Don't fail the whole operation
+      }
 
       // Add history
       await supabase.from('order_history').insert({
@@ -491,6 +515,7 @@ export function useOrderDetails(orderId: string | undefined) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
       toast.success('Código de rastreio atualizado!');
     },
     onError: (error: Error) => {
