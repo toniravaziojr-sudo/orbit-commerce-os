@@ -12,8 +12,9 @@ export interface CartItem {
 }
 
 export interface ShippingOption {
-  code?: string;         // Service code from provider (e.g., Frenet)
-  carrier?: string;      // Carrier name (e.g., "Correios", "Jadlog")
+  code?: string;           // Service code from provider
+  carrier?: string;        // Carrier name (e.g., "Correios", "Jadlog")
+  sourceProvider?: string; // Source of quote: frenet, correios, loggi
   price: number;
   deliveryDays: number;
   label: string;

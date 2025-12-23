@@ -414,7 +414,19 @@ function MiniCartShipping({
               }`}
             >
               <div className="text-left">
-                <p className="font-medium">{option.label}</p>
+                <p className="font-medium">
+                  {option.label}
+                  {option.carrier && (
+                    <span className="text-muted-foreground ml-1">
+                      ({option.carrier})
+                    </span>
+                  )}
+                  {option.sourceProvider && (
+                    <span className="ml-1 px-1 py-0.5 text-[9px] font-medium bg-muted text-muted-foreground rounded">
+                      via {option.sourceProvider}
+                    </span>
+                  )}
+                </p>
                 <p className="text-muted-foreground">{option.deliveryDays} dia(s)</p>
               </div>
               {option.isFree ? (

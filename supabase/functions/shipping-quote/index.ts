@@ -28,7 +28,8 @@ interface ShippingQuoteRequest {
 }
 
 interface ShippingOption {
-  carrier: string;
+  source_provider: string; // frenet, correios, loggi
+  carrier: string; // Carrier name (e.g., "Correios", "Jadlog")
   service_code: string;
   service_name: string;
   price: number;
@@ -44,6 +45,19 @@ interface ProviderRecord {
   supports_quote: boolean;
   credentials: Record<string, unknown>;
   settings: Record<string, unknown>;
+}
+
+interface ProviderQuoteResult {
+  provider: string;
+  options: ShippingOption[];
+  error?: string;
+  duration_ms: number;
+}
+
+interface QuoteWarning {
+  provider: string;
+  code: string;
+  message?: string;
 }
 
 // ========== TENANT RESOLUTION ==========
@@ -83,6 +97,24 @@ async function resolveTenantByHost(
   }
 
   return null;
+}
+
+// ========== UTILITY: Normalize carrier and service for deduplication ==========
+
+function normalizeCarrier(carrier: string): string {
+  const lc = carrier.toLowerCase().trim();
+  // Normalize common variations
+  if (lc.includes('correios') || lc.includes('cep ') || lc === 'pac' || lc === 'sedex') {
+    return 'correios';
+  }
+  if (lc.includes('jadlog')) return 'jadlog';
+  if (lc.includes('loggi')) return 'loggi';
+  if (lc.includes('total express')) return 'total_express';
+  return lc.replace(/[^a-z0-9]/g, '_');
+}
+
+function normalizeServiceCode(code: string): string {
+  return code.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 }
 
 // ========== PROVIDER ADAPTERS ==========
@@ -138,7 +170,8 @@ async function quoteFrenet(
     return services
       .filter((s: any) => !s.Error && s.ShippingPrice > 0)
       .map((s: any) => ({
-        carrier: 'frenet',
+        source_provider: 'frenet',
+        carrier: s.Carrier || 'Frenet',
         service_code: s.ServiceCode || s.Carrier,
         service_name: s.ServiceDescription || s.Carrier,
         price: parseFloat(s.ShippingPrice) || 0,
@@ -154,7 +187,7 @@ async function quoteFrenet(
   }
 }
 
-// Correios Quote Adapter (placeholder - requires WebService contract)
+// Correios Quote Adapter
 async function quoteCorreios(
   provider: ProviderRecord,
   originCep: string,
@@ -171,8 +204,6 @@ async function quoteCorreios(
   }
 
   try {
-    // Correios preco-prazo API
-    // Note: This uses the new Correios API (api.correios.com.br)
     const authString = btoa(`${usuario}:${senha}`);
     
     // Get token first
@@ -225,7 +256,8 @@ async function quoteCorreios(
                              `Correios ${serviceCode}`;
 
           options.push({
-            carrier: 'correios',
+            source_provider: 'correios',
+            carrier: 'Correios',
             service_code: serviceCode,
             service_name: serviceName,
             price: parseFloat(priceData.pcFinal) || 0,
@@ -247,7 +279,7 @@ async function quoteCorreios(
   }
 }
 
-// Loggi Quote Adapter (placeholder - requires API contract)
+// Loggi Quote Adapter
 async function quoteLoggi(
   provider: ProviderRecord,
   originCep: string,
@@ -263,7 +295,6 @@ async function quoteLoggi(
   }
 
   try {
-    // Loggi API (placeholder - needs real implementation based on contract)
     const response = await fetch(
       `https://api.loggi.com/v1/companies/${companyId}/shipping/quote`,
       {
@@ -295,7 +326,8 @@ async function quoteLoggi(
     const services = data.services || [];
 
     return services.map((s: any) => ({
-      carrier: 'loggi',
+      source_provider: 'loggi',
+      carrier: 'Loggi',
       service_code: s.code || 'loggi_standard',
       service_name: s.name || 'Loggi',
       price: parseFloat(s.price) || 0,
@@ -310,6 +342,33 @@ async function quoteLoggi(
   }
 }
 
+// ========== DEDUPLICATION ==========
+
+function deduplicateOptions(options: ShippingOption[]): ShippingOption[] {
+  // Group by carrier_normalized + service_code_normalized + estimated_days
+  const groups = new Map<string, ShippingOption[]>();
+
+  for (const opt of options) {
+    const carrierNorm = normalizeCarrier(opt.carrier);
+    const codeNorm = normalizeServiceCode(opt.service_code);
+    const key = `${carrierNorm}|${codeNorm}|${opt.estimated_days}`;
+    
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(opt);
+  }
+
+  // Keep the one with lowest price from each group
+  const dedupedOptions: ShippingOption[] = [];
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.price - b.price);
+    dedupedOptions.push(group[0]);
+  }
+
+  return dedupedOptions;
+}
+
 // ========== MAIN HANDLER ==========
 
 serve(async (req) => {
@@ -318,6 +377,7 @@ serve(async (req) => {
   }
 
   const startTime = Date.now();
+  const quoteWarnings: QuoteWarning[] = [];
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -371,7 +431,8 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           options: [], 
-          message: 'Nenhum provedor de frete ativo' 
+          message: 'Nenhum provedor de frete ativo',
+          quote_warnings: [],
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -412,57 +473,106 @@ serve(async (req) => {
 
     // Query all providers in parallel with timeout
     const TIMEOUT_MS = 10000;
-    const quotePromises: Promise<ShippingOption[]>[] = [];
+    const quoteResults: ProviderQuoteResult[] = [];
 
-    for (const provider of providers as ProviderRecord[]) {
+    const quotePromises: Promise<ProviderQuoteResult>[] = providers.map(async (provider: ProviderRecord) => {
       const providerName = provider.provider.toLowerCase();
+      const providerStart = Date.now();
       
-      let quotePromise: Promise<ShippingOption[]>;
-      
-      if (providerName === 'frenet') {
-        quotePromise = quoteFrenet(provider, originCep, recipient_cep, totals);
-      } else if (providerName === 'correios') {
-        quotePromise = quoteCorreios(provider, originCep, recipient_cep, totals);
-      } else if (providerName === 'loggi') {
-        quotePromise = quoteLoggi(provider, originCep, recipient_cep, totals);
-      } else {
-        console.log(`[ShippingQuote] Unknown provider: ${providerName}`);
-        continue;
+      try {
+        let options: ShippingOption[] = [];
+        
+        if (providerName === 'frenet') {
+          options = await quoteFrenet(provider, originCep, recipient_cep, totals);
+        } else if (providerName === 'correios') {
+          options = await quoteCorreios(provider, originCep, recipient_cep, totals);
+        } else if (providerName === 'loggi') {
+          options = await quoteLoggi(provider, originCep, recipient_cep, totals);
+        } else {
+          console.log(`[ShippingQuote] Unknown provider: ${providerName}`);
+          return {
+            provider: providerName,
+            options: [],
+            error: 'Unknown provider',
+            duration_ms: Date.now() - providerStart,
+          };
+        }
+
+        return {
+          provider: providerName,
+          options,
+          duration_ms: Date.now() - providerStart,
+        };
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`[ShippingQuote] Error from ${providerName}:`, error);
+        return {
+          provider: providerName,
+          options: [],
+          error: errorMsg,
+          duration_ms: Date.now() - providerStart,
+        };
       }
+    });
 
-      // Wrap with timeout
-      const timeoutPromise = new Promise<ShippingOption[]>((resolve) => {
-        setTimeout(() => {
-          console.log(`[ShippingQuote] Timeout for ${providerName}`);
-          resolve([]);
-        }, TIMEOUT_MS);
-      });
+    // Wrap all with timeout
+    const timeoutResults = await Promise.all(
+      quotePromises.map(async (promise, index) => {
+        const providerName = providers[index].provider.toLowerCase();
+        const timeoutPromise = new Promise<ProviderQuoteResult>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              provider: providerName,
+              options: [],
+              error: 'Timeout',
+              duration_ms: TIMEOUT_MS,
+            });
+          }, TIMEOUT_MS);
+        });
 
-      quotePromises.push(
-        Promise.race([quotePromise, timeoutPromise])
-          .catch((error) => {
-            console.error(`[ShippingQuote] Error from ${providerName}:`, error);
-            return [];
-          })
-      );
+        return Promise.race([promise, timeoutPromise]);
+      })
+    );
+
+    // Collect results and warnings
+    let allOptions: ShippingOption[] = [];
+    for (const result of timeoutResults) {
+      quoteResults.push(result);
+      if (result.error) {
+        quoteWarnings.push({
+          provider: result.provider,
+          code: result.error === 'Timeout' ? 'TIMEOUT' : 'ERROR',
+          message: result.error,
+        });
+      }
+      allOptions = allOptions.concat(result.options);
     }
 
-    // Wait for all quotes
-    const results = await Promise.all(quotePromises);
-    const allOptions = results.flat();
+    console.log(`[ShippingQuote] Raw options count: ${allOptions.length}`);
+
+    // Deduplicate options
+    const dedupedOptions = deduplicateOptions(allOptions);
+    console.log(`[ShippingQuote] After deduplication: ${dedupedOptions.length}`);
 
     // Sort by price
-    allOptions.sort((a, b) => a.price - b.price);
+    dedupedOptions.sort((a, b) => a.price - b.price);
 
-    console.log(`[ShippingQuote] Total options: ${allOptions.length} in ${Date.now() - startTime}ms`);
+    console.log(`[ShippingQuote] Total options: ${dedupedOptions.length} in ${Date.now() - startTime}ms`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        options: allOptions,
+        options: dedupedOptions,
         origin_cep: originCep,
         recipient_cep,
         totals,
+        quote_warnings: quoteWarnings,
+        providers_queried: quoteResults.map(r => ({
+          provider: r.provider,
+          options_count: r.options.length,
+          duration_ms: r.duration_ms,
+          error: r.error ? true : undefined,
+        })),
         duration_ms: Date.now() - startTime,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -475,6 +585,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: errorMessage,
+        quote_warnings: quoteWarnings,
         duration_ms: Date.now() - startTime,
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

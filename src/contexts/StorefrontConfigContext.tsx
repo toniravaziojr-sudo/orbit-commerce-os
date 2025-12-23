@@ -26,6 +26,7 @@ export interface ShippingQuote {
   deliveryDays: number;
   label: string;
   carrier?: string;
+  sourceProvider?: string; // frenet, correios, loggi
   isFree: boolean;
 }
 
@@ -285,6 +286,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
 
           if (data?.options && data.options.length > 0) {
             return data.options.map((opt: { 
+              source_provider?: string;
               service_code?: string; 
               code?: string;
               service_name?: string;
@@ -307,6 +309,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
                 code: opt.service_code || opt.code,
                 label: opt.service_name || opt.label || 'Frete',
                 carrier: opt.carrier,
+                sourceProvider: opt.source_provider, // Track where quote came from
                 price: isFreeShipping ? 0 : safePrice,
                 deliveryDays: safeDays,
                 isFree: isFreeShipping,
