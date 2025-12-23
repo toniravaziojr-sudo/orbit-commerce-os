@@ -1,6 +1,6 @@
 // =============================================
 // SHIPPING ESTIMATOR - CEP input and shipping options
-// Uses Frenet Edge Function when provider is 'frenet'
+// Uses shipping-quote Edge Function for multi-provider (Frenet/Correios/Loggi)
 // =============================================
 
 import { useState } from 'react';
@@ -45,8 +45,8 @@ export function ShippingEstimator() {
     try {
       let options;
       
-      // Use async quote for Frenet provider
-      if (config.provider === 'frenet') {
+      // Use async quote for multi-provider or Frenet
+      if (config.provider === 'frenet' || config.provider === 'multi') {
         const cartItems = items.map(item => ({
           weight: 0.3, // Default weight - could be fetched from product
           height: 10,
@@ -145,7 +145,14 @@ export function ShippingEstimator() {
               <div className="flex items-center gap-3">
                 <RadioGroupItem value={String(index)} id={`shipping-${index}`} />
                 <div>
-                  <p className="font-medium">{option.label}</p>
+                  <p className="font-medium">
+                    {option.label}
+                    {option.carrier && (
+                      <span className="text-xs text-muted-foreground ml-1">
+                        ({option.carrier})
+                      </span>
+                    )}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {option.deliveryDays} {option.deliveryDays === 1 ? 'dia útil' : 'dias úteis'}
                   </p>
