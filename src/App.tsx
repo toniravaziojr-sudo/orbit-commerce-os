@@ -11,6 +11,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import Dashboard from "@/pages/Dashboard";
 import Executions from "@/pages/Executions";
 import Orders from "@/pages/Orders";
+import OrderNew from "@/pages/OrderNew";
 import OrderDetail from "@/pages/OrderDetail";
 import Products from "@/pages/Products";
 import Categories from "@/pages/Categories";
@@ -178,6 +179,7 @@ const App = () => {
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/executions" element={<Executions />} />
                   <Route path="/orders" element={<Orders />} />
+                  <Route path="/orders/new" element={<OrderNew />} />
                   <Route path="/orders/:id" element={<OrderDetail />} />
                   <Route path="/shipments" element={<Shipments />} />
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Package, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Plus, Search, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,10 +85,16 @@ export default function Orders() {
         title="Pedidos"
         description="Gestão de pedidos, pagamentos e envios"
         actions={
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Exportar
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="outline" className="gap-2">
+              <Download className="h-4 w-4" />
+              Exportar
+            </Button>
+            <Button className="gap-2" onClick={() => navigate('/orders/new')}>
+              <Plus className="h-4 w-4" />
+              Novo Pedido
+            </Button>
+          </div>
         }
       />
 
