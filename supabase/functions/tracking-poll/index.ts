@@ -64,15 +64,16 @@ const BACKOFF_MULTIPLIER = 2;
 const CORREIOS_AUTH_URL = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
 const CORREIOS_RASTRO_URL = 'https://api.correios.com.br/srorastro/v1/objetos';
 
-// Mapping shipping_status enum to delivery_status
+// Mapping delivery_status to shipping_status enum (orders table)
+// Orders uses: pending, processing, shipped, in_transit, out_for_delivery, delivered, returned, failed
 const deliveryToShippingStatus: Record<DeliveryStatus, string> = {
-  'label_created': 'pending',
+  'label_created': 'processing',
   'posted': 'shipped',
-  'in_transit': 'shipped',
-  'out_for_delivery': 'shipped',
+  'in_transit': 'in_transit',
+  'out_for_delivery': 'out_for_delivery',
   'delivered': 'delivered',
-  'failed': 'pending',
-  'returned': 'pending',
+  'failed': 'failed',
+  'returned': 'returned',
   'canceled': 'pending',
   'unknown': 'pending',
 };
@@ -524,28 +525,47 @@ async function processShipment(
     return { updated: false };
   }
 
-  // Insert new events (idempotent via unique constraint on provider_event_id)
+  // Insert new events (idempotent via unique constraint on shipment_id + provider_event_id)
   let lastEventStatus = delivery_status;
   let lastEventAt = shipment.last_status_at;
 
   for (const event of result.events) {
-    const { error: insertError } = await supabase
+    // Skip events without provider_event_id (can't dedupe them properly)
+    if (!event.provider_event_id) {
+      console.log('[ProcessShipment] Skipping event without provider_event_id');
+      continue;
+    }
+    
+    // Check if event already exists before inserting
+    const { data: existingEvent } = await supabase
       .from('shipment_events')
-      .upsert({
-        tenant_id,
-        shipment_id: id,
-        status: event.status,
-        description: event.description,
-        location: event.location || null,
-        occurred_at: event.occurred_at,
-        provider_event_id: event.provider_event_id || null,
-      }, {
-        onConflict: 'shipment_id,provider_event_id',
-        ignoreDuplicates: true,
-      });
+      .select('id')
+      .eq('shipment_id', id)
+      .eq('provider_event_id', event.provider_event_id)
+      .maybeSingle();
+    
+    if (!existingEvent) {
+      // Insert new event
+      const { error: insertError } = await supabase
+        .from('shipment_events')
+        .insert({
+          tenant_id,
+          shipment_id: id,
+          status: event.status,
+          description: event.description,
+          location: event.location || null,
+          occurred_at: event.occurred_at,
+          provider_event_id: event.provider_event_id,
+        });
 
-    if (insertError) {
-      console.error('[ProcessShipment] Insert event error:', insertError);
+      if (insertError) {
+        // Ignore duplicate key errors (23505)
+        if (!insertError.code || insertError.code !== '23505') {
+          console.error('[ProcessShipment] Insert event error:', insertError);
+        }
+      } else {
+        console.log(`[ProcessShipment] Inserted event: ${event.status} for shipment ${id}`);
+      }
     }
 
     // Track the most recent event
