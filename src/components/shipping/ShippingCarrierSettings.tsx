@@ -9,7 +9,8 @@ import {
   Zap,
   RefreshCw,
   Calculator,
-  Package
+  Package,
+  Key
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useShippingProviders, ShippingProviderInput } from '@/hooks/useShippingProviders';
 
 interface CarrierField {
@@ -38,6 +40,29 @@ interface CarrierDefinition {
   docsUrl: string;
 }
 
+// Auth modes for Correios
+type CorreiosAuthMode = 'oauth' | 'token';
+
+interface CarrierField {
+  key: string;
+  label: string;
+  type: 'text' | 'password';
+  placeholder: string;
+  showWhen?: { field: string; value: string }; // conditional display
+}
+
+interface CarrierDefinition {
+  id: string;
+  name: string;
+  logo: string;
+  description: string;
+  fields: CarrierField[];
+  features: string[];
+  docsUrl: string;
+  hasAuthModes?: boolean;
+  authModes?: { value: string; label: string; description: string }[];
+}
+
 const CARRIER_DEFINITIONS: CarrierDefinition[] = [
   {
     id: 'frenet',
@@ -49,20 +74,28 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
       { key: 'seller_cep', label: 'CEP de Origem', type: 'text', placeholder: '01310-100' },
     ],
     features: ['Cotação de Frete', 'Múltiplas Transportadoras', 'Rastreamento'],
-    docsUrl: 'https://frfrenet.com.br/docs',
+    docsUrl: 'https://frenet.com.br/docs',
   },
   {
     id: 'correios',
     name: 'Correios',
     logo: '📦',
-    description: 'Serviço postal brasileiro - PAC, SEDEX e mais. OAuth2 API.',
+    description: 'Serviço postal brasileiro - PAC, SEDEX e mais.',
+    hasAuthModes: true,
+    authModes: [
+      { value: 'token', label: 'Token CWS', description: 'Token estático do portal CWS (Correios Web Services)' },
+      { value: 'oauth', label: 'OAuth2 (Usuário/Senha)', description: 'Autenticação via CNPJ + senha + cartão de postagem' },
+    ],
     fields: [
-      { key: 'usuario', label: 'Usuário (E-mail ou CNPJ)', type: 'text', placeholder: 'seu@email.com ou 00.000.000/0000-00' },
-      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do Meu Correios' },
-      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079' },
+      // Token mode fields
+      { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
+      // OAuth mode fields
+      { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
     ],
     features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas'],
-    docsUrl: 'https://www.correios.com.br/atendimento/developers',
+    docsUrl: 'https://cws.correios.com.br/dashboard/pesquisa',
   },
   {
     id: 'loggi',
@@ -94,14 +127,26 @@ export function ShippingCarrierSettings() {
     
     CARRIER_DEFINITIONS.forEach(carrier => {
       const saved = getProvider(carrier.id);
+      
+      // Build fields with auth_mode support
+      const fields: Record<string, string> = {};
+      
+      // Initialize auth_mode with saved value or default to 'token' for correios
+      if (carrier.hasAuthModes) {
+        fields['auth_mode'] = saved?.credentials?.auth_mode as string || 
+          (saved?.credentials?.token ? 'token' : 'token'); // default to token mode
+      }
+      
+      // Initialize other fields
+      carrier.fields.forEach(field => {
+        fields[field.key] = saved?.credentials?.[field.key] as string || '';
+      });
+      
       initialData[carrier.id] = {
         enabled: saved?.is_enabled ?? false,
         supportsQuote: saved?.supports_quote ?? true,
         supportsTracking: saved?.supports_tracking ?? true,
-        fields: carrier.fields.reduce((acc, field) => {
-          acc[field.key] = saved?.credentials?.[field.key] || '';
-          return acc;
-        }, {} as Record<string, string>),
+        fields,
       };
     });
     
@@ -304,38 +349,70 @@ export function ShippingCarrierSettings() {
 
               <Separator />
 
-              <div className="grid gap-4 md:grid-cols-2">
-                {carrier.fields.map((field) => {
-                  const secretKey = `${carrier.id}-${field.key}`;
-                  const isVisible = showSecrets[secretKey] || field.type === 'text';
-                  
-                  return (
-                    <div key={field.key} className="space-y-2">
-                      <Label htmlFor={`${carrier.id}-${field.key}`}>{field.label}</Label>
-                      <div className="relative">
-                        <Input
-                          id={`${carrier.id}-${field.key}`}
-                          type={isVisible ? 'text' : 'password'}
-                          placeholder={field.placeholder}
-                          value={data.fields[field.key] || ''}
-                          onChange={(e) => updateField(carrier.id, field.key, e.target.value)}
-                          className="pr-10"
-                        />
-                        {field.type === 'password' && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-                            onClick={() => toggleSecret(carrier.id, field.key)}
-                          >
-                            {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </Button>
-                        )}
+              {/* Auth mode selector for carriers that support it */}
+              {carrier.hasAuthModes && carrier.authModes && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Key className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Modo de Autenticação</Label>
+                  </div>
+                  <RadioGroup
+                    value={data.fields['auth_mode'] || 'token'}
+                    onValueChange={(value) => updateField(carrier.id, 'auth_mode', value)}
+                    className="grid gap-3 md:grid-cols-2"
+                  >
+                    {carrier.authModes.map((mode) => (
+                      <div key={mode.value} className="flex items-start space-x-3">
+                        <RadioGroupItem value={mode.value} id={`${carrier.id}-auth-${mode.value}`} className="mt-1" />
+                        <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer">
+                          <span className="font-medium">{mode.label}</span>
+                          <span className="text-xs text-muted-foreground">{mode.description}</span>
+                        </Label>
                       </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </RadioGroup>
+                </div>
+              )}
+
+              <div className="grid gap-4 md:grid-cols-2">
+                {carrier.fields
+                  .filter((field) => {
+                    // Filter fields based on showWhen condition
+                    if (!field.showWhen) return true;
+                    const currentValue = data.fields[field.showWhen.field] || 'token';
+                    return currentValue === field.showWhen.value;
+                  })
+                  .map((field) => {
+                    const secretKey = `${carrier.id}-${field.key}`;
+                    const isVisible = showSecrets[secretKey] || field.type === 'text';
+                    
+                    return (
+                      <div key={field.key} className="space-y-2">
+                        <Label htmlFor={`${carrier.id}-${field.key}`}>{field.label}</Label>
+                        <div className="relative">
+                          <Input
+                            id={`${carrier.id}-${field.key}`}
+                            type={isVisible ? 'text' : 'password'}
+                            placeholder={field.placeholder}
+                            value={data.fields[field.key] || ''}
+                            onChange={(e) => updateField(carrier.id, field.key, e.target.value)}
+                            className="pr-10"
+                          />
+                          {field.type === 'password' && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                              onClick={() => toggleSecret(carrier.id, field.key)}
+                            >
+                              {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
 
               <div className="flex items-center justify-between pt-2">
