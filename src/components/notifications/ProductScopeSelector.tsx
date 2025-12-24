@@ -63,7 +63,7 @@ export function ProductScopeSelector({
           .from('products')
           .select('id, name, sku')
           .eq('tenant_id', tenantId)
-          .eq('is_active', true)
+          .eq('status', 'active')
           .order('name')
           .limit(100);
         
