@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Settings, 
   CheckCircle, 
@@ -10,7 +10,11 @@ import {
   RefreshCw,
   Calculator,
   Package,
-  Key
+  Key,
+  AlertTriangle,
+  Clock,
+  ShieldCheck,
+  ShieldAlert
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useShippingProviders, ShippingProviderInput } from '@/hooks/useShippingProviders';
 
 interface CarrierField {
@@ -28,27 +34,7 @@ interface CarrierField {
   label: string;
   type: 'text' | 'password';
   placeholder: string;
-}
-
-interface CarrierDefinition {
-  id: string;
-  name: string;
-  logo: string;
-  description: string;
-  fields: CarrierField[];
-  features: string[];
-  docsUrl: string;
-}
-
-// Auth modes for Correios
-type CorreiosAuthMode = 'oauth' | 'token';
-
-interface CarrierField {
-  key: string;
-  label: string;
-  type: 'text' | 'password';
-  placeholder: string;
-  showWhen?: { field: string; value: string }; // conditional display
+  showWhen?: { field: string; value: string };
 }
 
 interface CarrierDefinition {
@@ -60,7 +46,48 @@ interface CarrierDefinition {
   features: string[];
   docsUrl: string;
   hasAuthModes?: boolean;
-  authModes?: { value: string; label: string; description: string }[];
+  authModes?: { value: string; label: string; description: string; recommended?: boolean }[];
+}
+
+// Helper to parse JWT and check expiration
+function parseJwt(token: string): { exp?: number; iat?: number } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function getTokenStatus(token: string | undefined): {
+  status: 'ok' | 'expiring' | 'expired' | 'invalid' | 'none';
+  expiresAt?: Date;
+  hoursRemaining?: number;
+} {
+  if (!token || token.length < 50) {
+    return { status: 'none' };
+  }
+  
+  const payload = parseJwt(token);
+  if (!payload || !payload.exp) {
+    return { status: 'invalid' };
+  }
+  
+  const expiresAt = new Date(payload.exp * 1000);
+  const now = new Date();
+  const hoursRemaining = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+  
+  if (hoursRemaining <= 0) {
+    return { status: 'expired', expiresAt, hoursRemaining: 0 };
+  }
+  
+  if (hoursRemaining < 2) {
+    return { status: 'expiring', expiresAt, hoursRemaining };
+  }
+  
+  return { status: 'ok', expiresAt, hoursRemaining };
 }
 
 const CARRIER_DEFINITIONS: CarrierDefinition[] = [
@@ -83,16 +110,25 @@ const CARRIER_DEFINITIONS: CarrierDefinition[] = [
     description: 'Serviço postal brasileiro - PAC, SEDEX e mais.',
     hasAuthModes: true,
     authModes: [
-      { value: 'token', label: 'Token CWS', description: 'Token estático do portal CWS (Correios Web Services)' },
-      { value: 'oauth', label: 'OAuth2 (Usuário/Senha)', description: 'Autenticação via CNPJ + senha + cartão de postagem' },
+      { 
+        value: 'oauth', 
+        label: 'OAuth2 (Recomendado)', 
+        description: 'Autenticação automática via CNPJ + senha + cartão. Token é renovado automaticamente.',
+        recommended: true
+      },
+      { 
+        value: 'token', 
+        label: 'Token Manual', 
+        description: 'Token do portal CWS. Expira a cada 24h e precisa ser atualizado manualmente.'
+      },
     ],
     fields: [
-      // Token mode fields
-      { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
-      // OAuth mode fields
+      // OAuth mode fields (recommended)
       { key: 'usuario', label: 'Usuário (CNPJ)', type: 'text', placeholder: '00000000000000', showWhen: { field: 'auth_mode', value: 'oauth' } },
       { key: 'senha', label: 'Senha', type: 'password', placeholder: 'Senha do portal', showWhen: { field: 'auth_mode', value: 'oauth' } },
       { key: 'cartao_postagem', label: 'Cartão de Postagem', type: 'text', placeholder: '0067599079', showWhen: { field: 'auth_mode', value: 'oauth' } },
+      // Token mode fields
+      { key: 'token', label: 'Token CWS', type: 'password', placeholder: 'Token do portal cws.correios.com.br', showWhen: { field: 'auth_mode', value: 'token' } },
     ],
     features: ['Rastreamento Automático', 'Cotação de Frete', 'Etiquetas'],
     docsUrl: 'https://cws.correios.com.br/dashboard/pesquisa',
@@ -133,10 +169,12 @@ export function ShippingCarrierSettings() {
       // Build fields with auth_mode support
       const fields: Record<string, string> = {};
       
-      // Initialize auth_mode with saved value or default to 'token' for correios
+      // Initialize auth_mode with saved value or default to 'oauth' for correios (recommended)
       if (carrier.hasAuthModes) {
-        fields['auth_mode'] = saved?.credentials?.auth_mode as string || 
-          (saved?.credentials?.token ? 'token' : 'token'); // default to token mode
+        const savedAuthMode = saved?.credentials?.auth_mode as string;
+        // If saved has token but no auth_mode, infer token mode; otherwise default to oauth
+        fields['auth_mode'] = savedAuthMode || 
+          (saved?.credentials?.token && !saved?.credentials?.usuario ? 'token' : 'oauth');
       }
       
       // Initialize other fields
@@ -359,20 +397,83 @@ export function ShippingCarrierSettings() {
                     <Label className="text-sm font-medium">Modo de Autenticação</Label>
                   </div>
                   <RadioGroup
-                    value={data.fields['auth_mode'] || 'token'}
+                    value={data.fields['auth_mode'] || 'oauth'}
                     onValueChange={(value) => updateField(carrier.id, 'auth_mode', value)}
                     className="grid gap-3 md:grid-cols-2"
                   >
                     {carrier.authModes.map((mode) => (
-                      <div key={mode.value} className="flex items-start space-x-3">
+                      <div 
+                        key={mode.value} 
+                        className={`flex items-start space-x-3 p-3 rounded-lg border ${
+                          mode.recommended ? 'border-primary/50 bg-primary/5' : 'border-border'
+                        }`}
+                      >
                         <RadioGroupItem value={mode.value} id={`${carrier.id}-auth-${mode.value}`} className="mt-1" />
-                        <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer">
-                          <span className="font-medium">{mode.label}</span>
+                        <Label htmlFor={`${carrier.id}-auth-${mode.value}`} className="flex flex-col cursor-pointer flex-1">
+                          <span className="font-medium flex items-center gap-2">
+                            {mode.label}
+                            {mode.recommended && (
+                              <Badge variant="secondary" className="text-xs">Recomendado</Badge>
+                            )}
+                          </span>
                           <span className="text-xs text-muted-foreground">{mode.description}</span>
                         </Label>
                       </div>
                     ))}
                   </RadioGroup>
+                  
+                  {/* Token status indicator for token mode */}
+                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'oauth') === 'token' && (() => {
+                    const tokenStatus = getTokenStatus(data.fields['token']);
+                    
+                    if (tokenStatus.status === 'none') return null;
+                    
+                    return (
+                      <Alert variant={tokenStatus.status === 'expired' ? 'destructive' : tokenStatus.status === 'expiring' ? 'default' : 'default'} className="mt-3">
+                        {tokenStatus.status === 'ok' && <ShieldCheck className="h-4 w-4" />}
+                        {tokenStatus.status === 'expiring' && <AlertTriangle className="h-4 w-4" />}
+                        {tokenStatus.status === 'expired' && <ShieldAlert className="h-4 w-4" />}
+                        {tokenStatus.status === 'invalid' && <AlertTriangle className="h-4 w-4" />}
+                        <AlertTitle>
+                          {tokenStatus.status === 'ok' && 'Token válido'}
+                          {tokenStatus.status === 'expiring' && 'Token expirando em breve'}
+                          {tokenStatus.status === 'expired' && 'Token expirado'}
+                          {tokenStatus.status === 'invalid' && 'Token inválido'}
+                        </AlertTitle>
+                        <AlertDescription className="text-sm">
+                          {tokenStatus.status === 'ok' && tokenStatus.expiresAt && (
+                            <>Expira em: {tokenStatus.expiresAt.toLocaleString('pt-BR')} ({Math.round(tokenStatus.hoursRemaining || 0)}h restantes)</>
+                          )}
+                          {tokenStatus.status === 'expiring' && tokenStatus.expiresAt && (
+                            <>
+                              Expira em {Math.round((tokenStatus.hoursRemaining || 0) * 60)} minutos. 
+                              Atualize o token ou mude para OAuth2 (recomendado).
+                            </>
+                          )}
+                          {tokenStatus.status === 'expired' && (
+                            <>
+                              O token expirou em {tokenStatus.expiresAt?.toLocaleString('pt-BR')}. 
+                              Atualize-o no <a href="https://cws.correios.com.br" target="_blank" rel="noopener" className="underline">portal CWS</a> ou mude para OAuth2.
+                            </>
+                          )}
+                          {tokenStatus.status === 'invalid' && (
+                            <>O token parece inválido. Verifique se copiou corretamente do portal CWS.</>
+                          )}
+                        </AlertDescription>
+                      </Alert>
+                    );
+                  })()}
+                  
+                  {/* OAuth mode info */}
+                  {carrier.id === 'correios' && (data.fields['auth_mode'] || 'oauth') === 'oauth' && (
+                    <Alert className="mt-3 border-primary/30 bg-primary/5">
+                      <ShieldCheck className="h-4 w-4 text-primary" />
+                      <AlertTitle>Renovação automática</AlertTitle>
+                      <AlertDescription className="text-sm">
+                        Com OAuth2, o token é gerado e renovado automaticamente pelo sistema. Você não precisa se preocupar com expiração.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               )}
 

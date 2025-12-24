@@ -191,17 +191,18 @@ async function getCorreiosToken(
 
 // ========== ADAPTERS =========
 
-// Correios Adapter with OAuth2
+// Correios Adapter with OAuth2 and automatic retry on 401/403
 async function fetchCorreiosEvents(
   trackingCode: string, 
   credentials: Record<string, unknown>,
-  tenantId: string
+  tenantId: string,
+  isRetry = false
 ): Promise<AdapterResult> {
   try {
     const token = await getCorreiosToken(credentials, tenantId);
     
     if (!token) {
-      return { success: false, events: [], error: 'auth_failed' };
+      return { success: false, events: [], error: 'Falha na autenticação - verifique as credenciais' };
     }
 
     // Fetch tracking events
@@ -221,12 +222,38 @@ async function fetchCorreiosEvents(
       const errorText = await response.text();
       console.error('[Correios] API error:', response.status, errorText);
       
-      // If 401, token might be invalid - clear cache
-      if (response.status === 401) {
+      // If 401/403 and not a retry, try to refresh token and retry once
+      if ((response.status === 401 || response.status === 403) && !isRetry) {
+        console.log('[Correios] Auth error, clearing cache and retrying...');
         tokenCache.delete(tenantId);
+        
+        // Only retry if using OAuth mode (token can be refreshed)
+        const authMode = credentials.auth_mode as string || 'oauth';
+        if (authMode === 'oauth' || authMode === 'oauth2') {
+          return fetchCorreiosEvents(trackingCode, credentials, tenantId, true);
+        }
+        
+        // Token mode cannot auto-refresh - return specific error
+        return { 
+          success: false, 
+          events: [], 
+          error: 'Token expirado - atualize o token CWS no painel' 
+        };
       }
       
-      return { success: false, events: [], error: `api_error_${response.status}` };
+      // Map error codes to user-friendly messages
+      const errorMessages: Record<number, string> = {
+        400: 'Código de rastreio inválido',
+        401: 'Credenciais inválidas ou expiradas',
+        403: 'Acesso negado (403) - verifique as credenciais',
+        404: 'Objeto não encontrado',
+        429: 'Limite de requisições excedido',
+        500: 'Erro interno dos Correios',
+        503: 'Serviço dos Correios indisponível',
+      };
+      
+      const friendlyError = errorMessages[response.status] || `Erro ${response.status}`;
+      return { success: false, events: [], error: friendlyError };
     }
 
     const data = await response.json();
@@ -257,7 +284,7 @@ async function fetchCorreiosEvents(
     return { success: true, events };
   } catch (error) {
     console.error('[Correios] Fetch error:', error);
-    return { success: false, events: [], error: 'fetch_error' };
+    return { success: false, events: [], error: 'Erro de conexão com os Correios' };
   }
 }
 
