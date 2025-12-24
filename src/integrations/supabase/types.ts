@@ -748,6 +748,7 @@ export type Database = {
           created_at: string
           email: string
           email_verified: boolean | null
+          first_order_at: string | null
           full_name: string
           gender: string | null
           id: string
@@ -771,6 +772,7 @@ export type Database = {
           created_at?: string
           email: string
           email_verified?: boolean | null
+          first_order_at?: string | null
           full_name: string
           gender?: string | null
           id?: string
@@ -794,6 +796,7 @@ export type Database = {
           created_at?: string
           email?: string
           email_verified?: boolean | null
+          first_order_at?: string | null
           full_name?: string
           gender?: string | null
           id?: string
@@ -1255,48 +1258,190 @@ export type Database = {
           },
         ]
       }
+      notification_logs: {
+        Row: {
+          attachments: Json | null
+          attempt_count: number | null
+          channel: string
+          checkout_session_id: string | null
+          content_preview: string | null
+          created_at: string
+          customer_id: string | null
+          error_message: string | null
+          id: string
+          notification_id: string | null
+          order_id: string | null
+          recipient: string | null
+          rule_id: string | null
+          rule_type: string
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json | null
+          attempt_count?: number | null
+          channel: string
+          checkout_session_id?: string | null
+          content_preview?: string | null
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          notification_id?: string | null
+          order_id?: string | null
+          recipient?: string | null
+          rule_id?: string | null
+          rule_type: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json | null
+          attempt_count?: number | null
+          channel?: string
+          checkout_session_id?: string | null
+          content_preview?: string | null
+          created_at?: string
+          customer_id?: string | null
+          error_message?: string | null
+          id?: string
+          notification_id?: string | null
+          order_id?: string | null
+          recipient?: string | null
+          rule_id?: string | null
+          rule_type?: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_logs_checkout_session_id_fkey"
+            columns: ["checkout_session_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "notification_rules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_rules: {
         Row: {
           actions: Json | null
+          attachments: Json | null
+          channels: string[] | null
           created_at: string
           dedupe_scope: string | null
+          delay_seconds: number | null
+          delay_unit: string | null
           description: string | null
+          email_body: string | null
+          email_subject: string | null
           filters: Json | null
           id: string
           is_enabled: boolean
           name: string
           priority: number
+          product_ids: string[] | null
+          product_scope: string | null
+          rule_type: string | null
           tenant_id: string
+          trigger_condition: string | null
           trigger_event_type: string
           updated_at: string
+          whatsapp_message: string | null
         }
         Insert: {
           actions?: Json | null
+          attachments?: Json | null
+          channels?: string[] | null
           created_at?: string
           dedupe_scope?: string | null
+          delay_seconds?: number | null
+          delay_unit?: string | null
           description?: string | null
+          email_body?: string | null
+          email_subject?: string | null
           filters?: Json | null
           id?: string
           is_enabled?: boolean
           name: string
           priority?: number
+          product_ids?: string[] | null
+          product_scope?: string | null
+          rule_type?: string | null
           tenant_id: string
+          trigger_condition?: string | null
           trigger_event_type: string
           updated_at?: string
+          whatsapp_message?: string | null
         }
         Update: {
           actions?: Json | null
+          attachments?: Json | null
+          channels?: string[] | null
           created_at?: string
           dedupe_scope?: string | null
+          delay_seconds?: number | null
+          delay_unit?: string | null
           description?: string | null
+          email_body?: string | null
+          email_subject?: string | null
           filters?: Json | null
           id?: string
           is_enabled?: boolean
           name?: string
           priority?: number
+          product_ids?: string[] | null
+          product_scope?: string | null
+          rule_type?: string | null
           tenant_id?: string
+          trigger_condition?: string | null
           trigger_event_type?: string
           updated_at?: string
+          whatsapp_message?: string | null
         }
         Relationships: [
           {
