@@ -55,10 +55,41 @@ interface ShippingProviderRecord {
 
 // ========== CONSTANTS =========
 
-const POLL_INTERVAL_MINUTES = parseInt(Deno.env.get('TRACKING_POLL_INTERVAL_MINUTES') || '30', 10);
+const DEFAULT_POLL_INTERVAL_MINUTES = parseInt(Deno.env.get('TRACKING_POLL_INTERVAL_MINUTES') || '10', 10);
 const MAX_SHIPMENTS_PER_RUN = parseInt(Deno.env.get('TRACKING_MAX_PER_RUN') || '50', 10);
 const MAX_ERROR_COUNT = 10;
-const BACKOFF_MULTIPLIER = 2;
+const BACKOFF_BASE_MINUTES = 10;
+const BACKOFF_MAX_MINUTES = 60;
+
+// Polling intervals by status (in minutes)
+// Active statuses get polled frequently, completed statuses much less
+const STATUS_POLL_INTERVALS: Record<DeliveryStatus, number> = {
+  label_created: 30,      // Not shipped yet, poll less frequently
+  posted: 20,             // Just posted, moderate polling
+  in_transit: 10,         // Active movement, poll frequently
+  out_for_delivery: 5,    // Critical phase, poll very frequently
+  delivered: 720,         // 12 hours - completed, minimal polling
+  failed: 60,             // May be reattempted, poll hourly
+  returned: 720,          // 12 hours - completed, minimal polling
+  canceled: 1440,         // 24 hours - canceled, very low priority
+  unknown: 30,            // Unknown status, moderate polling
+};
+
+// Get next poll interval based on status and error state
+function getNextPollInterval(status: DeliveryStatus, errorCount: number): number {
+  // If there are errors, apply exponential backoff with ceiling
+  if (errorCount > 0) {
+    // Exponential backoff: 10 -> 20 -> 40 -> 60 (capped)
+    const backoffMinutes = Math.min(
+      BACKOFF_BASE_MINUTES * Math.pow(2, errorCount - 1),
+      BACKOFF_MAX_MINUTES
+    );
+    return backoffMinutes;
+  }
+  
+  // Use status-based interval
+  return STATUS_POLL_INTERVALS[status] || DEFAULT_POLL_INTERVAL_MINUTES;
+}
 
 // Correios API endpoints
 const CORREIOS_AUTH_URL = 'https://api.correios.com.br/token/v1/autentica/cartaopostagem';
@@ -691,7 +722,9 @@ async function processShipment(
   if (!result.success) {
     // Increment error count and set backoff
     const newErrorCount = (shipment.poll_error_count || 0) + 1;
-    const backoffMinutes = POLL_INTERVAL_MINUTES * Math.pow(BACKOFF_MULTIPLIER, Math.min(newErrorCount, 5));
+    const backoffMinutes = getNextPollInterval(delivery_status, newErrorCount);
+    
+    console.log(`[ProcessShipment] Error for ${id}, applying backoff: ${backoffMinutes}min (error #${newErrorCount})`);
     
     await supabase
       .from('shipments')
@@ -707,12 +740,14 @@ async function processShipment(
   }
 
   if (result.events.length === 0) {
-    // No new events, just update poll time
+    // No new events, just update poll time based on current status
+    const nextInterval = getNextPollInterval(delivery_status, 0);
+    
     await supabase
       .from('shipments')
       .update({
         last_polled_at: new Date().toISOString(),
-        next_poll_at: new Date(Date.now() + POLL_INTERVAL_MINUTES * 60 * 1000).toISOString(),
+        next_poll_at: new Date(Date.now() + nextInterval * 60 * 1000).toISOString(),
         poll_error_count: 0,
         last_poll_error: result.error === 'no_provider_adapter' ? result.error : null,
       })
@@ -777,15 +812,19 @@ async function processShipment(
   // Check if status actually changed
   const statusChanged = lastEventStatus !== delivery_status;
 
-  // Update shipment
+  // Update shipment with new status and schedule next poll based on status
+  const nextInterval = getNextPollInterval(lastEventStatus, 0);
+  
   const shipmentUpdate: Record<string, unknown> = {
     last_polled_at: new Date().toISOString(),
-    next_poll_at: new Date(Date.now() + POLL_INTERVAL_MINUTES * 60 * 1000).toISOString(),
+    next_poll_at: new Date(Date.now() + nextInterval * 60 * 1000).toISOString(),
     poll_error_count: 0,
     last_poll_error: null,
     delivery_status: lastEventStatus,
     last_status_at: lastEventAt,
   };
+
+  console.log(`[ProcessShipment] Updating shipment ${id}: status=${lastEventStatus}, next_poll_in=${nextInterval}min`);
 
   // Set delivered_at if status is delivered
   if (lastEventStatus === 'delivered') {
@@ -927,8 +966,8 @@ serve(async (req) => {
         if (providerResult.skipReason) {
           console.log(`[TrackingPoll] Skipping shipment ${shipment.id}: ${providerResult.skipReason}`);
           
-          // Update shipment with skip reason and reschedule
-          const backoffMinutes = POLL_INTERVAL_MINUTES * 4; // Longer backoff for disabled providers
+          // Update shipment with skip reason and reschedule with longer backoff
+          const backoffMinutes = 120; // 2 hours for disabled/missing providers
           await supabase
             .from('shipments')
             .update({

@@ -11,10 +11,11 @@ import {
   AlertTriangle,
   RotateCcw,
   Search,
-  Calendar,
   ExternalLink,
+  Info,
+  Timer,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -122,6 +123,44 @@ function maskTrackingCode(code: string | null): string {
 function formatDate(date: string | null): string {
   if (!date) return '—';
   return format(new Date(date), "dd/MM/yyyy HH:mm", { locale: ptBR });
+}
+
+function formatNextPoll(nextPollAt: string | null, errorCount: number, lastError: string | null): { text: string; isBackoff: boolean } {
+  if (!nextPollAt) return { text: '—', isBackoff: false };
+  
+  const nextDate = new Date(nextPollAt);
+  const isBackoff = errorCount > 0;
+  
+  if (isPast(nextDate)) {
+    return { text: 'Agora', isBackoff };
+  }
+  
+  const relativeTime = formatDistanceToNow(nextDate, { locale: ptBR, addSuffix: true });
+  return { text: relativeTime, isBackoff };
+}
+
+function sanitizeErrorMessage(error: string | null): string {
+  if (!error) return 'Erro desconhecido';
+  
+  // Map common error codes to user-friendly messages
+  const errorMap: Record<string, string> = {
+    'auth_failed': 'Falha de autenticação com a transportadora',
+    'api_error_401': 'Credenciais inválidas (401)',
+    'api_error_403': 'Acesso negado (403)',
+    'api_error_404': 'Código de rastreio não encontrado (404)',
+    'api_error_429': 'Muitas requisições - aguarde (429)',
+    'api_error_500': 'Erro no servidor da transportadora (500)',
+    'api_error_502': 'Serviço indisponível (502)',
+    'api_error_503': 'Serviço em manutenção (503)',
+    'fetch_error': 'Falha de conexão com a transportadora',
+    'no_provider_adapter': 'Transportadora não configurada',
+    'missing_credentials': 'Credenciais não configuradas',
+    'provider_disabled': 'Integração desativada',
+    'tracking_disabled': 'Rastreio desativado para esta transportadora',
+    'unknown_error': 'Erro desconhecido',
+  };
+  
+  return errorMap[error] || error;
 }
 
 export default function Shipments() {
@@ -468,8 +507,32 @@ export default function Shipments() {
                           <TableCell className="text-sm text-muted-foreground">
                             {formatDate(shipment.last_polled_at)}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {formatDate(shipment.next_poll_at)}
+                          <TableCell>
+                            {(() => {
+                              const nextPoll = formatNextPoll(
+                                shipment.next_poll_at, 
+                                shipment.poll_error_count || 0, 
+                                shipment.last_poll_error
+                              );
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className={`flex items-center gap-1 text-sm ${nextPoll.isBackoff ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
+                                      {nextPoll.isBackoff && <Timer className="h-3 w-3" />}
+                                      {nextPoll.text}
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <div className="text-xs space-y-1">
+                                      <p className="font-medium">{formatDate(shipment.next_poll_at)}</p>
+                                      {nextPoll.isBackoff && (
+                                        <p className="text-orange-400">⚠️ Em backoff por erro (tentativa #{shipment.poll_error_count})</p>
+                                      )}
+                                    </div>
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             {hasError ? (
@@ -480,8 +543,23 @@ export default function Shipments() {
                                     {shipment.poll_error_count}
                                   </Badge>
                                 </TooltipTrigger>
-                                <TooltipContent className="max-w-xs">
-                                  <p className="text-xs">{shipment.last_poll_error || 'Erro desconhecido'}</p>
+                                <TooltipContent className="max-w-xs p-3">
+                                  <div className="space-y-2 text-xs">
+                                    <div className="font-medium text-destructive-foreground">
+                                      {sanitizeErrorMessage(shipment.last_poll_error)}
+                                    </div>
+                                    <div className="text-muted-foreground">
+                                      Tentativas com erro: {shipment.poll_error_count}
+                                    </div>
+                                    {shipment.last_polled_at && (
+                                      <div className="text-muted-foreground">
+                                        Última tentativa: {formatDate(shipment.last_polled_at)}
+                                      </div>
+                                    )}
+                                    <div className="pt-1 border-t border-border text-muted-foreground">
+                                      Próxima tentativa com backoff automático
+                                    </div>
+                                  </div>
                                 </TooltipContent>
                               </Tooltip>
                             ) : (
@@ -542,6 +620,49 @@ export default function Shipments() {
                     <Badge variant={statusConfig[selectedShipment.delivery_status as DeliveryStatus]?.variant || 'outline'}>
                       {statusConfig[selectedShipment.delivery_status as DeliveryStatus]?.label || selectedShipment.delivery_status}
                     </Badge>
+                  </div>
+                </div>
+                
+                {/* Polling Status Details */}
+                <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Info className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Detalhes do Polling</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Última verificação</p>
+                      <p className="font-medium">{formatDate(selectedShipment.last_polled_at)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Próxima verificação</p>
+                      <p className="font-medium">
+                        {(() => {
+                          const nextPoll = formatNextPoll(
+                            selectedShipment.next_poll_at, 
+                            selectedShipment.poll_error_count || 0, 
+                            selectedShipment.last_poll_error
+                          );
+                          return (
+                            <span className={nextPoll.isBackoff ? 'text-orange-600 dark:text-orange-400' : ''}>
+                              {nextPoll.isBackoff && '⚠️ '}{formatDate(selectedShipment.next_poll_at)} ({nextPoll.text})
+                            </span>
+                          );
+                        })()}
+                      </p>
+                    </div>
+                    {(selectedShipment.poll_error_count || 0) > 0 && (
+                      <>
+                        <div>
+                          <p className="text-muted-foreground">Erros consecutivos</p>
+                          <p className="font-medium text-destructive">{selectedShipment.poll_error_count}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Último erro</p>
+                          <p className="font-medium text-destructive">{sanitizeErrorMessage(selectedShipment.last_poll_error)}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 
