@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2, AlertCircle, PackageOpen } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 
 interface ProductScopeSelectorProps {
   scope: 'all' | 'specific';
@@ -36,37 +37,63 @@ export function ProductScopeSelector({
   onScopeChange,
   onProductIdsChange,
 }: ProductScopeSelectorProps) {
-  const { profile } = useAuth();
+  const { profile, currentTenant } = useAuth();
   const [products, setProducts] = useState<SimpleProduct[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<SimpleProduct[]>([]);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [tempSelected, setTempSelected] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch products
+  // Use currentTenant.id or profile.current_tenant_id as fallback
+  const tenantId = currentTenant?.id || profile?.current_tenant_id;
+
+  // Fetch products when dialog opens
   useEffect(() => {
-    if (!profile?.current_tenant_id) return;
+    if (!dialogOpen || !tenantId) return;
 
     const fetchProducts = async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
-        .from('products')
-        .select('id, name, sku')
-        .eq('tenant_id', profile.current_tenant_id)
-        .eq('is_active', true)
-        .order('name');
+      setIsLoading(true);
+      setError(null);
       
-      if (data) {
-        setProducts(data.map((p: { id: string; name: string; sku: string | null }) => ({ 
-          id: p.id, 
-          name: p.name, 
-          sku: p.sku || '' 
-        })));
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error: queryError } = await (supabase as any)
+          .from('products')
+          .select('id, name, sku')
+          .eq('tenant_id', tenantId)
+          .eq('is_active', true)
+          .order('name')
+          .limit(100);
+        
+        if (queryError) {
+          console.error('[ProductScopeSelector] Query error:', queryError);
+          if (queryError?.code === '42501' || queryError?.message?.includes('permission')) {
+            setError('Sem permissão para listar produtos. Verifique suas credenciais.');
+          } else {
+            setError(`Erro ao carregar produtos: ${queryError.message}`);
+          }
+          return;
+        }
+
+        if (data) {
+          setProducts(data.map((p) => ({ 
+            id: p.id, 
+            name: p.name, 
+            sku: p.sku || '' 
+          })));
+        }
+      } catch (err) {
+        console.error('[ProductScopeSelector] Unexpected error:', err);
+        setError('Erro inesperado ao carregar produtos.');
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchProducts();
-  }, [profile?.current_tenant_id]);
+  }, [dialogOpen, tenantId]);
 
   // Fetch selected products details
   useEffect(() => {
@@ -83,7 +110,7 @@ export function ProductScopeSelector({
         .in('id', productIds);
       
       if (data) {
-        setSelectedProducts(data.map((p: { id: string; name: string; sku: string | null }) => ({ 
+        setSelectedProducts(data.map((p) => ({ 
           id: p.id, 
           name: p.name, 
           sku: p.sku || '' 
@@ -96,6 +123,7 @@ export function ProductScopeSelector({
 
   const handleOpenDialog = () => {
     setTempSelected(productIds);
+    setSearch('');
     setDialogOpen(true);
   };
 
@@ -191,35 +219,61 @@ export function ProductScopeSelector({
               />
 
               <ScrollArea className="h-64">
-                <div className="space-y-2">
-                  {filteredProducts.map((product) => (
-                    <label
-                      key={product.id}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
-                    >
-                      <Checkbox
-                        checked={tempSelected.includes(product.id)}
-                        onCheckedChange={() => toggleProduct(product.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{product.name}</p>
-                        <p className="text-xs text-muted-foreground">{product.sku}</p>
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : error ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+                    <p className="text-sm text-destructive">{error}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredProducts.map((product) => (
+                      <label
+                        key={product.id}
+                        className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={tempSelected.includes(product.id)}
+                          onCheckedChange={() => toggleProduct(product.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{product.name}</p>
+                          {product.sku && (
+                            <p className="text-xs text-muted-foreground">{product.sku}</p>
+                          )}
+                        </div>
+                      </label>
+                    ))}
+                    {filteredProducts.length === 0 && products.length === 0 && (
+                      <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <PackageOpen className="h-8 w-8 text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Nenhum produto cadastrado
+                        </p>
+                        <Button asChild variant="outline" size="sm">
+                          <Link to="/products" onClick={() => setDialogOpen(false)}>
+                            Ir para Produtos
+                          </Link>
+                        </Button>
                       </div>
-                    </label>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      Nenhum produto encontrado
-                    </p>
-                  )}
-                </div>
+                    )}
+                    {filteredProducts.length === 0 && products.length > 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        Nenhum produto encontrado para "{search}"
+                      </p>
+                    )}
+                  </div>
+                )}
               </ScrollArea>
 
               <div className="flex justify-between">
                 <p className="text-sm text-muted-foreground">
                   {tempSelected.length} selecionado(s)
                 </p>
-                <Button onClick={handleConfirm}>
+                <Button onClick={handleConfirm} disabled={isLoading}>
                   Confirmar
                 </Button>
               </div>
