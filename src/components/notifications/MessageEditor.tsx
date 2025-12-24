@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Info, Bold, Image, Paperclip } from "lucide-react";
+import { Info, Eye, EyeOff } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import type { NotificationChannel } from "@/hooks/useNotificationRulesV2";
 
 interface MessageEditorProps {
@@ -44,6 +45,45 @@ const dynamicVariables = [
   { key: '{{store_name}}', label: 'Nome da loja', example: 'Minha Loja' },
 ];
 
+// Sample values for preview
+const sampleValues: Record<string, string> = {
+  '{{customer_name}}': 'João da Silva',
+  '{{customer_first_name}}': 'João',
+  '{{customer_email}}': 'joao@email.com',
+  '{{customer_phone}}': '11999999999',
+  '{{order_number}}': 'PED-25-000001',
+  '{{order_total}}': 'R$ 199,90',
+  '{{order_status}}': 'Pago',
+  '{{payment_status}}': 'Aprovado',
+  '{{payment_method}}': 'PIX',
+  '{{pix_code}}': '00020126580014br.gov.bcb.pix...',
+  '{{pix_link}}': 'https://pix.exemplo.com/...',
+  '{{boleto_link}}': 'https://boleto.exemplo.com/...',
+  '{{boleto_barcode}}': '23793.38128 60000.000003...',
+  '{{tracking_code}}': 'BR123456789BR',
+  '{{tracking_url}}': 'https://rastreio.exemplo.com/...',
+  '{{shipping_status}}': 'Em trânsito',
+  '{{product_names}}': 'Camiseta Preta, Calça Jeans',
+  '{{store_name}}': 'Minha Loja',
+};
+
+function renderPreview(text: string, isWhatsapp: boolean): string {
+  let rendered = text;
+  // Replace variables with sample values
+  for (const [key, value] of Object.entries(sampleValues)) {
+    rendered = rendered.split(key).join(value);
+  }
+  // Convert bold markers to display format
+  if (isWhatsapp) {
+    // WhatsApp: *bold* stays as is for preview display
+    rendered = rendered.replace(/\*([^*]+)\*/g, '<strong>$1</strong>');
+  } else {
+    // Email: **bold** to HTML
+    rendered = rendered.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  }
+  return rendered;
+}
+
 export function MessageEditor({
   channels,
   whatsappMessage,
@@ -54,6 +94,7 @@ export function MessageEditor({
   onEmailBodyChange,
 }: MessageEditorProps) {
   const [activeTab, setActiveTab] = useState<string>(channels[0] || 'whatsapp');
+  const [showPreview, setShowPreview] = useState(false);
 
   const insertVariable = (variable: string, target: 'whatsapp' | 'email_subject' | 'email_body') => {
     switch (target) {
@@ -111,7 +152,19 @@ export function MessageEditor({
 
   return (
     <div className="space-y-4">
-      <Label className="text-base font-medium">Mensagens</Label>
+      <div className="flex items-center justify-between">
+        <Label className="text-base font-medium">Mensagens</Label>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={() => setShowPreview(!showPreview)}
+          className="gap-1"
+        >
+          {showPreview ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+          {showPreview ? 'Ocultar' : 'Preview'}
+        </Button>
+      </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
@@ -142,6 +195,17 @@ export function MessageEditor({
               rows={6}
               className="font-mono text-sm"
             />
+            {showPreview && whatsappMessage && (
+              <Card className="bg-green-50 dark:bg-green-950/20 border-green-200">
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-2">Preview WhatsApp:</p>
+                  <div 
+                    className="text-sm whitespace-pre-wrap"
+                    dangerouslySetInnerHTML={{ __html: renderPreview(whatsappMessage, true) }}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         )}
 
@@ -186,6 +250,26 @@ Atenciosamente,
                 className="font-mono text-sm"
               />
             </div>
+
+            {showPreview && (emailSubject || emailBody) && (
+              <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-2">Preview E-mail:</p>
+                  {emailSubject && (
+                    <p 
+                      className="font-medium mb-2"
+                      dangerouslySetInnerHTML={{ __html: renderPreview(emailSubject, false) }}
+                    />
+                  )}
+                  {emailBody && (
+                    <div 
+                      className="text-sm whitespace-pre-wrap border-t pt-2"
+                      dangerouslySetInnerHTML={{ __html: renderPreview(emailBody, false) }}
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         )}
       </Tabs>

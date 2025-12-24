@@ -11,7 +11,8 @@ import {
   MessageSquare,
   Send,
   Save,
-  ExternalLink
+  ExternalLink,
+  Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -29,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { useOrderDetails, useOrders, type OrderStatus } from '@/hooks/useOrders';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
+import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 
 const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -166,12 +169,25 @@ export default function OrderDetail() {
         </Select>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Items */}
-          <Card>
-            <CardHeader>
+      <Tabs defaultValue="details" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="details" className="gap-2">
+            <Package className="h-4 w-4" />
+            Detalhes
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-2">
+            <Bell className="h-4 w-4" />
+            Notificações
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details">
+          <div className="grid gap-6 lg:grid-cols-3">
+            {/* Main content */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Items */}
+              <Card>
+                <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="h-5 w-5" />
                 Itens do Pedido
@@ -231,12 +247,12 @@ export default function OrderDetail() {
                     <span>{formatCurrency(order.total)}</span>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* History */}
-          <Card>
+            {/* History */}
+            <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
@@ -484,8 +500,18 @@ export default function OrderDetail() {
               </CardContent>
             </Card>
           )}
+          </div>
         </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <NotificationLogsPanel
+            orderId={order.id}
+            title="Notificações do Pedido"
+            emptyMessage="Nenhuma notificação registrada para este pedido"
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
