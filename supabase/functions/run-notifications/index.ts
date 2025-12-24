@@ -220,6 +220,15 @@ Deno.serve(async (req) => {
 
       const finishedAt = new Date().toISOString();
 
+      // Extract payload data for logging
+      const payload = notification.payload as Record<string, unknown> | null;
+      const orderId = payload?.order_id as string | null;
+      const customerId = payload?.customer_id as string | null;
+      const checkoutSessionId = payload?.checkout_session_id as string | null;
+      const ruleType = payload?.rule_type as string || 'unknown';
+      const contentPreview = payload?.whatsapp_message as string || payload?.email_subject as string || null;
+      const attachments = payload?.attachments || null;
+
       if (sendResult.success) {
         // Success path
         console.log(`[RunNotifications] Notification ${notification.id} sent successfully`);
@@ -244,6 +253,28 @@ Deno.serve(async (req) => {
             last_error: null
           })
           .eq('id', notification.id);
+
+        // Upsert notification_logs for audit trail
+        await supabase
+          .from('notification_logs')
+          .upsert({
+            tenant_id: notification.tenant_id,
+            notification_id: notification.id,
+            rule_id: notification.rule_id,
+            rule_type: ruleType,
+            channel: notification.channel,
+            order_id: orderId,
+            customer_id: customerId,
+            checkout_session_id: checkoutSessionId,
+            recipient: notification.recipient,
+            status: 'sent',
+            scheduled_for: notification.scheduled_for,
+            sent_at: finishedAt,
+            content_preview: contentPreview?.substring(0, 500),
+            attachments: attachments,
+            attempt_count: attemptNo,
+            error_message: null
+          }, { onConflict: 'notification_id' });
 
         stats.processed_success++;
 
@@ -279,6 +310,28 @@ Deno.serve(async (req) => {
             })
             .eq('id', notification.id);
 
+          // Upsert notification_logs with failure
+          await supabase
+            .from('notification_logs')
+            .upsert({
+              tenant_id: notification.tenant_id,
+              notification_id: notification.id,
+              rule_id: notification.rule_id,
+              rule_type: ruleType,
+              channel: notification.channel,
+              order_id: orderId,
+              customer_id: customerId,
+              checkout_session_id: checkoutSessionId,
+              recipient: notification.recipient,
+              status: 'failed',
+              scheduled_for: notification.scheduled_for,
+              sent_at: null,
+              content_preview: contentPreview?.substring(0, 500),
+              attachments: attachments,
+              attempt_count: attemptNo,
+              error_message: sendResult.error
+            }, { onConflict: 'notification_id' });
+
           stats.failed_final++;
         } else {
           // Schedule retry with backoff
@@ -296,6 +349,28 @@ Deno.serve(async (req) => {
               next_attempt_at: nextAttempt
             })
             .eq('id', notification.id);
+
+          // Upsert notification_logs with retrying status
+          await supabase
+            .from('notification_logs')
+            .upsert({
+              tenant_id: notification.tenant_id,
+              notification_id: notification.id,
+              rule_id: notification.rule_id,
+              rule_type: ruleType,
+              channel: notification.channel,
+              order_id: orderId,
+              customer_id: customerId,
+              checkout_session_id: checkoutSessionId,
+              recipient: notification.recipient,
+              status: 'retrying',
+              scheduled_for: notification.scheduled_for,
+              sent_at: null,
+              content_preview: contentPreview?.substring(0, 500),
+              attachments: attachments,
+              attempt_count: attemptNo,
+              error_message: sendResult.error
+            }, { onConflict: 'notification_id' });
 
           stats.scheduled_retries++;
         }
