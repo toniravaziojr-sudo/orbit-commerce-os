@@ -63,14 +63,19 @@ interface EventInbox {
   status: string;
 }
 
-// Map rule_type + trigger_condition to event_type
-function getExpectedEventType(ruleType: string): string {
+// Map rule_type to expected event types (supports multiple formats)
+function getExpectedEventTypes(ruleType: string): string[] {
   switch (ruleType) {
-    case 'payment': return 'payment_status_changed';
-    case 'shipping': return 'shipping_status_changed';
-    case 'abandoned_checkout': return 'checkout.abandoned';
-    case 'post_sale': return 'customer_first_order';
-    default: return '';
+    case 'payment': 
+      return ['payment_status_changed', 'payment.status_changed', 'order.paid', 'order.payment_updated'];
+    case 'shipping': 
+      return ['shipping_status_changed', 'shipment.status_changed', 'shipment_status_changed'];
+    case 'abandoned_checkout': 
+      return ['checkout.abandoned', 'checkout_abandoned'];
+    case 'post_sale': 
+      return ['customer_first_order', 'customer.first_order'];
+    default: 
+      return [];
   }
 }
 
@@ -80,12 +85,14 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
 
   // For V2 rules with rule_type
   if (rule_type) {
-    const expectedEventType = getExpectedEventType(rule_type);
+    const expectedEventTypes = getExpectedEventTypes(rule_type);
     
-    // Also check alternative event types (e.g., checkout.abandoned vs checkout_abandoned)
-    const eventMatches = eventType === expectedEventType || 
-      eventType === expectedEventType.replace('.', '_') ||
-      eventType.replace('.', '_') === expectedEventType.replace('.', '_');
+    // Check if event type matches any expected type
+    const normalizedEventType = eventType.replace('.', '_').toLowerCase();
+    const eventMatches = expectedEventTypes.some(expected => 
+      eventType === expected || 
+      normalizedEventType === expected.replace('.', '_').toLowerCase()
+    );
     
     if (!eventMatches) return false;
 

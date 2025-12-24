@@ -256,6 +256,49 @@ serve(async (req) => {
       .eq('provider', 'pagarme')
       .eq('event_id', eventId);
 
+    // ==== EMIT CANONICAL EVENT for notifications ====
+    if (existingTransaction.order_id && newPaymentStatus) {
+      const idempotencyKey = `payment_status_${existingTransaction.order_id}_${existingTransaction.status}_${newTransactionStatus}_${eventId}`;
+      
+      // Fetch order details for notification payload
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('order_number, customer_name, customer_email, customer_phone, total')
+        .eq('id', existingTransaction.order_id)
+        .single();
+
+      const { error: emitError } = await supabase
+        .from('events_inbox')
+        .insert({
+          tenant_id: existingTransaction.tenant_id,
+          provider: 'internal',
+          event_type: 'payment_status_changed',
+          idempotency_key: idempotencyKey,
+          occurred_at: new Date().toISOString(),
+          payload_normalized: {
+            order_id: existingTransaction.order_id,
+            order_number: orderData?.order_number || '',
+            customer_name: orderData?.customer_name || '',
+            customer_email: orderData?.customer_email || '',
+            customer_phone: orderData?.customer_phone || '',
+            order_total: orderData?.total || 0,
+            old_status: existingTransaction.status,
+            new_status: newPaymentStatus,
+            payment_method: existingTransaction.payment_method || charge?.payment_method || 'unknown',
+            payment_gateway: 'pagarme',
+            pix_link: charge?.last_transaction?.qr_code_url || '',
+            boleto_link: charge?.last_transaction?.pdf || '',
+          },
+          status: 'pending',
+        });
+
+      if (emitError && !emitError.message?.includes('duplicate')) {
+        console.error(`[${requestId}] Error emitting payment event:`, emitError);
+      } else if (!emitError) {
+        console.log(`[${requestId}] Emitted payment_status_changed event for order ${existingTransaction.order_id}`);
+      }
+    }
+
     const duration = Date.now() - startTime;
     console.log(`[${requestId}] Webhook processed successfully in ${duration}ms`);
 

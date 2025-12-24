@@ -353,6 +353,47 @@ Deno.serve(async (req) => {
       new_value: { tracking_code, carrier: normalizedCarrier, delivery_status: deliveryStatus, carrier_inferred: carrierInferred },
     });
 
+    // ==== EMIT CANONICAL EVENT for notifications ====
+    // Get order details for notification payload
+    const { data: orderDetails } = await supabase
+      .from('orders')
+      .select('order_number, customer_name, customer_email, customer_phone, total')
+      .eq('id', resolvedOrderId)
+      .single();
+
+    const idempotencyKey = `shipping_status_${resolvedOrderId}_${deliveryStatus}_${tracking_code}_${Date.now()}`;
+    
+    const { error: canonicalEventError } = await supabase
+      .from('events_inbox')
+      .insert({
+        tenant_id: resolvedTenantId,
+        provider: 'internal',
+        event_type: 'shipping_status_changed',
+        idempotency_key: idempotencyKey,
+        occurred_at: new Date().toISOString(),
+        payload_normalized: {
+          order_id: resolvedOrderId,
+          order_number: orderDetails?.order_number || order.order_number,
+          customer_name: orderDetails?.customer_name || '',
+          customer_email: orderDetails?.customer_email || '',
+          customer_phone: orderDetails?.customer_phone || '',
+          order_total: orderDetails?.total || 0,
+          shipment_id: shipmentId,
+          tracking_code,
+          carrier: normalizedCarrier,
+          old_status: isNew ? null : 'unknown',
+          new_status: deliveryStatus,
+          shipping_status: newShippingStatus,
+        },
+        status: 'pending',
+      });
+
+    if (canonicalEventError && !canonicalEventError.message?.includes('duplicate')) {
+      console.error('[shipment-ingest] Error emitting event:', canonicalEventError);
+    } else if (!canonicalEventError) {
+      console.log(`[shipment-ingest] Emitted shipping_status_changed event for order ${order.order_number}`);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
