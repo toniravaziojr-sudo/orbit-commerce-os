@@ -171,7 +171,9 @@ async function getCorreiosToken(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[Correios] OAuth2 auth error:', response.status, errorText);
+      console.error('[Correios] OAuth2 auth error:', response.status);
+      console.error('[Correios] Auth response:', errorText);
+      console.error('[Correios] Used credentials - usuario:', usuario, 'cartaoPostagem:', cartaoPostagem);
       return null;
     }
 
