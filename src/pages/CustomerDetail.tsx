@@ -35,6 +35,7 @@ import { useCustomerNotes, useCustomerAddresses, type Customer, type CustomerNot
 import { CustomerForm } from '@/components/customers/CustomerForm';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { toast } from 'sonner';
+import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 
 const statusConfig = {
   active: { label: 'Ativo', variant: 'default' as const },
@@ -459,12 +460,11 @@ export default function CustomerDetail() {
 
             {/* Notifications Tab */}
             <TabsContent value="notifications">
-              <Card>
-                <CardContent className="py-8 text-center text-muted-foreground">
-                  <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Histórico de notificações será implementado em breve</p>
-                </CardContent>
-              </Card>
+              <NotificationLogsPanel
+                customerId={customer.id}
+                title="Notificações do Cliente"
+                emptyMessage="Nenhuma notificação registrada para este cliente"
+              />
             </TabsContent>
           </Tabs>
         </div>

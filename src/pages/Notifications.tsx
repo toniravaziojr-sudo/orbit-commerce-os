@@ -8,15 +8,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useNotifications, type Notification } from "@/hooks/useNotifications";
-import { useNotificationRules, type NotificationRule } from "@/hooks/useNotificationRules";
+import { useNotificationRulesV2, type NotificationRuleV2 } from "@/hooks/useNotificationRulesV2";
 import {
   NotificationsStatsCards,
   NotificationsList,
   NotificationsFilterComponent,
   NotificationDetailDialog,
   RescheduleDialog,
-  RulesList,
-  RuleFormDialog,
+  RulesListV2,
+  RuleFormDialogV2,
 } from "@/components/notifications";
 
 function useIsAdminOrOwner(tenantId: string | null | undefined) {
@@ -71,7 +71,7 @@ export default function Notifications() {
     reprocessNotification,
   } = useNotifications();
 
-  // Rules state
+  // Rules state V2
   const {
     rules,
     isLoading: isLoadingRules,
@@ -79,13 +79,13 @@ export default function Notifications() {
     updateRule,
     deleteRule,
     toggleRule,
-  } = useNotificationRules();
+  } = useNotificationRulesV2();
 
   // UI state
   const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [rescheduleId, setRescheduleId] = useState<string | null>(null);
-  const [editingRule, setEditingRule] = useState<NotificationRule | null>(null);
+  const [editingRule, setEditingRule] = useState<NotificationRuleV2 | null>(null);
   const [ruleFormOpen, setRuleFormOpen] = useState(false);
 
   // Dev/Test state
@@ -163,7 +163,7 @@ export default function Notifications() {
     return success;
   };
 
-  const handleEditRule = (rule: NotificationRule) => {
+  const handleEditRule = (rule: NotificationRuleV2) => {
     setEditingRule(rule);
     setRuleFormOpen(true);
   };
@@ -225,9 +225,10 @@ export default function Notifications() {
           <Card>
             <CardHeader>
               <CardTitle>Regras de Automação</CardTitle>
+              <CardDescription>Configure regras para enviar notificações automáticas via WhatsApp e E-mail</CardDescription>
             </CardHeader>
             <CardContent>
-              <RulesList
+              <RulesListV2
                 rules={rules}
                 isLoading={isLoadingRules}
                 canEdit={!!isAdminOrOwner}
@@ -294,7 +295,7 @@ export default function Notifications() {
         onConfirm={handleRescheduleConfirm}
       />
 
-      <RuleFormDialog
+      <RuleFormDialogV2
         rule={editingRule}
         open={ruleFormOpen}
         onOpenChange={setRuleFormOpen}
