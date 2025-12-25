@@ -947,42 +947,63 @@ export type Database = {
       email_provider_configs: {
         Row: {
           created_at: string
+          dns_records: Json | null
           from_email: string
           from_name: string
           id: string
           is_verified: boolean | null
           last_test_at: string | null
           last_test_result: Json | null
+          last_verify_check_at: string | null
+          last_verify_error: string | null
           provider_type: string
           reply_to: string | null
+          resend_domain_id: string | null
+          sending_domain: string | null
           tenant_id: string
           updated_at: string
+          verification_status: string | null
+          verified_at: string | null
         }
         Insert: {
           created_at?: string
+          dns_records?: Json | null
           from_email: string
           from_name?: string
           id?: string
           is_verified?: boolean | null
           last_test_at?: string | null
           last_test_result?: Json | null
+          last_verify_check_at?: string | null
+          last_verify_error?: string | null
           provider_type?: string
           reply_to?: string | null
+          resend_domain_id?: string | null
+          sending_domain?: string | null
           tenant_id: string
           updated_at?: string
+          verification_status?: string | null
+          verified_at?: string | null
         }
         Update: {
           created_at?: string
+          dns_records?: Json | null
           from_email?: string
           from_name?: string
           id?: string
           is_verified?: boolean | null
           last_test_at?: string | null
           last_test_result?: Json | null
+          last_verify_check_at?: string | null
+          last_verify_error?: string | null
           provider_type?: string
           reply_to?: string | null
+          resend_domain_id?: string | null
+          sending_domain?: string | null
           tenant_id?: string
           updated_at?: string
+          verification_status?: string | null
+          verified_at?: string | null
         }
         Relationships: [
           {
