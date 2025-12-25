@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Only this email can manage system email settings
+const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -18,10 +21,14 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verify user is platform operator (has owner role on any tenant for now)
+    // Verify user is platform admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      throw new Error("Missing authorization header");
+      console.error("Missing authorization header");
+      return new Response(
+        JSON.stringify({ success: false, error: "Missing authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(
@@ -29,30 +36,59 @@ Deno.serve(async (req: Request) => {
     );
 
     if (authError || !user) {
-      throw new Error("Unauthorized");
+      console.error("Auth error:", authError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Check if user is platform operator (owner of at least one tenant)
-    const { data: roles } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "owner")
-      .limit(1);
-
-    if (!roles || roles.length === 0) {
-      throw new Error("Apenas operadores da plataforma podem configurar o email do sistema");
+    // Check if user is the platform admin
+    if (user.email !== PLATFORM_ADMIN_EMAIL) {
+      console.error("Access denied for user:", user.email);
+      return new Response(
+        JSON.stringify({ success: false, error: "Apenas o administrador da plataforma pode configurar o email do sistema" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const { sending_domain } = await req.json();
-
-    if (!sending_domain) {
-      throw new Error("sending_domain é obrigatório");
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Invalid JSON body:", e);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON body" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    const { sending_domain } = body;
+    console.log("Request body:", { sending_domain });
+
+    if (!sending_domain || typeof sending_domain !== "string") {
+      console.error("Missing or invalid sending_domain:", sending_domain);
+      return new Response(
+        JSON.stringify({ success: false, error: "sending_domain é obrigatório" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Clean domain (remove protocol, trailing slashes, etc.)
+    const cleanDomain = sending_domain.trim().toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .replace(/\/+$/, "");
+    
+    console.log("Clean domain:", cleanDomain);
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY não configurada");
+      console.error("RESEND_API_KEY not configured");
+      return new Response(
+        JSON.stringify({ success: false, error: "RESEND_API_KEY não configurada no servidor" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const resend = new Resend(resendApiKey);
@@ -66,73 +102,136 @@ Deno.serve(async (req: Request) => {
 
     if (fetchError) {
       console.error("Error fetching config:", fetchError);
-      throw new Error("Erro ao buscar configuração do sistema");
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao buscar configuração do sistema: " + fetchError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     let domainId = currentConfig.resend_domain_id;
     let dnsRecords: any[] = [];
     let verificationStatus = "pending";
 
-    // If domain already exists in Resend, get its info
+    // First, try to find existing domain in Resend by listing all domains
+    console.log("Listing all domains in Resend...");
+    try {
+      const listResult = await resend.domains.list();
+      console.log("Resend domains list response:", JSON.stringify(listResult));
+      
+      // Handle different response structures
+      const domains = (listResult as any)?.data?.data || (listResult as any)?.data || [];
+      
+      if (Array.isArray(domains)) {
+        const existingDomain = domains.find((d: any) => d.name === cleanDomain);
+        if (existingDomain) {
+          console.log("Found existing domain:", existingDomain);
+          domainId = existingDomain.id;
+          dnsRecords = existingDomain.records || [];
+          verificationStatus = existingDomain.status === "verified" ? "verified" : "pending";
+        }
+      }
+    } catch (listError: any) {
+      console.error("Error listing domains:", listError);
+      // Continue - we'll try to create or fetch by ID
+    }
+
+    // If we have a domain ID (from DB or list), try to get its current info
     if (domainId) {
+      console.log("Fetching domain info for ID:", domainId);
       try {
         const domainInfo = await resend.domains.get(domainId);
-        console.log("Existing domain info:", domainInfo);
+        console.log("Domain info response:", JSON.stringify(domainInfo));
         
         if (domainInfo.data) {
           dnsRecords = domainInfo.data.records || [];
           verificationStatus = domainInfo.data.status === "verified" ? "verified" : "pending";
         }
-      } catch (e: any) {
-        console.log("Domain not found in Resend, will create new:", e.message);
-        domainId = null;
+      } catch (getError: any) {
+        console.log("Could not fetch domain by ID, may need to create:", getError.message);
+        domainId = null; // Reset to trigger creation
       }
     }
 
     // If no domain exists, create one
     if (!domainId) {
+      console.log("Creating new domain in Resend:", cleanDomain);
       try {
-        console.log("Creating domain in Resend:", sending_domain);
-        const createResult = await resend.domains.create({ name: sending_domain });
-        console.log("Create result:", createResult);
+        const createResult = await resend.domains.create({ name: cleanDomain });
+        console.log("Create domain result:", JSON.stringify(createResult));
 
         if (createResult.error) {
           // Check if domain already exists
-          if (createResult.error.message?.includes("already exists")) {
-            // List domains to find it
+          const errorMessage = createResult.error.message || String(createResult.error);
+          console.log("Create error message:", errorMessage);
+          
+          if (errorMessage.includes("already") || errorMessage.includes("exists") || errorMessage.includes("conflict")) {
+            // Domain already exists - try to find it
+            console.log("Domain already exists, searching in list...");
             const listResult = await resend.domains.list();
-            console.log("List domains result:", listResult);
+            const domains = (listResult as any)?.data?.data || (listResult as any)?.data || [];
             
-            const domains = (listResult as any).data?.data || (listResult as any).data || [];
             if (Array.isArray(domains)) {
-              const existingDomain = domains.find(
-                (d: any) => d.name === sending_domain
-              );
+              const existingDomain = domains.find((d: any) => d.name === cleanDomain);
               if (existingDomain) {
                 domainId = existingDomain.id;
                 dnsRecords = existingDomain.records || [];
                 verificationStatus = existingDomain.status === "verified" ? "verified" : "pending";
+              } else {
+                console.error("Domain reported as existing but not found in list");
+                return new Response(
+                  JSON.stringify({ 
+                    success: false, 
+                    error: `Domínio já existe no Resend mas não foi encontrado. Verifique no painel do Resend.`,
+                    details: errorMessage
+                  }),
+                  { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
               }
             }
           } else {
-            throw new Error(createResult.error.message);
+            console.error("Unhandled create error:", errorMessage);
+            return new Response(
+              JSON.stringify({ 
+                success: false, 
+                error: `Erro ao criar domínio no Resend: ${errorMessage}`,
+                details: errorMessage
+              }),
+              { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
           }
         } else if (createResult.data) {
           domainId = createResult.data.id;
           dnsRecords = createResult.data.records || [];
           verificationStatus = "pending";
         }
-      } catch (e: any) {
-        console.error("Error creating domain:", e);
-        throw new Error(`Erro ao criar domínio no Resend: ${e.message}`);
+      } catch (createError: any) {
+        console.error("Exception creating domain:", createError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Erro ao criar domínio: ${createError.message}`,
+            details: createError.message
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
-    // Update config
+    if (!domainId) {
+      console.error("Failed to get or create domain");
+      return new Response(
+        JSON.stringify({ success: false, error: "Não foi possível configurar o domínio" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log("Final domain state:", { domainId, verificationStatus, recordsCount: dnsRecords.length });
+
+    // Update config in database
     const { data: updatedConfig, error: updateError } = await supabaseAdmin
       .from("system_email_config")
       .update({
-        sending_domain,
+        sending_domain: cleanDomain,
         resend_domain_id: domainId,
         dns_records: dnsRecords,
         verification_status: verificationStatus,
@@ -146,7 +245,10 @@ Deno.serve(async (req: Request) => {
 
     if (updateError) {
       console.error("Error updating config:", updateError);
-      throw new Error("Erro ao atualizar configuração");
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao atualizar configuração: " + updateError.message }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     console.log("Domain upsert successful:", updatedConfig);
@@ -160,10 +262,10 @@ Deno.serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
-    console.error("Error in system-email-domain-upsert:", error);
+    console.error("Unexpected error in system-email-domain-upsert:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ success: false, error: error.message, details: error.stack }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
