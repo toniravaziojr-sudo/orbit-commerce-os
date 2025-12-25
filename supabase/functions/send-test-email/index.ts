@@ -69,6 +69,29 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Validate domain is verified
+    if (config.verification_status !== "verified") {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "O domínio de envio ainda não foi verificado. Configure os registros DNS e verifique o domínio primeiro." 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Validate from_email belongs to verified domain
+    const emailDomain = config.from_email.split("@")[1]?.toLowerCase();
+    if (config.sending_domain && emailDomain !== config.sending_domain.toLowerCase()) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `O email do remetente deve pertencer ao domínio verificado (${config.sending_domain}).` 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Send test email via Resend
     const resend = new Resend(resendApiKey);
     
