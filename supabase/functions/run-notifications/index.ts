@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { Resend } from 'https://esm.sh/resend@2.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +25,16 @@ interface Notification {
   sent_at: string | null;
 }
 
+interface EmailConfig {
+  id: string;
+  tenant_id: string;
+  provider_type: string;
+  from_name: string;
+  from_email: string;
+  reply_to: string | null;
+  is_verified: boolean;
+}
+
 interface RunnerStats {
   claimed_count: number;
   processed_success: number;
@@ -33,43 +44,147 @@ interface RunnerStats {
   unstuck_count: number;
 }
 
-// Mock sender - simulates sending notifications
-function mockSend(channel: string, recipient: string, templateKey: string | null, payload: Record<string, unknown> | null): { success: boolean; error?: string; response: Record<string, unknown> } {
-  console.log(`[MockSender] Channel: ${channel}, Recipient: ${recipient}, Template: ${templateKey}`);
-  
-  // Validate recipient based on channel
-  if (channel === 'whatsapp') {
-    // WhatsApp: recipient should be a valid phone number (at least 10 digits)
-    const cleanPhone = (recipient || '').replace(/\D/g, '');
-    if (!cleanPhone || cleanPhone.length < 10) {
-      return {
-        success: false,
-        error: `Invalid WhatsApp recipient: "${recipient}" (requires at least 10 digits)`,
-        response: { mock: true, channel, to: recipient, template: templateKey, validated: false }
-      };
-    }
-  } else if (channel === 'email') {
-    // Email: recipient should contain @
-    if (!recipient || !recipient.includes('@')) {
-      return {
-        success: false,
-        error: `Invalid email recipient: "${recipient}" (missing @)`,
-        response: { mock: true, channel, to: recipient, template: templateKey, validated: false }
-      };
-    }
+// Cache for email configs per tenant
+const emailConfigCache: Map<string, EmailConfig | null> = new Map();
+
+// Get email config for tenant
+async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailConfig | null> {
+  if (emailConfigCache.has(tenantId)) {
+    return emailConfigCache.get(tenantId) || null;
   }
+
+  const { data, error } = await supabase
+    .from('email_provider_configs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (error || !data) {
+    console.log(`[RunNotifications] No email config for tenant ${tenantId}`);
+    emailConfigCache.set(tenantId, null);
+    return null;
+  }
+
+  emailConfigCache.set(tenantId, data);
+  return data;
+}
+
+// Convert basic markdown to HTML for emails
+function markdownToHtml(text: string): string {
+  if (!text) return '';
   
-  // Simulate successful send
+  return text
+    // Bold: **text** or *text*
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+    // Links: [text](url)
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color: #667eea; text-decoration: underline;">$1</a>')
+    // Line breaks
+    .replace(/\n/g, '<br>');
+}
+
+// Build HTML email from subject and body
+function buildEmailHtml(subject: string, body: string, fromName: string): string {
+  const htmlBody = markdownToHtml(body);
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5;">
+    <tr>
+      <td align="center" style="padding: 40px 20px;">
+        <table role="presentation" width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="padding: 30px 40px; border-bottom: 1px solid #e4e4e7;">
+              <h1 style="margin: 0; font-size: 20px; font-weight: 600; color: #18181b;">${subject}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 30px 40px;">
+              <div style="font-size: 15px; line-height: 1.6; color: #3f3f46;">
+                ${htmlBody}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 20px 40px; background-color: #fafafa; border-top: 1px solid #e4e4e7;">
+              <p style="margin: 0; font-size: 12px; color: #71717a; text-align: center;">
+                Enviado por ${fromName}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// Send email via Resend
+async function sendEmail(
+  resend: Resend,
+  config: EmailConfig,
+  recipient: string,
+  subject: string,
+  body: string
+): Promise<{ success: boolean; error?: string; messageId?: string }> {
+  try {
+    const fromAddress = `${config.from_name} <${config.from_email}>`;
+    const htmlContent = buildEmailHtml(subject, body, config.from_name);
+
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: [recipient],
+      reply_to: config.reply_to || undefined,
+      subject: subject,
+      html: htmlContent,
+    });
+
+    if (error) {
+      console.error('[RunNotifications] Resend error:', error);
+      return { success: false, error: error.message || JSON.stringify(error) };
+    }
+
+    return { success: true, messageId: data?.id };
+  } catch (error: any) {
+    console.error('[RunNotifications] Email send error:', error);
+    return { success: false, error: error.message || 'Unknown error sending email' };
+  }
+}
+
+// Send WhatsApp (mock for now - will be implemented later)
+function sendWhatsApp(
+  recipient: string,
+  message: string
+): { success: boolean; error?: string; response: Record<string, unknown> } {
+  console.log(`[RunNotifications] WhatsApp (mock): To ${recipient}`);
+  
+  // Validate phone number
+  const cleanPhone = (recipient || '').replace(/\D/g, '');
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return {
+      success: false,
+      error: `Número de WhatsApp inválido: "${recipient}" (mínimo 10 dígitos)`,
+      response: { mock: true, channel: 'whatsapp', to: recipient, validated: false }
+    };
+  }
+
+  // For now, mock success - WhatsApp will be implemented in phase 2
   return {
     success: true,
     response: {
       mock: true,
-      channel,
+      channel: 'whatsapp',
       to: recipient,
-      template: templateKey,
-      payload_keys: payload ? Object.keys(payload) : [],
+      message_preview: message?.substring(0, 50),
       sent_at: new Date().toISOString(),
-      message_id: `mock_${Date.now()}_${Math.random().toString(36).substring(7)}`
+      message_id: `whatsapp_mock_${Date.now()}`
     }
   };
 }
@@ -91,7 +206,10 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
     // Parse request body
     let limit = 25;
@@ -105,7 +223,7 @@ Deno.serve(async (req) => {
       // Empty body is ok, use defaults
     }
 
-    console.log(`[RunNotifications] Starting with limit=${limit}, tenant_id=${tenantId || 'all'}`);
+    console.log(`[RunNotifications] Starting with limit=${limit}, tenant_id=${tenantId || 'all'}, resend_configured=${!!resend}`);
 
     const stats: RunnerStats = {
       claimed_count: 0,
@@ -188,7 +306,7 @@ Deno.serve(async (req) => {
     // Step 3: Process each notification
     for (const notification of dueNotifications as Notification[]) {
       const attemptNo = notification.attempt_count + 1;
-      console.log(`[RunNotifications] Processing notification ${notification.id}, attempt ${attemptNo}/${notification.max_attempts}`);
+      console.log(`[RunNotifications] Processing notification ${notification.id}, channel=${notification.channel}, attempt ${attemptNo}/${notification.max_attempts}`);
 
       // Create attempt record
       const { data: attemptData, error: attemptInsertError } = await supabase
@@ -209,25 +327,63 @@ Deno.serve(async (req) => {
       }
 
       const attemptId = attemptData.id;
-
-      // Execute mock sender
-      const sendResult = mockSend(
-        notification.channel,
-        notification.recipient,
-        notification.template_key,
-        notification.payload as Record<string, unknown> | null
-      );
-
-      const finishedAt = new Date().toISOString();
-
-      // Extract payload data for logging
       const payload = notification.payload as Record<string, unknown> | null;
+      
+      // Extract content from payload
+      const emailSubject = payload?.email_subject as string || 'Notificação';
+      const emailBody = payload?.email_body as string || '';
+      const whatsappMessage = payload?.whatsapp_message as string || '';
       const orderId = payload?.order_id as string | null;
       const customerId = payload?.customer_id as string | null;
       const checkoutSessionId = payload?.checkout_session_id as string | null;
       const ruleType = payload?.rule_type as string || 'unknown';
-      const contentPreview = payload?.whatsapp_message as string || payload?.email_subject as string || null;
       const attachments = payload?.attachments || null;
+
+      let sendResult: { success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string };
+
+      // Route to appropriate sender based on channel
+      if (notification.channel === 'email') {
+        // Get email config for tenant
+        const emailConfig = await getEmailConfig(supabase, notification.tenant_id);
+        
+        if (!resend) {
+          sendResult = {
+            success: false,
+            error: 'RESEND_API_KEY não configurada. Configure a API key nas variáveis de ambiente.'
+          };
+        } else if (!emailConfig) {
+          sendResult = {
+            success: false,
+            error: 'Provedor de email não configurado para este tenant. Configure em Integrações → Outros → Email.'
+          };
+        } else if (!emailConfig.from_email || !emailConfig.from_name) {
+          sendResult = {
+            success: false,
+            error: 'Configuração de email incompleta. Preencha nome e email do remetente.'
+          };
+        } else if (!notification.recipient || !notification.recipient.includes('@')) {
+          sendResult = {
+            success: false,
+            error: `Email do destinatário inválido: "${notification.recipient}"`
+          };
+        } else {
+          // Send real email
+          sendResult = await sendEmail(resend, emailConfig, notification.recipient, emailSubject, emailBody);
+        }
+      } else if (notification.channel === 'whatsapp') {
+        // WhatsApp - mock for now
+        sendResult = sendWhatsApp(notification.recipient, whatsappMessage);
+      } else {
+        sendResult = {
+          success: false,
+          error: `Canal não suportado: ${notification.channel}`
+        };
+      }
+
+      const finishedAt = new Date().toISOString();
+      const contentPreview = notification.channel === 'whatsapp' 
+        ? whatsappMessage.substring(0, 200)
+        : `${emailSubject}: ${emailBody.substring(0, 150)}`;
 
       if (sendResult.success) {
         // Success path
@@ -239,7 +395,7 @@ Deno.serve(async (req) => {
           .update({
             status: 'success',
             finished_at: finishedAt,
-            provider_response: sendResult.response
+            provider_response: sendResult.response || { message_id: sendResult.messageId }
           })
           .eq('id', attemptId);
 
@@ -290,7 +446,7 @@ Deno.serve(async (req) => {
             finished_at: finishedAt,
             error_code: 'SEND_FAILED',
             error_message: sendResult.error,
-            provider_response: sendResult.response
+            provider_response: sendResult.response || null
           })
           .eq('id', attemptId);
 

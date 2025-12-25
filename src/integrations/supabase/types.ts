@@ -944,6 +944,56 @@ export type Database = {
           },
         ]
       }
+      email_provider_configs: {
+        Row: {
+          created_at: string
+          from_email: string
+          from_name: string
+          id: string
+          is_verified: boolean | null
+          last_test_at: string | null
+          last_test_result: Json | null
+          provider_type: string
+          reply_to: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_email: string
+          from_name?: string
+          id?: string
+          is_verified?: boolean | null
+          last_test_at?: string | null
+          last_test_result?: Json | null
+          provider_type?: string
+          reply_to?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_email?: string
+          from_name?: string
+          id?: string
+          is_verified?: boolean | null
+          last_test_at?: string | null
+          last_test_result?: Json | null
+          provider_type?: string
+          reply_to?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_provider_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events_inbox: {
         Row: {
           created_at: string
