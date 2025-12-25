@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
+import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
 
@@ -27,14 +28,6 @@ const FUTURE_INTEGRATIONS = [
     description: "Envie notificações automáticas via WhatsApp",
     status: "coming_soon",
     icon: "💬",
-  },
-  {
-    id: "email",
-    name: "Email (SMTP)",
-    category: "Comunicação",
-    description: "Configure envio de emails transacionais",
-    status: "coming_soon",
-    icon: "📧",
   },
   {
     id: "erp",
@@ -138,7 +131,11 @@ export default function Integrations() {
           <ShippingCarrierSettings />
         </TabsContent>
 
-        <TabsContent value="others" className="space-y-4">
+        <TabsContent value="others" className="space-y-6">
+          {/* Email Provider Settings */}
+          <EmailProviderSettings />
+
+          {/* Future Integrations */}
           <Card>
             <CardHeader>
               <CardTitle>Outras Integrações</CardTitle>
