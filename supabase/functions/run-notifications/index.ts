@@ -33,6 +33,8 @@ interface EmailConfig {
   from_email: string;
   reply_to: string | null;
   is_verified: boolean;
+  sending_domain: string | null;
+  verification_status: string | null;
 }
 
 interface RunnerStats {
@@ -356,11 +358,33 @@ Deno.serve(async (req) => {
             success: false,
             error: 'Provedor de email não configurado para este tenant. Configure em Integrações → Outros → Email.'
           };
+        } else if (emailConfig.verification_status !== 'verified') {
+          sendResult = {
+            success: false,
+            error: 'Domínio de email não verificado. Verifique o domínio antes de enviar emails.'
+          };
         } else if (!emailConfig.from_email || !emailConfig.from_name) {
           sendResult = {
             success: false,
             error: 'Configuração de email incompleta. Preencha nome e email do remetente.'
           };
+        } else if (emailConfig.sending_domain) {
+          // Validate from_email belongs to verified domain
+          const emailDomain = emailConfig.from_email.split('@')[1]?.toLowerCase();
+          if (emailDomain !== emailConfig.sending_domain.toLowerCase()) {
+            sendResult = {
+              success: false,
+              error: `Email do remetente (${emailConfig.from_email}) não pertence ao domínio verificado (${emailConfig.sending_domain}).`
+            };
+          } else if (!notification.recipient || !notification.recipient.includes('@')) {
+            sendResult = {
+              success: false,
+              error: `Email do destinatário inválido: "${notification.recipient}"`
+            };
+          } else {
+            // Send real email
+            sendResult = await sendEmail(resend, emailConfig, notification.recipient, emailSubject, emailBody);
+          }
         } else if (!notification.recipient || !notification.recipient.includes('@')) {
           sendResult = {
             success: false,

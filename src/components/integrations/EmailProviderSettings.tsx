@@ -91,7 +91,7 @@ export function EmailProviderSettings() {
           sending_domain: data.sending_domain || "",
           resend_domain_id: data.resend_domain_id || null,
           verification_status: (data.verification_status as EmailConfig["verification_status"]) || "not_started",
-          dns_records: (data.dns_records as DnsRecord[]) || [],
+          dns_records: (Array.isArray(data.dns_records) ? data.dns_records as unknown as DnsRecord[] : []),
           last_test_at: data.last_test_at,
           last_test_result: data.last_test_result as EmailConfig["last_test_result"],
           last_verify_error: data.last_verify_error || null,
