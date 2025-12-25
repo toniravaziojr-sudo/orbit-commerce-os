@@ -44,6 +44,9 @@ interface SystemEmailConfig {
   last_test_result: { success: boolean; message_id?: string; error?: string } | null;
 }
 
+// Only this email can see this component
+const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
+
 export function SystemEmailSettings() {
   const { toast } = useToast();
   const [config, setConfig] = useState<SystemEmailConfig | null>(null);
@@ -51,6 +54,7 @@ export function SystemEmailSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Form state
   const [sendingDomain, setSendingDomain] = useState("");
@@ -60,7 +64,15 @@ export function SystemEmailSettings() {
   const [testEmail, setTestEmail] = useState("");
 
   useEffect(() => {
-    loadConfig();
+    // Check if current user is platform admin
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUserEmail(user?.email || null);
+      if (user?.email === PLATFORM_ADMIN_EMAIL) {
+        loadConfig();
+      } else {
+        setIsLoading(false);
+      }
+    });
   }, []);
 
   const loadConfig = async () => {
@@ -243,6 +255,11 @@ export function SystemEmailSettings() {
         return <Badge variant="outline">Não iniciado</Badge>;
     }
   };
+
+  // Don't render if not platform admin
+  if (currentUserEmail !== PLATFORM_ADMIN_EMAIL) {
+    return null;
+  }
 
   if (isLoading) {
     return (
