@@ -120,3 +120,9 @@ verify_jwt = true
 
 [functions.send-test-email]
 verify_jwt = true
+
+[functions.email-domain-upsert]
+verify_jwt = true
+
+[functions.email-domain-verify]
+verify_jwt = true
