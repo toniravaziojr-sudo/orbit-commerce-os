@@ -60,6 +60,78 @@ serve(async (req) => {
       throw new Error('Invalid authorization');
     }
 
+    // Handle POST requests with body-based action
+    if (req.method === 'POST') {
+      const body = await req.json();
+      const { action } = body;
+
+      // System email config actions
+      if (action === 'get-system-email-config') {
+        // Check if user is platform operator (owner of any tenant)
+        const { data: roles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'owner')
+          .limit(1);
+
+        if (!roles || roles.length === 0) {
+          throw new Error('Apenas operadores da plataforma podem acessar');
+        }
+
+        const { data: config, error } = await supabaseClient
+          .from('system_email_config')
+          .select('*')
+          .limit(1)
+          .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+
+        return new Response(JSON.stringify({ config: config || null }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (action === 'update-system-email-config') {
+        const { from_name, from_email, reply_to } = body;
+
+        // Check if user is platform operator
+        const { data: roles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'owner')
+          .limit(1);
+
+        if (!roles || roles.length === 0) {
+          throw new Error('Apenas operadores da plataforma podem editar');
+        }
+
+        const { data: config, error: fetchError } = await supabaseClient
+          .from('system_email_config')
+          .select('*')
+          .limit(1)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const { error: updateError } = await supabaseClient
+          .from('system_email_config')
+          .update({
+            from_name,
+            from_email,
+            reply_to,
+          })
+          .eq('id', config.id);
+
+        if (updateError) throw updateError;
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    }
+
     const url = new URL(req.url);
     const action = url.searchParams.get('action');
     const providerType = url.searchParams.get('type'); // 'payment' or 'shipping'

@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
 import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
+import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
 
@@ -132,7 +133,10 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="others" className="space-y-6">
-          {/* Email Provider Settings */}
+          {/* System Email Settings (Platform) */}
+          <SystemEmailSettings />
+
+          {/* Email Provider Settings (per Tenant) */}
           <EmailProviderSettings />
 
           {/* Future Integrations */}

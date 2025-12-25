@@ -3244,6 +3244,102 @@ export type Database = {
           },
         ]
       }
+      system_email_config: {
+        Row: {
+          created_at: string
+          dns_records: Json | null
+          from_email: string
+          from_name: string
+          id: string
+          last_test_at: string | null
+          last_test_result: Json | null
+          last_verify_check_at: string | null
+          last_verify_error: string | null
+          provider_type: string
+          reply_to: string | null
+          resend_domain_id: string | null
+          sending_domain: string | null
+          updated_at: string
+          verification_status: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          dns_records?: Json | null
+          from_email?: string
+          from_name?: string
+          id?: string
+          last_test_at?: string | null
+          last_test_result?: Json | null
+          last_verify_check_at?: string | null
+          last_verify_error?: string | null
+          provider_type?: string
+          reply_to?: string | null
+          resend_domain_id?: string | null
+          sending_domain?: string | null
+          updated_at?: string
+          verification_status?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          dns_records?: Json | null
+          from_email?: string
+          from_name?: string
+          id?: string
+          last_test_at?: string | null
+          last_test_result?: Json | null
+          last_verify_check_at?: string | null
+          last_verify_error?: string | null
+          provider_type?: string
+          reply_to?: string | null
+          resend_domain_id?: string | null
+          sending_domain?: string | null
+          updated_at?: string
+          verification_status?: string | null
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
+      system_email_logs: {
+        Row: {
+          created_at: string
+          email_type: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          provider_message_id: string | null
+          recipient: string
+          sent_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          email_type: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider_message_id?: string | null
+          recipient: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider_message_id?: string | null
+          recipient?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       system_health_check_targets: {
         Row: {
           created_at: string
