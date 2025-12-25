@@ -126,3 +126,12 @@ verify_jwt = true
 
 [functions.email-domain-verify]
 verify_jwt = true
+
+[functions.system-email-domain-upsert]
+verify_jwt = true
+
+[functions.system-email-domain-verify]
+verify_jwt = true
+
+[functions.send-system-email]
+verify_jwt = true
