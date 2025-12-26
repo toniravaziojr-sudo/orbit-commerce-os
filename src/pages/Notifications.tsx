@@ -17,6 +17,8 @@ import {
   RescheduleDialog,
   RulesListV2,
   RuleFormDialogV2,
+  PostSaleBackfillButton,
+  ReplayEventsButton,
 } from "@/components/notifications";
 
 function useIsAdminOrOwner(tenantId: string | null | undefined) {
@@ -224,8 +226,18 @@ export default function Notifications() {
         <TabsContent value="rules">
           <Card>
             <CardHeader>
-              <CardTitle>Regras de Automação</CardTitle>
-              <CardDescription>Configure regras para enviar notificações automáticas via WhatsApp e E-mail</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Regras de Automação</CardTitle>
+                  <CardDescription>Configure regras para enviar notificações automáticas via WhatsApp e E-mail</CardDescription>
+                </div>
+                {isAdminOrOwner && (
+                  <div className="flex items-center gap-2">
+                    <PostSaleBackfillButton />
+                    <ReplayEventsButton />
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <RulesListV2

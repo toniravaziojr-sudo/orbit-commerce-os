@@ -208,7 +208,12 @@ export default function CustomerDetail() {
               </div>
             </div>
             <p className="text-muted-foreground">
-              Cliente desde {formatDate(customer.created_at)}
+              Cliente desde {customer.first_order_at 
+                ? formatDate(customer.first_order_at) 
+                : formatDate(customer.created_at)}
+              {customer.first_order_at && (
+                <span className="text-xs ml-1">(primeiro pedido)</span>
+              )}
             </p>
           </div>
         </div>
