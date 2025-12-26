@@ -107,6 +107,7 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
       switch (trigger_condition) {
         case 'paid':
         case 'approved':
+        case 'payment_approved': // UI sends this value
           return newStatus === 'paid' || newStatus === 'approved';
         case 'pix_generated':
           // Accept both direct status or legacy pending + pix method
@@ -117,9 +118,11 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
           return newStatus === 'boleto_generated' || 
                  ((newStatus === 'pending' || newStatus === 'awaiting_payment') && paymentMethod === 'boleto');
         case 'declined':
+        case 'payment_declined':
           return newStatus === 'failed' || newStatus === 'declined';
         case 'expired':
         case 'canceled':
+        case 'payment_expired':
           return newStatus === 'canceled' || newStatus === 'expired' || newStatus === 'refunded';
         default:
           return false;

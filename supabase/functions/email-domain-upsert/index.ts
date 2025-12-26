@@ -229,14 +229,37 @@ Deno.serve(async (req) => {
     };
 
     if (existingConfig?.id) {
-      await supabase
+      const { error: updateError } = await supabase
         .from("email_provider_configs")
         .update(upsertPayload)
         .eq("id", existingConfig.id);
+      
+      if (updateError) {
+        console.error("[email-domain-upsert] Error updating config:", updateError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Erro ao atualizar configuração: ${updateError.message}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     } else {
-      await supabase
+      // Insert new config with required fields
+      const insertPayload = {
+        ...upsertPayload,
+        from_name: "", // Will be set by user later
+        from_email: "", // Will be set by user later
+      };
+      
+      const { error: insertError } = await supabase
         .from("email_provider_configs")
-        .insert(upsertPayload);
+        .insert(insertPayload);
+      
+      if (insertError) {
+        console.error("[email-domain-upsert] Error inserting config:", insertError);
+        return new Response(
+          JSON.stringify({ success: false, error: `Erro ao criar configuração: ${insertError.message}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     return new Response(

@@ -136,14 +136,31 @@ async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailCon
 function markdownToHtml(text: string): string {
   if (!text) return '';
   
-  return text
+  let result = text
     // Bold: **text** or *text*
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
     // Links: [text](url)
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color: #667eea; text-decoration: underline;">$1</a>')
-    // Line breaks
-    .replace(/\n/g, '<br>');
+    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color: #667eea; text-decoration: underline;">$1</a>');
+  
+  // Special handling for PIX links - render as a nice block with QR code
+  const pixLinkRegex = /(https?:\/\/api\.pagar\.me\/[^\s]+qrcode[^\s]*)/gi;
+  result = result.replace(pixLinkRegex, (match) => {
+    return `
+      <div style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #00D9A6 0%, #00B894 100%); border-radius: 12px; text-align: center;">
+        <p style="margin: 0 0 15px 0; font-size: 14px; font-weight: 600; color: #ffffff; text-transform: uppercase; letter-spacing: 1px;">PIX - Pagamento Instantâneo</p>
+        <div style="background: #ffffff; border-radius: 8px; padding: 15px; display: inline-block;">
+          <img src="${match}" alt="QR Code PIX" style="width: 180px; height: 180px; display: block;" />
+        </div>
+        <p style="margin: 15px 0 0 0; font-size: 13px; color: #ffffff;">Escaneie o QR Code acima com o app do seu banco</p>
+        <a href="${match}" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #ffffff; color: #00B894; font-weight: 600; text-decoration: none; border-radius: 6px; font-size: 14px;">Abrir QR Code</a>
+      </div>`;
+  });
+  
+  // Line breaks (after PIX processing to avoid breaking the HTML)
+  result = result.replace(/\n/g, '<br>');
+  
+  return result;
 }
 
 // Build HTML email from subject and body
