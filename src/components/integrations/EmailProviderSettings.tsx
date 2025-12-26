@@ -64,6 +64,7 @@ export function EmailProviderSettings() {
   const [domainInput, setDomainInput] = useState("");
   const [dnsLookupResults, setDnsLookupResults] = useState<DnsLookupResult[]>([]);
   const [dnsDiagnosis, setDnsDiagnosis] = useState<string[]>([]);
+  const [dnsAllOk, setDnsAllOk] = useState(false);
   const [config, setConfig] = useState<EmailConfig>({
     provider_type: "resend",
     from_name: "",
@@ -185,6 +186,9 @@ export function EmailProviderSettings() {
       // Store DNS lookup results for diagnosis
       if (data?.dns_lookup) {
         setDnsLookupResults(data.dns_lookup);
+        // Check if all DNS records are OK
+        const allOk = data.dns_lookup.length > 0 && data.dns_lookup.every((r: DnsLookupResult) => r.match);
+        setDnsAllOk(allOk);
       }
       if (data?.diagnosis) {
         setDnsDiagnosis(data.diagnosis);
@@ -194,12 +198,23 @@ export function EmailProviderSettings() {
         toast({ title: "Verificado!", description: "Domínio verificado com sucesso!" });
         setDnsLookupResults([]);
         setDnsDiagnosis([]);
+        setDnsAllOk(false);
       } else {
-        toast({ 
-          title: "Aguardando DNS", 
-          description: data?.message || "Configure os registros DNS e tente novamente",
-          variant: "default"
-        });
+        // Check if DNS is OK but provider is still pending
+        const allRecordsOk = data?.dns_lookup?.length > 0 && data.dns_lookup.every((r: DnsLookupResult) => r.match);
+        if (allRecordsOk) {
+          toast({ 
+            title: "DNS OK!", 
+            description: "Registros DNS verificados. O provedor ainda está processando. Você já pode configurar o remetente.",
+            duration: 5000,
+          });
+        } else {
+          toast({ 
+            title: "Aguardando DNS", 
+            description: data?.message || "Configure os registros DNS e tente novamente",
+            variant: "default"
+          });
+        }
       }
       await fetchConfig();
     } catch (error: any) {
@@ -212,7 +227,8 @@ export function EmailProviderSettings() {
 
   const handleSave = async () => {
     if (!tenantId) return;
-    if (config.verification_status !== "verified") {
+    // Allow saving when DNS is OK even if provider is still pending
+    if (config.verification_status !== "verified" && !dnsAllOk) {
       toast({ title: "Erro", description: "Verifique o domínio antes de configurar o remetente", variant: "destructive" });
       return;
     }
@@ -350,12 +366,11 @@ export function EmailProviderSettings() {
           <div className="space-y-4">
             <Label className="font-semibold">2. Configure os registros DNS</Label>
             
-            {/* Info about DNS vs Site verification */}
+            {/* Info about next steps */}
             <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
-                <strong>Por que preciso verificar novamente?</strong> A verificação do domínio para email (SPF/DKIM/MX) é diferente da verificação do site (DNS/SSL). 
-                Isso garante que seus emails sejam autenticados corretamente e não caiam no spam.
+                <strong>Próximo passo:</strong> Após a verificação do domínio ser concluída, aparecerá a seção para cadastrar o nome e email do remetente.
               </AlertDescription>
             </Alert>
             
@@ -480,10 +495,22 @@ export function EmailProviderSettings() {
           </div>
         )}
 
-        {/* Step 3: Sender Info */}
-        {isVerified && (
+        {/* Step 3: Sender Info - Show when verified OR when DNS is OK */}
+        {(isVerified || dnsAllOk) && (
           <div className="space-y-4 pt-4 border-t">
             <Label className="font-semibold">3. Configurar remetente</Label>
+            
+            {/* Show status message when DNS OK but not yet verified by provider */}
+            {dnsAllOk && !isVerified && (
+              <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-900">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800 dark:text-green-200 text-sm">
+                  <strong>DNS verificado com sucesso!</strong> O provedor ainda está processando a verificação final. 
+                  Você já pode configurar o remetente abaixo. Os emails serão enviados assim que a verificação for concluída.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="from_name">Nome do remetente *</Label>
@@ -536,7 +563,7 @@ export function EmailProviderSettings() {
                 {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Salvar
               </Button>
-              <Button variant="outline" onClick={handleTest} disabled={isTesting || !config.from_email}>
+              <Button variant="outline" onClick={handleTest} disabled={isTesting || !config.from_email || !isVerified}>
                 {isTesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                 Enviar teste
               </Button>
