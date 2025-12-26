@@ -4,12 +4,13 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
+import { platformBranding } from '@/lib/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
-import { Loader2, Store, Lock, CheckCircle } from 'lucide-react';
+import { Loader2, Lock, CheckCircle } from 'lucide-react';
 
 const resetPasswordSchema = z.object({
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
@@ -67,12 +68,16 @@ export default function ResetPassword() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-            <Store className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Central de Comando</span>
+        {/* Logo + Slogan */}
+        <div className="flex flex-col items-center mb-8">
+          <img 
+            src={platformBranding.logos.full} 
+            alt={platformBranding.productName}
+            className="h-24 object-contain mb-4"
+          />
+          <p className="text-muted-foreground text-sm text-center">
+            {platformBranding.slogan}
+          </p>
         </div>
 
         <Card className="shadow-lg border-border/50">

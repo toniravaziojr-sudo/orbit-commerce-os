@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { platformBranding } from "@/lib/branding";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -18,7 +19,6 @@ import {
   Activity,
   FileText,
   ShoppingBag,
-  Command,
   Store,
   FolderTree,
   Menu,
@@ -141,9 +141,20 @@ export function AppSidebar() {
       {/* Logo & Tenant Switcher */}
       <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-4">
         {collapsed ? (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Command className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden">
+                <img 
+                  src={platformBranding.logos.icon} 
+                  alt={platformBranding.productName}
+                  className="h-9 w-9 object-contain"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="right" className="font-medium">
+              {platformBranding.productName}
+            </TooltipContent>
+          </Tooltip>
         ) : (
           <TenantSwitcher />
         )}

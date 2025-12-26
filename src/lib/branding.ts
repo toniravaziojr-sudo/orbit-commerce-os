@@ -1,0 +1,54 @@
+/**
+ * Comando Central - Configuração de Branding Centralizada
+ * 
+ * Esta é a fonte única de verdade para todo branding da plataforma.
+ * NÃO DUPLIQUE estas informações em outros lugares do código.
+ */
+
+import logoFull from "@/assets/logo-full.png";
+import logoIcon from "@/assets/logo-icon.png";
+
+export const platformBranding = {
+  // Nome do produto
+  productName: "Comando Central",
+  
+  // Slogan oficial
+  slogan: "O centro de comando do seu e-commerce.",
+  
+  // Tagline curta (para uso em espaços menores)
+  tagline: "Plataforma E-commerce",
+  
+  // Assets de logo
+  logos: {
+    // Logo completa com texto (para headers, login, etc.)
+    full: logoFull,
+    
+    // Apenas o ícone/símbolo (para sidebar colapsada, favicon, etc.)
+    icon: logoIcon,
+  },
+  
+  // URLs públicas para uso em emails e contextos externos
+  publicUrls: {
+    logo: "https://app.comandocentral.com.br/favicon.png",
+    website: "https://comandocentral.com.br",
+    app: "https://app.comandocentral.com.br",
+  },
+  
+  // Cores principais da marca (para referência)
+  colors: {
+    primary: "#3B82F6", // Azul
+    secondary: "#F97316", // Laranja
+    dark: "#0F172A", // Fundo escuro
+  },
+  
+  // Informações de contato/suporte
+  support: {
+    email: "suporte@comandocentral.com.br",
+  },
+  
+  // Copyright
+  copyright: `© ${new Date().getFullYear()} Comando Central. Todos os direitos reservados.`,
+} as const;
+
+// Tipos para TypeScript
+export type PlatformBranding = typeof platformBranding;
