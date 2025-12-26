@@ -110,9 +110,17 @@ async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailCon
     .eq('tenant_id', tenantId)
     .single();
 
-  // If tenant has a verified config, use it
-  if (!error && tenantConfig && tenantConfig.verification_status === 'verified') {
-    console.log(`[RunNotifications] Using tenant verified email config: ${tenantConfig.from_email}`);
+  // Check if tenant config can be used:
+  // - verification_status === 'verified' (provider fully verified)
+  // - OR dns_all_ok === true AND from_email is set (DNS passed, can send)
+  const canUseTenantConfig = !error && tenantConfig && (
+    tenantConfig.verification_status === 'verified' ||
+    (tenantConfig.dns_all_ok === true && tenantConfig.from_email && tenantConfig.from_name)
+  );
+  
+  if (canUseTenantConfig) {
+    const isFullyVerified = tenantConfig.verification_status === 'verified';
+    console.log(`[RunNotifications] Using tenant email config: ${tenantConfig.from_email} (verified=${isFullyVerified}, dns_ok=${tenantConfig.dns_all_ok})`);
     emailConfigCache.set(tenantId, tenantConfig);
     return tenantConfig;
   }

@@ -947,6 +947,7 @@ export type Database = {
       email_provider_configs: {
         Row: {
           created_at: string
+          dns_all_ok: boolean | null
           dns_records: Json | null
           from_email: string | null
           from_name: string
@@ -967,6 +968,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dns_all_ok?: boolean | null
           dns_records?: Json | null
           from_email?: string | null
           from_name?: string
@@ -987,6 +989,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dns_all_ok?: boolean | null
           dns_records?: Json | null
           from_email?: string | null
           from_name?: string
