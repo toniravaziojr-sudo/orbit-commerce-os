@@ -26,6 +26,15 @@ const getMxPriority = (record: DnsRecord): string | null => {
   return "10"; // Default priority for MX records
 };
 
+interface DnsLookupResult {
+  record_type: string;
+  host: string;
+  expected_value: string;
+  found_values: string[];
+  match: boolean;
+  details?: string;
+}
+
 interface EmailConfig {
   id?: string;
   provider_type: string;
@@ -53,6 +62,8 @@ export function EmailProviderSettings() {
   const [isAddingDomain, setIsAddingDomain] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [domainInput, setDomainInput] = useState("");
+  const [dnsLookupResults, setDnsLookupResults] = useState<DnsLookupResult[]>([]);
+  const [dnsDiagnosis, setDnsDiagnosis] = useState<string[]>([]);
   const [config, setConfig] = useState<EmailConfig>({
     provider_type: "resend",
     from_name: "",
@@ -161,6 +172,9 @@ export function EmailProviderSettings() {
     if (!tenantId) return;
 
     setIsVerifying(true);
+    setDnsLookupResults([]);
+    setDnsDiagnosis([]);
+    
     try {
       const { data, error } = await supabase.functions.invoke("email-domain-verify", {
         body: { tenant_id: tenantId },
@@ -168,8 +182,18 @@ export function EmailProviderSettings() {
 
       if (error) throw error;
 
+      // Store DNS lookup results for diagnosis
+      if (data?.dns_lookup) {
+        setDnsLookupResults(data.dns_lookup);
+      }
+      if (data?.diagnosis) {
+        setDnsDiagnosis(data.diagnosis);
+      }
+
       if (data?.verified) {
         toast({ title: "Verificado!", description: "Domínio verificado com sucesso!" });
+        setDnsLookupResults([]);
+        setDnsDiagnosis([]);
       } else {
         toast({ 
           title: "Aguardando DNS", 
@@ -392,6 +416,67 @@ export function EmailProviderSettings() {
                 {isVerified ? "Verificado" : "Verificar DNS"}
               </Button>
             </div>
+            
+            {/* DNS Diagnosis Results */}
+            {dnsLookupResults.length > 0 && !isVerified && (
+              <div className="space-y-3 mt-4">
+                <Label className="font-semibold text-amber-700 dark:text-amber-400">Diagnóstico DNS</Label>
+                
+                {/* Diagnosis Summary */}
+                {dnsDiagnosis.length > 0 && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-1">
+                    {dnsDiagnosis.map((line, i) => (
+                      <p key={i} className="text-sm text-amber-900 dark:text-amber-100">{line}</p>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Detailed DNS Lookup Table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted">
+                      <tr>
+                        <th className="text-left p-2">Tipo</th>
+                        <th className="text-left p-2">Host</th>
+                        <th className="text-left p-2">Esperado</th>
+                        <th className="text-left p-2">Encontrado</th>
+                        <th className="text-left p-2 w-16">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dnsLookupResults.map((result, i) => (
+                        <tr key={i} className={`border-t ${result.match ? 'bg-green-50 dark:bg-green-950/20' : 'bg-red-50 dark:bg-red-950/20'}`}>
+                          <td className="p-2 font-mono">{result.record_type}</td>
+                          <td className="p-2 font-mono break-all max-w-[150px]">{result.host}</td>
+                          <td className="p-2 font-mono break-all max-w-[200px] text-muted-foreground">{result.expected_value.substring(0, 50)}...</td>
+                          <td className="p-2 font-mono break-all max-w-[200px]">
+                            {result.found_values.length > 0 
+                              ? result.found_values.map(v => v.substring(0, 40) + '...').join('; ')
+                              : <span className="text-red-600 dark:text-red-400 italic">Não encontrado</span>
+                            }
+                          </td>
+                          <td className="p-2 text-center">
+                            {result.match ? (
+                              <CheckCircle className="h-4 w-4 text-green-600 inline" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-red-600 inline" />
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                
+                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
+                    Se os registros estão configurados corretamente no Cloudflare mas não aparecem aqui, aguarde mais alguns minutos para a propagação DNS. 
+                    Verifique também se o proxy está desativado ("Somente DNS").
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
           </div>
         )}
 
