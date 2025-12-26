@@ -12,19 +12,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
 import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
+import { WhatsAppSettings } from "@/components/integrations/WhatsAppSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
 
-// Future integrations (communication, etc.)
+// Future integrations
 const FUTURE_INTEGRATIONS = [
-  {
-    id: "whatsapp",
-    name: "WhatsApp Business",
-    category: "Comunicação",
-    description: "Envie notificações automáticas via WhatsApp",
-    status: "coming_soon",
-    icon: "💬",
-  },
   {
     id: "erp",
     name: "ERP / Bling",
@@ -130,6 +123,9 @@ export default function Integrations() {
         <TabsContent value="others" className="space-y-6">
           {/* Email Provider Settings */}
           <EmailProviderSettings />
+
+          {/* WhatsApp Settings */}
+          <WhatsAppSettings />
 
           {/* Future Integrations */}
           <Card>
