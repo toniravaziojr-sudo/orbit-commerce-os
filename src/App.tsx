@@ -43,6 +43,7 @@ import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import HealthMonitor from "@/pages/HealthMonitor";
 import Shipments from "@/pages/Shipments";
 import Auth from "@/pages/Auth";
+import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import SystemEmails from "@/pages/SystemEmails";
@@ -109,6 +110,7 @@ const App = () => {
             <Routes>
               {/* Public routes (always available) */}
               <Route path="/auth" element={<Auth />} />
+              <Route path="/auth/aguardando-confirmacao" element={<AwaitingConfirmation />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
 
               {/* 

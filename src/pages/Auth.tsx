@@ -48,6 +48,7 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('login');
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -74,23 +75,24 @@ export default function Auth() {
 
   const handleLogin = async (data: LoginFormData) => {
     setIsLoading(true);
+    setLoginError(null);
     try {
       const { error } = await signIn(data.email, data.password);
       
       if (error) {
         if (error.message.includes('Invalid login credentials')) {
-          toast.error('Email ou senha incorretos');
+          setLoginError('Login ou senha incorreto, tente novamente');
         } else if (error.message.includes('Email not confirmed')) {
-          toast.error('Por favor, confirme seu email antes de fazer login');
+          setLoginError('Por favor, confirme seu email antes de fazer login');
         } else {
-          toast.error(error.message);
+          setLoginError(error.message);
         }
         return;
       }
 
       toast.success('Login realizado com sucesso!');
     } catch (error) {
-      toast.error('Erro ao fazer login. Tente novamente.');
+      setLoginError('Erro ao fazer login. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -99,10 +101,20 @@ export default function Auth() {
   const handleSignUp = async (data: SignUpFormData) => {
     setIsLoading(true);
     try {
+      // Gerar slug a partir do nome do negócio
+      const tenantSlug = generateSlug(data.businessName);
+      
+      // Armazenar dados da loja pendente no localStorage
+      localStorage.setItem('pending_store', JSON.stringify({
+        name: data.businessName,
+        slug: tenantSlug,
+      }));
+      
       // 1. Criar conta do usuário
       const { error } = await signUp(data.email, data.password, data.fullName);
       
       if (error) {
+        localStorage.removeItem('pending_store');
         if (error.message.includes('User already registered')) {
           toast.error('Este email já está cadastrado. Tente fazer login.');
         } else {
@@ -111,18 +123,14 @@ export default function Auth() {
         return;
       }
 
-      // 2. Se auto-confirm está ativo, criar tenant automaticamente
-      // Aguardar um momento para a sessão ser criada
+      // 2. Verificar se auto-confirm está ativo (sessão criada imediatamente)
       await new Promise(resolve => setTimeout(resolve, 500));
       
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (sessionData?.session?.user) {
+        // Auto-confirm está ativo - criar tenant automaticamente
         try {
-          // Gerar slug a partir do nome do negócio
-          const tenantSlug = generateSlug(data.businessName);
-          
-          // Criar tenant via RPC
           const { data: newTenant, error: tenantError } = await supabase.rpc('create_tenant_for_user', {
             p_name: data.businessName,
             p_slug: tenantSlug,
@@ -130,10 +138,9 @@ export default function Auth() {
 
           if (tenantError) {
             console.error('Error creating tenant:', tenantError);
-            // Não bloquear o cadastro se falhar a criação do tenant
             toast.warning('Conta criada! Configure sua loja após fazer login.');
           } else if (newTenant) {
-            // 3. Provisionar domínio automaticamente
+            localStorage.removeItem('pending_store');
             try {
               await supabase.functions.invoke('domains-provision-default', {
                 body: {
@@ -141,10 +148,8 @@ export default function Auth() {
                   tenant_slug: tenantSlug,
                 },
               });
-              console.log('Default domain provisioned for tenant:', tenantSlug);
             } catch (domainError) {
               console.error('Error provisioning default domain:', domainError);
-              // Não bloquear - domínio pode ser provisionado depois
             }
             
             toast.success('Conta e loja criadas com sucesso!');
@@ -153,10 +158,11 @@ export default function Auth() {
         } catch (tenantSetupError) {
           console.error('Error in tenant setup:', tenantSetupError);
         }
+      } else {
+        // Confirmação por email necessária - redirecionar para página de aguardo
+        navigate(`/auth/aguardando-confirmacao?email=${encodeURIComponent(data.email)}`);
+        return;
       }
-
-      toast.success('Conta criada! Verifique seu email para confirmar o cadastro.');
-      setActiveTab('login');
     } catch (error) {
       toast.error('Erro ao criar conta. Tente novamente.');
     } finally {
@@ -338,6 +344,12 @@ export default function Auth() {
                           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Entrar
                         </Button>
+                        
+                        {loginError && (
+                          <p className="text-sm text-destructive text-center mt-3">
+                            {loginError}
+                          </p>
+                        )}
                       </form>
                     </Form>
 
