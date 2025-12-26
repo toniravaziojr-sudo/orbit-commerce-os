@@ -1,47 +1,67 @@
-import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette, Globe } from "lucide-react";
+import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette, Globe, Mail } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 
-const SETTINGS_SECTIONS = [
-  {
-    title: "Dados da Loja",
-    description: "Configure informações básicas, logo e dados de contato",
-    icon: Store,
-    href: "/storefront",
-  },
-  {
-    title: "Domínios",
-    description: "Gerencie domínios personalizados da sua loja",
-    icon: Globe,
-    href: "/settings/domains",
-  },
-  {
-    title: "Equipe & Permissões",
-    description: "Gerencie usuários, funções e níveis de acesso (RBAC)",
-    icon: Users,
-  },
-  {
-    title: "Segurança",
-    description: "Autenticação, senhas e configurações de segurança",
-    icon: Shield,
-  },
-  {
-    title: "Notificações",
-    description: "Preferências de alertas e comunicações do sistema",
-    icon: Bell,
-  },
-  {
-    title: "Aparência",
-    description: "Personalize cores, tema e identidade visual",
-    icon: Palette,
-  },
-];
+const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
+
+const getSettingsSections = (isPlatformAdmin: boolean) => {
+  const sections = [
+    {
+      title: "Dados da Loja",
+      description: "Configure informações básicas, logo e dados de contato",
+      icon: Store,
+      href: "/storefront",
+    },
+    {
+      title: "Domínios",
+      description: "Gerencie domínios personalizados da sua loja",
+      icon: Globe,
+      href: "/settings/domains",
+    },
+    {
+      title: "Equipe & Permissões",
+      description: "Gerencie usuários, funções e níveis de acesso (RBAC)",
+      icon: Users,
+    },
+    {
+      title: "Segurança",
+      description: "Autenticação, senhas e configurações de segurança",
+      icon: Shield,
+    },
+    {
+      title: "Notificações",
+      description: "Preferências de alertas e comunicações do sistema",
+      icon: Bell,
+    },
+    {
+      title: "Aparência",
+      description: "Personalize cores, tema e identidade visual",
+      icon: Palette,
+    },
+  ];
+
+  // Add platform admin section
+  if (isPlatformAdmin) {
+    sections.push({
+      title: "Emails do App",
+      description: "Configure templates de emails do sistema (login, reset, tutoriais)",
+      icon: Mail,
+      href: "/settings/emails",
+    });
+  }
+
+  return sections;
+};
 
 export default function Settings() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isPlatformAdmin = user?.email === PLATFORM_ADMIN_EMAIL;
+  const settingsSections = getSettingsSections(isPlatformAdmin);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -51,7 +71,7 @@ export default function Settings() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SETTINGS_SECTIONS.map((section) => {
+        {settingsSections.map((section) => {
           const Icon = section.icon;
           return (
             <Card
