@@ -123,7 +123,7 @@ export default function Auth() {
         slug: tenantSlug,
       }));
       
-      // 1. Criar conta do usuário
+      // 1. Criar conta do usuário (auto-confirm está ativo)
       const { error } = await signUp(data.email, data.password, data.fullName);
       
       if (error) {
@@ -136,13 +136,13 @@ export default function Auth() {
         return;
       }
 
-      // 2. Verificar se auto-confirm está ativo (sessão criada imediatamente)
+      // 2. Aguardar a sessão ser criada (auto-confirm ativo)
       await new Promise(resolve => setTimeout(resolve, 500));
       
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (sessionData?.session?.user) {
-        // Auto-confirm está ativo - criar tenant automaticamente
+        // Criar tenant automaticamente
         try {
           const { data: newTenant, error: tenantError } = await supabase.rpc('create_tenant_for_user', {
             p_name: data.businessName,
@@ -154,6 +154,8 @@ export default function Auth() {
             toast.warning('Conta criada! Configure sua loja após fazer login.');
           } else if (newTenant) {
             localStorage.removeItem('pending_store');
+            
+            // Provisionar domínio padrão
             try {
               await supabase.functions.invoke('domains-provision-default', {
                 body: {
@@ -165,6 +167,20 @@ export default function Auth() {
               console.error('Error provisioning default domain:', domainError);
             }
             
+            // Enviar email de boas-vindas customizado
+            try {
+              await supabase.functions.invoke('send-auth-email', {
+                body: {
+                  email: data.email,
+                  user_name: data.fullName,
+                  email_type: 'welcome',
+                  store_name: data.businessName,
+                },
+              });
+            } catch (emailError) {
+              console.error('Error sending welcome email:', emailError);
+            }
+            
             toast.success('Conta e loja criadas com sucesso!');
             return;
           }
@@ -172,24 +188,8 @@ export default function Auth() {
           console.error('Error in tenant setup:', tenantSetupError);
         }
       } else {
-        // Confirmação por email necessária - enviar email customizado
-        try {
-          const confirmationUrl = `${window.location.origin}/auth?confirmed=true`;
-          await supabase.functions.invoke('send-auth-email', {
-            body: {
-              email: data.email,
-              user_name: data.fullName,
-              confirmation_url: confirmationUrl,
-              email_type: 'signup',
-            },
-          });
-        } catch (emailError) {
-          console.error('Error sending custom auth email:', emailError);
-        }
-        
-        // Redirecionar para página de aguardo
-        navigate(`/auth/aguardando-confirmacao?email=${encodeURIComponent(data.email)}`);
-        return;
+        // Fallback: sessão não criada imediatamente
+        toast.error('Erro ao criar conta. Tente novamente.');
       }
     } catch (error) {
       toast.error('Erro ao criar conta. Tente novamente.');
