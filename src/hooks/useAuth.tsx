@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Isso permite que o usuário faça login automaticamente
     const redirectUrl = `${window.location.origin}/auth?confirmed=true`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -216,6 +216,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       },
     });
+
+    // Schedule tutorial email to be sent 1 hour after account creation
+    if (!error && data?.user) {
+      try {
+        await supabase.functions.invoke('schedule-tutorial-email', {
+          body: {
+            user_id: data.user.id,
+            email: data.user.email,
+            full_name: fullName,
+          },
+        });
+      } catch (tutorialError) {
+        // Non-blocking - don't fail signup if tutorial email scheduling fails
+        console.warn('Failed to schedule tutorial email:', tutorialError);
+      }
+    }
 
     return { error: error as Error | null };
   };

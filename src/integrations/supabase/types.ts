@@ -2633,6 +2633,54 @@ export type Database = {
           },
         ]
       }
+      scheduled_system_emails: {
+        Row: {
+          attempts: number | null
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          provider_message_id: string | null
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          template_key: string
+          updated_at: string
+          user_id: string
+          user_name: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          provider_message_id?: string | null
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          template_key: string
+          updated_at?: string
+          user_id: string
+          user_name?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          provider_message_id?: string | null
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          template_key?: string
+          updated_at?: string
+          user_id?: string
+          user_name?: string | null
+        }
+        Relationships: []
+      }
       shipment_events: {
         Row: {
           created_at: string

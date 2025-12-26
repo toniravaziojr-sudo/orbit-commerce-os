@@ -135,3 +135,9 @@ verify_jwt = true
 
 [functions.send-system-email]
 verify_jwt = true
+
+[functions.schedule-tutorial-email]
+verify_jwt = false
+
+[functions.process-scheduled-emails]
+verify_jwt = false

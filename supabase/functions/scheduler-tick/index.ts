@@ -263,6 +263,13 @@ interface TrackingPollStats {
   errors_count: number;
 }
 
+interface ScheduledEmailsStats {
+  processed: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+}
+
 interface TickStats {
   tick_at: string;
   pass: number;
@@ -282,6 +289,7 @@ interface TickStats {
   abandon_sweep: AbandonSweepStats;
   reconcile_payments: ReconcilePaymentsStats;
   tracking_poll: TrackingPollStats;
+  scheduled_emails: ScheduledEmailsStats;
 }
 
 interface AggregatedStats {
@@ -299,6 +307,7 @@ interface AggregatedStats {
     payments_reconciled: number;
     shipments_polled: number;
     shipments_updated: number;
+    scheduled_emails_sent: number;
   };
   passes: TickStats[];
 }
@@ -351,6 +360,7 @@ serve(async (req) => {
       payments_reconciled: 0,
       shipments_polled: 0,
       shipments_updated: 0,
+      scheduled_emails_sent: 0,
     };
 
     for (let pass = 1; pass <= passes; pass++) {
@@ -387,6 +397,12 @@ serve(async (req) => {
           polled: 0,
           updated: 0,
           errors_count: 0,
+        },
+        scheduled_emails: {
+          processed: 0,
+          sent: 0,
+          failed: 0,
+          skipped: 0,
         },
       };
 
@@ -532,6 +548,38 @@ serve(async (req) => {
         } catch (error) {
           console.error(`[scheduler-tick] tracking-poll exception:`, error);
           passStats.tracking_poll.errors_count = 1;
+        }
+      }
+
+      // --- Step 6: Call process-scheduled-emails (only on first pass) ---
+      if (pass === 1) {
+        try {
+          console.log(`[scheduler-tick] Calling process-scheduled-emails...`);
+          const emailsResponse = await fetch(`${supabaseUrl}/functions/v1/process-scheduled-emails`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({}),
+          });
+
+          if (emailsResponse.ok) {
+            const emailsResult = await emailsResponse.json();
+            console.log(`[scheduler-tick] process-scheduled-emails result:`, emailsResult);
+            
+            passStats.scheduled_emails.processed = emailsResult.stats?.processed ?? 0;
+            passStats.scheduled_emails.sent = emailsResult.stats?.sent ?? 0;
+            passStats.scheduled_emails.failed = emailsResult.stats?.failed ?? 0;
+            passStats.scheduled_emails.skipped = emailsResult.stats?.skipped ?? 0;
+            
+            aggregatedTotals.scheduled_emails_sent += passStats.scheduled_emails.sent;
+          } else {
+            const errorText = await emailsResponse.text();
+            console.error(`[scheduler-tick] process-scheduled-emails error: ${emailsResponse.status} - ${errorText}`);
+          }
+        } catch (error) {
+          console.error(`[scheduler-tick] process-scheduled-emails exception:`, error);
         }
       }
 
