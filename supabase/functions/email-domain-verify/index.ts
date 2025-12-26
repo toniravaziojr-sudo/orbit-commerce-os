@@ -262,6 +262,9 @@ Deno.serve(async (req) => {
       console.log(`[email-domain-verify] DNS lookup results:`, JSON.stringify(dnsLookupResults));
     }
 
+    // Check if all DNS records match
+    const dnsAllOk = dnsLookupResults.length > 0 && dnsLookupResults.every(r => r.match);
+    
     // Update config with verification result
     await supabase
       .from("email_provider_configs")
@@ -272,8 +275,11 @@ Deno.serve(async (req) => {
         last_verify_check_at: new Date().toISOString(),
         last_verify_error: null,
         is_verified: isVerified,
+        dns_all_ok: dnsAllOk || isVerified, // DNS OK if all records match or already verified
       })
       .eq("id", config.id);
+    
+    console.log(`[email-domain-verify] Updated: verified=${isVerified}, dns_all_ok=${dnsAllOk || isVerified}`);
 
     // Build status message with diagnosis
     let statusMessage = "";
