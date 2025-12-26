@@ -315,7 +315,7 @@ export function useOrders(options?: {
         .from('orders')
         .update(updateData)
         .eq('id', orderId)
-        .select()
+        .select('*, customers(email)')
         .single();
 
       if (error) throw error;
@@ -328,6 +328,34 @@ export function useOrders(options?: {
         new_value: { status },
         description: `Status alterado de ${currentOrder.status} para ${status}`,
       });
+
+      // Emit payment event when order is marked as paid (manual approval)
+      if (status === 'paid' && currentTenant?.id) {
+        const idempotencyKey = `payment_approved_manual_${orderId}_${Date.now()}`;
+        
+        await supabase.from('events_inbox').insert({
+          tenant_id: currentTenant.id,
+          provider: 'internal',
+          event_type: 'payment_status_changed',
+          idempotency_key: idempotencyKey,
+          occurred_at: new Date().toISOString(),
+          payload_normalized: {
+            order_id: orderId,
+            order_number: data.order_number || '',
+            customer_name: data.customer_name || '',
+            customer_email: data.customer_email || '',
+            customer_phone: data.customer_phone || '',
+            order_total: data.total || 0,
+            old_status: currentOrder.status,
+            new_status: 'approved',
+            payment_method: data.payment_method || 'manual',
+            payment_gateway: 'manual',
+          },
+          status: 'pending',
+        });
+        
+        console.log('[useOrders] Emitted payment_approved event for order', orderId);
+      }
 
       return data;
     },

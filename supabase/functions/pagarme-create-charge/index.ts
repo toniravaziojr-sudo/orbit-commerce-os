@@ -271,6 +271,50 @@ serve(async (req) => {
       console.error('Database error:', dbError);
     }
 
+    // ==== EMIT CANONICAL EVENT for notifications (pix_generated / boleto_generated) ====
+    if (payload.order_id && (payload.method === 'pix' || payload.method === 'boleto')) {
+      const eventNewStatus = payload.method === 'pix' ? 'pix_generated' : 'boleto_generated';
+      const idempotencyKey = `payment_${eventNewStatus}_${payload.order_id}_${pagarmeResponse.id}`;
+      
+      // Fetch order details for notification payload
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('order_number, customer_name, customer_email, customer_phone, total')
+        .eq('id', payload.order_id)
+        .single();
+
+      const { error: emitError } = await supabase
+        .from('events_inbox')
+        .insert({
+          tenant_id: payload.tenant_id,
+          provider: 'internal',
+          event_type: 'payment_status_changed',
+          idempotency_key: idempotencyKey,
+          occurred_at: new Date().toISOString(),
+          payload_normalized: {
+            order_id: payload.order_id,
+            order_number: orderData?.order_number || '',
+            customer_name: orderData?.customer_name || '',
+            customer_email: orderData?.customer_email || '',
+            customer_phone: orderData?.customer_phone || '',
+            order_total: orderData?.total || 0,
+            old_status: null,
+            new_status: eventNewStatus,
+            payment_method: payload.method,
+            payment_gateway: 'pagarme',
+            pix_link: charge?.last_transaction?.qr_code_url || '',
+            boleto_link: charge?.last_transaction?.pdf || '',
+          },
+          status: 'pending',
+        });
+
+      if (emitError && !emitError.message?.includes('duplicate')) {
+        console.error('[Pagar.me] Error emitting payment event:', emitError);
+      } else if (!emitError) {
+        console.log(`[Pagar.me] Emitted payment_status_changed event (${eventNewStatus}) for order ${payload.order_id}`);
+      }
+    }
+
     return new Response(JSON.stringify({
       success: true,
       transaction_id: transaction?.id,
