@@ -50,7 +50,7 @@ interface RunnerStats {
 const emailConfigCache: Map<string, EmailConfig | null> = new Map();
 let systemEmailConfigCache: EmailConfig | null | undefined = undefined;
 
-// Get system email config as fallback
+// Get system email config as fallback (always available if configured)
 async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> {
   if (systemEmailConfigCache !== undefined) {
     return systemEmailConfigCache;
@@ -67,6 +67,13 @@ async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> 
     return null;
   }
 
+  // Check if system email is verified
+  if (data.verification_status !== 'verified') {
+    console.log(`[RunNotifications] System email config exists but not verified: ${data.verification_status}`);
+    systemEmailConfigCache = null;
+    return null;
+  }
+
   // Map system_email_config to EmailConfig interface
   const config: EmailConfig = {
     id: data.id,
@@ -75,45 +82,52 @@ async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> 
     from_name: data.from_name,
     from_email: data.from_email,
     reply_to: data.reply_to,
-    is_verified: data.verification_status === 'verified',
+    is_verified: true, // Already checked above
     sending_domain: data.sending_domain,
-    verification_status: data.verification_status
+    verification_status: 'verified' // Already checked above
   };
 
-  console.log(`[RunNotifications] Using system email config: ${config.from_email}`);
+  console.log(`[RunNotifications] System email config loaded: ${config.from_email} (verified)`);
   systemEmailConfigCache = config;
   return config;
 }
 
-// Get email config for tenant (with system fallback)
+// Get email config for tenant with automatic system fallback
+// Priority: 1) Tenant verified config 2) System verified config
 async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailConfig | null> {
   if (emailConfigCache.has(tenantId)) {
-    return emailConfigCache.get(tenantId) || null;
+    const cached = emailConfigCache.get(tenantId);
+    if (cached) {
+      console.log(`[RunNotifications] Using cached email config for tenant ${tenantId}: ${cached.from_email}`);
+    }
+    return cached || null;
   }
 
   // First try tenant-specific config
-  const { data, error } = await supabase
+  const { data: tenantConfig, error } = await supabase
     .from('email_provider_configs')
     .select('*')
     .eq('tenant_id', tenantId)
     .single();
 
-  if (!error && data && data.verification_status === 'verified') {
-    console.log(`[RunNotifications] Using tenant email config: ${data.from_email}`);
-    emailConfigCache.set(tenantId, data);
-    return data;
+  // If tenant has a verified config, use it
+  if (!error && tenantConfig && tenantConfig.verification_status === 'verified') {
+    console.log(`[RunNotifications] Using tenant verified email config: ${tenantConfig.from_email}`);
+    emailConfigCache.set(tenantId, tenantConfig);
+    return tenantConfig;
   }
 
-  // Fallback to system email config
-  console.log(`[RunNotifications] No verified tenant email config for ${tenantId}, trying system fallback`);
+  // Fallback to system email config (platform default)
+  console.log(`[RunNotifications] Tenant ${tenantId} has no verified email config, using system fallback`);
   const systemConfig = await getSystemEmailConfig(supabase);
   
   if (systemConfig) {
+    console.log(`[RunNotifications] Fallback to system email: ${systemConfig.from_email}`);
     emailConfigCache.set(tenantId, systemConfig);
     return systemConfig;
   }
 
-  console.log(`[RunNotifications] No email config available for tenant ${tenantId}`);
+  console.log(`[RunNotifications] ERROR: No email config available (tenant nor system) for ${tenantId}`);
   emailConfigCache.set(tenantId, null);
   return null;
 }
@@ -392,7 +406,7 @@ Deno.serve(async (req) => {
 
       // Route to appropriate sender based on channel
       if (notification.channel === 'email') {
-        // Get email config for tenant
+        // Get email config for tenant (with automatic system fallback)
         const emailConfig = await getEmailConfig(supabase, notification.tenant_id);
         
         if (!resend) {
@@ -401,45 +415,37 @@ Deno.serve(async (req) => {
             error: 'RESEND_API_KEY não configurada. Configure a API key nas variáveis de ambiente.'
           };
         } else if (!emailConfig) {
+          // This means neither tenant nor system has verified email config
           sendResult = {
             success: false,
-            error: 'Provedor de email não configurado para este tenant. Configure em Integrações → Outros → Email.'
-          };
-        } else if (emailConfig.verification_status !== 'verified') {
-          sendResult = {
-            success: false,
-            error: 'Domínio de email não verificado. Verifique o domínio antes de enviar emails.'
+            error: 'Nenhum remetente de email configurado. Configure o Email do Sistema (Plataforma) ou o email da loja em Integrações.'
           };
         } else if (!emailConfig.from_email || !emailConfig.from_name) {
           sendResult = {
             success: false,
             error: 'Configuração de email incompleta. Preencha nome e email do remetente.'
           };
-        } else if (emailConfig.sending_domain) {
-          // Validate from_email belongs to verified domain
-          const emailDomain = emailConfig.from_email.split('@')[1]?.toLowerCase();
-          if (emailDomain !== emailConfig.sending_domain.toLowerCase()) {
-            sendResult = {
-              success: false,
-              error: `Email do remetente (${emailConfig.from_email}) não pertence ao domínio verificado (${emailConfig.sending_domain}).`
-            };
-          } else if (!notification.recipient || !notification.recipient.includes('@')) {
-            sendResult = {
-              success: false,
-              error: `Email do destinatário inválido: "${notification.recipient}"`
-            };
-          } else {
-            // Send real email
-            sendResult = await sendEmail(resend, emailConfig, notification.recipient, emailSubject, emailBody);
-          }
         } else if (!notification.recipient || !notification.recipient.includes('@')) {
           sendResult = {
             success: false,
             error: `Email do destinatário inválido: "${notification.recipient}"`
           };
         } else {
-          // Send real email
+          // Send real email - config is already verified (from tenant or system fallback)
+          const fromUsed = emailConfig.from_email;
+          const isSystemFallback = emailConfig.tenant_id === 'system';
+          console.log(`[RunNotifications] Sending email to ${notification.recipient} from ${fromUsed} (system_fallback=${isSystemFallback})`);
+          
           sendResult = await sendEmail(resend, emailConfig, notification.recipient, emailSubject, emailBody);
+          
+          if (sendResult.success) {
+            // Add from_used to response for logging
+            sendResult.response = { 
+              ...sendResult.response, 
+              from_used: fromUsed,
+              is_system_fallback: isSystemFallback
+            };
+          }
         }
       } else if (notification.channel === 'whatsapp') {
         // WhatsApp - mock for now
