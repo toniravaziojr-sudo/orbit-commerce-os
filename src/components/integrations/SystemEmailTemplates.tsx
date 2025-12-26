@@ -3,13 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { EmailRichTextEditor } from "./EmailRichTextEditor";
 import { 
   Mail, 
   RefreshCw, 
@@ -20,7 +20,9 @@ import {
   UserPlus,
   KeyRound,
   BookOpen,
-  Info
+  Info,
+  Copy,
+  Check
 } from "lucide-react";
 
 interface EmailTemplate {
@@ -48,6 +50,23 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
 
 const TEMPLATE_ORDER = ["auth_confirm", "welcome", "password_reset", "tutorials"];
 
+// Variable descriptions
+const VARIABLE_DESCRIPTIONS: Record<string, string> = {
+  app_name: "Nome do aplicativo (Comando Central)",
+  user_name: "Nome do usuário",
+  confirmation_url: "Link de confirmação de email",
+  dashboard_url: "Link para o painel/dashboard",
+  reset_url: "Link para redefinir senha",
+};
+
+// URL redirect info per template
+const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
+  auth_confirm: "Após confirmar, o usuário é redirecionado para o login",
+  welcome: "O botão direciona para app.comandocentral.com.br (dashboard)",
+  password_reset: "Após clicar, abre a página de nova senha, depois vai para o login",
+  tutorials: "O botão direciona para app.comandocentral.com.br (dashboard)",
+};
+
 export function SystemEmailTemplates() {
   const { toast } = useToast();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
@@ -59,6 +78,7 @@ export function SystemEmailTemplates() {
   const [editedTemplate, setEditedTemplate] = useState<Partial<EmailTemplate>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
   const [testEmail, setTestEmail] = useState("");
+  const [copiedVar, setCopiedVar] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -156,9 +176,9 @@ export function SystemEmailTemplates() {
       const sampleValues: Record<string, string> = {
         app_name: "Comando Central",
         user_name: "Usuário Teste",
-        confirmation_url: "https://app.comandocentral.com.br/confirm?token=sample",
+        confirmation_url: "https://app.comandocentral.com.br/auth?confirmed=true",
         dashboard_url: "https://app.comandocentral.com.br",
-        reset_url: "https://app.comandocentral.com.br/reset?token=sample",
+        reset_url: "https://app.comandocentral.com.br/reset-password?token=sample",
       };
 
       Object.entries(sampleValues).forEach(([key, value]) => {
@@ -188,6 +208,14 @@ export function SystemEmailTemplates() {
     } finally {
       setIsTesting(false);
     }
+  };
+
+  const copyVariable = async (variable: string) => {
+    const text = `{{${variable}}}`;
+    await navigator.clipboard.writeText(text);
+    setCopiedVar(variable);
+    toast({ title: "Copiado!", description: text });
+    setTimeout(() => setCopiedVar(null), 2000);
   };
 
   const getPreviewHtml = () => {
@@ -272,18 +300,45 @@ export function SystemEmailTemplates() {
                   </Badge>
                 </div>
 
-                {/* Variables Info */}
-                <Alert>
-                  <Info className="h-4 w-4" />
-                  <AlertDescription>
-                    <strong>Variáveis disponíveis:</strong>{" "}
-                    {template.variables.map((v, i) => (
-                      <code key={v} className="text-xs bg-muted px-1 py-0.5 rounded mx-1">
-                        {`{{${v}}}`}
-                      </code>
-                    ))}
+                {/* Redirect Info */}
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800">
+                    <strong>Redirecionamento:</strong> {TEMPLATE_REDIRECT_INFO[template.template_key]}
                   </AlertDescription>
                 </Alert>
+
+                {/* Variables - Clickable to copy */}
+                <div className="p-4 rounded-lg border bg-background">
+                  <Label className="text-sm font-medium mb-3 block">
+                    Variáveis disponíveis (clique para copiar):
+                  </Label>
+                  <div className="flex flex-wrap gap-2">
+                    {template.variables.map((v) => (
+                      <Button
+                        key={v}
+                        variant="outline"
+                        size="sm"
+                        className="h-auto py-1.5 px-3 font-mono text-xs gap-1.5 hover:bg-primary/10"
+                        onClick={() => copyVariable(v)}
+                      >
+                        {copiedVar === v ? (
+                          <Check className="h-3 w-3 text-green-600" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                        {`{{${v}}}`}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground space-y-1">
+                    {template.variables.map((v) => (
+                      <div key={v}>
+                        <code className="text-primary">{`{{${v}}}`}</code>: {VARIABLE_DESCRIPTIONS[v] || v}
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Subject */}
                 <div className="space-y-2">
@@ -296,10 +351,10 @@ export function SystemEmailTemplates() {
                   />
                 </div>
 
-                {/* Body */}
+                {/* Body - Rich Text Editor */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="body">Corpo do Email (HTML)</Label>
+                    <Label htmlFor="body">Corpo do Email</Label>
                     <Button 
                       variant="outline" 
                       size="sm"
@@ -309,13 +364,12 @@ export function SystemEmailTemplates() {
                       Visualizar
                     </Button>
                   </div>
-                  <Textarea
-                    id="body"
+                  <EmailRichTextEditor
                     value={editedTemplate.body_html || ""}
-                    onChange={(e) => setEditedTemplate({ ...editedTemplate, body_html: e.target.value })}
-                    placeholder="HTML do email..."
-                    rows={15}
-                    className="font-mono text-sm"
+                    onChange={(html) => setEditedTemplate({ ...editedTemplate, body_html: html })}
+                    placeholder="Digite o conteúdo do email..."
+                    templateKey={template.template_key}
+                    minHeight="350px"
                   />
                 </div>
 

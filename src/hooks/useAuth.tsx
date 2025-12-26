@@ -202,7 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    // Após confirmar email, redireciona para o auth com parâmetro confirmed
+    // Isso permite que o usuário faça login automaticamente
+    const redirectUrl = `${window.location.origin}/auth?confirmed=true`;
     
     const { error } = await supabase.auth.signUp({
       email,
@@ -243,6 +245,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
+    // Redireciona para a página de reset de senha do admin
+    // Após redefinir senha, vai para o dashboard (/)
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/reset-password`,
     });
