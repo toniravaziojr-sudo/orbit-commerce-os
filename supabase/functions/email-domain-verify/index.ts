@@ -248,22 +248,33 @@ Deno.serve(async (req) => {
     }
 
     const domainData = domainResult.data;
-    const isVerified = domainData.status === "verified";
-    const newStatus = isVerified ? "verified" : 
-                      domainData.status === "pending" ? "pending" : "failed";
-
-    console.log(`[email-domain-verify] Domain status: ${domainData.status}, records:`, domainData.records);
-
-    // Perform real DNS lookup for diagnosis
+    
+    // Check domain-level status from Resend API
+    // Note: domainData.status can be "verified", "pending", "not_started", "failed"
+    console.log(`[email-domain-verify] Domain response:`, JSON.stringify(domainData));
+    
+    // Perform real DNS lookup for diagnosis first
     let dnsLookupResults: DnsLookupResult[] = [];
-    if (!isVerified && domainData.records && config.sending_domain) {
+    if (domainData.records && config.sending_domain) {
       console.log(`[email-domain-verify] Performing DNS lookup for ${config.sending_domain}`);
       dnsLookupResults = await verifyDnsRecords(config.sending_domain, domainData.records);
       console.log(`[email-domain-verify] DNS lookup results:`, JSON.stringify(dnsLookupResults));
     }
 
-    // Check if all DNS records match
+    // Check if all DNS records match our verification
     const dnsAllOk = dnsLookupResults.length > 0 && dnsLookupResults.every(r => r.match);
+    
+    // Determine if verified:
+    // 1. Resend explicitly says verified, OR
+    // 2. All DNS records are correctly configured (Resend may have a cache delay)
+    const resendVerified = domainData.status === "verified";
+    const isVerified = resendVerified || dnsAllOk;
+    
+    // If DNS is all OK but Resend says pending, treat as verified (Resend cache delay)
+    const newStatus = isVerified ? "verified" : 
+                      domainData.status === "pending" ? "pending" : "failed";
+
+    console.log(`[email-domain-verify] Domain status from Resend: ${domainData.status}, dnsAllOk: ${dnsAllOk}, final verified: ${isVerified}`);
     
     // Update config with verification result
     await supabase
@@ -275,7 +286,7 @@ Deno.serve(async (req) => {
         last_verify_check_at: new Date().toISOString(),
         last_verify_error: null,
         is_verified: isVerified,
-        dns_all_ok: dnsAllOk || isVerified, // DNS OK if all records match or already verified
+        dns_all_ok: dnsAllOk || isVerified,
       })
       .eq("id", config.id);
     
