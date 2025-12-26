@@ -46,14 +46,20 @@ interface RunnerStats {
   unstuck_count: number;
 }
 
-// Cache for email configs per tenant
-const emailConfigCache: Map<string, EmailConfig | null> = new Map();
-let systemEmailConfigCache: EmailConfig | null | undefined = undefined;
+// Cache for email configs per tenant with TTL
+interface CachedEmailConfig {
+  config: EmailConfig | null;
+  timestamp: number;
+}
+const emailConfigCache: Map<string, CachedEmailConfig> = new Map();
+const EMAIL_CONFIG_CACHE_TTL = 60000; // 1 minute - auto-invalidates to pick up config changes
+let systemEmailConfigCache: CachedEmailConfig | undefined = undefined;
 
 // Get system email config as fallback (always available if configured)
 async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> {
-  if (systemEmailConfigCache !== undefined) {
-    return systemEmailConfigCache;
+  // Check cache with TTL
+  if (systemEmailConfigCache && Date.now() - systemEmailConfigCache.timestamp < EMAIL_CONFIG_CACHE_TTL) {
+    return systemEmailConfigCache.config;
   }
 
   const { data, error } = await supabase
@@ -63,14 +69,14 @@ async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> 
 
   if (error || !data) {
     console.log(`[RunNotifications] No system email config found`);
-    systemEmailConfigCache = null;
+    systemEmailConfigCache = { config: null, timestamp: Date.now() };
     return null;
   }
 
   // Check if system email is verified
   if (data.verification_status !== 'verified') {
     console.log(`[RunNotifications] System email config exists but not verified: ${data.verification_status}`);
-    systemEmailConfigCache = null;
+    systemEmailConfigCache = { config: null, timestamp: Date.now() };
     return null;
   }
 
@@ -88,19 +94,20 @@ async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> 
   };
 
   console.log(`[RunNotifications] System email config loaded: ${config.from_email} (verified)`);
-  systemEmailConfigCache = config;
+  systemEmailConfigCache = { config, timestamp: Date.now() };
   return config;
 }
 
 // Get email config for tenant with automatic system fallback
 // Priority: 1) Tenant verified config 2) System verified config
 async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailConfig | null> {
-  if (emailConfigCache.has(tenantId)) {
-    const cached = emailConfigCache.get(tenantId);
-    if (cached) {
-      console.log(`[RunNotifications] Using cached email config for tenant ${tenantId}: ${cached.from_email}`);
+  // Check cache with TTL
+  const cached = emailConfigCache.get(tenantId);
+  if (cached && Date.now() - cached.timestamp < EMAIL_CONFIG_CACHE_TTL) {
+    if (cached.config) {
+      console.log(`[RunNotifications] Using cached email config for tenant ${tenantId}: ${cached.config.from_email}`);
     }
-    return cached || null;
+    return cached.config;
   }
 
   // First try tenant-specific config
@@ -121,22 +128,27 @@ async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailCon
   if (canUseTenantConfig) {
     const isFullyVerified = tenantConfig.verification_status === 'verified';
     console.log(`[RunNotifications] Using tenant email config: ${tenantConfig.from_email} (verified=${isFullyVerified}, dns_ok=${tenantConfig.dns_all_ok})`);
-    emailConfigCache.set(tenantId, tenantConfig);
+    emailConfigCache.set(tenantId, { config: tenantConfig, timestamp: Date.now() });
     return tenantConfig;
   }
 
   // Fallback to system email config (platform default)
-  console.log(`[RunNotifications] Tenant ${tenantId} has no verified email config, using system fallback`);
+  const reason = !error && tenantConfig 
+    ? `config exists but not ready (verified=${tenantConfig.verification_status}, dns_ok=${tenantConfig.dns_all_ok}, from_email=${!!tenantConfig.from_email})`
+    : 'no config found';
+  console.log(`[RunNotifications] Tenant ${tenantId} ${reason}, using system fallback`);
+  
   const systemConfig = await getSystemEmailConfig(supabase);
   
   if (systemConfig) {
     console.log(`[RunNotifications] Fallback to system email: ${systemConfig.from_email}`);
-    emailConfigCache.set(tenantId, systemConfig);
+    // Cache the system config for this tenant to avoid repeated lookups
+    emailConfigCache.set(tenantId, { config: systemConfig, timestamp: Date.now() });
     return systemConfig;
   }
 
   console.log(`[RunNotifications] ERROR: No email config available (tenant nor system) for ${tenantId}`);
-  emailConfigCache.set(tenantId, null);
+  emailConfigCache.set(tenantId, { config: null, timestamp: Date.now() });
   return null;
 }
 

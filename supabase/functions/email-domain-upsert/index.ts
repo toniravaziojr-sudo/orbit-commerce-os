@@ -103,7 +103,33 @@ Deno.serve(async (req) => {
 
     const resend = new Resend(resendApiKey);
 
-    // Check if domain already exists in Resend
+    // IMPORTANT: If domain is CHANGING, reset verification states
+    const isDomainChange = existingConfig && existingConfig.sending_domain && 
+                           existingConfig.sending_domain !== sending_domain;
+    
+    if (isDomainChange) {
+      console.log(`[email-domain-upsert] Domain CHANGE detected: ${existingConfig.sending_domain} -> ${sending_domain}`);
+      console.log(`[email-domain-upsert] Resetting verification states for tenant ${tenant_id}`);
+      
+      // Reset all verification-related fields when domain changes
+      await supabase
+        .from("email_provider_configs")
+        .update({
+          dns_all_ok: false,
+          verification_status: "pending",
+          verified_at: null,
+          is_verified: false,
+          dns_records: [],
+          resend_domain_id: null,
+          last_verify_check_at: null,
+          last_verify_error: null,
+          // Keep from_name but clear from_email since it won't match new domain
+          from_email: "",
+        })
+        .eq("id", existingConfig.id);
+    }
+
+    // Check if domain already exists in Resend (same domain, just refresh)
     if (existingConfig?.resend_domain_id && existingConfig?.sending_domain === sending_domain) {
       // Same domain, just fetch current status
       console.log(`[email-domain-upsert] Domain already registered, fetching status from Resend`);

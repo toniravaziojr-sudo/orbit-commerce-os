@@ -264,15 +264,30 @@ export function EmailProviderSettings() {
     
     setIsRemoving(true);
     try {
+      // Soft reset: clear sender info and reset verification, keep the record
       const { error } = await supabase
         .from("email_provider_configs")
-        .delete()
+        .update({
+          from_name: "",
+          from_email: "",
+          reply_to: null,
+          sending_domain: null,
+          resend_domain_id: null,
+          dns_records: [],
+          dns_all_ok: false,
+          is_verified: false,
+          verification_status: "not_started",
+          verified_at: null,
+          last_verify_check_at: null,
+          last_verify_error: null,
+        })
         .eq("id", config.id);
 
       if (error) throw error;
 
-      toast({ title: "Removido", description: "Configuração de email removida" });
+      toast({ title: "Removido", description: "Configuração de email removida. Envios usarão o remetente do sistema." });
       setConfig({
+        id: config.id, // Keep the ID
         provider_type: "resend",
         from_name: "",
         from_email: "",
