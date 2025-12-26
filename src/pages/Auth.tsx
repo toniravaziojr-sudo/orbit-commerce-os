@@ -256,16 +256,13 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        {/* Logo + Slogan */}
+        {/* Logo centralizada */}
         <div className="flex flex-col items-center mb-8">
           <img 
-            src={platformBranding.logos.horizontal} 
+            src={platformBranding.logos.full} 
             alt={platformBranding.productName}
-            className="h-16 object-contain mb-4"
+            className="h-32 object-contain"
           />
-          <p className="text-muted-foreground text-sm text-center">
-            {platformBranding.slogan}
-          </p>
         </div>
 
         <Card className="shadow-lg border-border/50">
