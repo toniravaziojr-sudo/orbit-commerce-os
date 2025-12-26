@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
+import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
 
@@ -127,6 +128,9 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="others" className="space-y-6">
+          {/* Email Provider Settings */}
+          <EmailProviderSettings />
+
           {/* Future Integrations */}
           <Card>
             <CardHeader>
