@@ -34,6 +34,8 @@ interface EmailTemplate {
   body_html: string;
   variables: string[];
   is_active: boolean;
+  send_delay_minutes: number | null;
+  auto_send: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,7 +66,7 @@ const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
   auth_confirm: "Após confirmar, o usuário é redirecionado para o login",
   welcome: "O botão direciona para app.comandocentral.com.br (dashboard)",
   password_reset: "Após clicar, abre a página de nova senha, depois vai para o login",
-  tutorials: "O botão direciona para app.comandocentral.com.br (dashboard)",
+  tutorials: "Enviado automaticamente 1 hora após criação da conta. O botão direciona para o dashboard.",
 };
 
 export function SystemEmailTemplates() {
@@ -305,6 +307,11 @@ export function SystemEmailTemplates() {
                   <Info className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
                     <strong>Redirecionamento:</strong> {TEMPLATE_REDIRECT_INFO[template.template_key]}
+                    {template.template_key === 'tutorials' && template.auto_send && (
+                      <span className="block mt-1">
+                        <strong>Envio automático:</strong> {template.send_delay_minutes} minutos após criação da conta ({Math.round((template.send_delay_minutes || 60) / 60)} hora{(template.send_delay_minutes || 60) >= 120 ? 's' : ''})
+                      </span>
+                    )}
                   </AlertDescription>
                 </Alert>
 
