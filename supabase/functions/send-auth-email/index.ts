@@ -114,10 +114,10 @@ const serve_handler = async (req: Request): Promise<Response> => {
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          <!-- Header com logo -->
+          <!-- Header com logo centralizada -->
           <tr>
-            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
-              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            <td style="background-color: #0f172a; padding: 40px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 100px; max-width: 300px;" />
             </td>
           </tr>
           <!-- Content -->
@@ -171,8 +171,8 @@ const serve_handler = async (req: Request): Promise<Response> => {
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
-            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
-              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            <td style="background-color: #0f172a; padding: 40px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 100px; max-width: 300px;" />
             </td>
           </tr>
           <tr>
@@ -221,8 +221,8 @@ const serve_handler = async (req: Request): Promise<Response> => {
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
-            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
-              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            <td style="background-color: #0f172a; padding: 40px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 100px; max-width: 300px;" />
             </td>
           </tr>
           <tr>
