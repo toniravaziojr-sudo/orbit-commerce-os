@@ -141,3 +141,13 @@ verify_jwt = false
 
 [functions.process-scheduled-emails]
 verify_jwt = false
+
+[functions.post-sale-backfill-start]
+verify_jwt = true
+
+[functions.post-sale-backfill-process]
+verify_jwt = false
+schedule = "* * * * *"
+
+[functions.replay-events]
+verify_jwt = true

@@ -20,6 +20,7 @@ export interface Customer {
   total_orders: number;
   total_spent: number;
   average_ticket: number;
+  first_order_at: string | null;
   last_order_at: string | null;
   loyalty_points: number;
   loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum';

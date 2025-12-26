@@ -49,6 +49,8 @@ interface NotificationRuleV2 {
   attachments: Record<string, unknown>[] | null;
   dedupe_scope: string | null;
   priority: number;
+  effective_from: string; // Rules are not retroactive - only match events after this date
+  created_at: string;
   // Legacy fields for backward compatibility
   filters: Array<{ path: string; op: string; value: unknown }> | null;
   actions: Array<{ type: string; channel?: string; recipient_path?: string; template_key?: string; delay_seconds?: number }> | null;
@@ -61,6 +63,7 @@ interface EventInbox {
   payload_normalized: Record<string, unknown> | null;
   payload_raw: Record<string, unknown> | null;
   status: string;
+  occurred_at: string;
 }
 
 // Map rule_type to expected event types (supports multiple formats)
@@ -208,7 +211,7 @@ serve(async (req) => {
     // 1. Fetch pending events
     let eventsQuery = supabase
       .from('events_inbox')
-      .select('id, tenant_id, event_type, payload_normalized, payload_raw, status')
+      .select('id, tenant_id, event_type, payload_normalized, payload_raw, status, occurred_at')
       .in('status', ['new', 'pending'])
       .order('received_at', { ascending: true })
       .limit(limit);
@@ -268,6 +271,16 @@ serve(async (req) => {
         const matches = ruleMatchesEventV2(rule, event.event_type, payload);
         
         if (!matches) continue;
+
+        // CRITICAL: Check effective_from - rules are NOT retroactive
+        // Events that occurred before the rule was created should be skipped
+        const eventOccurredAt = new Date(event.occurred_at);
+        const ruleEffectiveFrom = new Date(rule.effective_from || rule.created_at);
+        
+        if (eventOccurredAt < ruleEffectiveFrom) {
+          console.log(`[process-events] Skipping rule ${rule.id} - event occurred ${event.occurred_at} before rule effective_from ${rule.effective_from}`);
+          continue;
+        }
 
         console.log(`[process-events] Rule ${rule.id} (${rule.name}) matched event ${event.event_type}`);
         stats.rules_matched++;

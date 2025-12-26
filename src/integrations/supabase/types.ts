@@ -1448,6 +1448,7 @@ export type Database = {
           delay_seconds: number | null
           delay_unit: string | null
           description: string | null
+          effective_from: string
           email_body: string | null
           email_subject: string | null
           filters: Json | null
@@ -1473,6 +1474,7 @@ export type Database = {
           delay_seconds?: number | null
           delay_unit?: string | null
           description?: string | null
+          effective_from?: string
           email_body?: string | null
           email_subject?: string | null
           filters?: Json | null
@@ -1498,6 +1500,7 @@ export type Database = {
           delay_seconds?: number | null
           delay_unit?: string | null
           description?: string | null
+          effective_from?: string
           email_body?: string | null
           email_subject?: string | null
           filters?: Json | null
@@ -2196,6 +2199,117 @@ export type Database = {
           },
           {
             foreignKeyName: "payment_transactions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_sale_backfill_items: {
+        Row: {
+          created_at: string
+          customer_id: string
+          error_message: string | null
+          id: string
+          job_id: string
+          processed_at: string | null
+          scheduled_for: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          error_message?: string | null
+          id?: string
+          job_id: string
+          processed_at?: string | null
+          scheduled_for: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          error_message?: string | null
+          id?: string
+          job_id?: string
+          processed_at?: string | null
+          scheduled_for?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_backfill_items_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_backfill_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "post_sale_backfill_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_sale_backfill_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      post_sale_backfill_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_message: string | null
+          id: string
+          processed_customers: number
+          rate_limit_per_hour: number
+          started_at: string | null
+          status: string
+          tenant_id: string
+          total_customers: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_message?: string | null
+          id?: string
+          processed_customers?: number
+          rate_limit_per_hour?: number
+          started_at?: string | null
+          status?: string
+          tenant_id: string
+          total_customers?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_message?: string | null
+          id?: string
+          processed_customers?: number
+          rate_limit_per_hour?: number
+          started_at?: string | null
+          status?: string
+          tenant_id?: string
+          total_customers?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_sale_backfill_jobs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

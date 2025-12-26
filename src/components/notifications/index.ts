@@ -16,3 +16,7 @@ export { MessageEditor } from './MessageEditor';
 export { DelaySelector } from './DelaySelector';
 export { ProductScopeSelector } from './ProductScopeSelector';
 export { NotificationLogsPanel } from './NotificationLogsPanel';
+
+// Backfill and Replay
+export { PostSaleBackfillButton } from './PostSaleBackfillButton';
+export { ReplayEventsButton } from './ReplayEventsButton';
