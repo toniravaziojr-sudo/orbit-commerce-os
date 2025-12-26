@@ -80,12 +80,25 @@ export default function Auth() {
       const { error } = await signIn(data.email, data.password);
       
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
+        const errorMsg = error.message?.toLowerCase() || '';
+        
+        // Detectar diferentes variações de erro de email não confirmado
+        if (
+          errorMsg.includes('email not confirmed') ||
+          errorMsg.includes('email_not_confirmed') ||
+          errorMsg.includes('confirm your email') ||
+          errorMsg.includes('email confirmation')
+        ) {
+          setLoginError('Por favor, confirme seu email');
+        } else if (
+          errorMsg.includes('invalid login credentials') ||
+          errorMsg.includes('invalid_credentials') ||
+          errorMsg.includes('wrong password') ||
+          errorMsg.includes('invalid password')
+        ) {
           setLoginError('Login ou senha incorreto, tente novamente');
-        } else if (error.message.includes('Email not confirmed')) {
-          setLoginError('Por favor, confirme seu email antes de fazer login');
         } else {
-          setLoginError(error.message);
+          setLoginError('Login ou senha incorreto, tente novamente');
         }
         return;
       }
