@@ -47,11 +47,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { tenant_id, sending_domain } = await req.json();
+    const { tenant_id, sending_domain: rawSendingDomain } = await req.json();
 
-    if (!tenant_id || !sending_domain) {
+    if (!tenant_id || !rawSendingDomain) {
       return new Response(
         JSON.stringify({ success: false, error: "tenant_id e sending_domain são obrigatórios" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Extract domain from email if user provided full email address
+    // e.g., "contato@respeiteohomem.com.br" -> "respeiteohomem.com.br"
+    let sending_domain = rawSendingDomain.trim().toLowerCase();
+    if (sending_domain.includes("@")) {
+      const parts = sending_domain.split("@");
+      sending_domain = parts[parts.length - 1];
+      console.log(`[email-domain-upsert] Extracted domain from email: ${rawSendingDomain} -> ${sending_domain}`);
+    }
+
+    // Basic domain validation
+    const domainRegex = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+    if (!domainRegex.test(sending_domain)) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Domínio inválido: "${sending_domain}". Informe apenas o domínio (ex.: respeiteohomem.com.br)` 
+        }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

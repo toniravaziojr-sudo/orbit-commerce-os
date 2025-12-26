@@ -117,7 +117,12 @@ export function EmailProviderSettings() {
         body: { tenant_id: tenantId, sending_domain: domainInput.trim().toLowerCase() },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Try to extract error message
+        const errorMessage = error?.message || "Erro ao adicionar domínio";
+        toast({ title: "Erro", description: errorMessage, variant: "destructive" });
+        return;
+      }
 
       if (data?.success) {
         toast({ title: "Domínio adicionado", description: data.message });
@@ -283,7 +288,7 @@ export function EmailProviderSettings() {
           </div>
           <div className="flex gap-2">
             <Input
-              placeholder="exemplo.com.br"
+              placeholder="respeiteohomem.com.br"
               value={domainInput}
               onChange={(e) => setDomainInput(e.target.value)}
               disabled={isVerified}
@@ -292,6 +297,9 @@ export function EmailProviderSettings() {
               {isAddingDomain ? <Loader2 className="h-4 w-4 animate-spin" /> : "Adicionar"}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Informe apenas o domínio (ex.: respeiteohomem.com.br). Se informar um email completo, o domínio será extraído automaticamente.
+          </p>
         </div>
 
         {/* Step 2: DNS Records */}
