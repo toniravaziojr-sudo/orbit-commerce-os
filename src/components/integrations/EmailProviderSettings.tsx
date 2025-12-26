@@ -66,6 +66,8 @@ export function EmailProviderSettings() {
   const [dnsLookupResults, setDnsLookupResults] = useState<DnsLookupResult[]>([]);
   const [dnsDiagnosis, setDnsDiagnosis] = useState<string[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [showTestInput, setShowTestInput] = useState(false);
+  const [testEmailInput, setTestEmailInput] = useState("");
   const [config, setConfig] = useState<EmailConfig>({
     provider_type: "resend",
     from_name: "",
@@ -296,11 +298,17 @@ export function EmailProviderSettings() {
 
   const handleTest = async () => {
     if (!tenantId) return;
+    
+    const targetEmail = testEmailInput.trim() || profile?.email;
+    if (!targetEmail) {
+      toast({ title: "Erro", description: "Informe o email de destino", variant: "destructive" });
+      return;
+    }
 
     setIsTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-test-email", {
-        body: { tenant_id: tenantId, to_email: profile?.email },
+        body: { tenant_id: tenantId, to_email: targetEmail },
       });
 
       if (error) throw error;
@@ -310,6 +318,12 @@ export function EmailProviderSettings() {
         description: data?.message,
         variant: data?.success ? "default" : "destructive",
       });
+      
+      if (data?.success) {
+        setShowTestInput(false);
+        setTestEmailInput("");
+      }
+      
       await fetchConfig();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -420,15 +434,43 @@ export function EmailProviderSettings() {
             </Alert>
           )}
 
+          {/* Teste de email */}
+          {showTestInput && (
+            <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+              <Label className="text-sm font-medium">Enviar email de teste para:</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="email"
+                  placeholder={profile?.email || "seu@email.com"}
+                  value={testEmailInput}
+                  onChange={(e) => setTestEmailInput(e.target.value)}
+                  className="flex-1"
+                />
+                <Button onClick={handleTest} disabled={isTesting}>
+                  {isTesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                  Enviar
+                </Button>
+                <Button variant="ghost" onClick={() => { setShowTestInput(false); setTestEmailInput(""); }}>
+                  Cancelar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Deixe em branco para enviar para seu email ({profile?.email})
+              </p>
+            </div>
+          )}
+
           {/* Ações */}
           <div className="flex gap-2 pt-2">
             <Button variant="outline" onClick={() => setIsEditing(true)}>
               <Pencil className="h-4 w-4 mr-2" />Editar
             </Button>
-            <Button variant="outline" onClick={handleTest} disabled={isTesting}>
-              {isTesting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              Enviar teste
-            </Button>
+            {!showTestInput && (
+              <Button variant="outline" onClick={() => setShowTestInput(true)} disabled={!canSend}>
+                <Send className="h-4 w-4 mr-2" />
+                Enviar teste
+              </Button>
+            )}
             {!isVerified && (
               <Button variant="outline" onClick={handleVerifyDomain} disabled={isVerifying}>
                 {isVerifying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}

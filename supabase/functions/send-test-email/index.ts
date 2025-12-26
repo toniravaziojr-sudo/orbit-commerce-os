@@ -69,8 +69,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate domain is verified
-    if (config.verification_status !== "verified") {
+    // Validate domain: allow if verified OR dns_all_ok with sender configured
+    const canSend = config.verification_status === "verified" || 
+      (config.dns_all_ok === true && config.from_email && config.from_name);
+    
+    if (!canSend) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -79,6 +82,8 @@ Deno.serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    console.log(`[send-test-email] Sending: verified=${config.verification_status === "verified"}, dns_all_ok=${config.dns_all_ok}`);
 
     // Validate from_email belongs to verified domain
     const emailDomain = config.from_email.split("@")[1]?.toLowerCase();
