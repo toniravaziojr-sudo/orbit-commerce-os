@@ -246,35 +246,159 @@ async function sendEmail(
   }
 }
 
-// Send WhatsApp (mock for now - will be implemented later)
-function sendWhatsApp(
+// WhatsApp config cache per tenant
+const whatsappConfigCache: Map<string, { config: WhatsAppConfig | null; timestamp: number }> = new Map();
+const WHATSAPP_CACHE_TTL = 60000; // 1 minute
+
+interface WhatsAppConfig {
+  id: string;
+  tenant_id: string;
+  instance_id: string;
+  instance_token: string;
+  connection_status: string;
+  phone_number: string | null;
+}
+
+// Get WhatsApp config for tenant with caching
+async function getWhatsAppConfig(supabase: any, tenantId: string): Promise<WhatsAppConfig | null> {
+  const cached = whatsappConfigCache.get(tenantId);
+  if (cached && Date.now() - cached.timestamp < WHATSAPP_CACHE_TTL) {
+    return cached.config;
+  }
+
+  const { data, error } = await supabase
+    .from('whatsapp_configs')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .single();
+
+  if (error || !data) {
+    console.log(`[RunNotifications] No WhatsApp config found for tenant ${tenantId}`);
+    whatsappConfigCache.set(tenantId, { config: null, timestamp: Date.now() });
+    return null;
+  }
+
+  whatsappConfigCache.set(tenantId, { config: data, timestamp: Date.now() });
+  return data;
+}
+
+// Send WhatsApp via Z-API
+async function sendWhatsApp(
+  supabase: any,
+  tenantId: string,
   recipient: string,
   message: string
-): { success: boolean; error?: string; response: Record<string, unknown> } {
-  console.log(`[RunNotifications] WhatsApp (mock): To ${recipient}`);
+): Promise<{ success: boolean; error?: string; response?: Record<string, unknown>; messageId?: string }> {
+  console.log(`[RunNotifications] WhatsApp: Sending to ${recipient} for tenant ${tenantId}`);
   
   // Validate phone number
-  const cleanPhone = (recipient || '').replace(/\D/g, '');
+  let cleanPhone = (recipient || '').replace(/\D/g, '');
   if (!cleanPhone || cleanPhone.length < 10) {
     return {
       success: false,
       error: `Número de WhatsApp inválido: "${recipient}" (mínimo 10 dígitos)`,
-      response: { mock: true, channel: 'whatsapp', to: recipient, validated: false }
+      response: { channel: 'whatsapp', to: recipient, validated: false }
     };
   }
 
-  // For now, mock success - WhatsApp will be implemented in phase 2
-  return {
-    success: true,
-    response: {
-      mock: true,
-      channel: 'whatsapp',
-      to: recipient,
-      message_preview: message?.substring(0, 50),
-      sent_at: new Date().toISOString(),
-      message_id: `whatsapp_mock_${Date.now()}`
+  // Add Brazil country code if not present
+  if (cleanPhone.length === 11 || cleanPhone.length === 10) {
+    cleanPhone = '55' + cleanPhone;
+  }
+
+  // Get WhatsApp config for tenant
+  const config = await getWhatsAppConfig(supabase, tenantId);
+  
+  if (!config) {
+    return {
+      success: false,
+      error: 'WhatsApp não configurado. Configure em Integrações → Outros → WhatsApp.',
+      response: { channel: 'whatsapp', to: recipient }
+    };
+  }
+
+  if (!config.instance_id || !config.instance_token) {
+    return {
+      success: false,
+      error: 'Credenciais do WhatsApp não configuradas.',
+      response: { channel: 'whatsapp', to: recipient }
+    };
+  }
+
+  if (config.connection_status !== 'connected') {
+    return {
+      success: false,
+      error: `WhatsApp não está conectado (status: ${config.connection_status}). Conecte em Integrações.`,
+      response: { channel: 'whatsapp', to: recipient, status: config.connection_status }
+    };
+  }
+
+  // Z-API send text message
+  const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
+  
+  try {
+    const sendRes = await fetch(`${baseUrl}/send-text`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        phone: cleanPhone,
+        message: message
+      })
+    });
+
+    const sendData = await sendRes.json();
+    console.log(`[RunNotifications] WhatsApp Z-API response:`, sendData);
+
+    if (!sendRes.ok || sendData.error) {
+      const errorMsg = sendData.error || sendData.message || `Z-API error: ${sendRes.status}`;
+      
+      // Log failed message
+      await supabase.from('whatsapp_messages').insert({
+        tenant_id: tenantId,
+        recipient_phone: cleanPhone,
+        message_content: message.substring(0, 500),
+        status: 'failed',
+        error_message: errorMsg,
+        provider_response: sendData,
+      });
+
+      return {
+        success: false,
+        error: errorMsg,
+        response: sendData
+      };
     }
-  };
+
+    // Log successful message
+    await supabase.from('whatsapp_messages').insert({
+      tenant_id: tenantId,
+      recipient_phone: cleanPhone,
+      message_content: message.substring(0, 500),
+      status: 'sent',
+      provider_message_id: sendData.messageId || sendData.zapiMessageId,
+      provider_response: sendData,
+      sent_at: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      messageId: sendData.messageId || sendData.zapiMessageId,
+      response: {
+        channel: 'whatsapp',
+        to: cleanPhone,
+        from: config.phone_number,
+        ...sendData
+      }
+    };
+
+  } catch (error: any) {
+    console.error(`[RunNotifications] WhatsApp send error:`, error);
+    return {
+      success: false,
+      error: error.message || 'Erro ao enviar WhatsApp',
+      response: { channel: 'whatsapp', to: cleanPhone }
+    };
+  }
 }
 
 // Calculate backoff: 60s, 120s, 240s, 480s... up to 1 hour max
@@ -473,8 +597,8 @@ Deno.serve(async (req) => {
           }
         }
       } else if (notification.channel === 'whatsapp') {
-        // WhatsApp - mock for now
-        sendResult = sendWhatsApp(notification.recipient, whatsappMessage);
+        // WhatsApp via Z-API
+        sendResult = await sendWhatsApp(supabase, notification.tenant_id, notification.recipient, whatsappMessage);
       } else {
         sendResult = {
           success: false,
