@@ -69,21 +69,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate domain: allow if verified OR dns_all_ok with sender configured
-    const canSend = config.verification_status === "verified" || 
-      (config.dns_all_ok === true && config.from_email && config.from_name);
-    
-    if (!canSend) {
+    // For test emails, we need the provider to be fully verified
+    // (dns_all_ok allows run-notifications to use tenant sender via system fallback,
+    // but direct sends to Resend require their verification)
+    if (config.verification_status !== "verified") {
+      const dnsOk = config.dns_all_ok === true;
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "O domínio de envio ainda não foi verificado. Configure os registros DNS e verifique o domínio primeiro." 
+          message: dnsOk 
+            ? "DNS verificado, mas o Resend ainda está processando. Aguarde alguns minutos e clique em 'Verificar DNS' novamente. Os emails automáticos já saem com seu remetente."
+            : "O domínio de envio ainda não foi verificado. Configure os registros DNS e verifique o domínio primeiro." 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    console.log(`[send-test-email] Sending: verified=${config.verification_status === "verified"}, dns_all_ok=${config.dns_all_ok}`);
+    console.log(`[send-test-email] Sending test email, domain verified by provider`);
 
     // Validate from_email belongs to verified domain
     const emailDomain = config.from_email.split("@")[1]?.toLowerCase();
