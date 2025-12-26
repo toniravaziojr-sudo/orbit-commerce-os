@@ -10,8 +10,9 @@ const corsHeaders = {
 interface AuthEmailRequest {
   email: string;
   user_name?: string;
-  confirmation_url: string;
-  email_type: 'signup' | 'recovery' | 'email_change';
+  confirmation_url?: string;
+  email_type: 'signup' | 'recovery' | 'email_change' | 'welcome';
+  store_name?: string;
 }
 
 const serve_handler = async (req: Request): Promise<Response> => {
@@ -31,7 +32,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { email, user_name, confirmation_url, email_type }: AuthEmailRequest = await req.json();
+    const { email, user_name, confirmation_url, email_type, store_name }: AuthEmailRequest = await req.json();
 
     console.log(`[send-auth-email] Processing ${email_type} email for: ${email}`);
 
@@ -40,22 +41,10 @@ const serve_handler = async (req: Request): Promise<Response> => {
       'signup': 'auth_confirm',
       'recovery': 'password_reset',
       'email_change': 'auth_confirm',
+      'welcome': 'welcome',
     };
 
-    const templateKey = templateKeyMap[email_type] || 'auth_confirm';
-
-    // Fetch the template
-    const { data: template, error: templateError } = await supabase
-      .from('system_email_templates')
-      .select('*')
-      .eq('template_key', templateKey)
-      .eq('is_active', true)
-      .single();
-
-    if (templateError || !template) {
-      console.error("[send-auth-email] Template not found:", templateKey, templateError);
-      throw new Error(`Email template '${templateKey}' not found`);
-    }
+    const templateKey = templateKeyMap[email_type] || 'welcome';
 
     // Fetch system email config
     const { data: config, error: configError } = await supabase
@@ -73,30 +62,96 @@ const serve_handler = async (req: Request): Promise<Response> => {
       throw new Error("Email domain not verified");
     }
 
-    // Replace variables in template
-    const variables: Record<string, string> = {
-      app_name: 'Comando Central',
-      user_name: user_name || email.split('@')[0],
-      confirmation_url: confirmation_url,
-      user_email: email,
-    };
+    // Fetch the template
+    const { data: template, error: templateError } = await supabase
+      .from('system_email_templates')
+      .select('*')
+      .eq('template_key', templateKey)
+      .eq('is_active', true)
+      .single();
 
-    let htmlBody = template.body_html || '';
-    let subject = template.subject || 'Confirme sua conta';
+    // Prepare email content
+    let htmlBody: string;
+    let subject: string;
 
-    // Replace all variables
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-      htmlBody = htmlBody.replace(regex, value);
-      subject = subject.replace(regex, value);
+    const fromEmail = config.from_email.includes('@') 
+      ? config.from_email 
+      : `${config.from_email}@${config.sending_domain}`;
+
+    if (templateError || !template) {
+      console.log("[send-auth-email] Template not found, using default:", templateKey);
+      
+      // Use default template for welcome emails
+      subject = `Bem-vindo ao Comando Central, ${user_name || email.split('@')[0]}!`;
+      htmlBody = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+          <div style="background-color: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #1a1a1a; margin: 0; font-size: 24px;">Comando Central</h1>
+            </div>
+            
+            <h2 style="color: #333; margin-top: 0;">Olá, ${user_name || email.split('@')[0]}!</h2>
+            
+            <p style="color: #555; line-height: 1.6;">
+              Sua conta e loja <strong>${store_name || 'sua loja'}</strong> foram criadas com sucesso no Comando Central.
+            </p>
+            
+            <p style="color: #555; line-height: 1.6;">
+              Você já pode acessar o painel administrativo e começar a configurar sua loja virtual.
+            </p>
+            
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${confirmation_url || 'https://app.comandocentral.com.br'}" 
+                 style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; 
+                        text-decoration: none; border-radius: 6px; font-weight: 600;">
+                Acessar Meu Painel
+              </a>
+            </div>
+            
+            <p style="color: #555; line-height: 1.6;">
+              Precisa de ajuda? Nossa equipe está à disposição para te auxiliar.
+            </p>
+            
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            
+            <p style="color: #888; font-size: 12px; text-align: center; margin: 0;">
+              © ${new Date().getFullYear()} Comando Central. Todos os direitos reservados.
+            </p>
+          </div>
+        </body>
+        </html>
+      `;
+    } else {
+      // Replace variables in template
+      const variables: Record<string, string> = {
+        app_name: 'Comando Central',
+        user_name: user_name || email.split('@')[0],
+        confirmation_url: confirmation_url || 'https://app.comandocentral.com.br',
+        user_email: email,
+        store_name: store_name || 'sua loja',
+        action_url: confirmation_url || 'https://app.comandocentral.com.br',
+        year: new Date().getFullYear().toString(),
+      };
+
+      htmlBody = template.body_html || '';
+      subject = template.subject || 'Bem-vindo ao Comando Central!';
+
+      // Replace all variables
+      for (const [key, value] of Object.entries(variables)) {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+        htmlBody = htmlBody.replace(regex, value);
+        subject = subject.replace(regex, value);
+      }
     }
 
     // Send email via Resend
     const resend = new Resend(resendApiKey);
-    
-    const fromEmail = config.from_email.includes('@') 
-      ? config.from_email 
-      : `${config.from_email}@${config.sending_domain}`;
 
     console.log(`[send-auth-email] Sending from: ${config.from_name} <${fromEmail}>`);
 
@@ -118,6 +173,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
       sent_at: new Date().toISOString(),
       metadata: {
         email_type,
+        store_name,
         resend_id: emailResponse.data?.id,
       },
     });
