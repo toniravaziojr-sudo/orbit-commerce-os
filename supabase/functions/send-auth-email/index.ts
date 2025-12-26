@@ -1,0 +1,139 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface AuthEmailRequest {
+  email: string;
+  user_name?: string;
+  confirmation_url: string;
+  email_type: 'signup' | 'recovery' | 'email_change';
+}
+
+const serve_handler = async (req: Request): Promise<Response> => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      console.error("[send-auth-email] RESEND_API_KEY not configured");
+      throw new Error("Email service not configured");
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { email, user_name, confirmation_url, email_type }: AuthEmailRequest = await req.json();
+
+    console.log(`[send-auth-email] Processing ${email_type} email for: ${email}`);
+
+    // Map email_type to template_key
+    const templateKeyMap: Record<string, string> = {
+      'signup': 'auth_confirm',
+      'recovery': 'password_reset',
+      'email_change': 'auth_confirm',
+    };
+
+    const templateKey = templateKeyMap[email_type] || 'auth_confirm';
+
+    // Fetch the template
+    const { data: template, error: templateError } = await supabase
+      .from('system_email_templates')
+      .select('*')
+      .eq('template_key', templateKey)
+      .eq('is_active', true)
+      .single();
+
+    if (templateError || !template) {
+      console.error("[send-auth-email] Template not found:", templateKey, templateError);
+      throw new Error(`Email template '${templateKey}' not found`);
+    }
+
+    // Fetch system email config
+    const { data: config, error: configError } = await supabase
+      .from('system_email_config')
+      .select('*')
+      .single();
+
+    if (configError || !config) {
+      console.error("[send-auth-email] System email config not found:", configError);
+      throw new Error("System email not configured");
+    }
+
+    if (config.verification_status !== 'verified') {
+      console.error("[send-auth-email] Domain not verified:", config.verification_status);
+      throw new Error("Email domain not verified");
+    }
+
+    // Replace variables in template
+    const variables: Record<string, string> = {
+      app_name: 'Comando Central',
+      user_name: user_name || email.split('@')[0],
+      confirmation_url: confirmation_url,
+      user_email: email,
+    };
+
+    let htmlBody = template.body_html || '';
+    let subject = template.subject || 'Confirme sua conta';
+
+    // Replace all variables
+    for (const [key, value] of Object.entries(variables)) {
+      const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+      htmlBody = htmlBody.replace(regex, value);
+      subject = subject.replace(regex, value);
+    }
+
+    // Send email via Resend
+    const resend = new Resend(resendApiKey);
+    
+    const fromEmail = config.from_email.includes('@') 
+      ? config.from_email 
+      : `${config.from_email}@${config.sending_domain}`;
+
+    console.log(`[send-auth-email] Sending from: ${config.from_name} <${fromEmail}>`);
+
+    const emailResponse = await resend.emails.send({
+      from: `${config.from_name} <${fromEmail}>`,
+      to: [email],
+      subject: subject,
+      html: htmlBody,
+    });
+
+    console.log("[send-auth-email] Email sent successfully:", emailResponse);
+
+    // Log the email
+    await supabase.from('system_email_logs').insert({
+      recipient: email,
+      subject: subject,
+      template_key: templateKey,
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      metadata: {
+        email_type,
+        resend_id: emailResponse.data?.id,
+      },
+    });
+
+    return new Response(
+      JSON.stringify({ success: true, message_id: emailResponse.data?.id }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  } catch (error: any) {
+    console.error("[send-auth-email] Error:", error);
+
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+};
+
+serve(serve_handler);
