@@ -305,7 +305,7 @@ serve(async (req) => {
             pix_link: charge?.last_transaction?.qr_code_url || '',
             boleto_link: charge?.last_transaction?.pdf || '',
           },
-          status: 'pending',
+          status: 'new',
         });
 
       if (emitError && !emitError.message?.includes('duplicate')) {

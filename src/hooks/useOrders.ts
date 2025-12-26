@@ -351,7 +351,7 @@ export function useOrders(options?: {
             payment_method: data.payment_method || 'manual',
             payment_gateway: 'manual',
           },
-          status: 'pending',
+          status: 'new',
         });
         
         console.log('[useOrders] Emitted payment_approved event for order', orderId);
