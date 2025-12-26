@@ -181,6 +181,20 @@ export default function Auth() {
               console.error('Error sending welcome email:', emailError);
             }
             
+            // Agendar email tutorial para 1 hora depois
+            try {
+              await supabase.functions.invoke('schedule-tutorial-email', {
+                body: {
+                  user_id: sessionData.session.user.id,
+                  email: data.email,
+                  full_name: data.fullName,
+                },
+              });
+              console.log('Tutorial email scheduled successfully');
+            } catch (tutorialError) {
+              console.error('Error scheduling tutorial email:', tutorialError);
+            }
+            
             toast.success('Conta e loja criadas com sucesso!');
             return;
           }
@@ -245,9 +259,9 @@ export default function Auth() {
         {/* Logo + Slogan */}
         <div className="flex flex-col items-center mb-8">
           <img 
-            src={platformBranding.logos.full} 
+            src={platformBranding.logos.horizontal} 
             alt={platformBranding.productName}
-            className="h-24 object-contain mb-4"
+            className="h-16 object-contain mb-4"
           />
           <p className="text-muted-foreground text-sm text-center">
             {platformBranding.slogan}
