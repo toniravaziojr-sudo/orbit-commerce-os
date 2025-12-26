@@ -5,12 +5,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { platformBranding } from '@/lib/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { toast } from 'sonner';
-import { Loader2, Store, Sparkles } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 import { validateSlugFormat, generateSlug } from '@/lib/slugPolicy';
 
 const createStoreSchema = z.object({
@@ -88,6 +89,35 @@ export default function CreateStore() {
           console.error('Error calling domains-provision-default:', domainError);
           // Continuar mesmo se falhar - o usuário pode ativar manualmente depois
         }
+        
+        // Enviar email de boas-vindas para usuário Google
+        try {
+          await supabase.functions.invoke('send-auth-email', {
+            body: {
+              email: user.email,
+              user_name: user.user_metadata?.full_name || user.email?.split('@')[0],
+              email_type: 'welcome',
+              store_name: data.name,
+            },
+          });
+          console.log('Welcome email sent successfully');
+        } catch (emailError) {
+          console.error('Error sending welcome email:', emailError);
+        }
+        
+        // Agendar email tutorial para 1 hora depois
+        try {
+          await supabase.functions.invoke('schedule-tutorial-email', {
+            body: {
+              user_id: user.id,
+              email: user.email,
+              full_name: user.user_metadata?.full_name || user.email?.split('@')[0],
+            },
+          });
+          console.log('Tutorial email scheduled successfully');
+        } catch (tutorialError) {
+          console.error('Error scheduling tutorial email:', tutorialError);
+        }
       }
 
       // Atualizar o contexto de autenticação
@@ -108,10 +138,11 @@ export default function CreateStore() {
       <div className="w-full max-w-lg animate-fade-in">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-            <Store className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Central de Comando</span>
+          <img 
+            src={platformBranding.logos.horizontal} 
+            alt={platformBranding.productName}
+            className="h-12 object-contain"
+          />
         </div>
 
         <Card className="shadow-lg border-border/50">
