@@ -118,21 +118,33 @@ export function EmailProviderSettings() {
       });
 
       if (error) {
-        // Try to extract error message
-        const errorMessage = error?.message || "Erro ao adicionar domínio";
+        // Try to extract error message from FunctionsHttpError
+        let errorMessage = "Erro ao adicionar domínio";
+        if (error.message) {
+          errorMessage = error.message;
+        }
+        // Try parsing context if available
+        try {
+          const ctx = (error as any).context;
+          if (ctx?.body) {
+            const parsed = typeof ctx.body === 'string' ? JSON.parse(ctx.body) : ctx.body;
+            if (parsed?.error) errorMessage = parsed.error;
+          }
+        } catch {}
         toast({ title: "Erro", description: errorMessage, variant: "destructive" });
         return;
       }
 
       if (data?.success) {
-        toast({ title: "Domínio adicionado", description: data.message });
+        toast({ title: "Sucesso", description: data.message });
         await fetchConfig();
       } else {
-        toast({ title: "Erro", description: data?.error || "Erro ao adicionar domínio", variant: "destructive" });
+        const errMsg = data?.error || "Erro ao adicionar domínio";
+        toast({ title: "Erro", description: errMsg, variant: "destructive" });
       }
     } catch (error: any) {
       console.error("Error adding domain:", error);
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: error.message || "Erro desconhecido", variant: "destructive" });
     } finally {
       setIsAddingDomain(false);
     }

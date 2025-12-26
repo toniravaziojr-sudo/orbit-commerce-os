@@ -948,7 +948,7 @@ export type Database = {
         Row: {
           created_at: string
           dns_records: Json | null
-          from_email: string
+          from_email: string | null
           from_name: string
           id: string
           is_verified: boolean | null
@@ -968,7 +968,7 @@ export type Database = {
         Insert: {
           created_at?: string
           dns_records?: Json | null
-          from_email: string
+          from_email?: string | null
           from_name?: string
           id?: string
           is_verified?: boolean | null
@@ -988,7 +988,7 @@ export type Database = {
         Update: {
           created_at?: string
           dns_records?: Json | null
-          from_email?: string
+          from_email?: string | null
           from_name?: string
           id?: string
           is_verified?: boolean | null
