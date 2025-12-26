@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { platformBranding } from '@/lib/branding';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { toast } from 'sonner';
-import { Loader2, Store, Mail, Lock, User, ArrowLeft, Building2 } from 'lucide-react';
+import { Loader2, Mail, Lock, User, ArrowLeft, Building2 } from 'lucide-react';
 import { generateSlug } from '@/lib/slugPolicy';
 
 // Schemas de validação
@@ -207,12 +208,16 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        {/* Logo */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="h-12 w-12 rounded-xl bg-primary flex items-center justify-center">
-            <Store className="h-6 w-6 text-primary-foreground" />
-          </div>
-          <span className="text-2xl font-bold text-foreground">Central de Comando</span>
+        {/* Logo + Slogan */}
+        <div className="flex flex-col items-center mb-8">
+          <img 
+            src={platformBranding.logos.full} 
+            alt={platformBranding.productName}
+            className="h-24 object-contain mb-4"
+          />
+          <p className="text-muted-foreground text-sm text-center">
+            {platformBranding.slogan}
+          </p>
         </div>
 
         <Card className="shadow-lg border-border/50">
