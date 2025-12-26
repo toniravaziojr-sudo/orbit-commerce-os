@@ -143,9 +143,10 @@ function ruleMatchesEventV2(rule: NotificationRuleV2, eventType: string, payload
         case 'awaiting_pickup':
           return newStatus === 'awaiting_pickup';
         case 'returned':
-          return newStatus === 'returned';
+        case 'returning': // UI sends 'returning', status might be 'returned' or 'returning'
+          return newStatus === 'returned' || newStatus === 'returning';
         case 'issue':
-          return newStatus === 'failed' || newStatus === 'unknown' || newStatus === 'exception';
+          return newStatus === 'failed' || newStatus === 'unknown' || newStatus === 'exception' || newStatus === 'lost';
         case 'delivered':
           return newStatus === 'delivered';
         default:
