@@ -6,6 +6,117 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface DnsRecord {
+  name: string;
+  type: string;
+  value: string;
+  priority?: number;
+  record?: string;
+  status?: string;
+}
+
+interface DnsLookupResult {
+  record_type: string;
+  host: string;
+  expected_value: string;
+  found_values: string[];
+  match: boolean;
+  details?: string;
+}
+
+// Perform DNS lookup using Cloudflare DNS-over-HTTPS
+async function dnsLookup(name: string, type: string): Promise<string[]> {
+  try {
+    const url = `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`;
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/dns-json',
+      },
+    });
+    
+    if (!response.ok) {
+      console.log(`[DNS Lookup] Failed for ${name} ${type}: ${response.status}`);
+      return [];
+    }
+    
+    const data = await response.json();
+    console.log(`[DNS Lookup] ${name} ${type}:`, JSON.stringify(data));
+    
+    if (!data.Answer || data.Answer.length === 0) {
+      return [];
+    }
+    
+    return data.Answer.map((answer: any) => {
+      // For MX records, data includes priority
+      if (type === 'MX') {
+        // MX data format: "priority host" e.g., "10 feedback-smtp.us-east-1.amazonses.com."
+        return answer.data;
+      }
+      // For TXT records, remove quotes
+      if (type === 'TXT') {
+        return answer.data.replace(/^"|"$/g, '');
+      }
+      return answer.data;
+    });
+  } catch (error) {
+    console.error(`[DNS Lookup] Error for ${name} ${type}:`, error);
+    return [];
+  }
+}
+
+// Verify DNS records against expected values
+async function verifyDnsRecords(domain: string, expectedRecords: DnsRecord[]): Promise<DnsLookupResult[]> {
+  const results: DnsLookupResult[] = [];
+  
+  for (const record of expectedRecords) {
+    const fullHost = record.name === '@' ? domain : `${record.name}.${domain}`;
+    const foundValues = await dnsLookup(fullHost, record.type);
+    
+    let match = false;
+    let details = '';
+    
+    if (record.type === 'TXT') {
+      // For TXT records, check if expected value is contained in any found value
+      const expectedClean = record.value.replace(/^"|"$/g, '').trim();
+      match = foundValues.some(found => {
+        const foundClean = found.replace(/^"|"$/g, '').trim();
+        // Check if the key part matches (e.g., p=...)
+        return foundClean.includes(expectedClean) || expectedClean.includes(foundClean);
+      });
+      
+      if (!match && foundValues.length > 0) {
+        details = `Valores encontrados: ${foundValues.join('; ')}`;
+      }
+    } else if (record.type === 'MX') {
+      // For MX, check if the hostname matches (ignoring priority and trailing dot)
+      const expectedHost = record.value.toLowerCase().replace(/\.$/, '');
+      match = foundValues.some(found => {
+        // MX format: "priority hostname." e.g., "10 feedback-smtp.us-east-1.amazonses.com."
+        const parts = found.split(' ');
+        const foundHost = (parts[1] || parts[0]).toLowerCase().replace(/\.$/, '');
+        return foundHost === expectedHost;
+      });
+      
+      if (!match && foundValues.length > 0) {
+        details = `Valores encontrados: ${foundValues.join('; ')}`;
+      }
+    }
+    
+    results.push({
+      record_type: record.type,
+      host: fullHost,
+      expected_value: record.type === 'MX' && record.priority 
+        ? `${record.priority} ${record.value}` 
+        : record.value,
+      found_values: foundValues,
+      match,
+      details: match ? 'OK' : (foundValues.length === 0 ? 'Registro não encontrado no DNS' : details),
+    });
+  }
+  
+  return results;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -143,6 +254,14 @@ Deno.serve(async (req) => {
 
     console.log(`[email-domain-verify] Domain status: ${domainData.status}, records:`, domainData.records);
 
+    // Perform real DNS lookup for diagnosis
+    let dnsLookupResults: DnsLookupResult[] = [];
+    if (!isVerified && domainData.records && config.sending_domain) {
+      console.log(`[email-domain-verify] Performing DNS lookup for ${config.sending_domain}`);
+      dnsLookupResults = await verifyDnsRecords(config.sending_domain, domainData.records);
+      console.log(`[email-domain-verify] DNS lookup results:`, JSON.stringify(dnsLookupResults));
+    }
+
     // Update config with verification result
     await supabase
       .from("email_provider_configs")
@@ -156,9 +275,38 @@ Deno.serve(async (req) => {
       })
       .eq("id", config.id);
 
-    const statusMessage = isVerified 
-      ? "Domínio verificado com sucesso!" 
-      : "DNS ainda não propagado. Aguarde alguns minutos e tente novamente.";
+    // Build status message with diagnosis
+    let statusMessage = "";
+    let diagnosis: string[] = [];
+    
+    if (isVerified) {
+      statusMessage = "Domínio verificado com sucesso!";
+    } else {
+      // Check DNS lookup results for problems
+      const missingRecords = dnsLookupResults.filter(r => !r.match && r.found_values.length === 0);
+      const mismatchRecords = dnsLookupResults.filter(r => !r.match && r.found_values.length > 0);
+      const okRecords = dnsLookupResults.filter(r => r.match);
+      
+      if (missingRecords.length > 0) {
+        diagnosis.push(`❌ Registros não encontrados no DNS: ${missingRecords.map(r => `${r.record_type} ${r.host}`).join(', ')}`);
+      }
+      
+      if (mismatchRecords.length > 0) {
+        for (const r of mismatchRecords) {
+          diagnosis.push(`⚠️ ${r.record_type} ${r.host}: valor diferente do esperado. ${r.details}`);
+        }
+      }
+      
+      if (okRecords.length > 0) {
+        diagnosis.push(`✅ Registros OK: ${okRecords.map(r => `${r.record_type} ${r.host}`).join(', ')}`);
+      }
+      
+      if (diagnosis.length === 0) {
+        statusMessage = "DNS ainda não propagado. Aguarde alguns minutos e tente novamente.";
+      } else {
+        statusMessage = "Verificação DNS com problemas. Veja o diagnóstico abaixo.";
+      }
+    }
 
     return new Response(
       JSON.stringify({
@@ -166,7 +314,11 @@ Deno.serve(async (req) => {
         verified: isVerified,
         status: newStatus,
         dns_records: domainData.records || [],
-        message: statusMessage
+        message: statusMessage,
+        dns_lookup: dnsLookupResults,
+        diagnosis,
+        provider_status: domainData.status,
+        checked_at: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
