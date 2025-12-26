@@ -3342,36 +3342,42 @@ export type Database = {
       }
       system_email_templates: {
         Row: {
+          auto_send: boolean | null
           body_html: string
           created_at: string
           description: string | null
           id: string
           is_active: boolean | null
           name: string
+          send_delay_minutes: number | null
           subject: string
           template_key: string
           updated_at: string
           variables: string[] | null
         }
         Insert: {
+          auto_send?: boolean | null
           body_html: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
           name: string
+          send_delay_minutes?: number | null
           subject: string
           template_key: string
           updated_at?: string
           variables?: string[] | null
         }
         Update: {
+          auto_send?: boolean | null
           body_html?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
+          send_delay_minutes?: number | null
           subject?: string
           template_key?: string
           updated_at?: string
