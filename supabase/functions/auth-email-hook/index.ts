@@ -109,6 +109,9 @@ serve(async (req: Request): Promise<Response> => {
     // Get user name
     const userName = user.user_metadata?.full_name || user.user_metadata?.name || user.email.split("@")[0];
 
+    // Logo pública para emails
+    const EMAIL_LOGO_URL = "https://app.comandocentral.com.br/images/email-logo.png";
+
     // Replace variables in template
     const variables: Record<string, string> = {
       app_name: "Comando Central",
@@ -116,6 +119,9 @@ serve(async (req: Request): Promise<Response> => {
       confirmation_url: confirmationUrl,
       user_email: user.email,
       reset_url: confirmationUrl,
+      dashboard_url: "https://app.comandocentral.com.br",
+      year: new Date().getFullYear().toString(),
+      logo_url: EMAIL_LOGO_URL,
     };
 
     let htmlBody = template.body_html || "";

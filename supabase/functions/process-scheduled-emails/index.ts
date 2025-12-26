@@ -120,6 +120,7 @@ Deno.serve(async (req: Request) => {
       try {
         // Replace variables in template
         const dashboardUrl = "https://app.comandocentral.com.br";
+        const EMAIL_LOGO_URL = "https://app.comandocentral.com.br/images/email-logo.png";
         let subject = template.subject || "";
         let html = template.body_html || "";
 
@@ -127,6 +128,8 @@ Deno.serve(async (req: Request) => {
           app_name: "Comando Central",
           user_name: scheduled.user_name || scheduled.email.split("@")[0],
           dashboard_url: dashboardUrl,
+          year: new Date().getFullYear().toString(),
+          logo_url: EMAIL_LOGO_URL,
         };
 
         for (const [key, value] of Object.entries(variables)) {

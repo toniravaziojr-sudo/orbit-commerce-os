@@ -7,6 +7,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Logo pública para emails
+const EMAIL_LOGO_URL = "https://app.comandocentral.com.br/images/email-logo.png";
+
 interface AuthEmailRequest {
   email: string;
   user_name?: string;
@@ -62,7 +65,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
       throw new Error("Email domain not verified");
     }
 
-    // Fetch the template
+    // Fetch the template from system_email_templates
     const { data: template, error: templateError } = await supabase
       .from('system_email_templates')
       .select('*')
@@ -78,71 +81,192 @@ const serve_handler = async (req: Request): Promise<Response> => {
       ? config.from_email 
       : `${config.from_email}@${config.sending_domain}`;
 
+    // Common variables for all templates
+    const variables: Record<string, string> = {
+      app_name: 'Comando Central',
+      user_name: user_name || email.split('@')[0],
+      confirmation_url: confirmation_url || 'https://app.comandocentral.com.br',
+      user_email: email,
+      store_name: store_name || 'sua loja',
+      action_url: confirmation_url || 'https://app.comandocentral.com.br',
+      dashboard_url: 'https://app.comandocentral.com.br',
+      reset_url: confirmation_url || 'https://app.comandocentral.com.br/auth',
+      year: new Date().getFullYear().toString(),
+      logo_url: EMAIL_LOGO_URL,
+    };
+
     if (templateError || !template) {
-      console.log("[send-auth-email] Template not found, using default:", templateKey);
+      console.log("[send-auth-email] Template not found in database, using fallback for:", templateKey);
       
-      // Use default template for welcome emails
-      subject = `Bem-vindo ao Comando Central, ${user_name || email.split('@')[0]}!`;
-      htmlBody = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
-          <div style="background-color: #ffffff; border-radius: 8px; padding: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #1a1a1a; margin: 0; font-size: 24px;">Comando Central</h1>
-            </div>
-            
-            <h2 style="color: #333; margin-top: 0;">Olá, ${user_name || email.split('@')[0]}!</h2>
-            
-            <p style="color: #555; line-height: 1.6;">
-              Sua conta e loja <strong>${store_name || 'sua loja'}</strong> foram criadas com sucesso no Comando Central.
-            </p>
-            
-            <p style="color: #555; line-height: 1.6;">
-              Você já pode acessar o painel administrativo e começar a configurar sua loja virtual.
-            </p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${confirmation_url || 'https://app.comandocentral.com.br'}" 
-                 style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; 
-                        text-decoration: none; border-radius: 6px; font-weight: 600;">
-                Acessar Meu Painel
-              </a>
-            </div>
-            
-            <p style="color: #555; line-height: 1.6;">
-              Precisa de ajuda? Nossa equipe está à disposição para te auxiliar.
-            </p>
-            
-            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-            
-            <p style="color: #888; font-size: 12px; text-align: center; margin: 0;">
-              © ${new Date().getFullYear()} Comando Central. Todos os direitos reservados.
-            </p>
-          </div>
-        </body>
-        </html>
-      `;
-    } else {
-      // Replace variables in template
-      const variables: Record<string, string> = {
-        app_name: 'Comando Central',
-        user_name: user_name || email.split('@')[0],
-        confirmation_url: confirmation_url || 'https://app.comandocentral.com.br',
-        user_email: email,
-        store_name: store_name || 'sua loja',
-        action_url: confirmation_url || 'https://app.comandocentral.com.br',
-        year: new Date().getFullYear().toString(),
+      // Fallback templates com a nova logo
+      const fallbackTemplates: Record<string, { subject: string; html: string }> = {
+        welcome: {
+          subject: `Bem-vindo ao Comando Central, ${variables.user_name}!`,
+          html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <!-- Header com logo -->
+          <tr>
+            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            </td>
+          </tr>
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 24px;">Olá, ${variables.user_name}!</h1>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 15px 0;">
+                Sua conta e loja <strong>${variables.store_name}</strong> foram criadas com sucesso no Comando Central.
+              </p>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+                Você já pode acessar o painel administrativo e começar a configurar sua loja virtual.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${variables.dashboard_url}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                  Acessar Meu Painel
+                </a>
+              </div>
+              <p style="color: #555; line-height: 1.6; margin: 25px 0 0 0;">
+                Precisa de ajuda? Nossa equipe está à disposição para te auxiliar.
+              </p>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+              <p style="color: #888; font-size: 12px; margin: 0;">
+                © ${variables.year} Comando Central. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+          `,
+        },
+        auth_confirm: {
+          subject: `Confirme sua conta - Comando Central`,
+          html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 24px;">Confirme sua conta</h1>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+                Olá, ${variables.user_name}! Clique no botão abaixo para confirmar sua conta no Comando Central.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${variables.confirmation_url}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                  Confirmar Minha Conta
+                </a>
+              </div>
+              <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 25px 0 0 0;">
+                Se você não criou esta conta, pode ignorar este email.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+              <p style="color: #888; font-size: 12px; margin: 0;">
+                © ${variables.year} Comando Central. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+          `,
+        },
+        password_reset: {
+          subject: `Redefinir sua senha - Comando Central`,
+          html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
+              <img src="${EMAIL_LOGO_URL}" alt="Comando Central" style="height: 60px; max-width: 250px;" />
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h1 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 24px;">Redefinir sua senha</h1>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 25px 0;">
+                Olá, ${variables.user_name}! Recebemos uma solicitação para redefinir a senha da sua conta no Comando Central.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${variables.reset_url}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
+                  Redefinir Minha Senha
+                </a>
+              </div>
+              <p style="color: #888; font-size: 12px; line-height: 1.6; margin: 25px 0 0 0;">
+                Se você não solicitou a redefinição de senha, ignore este email. O link expira em 1 hora.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+              <p style="color: #888; font-size: 12px; margin: 0;">
+                © ${variables.year} Comando Central. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+          `,
+        },
       };
 
+      const fallback = fallbackTemplates[templateKey] || fallbackTemplates['welcome'];
+      subject = fallback.subject;
+      htmlBody = fallback.html;
+    } else {
+      // Use template from database
       htmlBody = template.body_html || '';
-      subject = template.subject || 'Bem-vindo ao Comando Central!';
+      subject = template.subject || 'Comando Central';
 
-      // Replace all variables
+      // Replace all variables including logo_url
       for (const [key, value] of Object.entries(variables)) {
         const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
         htmlBody = htmlBody.replace(regex, value);
@@ -175,6 +299,7 @@ const serve_handler = async (req: Request): Promise<Response> => {
         email_type,
         store_name,
         resend_id: emailResponse.data?.id,
+        used_fallback: templateError !== null,
       },
     });
 

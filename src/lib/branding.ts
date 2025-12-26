@@ -33,7 +33,7 @@ export const platformBranding = {
   
   // URLs públicas para uso em emails e contextos externos
   publicUrls: {
-    logo: "https://app.comandocentral.com.br/favicon.png",
+    logo: "https://app.comandocentral.com.br/images/email-logo.png",
     website: "https://comandocentral.com.br",
     app: "https://app.comandocentral.com.br",
   },
