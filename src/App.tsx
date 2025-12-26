@@ -45,6 +45,7 @@ import Shipments from "@/pages/Shipments";
 import Auth from "@/pages/Auth";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
+import SystemEmails from "@/pages/SystemEmails";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -213,6 +214,7 @@ const App = () => {
                   <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
                   <Route path="/health-monitor" element={<HealthMonitor />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
+                  <Route path="/settings/emails" element={<SystemEmails />} />
                 </Route>
               )}
 
