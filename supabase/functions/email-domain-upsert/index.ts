@@ -144,86 +144,99 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Create new domain in Resend
-    console.log(`[email-domain-upsert] Creating new domain in Resend: ${sending_domain}`);
+    // First try to find domain in Resend (idempotent - don't fail if it exists)
+    console.log(`[email-domain-upsert] Checking if domain ${sending_domain} exists in Resend...`);
     
-    const createResult = await resend.domains.create({
-      name: sending_domain,
-    });
-
-    if (createResult.error) {
-      console.error("[email-domain-upsert] Resend create error:", createResult.error);
+    let domainData: any = null;
+    let domainStatus = "pending";
+    let dnsRecords: any[] = [];
+    
+    try {
+      const listResult = await resend.domains.list();
+      console.log(`[email-domain-upsert] List domains result:`, JSON.stringify(listResult).slice(0, 500));
       
-      // Check if domain already exists error
-      const errorMessage = createResult.error.message || JSON.stringify(createResult.error);
-      if (errorMessage.includes("already exists") || errorMessage.includes("already been added")) {
-        // Try to list domains and find ours
-        const listResult = await resend.domains.list();
-        const domainsList = (listResult as any).data?.data || (listResult as any).data || [];
-        if (Array.isArray(domainsList)) {
-          const existingDomain = domainsList.find(
-            (d: any) => d.name === sending_domain
-          );
-          
-          if (existingDomain) {
-            console.log(`[email-domain-upsert] Domain found in Resend, using existing: ${existingDomain.id}`);
-            
-            // Update config with existing domain
-            const upsertPayload = {
-              tenant_id,
-              sending_domain,
-              resend_domain_id: existingDomain.id,
-              dns_records: existingDomain.records || [],
-              verification_status: existingDomain.status === "verified" ? "verified" : "pending",
-              verified_at: existingDomain.status === "verified" ? new Date().toISOString() : null,
-              last_verify_check_at: new Date().toISOString(),
-              provider_type: "resend",
-            };
-
-            if (existingConfig?.id) {
-              await supabase
-                .from("email_provider_configs")
-                .update(upsertPayload)
-                .eq("id", existingConfig.id);
-            } else {
-              await supabase
-                .from("email_provider_configs")
-                .insert(upsertPayload);
-            }
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                domain_id: existingDomain.id,
-                status: existingDomain.status === "verified" ? "verified" : "pending",
-                dns_records: existingDomain.records || [],
-                message: "Domínio já existente no Resend foi vinculado"
-              }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
+      const domainsList = (listResult as any).data?.data || (listResult as any).data || [];
+      if (Array.isArray(domainsList)) {
+        const existingDomain = domainsList.find((d: any) => d.name === sending_domain);
+        
+        if (existingDomain) {
+          console.log(`[email-domain-upsert] Domain already exists in Resend: ${existingDomain.id}`);
+          domainData = existingDomain;
+          domainStatus = existingDomain.status === "verified" ? "verified" : "pending";
+          dnsRecords = existingDomain.records || [];
         }
       }
+    } catch (listError) {
+      console.error("[email-domain-upsert] Error listing domains:", listError);
+    }
+    
+    // If domain doesn't exist, create it
+    if (!domainData) {
+      console.log(`[email-domain-upsert] Creating new domain in Resend: ${sending_domain}`);
+      
+      const createResult = await resend.domains.create({
+        name: sending_domain,
+      });
 
+      if (createResult.error) {
+        console.error("[email-domain-upsert] Resend create error:", JSON.stringify(createResult.error));
+        
+        const errorMessage = createResult.error.message || JSON.stringify(createResult.error);
+        
+        // Even if it says already exists, try to list again
+        if (errorMessage.includes("already exists") || errorMessage.includes("already been added")) {
+          try {
+            const retryList = await resend.domains.list();
+            const retryDomainsList = (retryList as any).data?.data || (retryList as any).data || [];
+            if (Array.isArray(retryDomainsList)) {
+              const found = retryDomainsList.find((d: any) => d.name === sending_domain);
+              if (found) {
+                domainData = found;
+                domainStatus = found.status === "verified" ? "verified" : "pending";
+                dnsRecords = found.records || [];
+                console.log(`[email-domain-upsert] Found domain on retry: ${found.id}`);
+              }
+            }
+          } catch (retryErr) {
+            console.error("[email-domain-upsert] Retry list error:", retryErr);
+          }
+        }
+        
+        if (!domainData) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: `Erro ao criar domínio no Resend: ${errorMessage}`,
+              provider_error: createResult.error,
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      } else {
+        domainData = createResult.data;
+        dnsRecords = domainData?.records || [];
+        console.log(`[email-domain-upsert] Domain created:`, JSON.stringify(domainData).slice(0, 500));
+      }
+    }
+    
+    if (!domainData?.id) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Erro ao criar domínio no Resend: ${errorMessage}` 
+          error: "Não foi possível obter o ID do domínio no Resend" 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const domainData = createResult.data;
-    console.log(`[email-domain-upsert] Domain created in Resend:`, domainData);
 
     // Upsert email config
     const upsertPayload = {
       tenant_id,
       sending_domain,
       resend_domain_id: domainData?.id,
-      dns_records: domainData?.records || [],
-      verification_status: "pending",
+      dns_records: dnsRecords,
+      verification_status: domainStatus,
+      verified_at: domainStatus === "verified" ? new Date().toISOString() : null,
       last_verify_check_at: new Date().toISOString(),
       provider_type: "resend",
     };
@@ -262,13 +275,17 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`[email-domain-upsert] Success! Domain: ${domainData?.id}, Status: ${domainStatus}`);
+
     return new Response(
       JSON.stringify({
         success: true,
         domain_id: domainData?.id,
-        status: "pending",
-        dns_records: domainData?.records || [],
-        message: "Domínio criado. Configure os registros DNS abaixo."
+        status: domainStatus,
+        dns_records: dnsRecords,
+        message: domainStatus === "verified" 
+          ? "Domínio já verificado!" 
+          : "Domínio criado. Configure os registros DNS abaixo."
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
