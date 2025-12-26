@@ -48,27 +48,74 @@ interface RunnerStats {
 
 // Cache for email configs per tenant
 const emailConfigCache: Map<string, EmailConfig | null> = new Map();
+let systemEmailConfigCache: EmailConfig | null | undefined = undefined;
 
-// Get email config for tenant
+// Get system email config as fallback
+async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> {
+  if (systemEmailConfigCache !== undefined) {
+    return systemEmailConfigCache;
+  }
+
+  const { data, error } = await supabase
+    .from('system_email_config')
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    console.log(`[RunNotifications] No system email config found`);
+    systemEmailConfigCache = null;
+    return null;
+  }
+
+  // Map system_email_config to EmailConfig interface
+  const config: EmailConfig = {
+    id: data.id,
+    tenant_id: 'system',
+    provider_type: data.provider_type || 'resend',
+    from_name: data.from_name,
+    from_email: data.from_email,
+    reply_to: data.reply_to,
+    is_verified: data.verification_status === 'verified',
+    sending_domain: data.sending_domain,
+    verification_status: data.verification_status
+  };
+
+  console.log(`[RunNotifications] Using system email config: ${config.from_email}`);
+  systemEmailConfigCache = config;
+  return config;
+}
+
+// Get email config for tenant (with system fallback)
 async function getEmailConfig(supabase: any, tenantId: string): Promise<EmailConfig | null> {
   if (emailConfigCache.has(tenantId)) {
     return emailConfigCache.get(tenantId) || null;
   }
 
+  // First try tenant-specific config
   const { data, error } = await supabase
     .from('email_provider_configs')
     .select('*')
     .eq('tenant_id', tenantId)
     .single();
 
-  if (error || !data) {
-    console.log(`[RunNotifications] No email config for tenant ${tenantId}`);
-    emailConfigCache.set(tenantId, null);
-    return null;
+  if (!error && data && data.verification_status === 'verified') {
+    console.log(`[RunNotifications] Using tenant email config: ${data.from_email}`);
+    emailConfigCache.set(tenantId, data);
+    return data;
   }
 
-  emailConfigCache.set(tenantId, data);
-  return data;
+  // Fallback to system email config
+  console.log(`[RunNotifications] No verified tenant email config for ${tenantId}, trying system fallback`);
+  const systemConfig = await getSystemEmailConfig(supabase);
+  
+  if (systemConfig) {
+    emailConfigCache.set(tenantId, systemConfig);
+    return systemConfig;
+  }
+
+  console.log(`[RunNotifications] No email config available for tenant ${tenantId}`);
+  emailConfigCache.set(tenantId, null);
+  return null;
 }
 
 // Convert basic markdown to HTML for emails
