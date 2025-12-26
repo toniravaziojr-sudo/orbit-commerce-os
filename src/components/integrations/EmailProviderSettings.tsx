@@ -15,9 +15,16 @@ interface DnsRecord {
   name: string;
   value: string;
   status?: string;
-  priority?: number;
+  priority?: number | string;
   ttl?: string;
 }
+
+// Helper to determine MX priority
+const getMxPriority = (record: DnsRecord): string | null => {
+  if (record.type !== "MX") return null;
+  if (record.priority !== undefined) return String(record.priority);
+  return "10"; // Default priority for MX records
+};
 
 interface EmailConfig {
   id?: string;
@@ -318,6 +325,16 @@ export function EmailProviderSettings() {
         {config.dns_records.length > 0 && (
           <div className="space-y-4">
             <Label className="font-semibold">2. Configure os registros DNS</Label>
+            
+            {/* Info about DNS vs Site verification */}
+            <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-900">
+              <AlertCircle className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
+                <strong>Por que preciso verificar novamente?</strong> A verificação do domínio para email (SPF/DKIM/MX) é diferente da verificação do site (DNS/SSL). 
+                Isso garante que seus emails sejam autenticados corretamente e não caiam no spam.
+              </AlertDescription>
+            </Alert>
+            
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted">
@@ -325,25 +342,50 @@ export function EmailProviderSettings() {
                     <th className="text-left p-3">Tipo</th>
                     <th className="text-left p-3">Nome</th>
                     <th className="text-left p-3">Valor</th>
+                    <th className="text-left p-3 w-20">Prioridade</th>
                     <th className="p-3 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {config.dns_records.map((record, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-3 font-mono text-xs">{record.type}</td>
-                      <td className="p-3 font-mono text-xs break-all">{record.name}</td>
-                      <td className="p-3 font-mono text-xs break-all max-w-[300px]">{record.value}</td>
-                      <td className="p-3">
-                        <Button variant="ghost" size="sm" onClick={() => copyToClipboard(record.value)}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
+                  {config.dns_records.map((record, i) => {
+                    const mxPriority = getMxPriority(record);
+                    return (
+                      <tr key={i} className="border-t">
+                        <td className="p-3 font-mono text-xs">{record.type}</td>
+                        <td className="p-3 font-mono text-xs break-all">{record.name}</td>
+                        <td className="p-3 font-mono text-xs break-all max-w-[300px]">{record.value}</td>
+                        <td className="p-3 font-mono text-xs text-center">
+                          {mxPriority ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-xs font-medium">
+                              {mxPriority}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <Button variant="ghost" size="sm" onClick={() => copyToClipboard(record.value)}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
+            
+            {/* DNS Configuration Tips */}
+            <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
+              <p className="font-medium text-foreground">Dicas de configuração:</p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                <li>No Cloudflare, desative o proxy (use <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">"Somente DNS"</span>)</li>
+                <li>Para registros MX, informe a <strong>Prioridade = 10</strong> (campo obrigatório)</li>
+                <li>TTL pode ser "Auto" ou 3600 segundos</li>
+                <li>A propagação pode levar de 5 minutos a 1 hora</li>
+              </ul>
+            </div>
+            
             <div className="flex gap-2">
               <Button onClick={handleVerifyDomain} disabled={isVerifying || isVerified} variant="outline">
                 {isVerifying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
@@ -376,6 +418,9 @@ export function EmailProviderSettings() {
                   value={config.from_email}
                   onChange={(e) => setConfig(prev => ({ ...prev, from_email: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">
+                  O email deve pertencer ao domínio verificado ({config.sending_domain})
+                </p>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="reply_to">Responder para (opcional)</Label>
@@ -388,7 +433,19 @@ export function EmailProviderSettings() {
                 />
               </div>
             </div>
-
+            
+            {/* From Preview */}
+            {(config.from_name || config.from_email) && (
+              <div className="bg-muted/50 rounded-lg p-4">
+                <p className="text-xs text-muted-foreground mb-1">Prévia do remetente:</p>
+                <p className="font-medium text-foreground">
+                  {config.from_name ? `"${config.from_name}"` : "Seu Nome"}{" "}
+                  <span className="text-muted-foreground">
+                    &lt;{config.from_email || `contato@${config.sending_domain}`}&gt;
+                  </span>
+                </p>
+              </div>
+            )}
             <div className="flex gap-3">
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
