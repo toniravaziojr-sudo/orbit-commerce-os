@@ -172,7 +172,22 @@ export default function Auth() {
           console.error('Error in tenant setup:', tenantSetupError);
         }
       } else {
-        // Confirmação por email necessária - redirecionar para página de aguardo
+        // Confirmação por email necessária - enviar email customizado
+        try {
+          const confirmationUrl = `${window.location.origin}/auth?confirmed=true`;
+          await supabase.functions.invoke('send-auth-email', {
+            body: {
+              email: data.email,
+              user_name: data.fullName,
+              confirmation_url: confirmationUrl,
+              email_type: 'signup',
+            },
+          });
+        } catch (emailError) {
+          console.error('Error sending custom auth email:', emailError);
+        }
+        
+        // Redirecionar para página de aguardo
         navigate(`/auth/aguardando-confirmacao?email=${encodeURIComponent(data.email)}`);
         return;
       }

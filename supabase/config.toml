@@ -151,3 +151,6 @@ schedule = "* * * * *"
 
 [functions.replay-events]
 verify_jwt = true
+
+[functions.send-auth-email]
+verify_jwt = false
