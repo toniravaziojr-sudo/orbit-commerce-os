@@ -5,7 +5,7 @@ import { platformBranding } from '@/lib/branding';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, Mail, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Loader2, ArrowLeft, RefreshCw } from 'lucide-react';
 
 export default function AwaitingConfirmation() {
   const navigate = useNavigate();
@@ -50,22 +50,19 @@ export default function AwaitingConfirmation() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
-        {/* Logo + Slogan */}
-        <div className="flex flex-col items-center mb-8">
-          <img 
-            src={platformBranding.logos.full} 
-            alt={platformBranding.productName}
-            className="h-24 object-contain mb-4"
-          />
-          <p className="text-muted-foreground text-sm text-center">
-            {platformBranding.slogan}
-          </p>
-        </div>
+        {/* Slogan */}
+        <p className="text-muted-foreground text-sm text-center mb-8">
+          {platformBranding.slogan}
+        </p>
 
         <Card className="shadow-lg border-border/50">
           <CardHeader className="text-center">
-            <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Mail className="h-8 w-8 text-primary" />
+            <div className="mx-auto mb-4">
+              <img 
+                src={platformBranding.logos.full} 
+                alt={platformBranding.productName}
+                className="h-24 object-contain mx-auto"
+              />
             </div>
             <CardTitle className="text-xl">Confirme seu email</CardTitle>
             <CardDescription className="text-base">

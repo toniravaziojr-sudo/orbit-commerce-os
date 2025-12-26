@@ -7,6 +7,7 @@
 
 import logoFull from "@/assets/logo-full.png";
 import logoIcon from "@/assets/logo-icon.png";
+import logoHorizontal from "@/assets/logo-horizontal.png";
 
 export const platformBranding = {
   // Nome do produto
@@ -20,11 +21,14 @@ export const platformBranding = {
   
   // Assets de logo
   logos: {
-    // Logo completa com texto (para headers, login, etc.)
+    // Logo completa vertical com texto e slogan (para login, confirmação, etc.)
     full: logoFull,
     
     // Apenas o ícone/símbolo (para sidebar colapsada, favicon, etc.)
     icon: logoIcon,
+    
+    // Logo horizontal com texto (para headers, etc.)
+    horizontal: logoHorizontal,
   },
   
   // URLs públicas para uso em emails e contextos externos
