@@ -4049,7 +4049,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      whatsapp_configs_tenant: {
+        Row: {
+          connection_status: string | null
+          created_at: string | null
+          id: string | null
+          instance_id: string | null
+          is_enabled: boolean | null
+          last_connected_at: string | null
+          last_error: string | null
+          phone_number: string | null
+          provider: string | null
+          qr_code: string | null
+          qr_expires_at: string | null
+          tenant_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          connection_status?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          is_enabled?: boolean | null
+          last_connected_at?: string | null
+          last_error?: string | null
+          phone_number?: string | null
+          provider?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          connection_status?: string | null
+          created_at?: string | null
+          id?: string | null
+          instance_id?: string | null
+          is_enabled?: boolean | null
+          last_connected_at?: string | null
+          last_error?: string | null
+          phone_number?: string | null
+          provider?: string | null
+          qr_code?: string | null
+          qr_expires_at?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_configs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       create_tenant_for_user: {
@@ -4078,6 +4133,24 @@ export type Database = {
         Args: { p_discount_id: string; p_email: string }
         Returns: number
       }
+      get_whatsapp_config_for_tenant: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          connection_status: string
+          created_at: string
+          id: string
+          instance_id: string
+          is_enabled: boolean
+          last_connected_at: string
+          last_error: string
+          phone_number: string
+          provider: string
+          qr_code: string
+          qr_expires_at: string
+          tenant_id: string
+          updated_at: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -4090,6 +4163,7 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: undefined
       }
+      is_platform_admin: { Args: never; Returns: boolean }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
