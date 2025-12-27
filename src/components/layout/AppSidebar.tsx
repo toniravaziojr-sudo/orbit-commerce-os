@@ -2,6 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -27,6 +28,7 @@ import {
   TrendingUp,
   Percent,
   Truck,
+  Shield,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -102,9 +104,18 @@ const navigation: NavGroup[] = [
   },
 ];
 
+// Platform admin only navigation
+const platformNavigation: NavGroup = {
+  label: "Plataforma",
+  items: [
+    { title: "Integrações Operador", href: "/platform/integrations", icon: Shield },
+  ],
+};
+
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { isPlatformOperator } = usePlatformOperator();
 
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
@@ -162,6 +173,7 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 scrollbar-thin">
+        {/* Regular navigation */}
         {navigation.map((group) => (
           <div key={group.label} className="mb-6">
             {!collapsed && (
@@ -221,6 +233,60 @@ export function AppSidebar() {
             </ul>
           </div>
         ))}
+
+        {/* Platform admin navigation - only for platform operators */}
+        {isPlatformOperator && (
+          <div className="mb-6">
+            {!collapsed && (
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-primary">
+                {platformNavigation.label}
+              </p>
+            )}
+            <ul className="space-y-1">
+              {platformNavigation.items.map((item) => {
+                const Icon = item.icon;
+                const active = location.pathname.startsWith(item.href);
+
+                const linkContent = (
+                  <NavLink
+                    to={item.href}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all border border-primary/20",
+                      active
+                        ? "bg-primary/10 text-primary"
+                        : "text-sidebar-foreground hover:bg-primary/5 hover:text-primary"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-5 w-5 flex-shrink-0",
+                        active ? "text-primary" : "text-primary/70"
+                      )}
+                    />
+                    {!collapsed && (
+                      <span className="flex-1">{item.title}</span>
+                    )}
+                  </NavLink>
+                );
+
+                if (collapsed) {
+                  return (
+                    <li key={item.href}>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                        <TooltipContent side="right" className="font-medium">
+                          {item.title}
+                        </TooltipContent>
+                      </Tooltip>
+                    </li>
+                  );
+                }
+
+                return <li key={item.href}>{linkContent}</li>;
+              })}
+            </ul>
+          </div>
+        )}
       </nav>
 
       {/* Collapse Button */}
