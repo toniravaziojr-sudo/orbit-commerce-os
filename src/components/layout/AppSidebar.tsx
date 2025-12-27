@@ -142,6 +142,11 @@ export function AppSidebar() {
         location.pathname.startsWith("/storefront/builder");
     }
     
+    // Special handling for /marketing - only exact match to avoid conflicts with /marketing/atribuicao
+    if (href === "/marketing") {
+      return location.pathname === "/marketing";
+    }
+    
     return location.pathname.startsWith(href);
   };
 
