@@ -146,10 +146,38 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Check if client_token is configured (required by Z-API)
+    if (!config.client_token) {
+      console.log(`[whatsapp-connect][${traceId}] Config exists but client_token missing`);
+      await supabase
+        .from('whatsapp_configs')
+        .update({ 
+          last_error: 'Client Token Z-API não configurado. Contate o operador.',
+        })
+        .eq('id', config.id);
+        
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Client Token Z-API não configurado. Contate o suporte.',
+          code: 'NO_CLIENT_TOKEN',
+          trace_id: traceId
+        }),
+        { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(`[whatsapp-connect][${traceId}] Config found, instance_id starts with: ${config.instance_id.substring(0, 8)}...`);
 
     // Z-API endpoints
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
+    
+    // Z-API requires Client-Token header for authentication
+    const zapiHeaders = { 
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Client-Token': config.client_token
+    };
     
     // First check if already connected
     console.log(`[whatsapp-connect][${traceId}] Checking connection status...`);
@@ -157,10 +185,7 @@ Deno.serve(async (req) => {
     try {
       const statusRes = await fetch(`${baseUrl}/status`, {
         method: 'GET',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+        headers: zapiHeaders
       });
 
       const statusText = await statusRes.text();
@@ -231,10 +256,7 @@ Deno.serve(async (req) => {
     try {
       const qrRes = await fetch(`${baseUrl}/qr-code/image`, {
         method: 'GET',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
+        headers: zapiHeaders
       });
 
       const qrText = await qrRes.text();

@@ -38,6 +38,7 @@ interface WhatsAppConfig {
   tenant_id: string;
   instance_id: string;
   instance_token: string;
+  client_token: string;
   connection_status: string;
   phone_number: string | null;
   is_enabled: boolean;
@@ -62,6 +63,7 @@ export function WhatsAppOperatorSettings() {
   
   const [instanceId, setInstanceId] = useState("");
   const [instanceToken, setInstanceToken] = useState("");
+  const [clientToken, setClientToken] = useState("");
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
 
   // Fetch all tenants
@@ -92,6 +94,7 @@ export function WhatsAppOperatorSettings() {
       setConfig(null);
       setInstanceId("");
       setInstanceToken("");
+      setClientToken("");
       return;
     }
 
@@ -110,6 +113,7 @@ export function WhatsAppOperatorSettings() {
           tenant_id: data.tenant_id,
           instance_id: data.instance_id || "",
           instance_token: data.instance_token || "",
+          client_token: data.client_token || "",
           connection_status: data.connection_status || "disconnected",
           phone_number: data.phone_number,
           is_enabled: data.is_enabled ?? true,
@@ -118,10 +122,12 @@ export function WhatsAppOperatorSettings() {
         });
         setInstanceId(data.instance_id || "");
         setInstanceToken(data.instance_token || "");
+        setClientToken(data.client_token || "");
       } else {
         setConfig(null);
         setInstanceId("");
         setInstanceToken("");
+        setClientToken("");
       }
     } catch (error) {
       console.error("Error fetching WhatsApp config:", error);
@@ -135,8 +141,8 @@ export function WhatsAppOperatorSettings() {
   }, [selectedTenantId, fetchConfigForTenant]);
 
   const handleSave = async () => {
-    if (!selectedTenantId || !instanceId.trim() || !instanceToken.trim()) {
-      toast({ title: "Erro", description: "Selecione um tenant e preencha as credenciais", variant: "destructive" });
+    if (!selectedTenantId || !instanceId.trim() || !instanceToken.trim() || !clientToken.trim()) {
+      toast({ title: "Erro", description: "Selecione um tenant e preencha todas as credenciais (Instance ID, Instance Token e Client Token)", variant: "destructive" });
       return;
     }
 
@@ -146,6 +152,7 @@ export function WhatsAppOperatorSettings() {
         tenant_id: selectedTenantId,
         instance_id: instanceId.trim(),
         instance_token: instanceToken.trim(),
+        client_token: clientToken.trim(),
         provider: "z-api",
         is_enabled: true,
         updated_at: new Date().toISOString(),
@@ -190,6 +197,7 @@ export function WhatsAppOperatorSettings() {
       setConfig(null);
       setInstanceId("");
       setInstanceToken("");
+      setClientToken("");
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
@@ -197,7 +205,7 @@ export function WhatsAppOperatorSettings() {
     }
   };
 
-  const hasCredentials = !!(config?.instance_id && config?.instance_token);
+  const hasCredentials = !!(config?.instance_id && config?.instance_token && config?.client_token);
   const selectedTenant = tenants.find(t => t.id === selectedTenantId);
 
   if (isLoading) {
@@ -315,7 +323,7 @@ export function WhatsAppOperatorSettings() {
             {/* Credentials form */}
             <div className="space-y-4 border-t pt-4">
               <div className="text-sm font-medium">Credenciais Z-API</div>
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="op_instance_id">Instance ID</Label>
                   <Input
@@ -336,13 +344,27 @@ export function WhatsAppOperatorSettings() {
                     onChange={(e) => setInstanceToken(e.target.value)}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="op_client_token">Client Token</Label>
+                  <Input
+                    id="op_client_token"
+                    type="password"
+                    placeholder="Token da conta Z-API"
+                    value={clientToken}
+                    onChange={(e) => setClientToken(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Encontre em: Z-API → Segurança → Client Token
+                  </p>
+                </div>
               </div>
             </div>
 
             <div className="flex gap-2">
               <Button 
                 onClick={handleSave} 
-                disabled={isSaving || !instanceId.trim() || !instanceToken.trim()}
+                disabled={isSaving || !instanceId.trim() || !instanceToken.trim() || !clientToken.trim()}
               >
                 {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                 Salvar credenciais

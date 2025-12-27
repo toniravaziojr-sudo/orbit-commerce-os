@@ -45,14 +45,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!config.client_token) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Client Token não configurado' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Z-API disconnect/logout endpoint
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
+    
+    // Z-API requires Client-Token header
+    const zapiHeaders = { 
+      'Content-Type': 'application/json',
+      'Client-Token': config.client_token
+    };
     
     console.log(`[whatsapp-disconnect] Disconnecting for tenant ${tenant_id}`);
     
     const disconnectRes = await fetch(`${baseUrl}/logout`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: zapiHeaders
     });
 
     console.log(`[whatsapp-disconnect] Logout response: ${disconnectRes.status}`);

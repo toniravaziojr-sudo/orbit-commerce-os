@@ -45,14 +45,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!config.client_token) {
+      return new Response(
+        JSON.stringify({ success: false, status: 'not_configured', error: 'Client Token não configurado' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Z-API status endpoint
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
+    
+    // Z-API requires Client-Token header
+    const zapiHeaders = { 
+      'Content-Type': 'application/json',
+      'Client-Token': config.client_token
+    };
     
     console.log(`[whatsapp-status] Checking status for tenant ${tenant_id}`);
     
     const statusRes = await fetch(`${baseUrl}/status`, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
+      headers: zapiHeaders
     });
 
     if (!statusRes.ok) {
