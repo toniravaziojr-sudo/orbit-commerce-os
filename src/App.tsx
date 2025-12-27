@@ -24,6 +24,7 @@ import Support from "@/pages/Support";
 import Media from "@/pages/Media";
 import Campaigns from "@/pages/Campaigns";
 import Integrations from "@/pages/Integrations";
+import Marketing from "@/pages/Marketing";
 import Finance from "@/pages/Finance";
 import Fiscal from "@/pages/Fiscal";
 import Purchases from "@/pages/Purchases";
@@ -205,6 +206,7 @@ const App = () => {
                   <Route path="/buy-together" element={<Navigate to="/offers" replace />} />
                   <Route path="/reviews" element={<Reviews />} />
                   <Route path="/integrations" element={<Integrations />} />
+                  <Route path="/marketing" element={<Marketing />} />
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/payments" element={<Navigate to="/integrations" replace />} />
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
