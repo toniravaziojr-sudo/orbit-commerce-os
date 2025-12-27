@@ -275,6 +275,7 @@ serve(async (req) => {
       }
     }
 
+    return new Response(JSON.stringify({
       success: true,
       order_id: orderId,
       order_number: orderNumber,
