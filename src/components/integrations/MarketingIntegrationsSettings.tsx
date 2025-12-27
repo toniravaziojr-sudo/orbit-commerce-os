@@ -24,9 +24,7 @@ import {
   Music2,
   Lock,
   Server,
-  Globe,
-  FileText,
-  Copy
+  Globe
 } from 'lucide-react';
 import { useMarketingIntegrations, MarketingIntegration } from '@/hooks/useMarketingIntegrations';
 import { toast } from 'sonner';
@@ -162,19 +160,7 @@ export function MarketingIntegrationsSettings() {
     setTiktokAccessToken('');
   };
 
-  
 
-  const getFeedUrl = (format: 'google' | 'meta') => {
-    if (!currentTenant?.slug) return '';
-    const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/marketing-feed`;
-    return `${baseUrl}?tenant=${currentTenant.slug}&format=${format}`;
-  };
-
-  const copyFeedUrl = (format: 'google' | 'meta') => {
-    const url = getFeedUrl(format);
-    navigator.clipboard.writeText(url);
-    toast.success('URL copiada!');
-  };
 
   if (isLoading) {
     return (
@@ -193,49 +179,6 @@ export function MarketingIntegrationsSettings() {
           Os eventos são disparados automaticamente: PageView, ViewContent, AddToCart, InitiateCheckout e Purchase.
         </AlertDescription>
       </Alert>
-
-      {/* Product Feeds Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Feeds de Catálogo
-          </CardTitle>
-          <CardDescription>
-            URLs dos feeds de produtos para Google Merchant Center e Meta Catalog
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Google Merchant (XML)</Label>
-              <div className="flex gap-2">
-                <Input 
-                  value={getFeedUrl('google')} 
-                  readOnly 
-                  className="font-mono text-xs"
-                />
-                <Button variant="outline" size="icon" onClick={() => copyFeedUrl('google')}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Meta Catalog (CSV)</Label>
-              <div className="flex gap-2">
-                <Input 
-                  value={getFeedUrl('meta')} 
-                  readOnly 
-                  className="font-mono text-xs"
-                />
-                <Button variant="outline" size="icon" onClick={() => copyFeedUrl('meta')}>
-                  <Copy className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">

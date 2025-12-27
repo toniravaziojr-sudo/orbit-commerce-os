@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { MarketingIntegrationsSettings } from "@/components/integrations/MarketingIntegrationsSettings";
+import { ProductFeedsSettings } from "@/components/integrations/ProductFeedsSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, BarChart3, Rss } from "lucide-react";
 
@@ -32,11 +33,7 @@ export default function Marketing() {
         </TabsContent>
 
         <TabsContent value="feeds">
-          <div className="text-center py-12 text-muted-foreground">
-            <Rss className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Catálogos de Produtos</h3>
-            <p>Em breve você poderá gerenciar seus feeds para Google Merchant e Meta Catalog.</p>
-          </div>
+          <ProductFeedsSettings />
         </TabsContent>
 
         <TabsContent value="analytics">
