@@ -83,6 +83,7 @@ export function WhatsAppSettings() {
     if (tenantId) fetchConfig();
   }, [tenantId, fetchConfig]);
 
+  // Polling de status - NÃO limpa o QR enquanto estiver em qr_pending
   useEffect(() => {
     if (config?.connection_status !== "qr_pending" && config?.connection_status !== "connecting") return;
 
@@ -91,17 +92,26 @@ export function WhatsAppSettings() {
       try {
         const { data, error } = await supabase.functions.invoke("whatsapp-status", { body: { tenant_id: tenantId } });
         if (!error && data?.status) {
-          setConfig(prev => prev ? { ...prev, connection_status: data.status, phone_number: data.phone_number } : prev);
+          // IMPORTANTE: Manter o QR code existente enquanto polling
+          // Só limpar se conectou com sucesso
           if (data.status === "connected") {
             toast({ title: "Conectado!", description: `WhatsApp conectado: ${data.phone_number}` });
             clearInterval(interval);
             await fetchConfig();
+          } else {
+            // Atualiza status mas PRESERVA o qr_code atual
+            setConfig(prev => prev ? { 
+              ...prev, 
+              connection_status: data.status === "connected" ? "connected" : prev.connection_status,
+              phone_number: data.phone_number || prev.phone_number,
+              // NÃO sobrescreve qr_code aqui - mantém o existente
+            } : prev);
           }
         }
       } catch (err) {
         console.error("Error polling status:", err);
       }
-    }, 3000);
+    }, 5000); // Aumenta para 5 segundos para dar mais tempo
 
     return () => clearInterval(interval);
   }, [config?.connection_status, tenantId, toast, fetchConfig]);
