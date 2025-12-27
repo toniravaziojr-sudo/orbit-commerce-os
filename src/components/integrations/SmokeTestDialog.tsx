@@ -66,14 +66,19 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
   const canTest = timeSinceLastTest >= RATE_LIMIT_MS;
   const secondsUntilNextTest = Math.ceil((RATE_LIMIT_MS - timeSinceLastTest) / 1000);
 
-  // Fetch tenants
+  // Fetch tenants (MVP: only "respeite-o-homem")
   useEffect(() => {
     const fetchTenants = async () => {
       const { data } = await supabase
         .from('tenants')
         .select('id, name, slug')
+        .eq('slug', 'respeite-o-homem') // MVP: only this tenant
         .order('name');
       setTenants(data || []);
+      // Auto-select if only one
+      if (data && data.length === 1) {
+        setSelectedTenantId(data[0].id);
+      }
     };
     if (open) {
       fetchTenants();
@@ -116,22 +121,35 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
       // Test Email
       if (testEmail) {
         try {
+          // send-test-email expects "to_email" field, not "to"
           const { data, error } = await supabase.functions.invoke('send-test-email', {
             body: {
               tenant_id: selectedTenantId,
-              to: email,
-              subject: '[TESTE] Pipeline de Notificações - Smoke Test',
-              body: '<div style="border: 2px solid #f59e0b; padding: 16px; margin: 16px 0; background: #fffbeb;"><strong>⚠️ MENSAGEM DE TESTE</strong><br/>Esta é uma mensagem de smoke test do pipeline de notificações. Não requer ação.</div><h1>Teste de Pipeline</h1><p>Esta mensagem confirma que o envio de email está funcionando corretamente.</p><p>Timestamp: ' + new Date().toISOString() + '</p>',
+              to_email: email,
             },
           });
 
-          if (error) throw error;
+          if (error) {
+            // Extract more details from the error
+            const errorMsg = error.message || 'Erro desconhecido';
+            const statusCode = (error as any).status || 'N/A';
+            throw new Error(`Status ${statusCode}: ${errorMsg}`);
+          }
 
-          testResults.push({
-            channel: 'email',
-            success: true,
-            message: 'Email enviado com sucesso',
-          });
+          // Check the response for success/failure
+          if (data?.success) {
+            testResults.push({
+              channel: 'email',
+              success: true,
+              message: data.message || 'Email enviado com sucesso',
+            });
+          } else {
+            testResults.push({
+              channel: 'email',
+              success: false,
+              message: data?.message || 'Erro desconhecido ao enviar email',
+            });
+          }
         } catch (err: any) {
           testResults.push({
             channel: 'email',

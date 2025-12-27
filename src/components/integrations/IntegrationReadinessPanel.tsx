@@ -52,17 +52,19 @@ export function IntegrationReadinessPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch all tenants
+  // Fetch tenants (MVP: only "respeite-o-homem")
   useEffect(() => {
     const fetchTenants = async () => {
       try {
         const { data, error } = await supabase
           .from('tenants')
           .select('id, name, slug')
+          .eq('slug', 'respeite-o-homem') // MVP: only this tenant
           .order('name');
 
         if (error) throw error;
         setTenants(data || []);
+        // Auto-select the only tenant
         if (data && data.length > 0) {
           setSelectedTenantId(data[0].id);
         }
