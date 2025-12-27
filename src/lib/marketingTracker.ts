@@ -45,6 +45,8 @@ export interface EcommerceEventData {
   num_items?: number;
   order_id?: string;
   search_query?: string;
+  shipping_tier?: string;
+  payment_method?: string;
 }
 
 // =============================================
@@ -530,6 +532,180 @@ export class MarketingTracker {
     if (this.config.tiktok_enabled) {
       trackTikTokEvent('Search', {
         query,
+      }, eventId);
+    }
+  }
+
+  // Track category view
+  trackViewCategory(category: {
+    id: string;
+    name: string;
+    productIds?: string[];
+  }): void {
+    const eventId = generateEventId();
+
+    // Meta - ViewCategory is a custom event
+    if (this.config.meta_enabled) {
+      trackMetaEvent('ViewCategory', {
+        content_category: category.name,
+        content_ids: category.productIds || [],
+        content_type: 'product_group',
+      }, eventId);
+    }
+
+    // Google - view_item_list
+    if (this.config.google_enabled) {
+      trackGoogleEvent('view_item_list', {
+        item_list_id: category.id,
+        item_list_name: category.name,
+      });
+    }
+
+    // TikTok
+    if (this.config.tiktok_enabled) {
+      trackTikTokEvent('ViewContent', {
+        content_id: category.id,
+        content_name: category.name,
+        content_type: 'product_group',
+      }, eventId);
+    }
+  }
+
+  // Track lead - when customer fills personal info
+  trackLead(customer: {
+    email?: string;
+    phone?: string;
+    name?: string;
+    value?: number;
+    currency?: string;
+  }): void {
+    const eventId = generateEventId();
+    const currency = customer.currency || 'BRL';
+
+    // Meta
+    if (this.config.meta_enabled) {
+      trackMetaEvent('Lead', {
+        value: customer.value || 0,
+        currency,
+      }, eventId);
+    }
+
+    // Google - generate_lead
+    if (this.config.google_enabled) {
+      trackGoogleEvent('generate_lead', {
+        value: customer.value || 0,
+        currency,
+      });
+    }
+
+    // TikTok
+    if (this.config.tiktok_enabled) {
+      trackTikTokEvent('SubmitForm', {
+        value: customer.value || 0,
+        currency,
+      }, eventId);
+    }
+  }
+
+  // Track shipping info added
+  trackAddShippingInfo(shipping: {
+    value: number;
+    currency?: string;
+    shippingTier: string;
+    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+  }): void {
+    const eventId = generateEventId();
+    const currency = shipping.currency || 'BRL';
+
+    // Meta - custom event
+    if (this.config.meta_enabled) {
+      trackMetaEvent('AddShippingInfo', {
+        content_ids: shipping.items.map(i => i.id),
+        content_type: 'product',
+        value: shipping.value,
+        currency,
+        shipping_tier: shipping.shippingTier,
+        contents: shipping.items.map(i => ({
+          id: i.id,
+          quantity: i.quantity,
+        })),
+      }, eventId);
+    }
+
+    // Google - add_shipping_info
+    if (this.config.google_enabled) {
+      trackGoogleEvent('add_shipping_info', {
+        currency,
+        value: shipping.value,
+        shipping_tier: shipping.shippingTier,
+        items: shipping.items.map(i => ({
+          item_id: i.id,
+          item_name: i.name,
+          item_category: i.category,
+          price: i.price,
+          quantity: i.quantity,
+        })),
+      });
+    }
+
+    // TikTok
+    if (this.config.tiktok_enabled) {
+      trackTikTokEvent('AddShippingInfo', {
+        content_ids: shipping.items.map(i => i.id),
+        content_type: 'product',
+        value: shipping.value,
+        currency,
+      }, eventId);
+    }
+  }
+
+  // Track payment info added
+  trackAddPaymentInfo(payment: {
+    value: number;
+    currency?: string;
+    paymentMethod: string;
+    items: Array<{ id: string; name: string; price: number; quantity: number; category?: string }>;
+  }): void {
+    const eventId = generateEventId();
+    const currency = payment.currency || 'BRL';
+
+    // Meta - AddPaymentInfo standard event
+    if (this.config.meta_enabled) {
+      trackMetaEvent('AddPaymentInfo', {
+        content_ids: payment.items.map(i => i.id),
+        content_type: 'product',
+        value: payment.value,
+        currency,
+        contents: payment.items.map(i => ({
+          id: i.id,
+          quantity: i.quantity,
+        })),
+      }, eventId);
+    }
+
+    // Google - add_payment_info
+    if (this.config.google_enabled) {
+      trackGoogleEvent('add_payment_info', {
+        currency,
+        value: payment.value,
+        payment_type: payment.paymentMethod,
+        items: payment.items.map(i => ({
+          item_id: i.id,
+          item_name: i.name,
+          item_category: i.category,
+          price: i.price,
+          quantity: i.quantity,
+        })),
+      });
+    }
+
+    // TikTok
+    if (this.config.tiktok_enabled) {
+      trackTikTokEvent('AddPaymentInfo', {
+        content_ids: payment.items.map(i => i.id),
+        content_type: 'product',
+        value: payment.value,
+        currency,
       }, eventId);
     }
   }

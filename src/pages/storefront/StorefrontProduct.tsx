@@ -15,6 +15,7 @@ import { BlockRenderContext } from '@/lib/builder/types';
 import { isPreviewUrl, getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 
 export default function StorefrontProduct() {
   const tenantSlug = useTenantSlug();
@@ -22,9 +23,22 @@ export default function StorefrontProduct() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
+  const { trackViewContent } = useMarketingEvents();
 
   const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { product, category, isLoading: productLoading } = usePublicProduct(tenantSlug || '', productSlug || '');
+  
+  // Track product view when product loads
+  useEffect(() => {
+    if (product && !productLoading && !isPreviewMode) {
+      trackViewContent({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        category: category?.name,
+      });
+    }
+  }, [product?.id, productLoading, isPreviewMode, trackViewContent, category?.name]);
   
   // Use preview hook if in preview mode, otherwise use public hook
   const publicTemplate = usePublicTemplate(tenantSlug || '', 'product');

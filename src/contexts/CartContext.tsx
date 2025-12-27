@@ -30,7 +30,7 @@ export interface CartShipping {
 interface CartContextType {
   items: CartItem[];
   isLoading: boolean;
-  addItem: (item: Omit<CartItem, 'id'>) => void;
+  addItem: (item: Omit<CartItem, 'id'>, onAdded?: (item: CartItem) => void) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   removeItem: (itemId: string) => void;
   clearCart: () => void;
@@ -104,7 +104,7 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
     }
   }, [items, shipping, storageKey, isLoading]);
 
-  const addItem = useCallback((item: Omit<CartItem, 'id'>) => {
+  const addItem = useCallback((item: Omit<CartItem, 'id'>, onAdded?: (item: CartItem) => void) => {
     if (!item.product_id) {
       console.error('Cannot add item without product_id');
       return;
@@ -115,17 +115,28 @@ export function CartProvider({ children, tenantSlug }: CartProviderProps) {
         i => i.product_id === item.product_id && i.variant_id === item.variant_id
       );
 
+      let newItems: CartItem[];
+      let addedItem: CartItem;
+      
       if (existingIndex >= 0) {
         // Item exists - ADD quantity to existing (increment)
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + item.quantity,
+        newItems = [...prev];
+        newItems[existingIndex] = {
+          ...newItems[existingIndex],
+          quantity: newItems[existingIndex].quantity + item.quantity,
         };
-        return updated;
+        addedItem = newItems[existingIndex];
+      } else {
+        addedItem = { ...item, id: crypto.randomUUID() };
+        newItems = [...prev, addedItem];
       }
 
-      return [...prev, { ...item, id: crypto.randomUUID() }];
+      // Call callback with added item for tracking
+      if (onAdded) {
+        setTimeout(() => onAdded(addedItem), 0);
+      }
+
+      return newItems;
     });
   }, []);
 

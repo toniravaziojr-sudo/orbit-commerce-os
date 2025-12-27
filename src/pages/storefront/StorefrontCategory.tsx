@@ -15,6 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { getCleanQueryString } from '@/lib/sanitizePublicUrl';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { getStoreBaseUrl } from '@/lib/publicUrls';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 
 interface CategorySettings {
   showCategoryName?: boolean;
@@ -28,9 +29,22 @@ export default function StorefrontCategory() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isPreviewMode = searchParams.get('preview') === '1';
+  const { trackViewCategory } = useMarketingEvents();
 
   const { storeSettings, headerMenu, footerMenu, categories: allCategories, isLoading: storeLoading } = usePublicStorefront(tenantSlug || '');
   const { category, products, isLoading: categoryLoading } = usePublicCategory(tenantSlug || '', categorySlug || '');
+  
+  // Track category view when category loads
+  useEffect(() => {
+    if (category && !categoryLoading && !isPreviewMode) {
+      trackViewCategory({
+        id: category.id,
+        name: category.name,
+        slug: category.slug,
+        productIds: products?.map(p => p.id),
+      });
+    }
+  }, [category?.id, categoryLoading, isPreviewMode, trackViewCategory, products]);
   
   // Fetch category settings from page_overrides
   const { data: categorySettings } = useQuery({
