@@ -14,7 +14,8 @@ import {
   XCircle,
   Loader2,
   Users,
-  ShieldAlert
+  ShieldAlert,
+  Timer
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,7 @@ import {
 import { usePlatformOperator } from '@/hooks/usePlatformOperator';
 import { HealthCheckTargetDialog } from '@/components/health/HealthCheckTargetDialog';
 import { HealthCheckDetailDialog } from '@/components/health/HealthCheckDetailDialog';
+import { SchedulerStatusCard } from '@/components/health/SchedulerStatusCard';
 import { toast } from 'sonner';
 
 const statusConfig = {
@@ -173,11 +175,15 @@ export default function HealthMonitor() {
             <TabsTrigger value="tenants">
               Visão por Tenant ({Object.keys(checksByTenant).length})
             </TabsTrigger>
+            <TabsTrigger value="schedulers" className="gap-1">
+              <Timer className="h-3 w-3" />
+              Schedulers
+            </TabsTrigger>
             <TabsTrigger value="history">
               Histórico Geral
             </TabsTrigger>
             <TabsTrigger value="targets">
-              Alvos Monitorados ({targets.length})
+              Alvos ({targets.length})
             </TabsTrigger>
           </TabsList>
 
@@ -241,6 +247,11 @@ export default function HealthMonitor() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Schedulers Status */}
+          <TabsContent value="schedulers" className="space-y-4">
+            <SchedulerStatusCard />
           </TabsContent>
 
           {/* General History */}

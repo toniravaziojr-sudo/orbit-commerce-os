@@ -1,10 +1,14 @@
+import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { WhatsAppOperatorSettings } from "@/components/integrations/WhatsAppOperatorSettings";
 import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
-import { Shield, MessageCircle, Mail, AlertTriangle } from "lucide-react";
+import { IntegrationReadinessPanel } from "@/components/integrations/IntegrationReadinessPanel";
+import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
+import { Shield, MessageCircle, Mail, AlertTriangle, Send, Activity } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { Navigate } from "react-router-dom";
 
@@ -20,6 +24,7 @@ import { Navigate } from "react-router-dom";
  */
 export default function PlatformIntegrations() {
   const { isPlatformOperator, isLoading } = usePlatformOperator();
+  const [smokeTestOpen, setSmokeTestOpen] = useState(false);
 
   // Block access for non-platform operators
   if (!isLoading && !isPlatformOperator) {
@@ -36,10 +41,16 @@ export default function PlatformIntegrations() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Integrações da Plataforma"
-        description="Gerencie as integrações e credenciais de todos os tenants"
-      />
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <PageHeader
+          title="Integrações da Plataforma"
+          description="Gerencie as integrações e credenciais de todos os tenants"
+        />
+        <Button variant="outline" onClick={() => setSmokeTestOpen(true)}>
+          <Send className="h-4 w-4 mr-2" />
+          Testar Pipeline
+        </Button>
+      </div>
 
       <Alert className="border-primary/30 bg-primary/5">
         <Shield className="h-4 w-4 text-primary" />
@@ -48,6 +59,9 @@ export default function PlatformIntegrations() {
           Essas configurações não são visíveis para os clientes finais.
         </AlertDescription>
       </Alert>
+
+      {/* Integration Readiness Panel */}
+      <IntegrationReadinessPanel />
 
       <Tabs defaultValue="whatsapp" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
@@ -103,6 +117,8 @@ export default function PlatformIntegrations() {
           <SystemEmailSettings />
         </TabsContent>
       </Tabs>
+
+      <SmokeTestDialog open={smokeTestOpen} onOpenChange={setSmokeTestOpen} />
     </div>
   );
 }
