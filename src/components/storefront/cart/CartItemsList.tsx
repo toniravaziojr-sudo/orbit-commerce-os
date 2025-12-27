@@ -14,13 +14,18 @@ export function CartItemsList() {
 
   // Handle quantity increase with AddToCart tracking
   const handleIncreaseQuantity = (item: typeof items[0]) => {
+    console.log('[CartItemsList] Increasing quantity for:', item.name, 'product_id:', item.product_id);
     updateQuantity(item.id, item.quantity + 1);
-    trackAddToCart({
+    
+    // Fire AddToCart event for quantity increase
+    const eventData = {
       id: item.product_id,
       name: item.name,
       price: item.price,
       quantity: 1, // Incrementing by 1
-    });
+    };
+    console.log('[CartItemsList] Calling trackAddToCart with:', eventData);
+    trackAddToCart(eventData);
   };
 
   if (items.length === 0) {
