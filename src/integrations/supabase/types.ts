@@ -253,6 +253,7 @@ export type Database = {
       checkout_sessions: {
         Row: {
           abandoned_at: string | null
+          attribution_data: Json | null
           cart_id: string | null
           contact_captured_at: string | null
           converted_at: string | null
@@ -278,6 +279,7 @@ export type Database = {
         }
         Insert: {
           abandoned_at?: string | null
+          attribution_data?: Json | null
           cart_id?: string | null
           contact_captured_at?: string | null
           converted_at?: string | null
@@ -303,6 +305,7 @@ export type Database = {
         }
         Update: {
           abandoned_at?: string | null
+          attribution_data?: Json | null
           cart_id?: string | null
           contact_captured_at?: string | null
           converted_at?: string | null
@@ -1843,6 +1846,93 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "offer_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_attribution: {
+        Row: {
+          attribution_medium: string | null
+          attribution_source: string | null
+          created_at: string
+          fbclid: string | null
+          first_touch_at: string | null
+          gclid: string | null
+          id: string
+          landing_page: string | null
+          msclkid: string | null
+          order_id: string
+          referrer_domain: string | null
+          referrer_url: string | null
+          session_id: string | null
+          tenant_id: string
+          ttclid: string | null
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          attribution_medium?: string | null
+          attribution_source?: string | null
+          created_at?: string
+          fbclid?: string | null
+          first_touch_at?: string | null
+          gclid?: string | null
+          id?: string
+          landing_page?: string | null
+          msclkid?: string | null
+          order_id: string
+          referrer_domain?: string | null
+          referrer_url?: string | null
+          session_id?: string | null
+          tenant_id: string
+          ttclid?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          attribution_medium?: string | null
+          attribution_source?: string | null
+          created_at?: string
+          fbclid?: string | null
+          first_touch_at?: string | null
+          gclid?: string | null
+          id?: string
+          landing_page?: string | null
+          msclkid?: string | null
+          order_id?: string
+          referrer_domain?: string | null
+          referrer_url?: string | null
+          session_id?: string | null
+          tenant_id?: string
+          ttclid?: string | null
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_attribution_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_attribution_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
