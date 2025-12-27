@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
 import { getStoreHost } from '@/lib/storeHost';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import {
   startCheckoutSession,
   heartbeatCheckoutSession,
@@ -70,6 +71,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
+  const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo, trackPurchase } = useMarketingEvents();
   
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
   const canonicalOrigin = getCanonicalOrigin(customDomain, tenantSlug || '');
@@ -109,6 +111,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     selectedShipping: effectiveShipping,
     discountAmount,
   });
+
+  // ===== MARKETING: Track InitiateCheckout on mount =====
+  const initiateCheckoutTrackedRef = useRef(false);
+  useEffect(() => {
+    if (items.length > 0 && !initiateCheckoutTrackedRef.current) {
+      initiateCheckoutTrackedRef.current = true;
+      trackInitiateCheckout();
+    }
+  }, [items.length, trackInitiateCheckout]);
 
   // ===== CHECKOUT SESSION TRACKING =====
   // Start session IMMEDIATELY on mount
@@ -417,11 +428,23 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         } else {
           console.log('[Checkout] Contact captured successfully for abandoned cart tracking');
         }
+
+        // MARKETING: Track Lead event when personal info is submitted
+        trackLead({
+          email: formData.customerEmail,
+          phone: formData.customerPhone,
+          name: formData.customerName,
+        });
       }
 
       // When leaving step 2 (address), calculate shipping
       if (currentStep === 2) {
         await calculateShippingOptions();
+      }
+
+      // When leaving step 3 (shipping selected), track AddShippingInfo
+      if (currentStep === 3 && shipping.selected) {
+        trackAddShippingInfo(shipping.selected.label);
       }
 
       // Small delay to ensure state updates are processed
@@ -503,6 +526,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
     setPaymentStatus('processing');
     setPaymentError(null);
 
+    // MARKETING: Track AddPaymentInfo when user proceeds to pay
+    trackAddPaymentInfo(paymentMethod);
+
     try {
       // Save email for returning customer recognition
       localStorage.setItem(`checkout_email_${tenantSlug}`, formData.customerEmail);
@@ -556,17 +582,26 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         console.log('[Checkout] Navigating to thankYou with cleanOrderNumber:', cleanOrderNumber);
 
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
-          // Credit card approved immediately
+          // Credit card approved immediately - track Purchase
+          trackPurchase({
+            order_id: cleanOrderNumber,
+            value: totals.grandTotal,
+            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
+          });
+          
           setPaymentStatus('approved');
           clearCart();
           clearDraft();
           toast.success('Pedido realizado com sucesso!');
-          // Use direct navigate to avoid any URL manipulation issues
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
-          // PIX/Boleto - redirect to thank you page
-          // NOTE: Payment data should be loaded from server (get-order), not localStorage
-          // localStorage is only kept as fallback/cache
+          // PIX/Boleto - track Purchase (pending payment still counts as conversion)
+          trackPurchase({
+            order_id: cleanOrderNumber,
+            value: totals.grandTotal,
+            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
+          });
+          
           if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
             localStorage.setItem(`pending_payment_${cleanOrderNumber}`, JSON.stringify({
               method: paymentMethod,
@@ -582,8 +617,6 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           setPaymentStatus('pending_payment');
           clearCart();
           clearDraft();
-          
-          // Navigate to thank you page with clean order number (no #)
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         }
       } else {
