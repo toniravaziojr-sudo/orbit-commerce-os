@@ -71,8 +71,13 @@ export function useMarketingEvents() {
     quantity: number;
     category?: string;
   }) => {
-    if (!tracker) return;
+    console.log('[useMarketingEvents] trackAddToCart called, tracker available:', !!tracker);
+    if (!tracker) {
+      console.warn('[useMarketingEvents] Tracker not available, skipping AddToCart event');
+      return;
+    }
     // No dedup for add to cart - user can add multiple times
+    console.log('[useMarketingEvents] Dispatching AddToCart event:', item);
     tracker.trackAddToCart({
       id: item.id,
       name: item.name,
