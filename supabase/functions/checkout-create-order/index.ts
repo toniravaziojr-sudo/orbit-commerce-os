@@ -61,6 +61,24 @@ interface CreateOrderRequest {
   discount_total?: number;
   total: number;
   discount?: DiscountData;
+  attribution?: {
+    utm_source?: string;
+    utm_medium?: string;
+    utm_campaign?: string;
+    utm_content?: string;
+    utm_term?: string;
+    gclid?: string;
+    fbclid?: string;
+    ttclid?: string;
+    msclkid?: string;
+    referrer_url?: string;
+    referrer_domain?: string;
+    landing_page?: string;
+    attribution_source?: string;
+    attribution_medium?: string;
+    session_id?: string;
+    first_touch_at?: string;
+  };
 }
 
 function normalizeEmail(email: string): string {
@@ -238,7 +256,25 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({
+    // 6. Save attribution data if provided
+    if (payload.attribution) {
+      console.log('[checkout-create-order] Saving attribution data');
+      const { error: attrError } = await supabase
+        .from('order_attribution')
+        .insert({
+          tenant_id: payload.tenant_id,
+          order_id: orderId,
+          ...payload.attribution,
+        });
+
+      if (attrError) {
+        console.error('[checkout-create-order] Error saving attribution:', attrError);
+        // Non-blocking
+      } else {
+        console.log('[checkout-create-order] Attribution saved:', payload.attribution.attribution_source);
+      }
+    }
+
       success: true,
       order_id: orderId,
       order_number: orderNumber,

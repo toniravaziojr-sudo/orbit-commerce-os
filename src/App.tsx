@@ -49,6 +49,7 @@ import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import SystemEmails from "@/pages/SystemEmails";
 import PlatformIntegrations from "@/pages/PlatformIntegrations";
+import Attribution from "@/pages/Attribution";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -207,6 +208,7 @@ const App = () => {
                   <Route path="/reviews" element={<Reviews />} />
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketing" element={<Marketing />} />
+                  <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/finance" element={<Finance />} />
                   <Route path="/payments" element={<Navigate to="/integrations" replace />} />
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />

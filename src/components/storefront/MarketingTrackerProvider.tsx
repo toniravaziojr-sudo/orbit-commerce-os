@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useRef, useMemo, useState } from 
 import { useLocation } from 'react-router-dom';
 import { usePublicMarketingConfig, PublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { MarketingTracker } from '@/lib/marketingTracker';
+import { useAttribution } from '@/hooks/useAttribution';
 
 interface MarketingTrackerContextValue {
   tracker: MarketingTracker | null;
@@ -35,6 +36,9 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
   const location = useLocation();
   const lastPathRef = useRef<string>('');
   const [initializedTracker, setInitializedTracker] = useState<MarketingTracker | null>(null);
+  
+  // Capture attribution data on storefront entry
+  useAttribution();
 
   // Create and initialize tracker when config is available
   useEffect(() => {
