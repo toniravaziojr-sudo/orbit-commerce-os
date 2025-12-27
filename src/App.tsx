@@ -47,6 +47,7 @@ import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import SystemEmails from "@/pages/SystemEmails";
+import PlatformIntegrations from "@/pages/PlatformIntegrations";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -217,6 +218,7 @@ const App = () => {
                   <Route path="/health-monitor" element={<HealthMonitor />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
                   <Route path="/settings/emails" element={<SystemEmails />} />
+                  <Route path="/platform/integrations" element={<PlatformIntegrations />} />
                 </Route>
               )}
 

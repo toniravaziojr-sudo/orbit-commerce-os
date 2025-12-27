@@ -15,6 +15,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
+import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -170,6 +171,9 @@ export default function Dashboard() {
 
         {/* Attention Required */}
         <div className="space-y-6">
+          {/* Integration Alerts - WhatsApp/Email disconnected */}
+          <IntegrationAlerts />
+          
           {/* Storefront Health Card */}
           <StorefrontHealthCard />
           
