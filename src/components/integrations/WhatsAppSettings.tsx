@@ -111,18 +111,44 @@ export function WhatsAppSettings() {
     setIsConnecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-connect", { body: { tenant_id: tenantId } });
-      if (error) throw error;
+      
+      if (error) {
+        console.error("WhatsApp connect error:", error);
+        toast({ 
+          title: "Erro de conexão", 
+          description: error.message || "Erro ao conectar. Tente novamente.", 
+          variant: "destructive" 
+        });
+        return;
+      }
+      
+      if (data?.success === false) {
+        // Show specific error message from backend
+        toast({ 
+          title: "Erro", 
+          description: data.error || "Erro ao conectar WhatsApp", 
+          variant: "destructive" 
+        });
+        if (data.trace_id) {
+          console.log("Trace ID:", data.trace_id);
+        }
+        return;
+      }
+      
       if (data?.qr_code) {
         setConfig(prev => prev ? { ...prev, qr_code: data.qr_code, connection_status: "qr_pending" } : prev);
         toast({ title: "QR Code gerado", description: "Escaneie o QR Code com seu WhatsApp" });
       } else if (data?.status === "connected") {
         toast({ title: "Já conectado!", description: `WhatsApp: ${data.phone_number}` });
         await fetchConfig();
-      } else {
-        toast({ title: "Erro", description: data?.error || "Erro ao gerar QR Code", variant: "destructive" });
       }
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      console.error("WhatsApp connect exception:", error);
+      toast({ 
+        title: "Erro", 
+        description: "Erro de comunicação com o servidor. Verifique sua conexão.", 
+        variant: "destructive" 
+      });
     } finally {
       setIsConnecting(false);
     }

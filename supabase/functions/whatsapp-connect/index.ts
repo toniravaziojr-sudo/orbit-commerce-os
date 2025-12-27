@@ -6,47 +6,77 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
+  const traceId = crypto.randomUUID().substring(0, 8);
+  console.log(`[whatsapp-connect][${traceId}] Request started`);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     
+    if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+      console.error(`[whatsapp-connect][${traceId}] Missing environment variables`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Configuração do servidor inválida', trace_id: traceId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Use service role to access whatsapp_configs (contains secrets)
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get Authorization header to validate user
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.log(`[whatsapp-connect][${traceId}] Missing authorization header`);
       return new Response(
-        JSON.stringify({ success: false, error: 'Não autorizado' }),
+        JSON.stringify({ success: false, error: 'Não autorizado', trace_id: traceId }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { tenant_id } = await req.json();
-
-    if (!tenant_id) {
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error(`[whatsapp-connect][${traceId}] Invalid request body:`, e);
       return new Response(
-        JSON.stringify({ success: false, error: 'tenant_id é obrigatório' }),
+        JSON.stringify({ success: false, error: 'Corpo da requisição inválido', trace_id: traceId }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    const { tenant_id } = body;
+
+    if (!tenant_id) {
+      console.log(`[whatsapp-connect][${traceId}] Missing tenant_id`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'tenant_id é obrigatório', trace_id: traceId }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[whatsapp-connect][${traceId}] tenant_id=${tenant_id}`);
+
     // Validate user has access to this tenant
-    const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+    const anonClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
     
     const { data: userData, error: userError } = await anonClient.auth.getUser();
     if (userError || !userData?.user) {
+      console.error(`[whatsapp-connect][${traceId}] Auth error:`, userError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+        JSON.stringify({ success: false, error: 'Usuário não autenticado', trace_id: traceId }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`[whatsapp-connect][${traceId}] User authenticated: ${userData.user.id}`);
 
     // Verify user belongs to this tenant
     const { data: roleData, error: roleError } = await supabase
@@ -57,15 +87,23 @@ Deno.serve(async (req) => {
       .in('role', ['owner', 'admin'])
       .maybeSingle();
 
-    if (roleError || !roleData) {
-      console.error('[whatsapp-connect] User role check failed:', roleError);
+    if (roleError) {
+      console.error(`[whatsapp-connect][${traceId}] Role check error:`, roleError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Acesso negado ao tenant' }),
+        JSON.stringify({ success: false, error: 'Erro ao verificar permissões', trace_id: traceId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!roleData) {
+      console.log(`[whatsapp-connect][${traceId}] User has no access to tenant`);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Acesso negado ao tenant', trace_id: traceId }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[whatsapp-connect] User ${userData.user.id} authorized for tenant ${tenant_id}`);
+    console.log(`[whatsapp-connect][${traceId}] User role: ${roleData.role}`);
 
     // Get WhatsApp config for tenant using service role (can read secrets)
     const { data: config, error: configError } = await supabase
@@ -75,48 +113,67 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (configError) {
-      console.error('[whatsapp-connect] Config fetch error:', configError);
+      console.error(`[whatsapp-connect][${traceId}] Config fetch error:`, configError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Erro ao buscar configuração' }),
+        JSON.stringify({ success: false, error: 'Erro ao buscar configuração', trace_id: traceId }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!config) {
+      console.log(`[whatsapp-connect][${traceId}] No config found for tenant`);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhatsApp não está disponível para esta loja. Entre em contato com o suporte.' 
+          error: 'WhatsApp não está disponível para esta loja. Entre em contato com o suporte.',
+          code: 'NO_CONFIG',
+          trace_id: traceId
         }),
         { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!config.instance_id || !config.instance_token) {
+      console.log(`[whatsapp-connect][${traceId}] Config exists but credentials missing`);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'WhatsApp não está configurado. Entre em contato com o suporte.' 
+          error: 'WhatsApp não está configurado. Entre em contato com o suporte.',
+          code: 'NO_CREDENTIALS',
+          trace_id: traceId
         }),
         { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log(`[whatsapp-connect][${traceId}] Config found, instance_id starts with: ${config.instance_id.substring(0, 8)}...`);
+
     // Z-API endpoints
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
     
     // First check if already connected
-    console.log(`[whatsapp-connect] Checking connection status for tenant ${tenant_id}...`);
+    console.log(`[whatsapp-connect][${traceId}] Checking connection status...`);
     
     try {
       const statusRes = await fetch(`${baseUrl}/status`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
 
+      const statusText = await statusRes.text();
+      console.log(`[whatsapp-connect][${traceId}] Status response (${statusRes.status}): ${statusText.substring(0, 200)}`);
+
       if (statusRes.ok) {
-        const statusData = await statusRes.json();
-        console.log(`[whatsapp-connect] Status response:`, statusData);
+        let statusData;
+        try {
+          statusData = JSON.parse(statusText);
+        } catch (e) {
+          console.error(`[whatsapp-connect][${traceId}] Failed to parse status response`);
+          statusData = {};
+        }
         
         if (statusData.connected) {
           // Already connected, update config
@@ -131,70 +188,124 @@ Deno.serve(async (req) => {
             })
             .eq('id', config.id);
 
+          console.log(`[whatsapp-connect][${traceId}] Already connected, returning success`);
           return new Response(
             JSON.stringify({ 
               success: true, 
               status: 'connected',
-              phone_number: statusData.phoneNumber || statusData.phone
+              phone_number: statusData.phoneNumber || statusData.phone,
+              trace_id: traceId
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-      } else if (statusRes.status === 401) {
-        console.error('[whatsapp-connect] Z-API auth failed - invalid credentials');
+      } else if (statusRes.status === 401 || statusRes.status === 403) {
+        console.error(`[whatsapp-connect][${traceId}] Z-API auth failed`);
         await supabase
           .from('whatsapp_configs')
-          .update({ last_error: 'Credenciais Z-API inválidas' })
+          .update({ 
+            last_error: `Credenciais Z-API inválidas (${statusRes.status})`,
+            connection_status: 'disconnected'
+          })
           .eq('id', config.id);
           
         return new Response(
-          JSON.stringify({ success: false, error: 'Credenciais Z-API inválidas. Contate o suporte.' }),
+          JSON.stringify({ 
+            success: false, 
+            error: 'Credenciais Z-API inválidas. Contate o suporte.',
+            code: 'INVALID_CREDENTIALS',
+            provider_status: statusRes.status,
+            trace_id: traceId
+          }),
           { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    } catch (statusError) {
-      console.error('[whatsapp-connect] Status check failed:', statusError);
+    } catch (statusError: any) {
+      console.error(`[whatsapp-connect][${traceId}] Status check failed:`, statusError.message);
       // Continue to try getting QR code
     }
 
     // Not connected, get QR code
-    console.log(`[whatsapp-connect] Getting QR code for tenant ${tenant_id}...`);
+    console.log(`[whatsapp-connect][${traceId}] Getting QR code...`);
     
     try {
       const qrRes = await fetch(`${baseUrl}/qr-code/image`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        }
       });
 
+      const qrText = await qrRes.text();
+      console.log(`[whatsapp-connect][${traceId}] QR response (${qrRes.status}): ${qrText.substring(0, 200)}`);
+
       if (!qrRes.ok) {
-        const errorText = await qrRes.text();
-        console.error(`[whatsapp-connect] QR code error (${qrRes.status}):`, errorText);
-        
-        if (qrRes.status === 401) {
+        if (qrRes.status === 401 || qrRes.status === 403) {
           await supabase
             .from('whatsapp_configs')
-            .update({ last_error: 'Credenciais Z-API inválidas' })
+            .update({ 
+              last_error: `Credenciais Z-API inválidas (QR ${qrRes.status})`,
+              connection_status: 'disconnected'
+            })
             .eq('id', config.id);
             
           return new Response(
-            JSON.stringify({ success: false, error: 'Credenciais Z-API inválidas. Contate o suporte.' }),
+            JSON.stringify({ 
+              success: false, 
+              error: 'Credenciais Z-API inválidas. Contate o suporte.',
+              code: 'INVALID_CREDENTIALS',
+              provider_status: qrRes.status,
+              trace_id: traceId
+            }),
             { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         
+        await supabase
+          .from('whatsapp_configs')
+          .update({ 
+            last_error: `Erro Z-API: ${qrRes.status} - ${qrText.substring(0, 100)}`,
+          })
+          .eq('id', config.id);
+
         return new Response(
-          JSON.stringify({ success: false, error: `Erro ao gerar QR Code. Tente novamente.` }),
+          JSON.stringify({ 
+            success: false, 
+            error: 'Erro ao gerar QR Code. Tente novamente.',
+            code: 'QR_ERROR',
+            provider_status: qrRes.status,
+            trace_id: traceId
+          }),
           { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      const qrData = await qrRes.json();
-      console.log(`[whatsapp-connect] QR code response keys:`, Object.keys(qrData));
+      let qrData;
+      try {
+        qrData = JSON.parse(qrText);
+      } catch (e) {
+        console.error(`[whatsapp-connect][${traceId}] Failed to parse QR response`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Resposta inválida do provedor. Tente novamente.',
+            code: 'INVALID_RESPONSE',
+            trace_id: traceId
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       if (!qrData.value) {
-        console.log(`[whatsapp-connect] QR code not available, full response:`, JSON.stringify(qrData));
+        console.log(`[whatsapp-connect][${traceId}] QR code not available in response`);
         return new Response(
-          JSON.stringify({ success: false, error: 'QR Code não disponível. Tente novamente em alguns segundos.' }),
+          JSON.stringify({ 
+            success: false, 
+            error: 'QR Code não disponível. Aguarde alguns segundos e tente novamente.',
+            code: 'QR_NOT_READY',
+            trace_id: traceId
+          }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -209,27 +320,46 @@ Deno.serve(async (req) => {
         })
         .eq('id', config.id);
 
+      console.log(`[whatsapp-connect][${traceId}] QR code generated successfully`);
       return new Response(
         JSON.stringify({ 
           success: true, 
           qr_code: qrData.value,
-          status: 'qr_pending'
+          status: 'qr_pending',
+          trace_id: traceId
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
       
     } catch (qrError: any) {
-      console.error('[whatsapp-connect] QR fetch error:', qrError);
+      console.error(`[whatsapp-connect][${traceId}] QR fetch error:`, qrError.message);
+      
+      await supabase
+        .from('whatsapp_configs')
+        .update({ 
+          last_error: `Erro de rede: ${qrError.message}`,
+        })
+        .eq('id', config.id);
+
       return new Response(
-        JSON.stringify({ success: false, error: 'Serviço do WhatsApp indisponível. Tente novamente.' }),
+        JSON.stringify({ 
+          success: false, 
+          error: 'Serviço do WhatsApp indisponível. Tente novamente.',
+          code: 'SERVICE_UNAVAILABLE',
+          trace_id: traceId
+        }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
   } catch (error: any) {
-    console.error('[whatsapp-connect] Unhandled error:', error);
+    console.error(`[whatsapp-connect] Unhandled error:`, error);
     return new Response(
-      JSON.stringify({ success: false, error: 'Erro interno. Tente novamente.' }),
+      JSON.stringify({ 
+        success: false, 
+        error: 'Erro interno. Tente novamente.',
+        code: 'INTERNAL_ERROR'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
