@@ -82,10 +82,10 @@ export function IntegrationReadinessPanel() {
     
     setIsRefreshing(true);
     try {
-      // Fetch WhatsApp config
+      // Fetch WhatsApp config - only non-sensitive fields (tokens NOT exposed)
       const { data: whatsappConfig } = await supabase
         .from('whatsapp_configs')
-        .select('instance_id, instance_token, client_token, connection_status, phone_number, last_error')
+        .select('id, connection_status, phone_number, last_error, is_enabled')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
@@ -105,7 +105,8 @@ export function IntegrationReadinessPanel() {
 
       setStatus({
         whatsapp: {
-          configured: !!(whatsappConfig?.instance_id && whatsappConfig?.instance_token && whatsappConfig?.client_token),
+          // configured = has record with id (credentials were set by admin)
+          configured: !!whatsappConfig?.id && whatsappConfig?.is_enabled,
           connected: whatsappConfig?.connection_status === 'connected',
           lastError: whatsappConfig?.last_error || null,
           phoneNumber: whatsappConfig?.phone_number || null,
