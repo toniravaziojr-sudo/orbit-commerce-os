@@ -58,6 +58,13 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
   const [testWhatsapp, setTestWhatsapp] = useState(true);
   const [isTesting, setIsTesting] = useState(false);
   const [results, setResults] = useState<TestResult[]>([]);
+  const [lastTestTime, setLastTestTime] = useState<number>(0);
+  
+  // Rate limit: minimum 30 seconds between tests
+  const RATE_LIMIT_MS = 30000;
+  const timeSinceLastTest = Date.now() - lastTestTime;
+  const canTest = timeSinceLastTest >= RATE_LIMIT_MS;
+  const secondsUntilNextTest = Math.ceil((RATE_LIMIT_MS - timeSinceLastTest) / 1000);
 
   // Fetch tenants
   useEffect(() => {
@@ -75,6 +82,16 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
   }, [open]);
 
   const handleTest = async () => {
+    // Rate limit check
+    if (!canTest) {
+      toast({ 
+        title: 'Aguarde', 
+        description: `Rate limit: aguarde ${secondsUntilNextTest}s para testar novamente`, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     if (!selectedTenantId) {
       toast({ title: 'Erro', description: 'Selecione um tenant', variant: 'destructive' });
       return;
@@ -92,6 +109,7 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
 
     setIsTesting(true);
     setResults([]);
+    setLastTestTime(Date.now());
     const testResults: TestResult[] = [];
 
     try {
@@ -102,8 +120,8 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
             body: {
               tenant_id: selectedTenantId,
               to: email,
-              subject: '[Smoke Test] Teste de Pipeline de Notificações',
-              body: '<h1>Teste de Pipeline</h1><p>Esta mensagem confirma que o envio de email está funcionando corretamente.</p><p>Timestamp: ' + new Date().toISOString() + '</p>',
+              subject: '[TESTE] Pipeline de Notificações - Smoke Test',
+              body: '<div style="border: 2px solid #f59e0b; padding: 16px; margin: 16px 0; background: #fffbeb;"><strong>⚠️ MENSAGEM DE TESTE</strong><br/>Esta é uma mensagem de smoke test do pipeline de notificações. Não requer ação.</div><h1>Teste de Pipeline</h1><p>Esta mensagem confirma que o envio de email está funcionando corretamente.</p><p>Timestamp: ' + new Date().toISOString() + '</p>',
             },
           });
 
@@ -130,7 +148,7 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
             body: {
               tenant_id: selectedTenantId,
               phone: phone,
-              message: '🧪 *Smoke Test*\n\nEste é um teste do pipeline de notificações.\n\nTimestamp: ' + new Date().toISOString(),
+              message: '⚠️ *[TESTE] Smoke Test*\n\n_Esta é uma mensagem de teste do pipeline de notificações. Não requer ação._\n\nTimestamp: ' + new Date().toISOString(),
             },
           });
 
@@ -301,14 +319,14 @@ export function SmokeTestDialog({ open, onOpenChange }: SmokeTestDialogProps) {
           </Button>
           <Button 
             onClick={handleTest} 
-            disabled={isTesting || (!testEmail && !testWhatsapp)}
+            disabled={isTesting || (!testEmail && !testWhatsapp) || !canTest}
           >
             {isTesting ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             ) : (
               <Send className="h-4 w-4 mr-2" />
             )}
-            Executar Testes
+            {!canTest ? `Aguarde ${secondsUntilNextTest}s` : 'Executar Testes'}
           </Button>
         </DialogFooter>
       </DialogContent>
