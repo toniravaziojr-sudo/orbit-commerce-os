@@ -1077,6 +1077,167 @@ export type Database = {
           },
         ]
       }
+      marketing_events_log: {
+        Row: {
+          created_at: string
+          event_data: Json | null
+          event_id: string
+          event_name: string
+          event_source: string
+          id: string
+          order_id: string | null
+          provider: string
+          provider_error: string | null
+          provider_response: Json | null
+          provider_status: string | null
+          sent_at: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_data?: Json | null
+          event_id: string
+          event_name: string
+          event_source: string
+          id?: string
+          order_id?: string | null
+          provider: string
+          provider_error?: string | null
+          provider_response?: Json | null
+          provider_status?: string | null
+          sent_at?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          event_data?: Json | null
+          event_id?: string
+          event_name?: string
+          event_source?: string
+          id?: string
+          order_id?: string | null
+          provider?: string
+          provider_error?: string | null
+          provider_response?: Json | null
+          provider_status?: string | null
+          sent_at?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_events_log_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_events_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketing_integrations: {
+        Row: {
+          consent_mode_enabled: boolean
+          created_at: string
+          google_ads_conversion_id: string | null
+          google_ads_conversion_label: string | null
+          google_api_secret: string | null
+          google_enabled: boolean
+          google_last_error: string | null
+          google_last_test_at: string | null
+          google_measurement_id: string | null
+          google_status: string | null
+          id: string
+          meta_access_token: string | null
+          meta_capi_enabled: boolean
+          meta_enabled: boolean
+          meta_last_error: string | null
+          meta_last_test_at: string | null
+          meta_pixel_id: string | null
+          meta_status: string | null
+          tenant_id: string
+          tiktok_access_token: string | null
+          tiktok_enabled: boolean
+          tiktok_events_api_enabled: boolean
+          tiktok_last_error: string | null
+          tiktok_last_test_at: string | null
+          tiktok_pixel_id: string | null
+          tiktok_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          consent_mode_enabled?: boolean
+          created_at?: string
+          google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
+          google_api_secret?: string | null
+          google_enabled?: boolean
+          google_last_error?: string | null
+          google_last_test_at?: string | null
+          google_measurement_id?: string | null
+          google_status?: string | null
+          id?: string
+          meta_access_token?: string | null
+          meta_capi_enabled?: boolean
+          meta_enabled?: boolean
+          meta_last_error?: string | null
+          meta_last_test_at?: string | null
+          meta_pixel_id?: string | null
+          meta_status?: string | null
+          tenant_id: string
+          tiktok_access_token?: string | null
+          tiktok_enabled?: boolean
+          tiktok_events_api_enabled?: boolean
+          tiktok_last_error?: string | null
+          tiktok_last_test_at?: string | null
+          tiktok_pixel_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          consent_mode_enabled?: boolean
+          created_at?: string
+          google_ads_conversion_id?: string | null
+          google_ads_conversion_label?: string | null
+          google_api_secret?: string | null
+          google_enabled?: boolean
+          google_last_error?: string | null
+          google_last_test_at?: string | null
+          google_measurement_id?: string | null
+          google_status?: string | null
+          id?: string
+          meta_access_token?: string | null
+          meta_capi_enabled?: boolean
+          meta_enabled?: boolean
+          meta_last_error?: string | null
+          meta_last_test_at?: string | null
+          meta_pixel_id?: string | null
+          meta_status?: string | null
+          tenant_id?: string
+          tiktok_access_token?: string | null
+          tiktok_enabled?: boolean
+          tiktok_events_api_enabled?: boolean
+          tiktok_last_error?: string | null
+          tiktok_last_test_at?: string | null
+          tiktok_pixel_id?: string | null
+          tiktok_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_integrations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_library: {
         Row: {
           created_at: string
@@ -2355,6 +2516,53 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_feed_status: {
+        Row: {
+          created_at: string
+          error_count: number | null
+          feed_path: string | null
+          feed_type: string
+          id: string
+          last_error: string | null
+          last_generated_at: string | null
+          product_count: number | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number | null
+          feed_path?: string | null
+          feed_type: string
+          id?: string
+          last_error?: string | null
+          last_generated_at?: string | null
+          product_count?: number | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_count?: number | null
+          feed_path?: string | null
+          feed_type?: string
+          id?: string
+          last_error?: string | null
+          last_generated_at?: string | null
+          product_count?: number | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_feed_status_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -4077,6 +4285,20 @@ export type Database = {
       get_discount_usage_by_customer: {
         Args: { p_discount_id: string; p_email: string }
         Returns: number
+      }
+      get_public_marketing_config: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          consent_mode_enabled: boolean
+          google_ads_conversion_id: string
+          google_ads_conversion_label: string
+          google_enabled: boolean
+          google_measurement_id: string
+          meta_enabled: boolean
+          meta_pixel_id: string
+          tiktok_enabled: boolean
+          tiktok_pixel_id: string
+        }[]
       }
       get_whatsapp_config_for_tenant: {
         Args: { p_tenant_id: string }
