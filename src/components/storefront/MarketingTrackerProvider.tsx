@@ -4,7 +4,7 @@
 // Automatically injects pixels and tracks page views
 // =============================================
 
-import { createContext, useContext, useEffect, useRef, useMemo } from 'react';
+import { createContext, useContext, useEffect, useRef, useMemo, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { usePublicMarketingConfig, PublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { MarketingTracker } from '@/lib/marketingTracker';
@@ -33,18 +33,18 @@ interface Props {
 export function MarketingTrackerProvider({ tenantId, children }: Props) {
   const { data: config, isLoading } = usePublicMarketingConfig(tenantId);
   const location = useLocation();
-  const trackerRef = useRef<MarketingTracker | null>(null);
   const lastPathRef = useRef<string>('');
+  const [initializedTracker, setInitializedTracker] = useState<MarketingTracker | null>(null);
 
-  // Create tracker instance when config is available
-  const tracker = useMemo(() => {
-    if (!config) return null;
+  // Create and initialize tracker when config is available
+  useEffect(() => {
+    if (!config || initializedTracker) return;
     
     // Check if any tracking is enabled
     const hasAnyEnabled = config.meta_enabled || config.google_enabled || config.tiktok_enabled;
-    if (!hasAnyEnabled) return null;
+    if (!hasAnyEnabled) return;
 
-    return new MarketingTracker({
+    const tracker = new MarketingTracker({
       meta_pixel_id: config.meta_pixel_id,
       meta_enabled: config.meta_enabled,
       google_measurement_id: config.google_measurement_id,
@@ -53,36 +53,33 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
       tiktok_pixel_id: config.tiktok_pixel_id,
       tiktok_enabled: config.tiktok_enabled,
     });
-  }, [config]);
-
-  // Initialize tracker and track initial page view
-  useEffect(() => {
-    if (tracker && !trackerRef.current) {
-      tracker.initialize();
-      trackerRef.current = tracker;
-      
-      // Track initial page view
-      tracker.trackPageView();
-      lastPathRef.current = location.pathname + location.search;
-    }
-  }, [tracker, location]);
+    
+    tracker.initialize();
+    setInitializedTracker(tracker);
+    
+    // Track initial page view
+    tracker.trackPageView();
+    lastPathRef.current = location.pathname + location.search;
+    
+    console.log('[MarketingTrackerProvider] Tracker initialized and ready');
+  }, [config, initializedTracker, location.pathname, location.search]);
 
   // Track page views on route change (SPA navigation)
   useEffect(() => {
     const currentPath = location.pathname + location.search;
     
     // Only track if path actually changed and tracker exists
-    if (trackerRef.current && currentPath !== lastPathRef.current) {
-      trackerRef.current.trackPageView();
+    if (initializedTracker && currentPath !== lastPathRef.current) {
+      initializedTracker.trackPageView();
       lastPathRef.current = currentPath;
     }
-  }, [location]);
+  }, [location, initializedTracker]);
 
   const contextValue = useMemo(() => ({
-    tracker: trackerRef.current || tracker,
+    tracker: initializedTracker,
     config,
     isLoading,
-  }), [tracker, config, isLoading]);
+  }), [initializedTracker, config, isLoading]);
 
   return (
     <MarketingTrackerContext.Provider value={contextValue}>
