@@ -267,6 +267,7 @@ interface WhatsAppConfig {
   tenant_id: string;
   instance_id: string;
   instance_token: string;
+  client_token: string | null;
   connection_status: string;
   phone_number: string | null;
 }
@@ -332,7 +333,15 @@ async function sendWhatsApp(
   if (!config.instance_id || !config.instance_token) {
     return {
       success: false,
-      error: 'Credenciais do WhatsApp não configuradas.',
+      error: 'Credenciais do WhatsApp não configuradas (Instance ID/Token).',
+      response: { channel: 'whatsapp', to: recipient }
+    };
+  }
+
+  if (!config.client_token) {
+    return {
+      success: false,
+      error: 'Client Token Z-API não configurado. Configure em Plataforma → Integrações.',
       response: { channel: 'whatsapp', to: recipient }
     };
   }
@@ -351,7 +360,10 @@ async function sendWhatsApp(
   try {
     const sendRes = await fetch(`${baseUrl}/send-text`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Client-Token': config.client_token
+      },
       body: JSON.stringify({
         phone: cleanPhone,
         message: message
