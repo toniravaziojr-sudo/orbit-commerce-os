@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/contexts/CartContext';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
 import { ProductGridBlock as ProductGridBlockComponent } from './blocks/ProductGridBlock';
@@ -98,6 +99,7 @@ function ProductCTAs({
 }) {
   const navigate = useNavigate();
   const { items, addItem, updateQuantity } = useCart();
+  const { trackAddToCart } = useMarketingEvents();
   
   // Find if product already in cart (only in Preview/Public/Interact mode)
   // In interact mode, we want to allow cart operations
@@ -145,6 +147,14 @@ function ProductCTAs({
       image_url: imageUrl,
     });
     
+    // Track marketing event
+    trackAddToCart({
+      id: productId,
+      name: productName,
+      price: productPrice,
+      quantity: quantity,
+    });
+    
     // Show feedback after a brief delay to allow state to update
     setTimeout(() => {
       setIsAddingToCart(false);
@@ -161,7 +171,7 @@ function ProductCTAs({
         setAddedFeedback(false);
       }, 2000);
     }, 150);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, onOpenMiniCart]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, openMiniCartOnAdd, onOpenMiniCart, trackAddToCart]);
   
   const handleBuyNow = React.useCallback(() => {
     if (!productId || isOutOfStock || isAddingToCart) return;
@@ -176,10 +186,18 @@ function ProductCTAs({
       image_url: imageUrl,
     });
     
+    // Track marketing event
+    trackAddToCart({
+      id: productId,
+      name: productName,
+      price: productPrice,
+      quantity: quantity,
+    });
+    
     // Navigate to checkout
     const checkoutUrl = getPublicCheckoutUrl(tenantSlug, isPreview);
     navigate(checkoutUrl);
-  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, tenantSlug, isPreview, navigate]);
+  }, [productId, productName, productSku, productPrice, quantity, imageUrl, isOutOfStock, isAddingToCart, addItem, tenantSlug, isPreview, navigate, trackAddToCart]);
   
   const handleWhatsApp = React.useCallback(() => {
     const whatsappNumber = '5511919555920';
