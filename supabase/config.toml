@@ -169,3 +169,15 @@ verify_jwt = true
 
 [functions.whatsapp-send]
 verify_jwt = false
+
+[functions.marketing-send-meta]
+verify_jwt = false
+
+[functions.marketing-send-tiktok]
+verify_jwt = false
+
+[functions.marketing-send-google]
+verify_jwt = false
+
+[functions.marketing-feed]
+verify_jwt = false
