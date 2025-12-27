@@ -250,10 +250,11 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
       // If using multi-provider or Frenet, call the shipping-quote Edge Function
       if (shippingConfig.provider === 'multi' || shippingConfig.provider === 'frenet') {
         try {
-          console.log('[StorefrontConfigContext] Calling shipping-quote with tenant:', tenantId);
+        console.log('[StorefrontConfigContext] Calling shipping-quote with tenant:', tenantId);
           
-          // Use shipping-quote for multi-provider, fallback to frenet-quote for backwards compatibility
-          const functionName = shippingConfig.provider === 'multi' ? 'shipping-quote' : 'frenet-quote';
+          // Always use shipping-quote for both 'multi' and 'frenet' providers
+          // shipping-quote is the unified aggregator that handles all providers
+          const functionName = 'shipping-quote';
           
           const { data, error } = await supabase.functions.invoke(functionName, {
             body: {
