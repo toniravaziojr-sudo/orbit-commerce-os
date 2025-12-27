@@ -108,7 +108,8 @@ const navigation: NavGroup[] = [
 const platformNavigation: NavGroup = {
   label: "Plataforma",
   items: [
-    { title: "Integrações Operador", href: "/platform/integrations", icon: Shield },
+    { title: "Integrações", href: "/platform/integrations", icon: Plug },
+    { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
   ],
 };
 

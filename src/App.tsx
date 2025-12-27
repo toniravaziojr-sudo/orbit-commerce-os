@@ -215,10 +215,13 @@ const App = () => {
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/builder" element={<StorefrontBuilder />} />
                   <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
-                  <Route path="/health-monitor" element={<HealthMonitor />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
-                  <Route path="/settings/emails" element={<SystemEmails />} />
+                  {/* Platform admin routes */}
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
+                  <Route path="/platform/health-monitor" element={<HealthMonitor />} />
+                  {/* Legacy redirects */}
+                  <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
+                  <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />
                 </Route>
               )}
 

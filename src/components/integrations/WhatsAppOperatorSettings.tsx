@@ -14,7 +14,9 @@ import {
   Save,
   Shield,
   Smartphone,
-  Trash2
+  Trash2,
+  Settings,
+  Wifi
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -39,6 +41,8 @@ interface WhatsAppConfig {
   connection_status: string;
   phone_number: string | null;
   is_enabled: boolean;
+  last_connected_at: string | null;
+  last_error: string | null;
 }
 
 /**
@@ -109,6 +113,8 @@ export function WhatsAppOperatorSettings() {
           connection_status: data.connection_status || "disconnected",
           phone_number: data.phone_number,
           is_enabled: data.is_enabled ?? true,
+          last_connected_at: data.last_connected_at,
+          last_error: data.last_error,
         });
         setInstanceId(data.instance_id || "");
         setInstanceToken(data.instance_token || "");
@@ -158,7 +164,7 @@ export function WhatsAppOperatorSettings() {
         if (error) throw error;
       }
 
-      toast({ title: "Salvo", description: "Credenciais do WhatsApp configuradas para o tenant" });
+      toast({ title: "Credenciais salvas", description: "O tenant pode agora conectar o WhatsApp via QR Code." });
       await fetchConfigForTenant(selectedTenantId);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -191,6 +197,7 @@ export function WhatsAppOperatorSettings() {
     }
   };
 
+  const hasCredentials = !!(config?.instance_id && config?.instance_token);
   const selectedTenant = tenants.find(t => t.id === selectedTenantId);
 
   if (isLoading) {
@@ -215,7 +222,7 @@ export function WhatsAppOperatorSettings() {
               WhatsApp - Configuração Operador
               <StatusBadge variant="outline" className="ml-2">Admin</StatusBadge>
             </CardTitle>
-            <CardDescription>Configure credenciais Z-API por tenant (visível apenas para você)</CardDescription>
+            <CardDescription>Configure credenciais Z-API por tenant</CardDescription>
           </div>
         </div>
       </CardHeader>
@@ -223,8 +230,8 @@ export function WhatsAppOperatorSettings() {
         <Alert className="border-primary/20 bg-primary/5">
           <Shield className="h-4 w-4 text-primary" />
           <AlertDescription className="text-sm">
-            <strong>Modo Operador:</strong> Você configura as credenciais Z-API aqui. 
-            O cliente final só verá o botão "Conectar WhatsApp" e escaneará o QR Code.
+            <strong>Como funciona:</strong> Você cadastra as credenciais Z-API aqui. 
+            O cliente conecta o WhatsApp dele escaneando o QR Code na tela de Integrações.
           </AlertDescription>
         </Alert>
 
@@ -247,54 +254,88 @@ export function WhatsAppOperatorSettings() {
 
         {selectedTenantId && (
           <>
-            {/* Current status */}
-            {config && (
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+            {/* Status Cards - separando credenciais de sessão */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Status de Credenciais (Z-API) */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Settings className="h-4 w-4" />
+                  Credenciais Z-API
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Status:</span>
-                  <StatusBadge 
-                    variant={config.connection_status === "connected" ? "success" : "outline"}
-                  >
-                    {config.connection_status === "connected" ? (
-                      <><CheckCircle className="h-3 w-3 mr-1" />Conectado</>
-                    ) : (
-                      <><XCircle className="h-3 w-3 mr-1" />{config.connection_status}</>
-                    )}
-                  </StatusBadge>
+                  {hasCredentials ? (
+                    <StatusBadge variant="success">
+                      <CheckCircle className="h-3 w-3 mr-1" />Configurado
+                    </StatusBadge>
+                  ) : (
+                    <StatusBadge variant="outline">
+                      <XCircle className="h-3 w-3 mr-1" />Não configurado
+                    </StatusBadge>
+                  )}
                 </div>
-                {config.phone_number && (
+              </div>
+
+              {/* Status de Sessão (WhatsApp do tenant) */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Wifi className="h-4 w-4" />
+                  Sessão WhatsApp (Tenant)
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status:</span>
+                  {config?.connection_status === "connected" ? (
+                    <StatusBadge variant="success">
+                      <CheckCircle className="h-3 w-3 mr-1" />Conectado
+                    </StatusBadge>
+                  ) : (
+                    <StatusBadge variant="outline">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      {config?.connection_status === "qr_pending" ? "Aguardando QR" : "Desconectado"}
+                    </StatusBadge>
+                  )}
+                </div>
+                {config?.phone_number && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">Número:</span>
-                    <span className="font-medium flex items-center gap-2">
-                      <Smartphone className="h-4 w-4" />
+                    <span className="text-sm font-medium flex items-center gap-1">
+                      <Smartphone className="h-3 w-3" />
                       {config.phone_number}
                     </span>
                   </div>
                 )}
+                {config?.last_error && (
+                  <div className="text-xs text-destructive mt-1">
+                    Erro: {config.last_error}
+                  </div>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Credentials form */}
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="op_instance_id">Instance ID (Z-API)</Label>
-                <Input
-                  id="op_instance_id"
-                  placeholder="Ex: 3CEC7A5C2A10..."
-                  value={instanceId}
-                  onChange={(e) => setInstanceId(e.target.value)}
-                />
-              </div>
+            <div className="space-y-4 border-t pt-4">
+              <div className="text-sm font-medium">Credenciais Z-API</div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="op_instance_id">Instance ID</Label>
+                  <Input
+                    id="op_instance_id"
+                    placeholder="Ex: 3CEC7A5C2A10..."
+                    value={instanceId}
+                    onChange={(e) => setInstanceId(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="op_instance_token">Instance Token (Z-API)</Label>
-                <Input
-                  id="op_instance_token"
-                  type="password"
-                  placeholder="Token da instância"
-                  value={instanceToken}
-                  onChange={(e) => setInstanceToken(e.target.value)}
-                />
+                <div className="space-y-2">
+                  <Label htmlFor="op_instance_token">Instance Token</Label>
+                  <Input
+                    id="op_instance_token"
+                    type="password"
+                    placeholder="Token da instância"
+                    value={instanceToken}
+                    onChange={(e) => setInstanceToken(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
