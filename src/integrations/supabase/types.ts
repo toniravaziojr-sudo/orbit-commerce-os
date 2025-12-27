@@ -3984,6 +3984,8 @@ export type Database = {
           message_type: string | null
           metadata: Json | null
           notification_id: string | null
+          provider_message_id: string | null
+          provider_response: Json | null
           read_at: string | null
           recipient_phone: string
           sent_at: string | null
@@ -4001,6 +4003,8 @@ export type Database = {
           message_type?: string | null
           metadata?: Json | null
           notification_id?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
           read_at?: string | null
           recipient_phone: string
           sent_at?: string | null
@@ -4018,6 +4022,8 @@ export type Database = {
           message_type?: string | null
           metadata?: Json | null
           notification_id?: string | null
+          provider_message_id?: string | null
+          provider_response?: Json | null
           read_at?: string | null
           recipient_phone?: string
           sent_at?: string | null
