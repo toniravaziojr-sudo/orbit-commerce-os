@@ -19,7 +19,6 @@ import {
   CheckCircle2, 
   XCircle, 
   AlertCircle,
-  RefreshCw,
   Facebook,
   Chrome,
   Music2,
@@ -68,7 +67,6 @@ function maskToken(token: string | null): string {
 export function MarketingIntegrationsSettings() {
   const { config, isLoading, upsertConfig } = useMarketingIntegrations();
   const { currentTenant } = useAuth();
-  const [isTesting, setIsTesting] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('meta');
 
   // Local state for form values
@@ -78,11 +76,7 @@ export function MarketingIntegrationsSettings() {
   const [metaAccessToken, setMetaAccessToken] = useState('');
   const [metaTokenConfigured, setMetaTokenConfigured] = useState(false);
   
-  // Meta test modal state
-  const [showMetaTestModal, setShowMetaTestModal] = useState(false);
-  const [testEmail, setTestEmail] = useState('');
-  const [testPhone, setTestPhone] = useState('');
-  const [testEventType, setTestEventType] = useState<'PageView' | 'Purchase'>('PageView');
+  
   
   const [googleMeasurementId, setGoogleMeasurementId] = useState('');
   const [googleAdsConversionId, setGoogleAdsConversionId] = useState('');
@@ -168,120 +162,7 @@ export function MarketingIntegrationsSettings() {
     setTiktokAccessToken('');
   };
 
-  // Get canonical storefront URL for the tenant
-  const getStorefrontUrl = () => {
-    if (!currentTenant?.slug) return window.location.origin;
-    // Try to build canonical URL from tenant slug
-    return `https://${currentTenant.slug}.shops.comandocentral.com.br`;
-  };
-
-  const handleTestMeta = async () => {
-    if (!currentTenant?.id) return;
-    if (!testEmail && !testPhone) {
-      toast.error('Informe pelo menos email ou telefone para o teste');
-      return;
-    }
-    
-    setIsTesting('meta');
-    
-    try {
-      const testPayload: Record<string, any> = {
-        tenant_id: currentTenant.id,
-        event_name: testEventType,
-        event_id: `test_${Date.now()}`,
-        event_source_url: getStorefrontUrl(),
-        test_event_code: 'TEST_EVENT',
-        user: {
-          email: testEmail || undefined,
-          phone: testPhone || undefined,
-        },
-      };
-
-      // Add custom_data for Purchase test
-      if (testEventType === 'Purchase') {
-        testPayload.custom_data = {
-          currency: 'BRL',
-          value: 99.90,
-          order_id: `test_order_${Date.now()}`,
-          content_type: 'product',
-          content_ids: ['test_product_1'],
-          contents: [
-            { id: 'test_product_1', quantity: 1, item_price: 99.90 }
-          ],
-          num_items: 1,
-        };
-      }
-
-      const { data, error } = await supabase.functions.invoke('marketing-send-meta', {
-        body: testPayload,
-      });
-
-      if (error) throw error;
-
-      if (data?.skipped) {
-        toast.info('Meta CAPI não está habilitado ou configurado');
-      } else if (data?.success) {
-        toast.success(`[TESTE] Evento ${testEventType} enviado com sucesso! Event ID: ${data.event_id}`);
-        setShowMetaTestModal(false);
-        setTestEmail('');
-        setTestPhone('');
-      } else if (data?.error) {
-        // Show detailed error from Meta
-        const errorMsg = data.error_user_msg || data.error || 'Erro desconhecido';
-        toast.error(`Erro Meta: ${errorMsg}`);
-        console.error('Meta test error details:', data);
-      }
-    } catch (error: any) {
-      console.error('Test event error:', error);
-      toast.error(`Erro ao enviar evento de teste: ${error.message}`);
-    } finally {
-      setIsTesting(null);
-    }
-  };
-
-  const handleTestEvent = async (provider: 'google' | 'tiktok') => {
-    if (!currentTenant?.id) return;
-    
-    setIsTesting(provider);
-    
-    try {
-      const functionName = `marketing-send-${provider}`;
-      const testPayload: Record<string, any> = {
-        tenant_id: currentTenant.id,
-        event_name: 'PageView',
-        event_id: `test_${Date.now()}`,
-        event_source_url: getStorefrontUrl(),
-        test_event_code: 'TEST_EVENT',
-      };
-
-      if (provider === 'google') {
-        testPayload.client_id = `test_${Date.now()}`;
-        testPayload.debug_mode = true;
-        testPayload.params = { page_title: '[TESTE] Evento de teste' };
-      } else if (provider === 'tiktok') {
-        testPayload.page_url = getStorefrontUrl();
-      }
-
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: testPayload,
-      });
-
-      if (error) throw error;
-
-      if (data?.skipped) {
-        toast.info(`${provider.toUpperCase()} não está habilitado ou configurado`);
-      } else if (data?.success) {
-        toast.success(`[TESTE] Evento enviado com sucesso para ${provider.toUpperCase()}`);
-      } else if (data?.error) {
-        toast.error(`Erro: ${typeof data.error === 'string' ? data.error : JSON.stringify(data.error)}`);
-      }
-    } catch (error: any) {
-      console.error('Test event error:', error);
-      toast.error(`Erro ao enviar evento de teste: ${error.message}`);
-    } finally {
-      setIsTesting(null);
-    }
-  };
+  
 
   const getFeedUrl = (format: 'google' | 'meta') => {
     if (!currentTenant?.slug) return '';
@@ -477,97 +358,12 @@ export function MarketingIntegrationsSettings() {
                 </Alert>
               )}
 
-              <div className="flex gap-2 pt-4">
+              <div className="pt-4">
                 <Button onClick={handleSaveMeta} disabled={upsertConfig.isPending}>
                   {upsertConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Salvar
                 </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowMetaTestModal(true)}
-                  disabled={!metaEnabled || !metaPixelId || !metaCapiEnabled}
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Testar CAPI
-                </Button>
               </div>
-
-              {/* Meta Test Modal */}
-              {showMetaTestModal && (
-                <div className="mt-6 p-4 border rounded-lg bg-muted/50 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Testar Meta Conversions API</h4>
-                    <Button variant="ghost" size="sm" onClick={() => setShowMetaTestModal(false)}>
-                      ✕
-                    </Button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Informe dados do cliente para enviar um evento de teste. O Meta requer pelo menos email ou telefone.
-                  </p>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="test-email">Email *</Label>
-                      <Input
-                        id="test-email"
-                        type="email"
-                        placeholder="cliente@exemplo.com"
-                        value={testEmail}
-                        onChange={(e) => setTestEmail(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="test-phone">Telefone (opcional)</Label>
-                      <Input
-                        id="test-phone"
-                        type="tel"
-                        placeholder="+5511999999999"
-                        value={testPhone}
-                        onChange={(e) => setTestPhone(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tipo de evento</Label>
-                    <div className="flex gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="testEventType"
-                          checked={testEventType === 'PageView'}
-                          onChange={() => setTestEventType('PageView')}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">PageView (simples)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="testEventType"
-                          checked={testEventType === 'Purchase'}
-                          onChange={() => setTestEventType('Purchase')}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">Purchase (com valor)</span>
-                      </label>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={handleTestMeta}
-                      disabled={isTesting === 'meta' || (!testEmail && !testPhone)}
-                    >
-                      {isTesting === 'meta' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Enviar Evento de Teste
-                    </Button>
-                    <Button variant="outline" onClick={() => setShowMetaTestModal(false)}>
-                      Cancelar
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    O evento será enviado com test_event_code para aparecer no Events Manager sem afetar métricas reais.
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -687,18 +483,10 @@ export function MarketingIntegrationsSettings() {
                 </Alert>
               )}
 
-              <div className="flex gap-2 pt-4">
+              <div className="pt-4">
                 <Button onClick={handleSaveGoogle} disabled={upsertConfig.isPending}>
                   {upsertConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Salvar
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleTestEvent('google')}
-                  disabled={!googleEnabled || !googleMeasurementId || isTesting === 'google'}
-                >
-                  {isTesting === 'google' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Testar
                 </Button>
               </div>
             </CardContent>
@@ -810,18 +598,10 @@ export function MarketingIntegrationsSettings() {
                 </Alert>
               )}
 
-              <div className="flex gap-2 pt-4">
+              <div className="pt-4">
                 <Button onClick={handleSaveTikTok} disabled={upsertConfig.isPending}>
                   {upsertConfig.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Salvar
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => handleTestEvent('tiktok')}
-                  disabled={!tiktokEnabled || !tiktokPixelId || isTesting === 'tiktok'}
-                >
-                  {isTesting === 'tiktok' ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Testar
                 </Button>
               </div>
             </CardContent>
