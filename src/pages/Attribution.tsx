@@ -10,8 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAttributionStats } from '@/hooks/useOrderAttribution';
-import { AppSidebar } from '@/components/layout/AppSidebar';
-import { AppHeader } from '@/components/layout/AppHeader';
 import { 
   BarChart3, 
   TrendingUp, 
@@ -453,41 +451,33 @@ function SetupInstructions() {
 
 export default function Attribution() {
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background">
-      <AppSidebar />
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <AppHeader />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 scrollbar-thin">
-          <div className="mx-auto max-w-[1600px]">
-            <PageHeader
-              title="Atribuição de Conversões"
-              description="Veja de onde vêm suas vendas e configure o rastreamento"
-            />
-            
-            <div className="mt-6">
-              <Tabs defaultValue="stats">
-                <TabsList className="mb-6">
-                  <TabsTrigger value="stats" className="flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    Estatísticas
-                  </TabsTrigger>
-                  <TabsTrigger value="setup" className="flex items-center gap-2">
-                    <Info className="h-4 w-4" />
-                    Configuração
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="stats">
-                  <AttributionStatsTable />
-                </TabsContent>
-                
-                <TabsContent value="setup">
-                  <SetupInstructions />
-                </TabsContent>
-              </Tabs>
-            </div>
-          </div>
-        </main>
+    <div className="mx-auto max-w-[1600px]">
+      <PageHeader
+        title="Atribuição de Conversões"
+        description="Veja de onde vêm suas vendas e configure o rastreamento"
+      />
+      
+      <div className="mt-6">
+        <Tabs defaultValue="stats">
+          <TabsList className="mb-6">
+            <TabsTrigger value="stats" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Estatísticas
+            </TabsTrigger>
+            <TabsTrigger value="setup" className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              Configuração
+            </TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="stats">
+            <AttributionStatsTable />
+          </TabsContent>
+          
+          <TabsContent value="setup">
+            <SetupInstructions />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
