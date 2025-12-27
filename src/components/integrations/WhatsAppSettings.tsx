@@ -48,30 +48,32 @@ export function WhatsAppSettings() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
-      // SECURITY: Only select non-sensitive fields - NEVER select instance_id or instance_token
+      // SECURITY: Use RPC function that only returns non-sensitive fields
+      // This function enforces tenant access control server-side
       const { data, error } = await supabase
-        .from("whatsapp_configs")
-        .select("id, connection_status, qr_code, phone_number, last_connected_at, is_enabled")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
+        .rpc("get_whatsapp_config_for_tenant", { p_tenant_id: tenantId });
 
       if (error) throw error;
 
-      if (data) {
+      // RPC returns array, get first item
+      const configData = Array.isArray(data) && data.length > 0 ? data[0] : null;
+
+      if (configData) {
         setConfig({
-          id: data.id,
-          connection_status: (data.connection_status as WhatsAppConfig["connection_status"]) || "disconnected",
-          qr_code: data.qr_code,
-          phone_number: data.phone_number,
-          last_connected_at: data.last_connected_at,
+          id: configData.id,
+          connection_status: (configData.connection_status as WhatsAppConfig["connection_status"]) || "disconnected",
+          qr_code: configData.qr_code,
+          phone_number: configData.phone_number,
+          last_connected_at: configData.last_connected_at,
           // hasCredentials is inferred from record existence + is_enabled
-          hasCredentials: data.is_enabled === true,
+          hasCredentials: configData.is_enabled === true,
         });
       } else {
         setConfig(null);
       }
     } catch (error) {
       console.error("Error fetching WhatsApp config:", error);
+      setConfig(null);
     } finally {
       setIsLoading(false);
     }

@@ -4049,62 +4049,7 @@ export type Database = {
       }
     }
     Views: {
-      whatsapp_configs_tenant: {
-        Row: {
-          connection_status: string | null
-          created_at: string | null
-          id: string | null
-          instance_id: string | null
-          is_enabled: boolean | null
-          last_connected_at: string | null
-          last_error: string | null
-          phone_number: string | null
-          provider: string | null
-          qr_code: string | null
-          qr_expires_at: string | null
-          tenant_id: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          connection_status?: string | null
-          created_at?: string | null
-          id?: string | null
-          instance_id?: string | null
-          is_enabled?: boolean | null
-          last_connected_at?: string | null
-          last_error?: string | null
-          phone_number?: string | null
-          provider?: string | null
-          qr_code?: string | null
-          qr_expires_at?: string | null
-          tenant_id?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          connection_status?: string | null
-          created_at?: string | null
-          id?: string | null
-          instance_id?: string | null
-          is_enabled?: boolean | null
-          last_connected_at?: string | null
-          last_error?: string | null
-          phone_number?: string | null
-          provider?: string | null
-          qr_code?: string | null
-          qr_expires_at?: string | null
-          tenant_id?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "whatsapp_configs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: true
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       create_tenant_for_user: {
