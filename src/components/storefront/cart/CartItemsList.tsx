@@ -3,12 +3,25 @@
 // =============================================
 
 import { useCart } from '@/contexts/CartContext';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 
 export function CartItemsList() {
   const { items, updateQuantity, removeItem } = useCart();
+  const { trackAddToCart } = useMarketingEvents();
+
+  // Handle quantity increase with AddToCart tracking
+  const handleIncreaseQuantity = (item: typeof items[0]) => {
+    updateQuantity(item.id, item.quantity + 1);
+    trackAddToCart({
+      id: item.product_id,
+      name: item.name,
+      price: item.price,
+      quantity: 1, // Incrementing by 1
+    });
+  };
 
   if (items.length === 0) {
     return (
@@ -71,7 +84,7 @@ export function CartItemsList() {
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
-                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                onClick={() => handleIncreaseQuantity(item)}
               >
                 <Plus className="h-4 w-4" />
               </Button>
