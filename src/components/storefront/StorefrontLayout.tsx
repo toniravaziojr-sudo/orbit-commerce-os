@@ -5,6 +5,7 @@ import { Loader2 } from 'lucide-react';
 import { CartProvider } from '@/contexts/CartContext';
 import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
+import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 
 /**
@@ -88,20 +89,22 @@ function StorefrontLayoutContent({
 
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
-      <Suspense fallback={null}>
-        <DomainDisabledGuard tenantSlug={tenantSlug}>
-          <div className="min-h-screen flex flex-col bg-white">
-            {isPreview && (
-              <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
-                Modo de pré-visualização - Esta página não está publicada
-              </div>
-            )}
-            <main className="flex-1">
-              <Outlet />
-            </main>
-          </div>
-        </DomainDisabledGuard>
-      </Suspense>
+      <MarketingTrackerProvider tenantId={tenant.id}>
+        <Suspense fallback={null}>
+          <DomainDisabledGuard tenantSlug={tenantSlug}>
+            <div className="min-h-screen flex flex-col bg-white">
+              {isPreview && (
+                <div className="bg-yellow-100 border-b border-yellow-200 px-4 py-2 text-center text-sm text-yellow-800">
+                  Modo de pré-visualização - Esta página não está publicada
+                </div>
+              )}
+              <main className="flex-1">
+                <Outlet />
+              </main>
+            </div>
+          </DomainDisabledGuard>
+        </Suspense>
+      </MarketingTrackerProvider>
     </StorefrontConfigProvider>
   );
 }
