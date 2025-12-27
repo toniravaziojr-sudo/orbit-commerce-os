@@ -48,9 +48,10 @@ export function WhatsAppSettings() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
+      // SECURITY: Only select non-sensitive fields - NEVER select instance_id or instance_token
       const { data, error } = await supabase
         .from("whatsapp_configs")
-        .select("id, connection_status, qr_code, phone_number, last_connected_at, instance_id, instance_token")
+        .select("id, connection_status, qr_code, phone_number, last_connected_at, is_enabled")
         .eq("tenant_id", tenantId)
         .maybeSingle();
 
@@ -63,7 +64,8 @@ export function WhatsAppSettings() {
           qr_code: data.qr_code,
           phone_number: data.phone_number,
           last_connected_at: data.last_connected_at,
-          hasCredentials: !!(data.instance_id && data.instance_token),
+          // hasCredentials is inferred from record existence + is_enabled
+          hasCredentials: data.is_enabled === true,
         });
       } else {
         setConfig(null);
