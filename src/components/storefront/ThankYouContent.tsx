@@ -5,7 +5,7 @@
 // PIX data is fetched from server, not localStorage (reliable)
 // =============================================
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Check, Package, Truck, Home, MessageCircle, ShoppingBag, Loader2, AlertCircle, Clock, Copy, ExternalLink, QrCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
+import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -40,6 +41,8 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const urls = useStorefrontUrls(tenantSlug);
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const { trackPurchase } = useMarketingEvents();
+  const purchaseTrackedRef = useRef<string | null>(null);
   
   // Get order identifier from URL - normalize by removing # and trimming
   // CRITICAL: The # in URL becomes fragment, so we also need to check window.location.hash
@@ -70,6 +73,29 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
     if (!order?.payment_instructions) return null;
     return order.payment_instructions as PaymentInstructions;
   }, [order?.payment_instructions]);
+
+  // MARKETING: Track Purchase event when order loads (with deduplication)
+  useEffect(() => {
+    if (!order || !order.order_number || isLoading || isPreview) return;
+    
+    // Dedupe: only track once per order (even if component re-renders)
+    if (purchaseTrackedRef.current === order.order_number) return;
+    purchaseTrackedRef.current = order.order_number;
+    
+    // Track Purchase event with all order data
+    trackPurchase({
+      order_id: order.order_number,
+      value: order.total,
+      items: order.items.map((item: any) => ({
+        id: item.product_id,
+        name: item.product_name,
+        price: item.unit_price,
+        quantity: item.quantity,
+      })),
+    });
+    
+    console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
+  }, [order, isLoading, isPreview, trackPurchase]);
 
   // Check auth state
   useEffect(() => {

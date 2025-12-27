@@ -25,6 +25,61 @@ export function formatCurrency(value: number): string {
   return value.toFixed(2);
 }
 
+// =============================================
+// FBP/FBC CAPTURE (for Meta Advanced Matching)
+// =============================================
+
+/**
+ * Get _fbp cookie value (set by Meta Pixel)
+ * Format: fb.1.{timestamp}.{random}
+ */
+export function getFbp(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)_fbp=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Get fbc value from fbclid URL parameter
+ * Format: fb.1.{timestamp}.{fbclid}
+ */
+export function getFbc(): string | null {
+  if (typeof window === 'undefined') return null;
+  
+  // First check URL for fbclid
+  const urlParams = new URLSearchParams(window.location.search);
+  const fbclid = urlParams.get('fbclid');
+  
+  if (fbclid) {
+    // Construct fbc format: fb.{subdomainIndex}.{creationTime}.{fbclid}
+    const fbc = `fb.1.${Date.now()}.${fbclid}`;
+    // Store in localStorage for later use (e.g., on checkout)
+    try {
+      localStorage.setItem('_fbc', fbc);
+    } catch (e) {
+      // Storage not available
+    }
+    return fbc;
+  }
+  
+  // Fallback: check localStorage for previously captured fbc
+  try {
+    return localStorage.getItem('_fbc');
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Get both fbp and fbc for advanced matching
+ */
+export function getMetaIdentifiers(): { fbp: string | null; fbc: string | null } {
+  return {
+    fbp: getFbp(),
+    fbc: getFbc(),
+  };
+}
+
 // Standard e-commerce event payload
 export interface EcommerceEventData {
   event_id: string;
@@ -246,6 +301,9 @@ export class MarketingTracker {
   initialize(): void {
     if (this.initialized || typeof window === 'undefined') return;
 
+    // Capture fbclid from URL on first load (for fbc)
+    getFbc(); // This stores fbclid in localStorage if present
+
     // Inject all enabled pixels
     if (this.config.meta_enabled && this.config.meta_pixel_id) {
       injectMetaPixel(this.config.meta_pixel_id);
@@ -263,7 +321,11 @@ export class MarketingTracker {
     }
 
     this.initialized = true;
+    
+    // Log Meta identifiers for debugging
+    const metaIds = getMetaIdentifiers();
     console.log('[MarketingTracker] Initialized with config:', this.config);
+    console.log('[MarketingTracker] Meta identifiers - fbp:', metaIds.fbp, 'fbc:', metaIds.fbc);
   }
 
   // Track page view - call on route change
