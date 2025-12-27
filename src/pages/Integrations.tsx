@@ -13,8 +13,10 @@ import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySett
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
 import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
 import { WhatsAppSettings } from "@/components/integrations/WhatsAppSettings";
+import { WhatsAppOperatorSettings } from "@/components/integrations/WhatsAppOperatorSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 
 // Future integrations
 const FUTURE_INTEGRATIONS = [
@@ -31,6 +33,7 @@ const FUTURE_INTEGRATIONS = [
 export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
   const { providers: shippingProviders, isLoading: loadingShipping } = useShippingProviders();
+  const { isPlatformOperator } = usePlatformOperator();
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
   const activeShippingCarriers = shippingProviders.filter(p => p.is_enabled).length;
@@ -121,10 +124,13 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="others" className="space-y-6">
+          {/* WhatsApp Operator Settings - only visible to platform admin */}
+          {isPlatformOperator && <WhatsAppOperatorSettings />}
+
           {/* Email Provider Settings */}
           <EmailProviderSettings />
 
-          {/* WhatsApp Settings */}
+          {/* WhatsApp Settings - for tenants */}
           <WhatsAppSettings />
 
           {/* Future Integrations */}
