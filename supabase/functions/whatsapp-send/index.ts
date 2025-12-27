@@ -53,6 +53,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (!config.client_token) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Client Token Z-API não configurado' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     if (config.connection_status !== 'connected') {
       return new Response(
         JSON.stringify({ success: false, error: 'WhatsApp não está conectado. Conecte primeiro.' }),
@@ -78,11 +85,17 @@ Deno.serve(async (req) => {
     // Z-API send text message endpoint
     const baseUrl = `https://api.z-api.io/instances/${config.instance_id}/token/${config.instance_token}`;
     
+    // Z-API requires Client-Token header
+    const zapiHeaders = { 
+      'Content-Type': 'application/json',
+      'Client-Token': config.client_token
+    };
+    
     console.log(`[whatsapp-send] Sending to ${cleanPhone}...`);
     
     const sendRes = await fetch(`${baseUrl}/send-text`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: zapiHeaders,
       body: JSON.stringify({
         phone: cleanPhone,
         message: message
