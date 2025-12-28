@@ -232,37 +232,56 @@ export function SupportEmailSettings() {
                         você precisa adicionar um <strong>registro MX</strong> no DNS do seu domínio:
                       </p>
                       
-                      <div className="bg-white dark:bg-black/40 rounded border p-3 font-mono text-xs space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span><strong>Tipo:</strong> MX</span>
-                          <span><strong>Prioridade:</strong> 10</span>
+                      <div className="bg-white dark:bg-black/40 rounded border p-3 space-y-3">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-muted-foreground">Tipo:</span>
+                            <span className="font-mono font-semibold ml-2">MX</span>
+                          </div>
+                          <div>
+                            <span className="text-muted-foreground">Prioridade:</span>
+                            <span className="font-mono font-semibold ml-2">10</span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                          <span><strong>Nome:</strong> @ (ou vazio)</span>
+                        
+                        <div className="text-xs">
+                          <span className="text-muted-foreground">Nome:</span>
+                          <span className="font-mono font-semibold ml-2">@</span>
+                          <span className="text-muted-foreground ml-2">(use @ para o domínio raiz)</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span><strong>Valor:</strong></span>
-                          <code className="bg-muted px-2 py-1 rounded flex-1">mx.sendgrid.net</code>
+                        
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground">Servidor de email:</span>
+                          <code className="bg-muted px-2 py-1 rounded font-mono">mx.sendgrid.net</code>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-7 px-2"
-                            onClick={() => copyToClipboard('mx.sendgrid.net')}
+                            className="h-6 px-2"
+                            onClick={() => copyToClipboard("mx.sendgrid.net")}
                           >
                             <Copy className="h-3 w-3" />
                           </Button>
                         </div>
                       </div>
 
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        <strong>Importante:</strong> Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
-                        adicionar este MX pode interferir. Nesse caso, considere usar um subdomínio como <code>suporte.{config.sending_domain}</code>.
-                      </p>
+                      <div className="bg-amber-100 dark:bg-amber-900/30 rounded p-3 text-xs space-y-2">
+                        <p className="font-semibold">⚠️ Importante:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>
+                            Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
+                            adicionar este MX pode interferir no recebimento de emails.
+                          </li>
+                          <li>
+                            Nesse caso, use um subdomínio: no campo Nome coloque <code className="bg-white/50 px-1 rounded">suporte</code> 
+                            {" "}para criar <code className="bg-white/50 px-1 rounded">suporte.{config.sending_domain}</code>
+                          </li>
+                        </ul>
+                      </div>
 
                       <p className="text-xs text-amber-700 dark:text-amber-300">
                         <strong>Passo final:</strong> Após configurar o DNS, entre em contato com o suporte da plataforma 
-                        para ativarmos o recebimento de emails no webhook.
+                        para ativarmos o recebimento de emails (Inbound Parse no SendGrid).
                       </p>
                     </div>
                   </AlertDescription>
