@@ -7,3 +7,6 @@ export { QuickRepliesManager } from './QuickRepliesManager';
 export { ConversationEventsPanel } from './ConversationEventsPanel';
 export { TransferDialog } from './TransferDialog';
 export { SupportMetrics } from './SupportMetrics';
+export { QuickRepliesDropdown } from './QuickRepliesDropdown';
+export { ChannelConfigDialog } from './ChannelConfigDialog';
+export { AIRulesEditor } from './AIRulesEditor';

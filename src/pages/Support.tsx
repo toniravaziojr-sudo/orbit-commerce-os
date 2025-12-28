@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, Bot, Settings, Plug, Zap, BarChart3, History } from "lucide-react";
+import { MessageSquare, Bot, Plug, History } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -8,10 +8,8 @@ import {
   CustomerInfoPanel, 
   AIConfigPanel, 
   ChannelIntegrations,
-  QuickRepliesManager,
   ConversationEventsPanel,
   TransferDialog,
-  SupportMetrics,
 } from "@/components/support";
 import { useConversations, type Conversation } from "@/hooks/useConversations";
 import { useMessages } from "@/hooks/useMessages";
@@ -111,14 +109,6 @@ export default function Support() {
               <MessageSquare className="h-4 w-4" />
               Conversas
             </TabsTrigger>
-            <TabsTrigger value="metrics" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Métricas
-            </TabsTrigger>
-            <TabsTrigger value="quick-replies" className="gap-2">
-              <Zap className="h-4 w-4" />
-              Respostas
-            </TabsTrigger>
             <TabsTrigger value="ai" className="gap-2">
               <Bot className="h-4 w-4" />
               IA
@@ -180,12 +170,9 @@ export default function Support() {
           </div>
         </TabsContent>
 
-        <TabsContent value="metrics" className="flex-1 m-0 overflow-auto p-6">
-          <SupportMetrics />
-        </TabsContent>
 
-        <TabsContent value="quick-replies" className="flex-1 m-0 overflow-auto">
-          <QuickRepliesManager />
+        <TabsContent value="ai" className="flex-1 m-0 overflow-auto">
+          <AIConfigPanel />
         </TabsContent>
 
         <TabsContent value="ai" className="flex-1 m-0 overflow-auto">

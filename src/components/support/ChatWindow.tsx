@@ -1,20 +1,20 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Mic, Image, Bot, User, ArrowLeftRight, XCircle, MessageSquare, Zap, StickyNote } from "lucide-react";
+import { Send, Paperclip, Mic, Image, Bot, User, ArrowLeftRight, XCircle, MessageSquare, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { formatDistanceToNow, format } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@/hooks/useConversations";
 import type { Message } from "@/hooks/useMessages";
 import type { QuickReply } from "@/hooks/useQuickReplies";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
@@ -41,7 +41,6 @@ export function ChatWindow({
 }: ChatWindowProps) {
   const { user, profile } = useAuth();
   const [message, setMessage] = useState('');
-  const [showQuickReplies, setShowQuickReplies] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -52,14 +51,6 @@ export function ChatWindow({
     }
   }, [messages]);
 
-  // Check for quick reply shortcuts
-  useEffect(() => {
-    if (message.startsWith('/')) {
-      setShowQuickReplies(true);
-    } else {
-      setShowQuickReplies(false);
-    }
-  }, [message]);
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -73,18 +64,6 @@ export function ChatWindow({
       handleSend();
     }
   };
-
-  const handleQuickReply = (reply: QuickReply) => {
-    setMessage(reply.content);
-    setShowQuickReplies(false);
-    textareaRef.current?.focus();
-  };
-
-  const filteredQuickReplies = quickReplies.filter(qr => {
-    if (!message.startsWith('/')) return true;
-    const search = message.slice(1).toLowerCase();
-    return qr.shortcut?.toLowerCase().includes(search) || qr.title.toLowerCase().includes(search);
-  });
 
   if (!conversation) {
     return (
@@ -264,45 +243,7 @@ export function ChatWindow({
       {/* Input */}
       <div className="border-t p-3">
         <div className="flex items-center gap-2 mb-2">
-          <Popover open={showQuickReplies} onOpenChange={setShowQuickReplies}>
-            <PopoverTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Zap className="h-4 w-4 mr-1" />
-                Respostas rápidas
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
-              <ScrollArea className="max-h-60">
-                {filteredQuickReplies.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground text-sm">
-                    Nenhuma resposta rápida
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {filteredQuickReplies.map((qr) => (
-                      <button
-                        key={qr.id}
-                        onClick={() => handleQuickReply(qr)}
-                        className="w-full p-3 text-left hover:bg-muted/50"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-sm">{qr.title}</span>
-                          {qr.shortcut && (
-                            <Badge variant="secondary" className="text-xs">
-                              /{qr.shortcut}
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
-                          {qr.content}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </PopoverContent>
-          </Popover>
+          <QuickRepliesDropdown onSelect={(content) => setMessage(content)} />
 
           <Button variant="ghost" size="sm" onClick={onAiRespond}>
             <Bot className="h-4 w-4 mr-1" />
