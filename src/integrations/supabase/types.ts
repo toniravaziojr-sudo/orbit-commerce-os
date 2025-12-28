@@ -1377,6 +1377,209 @@ export type Database = {
           },
         ]
       }
+      email_attachments: {
+        Row: {
+          content_id: string | null
+          content_type: string | null
+          created_at: string
+          filename: string
+          id: string
+          is_inline: boolean | null
+          message_id: string
+          size_bytes: number | null
+          storage_path: string | null
+        }
+        Insert: {
+          content_id?: string | null
+          content_type?: string | null
+          created_at?: string
+          filename: string
+          id?: string
+          is_inline?: boolean | null
+          message_id: string
+          size_bytes?: number | null
+          storage_path?: string | null
+        }
+        Update: {
+          content_id?: string | null
+          content_type?: string | null
+          created_at?: string
+          filename?: string
+          id?: string
+          is_inline?: boolean | null
+          message_id?: string
+          size_bytes?: number | null
+          storage_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "email_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_folders: {
+        Row: {
+          created_at: string
+          icon: string | null
+          id: string
+          is_system: boolean | null
+          mailbox_id: string
+          name: string
+          slug: string
+          sort_order: number | null
+          unread_count: number | null
+        }
+        Insert: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          mailbox_id: string
+          name: string
+          slug: string
+          sort_order?: number | null
+          unread_count?: number | null
+        }
+        Update: {
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_system?: boolean | null
+          mailbox_id?: string
+          name?: string
+          slug?: string
+          sort_order?: number | null
+          unread_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_folders_mailbox_id_fkey"
+            columns: ["mailbox_id"]
+            isOneToOne: false
+            referencedRelation: "mailboxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_messages: {
+        Row: {
+          attachment_count: number | null
+          bcc_emails: Json | null
+          body_html: string | null
+          body_text: string | null
+          cc_emails: Json | null
+          created_at: string
+          external_message_id: string | null
+          folder_id: string
+          from_email: string
+          from_name: string | null
+          has_attachments: boolean | null
+          id: string
+          in_reply_to: string | null
+          is_draft: boolean | null
+          is_read: boolean | null
+          is_sent: boolean | null
+          is_starred: boolean | null
+          labels: string[] | null
+          mailbox_id: string
+          received_at: string | null
+          reply_to: string | null
+          sent_at: string | null
+          snippet: string | null
+          subject: string | null
+          tenant_id: string
+          thread_id: string | null
+          to_emails: Json
+          updated_at: string
+        }
+        Insert: {
+          attachment_count?: number | null
+          bcc_emails?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: Json | null
+          created_at?: string
+          external_message_id?: string | null
+          folder_id: string
+          from_email: string
+          from_name?: string | null
+          has_attachments?: boolean | null
+          id?: string
+          in_reply_to?: string | null
+          is_draft?: boolean | null
+          is_read?: boolean | null
+          is_sent?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
+          mailbox_id: string
+          received_at?: string | null
+          reply_to?: string | null
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          tenant_id: string
+          thread_id?: string | null
+          to_emails?: Json
+          updated_at?: string
+        }
+        Update: {
+          attachment_count?: number | null
+          bcc_emails?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: Json | null
+          created_at?: string
+          external_message_id?: string | null
+          folder_id?: string
+          from_email?: string
+          from_name?: string | null
+          has_attachments?: boolean | null
+          id?: string
+          in_reply_to?: string | null
+          is_draft?: boolean | null
+          is_read?: boolean | null
+          is_sent?: boolean | null
+          is_starred?: boolean | null
+          labels?: string[] | null
+          mailbox_id?: string
+          received_at?: string | null
+          reply_to?: string | null
+          sent_at?: string | null
+          snippet?: string | null
+          subject?: string | null
+          tenant_id?: string
+          thread_id?: string | null
+          to_emails?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_messages_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_messages_mailbox_id_fkey"
+            columns: ["mailbox_id"]
+            isOneToOne: false
+            referencedRelation: "mailboxes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_provider_configs: {
         Row: {
           created_at: string
@@ -1574,6 +1777,86 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "finance_entries_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mailboxes: {
+        Row: {
+          auto_reply_enabled: boolean | null
+          auto_reply_message: string | null
+          created_at: string
+          display_name: string | null
+          dns_records: Json | null
+          dns_verified: boolean | null
+          domain: string
+          email_address: string
+          id: string
+          last_dns_check_at: string | null
+          last_received_at: string | null
+          last_sent_at: string | null
+          purpose: Database["public"]["Enums"]["email_purpose"]
+          resend_domain_id: string | null
+          sending_verified: boolean | null
+          signature_html: string | null
+          status: Database["public"]["Enums"]["mailbox_status"]
+          tenant_id: string
+          total_messages: number | null
+          unread_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          auto_reply_enabled?: boolean | null
+          auto_reply_message?: string | null
+          created_at?: string
+          display_name?: string | null
+          dns_records?: Json | null
+          dns_verified?: boolean | null
+          domain: string
+          email_address: string
+          id?: string
+          last_dns_check_at?: string | null
+          last_received_at?: string | null
+          last_sent_at?: string | null
+          purpose?: Database["public"]["Enums"]["email_purpose"]
+          resend_domain_id?: string | null
+          sending_verified?: boolean | null
+          signature_html?: string | null
+          status?: Database["public"]["Enums"]["mailbox_status"]
+          tenant_id: string
+          total_messages?: number | null
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          auto_reply_enabled?: boolean | null
+          auto_reply_message?: string | null
+          created_at?: string
+          display_name?: string | null
+          dns_records?: Json | null
+          dns_verified?: boolean | null
+          domain?: string
+          email_address?: string
+          id?: string
+          last_dns_check_at?: string | null
+          last_received_at?: string | null
+          last_sent_at?: string | null
+          purpose?: Database["public"]["Enums"]["email_purpose"]
+          resend_domain_id?: string | null
+          sending_verified?: boolean | null
+          signature_html?: string | null
+          status?: Database["public"]["Enums"]["mailbox_status"]
+          tenant_id?: string
+          total_messages?: number | null
+          unread_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mailboxes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -5445,6 +5728,8 @@ export type Database = {
         | "returned"
         | "canceled"
         | "unknown"
+      email_purpose: "notifications" | "support" | "manual"
+      mailbox_status: "pending_dns" | "active" | "error" | "disabled"
       message_delivery_status:
         | "queued"
         | "sent"
@@ -5642,6 +5927,8 @@ export const Constants = {
         "canceled",
         "unknown",
       ],
+      email_purpose: ["notifications", "support", "manual"],
+      mailbox_status: ["pending_dns", "active", "error", "disabled"],
       message_delivery_status: [
         "queued",
         "sent",
