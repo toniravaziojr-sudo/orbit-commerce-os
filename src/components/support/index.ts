@@ -3,3 +3,7 @@ export { ChatWindow } from './ChatWindow';
 export { CustomerInfoPanel } from './CustomerInfoPanel';
 export { AIConfigPanel } from './AIConfigPanel';
 export { ChannelIntegrations } from './ChannelIntegrations';
+export { QuickRepliesManager } from './QuickRepliesManager';
+export { ConversationEventsPanel } from './ConversationEventsPanel';
+export { TransferDialog } from './TransferDialog';
+export { SupportMetrics } from './SupportMetrics';
