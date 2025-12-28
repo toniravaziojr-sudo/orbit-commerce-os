@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Paperclip, Mic, Image, Bot, User, ArrowLeftRight, XCircle, MessageSquare, StickyNote } from "lucide-react";
+import { Send, Bot, User, ArrowLeftRight, XCircle, MessageSquare, StickyNote, Paperclip, Image, Mic } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Conversation } from "@/hooks/useConversations";
@@ -15,13 +13,14 @@ import type { QuickReply } from "@/hooks/useQuickReplies";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { QuickRepliesDropdown } from "./QuickRepliesDropdown";
+import { toast } from "sonner";
 
 interface ChatWindowProps {
   conversation: Conversation | null;
   messages: Message[];
   quickReplies: QuickReply[];
   isLoading: boolean;
-  onSendMessage: (content: string, options?: { isInternal?: boolean; isNote?: boolean }) => void;
+  onSendMessage: (content: string, options?: { isInternal?: boolean; isNote?: boolean; attachments?: { type: string; url: string; name: string }[] }) => void;
   onAssign: (userId: string | null) => void;
   onResolve: () => void;
   onTransfer: () => void;
@@ -41,8 +40,13 @@ export function ChatWindow({
 }: ChatWindowProps) {
   const { user, profile } = useAuth();
   const [message, setMessage] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -50,7 +54,6 @@ export function ChatWindow({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
 
   const handleSend = () => {
     if (!message.trim()) return;
@@ -62,6 +65,69 @@ export function ChatWindow({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'file' | 'image') => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    if (file.size > maxSize) {
+      toast.error('Arquivo muito grande. Máximo 10MB.');
+      return;
+    }
+
+    // For now, show a placeholder message - full implementation would upload to storage
+    toast.info(`Envio de ${type === 'image' ? 'imagem' : 'arquivo'} em desenvolvimento`);
+    
+    // Reset input
+    e.target.value = '';
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        // For now, show placeholder - full implementation would upload to storage
+        toast.info('Envio de áudio em desenvolvimento');
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      toast.success('Gravando áudio...');
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      toast.error('Não foi possível acessar o microfone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleMicClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
     }
   };
 
@@ -82,6 +148,22 @@ export function ChatWindow({
 
   return (
     <div className="flex-1 flex flex-col">
+      {/* Hidden file inputs */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={(e) => handleFileSelect(e, 'file')}
+        className="hidden"
+        accept=".pdf,.doc,.docx,.txt,.xlsx,.xls,.csv"
+      />
+      <input
+        type="file"
+        ref={imageInputRef}
+        onChange={(e) => handleFileSelect(e, 'image')}
+        className="hidden"
+        accept="image/*"
+      />
+
       {/* Header */}
       <div className="border-b p-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -249,38 +331,55 @@ export function ChatWindow({
             <Bot className="h-4 w-4 mr-1" />
             Resposta IA
           </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <StickyNote className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={() => {
-                if (message.trim()) {
-                  onSendMessage(message.trim(), { isNote: true });
-                  setMessage('');
-                }
-              }}>
-                <StickyNote className="h-4 w-4 mr-2" />
-                Adicionar como nota
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
 
         <div className="flex gap-2">
           <div className="flex-1 flex gap-2">
-            <Button variant="ghost" size="icon" className="shrink-0">
-              <Paperclip className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="shrink-0">
-              <Image className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon" className="shrink-0">
-              <Mic className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="shrink-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!canRespond}
+                >
+                  <Paperclip className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Anexar arquivo</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="shrink-0"
+                  onClick={() => imageInputRef.current?.click()}
+                  disabled={!canRespond}
+                >
+                  <Image className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Enviar imagem</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant={isRecording ? "destructive" : "ghost"}
+                  size="icon" 
+                  className="shrink-0"
+                  onClick={handleMicClick}
+                  disabled={!canRespond}
+                >
+                  <Mic className={cn("h-4 w-4", isRecording && "animate-pulse")} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{isRecording ? 'Parar gravação' : 'Gravar áudio'}</TooltipContent>
+            </Tooltip>
+            
             <Textarea
               ref={textareaRef}
               placeholder={canRespond ? "Digite sua mensagem..." : "Assuma a conversa para responder"}
