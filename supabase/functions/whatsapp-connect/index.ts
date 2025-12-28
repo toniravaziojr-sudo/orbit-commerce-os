@@ -5,6 +5,43 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to configure Z-API webhooks automatically
+async function configureZapiWebhook(baseUrl: string, headers: Record<string, string>, webhookUrl: string, traceId: string): Promise<boolean> {
+  try {
+    console.log(`[whatsapp-connect][${traceId}] Configuring Z-API webhook: ${webhookUrl}`);
+    
+    // Z-API webhook configuration endpoint
+    const webhookConfig = {
+      webhookUrl: webhookUrl,
+      msgReceivedUrl: webhookUrl,
+      onMessageReceived: true,
+      onMessageSent: false,
+      onMessageStatusChange: true,
+    };
+    
+    const response = await fetch(`${baseUrl}/update-webhook`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(webhookConfig),
+    });
+    
+    const responseText = await response.text();
+    console.log(`[whatsapp-connect][${traceId}] Webhook config response (${response.status}): ${responseText.substring(0, 200)}`);
+    
+    if (!response.ok) {
+      console.warn(`[whatsapp-connect][${traceId}] Failed to configure webhook, but continuing...`);
+      return false;
+    }
+    
+    console.log(`[whatsapp-connect][${traceId}] Webhook configured successfully`);
+    return true;
+  } catch (error: any) {
+    console.error(`[whatsapp-connect][${traceId}] Webhook configuration error:`, error.message);
+    // Don't fail the whole connection for webhook config error
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   const traceId = crypto.randomUUID().substring(0, 8);
   console.log(`[whatsapp-connect][${traceId}] Request started`);
@@ -178,6 +215,9 @@ Deno.serve(async (req) => {
       'Accept': 'application/json',
       'Client-Token': config.client_token
     };
+
+    // Webhook URL for this tenant
+    const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`;
     
     // First check if already connected
     console.log(`[whatsapp-connect][${traceId}] Checking connection status...`);
@@ -201,7 +241,9 @@ Deno.serve(async (req) => {
         }
         
         if (statusData.connected) {
-          // Already connected, update config
+          // Already connected - configure webhook automatically
+          await configureZapiWebhook(baseUrl, zapiHeaders, webhookUrl, traceId);
+          
           await supabase
             .from('whatsapp_configs')
             .update({
@@ -210,10 +252,11 @@ Deno.serve(async (req) => {
               last_connected_at: new Date().toISOString(),
               qr_code: null,
               last_error: null,
+              webhook_url: webhookUrl,
             })
             .eq('id', config.id);
 
-          console.log(`[whatsapp-connect][${traceId}] Already connected, returning success`);
+          console.log(`[whatsapp-connect][${traceId}] Already connected, webhook configured automatically`);
           return new Response(
             JSON.stringify({ 
               success: true, 

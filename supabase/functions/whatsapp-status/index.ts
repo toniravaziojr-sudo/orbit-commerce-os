@@ -5,6 +5,35 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to configure Z-API webhooks automatically
+async function configureZapiWebhook(baseUrl: string, headers: Record<string, string>, webhookUrl: string): Promise<boolean> {
+  try {
+    console.log(`[whatsapp-status] Configuring Z-API webhook: ${webhookUrl}`);
+    
+    const webhookConfig = {
+      webhookUrl: webhookUrl,
+      msgReceivedUrl: webhookUrl,
+      onMessageReceived: true,
+      onMessageSent: false,
+      onMessageStatusChange: true,
+    };
+    
+    const response = await fetch(`${baseUrl}/update-webhook`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(webhookConfig),
+    });
+    
+    const responseText = await response.text();
+    console.log(`[whatsapp-status] Webhook config response (${response.status}): ${responseText.substring(0, 200)}`);
+    
+    return response.ok;
+  } catch (error: any) {
+    console.error(`[whatsapp-status] Webhook configuration error:`, error.message);
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -86,8 +115,15 @@ Deno.serve(async (req) => {
     const isConnected = statusData.connected === true;
     const phoneNumber = statusData.phoneNumber || statusData.phone || null;
 
+    // Webhook URL for this tenant
+    const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`;
+
     // Update local status if changed
     if (isConnected && config.connection_status !== 'connected') {
+      // Just connected - configure webhook automatically!
+      console.log(`[whatsapp-status] Connection detected, configuring webhook...`);
+      await configureZapiWebhook(baseUrl, zapiHeaders, webhookUrl);
+      
       await supabase
         .from('whatsapp_configs')
         .update({
@@ -95,8 +131,11 @@ Deno.serve(async (req) => {
           phone_number: phoneNumber,
           last_connected_at: new Date().toISOString(),
           qr_code: null,
+          webhook_url: webhookUrl,
         })
         .eq('id', config.id);
+        
+      console.log(`[whatsapp-status] Webhook configured automatically for tenant ${tenant_id}`);
     } else if (!isConnected && config.connection_status === 'connected') {
       await supabase
         .from('whatsapp_configs')
