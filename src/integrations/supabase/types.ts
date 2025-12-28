@@ -1397,13 +1397,7 @@ export type Database = {
           support_connection_status: string | null
           support_email_address: string | null
           support_email_enabled: boolean | null
-          support_imap_host: string | null
-          support_imap_password: string | null
-          support_imap_port: number | null
-          support_imap_tls: boolean | null
-          support_imap_user: string | null
           support_last_error: string | null
-          support_last_poll_at: string | null
           support_reply_from_email: string | null
           support_reply_from_name: string | null
           tenant_id: string
@@ -1430,13 +1424,7 @@ export type Database = {
           support_connection_status?: string | null
           support_email_address?: string | null
           support_email_enabled?: boolean | null
-          support_imap_host?: string | null
-          support_imap_password?: string | null
-          support_imap_port?: number | null
-          support_imap_tls?: boolean | null
-          support_imap_user?: string | null
           support_last_error?: string | null
-          support_last_poll_at?: string | null
           support_reply_from_email?: string | null
           support_reply_from_name?: string | null
           tenant_id: string
@@ -1463,13 +1451,7 @@ export type Database = {
           support_connection_status?: string | null
           support_email_address?: string | null
           support_email_enabled?: boolean | null
-          support_imap_host?: string | null
-          support_imap_password?: string | null
-          support_imap_port?: number | null
-          support_imap_tls?: boolean | null
-          support_imap_user?: string | null
           support_last_error?: string | null
-          support_last_poll_at?: string | null
           support_reply_from_email?: string | null
           support_reply_from_name?: string | null
           tenant_id?: string
