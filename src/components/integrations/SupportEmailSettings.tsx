@@ -220,39 +220,76 @@ export function SupportEmailSettings() {
                   </Alert>
                 )}
 
-                {/* Instruções para o TENANT - sem necessidade de MX próprio */}
-                <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <AlertDescription className="text-green-800 dark:text-green-200 space-y-3">
-                    <p className="font-semibold text-base">✅ Atendimento por e-mail habilitado</p>
+                {/* Instruções de configuração DNS para receber emails */}
+                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-4">
+                    <p className="font-semibold text-base">⚠️ Configuração DNS necessária para receber emails</p>
                     
-                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-3 space-y-2 text-sm">
+                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-4 space-y-3 text-sm">
                       <p>
-                        Os emails de atendimento são gerenciados pela plataforma. Quando você responder a um cliente,
-                        o email será enviado usando seu remetente configurado em <strong>Email Transacional</strong>.
+                        Para que clientes possam enviar emails para <strong>{effectiveSupportEmail}</strong>, 
+                        você precisa adicionar um <strong>registro MX</strong> no DNS do seu domínio:
                       </p>
-                      <p className="text-muted-foreground">
-                        💡 Se você precisar de recebimento de emails no seu próprio domínio, entre em contato com o suporte da plataforma.
+                      
+                      <div className="bg-white dark:bg-black/40 rounded border p-3 font-mono text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span><strong>Tipo:</strong> MX</span>
+                          <span><strong>Prioridade:</strong> 10</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span><strong>Nome:</strong> @ (ou vazio)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span><strong>Valor:</strong></span>
+                          <code className="bg-muted px-2 py-1 rounded flex-1">mx.sendgrid.net</code>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => copyToClipboard('mx.sendgrid.net')}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <strong>Importante:</strong> Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
+                        adicionar este MX pode interferir. Nesse caso, considere usar um subdomínio como <code>suporte.{config.sending_domain}</code>.
+                      </p>
+
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        <strong>Passo final:</strong> Após configurar o DNS, entre em contato com o suporte da plataforma 
+                        para ativarmos o recebimento de emails no webhook.
                       </p>
                     </div>
                   </AlertDescription>
                 </Alert>
 
-                {/* Info box - email atual */}
-                <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                {/* Webhook URL info for admin */}
+                <div className="bg-muted/30 rounded-lg p-4 border">
                   <div className="flex items-start gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-green-900 dark:text-green-100">
-                        Email para atendimento
-                      </p>
-                      <p className="text-sm text-green-800 dark:text-green-200">
-                        Seus clientes devem enviar emails para: <br />
-                        <span className="font-mono font-semibold">{effectiveSupportEmail}</span>
-                      </p>
-                      <p className="text-xs text-green-700 dark:text-green-300 mt-2">
-                        Divulgue este email para seus clientes entrarem em contato.
-                      </p>
+                    <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">Informações técnicas (para suporte)</p>
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <p><strong>Email de destino:</strong> {effectiveSupportEmail}</p>
+                        <div className="flex items-center gap-2">
+                          <strong>Webhook URL:</strong>
+                          <code className="bg-muted px-2 py-0.5 rounded text-xs flex-1 truncate">{webhookUrl}</code>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2"
+                            onClick={() => copyToClipboard(webhookUrl)}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
