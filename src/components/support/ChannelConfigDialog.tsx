@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Dialog,
   DialogContent,
@@ -13,12 +11,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ExternalLink, Eye, EyeOff, Info } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, Info, CheckCircle, Link2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 interface ChannelConfigDialogProps {
   open: boolean;
@@ -29,10 +29,6 @@ interface ChannelConfigDialogProps {
 }
 
 interface ChannelConfig {
-  // WhatsApp (Z-API)
-  instance_id?: string;
-  instance_token?: string;
-  client_token?: string;
   // Email
   imap_host?: string;
   imap_port?: string;
@@ -61,10 +57,17 @@ interface ChannelConfig {
   shopee_access_token?: string;
 }
 
+interface WhatsAppConfig {
+  id: string;
+  connection_status: string;
+  phone_number: string | null;
+  is_enabled: boolean;
+}
+
 const channelDocs: Record<SupportChannelType, { url: string; instructions: string }> = {
   whatsapp: {
-    url: 'https://developer.z-api.io',
-    instructions: 'Acesse o painel Z-API para obter as credenciais da sua instância. Você precisará do Instance ID, Instance Token e Client Token.',
+    url: '/integrations#whatsapp',
+    instructions: 'O WhatsApp usa as credenciais já configuradas em Integrações → WhatsApp. Basta vincular a conta existente.',
   },
   email: {
     url: '',
@@ -95,10 +98,14 @@ export function ChannelConfigDialog({
   channelType,
   onSave,
 }: ChannelConfigDialogProps) {
+  const { currentTenant } = useAuth();
+  const navigate = useNavigate();
   const [config, setConfig] = useState<ChannelConfig>({});
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [whatsappConfig, setWhatsappConfig] = useState<WhatsAppConfig | null>(null);
+  const [loadingWhatsapp, setLoadingWhatsapp] = useState(false);
 
   useEffect(() => {
     if (channel?.metadata) {
@@ -107,6 +114,37 @@ export function ChannelConfigDialog({
       setConfig({});
     }
   }, [channel]);
+
+  // Fetch WhatsApp config from existing integration
+  useEffect(() => {
+    const fetchWhatsappConfig = async () => {
+      if (!open || channelType !== 'whatsapp' || !currentTenant?.id) return;
+      
+      setLoadingWhatsapp(true);
+      try {
+        const { data, error } = await supabase.rpc('get_whatsapp_config_for_tenant', { 
+          p_tenant_id: currentTenant.id 
+        });
+        
+        if (!error && data && data.length > 0) {
+          setWhatsappConfig({
+            id: data[0].id,
+            connection_status: data[0].connection_status || 'disconnected',
+            phone_number: data[0].phone_number,
+            is_enabled: data[0].is_enabled,
+          });
+        } else {
+          setWhatsappConfig(null);
+        }
+      } catch {
+        setWhatsappConfig(null);
+      } finally {
+        setLoadingWhatsapp(false);
+      }
+    };
+    
+    fetchWhatsappConfig();
+  }, [open, channelType, currentTenant?.id]);
 
   const handleSave = async () => {
     if (!channel) return;
@@ -177,48 +215,117 @@ export function ChannelConfigDialog({
 
   const docs = channelDocs[channelType];
 
+  // Special handling for WhatsApp - uses existing whatsapp_configs
+  const renderWhatsAppConfig = () => {
+    if (loadingWhatsapp) {
+      return <div className="text-sm text-muted-foreground">Carregando configuração...</div>;
+    }
+
+    if (whatsappConfig) {
+      const isConnected = whatsappConfig.connection_status === 'connected';
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/30">
+            <div className={`p-2 rounded-full ${isConnected ? 'bg-green-100 dark:bg-green-900/30' : 'bg-yellow-100 dark:bg-yellow-900/30'}`}>
+              {isConnected ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <Link2 className="h-5 w-5 text-yellow-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="font-medium">
+                {isConnected ? 'WhatsApp Conectado' : 'WhatsApp Configurado'}
+              </p>
+              {whatsappConfig.phone_number && (
+                <p className="text-sm text-muted-foreground">{whatsappConfig.phone_number}</p>
+              )}
+              <p className="text-xs text-muted-foreground capitalize">
+                Status: {whatsappConfig.connection_status}
+              </p>
+            </div>
+          </div>
+
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              As credenciais do WhatsApp são gerenciadas em <strong>Integrações → WhatsApp</strong>. 
+              Este canal de atendimento usa automaticamente essa configuração.
+            </AlertDescription>
+          </Alert>
+
+          <Button
+            variant="outline"
+            onClick={() => {
+              onOpenChange(false);
+              navigate('/integrations');
+            }}
+            className="w-full"
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Gerenciar WhatsApp nas Integrações
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <Alert variant="destructive">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Nenhuma configuração de WhatsApp encontrada. Configure primeiro em <strong>Integrações → WhatsApp</strong>.
+          </AlertDescription>
+        </Alert>
+
+        <Button
+          onClick={() => {
+            onOpenChange(false);
+            navigate('/integrations');
+          }}
+          className="w-full"
+        >
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Ir para Integrações
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configurar {channel?.account_name}</DialogTitle>
           <DialogDescription>
-            Configure as credenciais de integração para este canal
+            {channelType === 'whatsapp' 
+              ? 'Vinculação com WhatsApp existente'
+              : 'Configure as credenciais de integração para este canal'
+            }
           </DialogDescription>
         </DialogHeader>
 
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="text-sm">
-            {docs.instructions}
-            {docs.url && (
-              <a 
-                href={docs.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-primary hover:underline mt-1"
-              >
-                Acessar documentação <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </AlertDescription>
-        </Alert>
+        {channelType !== 'whatsapp' && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              {docs.instructions}
+              {docs.url && (
+                <a 
+                  href={docs.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-primary hover:underline mt-1"
+                >
+                  Acessar documentação <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-4 py-4">
-          {channelType === 'whatsapp' && (
-            <>
-              <div className="space-y-2">
-                <Label>Instance ID</Label>
-                <Input
-                  placeholder="Sua instância Z-API"
-                  value={config.instance_id || ''}
-                  onChange={(e) => updateConfig('instance_id', e.target.value)}
-                />
-              </div>
-              {renderSecretInput('instance_token', 'Instance Token', 'Token da instância')}
-              {renderSecretInput('client_token', 'Client Token', 'Token do cliente Z-API')}
-            </>
-          )}
+          {channelType === 'whatsapp' && renderWhatsAppConfig()}
 
           {channelType === 'email' && (
             <Tabs defaultValue="imap">
@@ -366,14 +473,16 @@ export function ChannelConfigDialog({
           )}
         </div>
 
-        <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={handleTest} disabled={testing}>
-            {testing ? 'Testando...' : 'Testar conexão'}
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Salvando...' : 'Salvar'}
-          </Button>
-        </DialogFooter>
+        {channelType !== 'whatsapp' && (
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleTest} disabled={testing}>
+              {testing ? 'Testando...' : 'Testar conexão'}
+            </Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        )}
       </DialogContent>
     </Dialog>
   );
