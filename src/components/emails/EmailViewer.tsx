@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
@@ -9,13 +9,16 @@ import {
   Trash2, 
   MoreVertical,
   Paperclip,
-  Download
+  Download,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useEmailMessage, useEmailAttachments, useEmailActions } from "@/hooks/useEmailMessages";
+import { useEmailMessage, useEmailAttachments, useEmailActions, EmailAttachment } from "@/hooks/useEmailMessages";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -187,28 +190,74 @@ export function EmailViewer({ messageId, onClose, onReply }: EmailViewerProps) {
             </h4>
             <div className="grid gap-2">
               {attachments.map(attachment => (
-                <div 
-                  key={attachment.id}
-                  className="flex items-center justify-between p-2 rounded-lg border bg-muted/30"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{attachment.filename}</span>
-                    {attachment.size_bytes && (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        ({Math.round(attachment.size_bytes / 1024)} KB)
-                      </span>
-                    )}
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Download className="h-4 w-4" />
-                  </Button>
-                </div>
+                <AttachmentDownloadItem key={attachment.id} attachment={attachment} />
               ))}
             </div>
           </div>
         )}
       </ScrollArea>
+    </div>
+  );
+}
+
+function AttachmentDownloadItem({ attachment }: { attachment: EmailAttachment }) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!attachment.storage_path) {
+      toast.error('Anexo não disponível para download');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const { data, error } = await supabase.storage
+        .from('email-attachments')
+        .download(attachment.storage_path);
+
+      if (error) throw error;
+
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Erro ao baixar anexo');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-2 rounded-lg border bg-muted/30">
+      <div className="flex items-center gap-2 min-w-0">
+        <Paperclip className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+        <span className="text-sm truncate">{attachment.filename}</span>
+        {attachment.size_bytes && (
+          <span className="text-xs text-muted-foreground flex-shrink-0">
+            ({Math.round(attachment.size_bytes / 1024)} KB)
+          </span>
+        )}
+      </div>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="h-8 w-8"
+        onClick={handleDownload}
+        disabled={isDownloading}
+      >
+        {isDownloading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+      </Button>
     </div>
   );
 }
