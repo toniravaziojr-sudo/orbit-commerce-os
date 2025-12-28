@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { Resend } from 'https://esm.sh/resend@2.0.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -84,7 +83,7 @@ async function getSystemEmailConfig(supabase: any): Promise<EmailConfig | null> 
   const config: EmailConfig = {
     id: data.id,
     tenant_id: 'system',
-    provider_type: data.provider_type || 'resend',
+    provider_type: data.provider_type || 'sendgrid',
     from_name: data.from_name,
     from_email: data.from_email,
     reply_to: data.reply_to,
@@ -226,32 +225,45 @@ function buildEmailHtml(subject: string, body: string, fromName: string): string
 </html>`;
 }
 
-// Send email via Resend
+// Send email via SendGrid
 async function sendEmail(
-  resend: Resend,
+  sendgridApiKey: string,
   config: EmailConfig,
   recipient: string,
   subject: string,
   body: string
 ): Promise<{ success: boolean; error?: string; messageId?: string }> {
   try {
-    const fromAddress = `${config.from_name} <${config.from_email}>`;
     const htmlContent = buildEmailHtml(subject, body, config.from_name);
 
-    const { data, error } = await resend.emails.send({
-      from: fromAddress,
-      to: [recipient],
-      reply_to: config.reply_to || undefined,
+    const payload: any = {
+      personalizations: [{ to: [{ email: recipient }] }],
+      from: { email: config.from_email, name: config.from_name },
       subject: subject,
-      html: htmlContent,
-    });
+      content: [{ type: "text/html", value: htmlContent }],
+    };
 
-    if (error) {
-      console.error('[RunNotifications] Resend error:', error);
-      return { success: false, error: error.message || JSON.stringify(error) };
+    if (config.reply_to) {
+      payload.reply_to = { email: config.reply_to };
     }
 
-    return { success: true, messageId: data?.id };
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[RunNotifications] SendGrid error:', response.status, errorText);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorText}` };
+    }
+
+    const messageId = response.headers.get("X-Message-Id") || undefined;
+    return { success: true, messageId };
   } catch (error: any) {
     console.error('[RunNotifications] Email send error:', error);
     return { success: false, error: error.message || 'Unknown error sending email' };
@@ -442,10 +454,9 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
     // Parse request body
     let limit = 25;
@@ -459,7 +470,7 @@ Deno.serve(async (req) => {
       // Empty body is ok, use defaults
     }
 
-    console.log(`[RunNotifications] Starting with limit=${limit}, tenant_id=${tenantId || 'all'}, resend_configured=${!!resend}`);
+    console.log(`[RunNotifications] Starting with limit=${limit}, tenant_id=${tenantId || 'all'}, sendgrid_configured=${!!sendgridApiKey}`);
 
     const stats: RunnerStats = {
       claimed_count: 0,
@@ -582,10 +593,10 @@ Deno.serve(async (req) => {
         // Get email config for tenant (with automatic system fallback)
         const emailConfig = await getEmailConfig(supabase, notification.tenant_id);
         
-        if (!resend) {
+        if (!sendgridApiKey) {
           sendResult = {
             success: false,
-            error: 'RESEND_API_KEY não configurada. Configure a API key nas variáveis de ambiente.'
+            error: 'SENDGRID_API_KEY não configurada. Configure a API key nas variáveis de ambiente.'
           };
         } else if (!emailConfig) {
           // This means neither tenant nor system has verified email config
@@ -609,7 +620,7 @@ Deno.serve(async (req) => {
           const isSystemFallback = emailConfig.tenant_id === 'system';
           console.log(`[RunNotifications] Sending email to ${notification.recipient} from ${fromUsed} (system_fallback=${isSystemFallback})`);
           
-          sendResult = await sendEmail(resend, emailConfig, notification.recipient, emailSubject, emailBody);
+          sendResult = await sendEmail(sendgridApiKey, emailConfig, notification.recipient, emailSubject, emailBody);
           
           if (sendResult.success) {
             // Add from_used to response for logging

@@ -1,10 +1,53 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// SendGrid API helper
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  html: string,
+  replyTo?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const payload: any = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from.email, name: from.name },
+      subject,
+      content: [{ type: "text/html", value: html }],
+    };
+
+    if (replyTo) {
+      payload.reply_to = { email: replyTo };
+    }
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[send-system-email] SendGrid error:", response.status, errorText);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorText}` };
+    }
+
+    const messageId = response.headers.get("X-Message-Id") || undefined;
+    return { success: true, messageId };
+  } catch (error: any) {
+    console.error("[send-system-email] SendGrid exception:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -101,44 +144,43 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY não configurada");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      throw new Error("SENDGRID_API_KEY não configurada");
     }
-
-    const resend = new Resend(resendApiKey);
 
     console.log(`Sending system email to ${to} from ${config.from_email}`);
 
-    const emailResult = await resend.emails.send({
-      from: `${config.from_name} <${config.from_email}>`,
-      to: [to],
+    const result = await sendEmailViaSendGrid(
+      sendgridApiKey,
+      { email: config.from_email, name: config.from_name },
+      to,
       subject,
       html,
-      reply_to: config.reply_to || undefined,
-    });
+      config.reply_to || undefined
+    );
 
-    console.log("Email result:", emailResult);
-
-    if (emailResult.error) {
+    if (!result.success) {
       // Log failure
       await supabaseAdmin.from("system_email_logs").insert({
         recipient: to,
         subject,
         email_type,
         status: "failed",
-        error_message: emailResult.error.message,
-        metadata: { error: emailResult.error },
+        error_message: result.error,
+        metadata: { error: result.error },
       });
 
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: emailResult.error.message 
+          message: result.error 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("Email result:", result);
 
     // Log success
     await supabaseAdmin.from("system_email_logs").insert({
@@ -146,7 +188,7 @@ Deno.serve(async (req: Request) => {
       subject,
       email_type,
       status: "sent",
-      provider_message_id: emailResult.data?.id,
+      provider_message_id: result.messageId,
       sent_at: new Date().toISOString(),
     });
 
@@ -156,7 +198,7 @@ Deno.serve(async (req: Request) => {
         .from("system_email_config")
         .update({
           last_test_at: new Date().toISOString(),
-          last_test_result: { success: true, message_id: emailResult.data?.id },
+          last_test_result: { success: true, message_id: result.messageId },
         })
         .eq("id", config.id);
     }
@@ -165,7 +207,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ 
         success: true, 
         message: "Email enviado com sucesso!",
-        message_id: emailResult.data?.id
+        message_id: result.messageId
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
