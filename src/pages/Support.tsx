@@ -178,24 +178,26 @@ export default function Support() {
               
               {/* Events Panel Toggle */}
               {selectedConversation && (
-                <Sheet open={showEventsPanel} onOpenChange={setShowEventsPanel}>
-                  <SheetTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      className="m-2 gap-2"
-                      onClick={() => setShowEventsPanel(true)}
-                    >
-                      <History className="h-4 w-4" />
-                      Ver histórico de eventos
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-[400px]">
-                    <SheetHeader>
-                      <SheetTitle>Histórico de eventos</SheetTitle>
-                    </SheetHeader>
-                    <ConversationEventsPanel conversationId={selectedConversation.id} />
-                  </SheetContent>
-                </Sheet>
+                <div className="p-2 border-t mt-auto">
+                  <Sheet open={showEventsPanel} onOpenChange={setShowEventsPanel}>
+                    <SheetTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        className="w-full gap-2"
+                        onClick={() => setShowEventsPanel(true)}
+                      >
+                        <History className="h-4 w-4" />
+                        Ver histórico de eventos
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="right" className="w-[400px]">
+                      <SheetHeader>
+                        <SheetTitle>Histórico de eventos</SheetTitle>
+                      </SheetHeader>
+                      <ConversationEventsPanel conversationId={selectedConversation.id} />
+                    </SheetContent>
+                  </Sheet>
+                </div>
               )}
             </div>
           </div>
