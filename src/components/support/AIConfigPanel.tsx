@@ -9,17 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Bot, Brain, Shield, Sparkles, MessageCircle } from "lucide-react";
-import { useAiSupportConfig, type AiSupportConfig } from "@/hooks/useAiSupportConfig";
+import { useAiSupportConfig, type AiSupportConfig, type AIRule } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AIRulesEditor, type AIRule } from "./AIRulesEditor";
+import { AIRulesEditor } from "./AIRulesEditor";
+import { useEffect } from "react";
 
 export function AIConfigPanel() {
   const { config, isLoading, upsertConfig } = useAiSupportConfig();
   const [localConfig, setLocalConfig] = useState<Partial<AiSupportConfig>>({});
   const [rules, setRules] = useState<AIRule[]>([]);
 
+  // Load rules from config when it loads
+  useEffect(() => {
+    if (config?.rules) {
+      setRules(config.rules);
+    }
+  }, [config?.rules]);
+
   const handleSave = () => {
-    upsertConfig.mutate(localConfig);
+    // Include rules in the save
+    upsertConfig.mutate({ ...localConfig, rules });
   };
 
   const updateField = <K extends keyof AiSupportConfig>(key: K, value: AiSupportConfig[K]) => {
