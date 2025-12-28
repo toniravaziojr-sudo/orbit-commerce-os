@@ -8,13 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Brain, Clock, Shield, Sparkles, MessageCircle } from "lucide-react";
+import { Bot, Brain, Shield, Sparkles, MessageCircle } from "lucide-react";
 import { useAiSupportConfig, type AiSupportConfig } from "@/hooks/useAiSupportConfig";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AIRulesEditor, type AIRule } from "./AIRulesEditor";
 
 export function AIConfigPanel() {
   const { config, isLoading, upsertConfig } = useAiSupportConfig();
   const [localConfig, setLocalConfig] = useState<Partial<AiSupportConfig>>({});
+  const [rules, setRules] = useState<AIRule[]>([]);
 
   const handleSave = () => {
     upsertConfig.mutate(localConfig);
@@ -214,6 +216,8 @@ export function AIConfigPanel() {
         </TabsContent>
 
         <TabsContent value="behavior" className="space-y-4 mt-4">
+          <AIRulesEditor rules={rules} onChange={setRules} />
+
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Transferência para Humano</CardTitle>
@@ -325,57 +329,6 @@ export function AIConfigPanel() {
                 <p className="text-xs text-muted-foreground">
                   A IA não falará sobre esses assuntos
                 </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Modelo de IA</Label>
-                <Select
-                  value={getValue('ai_model') || 'google/gemini-2.5-flash'}
-                  onValueChange={(v) => updateField('ai_model', v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="google/gemini-2.5-flash">Gemini Flash (Rápido)</SelectItem>
-                    <SelectItem value="google/gemini-2.5-pro">Gemini Pro (Avançado)</SelectItem>
-                    <SelectItem value="openai/gpt-5-mini">GPT-5 Mini</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                SLA
-              </CardTitle>
-              <CardDescription>
-                Métricas de tempo de resposta
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tempo alvo 1ª resposta (segundos)</Label>
-                  <Input
-                    type="number"
-                    min={10}
-                    value={getValue('target_first_response_seconds') || 60}
-                    onChange={(e) => updateField('target_first_response_seconds', parseInt(e.target.value))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tempo alvo resolução (minutos)</Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={getValue('target_resolution_minutes') || 30}
-                    onChange={(e) => updateField('target_resolution_minutes', parseInt(e.target.value))}
-                  />
-                </div>
               </div>
             </CardContent>
           </Card>

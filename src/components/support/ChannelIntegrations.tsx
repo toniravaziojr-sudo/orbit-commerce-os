@@ -11,7 +11,7 @@ import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink
 import { useChannelAccounts, type ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { Skeleton } from "@/components/ui/skeleton";
-
+import { ChannelConfigDialog } from "./ChannelConfigDialog";
 const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; docsUrl: string }> = {
   whatsapp: {
     name: 'WhatsApp',
@@ -56,6 +56,9 @@ export function ChannelIntegrations() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<SupportChannelType | ''>('');
   const [accountName, setAccountName] = useState('');
+  const [configDialogOpen, setConfigDialogOpen] = useState(false);
+  const [selectedChannel, setSelectedChannel] = useState<ChannelAccount | null>(null);
+  const [selectedChannelType, setSelectedChannelType] = useState<SupportChannelType>('whatsapp');
 
   const handleAddChannel = () => {
     if (!selectedType || !accountName) return;
@@ -69,6 +72,12 @@ export function ChannelIntegrations() {
         setAccountName('');
       },
     });
+  };
+
+  const handleOpenConfig = (channel: ChannelAccount) => {
+    setSelectedChannel(channel);
+    setSelectedChannelType(channel.channel_type);
+    setConfigDialogOpen(true);
   };
 
   const getChannelStatus = (channel: ChannelAccount) => {
@@ -205,7 +214,12 @@ export function ChannelIntegrations() {
                       </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleOpenConfig(channel)}
+                      >
                         <Settings className="h-4 w-4 mr-1" />
                         Configurar
                       </Button>
@@ -248,6 +262,15 @@ export function ChannelIntegrations() {
           );
         })}
       </div>
+
+      {/* Channel Config Dialog */}
+      <ChannelConfigDialog
+        open={configDialogOpen}
+        onOpenChange={setConfigDialogOpen}
+        channel={selectedChannel}
+        channelType={selectedChannelType}
+        onSave={() => {}}
+      />
     </div>
   );
 }
