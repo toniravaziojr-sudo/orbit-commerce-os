@@ -70,8 +70,8 @@ const channelDocs: Record<SupportChannelType, { url: string; instructions: strin
     instructions: 'O WhatsApp usa as credenciais já configuradas em Integrações → WhatsApp. Basta vincular a conta existente.',
   },
   email: {
-    url: '',
-    instructions: 'Configure as credenciais IMAP/SMTP do seu servidor de email. Use Gmail, Outlook ou seu próprio servidor.',
+    url: '/emails',
+    instructions: 'Configure o email de atendimento em Emails → Suporte. O recebimento é via SendGrid Inbound Parse.',
   },
   facebook_messenger: {
     url: 'https://developers.facebook.com/apps',
@@ -88,6 +88,10 @@ const channelDocs: Record<SupportChannelType, { url: string; instructions: strin
   shopee: {
     url: 'https://open.shopee.com',
     instructions: 'Registre-se como parceiro Shopee e obtenha as credenciais da API para sua loja.',
+  },
+  chat: {
+    url: '',
+    instructions: 'O chat do site é ativado automaticamente. Ele aparecerá como um widget flutuante na sua loja virtual.',
   },
 };
 

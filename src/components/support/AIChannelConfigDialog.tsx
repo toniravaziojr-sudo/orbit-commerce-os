@@ -18,7 +18,7 @@ interface AIChannelConfigDialogProps {
   channelName: string;
 }
 
-const channelRestrictions: Record<SupportChannelType, { name: string; restrictions: string[] }> = {
+const channelRestrictions: Partial<Record<SupportChannelType, { name: string; restrictions: string[] }>> = {
   mercadolivre: {
     name: "Mercado Livre",
     restrictions: [
@@ -38,6 +38,7 @@ const channelRestrictions: Record<SupportChannelType, { name: string; restrictio
   email: { name: "Email", restrictions: [] },
   facebook_messenger: { name: "Messenger", restrictions: [] },
   instagram_dm: { name: "Instagram DM", restrictions: [] },
+  chat: { name: "Chat do Site", restrictions: [] },
 };
 
 export function AIChannelConfigDialog({ open, onOpenChange, channelType, channelName }: AIChannelConfigDialogProps) {

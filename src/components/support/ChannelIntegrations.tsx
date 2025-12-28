@@ -33,7 +33,7 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
     name: 'Email',
     icon: '✉️',
     description: 'Receba e responda emails de suporte',
-    integrationPath: '/integrations#email',
+    integrationPath: '/emails',
   },
   facebook_messenger: {
     name: 'Messenger',
@@ -57,6 +57,12 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
     name: 'Shopee',
     icon: '🧡',
     description: 'Atenda no chat da Shopee',
+    integrationPath: '',
+  },
+  chat: {
+    name: 'Chat do Site',
+    icon: '🌐',
+    description: 'Chat widget integrado na loja virtual',
     integrationPath: '',
   },
 };

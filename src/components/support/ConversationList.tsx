@@ -25,6 +25,7 @@ const channelIcons: Record<SupportChannelType, string> = {
   instagram_dm: '📸',
   mercadolivre: '🛒',
   shopee: '🧡',
+  chat: '🌐',
 };
 
 const statusColors: Record<ConversationStatus, string> = {
