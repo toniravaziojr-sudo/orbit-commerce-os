@@ -6,30 +6,23 @@ const corsHeaders = {
 };
 
 // Helper function to configure Z-API webhooks automatically
+// Uses PUT /update-every-webhooks with { value: "URL" } as per Z-API docs
 async function configureZapiWebhook(baseUrl: string, headers: Record<string, string>, webhookUrl: string, traceId: string): Promise<boolean> {
   try {
     console.log(`[whatsapp-connect][${traceId}] Configuring Z-API webhook: ${webhookUrl}`);
     
-    // Z-API webhook configuration endpoint
-    const webhookConfig = {
-      webhookUrl: webhookUrl,
-      msgReceivedUrl: webhookUrl,
-      onMessageReceived: true,
-      onMessageSent: false,
-      onMessageStatusChange: true,
-    };
-    
-    const response = await fetch(`${baseUrl}/update-webhook`, {
-      method: 'POST',
+    // Z-API requires PUT method with { value: "url" } body
+    const response = await fetch(`${baseUrl}/update-every-webhooks`, {
+      method: 'PUT',
       headers,
-      body: JSON.stringify(webhookConfig),
+      body: JSON.stringify({ value: webhookUrl }),
     });
     
     const responseText = await response.text();
     console.log(`[whatsapp-connect][${traceId}] Webhook config response (${response.status}): ${responseText.substring(0, 200)}`);
     
     if (!response.ok) {
-      console.warn(`[whatsapp-connect][${traceId}] Failed to configure webhook, but continuing...`);
+      console.warn(`[whatsapp-connect][${traceId}] Failed to configure webhook (${response.status}), but continuing...`);
       return false;
     }
     
