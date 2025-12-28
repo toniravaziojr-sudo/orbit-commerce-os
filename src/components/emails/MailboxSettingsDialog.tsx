@@ -88,7 +88,7 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
       const { data, error } = await supabase.functions.invoke('sendgrid-inbound-setup', {
         body: {
           action: 'check',
-          hostname: `suporte.${mailbox.domain}`,
+          hostname: mailbox.domain, // Use root domain directly
           tenant_id: mailbox.tenant_id,
         },
       });
@@ -106,7 +106,7 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
       const { data, error } = await supabase.functions.invoke('sendgrid-inbound-setup', {
         body: {
           action: 'setup',
-          hostname: `suporte.${mailbox.domain}`,
+          hostname: mailbox.domain, // Use root domain directly
           tenant_id: mailbox.tenant_id,
         },
       });
@@ -232,7 +232,7 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
               <div className="space-y-3">
                 <DnsRecordRow
                   type="MX"
-                  name={`suporte.${mailbox.domain}`}
+                  name={`@ (${mailbox.domain})`}
                   value="mx.sendgrid.net"
                   priority="10"
                   onCopy={() => copyToClipboard('mx.sendgrid.net')}
@@ -292,18 +292,18 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
               <h5 className="font-medium text-sm">Endereço de Recebimento</h5>
               <div className="flex items-center gap-2">
                 <code className="flex-1 p-2 bg-muted rounded text-sm">
-                  *@suporte.{mailbox.domain}
+                  *@{mailbox.domain}
                 </code>
                 <Button 
                   variant="outline" 
                   size="icon"
-                  onClick={() => copyToClipboard(`*@suporte.${mailbox.domain}`)}
+                  onClick={() => copyToClipboard(`*@${mailbox.domain}`)}
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Emails enviados para qualquer endereço @suporte.{mailbox.domain} serão recebidos nesta caixa.
+                Emails enviados para qualquer endereço @{mailbox.domain} serão recebidos nesta caixa.
               </p>
             </div>
 
