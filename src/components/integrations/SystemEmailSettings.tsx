@@ -17,8 +17,20 @@ import {
   RefreshCw, 
   Send,
   Shield,
-  Globe
+  Globe,
+  Trash2
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface DnsRecord {
   name: string;
@@ -54,6 +66,7 @@ export function SystemEmailSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Form state
@@ -238,6 +251,30 @@ export function SystemEmailSettings() {
     }
   };
 
+  const handleResetConfig = async () => {
+    setIsResetting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("integration-config", {
+        body: { 
+          action: "reset-system-email-config"
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ title: "Configuração resetada!", description: "Configure o novo domínio de envio." });
+      setSendingDomain("");
+      setFromName("Comando Central");
+      setFromEmail("");
+      setReplyTo("");
+      await loadConfig();
+    } catch (error: any) {
+      toast({ title: "Erro ao resetar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copiado!" });
@@ -317,6 +354,36 @@ export function SystemEmailSettings() {
             >
               {isSaving ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Configurar"}
             </Button>
+            
+            {/* Reset Button */}
+            {config?.resend_domain_id && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    disabled={isResetting}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    {isResetting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover configuração?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Isso vai remover a configuração atual do domínio de email. Você poderá configurar um novo domínio em seguida.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetConfig}>
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
 

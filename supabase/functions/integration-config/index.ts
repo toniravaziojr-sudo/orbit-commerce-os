@@ -130,6 +130,50 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
+
+      if (action === 'reset-system-email-config') {
+        // Check if user is platform operator
+        const { data: roles } = await supabaseClient
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .eq('role', 'owner')
+          .limit(1);
+
+        if (!roles || roles.length === 0) {
+          throw new Error('Apenas operadores da plataforma podem editar');
+        }
+
+        const { data: config, error: fetchError } = await supabaseClient
+          .from('system_email_config')
+          .select('*')
+          .limit(1)
+          .single();
+
+        if (fetchError) throw fetchError;
+
+        const { error: updateError } = await supabaseClient
+          .from('system_email_config')
+          .update({
+            sending_domain: null,
+            resend_domain_id: null,
+            dns_records: [],
+            verification_status: 'not_started',
+            verified_at: null,
+            last_verify_check_at: null,
+            last_verify_error: null,
+            last_test_at: null,
+            last_test_result: null,
+            from_email: null,
+          })
+          .eq('id', config.id);
+
+        if (updateError) throw updateError;
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const url = new URL(req.url);
