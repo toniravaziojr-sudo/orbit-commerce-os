@@ -69,7 +69,7 @@ export function EmailProviderSettings() {
   const [showTestInput, setShowTestInput] = useState(false);
   const [testEmailInput, setTestEmailInput] = useState("");
   const [config, setConfig] = useState<EmailConfig>({
-    provider_type: "resend",
+    provider_type: "sendgrid",
     from_name: "",
     from_email: "",
     reply_to: "",
@@ -106,7 +106,7 @@ export function EmailProviderSettings() {
       if (data) {
         setConfig({
           id: data.id,
-          provider_type: data.provider_type || "resend",
+          provider_type: data.provider_type || "sendgrid",
           from_name: data.from_name || "",
           from_email: data.from_email || "",
           reply_to: data.reply_to || "",
@@ -288,7 +288,7 @@ export function EmailProviderSettings() {
       toast({ title: "Removido", description: "Configuração de email removida. Envios usarão o remetente do sistema." });
       setConfig({
         id: config.id, // Keep the ID
-        provider_type: "resend",
+        provider_type: "sendgrid",
         from_name: "",
         from_email: "",
         reply_to: "",
