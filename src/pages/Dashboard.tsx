@@ -121,6 +121,9 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Support Widget - Destaque para atendimentos */}
+      <SupportWidget />
+
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Orders */}
         <Card className="lg:col-span-2">
@@ -174,9 +177,6 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* Integration Alerts - WhatsApp/Email disconnected */}
           <IntegrationAlerts />
-          
-          {/* Support Widget - Conversas em atendimento */}
-          <SupportWidget />
           
           {/* Storefront Health Card */}
           <StorefrontHealthCard />
