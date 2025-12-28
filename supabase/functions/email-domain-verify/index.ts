@@ -1,19 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface DnsRecord {
-  name: string;
-  type: string;
-  value: string;
-  priority?: number;
-  record?: string;
-  status?: string;
-}
+const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
 interface DnsLookupResult {
   record_type: string;
@@ -47,16 +39,14 @@ async function dnsLookup(name: string, type: string): Promise<string[]> {
     }
     
     return data.Answer.map((answer: any) => {
-      // For MX records, data includes priority
       if (type === 'MX') {
-        // MX data format: "priority host" e.g., "10 feedback-smtp.us-east-1.amazonses.com."
         return answer.data;
       }
-      // For TXT records, remove quotes
       if (type === 'TXT') {
         return answer.data.replace(/^"|"$/g, '');
       }
-      return answer.data;
+      // For CNAME, remove trailing dot
+      return answer.data.replace(/\.$/, '');
     });
   } catch (error) {
     console.error(`[DNS Lookup] Error for ${name} ${type}:`, error);
@@ -65,36 +55,35 @@ async function dnsLookup(name: string, type: string): Promise<string[]> {
 }
 
 // Verify DNS records against expected values
-async function verifyDnsRecords(domain: string, expectedRecords: DnsRecord[]): Promise<DnsLookupResult[]> {
+async function verifyDnsRecords(expectedRecords: any[]): Promise<DnsLookupResult[]> {
   const results: DnsLookupResult[] = [];
   
   for (const record of expectedRecords) {
-    const fullHost = record.name === '@' ? domain : `${record.name}.${domain}`;
-    const foundValues = await dnsLookup(fullHost, record.type);
+    const host = record.name || record.host;
+    const type = record.type || "CNAME";
+    const expectedValue = record.value || record.data;
+    
+    const foundValues = await dnsLookup(host, type);
     
     let match = false;
     let details = '';
     
-    if (record.type === 'TXT') {
-      // For TXT records, check if expected value is contained in any found value
-      const expectedClean = record.value.replace(/^"|"$/g, '').trim();
+    if (type === 'CNAME') {
+      // For CNAME, check if value matches (ignoring trailing dots)
+      const expectedClean = expectedValue.toLowerCase().replace(/\.$/, '');
       match = foundValues.some(found => {
-        const foundClean = found.replace(/^"|"$/g, '').trim();
-        // Check if the key part matches (e.g., p=...)
-        return foundClean.includes(expectedClean) || expectedClean.includes(foundClean);
+        const foundClean = found.toLowerCase().replace(/\.$/, '');
+        return foundClean === expectedClean;
       });
       
       if (!match && foundValues.length > 0) {
         details = `Valores encontrados: ${foundValues.join('; ')}`;
       }
-    } else if (record.type === 'MX') {
-      // For MX, check if the hostname matches (ignoring priority and trailing dot)
-      const expectedHost = record.value.toLowerCase().replace(/\.$/, '');
+    } else if (type === 'TXT') {
+      const expectedClean = expectedValue.replace(/^"|"$/g, '').trim();
       match = foundValues.some(found => {
-        // MX format: "priority hostname." e.g., "10 feedback-smtp.us-east-1.amazonses.com."
-        const parts = found.split(' ');
-        const foundHost = (parts[1] || parts[0]).toLowerCase().replace(/\.$/, '');
-        return foundHost === expectedHost;
+        const foundClean = found.replace(/^"|"$/g, '').trim();
+        return foundClean.includes(expectedClean) || expectedClean.includes(foundClean);
       });
       
       if (!match && foundValues.length > 0) {
@@ -103,11 +92,9 @@ async function verifyDnsRecords(domain: string, expectedRecords: DnsRecord[]): P
     }
     
     results.push({
-      record_type: record.type,
-      host: fullHost,
-      expected_value: record.type === 'MX' && record.priority 
-        ? `${record.priority} ${record.value}` 
-        : record.value,
+      record_type: type,
+      host: host,
+      expected_value: expectedValue,
       found_values: foundValues,
       match,
       details: match ? 'OK' : (foundValues.length === 0 ? 'Registro não encontrado no DNS' : details),
@@ -123,13 +110,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("[email-domain-verify] RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("[email-domain-verify] SENDGRID_API_KEY not configured");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "RESEND_API_KEY não configurada" 
+          error: "SENDGRID_API_KEY não configurada" 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -203,40 +190,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[email-domain-verify] Verifying domain ${config.sending_domain} (${config.resend_domain_id})`);
+    const domainId = config.resend_domain_id;
+    console.log(`[email-domain-verify] Verifying domain ${config.sending_domain} (ID: ${domainId})`);
 
-    const resend = new Resend(resendApiKey);
+    // Call SendGrid validate endpoint
+    const validateResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains/${domainId}/validate`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    // Call Resend verify endpoint
-    const verifyResult = await resend.domains.verify(config.resend_domain_id);
+    const validateResult = await validateResponse.json();
+    console.log("[email-domain-verify] SendGrid validate result:", JSON.stringify(validateResult));
 
-    if (verifyResult.error) {
-      console.error("[email-domain-verify] Resend verify error:", verifyResult.error);
-      
-      // Update with error
-      await supabase
-        .from("email_provider_configs")
-        .update({
-          last_verify_check_at: new Date().toISOString(),
-          last_verify_error: verifyResult.error.message || JSON.stringify(verifyResult.error),
-        })
-        .eq("id", config.id);
+    // Get updated domain info
+    const domainResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains/${domainId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Erro ao verificar: ${verifyResult.error.message || JSON.stringify(verifyResult.error)}`,
-          status: config.verification_status
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Fetch updated domain info
-    const domainResult = await resend.domains.get(config.resend_domain_id);
-
-    if (domainResult.error || !domainResult.data) {
-      console.error("[email-domain-verify] Error fetching domain:", domainResult.error);
+    if (!domainResponse.ok) {
+      console.error("[email-domain-verify] Error fetching domain:", await domainResponse.text());
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -247,40 +226,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    const domainData = domainResult.data;
-    
-    // Check domain-level status from Resend API
-    // Note: domainData.status can be "verified", "pending", "not_started", "failed"
+    const domainData = await domainResponse.json();
     console.log(`[email-domain-verify] Domain response:`, JSON.stringify(domainData));
-    
-    // Perform real DNS lookup for diagnosis first
+
+    // Format DNS records for our standard format
+    const dnsRecords = formatSendGridDnsRecords(domainData);
+
+    // Perform real DNS lookup for diagnosis
     let dnsLookupResults: DnsLookupResult[] = [];
-    if (domainData.records && config.sending_domain) {
-      console.log(`[email-domain-verify] Performing DNS lookup for ${config.sending_domain}`);
-      dnsLookupResults = await verifyDnsRecords(config.sending_domain, domainData.records);
+    if (dnsRecords.length > 0) {
+      console.log(`[email-domain-verify] Performing DNS lookup for records`);
+      dnsLookupResults = await verifyDnsRecords(dnsRecords);
       console.log(`[email-domain-verify] DNS lookup results:`, JSON.stringify(dnsLookupResults));
     }
 
     // Check if all DNS records match our verification
     const dnsAllOk = dnsLookupResults.length > 0 && dnsLookupResults.every(r => r.match);
     
-    // Determine if verified:
-    // 1. Resend explicitly says verified, OR
-    // 2. All DNS records are correctly configured (Resend may have a cache delay)
-    const resendVerified = domainData.status === "verified";
-    const isVerified = resendVerified || dnsAllOk;
-    
-    // If DNS is all OK but Resend says pending, treat as verified (Resend cache delay)
-    const newStatus = isVerified ? "verified" : 
-                      domainData.status === "pending" ? "pending" : "failed";
+    // Determine if verified based on SendGrid response
+    const isVerified = domainData.valid === true || validateResult.valid === true;
+    const newStatus = isVerified ? "verified" : "pending";
 
-    console.log(`[email-domain-verify] Domain status from Resend: ${domainData.status}, dnsAllOk: ${dnsAllOk}, final verified: ${isVerified}`);
+    console.log(`[email-domain-verify] Domain valid: ${domainData.valid}, dnsAllOk: ${dnsAllOk}, final verified: ${isVerified}`);
     
     // Update config with verification result
     await supabase
       .from("email_provider_configs")
       .update({
-        dns_records: domainData.records || [],
+        dns_records: dnsRecords,
         verification_status: newStatus,
         verified_at: isVerified ? new Date().toISOString() : null,
         last_verify_check_at: new Date().toISOString(),
@@ -299,7 +272,6 @@ Deno.serve(async (req) => {
     if (isVerified) {
       statusMessage = "Domínio verificado com sucesso!";
     } else {
-      // Check DNS lookup results for problems
       const missingRecords = dnsLookupResults.filter(r => !r.match && r.found_values.length === 0);
       const mismatchRecords = dnsLookupResults.filter(r => !r.match && r.found_values.length > 0);
       const okRecords = dnsLookupResults.filter(r => r.match);
@@ -330,11 +302,11 @@ Deno.serve(async (req) => {
         success: true,
         verified: isVerified,
         status: newStatus,
-        dns_records: domainData.records || [],
+        dns_records: dnsRecords,
         message: statusMessage,
         dns_lookup: dnsLookupResults,
         diagnosis,
-        provider_status: domainData.status,
+        provider_status: domainData.valid ? "verified" : "pending",
         checked_at: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -348,3 +320,40 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Helper function to format SendGrid DNS records to our standard format
+function formatSendGridDnsRecords(domainData: any): any[] {
+  const records: any[] = [];
+  
+  if (domainData.dns) {
+    const dns = domainData.dns;
+    
+    if (dns.dkim1) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim1.host,
+        value: dns.dkim1.data,
+        status: dns.dkim1.valid ? "verified" : "pending",
+      });
+    }
+    if (dns.dkim2) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim2.host,
+        value: dns.dkim2.data,
+        status: dns.dkim2.valid ? "verified" : "pending",
+      });
+    }
+    
+    if (dns.mail_cname) {
+      records.push({
+        type: "CNAME",
+        name: dns.mail_cname.host,
+        value: dns.mail_cname.data,
+        status: dns.mail_cname.valid ? "verified" : "pending",
+      });
+    }
+  }
+  
+  return records;
+}
