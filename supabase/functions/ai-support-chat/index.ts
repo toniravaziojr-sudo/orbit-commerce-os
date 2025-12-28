@@ -251,7 +251,7 @@ Diretrizes:
         sender_name: personalityName,
         content: aiContent,
         content_type: "text",
-        delivery_status: "sent",
+        delivery_status: "queued",
         is_ai_generated: true,
         is_internal: false,
         is_note: false,
@@ -291,13 +291,77 @@ Diretrizes:
       metadata: { model: aiModel, handoff: shouldHandoff },
     });
 
-    console.log(`AI response saved for conversation ${conversation_id}`);
+    // Send response back via the original channel
+    let sendResult: { success: boolean; error?: string; message_id?: string } = { success: false, error: "Canal não suportado" };
+
+    if (conversation.channel_type === "whatsapp" && conversation.customer_phone) {
+      console.log(`Sending WhatsApp response to ${conversation.customer_phone}...`);
+      
+      try {
+        const sendResponse = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/whatsapp-send`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              tenant_id,
+              phone: conversation.customer_phone,
+              message: aiContent,
+            }),
+          }
+        );
+
+        sendResult = await sendResponse.json();
+        console.log("WhatsApp send result:", sendResult);
+
+        // Update message delivery status
+        const deliveryStatus = sendResult.success ? "sent" : "failed";
+        await supabase
+          .from("messages")
+          .update({ 
+            delivery_status: deliveryStatus,
+            external_message_id: sendResult.message_id || null,
+            failure_reason: sendResult.success ? null : sendResult.error,
+          })
+          .eq("id", newMessage.id);
+
+      } catch (sendError) {
+        console.error("Error sending WhatsApp message:", sendError);
+        sendResult = { success: false, error: sendError instanceof Error ? sendError.message : "Erro ao enviar" };
+        
+        await supabase
+          .from("messages")
+          .update({ 
+            delivery_status: "failed",
+            failure_reason: sendResult.error,
+          })
+          .eq("id", newMessage.id);
+      }
+    } else if (conversation.channel_type === "email" && conversation.customer_email) {
+      // Email sending would go through support-send-message or a dedicated email function
+      console.log(`Email response to ${conversation.customer_email} - not implemented yet`);
+      sendResult = { success: false, error: "Email outbound não implementado" };
+    } else if (conversation.channel_type === "chat") {
+      // Chat widget - message is already saved, client will receive via realtime
+      sendResult = { success: true, error: undefined };
+      await supabase
+        .from("messages")
+        .update({ delivery_status: "delivered" })
+        .eq("id", newMessage.id);
+    }
+
+    console.log(`AI response saved and ${sendResult.success ? "sent" : "failed to send"} for conversation ${conversation_id}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         message: newMessage,
         handoff: shouldHandoff,
+        sent: sendResult.success,
+        send_error: sendResult.error,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
