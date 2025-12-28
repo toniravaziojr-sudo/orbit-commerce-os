@@ -2,12 +2,9 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MailboxSettingsDialog } from "./MailboxSettingsDialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   Plus, 
   Mail, 
-  Bell, 
-  MessageSquare, 
   Inbox,
   Settings,
   MoreVertical,
@@ -33,13 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useMailboxes, EmailPurpose, MailboxStatus } from "@/hooks/useMailboxes";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -49,9 +39,9 @@ interface MailboxListProps {
 }
 
 const purposeConfig: Record<EmailPurpose, { label: string; icon: typeof Mail; color: string }> = {
-  notifications: { label: 'Notificações', icon: Bell, color: 'bg-blue-100 text-blue-800' },
-  support: { label: 'Atendimento', icon: MessageSquare, color: 'bg-green-100 text-green-800' },
-  manual: { label: 'Manual', icon: Inbox, color: 'bg-gray-100 text-gray-800' },
+  notifications: { label: 'Notificações', icon: Mail, color: 'bg-blue-100 text-blue-800' },
+  support: { label: 'Atendimento', icon: Mail, color: 'bg-green-100 text-green-800' },
+  manual: { label: 'Caixa de Email', icon: Inbox, color: 'bg-gray-100 text-gray-800' },
 };
 
 const statusConfig: Record<MailboxStatus, { label: string; icon: typeof CheckCircle; color: string }> = {
@@ -135,10 +125,8 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
           onOpenChange={setIsAddDialogOpen}
           email={newEmail}
           displayName={newDisplayName}
-          purpose={newPurpose}
           onEmailChange={setNewEmail}
           onDisplayNameChange={setNewDisplayName}
-          onPurposeChange={setNewPurpose}
           onSubmit={handleCreate}
           isLoading={createMailbox.isPending}
         />
@@ -208,10 +196,6 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className={purpose.color}>
-                    <PurposeIcon className="h-3 w-3 mr-1" />
-                    {purpose.label}
-                  </Badge>
                   <div className={`flex items-center gap-1 text-xs ${status.color}`}>
                     <StatusIcon className="h-3 w-3" />
                     {status.label}
@@ -223,28 +207,15 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
                   <span>{mailbox.total_messages} total</span>
                 </div>
 
-                <div className="flex gap-2">
-                  <Select
-                    value={mailbox.purpose}
-                    onValueChange={(value) => handleChangePurpose(mailbox.id, value as EmailPurpose)}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manual">Manual</SelectItem>
-                      <SelectItem value="notifications">Notificações</SelectItem>
-                      <SelectItem value="support">Atendimento</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => onOpenInbox(mailbox.id)}
-                  >
-                    <Inbox className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="w-full"
+                  onClick={() => onOpenInbox(mailbox.id)}
+                >
+                  <Inbox className="h-4 w-4 mr-2" />
+                  Abrir Inbox
+                </Button>
               </CardContent>
             </Card>
           );
@@ -256,10 +227,8 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
         onOpenChange={setIsAddDialogOpen}
         email={newEmail}
         displayName={newDisplayName}
-        purpose={newPurpose}
         onEmailChange={setNewEmail}
         onDisplayNameChange={setNewDisplayName}
-        onPurposeChange={setNewPurpose}
         onSubmit={handleCreate}
         isLoading={createMailbox.isPending}
       />
@@ -280,10 +249,8 @@ interface AddMailboxDialogProps {
   onOpenChange: (open: boolean) => void;
   email: string;
   displayName: string;
-  purpose: EmailPurpose;
   onEmailChange: (email: string) => void;
   onDisplayNameChange: (name: string) => void;
-  onPurposeChange: (purpose: EmailPurpose) => void;
   onSubmit: () => void;
   isLoading: boolean;
 }
@@ -293,10 +260,8 @@ function AddMailboxDialog({
   onOpenChange,
   email,
   displayName,
-  purpose,
   onEmailChange,
   onDisplayNameChange,
-  onPurposeChange,
   onSubmit,
   isLoading,
 }: AddMailboxDialogProps) {
@@ -332,34 +297,9 @@ function AddMailboxDialog({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Propósito</Label>
-            <Select value={purpose} onValueChange={(v) => onPurposeChange(v as EmailPurpose)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">
-                  <div className="flex items-center gap-2">
-                    <Inbox className="h-4 w-4" />
-                    Manual - Gerenciado manualmente
-                  </div>
-                </SelectItem>
-                <SelectItem value="notifications">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4" />
-                    Notificações - Emails transacionais
-                  </div>
-                </SelectItem>
-                <SelectItem value="support">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    Atendimento - Integrado ao suporte
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            Esta caixa de email será usada para gerenciar emails corporativos manualmente.
+          </p>
         </div>
 
         <DialogFooter>
