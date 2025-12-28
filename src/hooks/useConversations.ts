@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -215,6 +216,32 @@ export function useConversations(filters?: ConversationFilters) {
     },
     enabled: !!currentTenant?.id,
   });
+
+  // Realtime subscription for conversations
+  useEffect(() => {
+    if (!currentTenant?.id) return;
+
+    const channel = supabase
+      .channel('conversations-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations',
+          filter: `tenant_id=eq.${currentTenant.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['conversations'] });
+          queryClient.invalidateQueries({ queryKey: ['conversation-stats'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentTenant?.id, queryClient]);
 
   return {
     conversations: conversationsQuery.data || [],
