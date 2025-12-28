@@ -183,10 +183,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.ai-support-chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.support-send-message]
-verify_jwt = true
+verify_jwt = false
 
 [functions.support-webhook]
 verify_jwt = false
