@@ -102,11 +102,59 @@ serve(async (req) => {
           break;
         }
 
-        // TODO: Implement email sending via Resend
-        // For now, mark as sent
-        success = true;
-        deliveryStatus = "sent";
-        console.log("Email sending not fully implemented yet");
+        const config = emailConfig as any;
+        
+        // Determine which email address to use for support replies
+        let fromName = config.from_name;
+        let fromEmail = config.from_email;
+        
+        // If support email is enabled and configured, use those settings
+        if (config.support_email_enabled && config.support_reply_from_email) {
+          fromName = config.support_reply_from_name || fromName;
+          fromEmail = config.support_reply_from_email;
+        }
+
+        // Send via Resend
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        if (!RESEND_API_KEY) {
+          error = "Resend API key not configured";
+          break;
+        }
+
+        const customerEmail = conversation.customer_email;
+        if (!customerEmail) {
+          error = "Customer email not found";
+          break;
+        }
+
+        console.log(`Sending email from "${fromName}" <${fromEmail}> to ${customerEmail}`);
+
+        const emailRes = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${RESEND_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: `${fromName} <${fromEmail}>`,
+            to: [customerEmail],
+            subject: conversation.subject || "Re: Seu atendimento",
+            text: message.content,
+            reply_to: config.support_email_address || fromEmail,
+          }),
+        });
+
+        if (!emailRes.ok) {
+          const errText = await emailRes.text();
+          error = `Email send failed: ${errText}`;
+          console.error("Resend error:", errText);
+        } else {
+          const emailData = await emailRes.json();
+          success = true;
+          externalMessageId = emailData.id;
+          deliveryStatus = "sent";
+          console.log("Email sent successfully:", emailData.id);
+        }
         break;
       }
 

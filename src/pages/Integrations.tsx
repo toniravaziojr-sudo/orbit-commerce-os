@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { ShippingCarrierSettings } from "@/components/shipping/ShippingCarrierSettings";
 import { EmailProviderSettings } from "@/components/integrations/EmailProviderSettings";
+import { SupportEmailSettings } from "@/components/integrations/SupportEmailSettings";
 import { WhatsAppSettings } from "@/components/integrations/WhatsAppSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useShippingProviders } from "@/hooks/useShippingProviders";
@@ -123,6 +124,9 @@ export default function Integrations() {
         <TabsContent value="others" className="space-y-6">
           {/* Email Provider Settings */}
           <EmailProviderSettings />
+
+          {/* Support Email Settings */}
+          <SupportEmailSettings />
 
           {/* WhatsApp Settings - for tenants */}
           <WhatsAppSettings />
