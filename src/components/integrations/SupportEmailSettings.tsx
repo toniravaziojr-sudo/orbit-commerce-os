@@ -24,8 +24,7 @@ interface SupportEmailConfig {
   verification_status: string | null;
 }
 
-// Subdomain prefix for inbound parsing - avoids conflicts with corporate email
-const INBOUND_SUBDOMAIN_PREFIX = 'suporte';
+// Use root domain directly - client will manage all emails through our app
 
 export function SupportEmailSettings() {
   const { currentTenant, profile } = useAuth();
@@ -122,8 +121,8 @@ export function SupportEmailSettings() {
     }
   };
 
-  // Use subdomain to avoid conflicts with corporate email
-  const inboundHostname = config.sending_domain ? `${INBOUND_SUBDOMAIN_PREFIX}.${config.sending_domain}` : null;
+  // Use root domain directly - client migrates all email to our app
+  const inboundHostname = config.sending_domain || null;
   
   const setupInboundParse = async () => {
     if (!tenantId || !inboundHostname) return;
@@ -207,10 +206,10 @@ export function SupportEmailSettings() {
   const isEmailVerified = config.verification_status === "verified";
   
   // Determine which email will be used for SAC
-  // Support email uses the inbound subdomain to avoid conflicts
+  // Uses root domain directly - client manages all email through our app
   const supportEmailLocal = config.support_email_address?.split('@')[0] || 'atendimento';
-  const effectiveSupportEmail = inboundHostname 
-    ? `${supportEmailLocal}@${inboundHostname}` 
+  const effectiveSupportEmail = config.sending_domain 
+    ? `${supportEmailLocal}@${config.sending_domain}` 
     : config.from_email;
   const effectiveSupportName = config.support_reply_from_name || config.from_name || "Atendimento";
 
@@ -318,7 +317,7 @@ export function SupportEmailSettings() {
                         <div className="bg-white/60 dark:bg-black/30 rounded-lg p-4 space-y-3 text-sm">
                           <p>
                             Para receber emails de clientes em <strong>{effectiveSupportEmail}</strong>, 
-                            adicione um <strong>registro MX</strong> no DNS do seu domínio:
+                            configure o <strong>registro MX</strong> do seu domínio raiz:
                           </p>
                           
                           <div className="bg-white dark:bg-black/40 rounded border p-3 space-y-3">
@@ -335,17 +334,17 @@ export function SupportEmailSettings() {
                             
                             <div className="flex items-center gap-2 text-xs">
                               <span className="text-muted-foreground">Nome:</span>
-                              <code className="bg-muted px-2 py-1 rounded font-mono font-semibold">{INBOUND_SUBDOMAIN_PREFIX}</code>
+                              <code className="bg-muted px-2 py-1 rounded font-mono font-semibold">@</code>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 px-2"
-                                onClick={() => copyToClipboard(INBOUND_SUBDOMAIN_PREFIX)}
+                                onClick={() => copyToClipboard("@")}
                               >
                                 <Copy className="h-3 w-3" />
                               </Button>
-                              <span className="text-muted-foreground">(cria {inboundHostname})</span>
+                              <span className="text-muted-foreground">(domínio raiz: {config.sending_domain})</span>
                             </div>
                             
                             <div className="flex items-center gap-2 text-xs">
@@ -363,12 +362,12 @@ export function SupportEmailSettings() {
                             </div>
                           </div>
 
-                          <div className="bg-green-100 dark:bg-green-900/30 rounded p-3 text-xs space-y-2">
-                            <p className="font-semibold">✅ Vantagem do subdomínio:</p>
+                          <div className="bg-amber-100 dark:bg-amber-900/30 rounded p-3 text-xs space-y-2">
+                            <p className="font-semibold">⚠️ Importante:</p>
                             <p>
-                              Usando <strong>{inboundHostname}</strong>, seu email corporativo no domínio raiz 
-                              ({config.sending_domain}) continua funcionando normalmente. 
-                              Não há conflito com Google Workspace, Microsoft 365, Zoho, etc.
+                              Ao configurar o MX para nosso sistema, você passará a gerenciar <strong>todos os emails</strong> 
+                              do domínio <strong>{config.sending_domain}</strong> por este app. 
+                              Remova outros provedores de email (Zoho, Google Workspace, etc.) se existirem.
                             </p>
                           </div>
 
