@@ -33,22 +33,20 @@ export default function Support() {
   const { messages, isLoading: messagesLoading, sendMessage, sendAiResponse } = useMessages(selectedConversation?.id || null);
   const { quickReplies, incrementUseCount } = useQuickReplies();
 
-  // Filter conversations for AI tab (status = 'bot' or 'new' without assignment)
+  // AI tab shows ALL conversations (including resolved), sorted by last_message_at
+  // This is the main inbox for the AI - all conversations stay here
   const aiConversations = useMemo(() => {
-    return conversations.filter(c => 
-      ['bot', 'new'].includes(c.status || '') && !c.assigned_to
-    );
+    return [...conversations].sort((a, b) => {
+      const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+      const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+      return dateB - dateA; // Most recent first
+    });
   }, [conversations]);
 
-  // Filter conversations for inbox (human handled or needs attention)
-  const inboxConversations = useMemo(() => {
-    return conversations.filter(c => 
-      c.assigned_to || ['waiting_agent', 'waiting_customer', 'open'].includes(c.status || '')
-    );
+  // Filter for active (non-resolved) conversations for badge count
+  const activeConversationCount = useMemo(() => {
+    return conversations.filter(c => c.status !== 'resolved' && c.status !== 'spam').length;
   }, [conversations]);
-
-  // AI conversation count for badge
-  const aiConversationCount = aiConversations.length;
 
   const handleSelectConversation = (conv: Conversation) => {
     setSelectedConversation(conv);
@@ -134,9 +132,9 @@ export default function Support() {
             <TabsTrigger value="ai" className="gap-2">
               <Bot className="h-4 w-4" />
               IA
-              {aiConversationCount > 0 && (
+              {activeConversationCount > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                  {aiConversationCount}
+                  {activeConversationCount}
                 </Badge>
               )}
             </TabsTrigger>
@@ -212,7 +210,7 @@ export default function Support() {
                   Conversas atendidas pela IA
                 </h3>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {aiConversationCount} {aiConversationCount === 1 ? 'conversa ativa' : 'conversas ativas'}
+                  {aiConversations.length} {aiConversations.length === 1 ? 'conversa' : 'conversas'}
                 </p>
               </div>
               <div className="overflow-y-auto h-[calc(100%-73px)]">
