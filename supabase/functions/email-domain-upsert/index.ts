@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -12,13 +13,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("[email-domain-upsert] RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("[email-domain-upsert] SENDGRID_API_KEY not configured");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "RESEND_API_KEY não configurada" 
+          error: "SENDGRID_API_KEY não configurada" 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -57,7 +58,6 @@ Deno.serve(async (req) => {
     }
 
     // Extract domain from email if user provided full email address
-    // e.g., "contato@respeiteohomem.com.br" -> "respeiteohomem.com.br"
     let sending_domain = rawSendingDomain.trim().toLowerCase();
     if (sending_domain.includes("@")) {
       const parts = sending_domain.split("@");
@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Domínio inválido: "${sending_domain}". Informe apenas o domínio (ex.: respeiteohomem.com.br)` 
+          error: `Domínio inválido: "${sending_domain}". Informe apenas o domínio (ex.: exemplo.com.br)` 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -101,15 +101,12 @@ Deno.serve(async (req) => {
       .eq("tenant_id", tenant_id)
       .single();
 
-    const resend = new Resend(resendApiKey);
-
     // IMPORTANT: If domain is CHANGING, reset verification states
     const isDomainChange = existingConfig && existingConfig.sending_domain && 
                            existingConfig.sending_domain !== sending_domain;
     
     if (isDomainChange) {
       console.log(`[email-domain-upsert] Domain CHANGE detected: ${existingConfig.sending_domain} -> ${sending_domain}`);
-      console.log(`[email-domain-upsert] Resetting verification states for tenant ${tenant_id}`);
       
       // Reset all verification-related fields when domain changes
       await supabase
@@ -123,108 +120,86 @@ Deno.serve(async (req) => {
           resend_domain_id: null,
           last_verify_check_at: null,
           last_verify_error: null,
-          // Keep from_name but clear from_email since it won't match new domain
           from_email: "",
         })
         .eq("id", existingConfig.id);
     }
 
-    // Check if domain already exists in Resend (same domain, just refresh)
-    if (existingConfig?.resend_domain_id && existingConfig?.sending_domain === sending_domain) {
-      // Same domain, just fetch current status
-      console.log(`[email-domain-upsert] Domain already registered, fetching status from Resend`);
-      
-      try {
-        const domainResult = await resend.domains.get(existingConfig.resend_domain_id);
-        
-        if (domainResult.error) {
-          console.error("[email-domain-upsert] Error fetching domain from Resend:", domainResult.error);
-        } else if (domainResult.data) {
-          const status = domainResult.data.status === "verified" ? "verified" : 
-                         domainResult.data.status === "pending" ? "pending" : "failed";
-          
-          // Update config with current status
-          await supabase
-            .from("email_provider_configs")
-            .update({
-              dns_records: domainResult.data.records || [],
-              verification_status: status,
-              verified_at: status === "verified" ? new Date().toISOString() : null,
-              last_verify_check_at: new Date().toISOString(),
-            })
-            .eq("id", existingConfig.id);
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              domain_id: existingConfig.resend_domain_id,
-              status: status,
-              dns_records: domainResult.data.records || [],
-              message: "Domínio já registrado"
-            }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      } catch (e) {
-        console.error("[email-domain-upsert] Error calling Resend:", e);
-      }
-    }
-
-    // First try to find domain in Resend (idempotent - don't fail if it exists)
-    console.log(`[email-domain-upsert] Checking if domain ${sending_domain} exists in Resend...`);
-    
+    // Check if domain already exists in SendGrid for this account
     let domainData: any = null;
     let domainStatus = "pending";
     let dnsRecords: any[] = [];
+
+    // First, list existing authenticated domains
+    console.log(`[email-domain-upsert] Checking if domain ${sending_domain} exists in SendGrid...`);
     
     try {
-      const listResult = await resend.domains.list();
-      console.log(`[email-domain-upsert] List domains result:`, JSON.stringify(listResult).slice(0, 500));
-      
-      const domainsList = (listResult as any).data?.data || (listResult as any).data || [];
-      if (Array.isArray(domainsList)) {
-        const existingDomain = domainsList.find((d: any) => d.name === sending_domain);
+      const listResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${sendgridApiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (listResponse.ok) {
+        const domains = await listResponse.json();
+        console.log(`[email-domain-upsert] Found ${domains.length} domains in SendGrid`);
         
+        const existingDomain = domains.find((d: any) => d.domain === sending_domain);
         if (existingDomain) {
-          console.log(`[email-domain-upsert] Domain already exists in Resend: ${existingDomain.id}`);
+          console.log(`[email-domain-upsert] Domain already exists in SendGrid: ${existingDomain.id}`);
           domainData = existingDomain;
-          domainStatus = existingDomain.status === "verified" ? "verified" : "pending";
-          dnsRecords = existingDomain.records || [];
+          domainStatus = existingDomain.valid ? "verified" : "pending";
+          dnsRecords = formatSendGridDnsRecords(existingDomain);
         }
       }
     } catch (listError) {
       console.error("[email-domain-upsert] Error listing domains:", listError);
     }
-    
+
     // If domain doesn't exist, create it
     if (!domainData) {
-      console.log(`[email-domain-upsert] Creating new domain in Resend: ${sending_domain}`);
+      console.log(`[email-domain-upsert] Creating new domain in SendGrid: ${sending_domain}`);
       
-      const createResult = await resend.domains.create({
-        name: sending_domain,
+      const createResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${sendgridApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          domain: sending_domain,
+          automatic_security: true,
+        }),
       });
 
-      if (createResult.error) {
-        console.error("[email-domain-upsert] Resend create error:", JSON.stringify(createResult.error));
+      const createResult = await createResponse.json();
+      console.log(`[email-domain-upsert] SendGrid create response:`, JSON.stringify(createResult).slice(0, 500));
+
+      if (!createResponse.ok) {
+        const errorMessage = createResult.errors?.[0]?.message || JSON.stringify(createResult);
         
-        const errorMessage = createResult.error.message || JSON.stringify(createResult.error);
-        
-        // Even if it says already exists, try to list again
-        if (errorMessage.includes("already exists") || errorMessage.includes("already been added")) {
-          try {
-            const retryList = await resend.domains.list();
-            const retryDomainsList = (retryList as any).data?.data || (retryList as any).data || [];
-            if (Array.isArray(retryDomainsList)) {
-              const found = retryDomainsList.find((d: any) => d.name === sending_domain);
-              if (found) {
-                domainData = found;
-                domainStatus = found.status === "verified" ? "verified" : "pending";
-                dnsRecords = found.records || [];
-                console.log(`[email-domain-upsert] Found domain on retry: ${found.id}`);
-              }
+        // Check if domain already exists
+        if (errorMessage.includes("already exists") || errorMessage.includes("duplicate")) {
+          // Try to list again and find it
+          const retryList = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+            method: "GET",
+            headers: {
+              "Authorization": `Bearer ${sendgridApiKey}`,
+              "Content-Type": "application/json",
+            },
+          });
+          
+          if (retryList.ok) {
+            const domains = await retryList.json();
+            const found = domains.find((d: any) => d.domain === sending_domain);
+            if (found) {
+              domainData = found;
+              domainStatus = found.valid ? "verified" : "pending";
+              dnsRecords = formatSendGridDnsRecords(found);
+              console.log(`[email-domain-upsert] Found domain on retry: ${found.id}`);
             }
-          } catch (retryErr) {
-            console.error("[email-domain-upsert] Retry list error:", retryErr);
           }
         }
         
@@ -232,15 +207,15 @@ Deno.serve(async (req) => {
           return new Response(
             JSON.stringify({ 
               success: false, 
-              error: `Erro ao criar domínio no Resend: ${errorMessage}`,
-              provider_error: createResult.error,
+              error: `Erro ao criar domínio no SendGrid: ${errorMessage}`,
+              provider_error: createResult,
             }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       } else {
-        domainData = createResult.data;
-        dnsRecords = domainData?.records || [];
+        domainData = createResult;
+        dnsRecords = formatSendGridDnsRecords(createResult);
         console.log(`[email-domain-upsert] Domain created:`, JSON.stringify(domainData).slice(0, 500));
       }
     }
@@ -249,7 +224,7 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: "Não foi possível obter o ID do domínio no Resend" 
+          error: "Não foi possível obter o ID do domínio no SendGrid" 
         }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -259,12 +234,12 @@ Deno.serve(async (req) => {
     const upsertPayload = {
       tenant_id,
       sending_domain,
-      resend_domain_id: domainData?.id,
+      resend_domain_id: String(domainData.id), // Store SendGrid domain ID here
       dns_records: dnsRecords,
       verification_status: domainStatus,
       verified_at: domainStatus === "verified" ? new Date().toISOString() : null,
       last_verify_check_at: new Date().toISOString(),
-      provider_type: "resend",
+      provider_type: "sendgrid",
     };
 
     if (existingConfig?.id) {
@@ -281,11 +256,10 @@ Deno.serve(async (req) => {
         );
       }
     } else {
-      // Insert new config with required fields
       const insertPayload = {
         ...upsertPayload,
-        from_name: "", // Will be set by user later
-        from_email: "", // Will be set by user later
+        from_name: "",
+        from_email: "",
       };
       
       const { error: insertError } = await supabase
@@ -301,12 +275,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`[email-domain-upsert] Success! Domain: ${domainData?.id}, Status: ${domainStatus}`);
+    console.log(`[email-domain-upsert] Success! Domain: ${domainData.id}, Status: ${domainStatus}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        domain_id: domainData?.id,
+        domain_id: domainData.id,
         status: domainStatus,
         dns_records: dnsRecords,
         message: domainStatus === "verified" 
@@ -324,3 +298,43 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// Helper function to format SendGrid DNS records to our standard format
+function formatSendGridDnsRecords(domainData: any): any[] {
+  const records: any[] = [];
+  
+  // SendGrid returns DNS records in a specific structure
+  if (domainData.dns) {
+    const dns = domainData.dns;
+    
+    // DKIM records
+    if (dns.dkim1) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim1.host,
+        value: dns.dkim1.data,
+        status: dns.dkim1.valid ? "verified" : "pending",
+      });
+    }
+    if (dns.dkim2) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim2.host,
+        value: dns.dkim2.data,
+        status: dns.dkim2.valid ? "verified" : "pending",
+      });
+    }
+    
+    // Mail CNAME
+    if (dns.mail_cname) {
+      records.push({
+        type: "CNAME",
+        name: dns.mail_cname.host,
+        value: dns.mail_cname.data,
+        status: dns.mail_cname.valid ? "verified" : "pending",
+      });
+    }
+  }
+  
+  return records;
+}

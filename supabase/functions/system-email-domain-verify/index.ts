@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -44,12 +45,10 @@ Deno.serve(async (req: Request) => {
       throw new Error("Apenas operadores da plataforma podem verificar o domínio do sistema");
     }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY não configurada");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      throw new Error("SENDGRID_API_KEY não configurada");
     }
-
-    const resend = new Resend(resendApiKey);
 
     // Get current config
     const { data: config, error: fetchError } = await supabaseAdmin
@@ -66,27 +65,46 @@ Deno.serve(async (req: Request) => {
       throw new Error("Domínio não configurado. Configure o domínio primeiro.");
     }
 
-    console.log("Verifying domain:", config.resend_domain_id);
+    const domainId = config.resend_domain_id;
+    console.log("Verifying domain:", domainId);
 
-    // Verify domain in Resend
-    const verifyResult = await resend.domains.verify(config.resend_domain_id);
-    console.log("Verify result:", verifyResult);
+    // Call SendGrid validate endpoint
+    const validateResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains/${domainId}/validate`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    const validateResult = await validateResponse.json();
+    console.log("Validate result:", JSON.stringify(validateResult));
 
     // Get updated domain info
-    const domainInfo = await resend.domains.get(config.resend_domain_id);
-    console.log("Domain info after verify:", domainInfo);
+    const domainResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains/${domainId}`, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${sendgridApiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
 
-    let verificationStatus = "pending";
-    let dnsRecords: any[] = [];
+    if (!domainResponse.ok) {
+      console.error("Error fetching domain:", await domainResponse.text());
+      throw new Error("Erro ao buscar informações do domínio");
+    }
+
+    const domainInfo = await domainResponse.json();
+    console.log("Domain info after verify:", JSON.stringify(domainInfo));
+
+    const verificationStatus = domainInfo.valid ? "verified" : "pending";
+    const dnsRecords = formatSendGridDnsRecords(domainInfo);
+    
+    // Check for any failing records
     let verifyError: string | null = null;
-
-    if (domainInfo.data) {
-      verificationStatus = domainInfo.data.status === "verified" ? "verified" : "pending";
-      dnsRecords = domainInfo.data.records || [];
-      
-      // Check for any failing records
-      const failingRecords = dnsRecords.filter((r: any) => r.status === "not_started" || r.status === "pending");
-      if (failingRecords.length > 0 && verificationStatus !== "verified") {
+    if (!domainInfo.valid) {
+      const failingRecords = dnsRecords.filter((r: any) => r.status !== "verified");
+      if (failingRecords.length > 0) {
         verifyError = `${failingRecords.length} registro(s) DNS pendente(s)`;
       }
     }
@@ -127,3 +145,40 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+// Helper function to format SendGrid DNS records to our standard format
+function formatSendGridDnsRecords(domainData: any): any[] {
+  const records: any[] = [];
+  
+  if (domainData.dns) {
+    const dns = domainData.dns;
+    
+    if (dns.dkim1) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim1.host,
+        value: dns.dkim1.data,
+        status: dns.dkim1.valid ? "verified" : "pending",
+      });
+    }
+    if (dns.dkim2) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim2.host,
+        value: dns.dkim2.data,
+        status: dns.dkim2.valid ? "verified" : "pending",
+      });
+    }
+    
+    if (dns.mail_cname) {
+      records.push({
+        type: "CNAME",
+        name: dns.mail_cname.host,
+        value: dns.mail_cname.data,
+        status: dns.mail_cname.valid ? "verified" : "pending",
+      });
+    }
+  }
+  
+  return records;
+}

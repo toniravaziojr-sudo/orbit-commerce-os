@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
 // Only this email can manage system email settings
 const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
@@ -82,16 +83,14 @@ Deno.serve(async (req: Request) => {
     
     console.log("Clean domain:", cleanDomain);
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("SENDGRID_API_KEY not configured");
       return new Response(
-        JSON.stringify({ success: false, error: "RESEND_API_KEY não configurada no servidor" }),
+        JSON.stringify({ success: false, error: "SENDGRID_API_KEY não configurada no servidor" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const resend = new Resend(resendApiKey);
 
     // Get current config
     const { data: currentConfig, error: fetchError } = await supabaseAdmin
@@ -112,76 +111,107 @@ Deno.serve(async (req: Request) => {
     let dnsRecords: any[] = [];
     let verificationStatus = "pending";
 
-    // First, try to find existing domain in Resend by listing all domains
-    console.log("Listing all domains in Resend...");
+    // First, try to find existing domain in SendGrid by listing all domains
+    console.log("Listing all domains in SendGrid...");
     try {
-      const listResult = await resend.domains.list();
-      console.log("Resend domains list response:", JSON.stringify(listResult));
+      const listResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${sendgridApiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
       
-      // Handle different response structures
-      const domains = (listResult as any)?.data?.data || (listResult as any)?.data || [];
-      
-      if (Array.isArray(domains)) {
-        const existingDomain = domains.find((d: any) => d.name === cleanDomain);
+      if (listResponse.ok) {
+        const domains = await listResponse.json();
+        console.log(`Found ${domains.length} domains in SendGrid`);
+        
+        const existingDomain = domains.find((d: any) => d.domain === cleanDomain);
         if (existingDomain) {
-          console.log("Found existing domain:", existingDomain);
-          domainId = existingDomain.id;
-          dnsRecords = existingDomain.records || [];
-          verificationStatus = existingDomain.status === "verified" ? "verified" : "pending";
+          console.log("Found existing domain:", existingDomain.id);
+          domainId = String(existingDomain.id);
+          dnsRecords = formatSendGridDnsRecords(existingDomain);
+          verificationStatus = existingDomain.valid ? "verified" : "pending";
         }
       }
     } catch (listError: any) {
       console.error("Error listing domains:", listError);
-      // Continue - we'll try to create or fetch by ID
     }
 
-    // If we have a domain ID (from DB or list), try to get its current info
+    // If we have a domain ID, try to get its current info
     if (domainId) {
       console.log("Fetching domain info for ID:", domainId);
       try {
-        const domainInfo = await resend.domains.get(domainId);
-        console.log("Domain info response:", JSON.stringify(domainInfo));
+        const domainResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains/${domainId}`, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${sendgridApiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
         
-        if (domainInfo.data) {
-          dnsRecords = domainInfo.data.records || [];
-          verificationStatus = domainInfo.data.status === "verified" ? "verified" : "pending";
+        if (domainResponse.ok) {
+          const domainInfo = await domainResponse.json();
+          console.log("Domain info response:", JSON.stringify(domainInfo));
+          
+          dnsRecords = formatSendGridDnsRecords(domainInfo);
+          verificationStatus = domainInfo.valid ? "verified" : "pending";
+        } else {
+          console.log("Could not fetch domain by ID, may need to create");
+          domainId = null;
         }
       } catch (getError: any) {
-        console.log("Could not fetch domain by ID, may need to create:", getError.message);
-        domainId = null; // Reset to trigger creation
+        console.log("Error fetching domain:", getError.message);
+        domainId = null;
       }
     }
 
     // If no domain exists, create one
     if (!domainId) {
-      console.log("Creating new domain in Resend:", cleanDomain);
+      console.log("Creating new domain in SendGrid:", cleanDomain);
       try {
-        const createResult = await resend.domains.create({ name: cleanDomain });
+        const createResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${sendgridApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            domain: cleanDomain,
+            automatic_security: true,
+          }),
+        });
+
+        const createResult = await createResponse.json();
         console.log("Create domain result:", JSON.stringify(createResult));
 
-        if (createResult.error) {
-          // Check if domain already exists
-          const errorMessage = createResult.error.message || String(createResult.error);
-          console.log("Create error message:", errorMessage);
+        if (!createResponse.ok) {
+          const errorMessage = createResult.errors?.[0]?.message || JSON.stringify(createResult);
           
-          if (errorMessage.includes("already") || errorMessage.includes("exists") || errorMessage.includes("conflict")) {
+          if (errorMessage.includes("already") || errorMessage.includes("exists") || errorMessage.includes("duplicate")) {
             // Domain already exists - try to find it
             console.log("Domain already exists, searching in list...");
-            const listResult = await resend.domains.list();
-            const domains = (listResult as any)?.data?.data || (listResult as any)?.data || [];
+            const listResponse = await fetch(`${SENDGRID_API_URL}/whitelabel/domains`, {
+              method: "GET",
+              headers: {
+                "Authorization": `Bearer ${sendgridApiKey}`,
+                "Content-Type": "application/json",
+              },
+            });
             
-            if (Array.isArray(domains)) {
-              const existingDomain = domains.find((d: any) => d.name === cleanDomain);
+            if (listResponse.ok) {
+              const domains = await listResponse.json();
+              const existingDomain = domains.find((d: any) => d.domain === cleanDomain);
               if (existingDomain) {
-                domainId = existingDomain.id;
-                dnsRecords = existingDomain.records || [];
-                verificationStatus = existingDomain.status === "verified" ? "verified" : "pending";
+                domainId = String(existingDomain.id);
+                dnsRecords = formatSendGridDnsRecords(existingDomain);
+                verificationStatus = existingDomain.valid ? "verified" : "pending";
               } else {
                 console.error("Domain reported as existing but not found in list");
                 return new Response(
                   JSON.stringify({ 
                     success: false, 
-                    error: `Domínio já existe no Resend mas não foi encontrado. Verifique no painel do Resend.`,
+                    error: `Domínio já existe no SendGrid mas não foi encontrado. Verifique no painel do SendGrid.`,
                     details: errorMessage
                   }),
                   { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -193,15 +223,15 @@ Deno.serve(async (req: Request) => {
             return new Response(
               JSON.stringify({ 
                 success: false, 
-                error: `Erro ao criar domínio no Resend: ${errorMessage}`,
+                error: `Erro ao criar domínio no SendGrid: ${errorMessage}`,
                 details: errorMessage
               }),
               { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
-        } else if (createResult.data) {
-          domainId = createResult.data.id;
-          dnsRecords = createResult.data.records || [];
+        } else {
+          domainId = String(createResult.id);
+          dnsRecords = formatSendGridDnsRecords(createResult);
           verificationStatus = "pending";
         }
       } catch (createError: any) {
@@ -269,3 +299,40 @@ Deno.serve(async (req: Request) => {
     );
   }
 });
+
+// Helper function to format SendGrid DNS records to our standard format
+function formatSendGridDnsRecords(domainData: any): any[] {
+  const records: any[] = [];
+  
+  if (domainData.dns) {
+    const dns = domainData.dns;
+    
+    if (dns.dkim1) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim1.host,
+        value: dns.dkim1.data,
+        status: dns.dkim1.valid ? "verified" : "pending",
+      });
+    }
+    if (dns.dkim2) {
+      records.push({
+        type: "CNAME",
+        name: dns.dkim2.host,
+        value: dns.dkim2.data,
+        status: dns.dkim2.valid ? "verified" : "pending",
+      });
+    }
+    
+    if (dns.mail_cname) {
+      records.push({
+        type: "CNAME",
+        name: dns.mail_cname.host,
+        value: dns.mail_cname.data,
+        status: dns.mail_cname.valid ? "verified" : "pending",
+      });
+    }
+  }
+  
+  return records;
+}
