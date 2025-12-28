@@ -17,9 +17,12 @@ import {
   QrCode,
   Unplug,
   AlertCircle,
-  Smartphone
+  Smartphone,
+  Copy,
+  ExternalLink
 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface WhatsAppConfig {
   id?: string;
@@ -221,6 +224,13 @@ export function WhatsAppSettings() {
     );
   }
 
+  const webhookUrl = `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/support-webhook?channel=whatsapp&tenant=${tenantId}`;
+
+  const handleCopyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    toast({ title: "Copiado!", description: "URL do webhook copiada" });
+  };
+
   if (isConnected) {
     return (
       <Card>
@@ -232,6 +242,41 @@ export function WhatsAppSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-muted/50 rounded-lg p-4"><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Número:</span><span className="font-medium flex items-center gap-2"><Smartphone className="h-4 w-4" />{config.phone_number || "—"}</span></div></div>
+          
+          {/* Webhook URL Section */}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full justify-between text-muted-foreground hover:text-foreground">
+                <span className="flex items-center gap-2"><ExternalLink className="h-4 w-4" />Configurar Webhook (Z-API)</span>
+                <span className="text-xs">clique para expandir</span>
+              </Button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="pt-2">
+              <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertTitle className="text-blue-800 dark:text-blue-300">Configure o Webhook na Z-API</AlertTitle>
+                <AlertDescription className="space-y-3 mt-2">
+                  <p className="text-sm text-blue-700 dark:text-blue-400">
+                    Para que a IA responda automaticamente as mensagens, configure a URL abaixo no painel da Z-API:
+                  </p>
+                  <div className="flex gap-2">
+                    <Input 
+                      readOnly 
+                      value={webhookUrl} 
+                      className="text-xs font-mono bg-white dark:bg-background"
+                    />
+                    <Button size="sm" variant="outline" onClick={handleCopyWebhook}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-blue-600 dark:text-blue-500">
+                    No painel Z-API → Sua instância → Webhooks → Cole esta URL em "Ao receber" e "Status da mensagem"
+                  </p>
+                </AlertDescription>
+              </Alert>
+            </CollapsibleContent>
+          </Collapsible>
+
           {showTestInput && (
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <Label>Enviar teste para:</Label>
