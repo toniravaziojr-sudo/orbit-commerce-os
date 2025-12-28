@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
+import { SupportWidget } from "@/components/dashboard/SupportWidget";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -173,6 +174,9 @@ export default function Dashboard() {
         <div className="space-y-6">
           {/* Integration Alerts - WhatsApp/Email disconnected */}
           <IntegrationAlerts />
+          
+          {/* Support Widget - Conversas em atendimento */}
+          <SupportWidget />
           
           {/* Storefront Health Card */}
           <StorefrontHealthCard />
