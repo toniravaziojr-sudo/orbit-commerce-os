@@ -184,3 +184,9 @@ verify_jwt = false
 
 [functions.ai-support-chat]
 verify_jwt = true
+
+[functions.support-send-message]
+verify_jwt = true
+
+[functions.support-webhook]
+verify_jwt = false

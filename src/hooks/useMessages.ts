@@ -85,7 +85,7 @@ export function useMessages(conversationId: string | null) {
           sender_name: profile?.full_name || user?.email,
           content,
           content_type: contentType,
-          delivery_status: isInternal ? 'delivered' : 'queued',
+          delivery_status: isInternal || isNote ? 'delivered' : 'queued',
           is_internal: isInternal,
           is_note: isNote,
         })
@@ -94,9 +94,26 @@ export function useMessages(conversationId: string | null) {
 
       if (error) throw error;
 
-      // If not internal, trigger actual send via channel
+      // If not internal/note, trigger actual send via channel
       if (!isInternal && !isNote) {
-        // TODO: Call edge function to send via WhatsApp/Email/etc
+        // Get conversation to determine channel
+        const { data: conv } = await supabase
+          .from('conversations')
+          .select('channel_type')
+          .eq('id', conversationId)
+          .single();
+
+        if (conv) {
+          // Send via channel (WhatsApp, Email, etc.)
+          supabase.functions.invoke('support-send-message', {
+            body: {
+              message_id: data.id,
+              channel_type: conv.channel_type,
+            },
+          }).catch(err => {
+            console.error('Error sending message via channel:', err);
+          });
+        }
       }
 
       return data;
