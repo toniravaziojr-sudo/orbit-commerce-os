@@ -24,6 +24,9 @@ interface SupportEmailConfig {
   verification_status: string | null;
 }
 
+// Subdomain prefix for inbound parsing - avoids conflicts with corporate email
+const INBOUND_SUBDOMAIN_PREFIX = 'suporte';
+
 export function SupportEmailSettings() {
   const { currentTenant, profile } = useAuth();
   const { toast } = useToast();
@@ -86,27 +89,17 @@ export function SupportEmailSettings() {
 
   const handleSave = async () => {
     if (!tenantId) return;
-    
-    // If exclusive email is set, validate it's from the same domain
-    if (config.support_email_address && config.sending_domain) {
-      const emailDomain = config.support_email_address.split("@")[1];
-      if (emailDomain !== config.sending_domain) {
-        toast({ 
-          title: "Erro", 
-          description: `O email exclusivo deve pertencer ao domínio verificado (${config.sending_domain})`, 
-          variant: "destructive" 
-        });
-        return;
-      }
-    }
 
     setIsSaving(true);
     try {
+      // Store only the local part of support email address
+      const supportEmailLocal = config.support_email_address?.split('@')[0] || '';
+      
       const { error } = await supabase
         .from("email_provider_configs")
         .update({
           support_email_enabled: config.support_email_enabled,
-          support_email_address: config.support_email_address || null,
+          support_email_address: supportEmailLocal || null,
           support_reply_from_name: config.support_reply_from_name || null,
           support_connection_status: config.support_email_enabled ? "pending_inbound" : "not_configured",
         })
@@ -129,15 +122,18 @@ export function SupportEmailSettings() {
     }
   };
 
+  // Use subdomain to avoid conflicts with corporate email
+  const inboundHostname = config.sending_domain ? `${INBOUND_SUBDOMAIN_PREFIX}.${config.sending_domain}` : null;
+  
   const setupInboundParse = async () => {
-    if (!tenantId || !config.sending_domain) return;
+    if (!tenantId || !inboundHostname) return;
     
     setIsSettingUpInbound(true);
     try {
       const { data, error } = await supabase.functions.invoke("sendgrid-inbound-setup", {
         body: {
           action: "setup",
-          hostname: config.sending_domain,
+          hostname: inboundHostname,
           tenant_id: tenantId,
         },
       });
@@ -165,13 +161,13 @@ export function SupportEmailSettings() {
   };
 
   const checkInboundStatus = async () => {
-    if (!tenantId || !config.sending_domain) return;
+    if (!tenantId || !inboundHostname) return;
     
     try {
       const { data } = await supabase.functions.invoke("sendgrid-inbound-setup", {
         body: {
           action: "check",
-          hostname: config.sending_domain,
+          hostname: inboundHostname,
           tenant_id: tenantId,
         },
       });
@@ -186,10 +182,10 @@ export function SupportEmailSettings() {
 
   // Check inbound status on load if support is enabled
   useEffect(() => {
-    if (config.support_email_enabled && config.sending_domain) {
+    if (config.support_email_enabled && inboundHostname) {
       checkInboundStatus();
     }
-  }, [config.support_email_enabled, config.sending_domain]);
+  }, [config.support_email_enabled, inboundHostname]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -211,7 +207,11 @@ export function SupportEmailSettings() {
   const isEmailVerified = config.verification_status === "verified";
   
   // Determine which email will be used for SAC
-  const effectiveSupportEmail = config.support_email_address || config.from_email;
+  // Support email uses the inbound subdomain to avoid conflicts
+  const supportEmailLocal = config.support_email_address?.split('@')[0] || 'atendimento';
+  const effectiveSupportEmail = inboundHostname 
+    ? `${supportEmailLocal}@${inboundHostname}` 
+    : config.from_email;
   const effectiveSupportName = config.support_reply_from_name || config.from_name || "Atendimento";
 
   // Webhook URL for SendGrid Inbound Parse
@@ -317,8 +317,8 @@ export function SupportEmailSettings() {
                         
                         <div className="bg-white/60 dark:bg-black/30 rounded-lg p-4 space-y-3 text-sm">
                           <p>
-                            Para que clientes possam enviar emails para <strong>{effectiveSupportEmail}</strong>, 
-                            você precisa adicionar um <strong>registro MX</strong> no DNS do seu domínio:
+                            Para receber emails de clientes em <strong>{effectiveSupportEmail}</strong>, 
+                            adicione um <strong>registro MX</strong> no DNS do seu domínio:
                           </p>
                           
                           <div className="bg-white dark:bg-black/40 rounded border p-3 space-y-3">
@@ -333,10 +333,19 @@ export function SupportEmailSettings() {
                               </div>
                             </div>
                             
-                            <div className="text-xs">
+                            <div className="flex items-center gap-2 text-xs">
                               <span className="text-muted-foreground">Nome:</span>
-                              <span className="font-mono font-semibold ml-2">@</span>
-                              <span className="text-muted-foreground ml-2">(use @ para o domínio raiz)</span>
+                              <code className="bg-muted px-2 py-1 rounded font-mono font-semibold">{INBOUND_SUBDOMAIN_PREFIX}</code>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => copyToClipboard(INBOUND_SUBDOMAIN_PREFIX)}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                              <span className="text-muted-foreground">(cria {inboundHostname})</span>
                             </div>
                             
                             <div className="flex items-center gap-2 text-xs">
@@ -354,22 +363,17 @@ export function SupportEmailSettings() {
                             </div>
                           </div>
 
-                          <div className="bg-amber-100 dark:bg-amber-900/30 rounded p-3 text-xs space-y-2">
-                            <p className="font-semibold">⚠️ Importante:</p>
-                            <ul className="list-disc list-inside space-y-1">
-                              <li>
-                                Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
-                                adicionar este MX pode interferir no recebimento de emails.
-                              </li>
-                              <li>
-                                Nesse caso, use um subdomínio: no campo Nome coloque <code className="bg-white/50 px-1 rounded">suporte</code> 
-                                {" "}para criar <code className="bg-white/50 px-1 rounded">suporte.{config.sending_domain}</code>
-                              </li>
-                            </ul>
+                          <div className="bg-green-100 dark:bg-green-900/30 rounded p-3 text-xs space-y-2">
+                            <p className="font-semibold">✅ Vantagem do subdomínio:</p>
+                            <p>
+                              Usando <strong>{inboundHostname}</strong>, seu email corporativo no domínio raiz 
+                              ({config.sending_domain}) continua funcionando normalmente. 
+                              Não há conflito com Google Workspace, Microsoft 365, Zoho, etc.
+                            </p>
                           </div>
 
                           <p className="text-xs text-amber-700 dark:text-amber-300">
-                            <strong>Após configurar o MX no DNS</strong>, clique em Salvar novamente para ativar automaticamente o recebimento.
+                            <strong>Após configurar o MX no DNS</strong>, clique em "Ativar recebimento" abaixo.
                           </p>
                         </div>
                       </AlertDescription>
@@ -393,22 +397,28 @@ export function SupportEmailSettings() {
                 {/* Email exclusivo opcional */}
                 <div className="space-y-4 p-4 border rounded-lg">
                   <div className="space-y-1">
-                    <Label className="font-semibold">Email exclusivo para SAC (opcional)</Label>
+                    <Label className="font-semibold">Nome do email de atendimento</Label>
                     <p className="text-sm text-muted-foreground">
-                      Se quiser usar um email diferente do de notificações para atendimento
+                      Nome que aparece antes do @ no email de atendimento
                     </p>
                   </div>
                   
                   <div className="space-y-2">
-                    <Input
-                      type="email"
-                      placeholder={`sac@${config.sending_domain}`}
-                      value={config.support_email_address}
-                      onChange={(e) => setConfig(prev => ({ ...prev, support_email_address: e.target.value }))}
-                    />
+                    <div className="flex items-center gap-1">
+                      <Input
+                        type="text"
+                        placeholder="atendimento"
+                        value={config.support_email_address?.split('@')[0] || ''}
+                        onChange={(e) => {
+                          const localPart = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');
+                          setConfig(prev => ({ ...prev, support_email_address: localPart }));
+                        }}
+                        className="max-w-[180px]"
+                      />
+                      <span className="text-sm text-muted-foreground font-mono">@{inboundHostname}</span>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Deve pertencer ao domínio verificado ({config.sending_domain}). 
-                      Deixe em branco para usar <span className="font-mono">{config.from_email}</span>
+                      Email final: <strong className="font-mono">{effectiveSupportEmail}</strong>
                     </p>
                   </div>
                 </div>

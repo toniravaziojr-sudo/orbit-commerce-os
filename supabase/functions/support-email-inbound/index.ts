@@ -92,16 +92,23 @@ serve(async (req: Request): Promise<Response> => {
     console.log('Parsed:', { toEmail, fromEmail, fromName });
 
     // Find tenant by email destination
-    // Check both from_email and support_email_address
+    // Check domain (supports subdomain format like suporte.domain.com)
+    // Extract base domain by removing 'suporte.' prefix if present
+    const toDomain = toEmail.split('@')[1] || '';
+    const baseDomain = toDomain.replace(/^suporte\./, '');
+    
+    console.log('Looking for tenant with domain:', { toDomain, baseDomain, toEmail });
+    
+    // Check both from_email, support_email_address, and sending_domain
     const { data: emailConfig, error: configError } = await supabase
       .from('email_provider_configs')
-      .select('tenant_id, from_email, support_email_address, support_reply_from_name')
-      .or(`from_email.ilike.${toEmail},support_email_address.ilike.${toEmail}`)
+      .select('tenant_id, from_email, support_email_address, support_reply_from_name, sending_domain')
       .eq('support_email_enabled', true)
+      .or(`sending_domain.eq.${baseDomain},from_email.ilike.%@${baseDomain},support_email_address.ilike.%@${baseDomain}`)
       .single();
 
     if (configError || !emailConfig) {
-      console.error('No tenant found for email:', toEmail, configError);
+      console.error('No tenant found for email domain:', baseDomain, configError);
       return new Response(
         JSON.stringify({ error: 'Tenant not found for this email address' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
