@@ -29,6 +29,7 @@ import {
   Percent,
   Truck,
   Shield,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -92,6 +93,7 @@ const navigation: NavGroup[] = [
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare },
+      { title: "Emails", href: "/emails", icon: Mail },
     ],
   },
   {
