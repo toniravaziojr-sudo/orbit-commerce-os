@@ -86,6 +86,7 @@ function StorefrontLayoutContent({
   }
 
   const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
+  const SupportChatWidget = lazy(() => import('./SupportChatWidget').then(m => ({ default: m.SupportChatWidget })));
 
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
@@ -101,6 +102,9 @@ function StorefrontLayoutContent({
               <main className="flex-1">
                 <Outlet />
               </main>
+              <Suspense fallback={null}>
+                <SupportChatWidget />
+              </Suspense>
             </div>
           </DomainDisabledGuard>
         </Suspense>

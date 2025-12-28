@@ -178,8 +178,9 @@ export function TenantStorefrontLayout() {
     );
   }
 
-  // Lazy load DomainDisabledGuard
+  // Lazy load components
   const DomainDisabledGuard = lazy(() => import('./DomainDisabledGuard'));
+  const SupportChatWidget = lazy(() => import('./SupportChatWidget').then(m => ({ default: m.SupportChatWidget })));
 
   return (
     <CartProvider tenantSlug={tenantSlug}>
@@ -200,6 +201,9 @@ export function TenantStorefrontLayout() {
                       <Outlet />
                     </TenantSlugContext.Provider>
                   </main>
+                  <Suspense fallback={null}>
+                    <SupportChatWidget />
+                  </Suspense>
                 </div>
               </DomainDisabledGuard>
             </Suspense>
