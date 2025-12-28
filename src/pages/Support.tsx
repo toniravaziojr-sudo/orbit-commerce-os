@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { MessageSquare, Bot, Plug, History, Settings } from "lucide-react";
+import { MessageSquare, Plug, History, Settings } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -33,17 +33,16 @@ export default function Support() {
   const { messages, isLoading: messagesLoading, sendMessage, sendAiResponse } = useMessages(selectedConversation?.id || null);
   const { quickReplies, incrementUseCount } = useQuickReplies();
 
-  // AI tab shows ALL conversations (including resolved), sorted by last_message_at
-  // This is the main inbox for the AI - all conversations stay here
-  const aiConversations = useMemo(() => {
+  // All conversations sorted by last_message_at (most recent first)
+  const sortedConversations = useMemo(() => {
     return [...conversations].sort((a, b) => {
       const dateA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
       const dateB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
-      return dateB - dateA; // Most recent first
+      return dateB - dateA;
     });
   }, [conversations]);
 
-  // Filter for active (non-resolved) conversations for badge count
+  // Count of active conversations for badge
   const activeConversationCount = useMemo(() => {
     return conversations.filter(c => c.status !== 'resolved' && c.status !== 'spam').length;
   }, [conversations]);
@@ -110,9 +109,6 @@ export default function Support() {
     }
   };
 
-  // Get conversations based on active tab
-  const displayedConversations = activeTab === 'ai' ? aiConversations : (activeTab === 'inbox' ? conversations : []);
-
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
       <div className="p-4 border-b">
@@ -128,10 +124,6 @@ export default function Support() {
             <TabsTrigger value="inbox" className="gap-2">
               <MessageSquare className="h-4 w-4" />
               Conversas
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="gap-2">
-              <Bot className="h-4 w-4" />
-              IA
               {activeConversationCount > 0 && (
                 <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
                   {activeConversationCount}
@@ -195,86 +187,6 @@ export default function Support() {
                       <ConversationEventsPanel conversationId={selectedConversation.id} />
                     </SheetContent>
                   </Sheet>
-                </div>
-              )}
-            </div>
-          </div>
-        </TabsContent>
-
-        {/* AI Inbox - shows conversations being handled by AI */}
-        <TabsContent value="ai" className="flex-1 m-0 overflow-hidden">
-          <div className="flex h-full">
-            <div className="w-80 shrink-0 border-r">
-              <div className="p-4 border-b">
-                <h3 className="font-medium text-sm text-muted-foreground">
-                  Conversas atendidas pela IA
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {aiConversations.length} {aiConversations.length === 1 ? 'conversa' : 'conversas'}
-                </p>
-              </div>
-              <div className="overflow-y-auto h-[calc(100%-73px)]">
-                {aiConversations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-64 text-center p-4">
-                    <Bot className="h-12 w-12 text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      Nenhuma conversa sendo atendida pela IA
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Novas conversas aparecerão aqui
-                    </p>
-                  </div>
-                ) : (
-                  aiConversations.map((conv) => (
-                    <div
-                      key={conv.id}
-                      onClick={() => handleSelectConversation(conv)}
-                      className={`p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors ${
-                        selectedConversation?.id === conv.id ? 'bg-muted' : ''
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-medium text-sm truncate">
-                          {conv.customer_name || conv.customer_phone || conv.customer_email || 'Cliente'}
-                        </span>
-                        <Badge variant={conv.status === 'bot' ? 'default' : 'secondary'} className="text-xs">
-                          {conv.status === 'bot' ? 'IA' : 'Novo'}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {conv.channel_type === 'whatsapp' ? '📱 WhatsApp' : 
-                         conv.channel_type === 'email' ? '📧 Email' : 
-                         String(conv.channel_type) === 'chat' ? '💬 Chat' : conv.channel_type}
-                      </p>
-                      {conv.unread_count > 0 && (
-                        <Badge variant="destructive" className="mt-1 text-xs">
-                          {conv.unread_count} nova{conv.unread_count > 1 ? 's' : ''}
-                        </Badge>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            
-            {/* Chat window for selected AI conversation */}
-            <div className="flex-1 flex">
-              <div className="flex-1">
-                <ChatWindow
-                  conversation={selectedConversation}
-                  messages={messages}
-                  quickReplies={quickReplies}
-                  isLoading={messagesLoading}
-                  onSendMessage={handleSendMessage}
-                  onAssign={handleAssign}
-                  onResolve={handleResolve}
-                  onTransfer={() => setShowTransferDialog(true)}
-                  onAiRespond={() => sendAiResponse.mutate()}
-                />
-              </div>
-              {selectedConversation && (
-                <div className="w-64 shrink-0 border-l">
-                  <CustomerInfoPanel conversation={selectedConversation} />
                 </div>
               )}
             </div>
