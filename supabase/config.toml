@@ -181,3 +181,6 @@ verify_jwt = false
 
 [functions.marketing-feed]
 verify_jwt = false
+
+[functions.ai-support-chat]
+verify_jwt = true
