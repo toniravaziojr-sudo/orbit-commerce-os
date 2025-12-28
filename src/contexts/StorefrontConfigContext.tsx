@@ -108,6 +108,22 @@ export function useCanonicalDomain() {
   return context;
 }
 
+// ===== STOREFRONT CONFIG CONTEXT (tenantId) =====
+
+interface StorefrontConfigContextValue {
+  tenantId: string;
+}
+
+const StorefrontConfigContext = createContext<StorefrontConfigContextValue | null>(null);
+
+export function useStorefrontConfig() {
+  const context = useContext(StorefrontConfigContext);
+  if (!context) {
+    throw new Error('useStorefrontConfig must be used within StorefrontConfigProvider');
+  }
+  return context;
+}
+
 // ===== MAIN PROVIDER =====
 
 export interface StorefrontConfigProviderProps {
@@ -379,15 +395,21 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
     customDomain,
   };
 
+  const storefrontConfigValue: StorefrontConfigContextValue = {
+    tenantId,
+  };
+
   return (
-    <CanonicalDomainContext.Provider value={canonicalDomainValue}>
-      <ShippingContext.Provider value={shippingValue}>
-        <BenefitContext.Provider value={benefitValue}>
-          <OffersContext.Provider value={offersValue}>
-            {children}
-          </OffersContext.Provider>
-        </BenefitContext.Provider>
-      </ShippingContext.Provider>
-    </CanonicalDomainContext.Provider>
+    <StorefrontConfigContext.Provider value={storefrontConfigValue}>
+      <CanonicalDomainContext.Provider value={canonicalDomainValue}>
+        <ShippingContext.Provider value={shippingValue}>
+          <BenefitContext.Provider value={benefitValue}>
+            <OffersContext.Provider value={offersValue}>
+              {children}
+            </OffersContext.Provider>
+          </BenefitContext.Provider>
+        </ShippingContext.Provider>
+      </CanonicalDomainContext.Provider>
+    </StorefrontConfigContext.Provider>
   );
 }
