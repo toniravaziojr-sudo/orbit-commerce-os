@@ -4,6 +4,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import type { Json } from "@/integrations/supabase/types";
 
+export interface AIRule {
+  id: string;
+  condition: string;
+  action: 'respond' | 'transfer' | 'escalate' | 'suggest';
+  response?: string;
+  priority: number;
+  is_active: boolean;
+  category: string;
+}
+
 export interface AiSupportConfig {
   id: string;
   tenant_id: string;
@@ -31,6 +41,7 @@ export interface AiSupportConfig {
   ai_model: string;
   target_first_response_seconds: number;
   target_resolution_minutes: number;
+  rules: AIRule[];
   created_at: string;
   updated_at: string;
 }
@@ -51,7 +62,15 @@ export function useAiSupportConfig() {
         .maybeSingle();
 
       if (error) throw error;
-      return data as AiSupportConfig | null;
+      
+      // Transform rules from Json to AIRule[]
+      if (data) {
+        return {
+          ...data,
+          rules: Array.isArray(data.rules) ? (data.rules as unknown as AIRule[]) : [],
+        } as AiSupportConfig;
+      }
+      return null;
     },
     enabled: !!currentTenant?.id,
   });

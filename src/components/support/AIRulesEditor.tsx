@@ -24,15 +24,8 @@ import {
 } from "@/components/ui/accordion";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-export interface AIRule {
-  id: string;
-  condition: string;
-  action: 'respond' | 'transfer' | 'escalate' | 'suggest';
-  response?: string;
-  priority: number;
-  is_active: boolean;
-  category: string;
-}
+import type { AIRule } from "@/hooks/useAiSupportConfig";
+export type { AIRule };
 
 interface AIRulesEditorProps {
   rules: AIRule[];

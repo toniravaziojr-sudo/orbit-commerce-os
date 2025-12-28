@@ -39,6 +39,7 @@ export type Database = {
           out_of_hours_message: string | null
           personality_name: string | null
           personality_tone: string | null
+          rules: Json | null
           system_prompt: string | null
           target_first_response_seconds: number | null
           target_resolution_minutes: number | null
@@ -70,6 +71,7 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          rules?: Json | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
           target_resolution_minutes?: number | null
@@ -101,6 +103,7 @@ export type Database = {
           out_of_hours_message?: string | null
           personality_name?: string | null
           personality_tone?: string | null
+          rules?: Json | null
           system_prompt?: string | null
           target_first_response_seconds?: number | null
           target_resolution_minutes?: number | null
