@@ -6,6 +6,50 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// SendGrid API helper
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  text: string,
+  replyTo?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const payload: any = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from.email, name: from.name },
+      subject,
+      content: [{ type: "text/plain", value: text }],
+    };
+
+    if (replyTo) {
+      payload.reply_to = { email: replyTo };
+    }
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[support-send-message] SendGrid error:", response.status, errorText);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorText}` };
+    }
+
+    const messageId = response.headers.get("X-Message-Id") || undefined;
+    return { success: true, messageId };
+  } catch (error: any) {
+    console.error("[support-send-message] SendGrid exception:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -114,10 +158,10 @@ serve(async (req) => {
           fromEmail = config.support_reply_from_email;
         }
 
-        // Send via Resend
-        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-        if (!RESEND_API_KEY) {
-          error = "Resend API key not configured";
+        // Send via SendGrid
+        const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY");
+        if (!SENDGRID_API_KEY) {
+          error = "SendGrid API key not configured";
           break;
         }
 
@@ -129,31 +173,23 @@ serve(async (req) => {
 
         console.log(`Sending email from "${fromName}" <${fromEmail}> to ${customerEmail}`);
 
-        const emailRes = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${RESEND_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: `${fromName} <${fromEmail}>`,
-            to: [customerEmail],
-            subject: conversation.subject || "Re: Seu atendimento",
-            text: message.content,
-            reply_to: config.support_email_address || fromEmail,
-          }),
-        });
+        const result = await sendEmailViaSendGrid(
+          SENDGRID_API_KEY,
+          { email: fromEmail, name: fromName },
+          customerEmail,
+          conversation.subject || "Re: Seu atendimento",
+          message.content,
+          config.support_email_address || fromEmail
+        );
 
-        if (!emailRes.ok) {
-          const errText = await emailRes.text();
-          error = `Email send failed: ${errText}`;
-          console.error("Resend error:", errText);
+        if (!result.success) {
+          error = `Email send failed: ${result.error}`;
+          console.error("SendGrid error:", result.error);
         } else {
-          const emailData = await emailRes.json();
           success = true;
-          externalMessageId = emailData.id;
+          externalMessageId = result.messageId || null;
           deliveryStatus = "sent";
-          console.log("Email sent successfully:", emailData.id);
+          console.log("Email sent successfully:", result.messageId);
         }
         break;
       }

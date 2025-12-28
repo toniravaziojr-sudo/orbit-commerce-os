@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +17,44 @@ interface AuthEmailRequest {
   store_name?: string;
 }
 
+// SendGrid API helper
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: from.email, name: from.name },
+        subject,
+        content: [{ type: "text/html", value: html }],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[send-auth-email] SendGrid error:", response.status, errorText);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorText}` };
+    }
+
+    // SendGrid returns 202 Accepted with message ID in header
+    const messageId = response.headers.get("X-Message-Id") || undefined;
+    return { success: true, messageId };
+  } catch (error: any) {
+    console.error("[send-auth-email] SendGrid exception:", error);
+    return { success: false, error: error.message };
+  }
+}
+
 const serve_handler = async (req: Request): Promise<Response> => {
   // Handle CORS
   if (req.method === "OPTIONS") {
@@ -25,9 +62,9 @@ const serve_handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("[send-auth-email] RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("[send-auth-email] SENDGRID_API_KEY not configured");
       throw new Error("Email service not configured");
     }
 
@@ -274,19 +311,22 @@ const serve_handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Send email via Resend
-    const resend = new Resend(resendApiKey);
-
+    // Send email via SendGrid
     console.log(`[send-auth-email] Sending from: ${config.from_name} <${fromEmail}>`);
 
-    const emailResponse = await resend.emails.send({
-      from: `${config.from_name} <${fromEmail}>`,
-      to: [email],
-      subject: subject,
-      html: htmlBody,
-    });
+    const result = await sendEmailViaSendGrid(
+      sendgridApiKey,
+      { email: fromEmail, name: config.from_name },
+      email,
+      subject,
+      htmlBody
+    );
 
-    console.log("[send-auth-email] Email sent successfully:", emailResponse);
+    if (!result.success) {
+      throw new Error(result.error || "Failed to send email");
+    }
+
+    console.log("[send-auth-email] Email sent successfully:", result.messageId);
 
     // Log the email
     await supabase.from('system_email_logs').insert({
@@ -298,13 +338,13 @@ const serve_handler = async (req: Request): Promise<Response> => {
       metadata: {
         email_type,
         store_name,
-        resend_id: emailResponse.data?.id,
+        sendgrid_id: result.messageId,
         used_fallback: templateError !== null,
       },
     });
 
     return new Response(
-      JSON.stringify({ success: true, message_id: emailResponse.data?.id }),
+      JSON.stringify({ success: true, message_id: result.messageId }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {

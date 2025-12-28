@@ -1,10 +1,53 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// SendGrid API helper
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  html: string,
+  replyTo?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const payload: any = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from.email, name: from.name },
+      subject,
+      content: [{ type: "text/html", value: html }],
+    };
+
+    if (replyTo) {
+      payload.reply_to = { email: replyTo };
+    }
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("[send-test-email] SendGrid error:", response.status, errorText);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorText}` };
+    }
+
+    const messageId = response.headers.get("X-Message-Id") || undefined;
+    return { success: true, messageId };
+  } catch (error: any) {
+    console.error("[send-test-email] SendGrid exception:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -13,13 +56,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("[send-test-email] RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("[send-test-email] SENDGRID_API_KEY not configured");
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: "RESEND_API_KEY não configurada. Configure a API key do Resend nas variáveis de ambiente." 
+          message: "SENDGRID_API_KEY não configurada. Configure a API key do SendGrid nas variáveis de ambiente." 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -70,15 +113,13 @@ Deno.serve(async (req) => {
     }
 
     // For test emails, we need the provider to be fully verified
-    // (dns_all_ok allows run-notifications to use tenant sender via system fallback,
-    // but direct sends to Resend require their verification)
     if (config.verification_status !== "verified") {
       const dnsOk = config.dns_all_ok === true;
       return new Response(
         JSON.stringify({ 
           success: false, 
           message: dnsOk 
-            ? "DNS verificado, mas o Resend ainda está processando. Aguarde alguns minutos e clique em 'Verificar DNS' novamente. Os emails automáticos já saem com seu remetente."
+            ? "DNS verificado, mas o SendGrid ainda está processando. Aguarde alguns minutos e clique em 'Verificar DNS' novamente. Os emails automáticos já saem com seu remetente."
             : "O domínio de envio ainda não foi verificado. Configure os registros DNS e verifique o domínio primeiro." 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -99,17 +140,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Send test email via Resend
-    const resend = new Resend(resendApiKey);
-    
-    const fromAddress = `${config.from_name} <${config.from_email}>`;
-    
-    const { data: emailResult, error: emailError } = await resend.emails.send({
-      from: fromAddress,
-      to: [to_email],
-      reply_to: config.reply_to || undefined,
-      subject: "✅ Teste de Email - Comando Central",
-      html: `
+    // Send test email via SendGrid
+    const result = await sendEmailViaSendGrid(
+      sendgridApiKey,
+      { email: config.from_email, name: config.from_name },
+      to_email,
+      "✅ Teste de Email - Comando Central",
+      `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 24px;">✅ Email Configurado com Sucesso!</h1>
@@ -134,26 +171,27 @@ Deno.serve(async (req) => {
           </div>
         </div>
       `,
-    });
+      config.reply_to || undefined
+    );
 
-    if (emailError) {
-      console.error("[send-test-email] Resend error:", emailError);
+    if (!result.success) {
+      console.error("[send-test-email] SendGrid error:", result.error);
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: `Erro ao enviar: ${emailError.message || JSON.stringify(emailError)}` 
+          message: `Erro ao enviar: ${result.error}` 
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("[send-test-email] Email sent successfully:", emailResult);
+    console.log("[send-test-email] Email sent successfully:", result.messageId);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         message: `Email de teste enviado para ${to_email}. Verifique sua caixa de entrada.`,
-        message_id: emailResult?.id 
+        message_id: result.messageId 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
