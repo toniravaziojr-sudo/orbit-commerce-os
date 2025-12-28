@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -26,7 +27,6 @@ import { Separator } from "@/components/ui/separator";
 import { Mailbox, useMailboxes } from "@/hooks/useMailboxes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
 interface MailboxSettingsDialogProps {
   mailbox: Mailbox;
@@ -36,6 +36,7 @@ interface MailboxSettingsDialogProps {
 
 export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSettingsDialogProps) {
   const { updateMailbox } = useMailboxes();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("general");
   const [displayName, setDisplayName] = useState(mailbox.display_name || "");
   const [signatureHtml, setSignatureHtml] = useState(mailbox.signature_html || "");
@@ -59,17 +60,20 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
   const handleVerifyDns = async () => {
     setIsVerifyingDns(true);
     try {
-      // Call edge function to verify DNS
-      const { data, error } = await supabase.functions.invoke('email-domain-verify', {
-        body: { domain: mailbox.domain },
+      // Call edge function to verify DNS for this mailbox
+      const { data, error } = await supabase.functions.invoke('mailbox-dns-verify', {
+        body: { mailbox_id: mailbox.id },
       });
 
       if (error) throw error;
 
+      // Invalidate mailboxes query to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['mailboxes'] });
+
       if (data.verified) {
-        toast.success('DNS verificado com sucesso');
+        toast.success('DNS verificado com sucesso! Mailbox ativo.');
       } else {
-        toast.error('DNS ainda não configurado corretamente');
+        toast.error('DNS ainda não configurado corretamente. Verifique os registros.');
       }
     } catch (error) {
       console.error('DNS verification error:', error);

@@ -210,3 +210,6 @@ verify_jwt = true
 
 [functions.email-send]
 verify_jwt = true
+
+[functions.mailbox-dns-verify]
+verify_jwt = true
