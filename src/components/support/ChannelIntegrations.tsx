@@ -1,57 +1,71 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { useChannelAccounts, type ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelConfigDialog } from "./ChannelConfigDialog";
-const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; docsUrl: string }> = {
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+
+interface IntegrationStatus {
+  whatsapp: { configured: boolean; connected: boolean; phone?: string };
+  email: { configured: boolean; verified: boolean; from?: string };
+}
+
+const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; integrationPath: string }> = {
   whatsapp: {
     name: 'WhatsApp',
     icon: '💬',
     description: 'Receba e responda mensagens do WhatsApp Business',
-    docsUrl: '/integrations#whatsapp',
+    integrationPath: '/integrations#whatsapp',
   },
   email: {
     name: 'Email',
     icon: '✉️',
     description: 'Receba e responda emails de suporte',
-    docsUrl: '/integrations#email',
+    integrationPath: '/integrations#email',
   },
   facebook_messenger: {
     name: 'Messenger',
     icon: '📘',
     description: 'Atenda pelo Facebook Messenger',
-    docsUrl: 'https://developers.facebook.com/docs/messenger-platform',
+    integrationPath: '',
   },
   instagram_dm: {
     name: 'Instagram DM',
     icon: '📸',
     description: 'Responda mensagens diretas do Instagram',
-    docsUrl: 'https://developers.facebook.com/docs/instagram-api',
+    integrationPath: '',
   },
   mercadolivre: {
     name: 'Mercado Livre',
     icon: '🛒',
     description: 'Responda perguntas e mensagens de pedidos',
-    docsUrl: 'https://developers.mercadolivre.com.br',
+    integrationPath: '',
   },
   shopee: {
     name: 'Shopee',
     icon: '🧡',
     description: 'Atenda no chat da Shopee',
-    docsUrl: 'https://open.shopee.com',
+    integrationPath: '',
   },
 };
 
+// Canais que usam integrações existentes (não precisam de config própria)
+const linkedChannels: SupportChannelType[] = ['whatsapp', 'email'];
+
 export function ChannelIntegrations() {
+  const { currentTenant } = useAuth();
+  const navigate = useNavigate();
   const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<SupportChannelType | ''>('');
@@ -59,6 +73,52 @@ export function ChannelIntegrations() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<ChannelAccount | null>(null);
   const [selectedChannelType, setSelectedChannelType] = useState<SupportChannelType>('whatsapp');
+  const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
+    whatsapp: { configured: false, connected: false },
+    email: { configured: false, verified: false },
+  });
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  // Fetch integration status from existing configs
+  useEffect(() => {
+    const fetchIntegrationStatus = async () => {
+      if (!currentTenant?.id) return;
+      
+      setLoadingStatus(true);
+      try {
+        // Check WhatsApp config
+        const { data: waData } = await supabase.rpc('get_whatsapp_config_for_tenant', { 
+          p_tenant_id: currentTenant.id 
+        });
+        
+        // Check Email config
+        const { data: emailData } = await supabase
+          .from('email_provider_configs')
+          .select('id, verification_status, from_email, from_name')
+          .eq('tenant_id', currentTenant.id)
+          .maybeSingle();
+
+        setIntegrationStatus({
+          whatsapp: {
+            configured: !!waData && waData.length > 0,
+            connected: waData?.[0]?.connection_status === 'connected',
+            phone: waData?.[0]?.phone_number || undefined,
+          },
+          email: {
+            configured: !!emailData,
+            verified: emailData?.verification_status === 'verified',
+            from: emailData?.from_email || emailData?.from_name || undefined,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching integration status:', error);
+      } finally {
+        setLoadingStatus(false);
+      }
+    };
+
+    fetchIntegrationStatus();
+  }, [currentTenant?.id]);
 
   const handleAddChannel = () => {
     if (!selectedType || !accountName) return;
@@ -80,21 +140,23 @@ export function ChannelIntegrations() {
     setConfigDialogOpen(true);
   };
 
-  const getChannelStatus = (channel: ChannelAccount) => {
-    if (channel.last_error) return 'error';
-    if (channel.is_active && channel.last_sync_at) return 'connected';
-    if (channel.is_active) return 'pending';
-    return 'disabled';
+  const isIntegrationReady = (type: SupportChannelType): boolean => {
+    if (type === 'whatsapp') return integrationStatus.whatsapp.configured;
+    if (type === 'email') return integrationStatus.email.configured;
+    return true; // Other channels manage their own config
   };
 
-  const statusConfig = {
-    connected: { label: 'Conectado', icon: CheckCircle, color: 'text-green-600' },
-    pending: { label: 'Pendente', icon: AlertCircle, color: 'text-yellow-600' },
-    error: { label: 'Erro', icon: XCircle, color: 'text-red-600' },
-    disabled: { label: 'Desativado', icon: XCircle, color: 'text-gray-400' },
+  const getIntegrationLabel = (type: SupportChannelType): string | null => {
+    if (type === 'whatsapp' && integrationStatus.whatsapp.configured) {
+      return integrationStatus.whatsapp.phone || (integrationStatus.whatsapp.connected ? 'Conectado' : 'Configurado');
+    }
+    if (type === 'email' && integrationStatus.email.configured) {
+      return integrationStatus.email.from || (integrationStatus.email.verified ? 'Verificado' : 'Configurado');
+    }
+    return null;
   };
 
-  if (isLoading) {
+  if (isLoading || loadingStatus) {
     return (
       <div className="space-y-4 p-4">
         <Skeleton className="h-32 w-full" />
@@ -109,32 +171,173 @@ export function ChannelIntegrations() {
         <div>
           <h2 className="text-xl font-semibold">Canais de Atendimento</h2>
           <p className="text-sm text-muted-foreground">
-            Configure os canais onde a IA vai atender seus clientes
+            Ative os canais onde a IA vai atender seus clientes
           </p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Canal
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Canal</DialogTitle>
-              <DialogDescription>
-                Escolha o canal que deseja integrar ao atendimento
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Canal</Label>
-                <Select value={selectedType} onValueChange={(v) => setSelectedType(v as SupportChannelType)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um canal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(channelInfo) as SupportChannelType[]).map((type) => {
+      </div>
+
+      {/* Channels Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {(Object.keys(channelInfo) as SupportChannelType[]).map((type) => {
+          const info = channelInfo[type];
+          const channel = channels.find(c => c.channel_type === type);
+          const isLinkedChannel = linkedChannels.includes(type);
+          const integrationReady = isIntegrationReady(type);
+          const integrationLabel = getIntegrationLabel(type);
+
+          return (
+            <Card key={type} className={channel?.is_active ? 'border-primary/50' : ''}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <span className="text-2xl">{info.icon}</span>
+                    {info.name}
+                  </CardTitle>
+                  {channel?.is_active && (
+                    <Badge variant="default" className="bg-green-600">
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Ativo
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription>{info.description}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {isLinkedChannel ? (
+                  // WhatsApp and Email - use existing integrations
+                  integrationReady ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {integrationLabel || 'Integração configurada'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Via Integrações
+                          </p>
+                        </div>
+                        <Switch
+                          checked={channel?.is_active || false}
+                          onCheckedChange={(checked) => {
+                            if (channel) {
+                              updateChannel.mutate({ id: channel.id, is_active: checked });
+                            } else {
+                              // Create channel and activate
+                              createChannel.mutate({
+                                channel_type: type,
+                                account_name: `${info.name} Principal`,
+                              });
+                            }
+                          }}
+                        />
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full text-muted-foreground"
+                        onClick={() => navigate('/integrations')}
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Gerenciar em Integrações
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                        <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                          Configure primeiro em Integrações
+                        </p>
+                      </div>
+                      <Button 
+                        onClick={() => navigate('/integrations')}
+                        className="w-full"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Configurar {info.name}
+                      </Button>
+                    </div>
+                  )
+                ) : (
+                  // Other channels - manage their own config
+                  channel ? (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">{channel.account_name}</span>
+                        <Switch
+                          checked={channel.is_active}
+                          onCheckedChange={(checked) => updateChannel.mutate({ id: channel.id, is_active: checked })}
+                        />
+                      </div>
+                      {channel.last_error && (
+                        <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                          {channel.last_error}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="flex-1"
+                          onClick={() => handleOpenConfig(channel)}
+                        >
+                          <Settings className="h-4 w-4 mr-1" />
+                          Configurar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteChannel.mutate(channel.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <Badge variant="outline">Não configurado</Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setSelectedType(type);
+                          setAccountName(`${info.name} Principal`);
+                          setIsAddDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Adicionar
+                      </Button>
+                    </div>
+                  )
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Add Channel Dialog (for non-linked channels) */}
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Adicionar Canal</DialogTitle>
+            <DialogDescription>
+              Configure as credenciais do canal
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Canal</Label>
+              <Select value={selectedType} onValueChange={(v) => setSelectedType(v as SupportChannelType)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um canal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(channelInfo) as SupportChannelType[])
+                    .filter(type => !linkedChannels.includes(type))
+                    .map((type) => {
                       const info = channelInfo[type];
                       const exists = channels.some(c => c.channel_type === type);
                       return (
@@ -147,123 +350,30 @@ export function ChannelIntegrations() {
                         </SelectItem>
                       );
                     })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Nome da Conta</Label>
-                <Input
-                  placeholder="Ex: WhatsApp Principal"
-                  value={accountName}
-                  onChange={(e) => setAccountName(e.target.value)}
-                />
-              </div>
+                </SelectContent>
+              </Select>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAddChannel} disabled={!selectedType || !accountName || createChannel.isPending}>
-                {createChannel.isPending ? 'Adicionando...' : 'Adicionar'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            <div className="space-y-2">
+              <Label>Nome da Conta</Label>
+              <Input
+                placeholder="Ex: Messenger Principal"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddChannel} disabled={!selectedType || !accountName || createChannel.isPending}>
+              {createChannel.isPending ? 'Adicionando...' : 'Adicionar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* Available Channels */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {(Object.keys(channelInfo) as SupportChannelType[]).map((type) => {
-          const info = channelInfo[type];
-          const channel = channels.find(c => c.channel_type === type);
-          const status = channel ? getChannelStatus(channel) : null;
-          const statusInfo = status ? statusConfig[status] : null;
-
-          return (
-            <Card key={type} className={channel?.is_active ? 'border-primary/50' : ''}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span className="text-2xl">{info.icon}</span>
-                    {info.name}
-                  </CardTitle>
-                  {statusInfo && (
-                    <div className={`flex items-center gap-1 text-sm ${statusInfo.color}`}>
-                      <statusInfo.icon className="h-4 w-4" />
-                      <span>{statusInfo.label}</span>
-                    </div>
-                  )}
-                </div>
-                <CardDescription>{info.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {channel ? (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">{channel.account_name}</span>
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={channel.is_active}
-                          onCheckedChange={(checked) => updateChannel.mutate({ id: channel.id, is_active: checked })}
-                        />
-                      </div>
-                    </div>
-                    {channel.last_error && (
-                      <p className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 p-2 rounded">
-                        {channel.last_error}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="flex-1"
-                        onClick={() => handleOpenConfig(channel)}
-                      >
-                        <Settings className="h-4 w-4 mr-1" />
-                        Configurar
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteChannel.mutate(channel.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <Badge variant="outline">Não configurado</Badge>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedType(type);
-                          setAccountName(`${info.name} Principal`);
-                          setIsAddDialogOpen(true);
-                        }}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Adicionar
-                      </Button>
-                      <Button variant="ghost" size="sm" asChild>
-                        <a href={info.docsUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* Channel Config Dialog */}
+      {/* Channel Config Dialog (for non-linked channels only) */}
       <ChannelConfigDialog
         open={configDialogOpen}
         onOpenChange={setConfigDialogOpen}
