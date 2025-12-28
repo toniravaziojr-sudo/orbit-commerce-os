@@ -207,3 +207,6 @@ verify_jwt = false
 
 [functions.sendgrid-inbound-setup]
 verify_jwt = true
+
+[functions.email-send]
+verify_jwt = true
