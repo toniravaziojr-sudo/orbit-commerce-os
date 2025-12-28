@@ -145,7 +145,7 @@ export function SupportEmailSettings() {
   const effectiveSupportEmail = config.support_email_address || config.from_email;
   const effectiveSupportName = config.support_reply_from_name || config.from_name || "Atendimento";
 
-  // Webhook URL for Resend Inbound
+  // Webhook URL for SendGrid Inbound Parse
   const webhookUrl = `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/support-email-inbound`;
 
   return (
@@ -220,61 +220,19 @@ export function SupportEmailSettings() {
                   </Alert>
                 )}
 
-                {/* Instruções para o TENANT - apenas MX */}
-                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800 dark:text-blue-200 space-y-4">
-                    <p className="font-semibold text-base">📧 Configuração necessária no seu DNS</p>
+                {/* Instruções para o TENANT - sem necessidade de MX próprio */}
+                <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800 dark:text-green-200 space-y-3">
+                    <p className="font-semibold text-base">✅ Atendimento por e-mail habilitado</p>
                     
-                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-3 space-y-2">
-                      <p className="text-sm">
-                        Para receber emails de clientes, adicione um registro <strong>MX</strong> no DNS do seu domínio 
-                        (<code className="bg-white/80 dark:bg-black/40 px-1 rounded">{config.sending_domain}</code>).
+                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-3 space-y-2 text-sm">
+                      <p>
+                        Os emails de atendimento são gerenciados pela plataforma. Quando você responder a um cliente,
+                        o email será enviado usando seu remetente configurado em <strong>Email Transacional</strong>.
                       </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      <p className="text-sm font-semibold">Adicione este registro no DNS do seu domínio:</p>
-                      
-                      <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Tipo:</span>
-                          <span className="font-semibold">MX</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Nome:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">@ (ou deixe vazio)</span>
-                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("@")}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Valor:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs">inbound-smtp.resend.com</span>
-                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("inbound-smtp.resend.com")}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Prioridade:</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-semibold">10</span>
-                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("10")}>
-                              <Copy className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <p className="text-xs text-muted-foreground">
-                        💡 Se você usa Cloudflare, adicione no painel DNS. A propagação pode levar até 24h.
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        ⚠️ Após configurar o MX, entre em contato com o suporte da plataforma para ativar o recebimento.
+                      <p className="text-muted-foreground">
+                        💡 Se você precisar de recebimento de emails no seu próprio domínio, entre em contato com o suporte da plataforma.
                       </p>
                     </div>
                   </AlertDescription>
