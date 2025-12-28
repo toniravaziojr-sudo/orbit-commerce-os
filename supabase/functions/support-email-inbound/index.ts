@@ -3,25 +3,30 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-resend-signature',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ResendInboundEmail {
+// SendGrid Inbound Parse sends multipart/form-data
+interface SendGridInboundEmail {
   from: string;
   to: string;
   subject: string;
   text: string;
   html: string;
-  headers: Record<string, string>;
-  attachments?: Array<{
-    filename: string;
-    content: string;
-    content_type: string;
-  }>;
+  headers: string; // Raw headers string
+  envelope: string; // JSON string with from/to arrays
+  attachments?: string; // Number of attachments
+  'attachment-info'?: string; // JSON with attachment metadata
+}
+
+interface AttachmentInfo {
+  filename: string;
+  type: string;
+  'content-id'?: string;
 }
 
 serve(async (req: Request): Promise<Response> => {
-  console.log('=== SUPPORT EMAIL INBOUND ===');
+  console.log('=== SUPPORT EMAIL INBOUND (SendGrid) ===');
   console.log('Method:', req.method);
 
   // Handle CORS preflight
@@ -34,12 +39,40 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const payload: ResendInboundEmail = await req.json();
+    // SendGrid Inbound Parse sends multipart/form-data
+    const formData = await req.formData();
+    
+    const payload: SendGridInboundEmail = {
+      from: formData.get('from') as string || '',
+      to: formData.get('to') as string || '',
+      subject: formData.get('subject') as string || '',
+      text: formData.get('text') as string || '',
+      html: formData.get('html') as string || '',
+      headers: formData.get('headers') as string || '',
+      envelope: formData.get('envelope') as string || '{}',
+      attachments: formData.get('attachments') as string,
+      'attachment-info': formData.get('attachment-info') as string,
+    };
+
     console.log('Inbound email received:', {
       from: payload.from,
       to: payload.to,
       subject: payload.subject,
     });
+
+    // Parse headers from raw string format
+    const parsedHeaders: Record<string, string> = {};
+    if (payload.headers) {
+      const headerLines = payload.headers.split('\n');
+      for (const line of headerLines) {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+          const key = line.substring(0, colonIndex).trim();
+          const value = line.substring(colonIndex + 1).trim();
+          parsedHeaders[key] = value;
+        }
+      }
+    }
 
     // Extract email address from "Name <email@domain.com>" format
     const extractEmail = (str: string): string => {
@@ -78,10 +111,10 @@ serve(async (req: Request): Promise<Response> => {
     const tenantId = emailConfig.tenant_id;
     console.log('Found tenant:', tenantId);
 
-    // Extract Message-ID and References for threading
-    const messageId = payload.headers?.['message-id'] || payload.headers?.['Message-ID'] || null;
-    const inReplyTo = payload.headers?.['in-reply-to'] || payload.headers?.['In-Reply-To'] || null;
-    const references = payload.headers?.['references'] || payload.headers?.['References'] || null;
+    // Extract Message-ID and References for threading from parsed headers
+    const messageId = parsedHeaders['Message-ID'] || parsedHeaders['message-id'] || null;
+    const inReplyTo = parsedHeaders['In-Reply-To'] || parsedHeaders['in-reply-to'] || null;
+    const references = parsedHeaders['References'] || parsedHeaders['references'] || null;
 
     console.log('Email threading:', { messageId, inReplyTo, references });
 
@@ -187,15 +220,13 @@ serve(async (req: Request): Promise<Response> => {
         conversation_id: conversationId,
         sender_type: 'customer',
         sender_name: fromName,
-        sender_identifier: fromEmail,
         direction: 'inbound',
         content: payload.text || payload.html || '',
-        content_html: payload.html || null,
         delivery_status: 'delivered',
         external_message_id: messageId,
         metadata: {
           subject: payload.subject,
-          headers: payload.headers,
+          headers: parsedHeaders,
         },
       })
       .select('id')
@@ -208,20 +239,38 @@ serve(async (req: Request): Promise<Response> => {
 
     console.log('Created message:', newMessage.id);
 
-    // Handle attachments
-    if (payload.attachments && payload.attachments.length > 0) {
-      for (const attachment of payload.attachments) {
-        await supabase
-          .from('message_attachments')
-          .insert({
-            tenant_id: tenantId,
-            message_id: newMessage.id,
-            file_name: attachment.filename,
-            file_type: attachment.content_type,
-            file_url: `data:${attachment.content_type};base64,${attachment.content}`,
-          });
+    // Handle attachments (SendGrid sends them as separate form fields)
+    const numAttachments = parseInt(payload.attachments || '0', 10);
+    if (numAttachments > 0 && payload['attachment-info']) {
+      try {
+        const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
+        
+        for (const [key, info] of Object.entries(attachmentInfo)) {
+          // SendGrid sends attachment files as form fields named "attachment1", "attachment2", etc.
+          const attachmentFile = formData.get(key) as File | null;
+          
+          if (attachmentFile) {
+            // Convert to base64
+            const arrayBuffer = await attachmentFile.arrayBuffer();
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+            
+            await supabase
+              .from('message_attachments')
+              .insert({
+                tenant_id: tenantId,
+                message_id: newMessage.id,
+                file_name: info.filename || attachmentFile.name,
+                file_path: `attachments/${tenantId}/${newMessage.id}/${info.filename || attachmentFile.name}`,
+                mime_type: info.type || attachmentFile.type,
+                file_size: attachmentFile.size,
+                file_url: `data:${info.type || attachmentFile.type};base64,${base64}`,
+              });
+          }
+        }
+        console.log('Saved', numAttachments, 'attachments');
+      } catch (e) {
+        console.error('Error processing attachments:', e);
       }
-      console.log('Saved', payload.attachments.length, 'attachments');
     }
 
     // Update conversation
