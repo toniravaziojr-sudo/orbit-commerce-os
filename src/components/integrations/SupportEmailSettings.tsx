@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Headphones, CheckCircle, XCircle, Loader2, AlertCircle, Info } from "lucide-react";
+import { Headphones, CheckCircle, XCircle, Loader2, AlertCircle, Info, Copy, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface SupportEmailConfig {
@@ -114,11 +114,17 @@ export function SupportEmailSettings() {
 
       toast({ title: "Salvo", description: "Configuração de atendimento por email salva" });
       await fetchConfig();
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido";
+      toast({ title: "Erro", description: message, variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copiado!", description: "Texto copiado para a área de transferência" });
   };
 
   if (isLoading) {
@@ -138,6 +144,9 @@ export function SupportEmailSettings() {
   // Determine which email will be used for SAC
   const effectiveSupportEmail = config.support_email_address || config.from_email;
   const effectiveSupportName = config.support_reply_from_name || config.from_name || "Atendimento";
+
+  // Webhook URL for Resend Inbound
+  const webhookUrl = `https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/support-email-inbound`;
 
   return (
     <Card>
@@ -210,6 +219,72 @@ export function SupportEmailSettings() {
                     <AlertDescription>{config.support_last_error}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* IMPORTANTE: Instruções de configuração do Resend Inbound */}
+                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                  <AlertCircle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-3">
+                    <p className="font-semibold">⚠️ Configuração necessária no Resend</p>
+                    <p className="text-sm">
+                      Para <strong>receber</strong> emails, você precisa configurar o <strong>Inbound Email</strong> no Resend:
+                    </p>
+                    <ol className="text-sm space-y-2 list-decimal list-inside">
+                      <li>
+                        Acesse{" "}
+                        <a 
+                          href="https://resend.com/domains" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                        >
+                          Resend Domains <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </li>
+                      <li>Clique no seu domínio ({config.sending_domain})</li>
+                      <li>Vá na aba <strong>"Inbound"</strong></li>
+                      <li>Adicione o registro <strong>MX</strong> no seu DNS:</li>
+                    </ol>
+                    
+                    <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Tipo:</span>
+                        <span className="font-semibold">MX</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Nome:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">@</span>
+                          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("@")}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Valor:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-xs">inbound-smtp.resend.com</span>
+                          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("inbound-smtp.resend.com")}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Prioridade:</span>
+                        <span className="font-semibold">10</span>
+                      </div>
+                    </div>
+
+                    <p className="text-sm">
+                      5. Configure o webhook no Resend para:
+                    </p>
+                    <div className="bg-white dark:bg-black/20 rounded-md p-2 flex items-center justify-between gap-2">
+                      <code className="text-xs break-all">{webhookUrl}</code>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 flex-shrink-0" onClick={() => copyToClipboard(webhookUrl)}>
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
 
                 {/* Info box - email atual */}
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
