@@ -14,6 +14,110 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_support_config: {
+        Row: {
+          ai_model: string | null
+          approval_mode: boolean | null
+          auto_import_categories: boolean | null
+          auto_import_faqs: boolean | null
+          auto_import_policies: boolean | null
+          auto_import_products: boolean | null
+          created_at: string | null
+          custom_knowledge: string | null
+          forbidden_topics: string[] | null
+          handle_audio: boolean | null
+          handle_files: boolean | null
+          handle_images: boolean | null
+          handoff_keywords: string[] | null
+          id: string
+          image_analysis_prompt: string | null
+          is_enabled: boolean | null
+          max_messages_before_handoff: number | null
+          max_response_length: number | null
+          metadata: Json | null
+          operating_hours: Json | null
+          out_of_hours_message: string | null
+          personality_name: string | null
+          personality_tone: string | null
+          system_prompt: string | null
+          target_first_response_seconds: number | null
+          target_resolution_minutes: number | null
+          tenant_id: string
+          updated_at: string | null
+          use_emojis: boolean | null
+        }
+        Insert: {
+          ai_model?: string | null
+          approval_mode?: boolean | null
+          auto_import_categories?: boolean | null
+          auto_import_faqs?: boolean | null
+          auto_import_policies?: boolean | null
+          auto_import_products?: boolean | null
+          created_at?: string | null
+          custom_knowledge?: string | null
+          forbidden_topics?: string[] | null
+          handle_audio?: boolean | null
+          handle_files?: boolean | null
+          handle_images?: boolean | null
+          handoff_keywords?: string[] | null
+          id?: string
+          image_analysis_prompt?: string | null
+          is_enabled?: boolean | null
+          max_messages_before_handoff?: number | null
+          max_response_length?: number | null
+          metadata?: Json | null
+          operating_hours?: Json | null
+          out_of_hours_message?: string | null
+          personality_name?: string | null
+          personality_tone?: string | null
+          system_prompt?: string | null
+          target_first_response_seconds?: number | null
+          target_resolution_minutes?: number | null
+          tenant_id: string
+          updated_at?: string | null
+          use_emojis?: boolean | null
+        }
+        Update: {
+          ai_model?: string | null
+          approval_mode?: boolean | null
+          auto_import_categories?: boolean | null
+          auto_import_faqs?: boolean | null
+          auto_import_policies?: boolean | null
+          auto_import_products?: boolean | null
+          created_at?: string | null
+          custom_knowledge?: string | null
+          forbidden_topics?: string[] | null
+          handle_audio?: boolean | null
+          handle_files?: boolean | null
+          handle_images?: boolean | null
+          handoff_keywords?: string[] | null
+          id?: string
+          image_analysis_prompt?: string | null
+          is_enabled?: boolean | null
+          max_messages_before_handoff?: number | null
+          max_response_length?: number | null
+          metadata?: Json | null
+          operating_hours?: Json | null
+          out_of_hours_message?: string | null
+          personality_name?: string | null
+          personality_tone?: string | null
+          system_prompt?: string | null
+          target_first_response_seconds?: number | null
+          target_resolution_minutes?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+          use_emojis?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_support_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buy_together_rules: {
         Row: {
           created_at: string
@@ -243,6 +347,71 @@ export type Database = {
           },
           {
             foreignKeyName: "categories_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_accounts: {
+        Row: {
+          account_name: string
+          channel_type: Database["public"]["Enums"]["support_channel_type"]
+          created_at: string | null
+          credentials: Json | null
+          external_account_id: string | null
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          rate_limit_per_day: number | null
+          rate_limit_per_minute: number | null
+          tenant_id: string
+          updated_at: string | null
+          webhook_secret: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          account_name: string
+          channel_type: Database["public"]["Enums"]["support_channel_type"]
+          created_at?: string | null
+          credentials?: Json | null
+          external_account_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          rate_limit_per_day?: number | null
+          rate_limit_per_minute?: number | null
+          tenant_id: string
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          account_name?: string
+          channel_type?: Database["public"]["Enums"]["support_channel_type"]
+          created_at?: string | null
+          credentials?: Json | null
+          external_account_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          rate_limit_per_day?: number | null
+          rate_limit_per_minute?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_accounts_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -492,6 +661,264 @@ export type Database = {
           },
           {
             foreignKeyName: "checkouts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_events: {
+        Row: {
+          actor_id: string | null
+          actor_name: string | null
+          actor_type: string | null
+          conversation_id: string
+          created_at: string | null
+          description: string | null
+          event_type: string
+          id: string
+          metadata: Json | null
+          new_value: Json | null
+          old_value: Json | null
+          tenant_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_type?: string | null
+          conversation_id: string
+          created_at?: string | null
+          description?: string | null
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          new_value?: Json | null
+          old_value?: Json | null
+          tenant_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_type?: string | null
+          conversation_id?: string
+          created_at?: string | null
+          description?: string | null
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          new_value?: Json | null
+          old_value?: Json | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_events_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_participants: {
+        Row: {
+          avatar_url: string | null
+          conversation_id: string
+          customer_id: string | null
+          display_name: string | null
+          id: string
+          is_active: boolean | null
+          joined_at: string | null
+          left_at: string | null
+          participant_type: string
+          role: string | null
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          conversation_id: string
+          customer_id?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          participant_type: string
+          role?: string | null
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          conversation_id?: string
+          customer_id?: string | null
+          display_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          joined_at?: string | null
+          left_at?: string | null
+          participant_type?: string
+          role?: string | null
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_participants_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_participants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          assigned_at: string | null
+          assigned_to: string | null
+          channel_account_id: string | null
+          channel_type: Database["public"]["Enums"]["support_channel_type"]
+          created_at: string | null
+          csat_feedback: string | null
+          csat_score: number | null
+          customer_avatar_url: string | null
+          customer_email: string | null
+          customer_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          external_conversation_id: string | null
+          external_thread_id: string | null
+          first_response_at: string | null
+          id: string
+          last_agent_message_at: string | null
+          last_customer_message_at: string | null
+          last_message_at: string | null
+          message_count: number | null
+          metadata: Json | null
+          order_id: string | null
+          priority: number | null
+          resolved_at: string | null
+          status: Database["public"]["Enums"]["conversation_status"] | null
+          subject: string | null
+          summary: string | null
+          tags: string[] | null
+          tenant_id: string
+          unread_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          channel_account_id?: string | null
+          channel_type: Database["public"]["Enums"]["support_channel_type"]
+          created_at?: string | null
+          csat_feedback?: string | null
+          csat_score?: number | null
+          customer_avatar_url?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          external_conversation_id?: string | null
+          external_thread_id?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_agent_message_at?: string | null
+          last_customer_message_at?: string | null
+          last_message_at?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          order_id?: string | null
+          priority?: number | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["conversation_status"] | null
+          subject?: string | null
+          summary?: string | null
+          tags?: string[] | null
+          tenant_id: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_at?: string | null
+          assigned_to?: string | null
+          channel_account_id?: string | null
+          channel_type?: Database["public"]["Enums"]["support_channel_type"]
+          created_at?: string | null
+          csat_feedback?: string | null
+          csat_score?: number | null
+          customer_avatar_url?: string | null
+          customer_email?: string | null
+          customer_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          external_conversation_id?: string | null
+          external_thread_id?: string | null
+          first_response_at?: string | null
+          id?: string
+          last_agent_message_at?: string | null
+          last_customer_message_at?: string | null
+          last_message_at?: string | null
+          message_count?: number | null
+          metadata?: Json | null
+          order_id?: string | null
+          priority?: number | null
+          resolved_at?: string | null
+          status?: Database["public"]["Enums"]["conversation_status"] | null
+          subject?: string | null
+          summary?: string | null
+          tags?: string[] | null
+          tenant_id?: string
+          unread_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_channel_account_id_fkey"
+            columns: ["channel_account_id"]
+            isOneToOne: false
+            referencedRelation: "channel_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -1433,6 +1860,202 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "menus_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      message_attachments: {
+        Row: {
+          created_at: string | null
+          duration_seconds: number | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_url: string | null
+          height: number | null
+          id: string
+          is_safe: boolean | null
+          message_id: string
+          metadata: Json | null
+          mime_type: string | null
+          moderation_result: Json | null
+          tenant_id: string
+          thumbnail_path: string | null
+          thumbnail_url: string | null
+          transcription: string | null
+          width: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_url?: string | null
+          height?: number | null
+          id?: string
+          is_safe?: boolean | null
+          message_id: string
+          metadata?: Json | null
+          mime_type?: string | null
+          moderation_result?: Json | null
+          tenant_id: string
+          thumbnail_path?: string | null
+          thumbnail_url?: string | null
+          transcription?: string | null
+          width?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_url?: string | null
+          height?: number | null
+          id?: string
+          is_safe?: boolean | null
+          message_id?: string
+          metadata?: Json | null
+          mime_type?: string | null
+          moderation_result?: Json | null
+          tenant_id?: string
+          thumbnail_path?: string | null
+          thumbnail_url?: string | null
+          transcription?: string | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "message_attachments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          ai_confidence: number | null
+          ai_context_used: Json | null
+          ai_model_used: string | null
+          channel_metadata: Json | null
+          content: string | null
+          content_type: string | null
+          conversation_id: string
+          created_at: string | null
+          delivered_at: string | null
+          delivery_status:
+            | Database["public"]["Enums"]["message_delivery_status"]
+            | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          external_message_id: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          idempotency_key: string | null
+          is_ai_generated: boolean | null
+          is_internal: boolean | null
+          is_note: boolean | null
+          metadata: Json | null
+          read_at: string | null
+          reply_to_message_id: string | null
+          sender_id: string | null
+          sender_name: string | null
+          sender_type: Database["public"]["Enums"]["message_sender_type"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ai_confidence?: number | null
+          ai_context_used?: Json | null
+          ai_model_used?: string | null
+          channel_metadata?: Json | null
+          content?: string | null
+          content_type?: string | null
+          conversation_id: string
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_status?:
+            | Database["public"]["Enums"]["message_delivery_status"]
+            | null
+          direction: Database["public"]["Enums"]["message_direction"]
+          external_message_id?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          idempotency_key?: string | null
+          is_ai_generated?: boolean | null
+          is_internal?: boolean | null
+          is_note?: boolean | null
+          metadata?: Json | null
+          read_at?: string | null
+          reply_to_message_id?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sender_type: Database["public"]["Enums"]["message_sender_type"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          ai_confidence?: number | null
+          ai_context_used?: Json | null
+          ai_model_used?: string | null
+          channel_metadata?: Json | null
+          content?: string | null
+          content_type?: string | null
+          conversation_id?: string
+          created_at?: string | null
+          delivered_at?: string | null
+          delivery_status?:
+            | Database["public"]["Enums"]["message_delivery_status"]
+            | null
+          direction?: Database["public"]["Enums"]["message_direction"]
+          external_message_id?: string | null
+          failed_at?: string | null
+          failure_reason?: string | null
+          id?: string
+          idempotency_key?: string | null
+          is_ai_generated?: boolean | null
+          is_internal?: boolean | null
+          is_note?: boolean | null
+          metadata?: Json | null
+          read_at?: string | null
+          reply_to_message_id?: string | null
+          sender_id?: string | null
+          sender_name?: string | null
+          sender_type?: Database["public"]["Enums"]["message_sender_type"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_message_id_fkey"
+            columns: ["reply_to_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -3174,6 +3797,69 @@ export type Database = {
           },
         ]
       }
+      quick_replies: {
+        Row: {
+          category: string | null
+          channels: Database["public"]["Enums"]["support_channel_type"][] | null
+          content: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          shortcut: string | null
+          tags: string[] | null
+          tenant_id: string
+          title: string
+          updated_at: string | null
+          use_count: number | null
+          variables: string[] | null
+        }
+        Insert: {
+          category?: string | null
+          channels?:
+            | Database["public"]["Enums"]["support_channel_type"][]
+            | null
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          shortcut?: string | null
+          tags?: string[] | null
+          tenant_id: string
+          title: string
+          updated_at?: string | null
+          use_count?: number | null
+          variables?: string[] | null
+        }
+        Update: {
+          category?: string | null
+          channels?:
+            | Database["public"]["Enums"]["support_channel_type"][]
+            | null
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          shortcut?: string | null
+          tags?: string[] | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string | null
+          use_count?: number | null
+          variables?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quick_replies_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       related_products: {
         Row: {
           created_at: string
@@ -3925,6 +4611,74 @@ export type Database = {
           },
         ]
       }
+      support_stats_daily: {
+        Row: {
+          avg_first_response_time: number | null
+          avg_resolution_time: number | null
+          channel_type:
+            | Database["public"]["Enums"]["support_channel_type"]
+            | null
+          conversations_new: number | null
+          conversations_resolved: number | null
+          created_at: string | null
+          csat_responses: number | null
+          csat_total_score: number | null
+          id: string
+          messages_by_agent: number | null
+          messages_by_ai: number | null
+          messages_inbound: number | null
+          messages_outbound: number | null
+          stat_date: string
+          tenant_id: string
+        }
+        Insert: {
+          avg_first_response_time?: number | null
+          avg_resolution_time?: number | null
+          channel_type?:
+            | Database["public"]["Enums"]["support_channel_type"]
+            | null
+          conversations_new?: number | null
+          conversations_resolved?: number | null
+          created_at?: string | null
+          csat_responses?: number | null
+          csat_total_score?: number | null
+          id?: string
+          messages_by_agent?: number | null
+          messages_by_ai?: number | null
+          messages_inbound?: number | null
+          messages_outbound?: number | null
+          stat_date: string
+          tenant_id: string
+        }
+        Update: {
+          avg_first_response_time?: number | null
+          avg_resolution_time?: number | null
+          channel_type?:
+            | Database["public"]["Enums"]["support_channel_type"]
+            | null
+          conversations_new?: number | null
+          conversations_resolved?: number | null
+          created_at?: string | null
+          csat_responses?: number | null
+          csat_total_score?: number | null
+          id?: string
+          messages_by_agent?: number | null
+          messages_by_ai?: number | null
+          messages_inbound?: number | null
+          messages_outbound?: number | null
+          stat_date?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_stats_daily_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_email_config: {
         Row: {
           created_at: string
@@ -4652,6 +5406,14 @@ export type Database = {
         | "support"
         | "finance"
         | "viewer"
+      conversation_status:
+        | "new"
+        | "open"
+        | "waiting_customer"
+        | "waiting_agent"
+        | "bot"
+        | "resolved"
+        | "spam"
       delivery_status:
         | "label_created"
         | "posted"
@@ -4662,6 +5424,14 @@ export type Database = {
         | "returned"
         | "canceled"
         | "unknown"
+      message_delivery_status:
+        | "queued"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "failed"
+      message_direction: "inbound" | "outbound"
+      message_sender_type: "customer" | "agent" | "bot" | "system"
       order_status:
         | "pending"
         | "awaiting_payment"
@@ -4695,6 +5465,13 @@ export type Database = {
         | "delivered"
         | "returned"
         | "failed"
+      support_channel_type:
+        | "whatsapp"
+        | "email"
+        | "facebook_messenger"
+        | "instagram_dm"
+        | "mercadolivre"
+        | "shopee"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4823,6 +5600,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "admin", "operator", "support", "finance", "viewer"],
+      conversation_status: [
+        "new",
+        "open",
+        "waiting_customer",
+        "waiting_agent",
+        "bot",
+        "resolved",
+        "spam",
+      ],
       delivery_status: [
         "label_created",
         "posted",
@@ -4834,6 +5620,15 @@ export const Constants = {
         "canceled",
         "unknown",
       ],
+      message_delivery_status: [
+        "queued",
+        "sent",
+        "delivered",
+        "read",
+        "failed",
+      ],
+      message_direction: ["inbound", "outbound"],
+      message_sender_type: ["customer", "agent", "bot", "system"],
       order_status: [
         "pending",
         "awaiting_payment",
@@ -4870,6 +5665,14 @@ export const Constants = {
         "delivered",
         "returned",
         "failed",
+      ],
+      support_channel_type: [
+        "whatsapp",
+        "email",
+        "facebook_messenger",
+        "instagram_dm",
+        "mercadolivre",
+        "shopee",
       ],
     },
   },
