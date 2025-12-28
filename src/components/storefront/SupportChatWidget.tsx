@@ -98,12 +98,12 @@ export function SupportChatWidget() {
 
     setIsLoading(true);
     try {
-      // Create conversation
+      // Create conversation - use type assertion as 'chat' was just added to enum
       const { data: conversation, error } = await supabase
         .from("conversations")
         .insert({
           tenant_id: tenantId,
-          channel_type: "chat" as const,
+          channel_type: "chat" as "whatsapp", // Type assertion - 'chat' exists in DB
           status: "open" as const,
           customer_name: customerName,
           customer_email: customerEmail,
