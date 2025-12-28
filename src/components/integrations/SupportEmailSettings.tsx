@@ -223,65 +223,98 @@ export function SupportEmailSettings() {
                 {/* IMPORTANTE: Instruções de configuração do Resend Inbound */}
                 <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
                   <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-3">
-                    <p className="font-semibold">⚠️ Configuração necessária no Resend</p>
-                    <p className="text-sm">
-                      Para <strong>receber</strong> emails, você precisa configurar o <strong>Inbound Email</strong> no Resend:
-                    </p>
-                    <ol className="text-sm space-y-2 list-decimal list-inside">
-                      <li>
-                        Acesse{" "}
-                        <a 
-                          href="https://resend.com/domains" 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                        >
-                          Resend Domains <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </li>
-                      <li>Clique no seu domínio ({config.sending_domain})</li>
-                      <li>Vá na aba <strong>"Inbound"</strong></li>
-                      <li>Adicione o registro <strong>MX</strong> no seu DNS:</li>
-                    </ol>
+                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-4">
+                    <p className="font-semibold text-base">⚠️ Configuração necessária para receber emails</p>
                     
-                    <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Tipo:</span>
-                        <span className="font-semibold">MX</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Nome:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">@</span>
-                          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("@")}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Valor:</span>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-xs">inbound-smtp.resend.com</span>
-                          <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("inbound-smtp.resend.com")}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Prioridade:</span>
-                        <span className="font-semibold">10</span>
-                      </div>
+                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-3 space-y-2">
+                      <p className="text-sm font-medium">O que você precisa fazer:</p>
+                      <p className="text-sm">
+                        Para receber emails de clientes, você precisa adicionar um registro <strong>MX</strong> no DNS do 
+                        <strong> seu domínio</strong> (<code className="bg-white/80 dark:bg-black/40 px-1 rounded">{config.sending_domain}</code>).
+                      </p>
+                      <p className="text-xs italic">
+                        Isso faz com que emails enviados para @{config.sending_domain} sejam encaminhados para o Resend, 
+                        que por sua vez envia para nosso sistema.
+                      </p>
                     </div>
 
-                    <p className="text-sm">
-                      5. Configure o webhook no Resend para:
-                    </p>
-                    <div className="bg-white dark:bg-black/20 rounded-md p-2 flex items-center justify-between gap-2">
-                      <code className="text-xs break-all">{webhookUrl}</code>
-                      <Button variant="ghost" size="sm" className="h-6 px-2 flex-shrink-0" onClick={() => copyToClipboard(webhookUrl)}>
-                        <Copy className="h-3 w-3" />
-                      </Button>
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold">Passo a passo:</p>
+                      
+                      <ol className="text-sm space-y-3 list-decimal list-inside">
+                        <li>
+                          Acesse o painel DNS do seu domínio <strong>{config.sending_domain}</strong>
+                          <span className="text-xs block ml-5 mt-1 text-muted-foreground">
+                            (geralmente no mesmo lugar onde você configurou SPF e DKIM)
+                          </span>
+                        </li>
+                        <li>
+                          Adicione o registro MX abaixo:
+                        </li>
+                      </ol>
+                      
+                      <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono ml-5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <span className="font-semibold">MX</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Nome:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">@ (ou deixe vazio)</span>
+                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("@")}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Valor:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-xs">inbound-smtp.resend.com</span>
+                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("inbound-smtp.resend.com")}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Prioridade:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold">10</span>
+                            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => copyToClipboard("10")}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <ol className="text-sm space-y-3 list-decimal list-inside" start={3}>
+                        <li>
+                          Acesse{" "}
+                          <a 
+                            href="https://resend.com/domains" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline inline-flex items-center gap-1"
+                          >
+                            Resend Domains <ExternalLink className="h-3 w-3" />
+                          </a>
+                          {" "}→ clique em <strong>{config.sending_domain}</strong> → aba <strong>"Inbound"</strong>
+                        </li>
+                        <li>
+                          Configure o webhook com a URL abaixo:
+                        </li>
+                      </ol>
+                      
+                      <div className="bg-white dark:bg-black/20 rounded-md p-2 flex items-center justify-between gap-2 ml-5">
+                        <code className="text-xs break-all">{webhookUrl}</code>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 flex-shrink-0" onClick={() => copyToClipboard(webhookUrl)}>
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground mt-2">
+                        💡 A propagação do DNS pode levar até 24h. Após configurar, envie um email de teste para verificar.
+                      </p>
                     </div>
                   </AlertDescription>
                 </Alert>
