@@ -72,8 +72,64 @@ serve(async (req) => {
       .order("created_at", { ascending: true })
       .limit(20);
 
+    // Get tenant/store information
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("name, slug")
+      .eq("id", tenant_id)
+      .single();
+
+    // Get custom domain if exists
+    const { data: customDomain } = await supabase
+      .from("custom_domains")
+      .select("domain, status, ssl_active")
+      .eq("tenant_id", tenant_id)
+      .eq("status", "verified")
+      .eq("ssl_active", true)
+      .maybeSingle();
+
+    // Get store settings
+    const { data: storeSettings } = await supabase
+      .from("store_settings")
+      .select("store_name, contact_email, contact_phone, address, return_policy, shipping_policy, privacy_policy")
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+
+    // Build store URL
+    let storeUrl = "";
+    if (customDomain?.domain) {
+      storeUrl = `https://${customDomain.domain}`;
+    } else if (tenant?.slug) {
+      storeUrl = `https://${tenant.slug}.shops.comandocentral.com.br`;
+    }
+
     // Build context from store data
     let storeContext = "";
+
+    // Add store basic info
+    const storeName = storeSettings?.store_name || tenant?.name || "Nossa Loja";
+    storeContext += `\n\n### Informações da loja:\n`;
+    storeContext += `- Nome da loja: ${storeName}\n`;
+    if (storeUrl) {
+      storeContext += `- Site: ${storeUrl}\n`;
+    }
+    if (storeSettings?.contact_email) {
+      storeContext += `- Email de contato: ${storeSettings.contact_email}\n`;
+    }
+    if (storeSettings?.contact_phone) {
+      storeContext += `- Telefone de contato: ${storeSettings.contact_phone}\n`;
+    }
+    if (storeSettings?.address) {
+      storeContext += `- Endereço: ${storeSettings.address}\n`;
+    }
+
+    // Add policies if available
+    if (storeSettings?.return_policy) {
+      storeContext += `\n### Política de Trocas e Devoluções:\n${storeSettings.return_policy.slice(0, 500)}`;
+    }
+    if (storeSettings?.shipping_policy) {
+      storeContext += `\n### Política de Frete:\n${storeSettings.shipping_policy.slice(0, 500)}`;
+    }
 
     // Get products if auto-import is enabled
     if (aiConfig.auto_import_products) {
@@ -87,7 +143,7 @@ serve(async (req) => {
       if (products?.length) {
         storeContext += "\n\n### Produtos disponíveis:\n";
         storeContext += products
-          .map(p => `- ${p.name}: R$ ${p.price?.toFixed(2)} - ${p.description?.slice(0, 100) || "Sem descrição"}`)
+          .map(p => `- ${p.name}: R$ ${p.price?.toFixed(2)} - ${p.description?.slice(0, 100) || "Sem descrição"}${storeUrl ? ` (${storeUrl}/produto/${p.slug})` : ""}`)
           .join("\n");
       }
     }
