@@ -179,6 +179,23 @@ export function ChannelIntegrations() {
         </div>
       </div>
 
+      {/* Info about AI requirements */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-4">
+        <div className="flex gap-3">
+          <Bot className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+              Requisitos para IA por canal
+            </p>
+            <ul className="text-sm text-amber-700 dark:text-amber-300 space-y-1 list-disc list-inside">
+              <li><strong>WhatsApp:</strong> Conexão via QR Code em Integrações</li>
+              <li><strong>Email:</strong> Configure o recebimento de emails (MX) na aba Emails → Configurações</li>
+              <li><strong>Outros canais:</strong> Configure as credenciais específicas de cada plataforma</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Channels Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {(Object.keys(channelInfo) as SupportChannelType[]).map((type) => {
@@ -234,15 +251,27 @@ export function ChannelIntegrations() {
                           }}
                         />
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full text-muted-foreground"
-                        onClick={() => navigate(type === 'email' ? '/emails' : '/integrations')}
-                      >
-                        <Settings className="h-4 w-4 mr-2" />
-                        {type === 'email' ? 'Gerenciar em Emails' : 'Gerenciar em Integrações'}
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="flex-1 text-muted-foreground"
+                          onClick={() => navigate(type === 'email' ? '/emails' : '/integrations')}
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          {type === 'email' ? 'Gerenciar em Emails' : 'Gerenciar em Integrações'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAiConfigChannel({ type, name: channelInfo[type].name });
+                            setAiConfigOpen(true);
+                          }}
+                        >
+                          <Bot className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -286,6 +315,16 @@ export function ChannelIntegrations() {
                         >
                           <Settings className="h-4 w-4 mr-1" />
                           Configurar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAiConfigChannel({ type, name: channelInfo[type].name });
+                            setAiConfigOpen(true);
+                          }}
+                        >
+                          <Bot className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -383,6 +422,14 @@ export function ChannelIntegrations() {
         channel={selectedChannel}
         channelType={selectedChannelType}
         onSave={() => {}}
+      />
+
+      {/* AI Channel Config Dialog */}
+      <AIChannelConfigDialog
+        open={aiConfigOpen}
+        onOpenChange={setAiConfigOpen}
+        channelType={aiConfigChannel?.type || 'whatsapp'}
+        channelName={aiConfigChannel?.name || 'Canal'}
       />
     </div>
   );

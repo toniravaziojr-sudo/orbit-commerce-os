@@ -182,6 +182,13 @@ export function EmailNotificationsSettings() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+          <Mail className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
+            <strong>Para notificações</strong>, você só precisa configurar o domínio de envio.
+            Não é necessário redirecionar todos os emails do seu negócio para cá.
+          </AlertDescription>
+        </Alert>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Nome do Remetente</Label>

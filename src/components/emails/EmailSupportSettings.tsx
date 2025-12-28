@@ -211,6 +211,15 @@ export function EmailSupportSettings() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
+            <strong>Para usar a IA no atendimento por email</strong>, é necessário configurar o registro MX do seu domínio 
+            para receber emails aqui. Isso significa que emails enviados para o endereço de suporte serão 
+            recebidos e respondidos automaticamente pela IA.
+          </AlertDescription>
+        </Alert>
+        
         {config.support_last_error && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
