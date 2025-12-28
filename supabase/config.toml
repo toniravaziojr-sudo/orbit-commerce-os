@@ -198,3 +198,10 @@ schedule = "* * * * *"
 [functions.support-sla-check]
 verify_jwt = false
 schedule = "*/5 * * * *"
+
+[functions.support-email-test]
+verify_jwt = true
+
+[functions.support-email-poll]
+verify_jwt = false
+schedule = "*/5 * * * *"
