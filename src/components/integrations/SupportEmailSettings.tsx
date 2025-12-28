@@ -31,6 +31,8 @@ export function SupportEmailSettings() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSettingUpInbound, setIsSettingUpInbound] = useState(false);
+  const [inboundConfigured, setInboundConfigured] = useState(false);
   const [config, setConfig] = useState<SupportEmailConfig>({
     support_email_enabled: false,
     support_email_address: "",
@@ -106,11 +108,16 @@ export function SupportEmailSettings() {
           support_email_enabled: config.support_email_enabled,
           support_email_address: config.support_email_address || null,
           support_reply_from_name: config.support_reply_from_name || null,
-          support_connection_status: config.support_email_enabled ? "active" : "not_configured",
+          support_connection_status: config.support_email_enabled ? "pending_inbound" : "not_configured",
         })
         .eq("tenant_id", tenantId);
 
       if (error) throw error;
+
+      // If enabling support, automatically setup Inbound Parse
+      if (config.support_email_enabled && config.sending_domain) {
+        await setupInboundParse();
+      }
 
       toast({ title: "Salvo", description: "Configuração de atendimento por email salva" });
       await fetchConfig();
@@ -121,6 +128,68 @@ export function SupportEmailSettings() {
       setIsSaving(false);
     }
   };
+
+  const setupInboundParse = async () => {
+    if (!tenantId || !config.sending_domain) return;
+    
+    setIsSettingUpInbound(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sendgrid-inbound-setup", {
+        body: {
+          action: "setup",
+          hostname: config.sending_domain,
+          tenant_id: tenantId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setInboundConfigured(true);
+        toast({ 
+          title: "Inbound Parse configurado", 
+          description: "O recebimento de emails foi ativado automaticamente" 
+        });
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro ao configurar Inbound Parse";
+      console.error("Inbound Parse setup error:", error);
+      toast({ 
+        title: "Aviso", 
+        description: `Recebimento de emails pode requerer configuração manual: ${message}`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSettingUpInbound(false);
+    }
+  };
+
+  const checkInboundStatus = async () => {
+    if (!tenantId || !config.sending_domain) return;
+    
+    try {
+      const { data } = await supabase.functions.invoke("sendgrid-inbound-setup", {
+        body: {
+          action: "check",
+          hostname: config.sending_domain,
+          tenant_id: tenantId,
+        },
+      });
+
+      if (data?.configured) {
+        setInboundConfigured(true);
+      }
+    } catch (error) {
+      console.error("Error checking inbound status:", error);
+    }
+  };
+
+  // Check inbound status on load if support is enabled
+  useEffect(() => {
+    if (config.support_email_enabled && config.sending_domain) {
+      checkInboundStatus();
+    }
+  }, [config.support_email_enabled, config.sending_domain]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -220,98 +289,106 @@ export function SupportEmailSettings() {
                   </Alert>
                 )}
 
-                {/* Instruções de configuração DNS para receber emails */}
-                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-4">
-                    <p className="font-semibold text-base">⚠️ Configuração DNS necessária para receber emails</p>
-                    
-                    <div className="bg-white/60 dark:bg-black/30 rounded-lg p-4 space-y-3 text-sm">
-                      <p>
-                        Para que clientes possam enviar emails para <strong>{effectiveSupportEmail}</strong>, 
-                        você precisa adicionar um <strong>registro MX</strong> no DNS do seu domínio:
+                {/* Status do Inbound Parse */}
+                {inboundConfigured ? (
+                  <Alert className="border-green-200 bg-green-50 dark:bg-green-950/20 dark:border-green-800">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800 dark:text-green-200 space-y-2">
+                      <p className="font-semibold">✅ Recebimento de emails ativo</p>
+                      <p className="text-sm">
+                        Emails enviados para <strong>{effectiveSupportEmail}</strong> serão recebidos automaticamente e a IA responderá.
                       </p>
-                      
-                      <div className="bg-white dark:bg-black/40 rounded border p-3 space-y-3">
-                        <div className="grid grid-cols-2 gap-2 text-xs">
-                          <div>
-                            <span className="text-muted-foreground">Tipo:</span>
-                            <span className="font-mono font-semibold ml-2">MX</span>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Prioridade:</span>
-                            <span className="font-mono font-semibold ml-2">10</span>
-                          </div>
-                        </div>
+                    </AlertDescription>
+                  </Alert>
+                ) : isSettingUpInbound ? (
+                  <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
+                    <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                    <AlertDescription className="text-blue-800 dark:text-blue-200">
+                      Configurando recebimento de emails automaticamente...
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <>
+                    {/* Instruções de configuração DNS para receber emails */}
+                    <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+                      <AlertCircle className="h-4 w-4 text-amber-600" />
+                      <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-4">
+                        <p className="font-semibold text-base">⚠️ Configuração DNS necessária para receber emails</p>
                         
-                        <div className="text-xs">
-                          <span className="text-muted-foreground">Nome:</span>
-                          <span className="font-mono font-semibold ml-2">@</span>
-                          <span className="text-muted-foreground ml-2">(use @ para o domínio raiz)</span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 text-xs">
-                          <span className="text-muted-foreground">Servidor de email:</span>
-                          <code className="bg-muted px-2 py-1 rounded font-mono">mx.sendgrid.net</code>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2"
-                            onClick={() => copyToClipboard("mx.sendgrid.net")}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
+                        <div className="bg-white/60 dark:bg-black/30 rounded-lg p-4 space-y-3 text-sm">
+                          <p>
+                            Para que clientes possam enviar emails para <strong>{effectiveSupportEmail}</strong>, 
+                            você precisa adicionar um <strong>registro MX</strong> no DNS do seu domínio:
+                          </p>
+                          
+                          <div className="bg-white dark:bg-black/40 rounded border p-3 space-y-3">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Tipo:</span>
+                                <span className="font-mono font-semibold ml-2">MX</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Prioridade:</span>
+                                <span className="font-mono font-semibold ml-2">10</span>
+                              </div>
+                            </div>
+                            
+                            <div className="text-xs">
+                              <span className="text-muted-foreground">Nome:</span>
+                              <span className="font-mono font-semibold ml-2">@</span>
+                              <span className="text-muted-foreground ml-2">(use @ para o domínio raiz)</span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="text-muted-foreground">Servidor de email:</span>
+                              <code className="bg-muted px-2 py-1 rounded font-mono">mx.sendgrid.net</code>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => copyToClipboard("mx.sendgrid.net")}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
 
-                      <div className="bg-amber-100 dark:bg-amber-900/30 rounded p-3 text-xs space-y-2">
-                        <p className="font-semibold">⚠️ Importante:</p>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li>
-                            Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
-                            adicionar este MX pode interferir no recebimento de emails.
-                          </li>
-                          <li>
-                            Nesse caso, use um subdomínio: no campo Nome coloque <code className="bg-white/50 px-1 rounded">suporte</code> 
-                            {" "}para criar <code className="bg-white/50 px-1 rounded">suporte.{config.sending_domain}</code>
-                          </li>
-                        </ul>
-                      </div>
+                          <div className="bg-amber-100 dark:bg-amber-900/30 rounded p-3 text-xs space-y-2">
+                            <p className="font-semibold">⚠️ Importante:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              <li>
+                                Se você já usa email corporativo (Google Workspace, Microsoft 365, etc), 
+                                adicionar este MX pode interferir no recebimento de emails.
+                              </li>
+                              <li>
+                                Nesse caso, use um subdomínio: no campo Nome coloque <code className="bg-white/50 px-1 rounded">suporte</code> 
+                                {" "}para criar <code className="bg-white/50 px-1 rounded">suporte.{config.sending_domain}</code>
+                              </li>
+                            </ul>
+                          </div>
 
-                      <p className="text-xs text-amber-700 dark:text-amber-300">
-                        <strong>Passo final:</strong> Após configurar o DNS, entre em contato com o suporte da plataforma 
-                        para ativarmos o recebimento de emails (Inbound Parse no SendGrid).
-                      </p>
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            <strong>Após configurar o MX no DNS</strong>, clique em Salvar novamente para ativar automaticamente o recebimento.
+                          </p>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* Botão para tentar configurar manualmente */}
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={setupInboundParse}
+                        disabled={isSettingUpInbound}
+                      >
+                        {isSettingUpInbound && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        Ativar recebimento de emails
+                      </Button>
                     </div>
-                  </AlertDescription>
-                </Alert>
-
-                {/* Webhook URL info for admin */}
-                <div className="bg-muted/30 rounded-lg p-4 border">
-                  <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">Informações técnicas (para suporte)</p>
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <p><strong>Email de destino:</strong> {effectiveSupportEmail}</p>
-                        <div className="flex items-center gap-2">
-                          <strong>Webhook URL:</strong>
-                          <code className="bg-muted px-2 py-0.5 rounded text-xs flex-1 truncate">{webhookUrl}</code>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2"
-                            onClick={() => copyToClipboard(webhookUrl)}
-                          >
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
 
                 {/* Email exclusivo opcional */}
                 <div className="space-y-4 p-4 border rounded-lg">
