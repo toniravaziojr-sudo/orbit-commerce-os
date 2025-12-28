@@ -190,3 +190,11 @@ verify_jwt = true
 
 [functions.support-webhook]
 verify_jwt = false
+
+[functions.support-auto-assign]
+verify_jwt = false
+schedule = "* * * * *"
+
+[functions.support-sla-check]
+verify_jwt = false
+schedule = "*/5 * * * *"
