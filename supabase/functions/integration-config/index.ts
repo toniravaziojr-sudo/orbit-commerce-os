@@ -152,6 +152,7 @@ serve(async (req) => {
 
         if (fetchError) throw fetchError;
 
+        // Reset domain-related fields only (from_name/from_email are NOT NULL)
         const { error: updateError } = await supabaseClient
           .from('system_email_config')
           .update({
@@ -164,7 +165,7 @@ serve(async (req) => {
             last_verify_error: null,
             last_test_at: null,
             last_test_result: null,
-            from_email: null,
+            provider_type: 'sendgrid',
           })
           .eq('id', config.id);
 
