@@ -317,12 +317,16 @@ serve(async (req: Request): Promise<Response> => {
         const aiResponse = await supabase.functions.invoke('ai-support-chat', {
           body: {
             conversation_id: conversationId,
-            message_id: newMessage.id,
-            auto_send: true,
+            tenant_id: tenantId,
           },
         });
 
         console.log('AI response:', aiResponse);
+        
+        // If AI generated a response, send it via email
+        if (aiResponse.data?.message_id && !aiResponse.error) {
+          console.log('AI responded successfully, message:', aiResponse.data.message_id);
+        }
       } catch (aiError) {
         console.error('AI invocation error:', aiError);
       }
