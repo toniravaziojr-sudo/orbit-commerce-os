@@ -220,40 +220,23 @@ export function SupportEmailSettings() {
                   </Alert>
                 )}
 
-                {/* IMPORTANTE: Instruções de configuração do Resend Inbound */}
-                <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
-                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800 dark:text-amber-200 space-y-4">
-                    <p className="font-semibold text-base">⚠️ Configuração necessária para receber emails</p>
+                {/* Instruções para o TENANT - apenas MX */}
+                <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800 dark:text-blue-200 space-y-4">
+                    <p className="font-semibold text-base">📧 Configuração necessária no seu DNS</p>
                     
                     <div className="bg-white/60 dark:bg-black/30 rounded-lg p-3 space-y-2">
-                      <p className="text-sm font-medium">O que você precisa fazer:</p>
                       <p className="text-sm">
-                        Para receber emails de clientes, você precisa adicionar um registro <strong>MX</strong> no DNS do 
-                        <strong> seu domínio</strong> (<code className="bg-white/80 dark:bg-black/40 px-1 rounded">{config.sending_domain}</code>).
-                      </p>
-                      <p className="text-xs italic">
-                        Isso faz com que emails enviados para @{config.sending_domain} sejam encaminhados para o Resend, 
-                        que por sua vez envia para nosso sistema.
+                        Para receber emails de clientes, adicione um registro <strong>MX</strong> no DNS do seu domínio 
+                        (<code className="bg-white/80 dark:bg-black/40 px-1 rounded">{config.sending_domain}</code>).
                       </p>
                     </div>
 
                     <div className="space-y-3">
-                      <p className="text-sm font-semibold">Passo a passo:</p>
+                      <p className="text-sm font-semibold">Adicione este registro no DNS do seu domínio:</p>
                       
-                      <ol className="text-sm space-y-3 list-decimal list-inside">
-                        <li>
-                          Acesse o painel DNS do seu domínio <strong>{config.sending_domain}</strong>
-                          <span className="text-xs block ml-5 mt-1 text-muted-foreground">
-                            (geralmente no mesmo lugar onde você configurou SPF e DKIM)
-                          </span>
-                        </li>
-                        <li>
-                          Adicione o registro MX abaixo:
-                        </li>
-                      </ol>
-                      
-                      <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono ml-5">
+                      <div className="bg-white dark:bg-black/20 rounded-md p-3 space-y-2 text-sm font-mono">
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Tipo:</span>
                           <span className="font-semibold">MX</span>
@@ -286,52 +269,30 @@ export function SupportEmailSettings() {
                           </div>
                         </div>
                       </div>
-
-                      <ol className="text-sm space-y-3 list-decimal list-inside" start={3}>
-                        <li>
-                          Acesse{" "}
-                          <a 
-                            href="https://resend.com/domains" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline inline-flex items-center gap-1"
-                          >
-                            Resend Domains <ExternalLink className="h-3 w-3" />
-                          </a>
-                          {" "}→ clique em <strong>{config.sending_domain}</strong> → aba <strong>"Inbound"</strong>
-                        </li>
-                        <li>
-                          Configure o webhook com a URL abaixo:
-                        </li>
-                      </ol>
                       
-                      <div className="bg-white dark:bg-black/20 rounded-md p-2 flex items-center justify-between gap-2 ml-5">
-                        <code className="text-xs break-all">{webhookUrl}</code>
-                        <Button variant="ghost" size="sm" className="h-6 px-2 flex-shrink-0" onClick={() => copyToClipboard(webhookUrl)}>
-                          <Copy className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      
-                      <p className="text-xs text-muted-foreground mt-2">
-                        💡 A propagação do DNS pode levar até 24h. Após configurar, envie um email de teste para verificar.
+                      <p className="text-xs text-muted-foreground">
+                        💡 Se você usa Cloudflare, adicione no painel DNS. A propagação pode levar até 24h.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        ⚠️ Após configurar o MX, entre em contato com o suporte da plataforma para ativar o recebimento.
                       </p>
                     </div>
                   </AlertDescription>
                 </Alert>
 
                 {/* Info box - email atual */}
-                <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                   <div className="flex items-start gap-3">
-                    <Info className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      <p className="text-sm font-medium text-green-900 dark:text-green-100">
                         Email para atendimento
                       </p>
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <p className="text-sm text-green-800 dark:text-green-200">
                         Seus clientes devem enviar emails para: <br />
                         <span className="font-mono font-semibold">{effectiveSupportEmail}</span>
                       </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
+                      <p className="text-xs text-green-700 dark:text-green-300 mt-2">
                         Divulgue este email para seus clientes entrarem em contato.
                       </p>
                     </div>
