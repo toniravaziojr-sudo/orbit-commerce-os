@@ -11,6 +11,13 @@ interface EmailRecipient {
   name?: string;
 }
 
+interface AttachmentInfo {
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  storage_path: string;
+}
+
 interface SendEmailRequest {
   mailbox_id: string;
   to_emails: EmailRecipient[];
@@ -20,6 +27,7 @@ interface SendEmailRequest {
   body_html: string;
   body_text?: string;
   in_reply_to?: string;
+  attachments?: AttachmentInfo[];
 }
 
 serve(async (req: Request): Promise<Response> => {
@@ -61,7 +69,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const body: SendEmailRequest = await req.json();
-    const { mailbox_id, to_emails, cc_emails, bcc_emails, subject, body_html, body_text, in_reply_to } = body;
+    const { mailbox_id, to_emails, cc_emails, bcc_emails, subject, body_html, body_text, in_reply_to, attachments } = body;
 
     if (!mailbox_id || !to_emails || to_emails.length === 0) {
       return new Response(
@@ -134,6 +142,46 @@ serve(async (req: Request): Promise<Response> => {
       };
     }
 
+    // Process attachments if any
+    const sendgridAttachments: { content: string; filename: string; type: string; disposition: string }[] = [];
+    
+    if (attachments && attachments.length > 0) {
+      console.log('Processing attachments:', attachments.length);
+      
+      for (const attachment of attachments) {
+        try {
+          // Download file from storage
+          const { data: fileData, error: downloadError } = await supabase.storage
+            .from('email-attachments')
+            .download(attachment.storage_path);
+
+          if (downloadError) {
+            console.error('Error downloading attachment:', downloadError);
+            continue;
+          }
+
+          // Convert to base64
+          const arrayBuffer = await fileData.arrayBuffer();
+          const base64Content = btoa(
+            new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+          );
+
+          sendgridAttachments.push({
+            content: base64Content,
+            filename: attachment.filename,
+            type: attachment.content_type || 'application/octet-stream',
+            disposition: 'attachment',
+          });
+        } catch (err) {
+          console.error('Error processing attachment:', err);
+        }
+      }
+
+      if (sendgridAttachments.length > 0) {
+        sendgridPayload.attachments = sendgridAttachments;
+      }
+    }
+
     console.log('Sending email via SendGrid:', { to: to_emails, subject });
 
     // Send via SendGrid
@@ -166,7 +214,7 @@ serve(async (req: Request): Promise<Response> => {
 
     if (sentFolder) {
       // Store the sent email
-      const { error: insertError } = await supabase
+      const { data: messageData, error: insertError } = await supabase
         .from('email_messages')
         .insert({
           mailbox_id: mailbox_id,
@@ -185,11 +233,33 @@ serve(async (req: Request): Promise<Response> => {
           snippet: (body_text || body_html.replace(/<[^>]*>/g, '')).substring(0, 200),
           is_read: true,
           is_sent: true,
+          has_attachments: attachments && attachments.length > 0,
+          attachment_count: attachments?.length || 0,
           sent_at: new Date().toISOString(),
-        });
+        })
+        .select('id')
+        .single();
 
       if (insertError) {
         console.error('Error storing sent email:', insertError);
+      } else if (messageData && attachments && attachments.length > 0) {
+        // Store attachment metadata
+        const attachmentRecords = attachments.map(att => ({
+          message_id: messageData.id,
+          filename: att.filename,
+          content_type: att.content_type,
+          size_bytes: att.size_bytes,
+          storage_path: att.storage_path,
+          is_inline: false,
+        }));
+
+        const { error: attError } = await supabase
+          .from('email_attachments')
+          .insert(attachmentRecords);
+
+        if (attError) {
+          console.error('Error storing attachment metadata:', attError);
+        }
       }
 
       // Update mailbox stats

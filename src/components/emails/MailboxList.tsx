@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MailboxSettingsDialog } from "./MailboxSettingsDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -63,6 +64,7 @@ const statusConfig: Record<MailboxStatus, { label: string; icon: typeof CheckCir
 export function MailboxList({ onOpenInbox }: MailboxListProps) {
   const { mailboxes, isLoading, createMailbox, updateMailbox, deleteMailbox } = useMailboxes();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [settingsMailbox, setSettingsMailbox] = useState<typeof mailboxes[0] | null>(null);
   const [newEmail, setNewEmail] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newPurpose, setNewPurpose] = useState<EmailPurpose>("manual");
@@ -188,7 +190,7 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
                         <Inbox className="h-4 w-4 mr-2" />
                         Abrir Inbox
                       </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setSettingsMailbox(mailbox)}>
                         <Settings className="h-4 w-4 mr-2" />
                         Configurações
                       </DropdownMenuItem>
@@ -261,6 +263,14 @@ export function MailboxList({ onOpenInbox }: MailboxListProps) {
         onSubmit={handleCreate}
         isLoading={createMailbox.isPending}
       />
+
+      {settingsMailbox && (
+        <MailboxSettingsDialog
+          mailbox={settingsMailbox}
+          open={!!settingsMailbox}
+          onOpenChange={(open) => !open && setSettingsMailbox(null)}
+        />
+      )}
     </div>
   );
 }

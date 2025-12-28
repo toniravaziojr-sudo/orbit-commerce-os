@@ -206,6 +206,7 @@ export function useEmailActions() {
       subject: string;
       body_html: string;
       in_reply_to?: string;
+      attachments?: { filename: string; content_type: string; size_bytes: number; storage_path: string }[];
     }) => {
       const { data, error } = await supabase.functions.invoke('email-send', {
         body: input,

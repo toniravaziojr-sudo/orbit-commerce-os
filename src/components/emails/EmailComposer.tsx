@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
-import { X, Send, Paperclip, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Send, Paperclip, Trash2, Loader2, File } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Mailbox } from "@/hooks/useMailboxes";
 import { useEmailMessage, useEmailActions } from "@/hooks/useEmailMessages";
+import { useEmailAttachmentUpload, PendingAttachment } from "@/hooks/useEmailAttachmentUpload";
+import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 interface EmailComposerProps {
   mailbox: Mailbox;
@@ -19,9 +23,26 @@ interface EmailComposerProps {
   onClose: () => void;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailComposerProps) {
+  const { currentTenant } = useAuth();
   const { data: replyToMessage } = useEmailMessage(replyToMessageId || null);
   const { sendEmail } = useEmailActions();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const {
+    attachments,
+    addFiles,
+    removeAttachment,
+    clearAll,
+    getUploadedAttachments,
+    hasUploading,
+  } = useEmailAttachmentUpload(currentTenant?.id);
   
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
@@ -43,7 +64,9 @@ export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailCompo
   };
 
   const handleSend = async () => {
-    if (!to) return;
+    if (!to || hasUploading) return;
+
+    const uploadedAttachments = getUploadedAttachments();
 
     await sendEmail.mutateAsync({
       mailbox_id: mailbox.id,
@@ -52,18 +75,31 @@ export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailCompo
       subject,
       body_html: body.replace(/\n/g, '<br>'),
       in_reply_to: replyToMessage?.external_message_id || undefined,
+      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
     });
 
     onClose();
   };
 
+  const handleClose = async () => {
+    await clearAll();
+    onClose();
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      addFiles(e.target.files);
+      e.target.value = '';
+    }
+  };
+
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
+    <Dialog open onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center justify-between">
             <span>{replyToMessageId ? 'Responder' : 'Novo Email'}</span>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <Button variant="ghost" size="icon" onClick={handleClose}>
               <X className="h-4 w-4" />
             </Button>
           </DialogTitle>
@@ -137,6 +173,22 @@ export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailCompo
             />
           </div>
 
+          {/* Attachments */}
+          {attachments.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs">Anexos</Label>
+              <div className="space-y-2">
+                {attachments.map(attachment => (
+                  <AttachmentItem 
+                    key={attachment.id} 
+                    attachment={attachment}
+                    onRemove={() => removeAttachment(attachment.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Signature preview */}
           {mailbox.signature_html && (
             <div className="p-3 border rounded-lg bg-muted/30">
@@ -152,25 +204,91 @@ export function EmailComposer({ mailbox, replyToMessageId, onClose }: EmailCompo
         {/* Actions */}
         <div className="flex items-center justify-between pt-4 border-t flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" title="Anexar arquivo">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={handleFileSelect}
+            />
+            <Button 
+              variant="outline" 
+              size="icon" 
+              title="Anexar arquivo"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <Paperclip className="h-4 w-4" />
             </Button>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={handleClose}>
               <Trash2 className="h-4 w-4 mr-2" />
               Descartar
             </Button>
             <Button 
               onClick={handleSend} 
-              disabled={!to || sendEmail.isPending}
+              disabled={!to || sendEmail.isPending || hasUploading}
             >
-              <Send className="h-4 w-4 mr-2" />
-              {sendEmail.isPending ? 'Enviando...' : 'Enviar'}
+              {hasUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando anexos...
+                </>
+              ) : sendEmail.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Enviar
+                </>
+              )}
             </Button>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AttachmentItem({ 
+  attachment, 
+  onRemove 
+}: { 
+  attachment: PendingAttachment; 
+  onRemove: () => void;
+}) {
+  return (
+    <div className={cn(
+      "flex items-center gap-2 p-2 rounded-lg border",
+      attachment.error ? "bg-destructive/10 border-destructive" : "bg-muted/30"
+    )}>
+      <File className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm truncate">{attachment.name}</span>
+          <span className="text-xs text-muted-foreground flex-shrink-0">
+            {formatFileSize(attachment.size)}
+          </span>
+        </div>
+        {attachment.isUploading && (
+          <Progress value={attachment.uploadProgress} className="h-1 mt-1" />
+        )}
+        {attachment.error && (
+          <span className="text-xs text-destructive">{attachment.error}</span>
+        )}
+      </div>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="h-6 w-6"
+        onClick={onRemove}
+        disabled={attachment.isUploading}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
   );
 }
