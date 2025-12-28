@@ -175,10 +175,6 @@ export default function Support() {
           <AIConfigPanel />
         </TabsContent>
 
-        <TabsContent value="ai" className="flex-1 m-0 overflow-auto">
-          <AIConfigPanel />
-        </TabsContent>
-
         <TabsContent value="channels" className="flex-1 m-0 overflow-auto">
           <ChannelIntegrations />
         </TabsContent>
