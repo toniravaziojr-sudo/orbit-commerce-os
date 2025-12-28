@@ -7,11 +7,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink, Bot } from "lucide-react";
 import { useChannelAccounts, type ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelConfigDialog } from "./ChannelConfigDialog";
+import { AIChannelConfigDialog } from "./AIChannelConfigDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -73,6 +74,8 @@ export function ChannelIntegrations() {
   const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedChannel, setSelectedChannel] = useState<ChannelAccount | null>(null);
   const [selectedChannelType, setSelectedChannelType] = useState<SupportChannelType>('whatsapp');
+  const [aiConfigOpen, setAiConfigOpen] = useState(false);
+  const [aiConfigChannel, setAiConfigChannel] = useState<{ type: SupportChannelType; name: string } | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
     whatsapp: { configured: false, connected: false },
     email: { configured: false, verified: false },
@@ -235,10 +238,10 @@ export function ChannelIntegrations() {
                         variant="ghost" 
                         size="sm" 
                         className="w-full text-muted-foreground"
-                        onClick={() => navigate('/integrations')}
+                        onClick={() => navigate(type === 'email' ? '/emails' : '/integrations')}
                       >
                         <Settings className="h-4 w-4 mr-2" />
-                        Gerenciar em Integrações
+                        {type === 'email' ? 'Gerenciar em Emails' : 'Gerenciar em Integrações'}
                       </Button>
                     </div>
                   ) : (
@@ -250,7 +253,7 @@ export function ChannelIntegrations() {
                         </p>
                       </div>
                       <Button 
-                        onClick={() => navigate('/integrations')}
+                        onClick={() => navigate(type === 'email' ? '/emails' : '/integrations')}
                         className="w-full"
                       >
                         <ExternalLink className="h-4 w-4 mr-2" />

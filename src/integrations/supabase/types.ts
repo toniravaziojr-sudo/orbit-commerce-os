@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_channel_config: {
+        Row: {
+          channel_type: string
+          created_at: string
+          custom_instructions: string | null
+          forbidden_topics: string[] | null
+          id: string
+          is_enabled: boolean
+          max_response_length: number | null
+          system_prompt_override: string | null
+          tenant_id: string
+          updated_at: string
+          use_emojis: boolean | null
+        }
+        Insert: {
+          channel_type: string
+          created_at?: string
+          custom_instructions?: string | null
+          forbidden_topics?: string[] | null
+          id?: string
+          is_enabled?: boolean
+          max_response_length?: number | null
+          system_prompt_override?: string | null
+          tenant_id: string
+          updated_at?: string
+          use_emojis?: boolean | null
+        }
+        Update: {
+          channel_type?: string
+          created_at?: string
+          custom_instructions?: string | null
+          forbidden_topics?: string[] | null
+          id?: string
+          is_enabled?: boolean
+          max_response_length?: number | null
+          system_prompt_override?: string | null
+          tenant_id?: string
+          updated_at?: string
+          use_emojis?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_channel_config_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_support_config: {
         Row: {
           ai_model: string | null
