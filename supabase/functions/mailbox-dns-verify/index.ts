@@ -120,19 +120,54 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const domain = mailbox.domain;
-    const supportSubdomain = `suporte.${domain}`;
 
     console.log(`Verifying DNS for mailbox ${mailbox_id}, domain: ${domain}`);
 
-    // Check required DNS records
+    // FIRST: Check if domain is already verified in email_provider_configs
+    // This is the source of truth for domain verification
+    const { data: providerConfig } = await supabase
+      .from('email_provider_configs')
+      .select('*')
+      .eq('tenant_id', mailbox.tenant_id)
+      .eq('sending_domain', domain)
+      .single();
+
+    if (providerConfig && providerConfig.verification_status === 'verified' && providerConfig.dns_all_ok) {
+      console.log('Domain already verified in email_provider_configs, inheriting status');
+      
+      // Inherit verification from provider config
+      await supabase
+        .from('mailboxes')
+        .update({
+          dns_verified: true,
+          dns_records: providerConfig.dns_records,
+          last_dns_check_at: new Date().toISOString(),
+          status: 'active',
+        })
+        .eq('id', mailbox_id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          verified: true,
+          inherited: true,
+          status: 'active',
+          records: providerConfig.dns_records,
+          message: 'DNS verificado! Domínio já configurado nas configurações de email.',
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // If not inherited, check DNS records directly for the ROOT domain (not subdomain)
     const results: { type: string; host: string; expected: string; found: string[]; ok: boolean }[] = [];
 
-    // 1. Check MX record for support subdomain
-    const mxRecords = await dnsLookup(supportSubdomain, 'MX');
+    // 1. Check MX record for the ROOT domain (emails go to @domain.com)
+    const mxRecords = await dnsLookup(domain, 'MX');
     const mxOk = mxRecords.some(r => r.toLowerCase().includes('sendgrid.net'));
     results.push({
       type: 'MX',
-      host: supportSubdomain,
+      host: `@ (${domain})`,
       expected: 'mx.sendgrid.net',
       found: mxRecords,
       ok: mxOk,
@@ -144,7 +179,7 @@ serve(async (req: Request): Promise<Response> => {
     results.push({
       type: 'TXT (SPF)',
       host: domain,
-      expected: 'include:sendgrid.net',
+      expected: 'v=spf1 include:sendgrid.net ~all',
       found: txtRecords.filter(r => r.includes('spf')),
       ok: spfOk,
     });
