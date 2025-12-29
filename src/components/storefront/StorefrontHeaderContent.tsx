@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram, ChevronDown } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
@@ -39,6 +39,11 @@ interface MenuItem {
   item_type: string;
   ref_id?: string | null;
   sort_order?: number | null;
+  parent_id?: string | null;
+}
+
+interface MenuItemWithChildren extends MenuItem {
+  children: MenuItemWithChildren[];
 }
 
 interface Category {
@@ -183,6 +188,53 @@ export function StorefrontHeaderContent({
 
   const primaryColor = storeSettings?.primary_color || '#6366f1';
   
+  // Organize menu items into hierarchy (parents with children)
+  const hierarchicalMenuItems = useMemo((): MenuItemWithChildren[] => {
+    const itemMap = new Map<string, MenuItemWithChildren>();
+    const rootItems: MenuItemWithChildren[] = [];
+    
+    // First pass: create all items with empty children arrays
+    menuItems.forEach(item => {
+      itemMap.set(item.id, { ...item, children: [] });
+    });
+    
+    // Second pass: organize into hierarchy
+    menuItems.forEach(item => {
+      const itemWithChildren = itemMap.get(item.id)!;
+      if (item.parent_id && itemMap.has(item.parent_id)) {
+        // This is a child item
+        itemMap.get(item.parent_id)!.children.push(itemWithChildren);
+      } else {
+        // This is a root item
+        rootItems.push(itemWithChildren);
+      }
+    });
+    
+    // Sort children by sort_order
+    rootItems.forEach(item => {
+      item.children.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    });
+    
+    return rootItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  }, [menuItems]);
+
+  // State for dropdown hover
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleDropdownEnter = (itemId: string) => {
+    if (dropdownTimeoutRef.current) {
+      clearTimeout(dropdownTimeoutRef.current);
+    }
+    setOpenDropdown(itemId);
+  };
+
+  const handleDropdownLeave = () => {
+    dropdownTimeoutRef.current = setTimeout(() => {
+      setOpenDropdown(null);
+    }, 150);
+  };
+  
   // Use helper functions for validation
   const whatsAppHref = getWhatsAppHref(whatsAppNumber);
   const phoneHref = getPhoneHref(phoneNumber);
@@ -307,17 +359,36 @@ export function StorefrontHeaderContent({
                       </div>
                     )}
 
-                    {/* Mobile Navigation */}
+                    {/* Mobile Navigation with hierarchy */}
                     <nav className="flex flex-col gap-1">
-                      {menuItems.map((item) => (
-                        <LinkWrapper
-                          key={item.id}
-                          to={getMenuItemUrl(item)}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg"
-                        >
-                          {item.label}
-                        </LinkWrapper>
+                      {hierarchicalMenuItems.map((item) => (
+                        <div key={item.id}>
+                          <LinkWrapper
+                            to={getMenuItemUrl(item)}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                          >
+                            {item.label}
+                            {item.children.length > 0 && (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </LinkWrapper>
+                          {/* Show children indented */}
+                          {item.children.length > 0 && (
+                            <div className="ml-4 border-l-2 border-muted">
+                              {item.children.map((child) => (
+                                <LinkWrapper
+                                  key={child.id}
+                                  to={getMenuItemUrl(child)}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="py-2 px-4 text-sm text-muted-foreground hover:bg-muted rounded-lg block"
+                                >
+                                  {child.label}
+                                </LinkWrapper>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       ))}
                       
                       {/* Featured Promos (Mobile) */}
@@ -455,15 +526,49 @@ export function StorefrontHeaderContent({
               "items-center gap-6",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
-              {menuItems.map((item) => (
-                <LinkWrapper
+              {hierarchicalMenuItems.map((item) => (
+                <div
                   key={item.id}
-                  to={getMenuItemUrl(item)}
-                  className="text-sm font-medium hover:opacity-70 transition-colors"
-                  style={{ color: headerTextColor || undefined }}
+                  className="relative"
+                  onMouseEnter={() => item.children.length > 0 && handleDropdownEnter(item.id)}
+                  onMouseLeave={handleDropdownLeave}
                 >
-                  {item.label}
-                </LinkWrapper>
+                  <LinkWrapper
+                    to={getMenuItemUrl(item)}
+                    className={cn(
+                      "text-sm font-medium hover:opacity-70 transition-colors flex items-center gap-1",
+                      item.children.length > 0 && "cursor-pointer"
+                    )}
+                    style={{ color: headerTextColor || undefined }}
+                  >
+                    {item.label}
+                    {item.children.length > 0 && (
+                      <ChevronDown className={cn(
+                        "h-3 w-3 transition-transform duration-200",
+                        openDropdown === item.id && "rotate-180"
+                      )} />
+                    )}
+                  </LinkWrapper>
+                  
+                  {/* Dropdown Menu */}
+                  {item.children.length > 0 && openDropdown === item.id && (
+                    <div 
+                      className="absolute top-full left-0 mt-1 py-2 min-w-[200px] bg-background border rounded-lg shadow-lg z-50"
+                      onMouseEnter={() => handleDropdownEnter(item.id)}
+                      onMouseLeave={handleDropdownLeave}
+                    >
+                      {item.children.map((child) => (
+                        <LinkWrapper
+                          key={child.id}
+                          to={getMenuItemUrl(child)}
+                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                        >
+                          {child.label}
+                        </LinkWrapper>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
               
               {/* Featured Promos */}
