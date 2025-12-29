@@ -695,7 +695,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }
           
         } else if (stepId === 'visual') {
-          // Extract visual elements and create home page with blocks
+          // Extract visual elements and publish home page template
           const branding = scrapedData.branding || visualData?.branding || {};
           const heroBanners = visualData?.heroBanners || [];
           const sections = visualData?.sections || [];
@@ -741,45 +741,66 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             .update(updateData)
             .eq('id', currentTenant.id);
 
-          // Create home page with imported visual blocks
+          // Create and publish home page template using the correct template system
           if (heroBanners.length > 0) {
             const homePageContent = generateHomePageContent(heroBanners, createdMenuId || undefined);
             
-            // Check if home page exists
-            const { data: existingHome } = await supabase
-              .from('store_pages')
-              .select('id')
+            // 1. Ensure storefront_page_templates entry exists for 'home'
+            await supabase.rpc('initialize_storefront_templates', { 
+              p_tenant_id: currentTenant.id 
+            });
+            
+            // 2. Archive any currently published version for home template
+            await supabase
+              .from('store_page_versions')
+              .update({ status: 'archived' })
               .eq('tenant_id', currentTenant.id)
-              .eq('is_homepage', true)
-              .single();
-
-            if (existingHome) {
-              // Update existing home page content
-              await supabase
-                .from('store_pages')
-                .update({ 
-                  content: homePageContent as unknown as Json,
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('id', existingHome.id);
-            } else {
-              // Create new home page
-              await supabase
-                .from('store_pages')
-                .insert([{
-                  tenant_id: currentTenant.id,
-                  title: 'Home',
-                  slug: 'home',
-                  type: 'home',
-                  is_homepage: true,
-                  is_published: true,
-                  status: 'published',
-                  content: homePageContent as unknown as Json,
-                }]);
+              .eq('entity_type', 'template')
+              .eq('page_type', 'home')
+              .eq('status', 'published');
+            
+            // 3. Get the max version for home template
+            const { data: maxVersionData } = await supabase
+              .from('store_page_versions')
+              .select('version')
+              .eq('tenant_id', currentTenant.id)
+              .eq('entity_type', 'template')
+              .eq('page_type', 'home')
+              .order('version', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            
+            const newVersion = (maxVersionData?.version || 0) + 1;
+            
+            // 4. Insert new published version
+            const { error: insertError } = await supabase
+              .from('store_page_versions')
+              .insert([{
+                tenant_id: currentTenant.id,
+                entity_type: 'template',
+                version: newVersion,
+                status: 'published',
+                content: homePageContent as unknown as Json,
+                page_type: 'home',
+              }]);
+            
+            if (insertError) {
+              console.error('Error inserting home template version:', insertError);
+              throw insertError;
             }
             
+            // 5. Update storefront_page_templates to point to this version
+            await supabase
+              .from('storefront_page_templates')
+              .update({ 
+                published_version: newVersion,
+                draft_version: newVersion,
+              })
+              .eq('tenant_id', currentTenant.id)
+              .eq('page_type', 'home');
+            
             importedCount = heroBanners.length + sections.length;
-            toast.success(`${heroBanners.length} banners importados para a página inicial!`);
+            toast.success(`${heroBanners.length} banners importados e página inicial publicada!`);
           } else {
             importedCount = visualConfig.logo ? 1 : 0;
             toast.info('Nenhum banner encontrado. Logo e cores foram importados se disponíveis.');
