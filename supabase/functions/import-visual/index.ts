@@ -1,6 +1,6 @@
 // =============================================
 // IMPORT-VISUAL: Deep scraping for visual elements from e-commerce stores
-// Extracts banners, category images, hero sections, menus and maps to our builder blocks
+// Extracts banners, category images, hero sections, menus, videos and maps to our builder blocks
 // =============================================
 
 const corsHeaders = {
@@ -31,6 +31,14 @@ interface ExtractedMenuItem {
   children?: ExtractedMenuItem[];
 }
 
+interface ExtractedVideo {
+  type: 'youtube' | 'vimeo' | 'upload';
+  url: string;
+  embedUrl?: string;
+  videoId?: string;
+  title?: string;
+}
+
 interface ExtractedSection {
   type: string;
   title?: string;
@@ -42,6 +50,7 @@ interface VisualExtractionResult {
   heroBanners: ExtractedBanner[];
   categories: ExtractedCategory[];
   menuItems: ExtractedMenuItem[];
+  videos: ExtractedVideo[];
   sections: ExtractedSection[];
   branding: {
     logo?: string;
@@ -98,6 +107,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     heroBanners: [],
     categories: [],
     menuItems: [],
+    videos: [],
     sections: [],
     branding: {},
     unsupportedSections: [],
@@ -115,6 +125,9 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     // Extract menu items from navigation
     result.menuItems = extractMenuItems(html, baseUrl, platform);
     
+    // Extract videos (YouTube, Vimeo, direct uploads)
+    result.videos = extractVideos(html, baseUrl);
+    
     // Extract other sections
     result.sections = extractSections(html, platform);
     
@@ -125,6 +138,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
       banners: result.heroBanners.length,
       categories: result.categories.length,
       menuItems: result.menuItems.length,
+      videos: result.videos.length,
       sections: result.sections.length,
     });
   } catch (error) {
@@ -134,6 +148,59 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
   }
 
   return result;
+}
+
+function extractVideos(html: string, baseUrl: string): ExtractedVideo[] {
+  const videos: ExtractedVideo[] = [];
+  const addedIds = new Set<string>();
+
+  // YouTube iframes
+  const youtubePattern = /<iframe[^>]*src=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["'][^>]*>/gi;
+  let match;
+  while ((match = youtubePattern.exec(html)) !== null) {
+    const embedUrl = match[1].startsWith('//') ? `https:${match[1]}` : match[1];
+    const videoIdMatch = /(?:embed\/|watch\?v=|youtu\.be\/)([^&?/]+)/.exec(embedUrl);
+    if (videoIdMatch && !addedIds.has(videoIdMatch[1])) {
+      videos.push({
+        type: 'youtube',
+        url: `https://www.youtube.com/watch?v=${videoIdMatch[1]}`,
+        embedUrl: `https://www.youtube.com/embed/${videoIdMatch[1]}`,
+        videoId: videoIdMatch[1],
+      });
+      addedIds.add(videoIdMatch[1]);
+    }
+  }
+
+  // Vimeo iframes
+  const vimeoPattern = /<iframe[^>]*src=["']([^"']*vimeo\.com[^"']*)["'][^>]*>/gi;
+  while ((match = vimeoPattern.exec(html)) !== null) {
+    const embedUrl = match[1].startsWith('//') ? `https:${match[1]}` : match[1];
+    const videoIdMatch = /vimeo\.com\/(?:video\/)?(\d+)/.exec(embedUrl);
+    if (videoIdMatch && !addedIds.has(videoIdMatch[1])) {
+      videos.push({
+        type: 'vimeo',
+        url: `https://vimeo.com/${videoIdMatch[1]}`,
+        embedUrl: `https://player.vimeo.com/video/${videoIdMatch[1]}`,
+        videoId: videoIdMatch[1],
+      });
+      addedIds.add(videoIdMatch[1]);
+    }
+  }
+
+  // Direct video files
+  const videoFilePattern = /<(?:video|source)[^>]*src=["']([^"']+\.(?:mp4|webm|mov))["'][^>]*>/gi;
+  while ((match = videoFilePattern.exec(html)) !== null) {
+    const videoUrl = normalizeImageUrl(match[1], baseUrl);
+    if (!addedIds.has(videoUrl)) {
+      videos.push({
+        type: 'upload',
+        url: videoUrl,
+      });
+      addedIds.add(videoUrl);
+    }
+  }
+
+  return videos;
 }
 
 function extractBaseUrl(url: string, html: string): string {

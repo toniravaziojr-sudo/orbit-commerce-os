@@ -1,12 +1,13 @@
 // =============================================
 // VIDEO UPLOADER WITH LIBRARY - Upload or select videos from media library
+// Supports both file upload and YouTube/Vimeo embeds
 // =============================================
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, Loader2, X, Check, FolderOpen, Video } from 'lucide-react';
+import { Upload, Link, Loader2, X, Check, FolderOpen, Video, Youtube } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useMediaLibrary, MediaVariant } from '@/hooks/useMediaLibrary';
@@ -23,6 +24,67 @@ const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
 const ACCEPTED_EXTENSIONS = '.mp4,.webm,.mov';
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB for videos
 
+// Helper to detect video source type
+export function detectVideoType(url: string): 'youtube' | 'vimeo' | 'upload' | 'unknown' {
+  if (!url) return 'unknown';
+  
+  // YouTube patterns
+  if (
+    url.includes('youtube.com/watch') ||
+    url.includes('youtu.be/') ||
+    url.includes('youtube.com/embed/')
+  ) {
+    return 'youtube';
+  }
+  
+  // Vimeo patterns
+  if (url.includes('vimeo.com/') || url.includes('player.vimeo.com/')) {
+    return 'vimeo';
+  }
+  
+  // Direct video file
+  if (
+    url.endsWith('.mp4') ||
+    url.endsWith('.webm') ||
+    url.endsWith('.mov') ||
+    url.includes('/videos/') ||
+    url.includes('video/')
+  ) {
+    return 'upload';
+  }
+  
+  return 'unknown';
+}
+
+// Extract YouTube video ID
+export function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\?\/]+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
+// Extract Vimeo video ID
+export function extractVimeoId(url: string): string | null {
+  const patterns = [
+    /vimeo\.com\/(?:video\/)?(\d+)/,
+    /player\.vimeo\.com\/video\/(\d+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
 export function VideoUploaderWithLibrary({ 
   value, 
   onChange, 
@@ -30,7 +92,8 @@ export function VideoUploaderWithLibrary({
   variant,
 }: VideoUploaderWithLibraryProps) {
   const { currentTenant } = useAuth();
-  const { registerMedia, mediaItems } = useMediaLibrary();
+  // Only fetch videos, not images
+  const { registerMedia, mediaItems } = useMediaLibrary({ variant, mediaType: 'video' });
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,12 +102,7 @@ export function VideoUploaderWithLibrary({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const variantLabel = variant === 'desktop' ? 'Desktop' : 'Mobile';
-
-  // Filter videos from media library
-  const videoItems = mediaItems?.filter(item => 
-    item.variant === variant && 
-    item.mime_type?.startsWith('video/')
-  ) || [];
+  const videoType = detectVideoType(value);
 
   const handleFileSelect = async (file: File) => {
     if (!currentTenant?.id) {
@@ -142,6 +200,53 @@ export function VideoUploaderWithLibrary({
     setShowLibrary(false);
   };
 
+  // Render video preview based on type
+  const renderVideoPreview = () => {
+    if (!value) return null;
+
+    if (videoType === 'youtube') {
+      const videoId = extractYouTubeId(value);
+      if (videoId) {
+        return (
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}`}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        );
+      }
+    }
+
+    if (videoType === 'vimeo') {
+      const videoId = extractVimeoId(value);
+      if (videoId) {
+        return (
+          <iframe
+            src={`https://player.vimeo.com/video/${videoId}`}
+            className="w-full h-full"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+          />
+        );
+      }
+    }
+
+    // Direct video file
+    return (
+      <video
+        src={value}
+        className="w-full h-full object-cover"
+        controls
+        muted
+        playsInline
+        onError={(e) => {
+          console.error('Video load error:', e);
+        }}
+      />
+    );
+  };
+
   return (
     <div className="space-y-3">
       <Tabs defaultValue="upload" className="w-full">
@@ -155,8 +260,8 @@ export function VideoUploaderWithLibrary({
             Banco
           </TabsTrigger>
           <TabsTrigger value="url" className="text-xs gap-1">
-            <Link className="h-3 w-3" />
-            URL
+            <Youtube className="h-3 w-3" />
+            Link
           </TabsTrigger>
         </TabsList>
 
@@ -222,13 +327,13 @@ export function VideoUploaderWithLibrary({
                 </Button>
               </div>
               
-              {videoItems.length === 0 ? (
+              {mediaItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   Nenhum vídeo encontrado no banco
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {videoItems.map((item) => (
+                  {mediaItems.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => handleLibrarySelect(item.file_url)}
@@ -250,11 +355,14 @@ export function VideoUploaderWithLibrary({
         </TabsContent>
 
         <TabsContent value="url" className="mt-2 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Cole um link do YouTube, Vimeo ou URL direta de vídeo
+          </p>
           <div className="flex gap-2">
             <Input
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://exemplo.com/video.mp4"
+              placeholder="https://youtube.com/watch?v=..."
               className="h-9 flex-1"
             />
             <Button 
@@ -278,23 +386,21 @@ export function VideoUploaderWithLibrary({
       {/* Preview */}
       {value && (
         <div className="relative rounded-md overflow-hidden border bg-muted aspect-video">
-          <video
-            src={value}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            onError={(e) => {
-              console.error('Video load error:', e);
-            }}
-          />
+          {renderVideoPreview()}
           <Button
             variant="destructive"
             size="icon"
-            className="absolute top-2 right-2 h-7 w-7"
+            className="absolute top-2 right-2 h-7 w-7 z-10"
             onClick={handleClear}
           >
             <X className="h-4 w-4" />
           </Button>
+          {videoType !== 'upload' && (
+            <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded flex items-center gap-1">
+              {videoType === 'youtube' && <Youtube className="h-3 w-3" />}
+              {videoType === 'youtube' ? 'YouTube' : videoType === 'vimeo' ? 'Vimeo' : 'Link'}
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 // =============================================
-// MEDIA LIBRARY PICKER - Select from uploaded images
+// MEDIA LIBRARY PICKER - Select from uploaded images (only images, not videos)
 // =============================================
 
 import { useState } from 'react';
@@ -24,7 +24,8 @@ export function MediaLibraryPicker({
   variant,
   onSelect,
 }: MediaLibraryPickerProps) {
-  const { mediaItems, isLoading } = useMediaLibrary(variant);
+  // Only fetch images, not videos
+  const { mediaItems, isLoading } = useMediaLibrary({ variant, mediaType: 'image' });
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
 
