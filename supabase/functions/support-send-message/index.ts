@@ -171,7 +171,22 @@ serve(async (req) => {
           break;
         }
 
-        console.log(`Sending email from "${fromName}" <${fromEmail}> to ${customerEmail}`);
+        // Construct proper reply-to email address
+        // support_email_address might just be "atendimento" without domain, so we need to construct the full email
+        let replyToEmail = fromEmail; // Default to from_email
+        if (config.support_email_address && config.sending_domain) {
+          // If support_email_address is just the local part (e.g., "atendimento"), append the domain
+          if (config.support_email_address.includes("@")) {
+            replyToEmail = config.support_email_address;
+          } else {
+            replyToEmail = `${config.support_email_address}@${config.sending_domain}`;
+          }
+        } else if (config.reply_to && config.reply_to.includes("@")) {
+          // Use the configured reply_to if it's a valid email
+          replyToEmail = config.reply_to;
+        }
+
+        console.log(`Sending email from "${fromName}" <${fromEmail}> to ${customerEmail}, reply-to: ${replyToEmail}`);
 
         const result = await sendEmailViaSendGrid(
           SENDGRID_API_KEY,
@@ -179,7 +194,7 @@ serve(async (req) => {
           customerEmail,
           conversation.subject || "Re: Seu atendimento",
           message.content,
-          config.support_email_address || fromEmail
+          replyToEmail
         );
 
         if (!result.success) {
