@@ -463,10 +463,38 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         // Call import-visual edge function for deep extraction (only once)
         let visualData = visualImportData;
         if (!visualData) {
+          // First, try to get better HTML with JavaScript rendered using waitFor
+          let htmlToUse = scrapedData.html || '';
+          
+          // If we don't have good menu data in the initial HTML, try scraping with waitFor
+          const hasMenuInHtml = htmlToUse.includes('nav') || htmlToUse.includes('header-nav') || htmlToUse.includes('mega-menu');
+          if (!hasMenuInHtml || !htmlToUse.includes('dropdown')) {
+            console.log('Attempting to scrape with waitFor for JS-rendered content...');
+            try {
+              const { data: betterScrape, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
+                body: { 
+                  url: storeUrl,
+                  options: {
+                    formats: ['html', 'links'],
+                    onlyMainContent: false,
+                    waitFor: 3000, // Wait 3 seconds for JS to render menus
+                  }
+                }
+              });
+              
+              if (!scrapeError && betterScrape?.data?.html) {
+                htmlToUse = betterScrape.data.html;
+                console.log('Got better HTML with JS-rendered content');
+              }
+            } catch (e) {
+              console.log('Fallback scrape failed, using original HTML');
+            }
+          }
+          
           const { data: extractedData, error: visualError } = await supabase.functions.invoke('import-visual', {
             body: { 
               url: storeUrl,
-              html: scrapedData.html || '',
+              html: htmlToUse,
               platform: analysisResult?.platform,
             }
           });
@@ -485,6 +513,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               unsupportedSections: extractedData.unsupportedSections || [],
             };
             setVisualImportData(visualData);
+            
+            // Log menu structure for debugging
+            console.log('Extracted menu items:', JSON.stringify(visualData.menuItems, null, 2));
           }
         }
 
