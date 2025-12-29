@@ -3,7 +3,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Category } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronRight, ChevronDown, GripVertical, Pencil, Trash2, FolderOpen, Folder, Eye } from 'lucide-react';
+import { ChevronRight, ChevronDown, GripVertical, Pencil, Trash2, FolderOpen, Folder, Eye, CornerDownRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
@@ -18,6 +18,8 @@ interface CategoryTreeItemProps {
   onDelete: () => void;
   isOver: boolean;
   isDragging: boolean;
+  isDropAsChildTarget?: boolean;
+  onDropAsChildHover?: (isHovering: boolean) => void;
 }
 
 export function CategoryTreeItem({
@@ -30,6 +32,8 @@ export function CategoryTreeItem({
   onDelete,
   isOver,
   isDragging,
+  isDropAsChildTarget,
+  onDropAsChildHover,
 }: CategoryTreeItemProps) {
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
@@ -68,8 +72,9 @@ export function CategoryTreeItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'flex items-center gap-2 p-2 rounded-md border bg-card hover:bg-accent/50 transition-colors group',
-        isOver && 'ring-2 ring-primary bg-accent',
+        'flex items-center gap-2 p-2 rounded-md border bg-card hover:bg-accent/50 transition-colors group relative',
+        isOver && !isDropAsChildTarget && 'ring-2 ring-primary bg-accent',
+        isDropAsChildTarget && 'ring-2 ring-green-500 bg-green-50 dark:bg-green-950/30',
         isDragging && 'opacity-50'
       )}
       {...attributes}
@@ -164,6 +169,16 @@ export function CategoryTreeItem({
           <Trash2 className="h-4 w-4 text-destructive" />
         </Button>
       </div>
+
+      {/* Drop as child indicator - shows when hovering and holding Shift */}
+      {isDropAsChildTarget && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 shadow-lg">
+            <CornerDownRight className="h-3 w-3" />
+            Mover para dentro
+          </div>
+        </div>
+      )}
     </div>
   );
 }
