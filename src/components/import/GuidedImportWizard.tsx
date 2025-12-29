@@ -9,6 +9,87 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getAdapter } from '@/lib/import/platforms';
 import { useAuth } from '@/hooks/useAuth';
+import { generateBlockId } from '@/lib/builder/utils';
+import type { BlockNode } from '@/lib/builder/types';
+
+// Generate home page content from imported visual data
+function generateHomePageContent(heroBanners: any[], sections: any[]): BlockNode {
+  const children: BlockNode[] = [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: true,
+        showCart: true,
+        sticky: true,
+      },
+    },
+  ];
+
+  // Add HeroBanner if banners exist
+  if (heroBanners.length > 0) {
+    children.push({
+      id: generateBlockId('HeroBanner'),
+      type: 'HeroBanner',
+      props: {
+        slides: heroBanners.map((banner, idx) => ({
+          id: `slide-${idx}`,
+          imageDesktop: banner.imageDesktop || '',
+          imageMobile: banner.imageMobile || banner.imageDesktop || '',
+          linkUrl: banner.linkUrl || '',
+          altText: banner.altText || `Banner ${idx + 1}`,
+        })),
+        autoplaySeconds: 5,
+        bannerWidth: 'full',
+        showArrows: true,
+        showDots: true,
+      },
+    });
+  }
+
+  // Add CategoryList section
+  children.push({
+    id: generateBlockId('Section'),
+    type: 'Section',
+    props: { padding: 'lg' },
+    children: [{
+      id: generateBlockId('CategoryList'),
+      type: 'CategoryList',
+      props: { title: 'Categorias', layout: 'grid', columns: 4 },
+    }],
+  });
+
+  // Add ProductGrid section
+  children.push({
+    id: generateBlockId('Section'),
+    type: 'Section',
+    props: { backgroundColor: '#f9fafb', padding: 'lg' },
+    children: [{
+      id: generateBlockId('ProductGrid'),
+      type: 'ProductGrid',
+      props: { title: 'Produtos em Destaque', source: 'featured', columns: 4, limit: 8, showPrice: true },
+    }],
+  });
+
+  // Add Footer
+  children.push({
+    id: generateBlockId('Footer'),
+    type: 'Footer',
+    props: {
+      menuId: '',
+      showSocial: true,
+      copyrightText: `© ${new Date().getFullYear()} Minha Loja. Todos os direitos reservados.`,
+    },
+  });
+
+  return {
+    id: 'root',
+    type: 'Page',
+    props: {},
+    children,
+  };
+}
 interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
@@ -284,39 +365,69 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           throw new Error('Tenant não encontrado');
         }
 
+        // Call import-visual edge function for deep extraction
+        const { data: visualData, error: visualError } = await supabase.functions.invoke('import-visual', {
+          body: { 
+            url: storeUrl,
+            html: scrapedData.html || '',
+            platform: analysisResult?.platform,
+          }
+        });
+
+        if (visualError) {
+          console.error('Error calling import-visual:', visualError);
+        }
+
         if (stepId === 'categories') {
-          // Extract categories from links
-          const links = scrapedData.links || [];
-          const categoryLinks = links.filter((link: string) => 
-            link.includes('/categoria') || 
-            link.includes('/category') || 
-            link.includes('/collections') ||
-            link.includes('/c/')
-          );
+          // Use deep extraction data if available, fallback to basic link extraction
+          let categoriesToSave: Array<{ name: string; slug: string; bannerDesktop?: string; bannerMobile?: string; imageUrl?: string }> = [];
           
-          // Extract category names from URLs
-          const categories = categoryLinks.map((link: string) => {
-            const url = new URL(link);
-            const pathParts = url.pathname.split('/').filter(Boolean);
-            const slug = pathParts[pathParts.length - 1] || '';
-            const name = slug
-              .replace(/-/g, ' ')
-              .replace(/_/g, ' ')
-              .split(' ')
-              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-              .join(' ');
+          if (visualData?.categories?.length > 0) {
+            categoriesToSave = visualData.categories.map((cat: any) => ({
+              name: cat.name,
+              slug: cat.slug,
+              bannerDesktop: cat.bannerDesktop || null,
+              bannerMobile: cat.bannerMobile || null,
+              imageUrl: cat.imageUrl || null,
+            }));
+          } else {
+            // Fallback to basic link extraction
+            const links = scrapedData.links || [];
+            const categoryLinks = links.filter((link: string) => 
+              link.includes('/categoria') || 
+              link.includes('/category') || 
+              link.includes('/collections') ||
+              link.includes('/c/')
+            );
             
-            return { name, slug };
-          }).filter((cat: any) => cat.name && cat.slug);
+            categoriesToSave = categoryLinks.map((link: string) => {
+              try {
+                const url = new URL(link);
+                const pathParts = url.pathname.split('/').filter(Boolean);
+                const slug = pathParts[pathParts.length - 1] || '';
+                const name = slug
+                  .replace(/-/g, ' ')
+                  .replace(/_/g, ' ')
+                  .split(' ')
+                  .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                  .join(' ');
+                
+                return { name, slug };
+              } catch {
+                return null;
+              }
+            }).filter(Boolean);
+          }
 
           // Remove duplicates
-          const uniqueCategories = categories.filter((cat: any, index: number, self: any[]) =>
-            index === self.findIndex((c) => c.slug === cat.slug)
+          const uniqueCategories = categoriesToSave.filter((cat, index, self) =>
+            cat && index === self.findIndex((c) => c?.slug === cat.slug)
           );
 
-          // Save categories to database
+          // Save categories to database with banners
           if (uniqueCategories.length > 0) {
             for (const cat of uniqueCategories) {
+              if (!cat) continue;
               const { error } = await supabase
                 .from('categories')
                 .upsert({
@@ -324,6 +435,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   name: cat.name,
                   slug: cat.slug,
                   is_active: true,
+                  image_url: cat.imageUrl || null,
+                  banner_desktop_url: cat.bannerDesktop || null,
+                  banner_mobile_url: cat.bannerMobile || null,
                 }, { onConflict: 'tenant_id,slug' });
               
               if (error && !error.message.includes('duplicate')) {
@@ -335,63 +449,104 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           importedCount = uniqueCategories.length;
           
         } else if (stepId === 'visual') {
-          // Extract visual elements from branding data
-          const branding = scrapedData.branding;
+          // Extract visual elements and create home page with blocks
+          const branding = scrapedData.branding || visualData?.branding || {};
+          const heroBanners = visualData?.heroBanners || [];
+          const sections = visualData?.sections || [];
+          const unsupportedSections = visualData?.unsupportedSections || [];
           
-          if (branding) {
-            // Get current tenant settings first to preserve existing data
-            const { data: tenantData } = await supabase
-              .from('tenants')
-              .select('settings, logo_url')
-              .eq('id', currentTenant.id)
+          // Get current tenant settings first
+          const { data: tenantData } = await supabase
+            .from('tenants')
+            .select('settings, logo_url')
+            .eq('id', currentTenant.id)
+            .single();
+          
+          const currentSettings = (tenantData?.settings as Record<string, any>) || {};
+          
+          const visualConfig = {
+            logo: branding.images?.logo || branding.logo || null,
+            favicon: branding.images?.favicon || branding.favicon || null,
+            primaryColor: branding.colors?.primary || branding.primaryColor || null,
+            secondaryColor: branding.colors?.secondary || branding.secondaryColor || null,
+            accentColor: branding.colors?.accent || branding.accentColor || null,
+            backgroundColor: branding.colors?.background || null,
+            textColor: branding.colors?.textPrimary || null,
+            fontFamily: branding.typography?.fontFamilies?.primary || branding.fonts?.[0]?.family || null,
+            headingFont: branding.typography?.fontFamilies?.heading || null,
+            colorScheme: branding.colorScheme || 'light',
+          };
+
+          // Update tenant settings
+          const updatedSettings = {
+            ...currentSettings,
+            visual: visualConfig,
+            imported_from: storeUrl,
+            imported_at: new Date().toISOString(),
+          };
+
+          const updateData: any = { settings: updatedSettings };
+          if (visualConfig.logo) {
+            updateData.logo_url = visualConfig.logo;
+          }
+
+          await supabase
+            .from('tenants')
+            .update(updateData)
+            .eq('id', currentTenant.id);
+
+          // Create home page with imported visual blocks
+          if (heroBanners.length > 0 || sections.length > 0) {
+            const homePageContent = generateHomePageContent(heroBanners, sections);
+            
+            // Check if home page exists
+            const { data: existingHome } = await supabase
+              .from('store_pages')
+              .select('id')
+              .eq('tenant_id', currentTenant.id)
+              .eq('is_homepage', true)
               .single();
-            
-            const currentSettings = (tenantData?.settings as Record<string, any>) || {};
-            
-            const visualConfig = {
-              logo: branding.images?.logo || branding.logo || null,
-              favicon: branding.images?.favicon || null,
-              primaryColor: branding.colors?.primary || null,
-              secondaryColor: branding.colors?.secondary || null,
-              accentColor: branding.colors?.accent || null,
-              backgroundColor: branding.colors?.background || null,
-              textColor: branding.colors?.textPrimary || null,
-              fontFamily: branding.typography?.fontFamilies?.primary || branding.fonts?.[0]?.family || null,
-              headingFont: branding.typography?.fontFamilies?.heading || null,
-              colorScheme: branding.colorScheme || 'light',
-            };
 
-            // Merge with existing settings
-            const updatedSettings = {
-              ...currentSettings,
-              visual: visualConfig,
-              imported_from: storeUrl,
-              imported_at: new Date().toISOString(),
-            };
-
-            // Update tenant settings with visual config
-            const updateData: any = { settings: updatedSettings };
-            
-            // Also update logo_url if available
-            if (visualConfig.logo) {
-              updateData.logo_url = visualConfig.logo;
+            if (existingHome) {
+              // Update existing home page content
+              await supabase
+                .from('store_pages')
+                .update({ 
+                  content: homePageContent,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', existingHome.id);
+            } else {
+              // Create new home page
+              await supabase
+                .from('store_pages')
+                .insert({
+                  tenant_id: currentTenant.id,
+                  title: 'Home',
+                  slug: 'home',
+                  type: 'home',
+                  is_homepage: true,
+                  is_published: true,
+                  status: 'published',
+                  content: homePageContent,
+                });
             }
-
-            const { error } = await supabase
-              .from('tenants')
-              .update(updateData)
-              .eq('id', currentTenant.id);
-
-            if (error) {
-              console.error('Error saving visual config:', error);
-              throw new Error('Erro ao salvar configurações visuais');
-            }
-
-            importedCount = 1;
+            
+            importedCount = heroBanners.length + sections.length;
           } else {
-            // Even without branding, mark as imported
-            importedCount = 0;
-            toast.info('Não foi possível extrair dados visuais da loja');
+            importedCount = visualConfig.logo ? 1 : 0;
+          }
+
+          // Notify about unsupported sections
+          if (unsupportedSections.length > 0) {
+            toast.warning(
+              `Alguns módulos não foram importados: ${unsupportedSections.join(', ')}. Entre em contato com o suporte para mais informações.`,
+              { duration: 8000 }
+            );
+          }
+
+          if (importedCount === 0) {
+            toast.info('Não foi possível extrair dados visuais detalhados da loja. Verifique se a URL está correta.');
           }
         }
       }
