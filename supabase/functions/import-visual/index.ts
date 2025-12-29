@@ -64,6 +64,239 @@ interface VisualExtractionResult {
   error?: string;
 }
 
+// Fetch Shopify navigation menu via public JSON endpoint
+async function fetchShopifyNavigation(baseUrl: string): Promise<ExtractedMenuItem[]> {
+  const menuItems: ExtractedMenuItem[] = [];
+  
+  try {
+    // Shopify stores expose navigation via a public JSON endpoint
+    // Try main-menu first, then header-menu
+    const menuHandles = ['main-menu', 'header-menu', 'main', 'header'];
+    
+    for (const handle of menuHandles) {
+      try {
+        const menuUrl = `${baseUrl}/pages/menu?view=json`;
+        console.log(`Trying to fetch Shopify menu: ${menuUrl}`);
+        
+        // Try the navigation JSON endpoint that most themes expose
+        const navUrl = `${baseUrl}/?view=navigation.json`;
+        const response = await fetch(navUrl, {
+          headers: { 'Accept': 'application/json' }
+        });
+        
+        if (response.ok) {
+          const text = await response.text();
+          try {
+            const data = JSON.parse(text);
+            if (data.menu || data.items || data.linklist) {
+              console.log('Found Shopify navigation JSON');
+              // Parse the menu structure
+              const items = data.menu || data.items || data.linklist?.links || [];
+              return parseShopifyMenuItems(items, baseUrl);
+            }
+          } catch (e) {
+            // Not valid JSON, continue trying other methods
+          }
+        }
+      } catch (e) {
+        // Continue to next method
+      }
+    }
+    
+    // Try to fetch via Storefront API by looking for menu data in script tags
+    console.log('Trying alternative Shopify menu extraction methods...');
+    
+  } catch (error) {
+    console.error('Error fetching Shopify navigation:', error);
+  }
+  
+  return menuItems;
+}
+
+function parseShopifyMenuItems(items: any[], baseUrl: string): ExtractedMenuItem[] {
+  const menuItems: ExtractedMenuItem[] = [];
+  
+  for (const item of items) {
+    const label = item.title || item.label || item.name || '';
+    const url = item.url || item.href || '';
+    
+    if (!label) continue;
+    
+    const normalizedUrl = url.startsWith('http') ? url : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    const internalUrl = convertUrlToInternal(url);
+    const itemType = getUrlItemType(url);
+    
+    const children: ExtractedMenuItem[] = [];
+    if (item.links && Array.isArray(item.links) && item.links.length > 0) {
+      for (const child of item.links) {
+        const childLabel = child.title || child.label || child.name || '';
+        const childUrl = child.url || child.href || '';
+        if (!childLabel) continue;
+        
+        const childNormalizedUrl = childUrl.startsWith('http') ? childUrl : `${baseUrl}${childUrl.startsWith('/') ? '' : '/'}${childUrl}`;
+        const childInternalUrl = convertUrlToInternal(childUrl);
+        const childItemType = getUrlItemType(childUrl);
+        
+        children.push({
+          label: childLabel,
+          url: childNormalizedUrl,
+          internalUrl: childInternalUrl,
+          type: childItemType,
+        });
+      }
+    }
+    
+    menuItems.push({
+      label,
+      url: normalizedUrl,
+      internalUrl,
+      type: itemType,
+      children: children.length > 0 ? children : undefined,
+    });
+  }
+  
+  return menuItems;
+}
+
+function convertUrlToInternal(href: string): string | undefined {
+  // Collection/Category
+  const collectionMatch = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i.exec(href);
+  if (collectionMatch) {
+    return `/categoria/${collectionMatch[1]}`;
+  }
+  // Page
+  const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(href);
+  if (pageMatch) {
+    return `/pagina/${pageMatch[1]}`;
+  }
+  // Blog/Article
+  const blogMatch = /\/(?:blogs?|artigos?)\/([^/?#]+)(?:\/([^/?#]+))?/i.exec(href);
+  if (blogMatch) {
+    return blogMatch[2] ? `/blog/${blogMatch[1]}/${blogMatch[2]}` : `/blog/${blogMatch[1]}`;
+  }
+  // Product
+  const productMatch = /\/(?:products?|produto)\/([^/?#]+)/i.exec(href);
+  if (productMatch) {
+    return `/produto/${productMatch[1]}`;
+  }
+  return undefined;
+}
+
+function getUrlItemType(href: string): 'link' | 'category' | 'page' {
+  if (/\/(?:collections|categoria|category|c)\//i.test(href)) {
+    return 'category';
+  } else if (/\/(?:pages?|pagina|blogs?|artigos?)\//i.test(href)) {
+    return 'page';
+  }
+  return 'link';
+}
+
+// Extract Shopify menu from inline JSON or script data in the HTML
+async function extractShopifyMenuFromHtml(html: string, baseUrl: string): Promise<ExtractedMenuItem[]> {
+  const menuItems: ExtractedMenuItem[] = [];
+  
+  try {
+    // Pattern 1: Look for window.theme.navigation or similar global objects
+    const jsonPatterns = [
+      // Shopify Dawn theme and similar
+      /window\.theme\s*=\s*(\{[\s\S]*?\});?\s*<\/script>/i,
+      // menu/navigation specific
+      /"menu":\s*(\[[\s\S]*?\])/i,
+      /"navigation":\s*(\{[\s\S]*?\})/i,
+      // linklist pattern (Shopify specific)
+      /"linklist":\s*(\{[\s\S]*?\})/i,
+      // Look for menu data in data attributes or embedded JSON
+      /data-menu=['"](\[[\s\S]*?\])['"]>/i,
+    ];
+    
+    for (const pattern of jsonPatterns) {
+      const match = pattern.exec(html);
+      if (match) {
+        try {
+          const data = JSON.parse(match[1]);
+          const items = data.menu || data.items || data.links || data.linklist?.links || (Array.isArray(data) ? data : []);
+          if (items.length > 0) {
+            console.log('Found menu data in HTML JSON:', items.length, 'items');
+            return parseShopifyMenuItems(items, baseUrl);
+          }
+        } catch (e) {
+          // Continue trying other patterns
+        }
+      }
+    }
+    
+    // Pattern 2: Look for structured data in nav elements with data-* attributes
+    // Many themes include submenu structure in nested <details> elements or similar
+    const detailsNavPattern = /<details[^>]*>[\s\S]*?<summary[^>]*>[\s\S]*?<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*)<\/a>[\s\S]*?<\/summary>[\s\S]*?(<ul[^>]*>[\s\S]*?<\/ul>)[\s\S]*?<\/details>/gi;
+    let detailsMatch;
+    const addedLabels = new Set<string>();
+    
+    while ((detailsMatch = detailsNavPattern.exec(html)) !== null) {
+      const [, parentHref, parentLabel, submenuHtml] = detailsMatch;
+      const cleanLabel = parentLabel.replace(/<[^>]*>/g, '').trim();
+      
+      if (!cleanLabel || cleanLabel.length < 2 || addedLabels.has(cleanLabel.toLowerCase())) continue;
+      
+      const children: ExtractedMenuItem[] = [];
+      const subLinkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*?)<\/a>/gi;
+      let subMatch;
+      
+      while ((subMatch = subLinkPattern.exec(submenuHtml)) !== null) {
+        const [, subHref, subRawLabel] = subMatch;
+        const subLabel = subRawLabel.replace(/<[^>]*>/g, '').trim();
+        
+        if (!subLabel || subLabel.length < 2) continue;
+        if (children.some(c => c.label.toLowerCase() === subLabel.toLowerCase())) continue;
+        
+        const subNormalizedUrl = subHref.startsWith('http') ? subHref : `${baseUrl}${subHref.startsWith('/') ? '' : '/'}${subHref}`;
+        children.push({
+          label: subLabel,
+          url: subNormalizedUrl,
+          internalUrl: convertUrlToInternal(subHref),
+          type: getUrlItemType(subHref),
+        });
+      }
+      
+      const normalizedUrl = parentHref.startsWith('http') ? parentHref : `${baseUrl}${parentHref.startsWith('/') ? '' : '/'}${parentHref}`;
+      menuItems.push({
+        label: cleanLabel,
+        url: normalizedUrl,
+        internalUrl: convertUrlToInternal(parentHref),
+        type: getUrlItemType(parentHref),
+        children: children.length > 0 ? children : undefined,
+      });
+      addedLabels.add(cleanLabel.toLowerCase());
+    }
+    
+    if (menuItems.length > 0) {
+      console.log(`Found ${menuItems.length} menu items from details/summary structure`);
+      return menuItems;
+    }
+    
+    // Pattern 3: Look for Shopify section rendering data
+    const sectionDataPattern = /data-section-settings=['"](\{[\s\S]*?\})['"]>/gi;
+    let sectionMatch;
+    while ((sectionMatch = sectionDataPattern.exec(html)) !== null) {
+      try {
+        const sectionData = JSON.parse(sectionMatch[1].replace(/&quot;/g, '"'));
+        if (sectionData.menu || sectionData.navigation) {
+          const items = sectionData.menu || sectionData.navigation;
+          if (Array.isArray(items) && items.length > 0) {
+            return parseShopifyMenuItems(items, baseUrl);
+          }
+        }
+      } catch (e) {
+        // Continue
+      }
+    }
+    
+  } catch (error) {
+    console.error('Error extracting Shopify menu from HTML:', error);
+  }
+  
+  return menuItems;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -82,7 +315,23 @@ Deno.serve(async (req) => {
     console.log('Extracting visual elements from:', url || 'provided HTML');
     console.log('Detected platform:', platform);
 
-    const result = extractVisualElements(html, url, platform);
+    let result = extractVisualElements(html, url, platform);
+    
+    // For Shopify, try to fetch menus via API if HTML extraction didn't find submenus
+    if (platform === 'shopify' && url) {
+      const hasSubmenus = result.menuItems.some(item => item.children && item.children.length > 0);
+      
+      if (!hasSubmenus && result.menuItems.length > 0) {
+        console.log('No submenus found in HTML, trying Shopify-specific menu extraction...');
+        
+        // Try to extract from inline JSON in the HTML (common in Shopify themes)
+        const shopifyMenuItems = await extractShopifyMenuFromHtml(html, url);
+        if (shopifyMenuItems.length > 0 && shopifyMenuItems.some((item: ExtractedMenuItem) => item.children && item.children.length > 0)) {
+          result.menuItems = shopifyMenuItems;
+          console.log(`Found ${shopifyMenuItems.length} menu items with hierarchy from Shopify extraction`);
+        }
+      }
+    }
 
     console.log(`Extracted: ${result.heroBanners.length} banners, ${result.categories.length} categories, ${result.menuItems.length} menu items, ${result.sections.length} sections`);
 
