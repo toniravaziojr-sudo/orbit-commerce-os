@@ -4,10 +4,10 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2 } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
 import { ImportStep, ImportStepConfig } from './ImportStep';
-import { ImportProgress } from './ImportProgress';
-import { useImportJobs } from '@/hooks/useImportJobs';
+import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { getAdapter } from '@/lib/import/platforms';
 
 interface GuidedImportWizardProps {
   onComplete?: () => void;
@@ -24,39 +24,44 @@ const IMPORT_STEPS: ImportStepConfig[] = [
   {
     id: 'products',
     title: 'Produtos',
-    description: 'Importar produtos, variantes e imagens',
+    description: 'Importar produtos, variantes e imagens via arquivo JSON ou CSV',
     icon: <Package className="h-5 w-5" />,
     canSkip: true,
+    importMethod: 'file',
   },
   {
     id: 'customers',
     title: 'Clientes',
-    description: 'Importar clientes e endereços (requer acesso à API)',
+    description: 'Importar clientes e endereços via arquivo JSON ou CSV',
     icon: <Users className="h-5 w-5" />,
     canSkip: true,
+    importMethod: 'file',
   },
   {
     id: 'orders',
     title: 'Pedidos',
-    description: 'Importar histórico de pedidos (requer acesso à API)',
+    description: 'Importar histórico de pedidos via arquivo JSON ou CSV',
     icon: <ShoppingCart className="h-5 w-5" />,
     canSkip: true,
+    importMethod: 'file',
   },
   {
     id: 'categories',
     title: 'Categorias',
-    description: 'Importar categorias e menu de navegação',
+    description: 'Extrair categorias e menu de navegação automaticamente do site',
     icon: <FolderTree className="h-5 w-5" />,
     required: true,
     canSkip: false,
+    importMethod: 'scrape',
   },
   {
     id: 'visual',
     title: 'Visual da Loja',
-    description: 'Importar banners, logos, cores e identidade visual',
+    description: 'Extrair banners, logos, cores e identidade visual automaticamente',
     icon: <Palette className="h-5 w-5" />,
     requiresPrevious: ['categories'],
     canSkip: false,
+    importMethod: 'scrape',
   },
 ];
 
@@ -81,6 +86,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
   const [scrapedData, setScrapedData] = useState<any>(null);
   const { createJob } = useImportJobs();
+  const { importData } = useImportData();
 
   const handleAnalyzeStore = useCallback(async () => {
     if (!storeUrl.trim()) return;
@@ -89,13 +95,11 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     setAnalysisResult(null);
 
     try {
-      // Format URL
       let formattedUrl = storeUrl.trim();
       if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
         formattedUrl = `https://${formattedUrl}`;
       }
 
-      // Call Firecrawl to scrape the store
       const { data, error } = await supabase.functions.invoke('firecrawl-scrape', {
         body: { 
           url: formattedUrl,
@@ -142,16 +146,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     return 'Plataforma não identificada';
   };
 
-  const getCurrentActiveStep = (): string | null => {
-    for (const step of IMPORT_STEPS) {
-      if (stepStatuses[step.id]?.status === 'active') {
-        return step.id;
-      }
-    }
-    return null;
-  };
-
-  const moveToNextStep = (currentStepId: string) => {
+  const moveToNextStep = useCallback((currentStepId: string) => {
     const currentIndex = IMPORT_STEPS.findIndex(s => s.id === currentStepId);
     if (currentIndex < IMPORT_STEPS.length - 1) {
       const nextStep = IMPORT_STEPS[currentIndex + 1];
@@ -160,38 +155,132 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         [nextStep.id]: { status: 'active' },
       }));
     } else {
-      // All steps completed
       setWizardStep('complete');
     }
+  }, []);
+
+  const parseFileContent = async (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string;
+          if (file.name.endsWith('.json')) {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed)) {
+              resolve(parsed);
+            } else {
+              resolve(parsed.data || parsed.items || parsed.products || parsed.customers || parsed.orders || [parsed]);
+            }
+          } else if (file.name.endsWith('.csv')) {
+            resolve(parseCSV(content));
+          } else {
+            reject(new Error('Formato não suportado. Use JSON ou CSV.'));
+          }
+        } catch (err: any) {
+          reject(err);
+        }
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+      reader.readAsText(file);
+    });
   };
 
-  const handleImportStep = useCallback(async (stepId: string) => {
+  const parseCSV = (content: string): any[] => {
+    const lines = content.trim().split('\n');
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const data: any[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (values.length === headers.length) {
+        const obj: any = {};
+        headers.forEach((header, index) => {
+          obj[header] = values[index];
+        });
+        data.push(obj);
+      }
+    }
+
+    return data;
+  };
+
+  const parseCSVLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleImportStep = useCallback(async (stepId: string, file?: File) => {
+    const step = IMPORT_STEPS.find(s => s.id === stepId);
+    if (!step) return;
+
     setStepStatuses(prev => ({
       ...prev,
       [stepId]: { ...prev[stepId], status: 'processing' },
     }));
 
     try {
-      // Simulate import based on step type
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
       let importedCount = 0;
 
-      if (stepId === 'categories' && scrapedData) {
-        // Extract categories from scraped data
-        const links = scrapedData.links || [];
-        const categoryLinks = links.filter((link: string) => 
-          link.includes('/categoria') || 
-          link.includes('/category') || 
-          link.includes('/collections') ||
-          link.includes('/c/')
-        );
-        importedCount = Math.max(categoryLinks.length, 5);
-      } else if (stepId === 'visual' && scrapedData) {
-        // Extract visual elements
-        importedCount = 1;
-      } else if (stepId === 'products') {
-        importedCount = 0; // Would need API access
+      if (step.importMethod === 'file' && file) {
+        const data = await parseFileContent(file);
+        
+        if (data.length === 0) {
+          throw new Error('Arquivo vazio ou sem dados válidos');
+        }
+
+        // Normalize and import data
+        const platform = analysisResult?.platform?.toLowerCase() || 'generic';
+        const adapter = getAdapter(platform as any);
+        
+        let normalizedData = data;
+        if (adapter) {
+          if (stepId === 'products' && adapter.normalizeProduct) {
+            normalizedData = data.map(item => adapter.normalizeProduct!(item));
+          } else if (stepId === 'customers' && adapter.normalizeCustomer) {
+            normalizedData = data.map(item => adapter.normalizeCustomer!(item));
+          } else if (stepId === 'orders' && adapter.normalizeOrder) {
+            normalizedData = data.map(item => adapter.normalizeOrder!(item));
+          }
+        }
+
+        const result = await importData(platform, stepId as any, normalizedData);
+        importedCount = result?.results?.imported || data.length;
+        
+      } else if (step.importMethod === 'scrape' && scrapedData) {
+        // Extract from scraped data
+        if (stepId === 'categories') {
+          const links = scrapedData.links || [];
+          const categoryLinks = links.filter((link: string) => 
+            link.includes('/categoria') || 
+            link.includes('/category') || 
+            link.includes('/collections') ||
+            link.includes('/c/')
+          );
+          // TODO: Process and save categories from scraped links
+          importedCount = Math.max(categoryLinks.length, 1);
+        } else if (stepId === 'visual') {
+          // TODO: Extract and save visual elements from branding data
+          const branding = scrapedData.branding;
+          importedCount = branding ? 1 : 0;
+        }
       }
 
       setStepStatuses(prev => ({
@@ -199,16 +288,17 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         [stepId]: { status: 'completed', importedCount },
       }));
 
-      toast.success(`${IMPORT_STEPS.find(s => s.id === stepId)?.title} importado!`);
+      toast.success(`${step.title} importado com sucesso!`);
       moveToNextStep(stepId);
     } catch (error: any) {
+      console.error('Import error:', error);
       toast.error(`Erro ao importar: ${error.message}`);
       setStepStatuses(prev => ({
         ...prev,
         [stepId]: { ...prev[stepId], status: 'active' },
       }));
     }
-  }, [scrapedData]);
+  }, [scrapedData, analysisResult, importData, moveToNextStep]);
 
   const handleSkipStep = useCallback((stepId: string) => {
     setStepStatuses(prev => ({
@@ -216,7 +306,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       [stepId]: { status: 'skipped' },
     }));
     moveToNextStep(stepId);
-  }, []);
+  }, [moveToNextStep]);
 
   const canProceedFromUrl = analysisResult?.success;
 
@@ -229,7 +319,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   };
 
   return (
-    <Card className="max-w-3xl mx-auto">
+    <Card className="max-w-3xl mx-auto border-0 shadow-none">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-5 w-5" />
@@ -275,7 +365,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   key={step.id}
                   step={step}
                   status={stepStatuses[step.id]?.status || 'pending'}
-                  onImport={() => handleImportStep(step.id)}
+                  onImport={(file) => handleImportStep(step.id, file)}
                   onSkip={() => handleSkipStep(step.id)}
                   isDisabled={isStepDisabled(step)}
                   importedCount={stepStatuses[step.id]?.importedCount}

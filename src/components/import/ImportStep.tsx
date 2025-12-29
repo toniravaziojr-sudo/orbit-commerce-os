@@ -1,6 +1,8 @@
-import { ReactNode } from 'react';
+import { useState, useCallback, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Circle, SkipForward, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { CheckCircle2, Circle, SkipForward, Loader2, Upload, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ImportStepConfig {
@@ -11,12 +13,13 @@ export interface ImportStepConfig {
   required?: boolean;
   requiresPrevious?: string[];
   canSkip?: boolean;
+  importMethod: 'file' | 'scrape';
 }
 
 interface ImportStepProps {
   step: ImportStepConfig;
   status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing';
-  onImport: () => void;
+  onImport: (file?: File) => void;
   onSkip: () => void;
   isDisabled?: boolean;
   importedCount?: number;
@@ -30,8 +33,9 @@ export function ImportStep({
   onSkip, 
   isDisabled,
   importedCount,
-  children 
 }: ImportStepProps) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
   const getStatusIcon = () => {
     switch (status) {
       case 'completed':
@@ -59,6 +63,21 @@ export function ImportStep({
         return 'Importando...';
       default:
         return '';
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleImportClick = () => {
+    if (step.importMethod === 'file') {
+      onImport(selectedFile || undefined);
+    } else {
+      onImport();
     }
   };
 
@@ -90,6 +109,18 @@ export function ImportStep({
                 Opcional
               </span>
             )}
+            {step.importMethod === 'scrape' && (
+              <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Globe className="h-3 w-3" />
+                Via Link
+              </span>
+            )}
+            {step.importMethod === 'file' && (
+              <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Upload className="h-3 w-3" />
+                Via Arquivo
+              </span>
+            )}
           </div>
           <p className="text-sm text-muted-foreground">{step.description}</p>
           
@@ -99,16 +130,40 @@ export function ImportStep({
 
           {status === 'active' && (
             <div className="mt-4 space-y-4">
-              {children}
+              {step.importMethod === 'file' && (
+                <div className="space-y-2">
+                  <Label htmlFor={`file-${step.id}`} className="text-sm">
+                    Selecione o arquivo (JSON ou CSV)
+                  </Label>
+                  <Input
+                    id={`file-${step.id}`}
+                    type="file"
+                    accept=".json,.csv"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                  />
+                  {selectedFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Arquivo selecionado: {selectedFile.name}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {step.importMethod === 'scrape' && (
+                <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+                  Os dados serão extraídos automaticamente do link da loja informado.
+                </p>
+              )}
               
               <div className="flex gap-2">
-              <Button 
-                onClick={onImport} 
-                disabled={isDisabled}
-                size="sm"
-              >
-                Importar
-              </Button>
+                <Button 
+                  onClick={handleImportClick} 
+                  disabled={isDisabled || (step.importMethod === 'file' && !selectedFile)}
+                  size="sm"
+                >
+                  Importar
+                </Button>
                 
                 {step.canSkip && (
                   <Button 
