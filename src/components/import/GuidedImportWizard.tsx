@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2, Menu } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
 import { ImportStep, ImportStepConfig } from './ImportStep';
 import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
@@ -14,13 +14,13 @@ import { generateBlockId } from '@/lib/builder/utils';
 import type { BlockNode } from '@/lib/builder/types';
 
 // Generate home page content from imported visual data
-function generateHomePageContent(heroBanners: any[], sections: any[]): BlockNode {
+function generateHomePageContent(heroBanners: any[], menuId?: string): BlockNode {
   const children: BlockNode[] = [
     {
       id: generateBlockId('Header'),
       type: 'Header',
       props: {
-        menuId: '',
+        menuId: menuId || '',
         showSearch: true,
         showCart: true,
         sticky: true,
@@ -91,6 +91,7 @@ function generateHomePageContent(heroBanners: any[], sections: any[]): BlockNode
     children,
   };
 }
+
 interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
@@ -130,10 +131,19 @@ const IMPORT_STEPS: ImportStepConfig[] = [
   {
     id: 'categories',
     title: 'Categorias',
-    description: 'Extrair categorias e menu de navegação automaticamente do site',
+    description: 'Extrair categorias com banners automaticamente do site',
     icon: <FolderTree className="h-5 w-5" />,
     required: true,
     canSkip: false,
+    importMethod: 'scrape',
+  },
+  {
+    id: 'menu',
+    title: 'Menu',
+    description: 'Extrair menu de navegação do site',
+    icon: <Menu className="h-5 w-5" />,
+    requiresPrevious: ['categories'],
+    canSkip: true,
     importMethod: 'scrape',
   },
   {
@@ -146,6 +156,15 @@ const IMPORT_STEPS: ImportStepConfig[] = [
     importMethod: 'scrape',
   },
 ];
+
+interface VisualImportData {
+  heroBanners: any[];
+  menuItems: any[];
+  categories: any[];
+  branding: any;
+  sections: any[];
+  unsupportedSections: string[];
+}
 
 export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('url');
@@ -167,9 +186,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   });
 
   const [scrapedData, setScrapedData] = useState<any>(null);
+  const [visualImportData, setVisualImportData] = useState<VisualImportData | null>(null);
+  const [createdMenuId, setCreatedMenuId] = useState<string | null>(null);
+  
   const { createJob } = useImportJobs();
   const { importData } = useImportData();
   const { currentTenant } = useAuth();
+
   const handleAnalyzeStore = useCallback(async () => {
     if (!storeUrl.trim()) return;
 
@@ -309,6 +332,60 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     return result;
   };
 
+  // Fetch category page to extract banner
+  const fetchCategoryBanner = async (categoryUrl: string): Promise<{ bannerDesktop?: string; bannerMobile?: string }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke('firecrawl-scrape', {
+        body: { 
+          url: categoryUrl,
+          options: {
+            formats: ['html'],
+            onlyMainContent: false,
+          }
+        },
+      });
+
+      if (error || !data?.success) return {};
+
+      const html = data.data?.html || data.html || '';
+      
+      // Look for collection/category banner in the page
+      const bannerPatterns = [
+        // Shopify collection image
+        /<img[^>]*class="[^"]*collection[^"]*"[^>]*src=["']([^"']+)["']/i,
+        // Generic category banner
+        /<img[^>]*class="[^"]*(?:banner|hero|categoria)[^"]*"[^>]*src=["']([^"']+)["']/i,
+        // Picture source for category
+        /<div[^>]*class="[^"]*(?:collection|category|banner)[^"]*"[^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["']/i,
+        // Background image style
+        /class="[^"]*(?:collection|category|hero)[^"]*"[^>]*style="[^"]*background[^"]*url\(['"]?([^'")\s]+)['"]?\)/i,
+        // Any large image at the top of the page (first 5000 chars)
+      ];
+
+      for (const pattern of bannerPatterns) {
+        const match = pattern.exec(html);
+        if (match && match[1]) {
+          let bannerUrl = match[1];
+          // Normalize URL
+          if (bannerUrl.startsWith('//')) {
+            bannerUrl = `https:${bannerUrl}`;
+          } else if (!bannerUrl.startsWith('http')) {
+            try {
+              const baseUrl = new URL(categoryUrl).origin;
+              bannerUrl = new URL(bannerUrl, baseUrl).href;
+            } catch {}
+          }
+          return { bannerDesktop: bannerUrl };
+        }
+      }
+
+      return {};
+    } catch (error) {
+      console.error('Error fetching category banner:', error);
+      return {};
+    }
+  };
+
   const handleImportStep = useCallback(async (stepId: string, file?: File) => {
     const step = IMPORT_STEPS.find(s => s.id === stepId);
     if (!step) return;
@@ -330,7 +407,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
         // Normalize and import data
         const detectedPlatform = analysisResult?.platform?.toLowerCase()?.trim() || 'generic';
-        // Map detected platform to adapter key
         const platformMap: Record<string, string> = {
           'shopify': 'shopify',
           'woocommerce': 'woocommerce',
@@ -366,33 +442,40 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           throw new Error('Tenant não encontrado');
         }
 
-        // Call import-visual edge function for deep extraction
-        const { data: visualData, error: visualError } = await supabase.functions.invoke('import-visual', {
-          body: { 
-            url: storeUrl,
-            html: scrapedData.html || '',
-            platform: analysisResult?.platform,
-          }
-        });
+        // Call import-visual edge function for deep extraction (only once)
+        let visualData = visualImportData;
+        if (!visualData) {
+          const { data: extractedData, error: visualError } = await supabase.functions.invoke('import-visual', {
+            body: { 
+              url: storeUrl,
+              html: scrapedData.html || '',
+              platform: analysisResult?.platform,
+            }
+          });
 
-        if (visualError) {
-          console.error('Error calling import-visual:', visualError);
+          if (visualError) {
+            console.error('Error calling import-visual:', visualError);
+          }
+
+          if (extractedData?.success) {
+            visualData = {
+              heroBanners: extractedData.heroBanners || [],
+              menuItems: extractedData.menuItems || [],
+              categories: extractedData.categories || [],
+              branding: extractedData.branding || {},
+              sections: extractedData.sections || [],
+              unsupportedSections: extractedData.unsupportedSections || [],
+            };
+            setVisualImportData(visualData);
+          }
         }
 
         if (stepId === 'categories') {
-          // Use deep extraction data if available, fallback to basic link extraction
-          let categoriesToSave: Array<{ name: string; slug: string; bannerDesktop?: string; bannerMobile?: string; imageUrl?: string }> = [];
+          // Get categories from visual extraction
+          let categoriesToSave = visualData?.categories || [];
           
-          if (visualData?.categories?.length > 0) {
-            categoriesToSave = visualData.categories.map((cat: any) => ({
-              name: cat.name,
-              slug: cat.slug,
-              bannerDesktop: cat.bannerDesktop || null,
-              bannerMobile: cat.bannerMobile || null,
-              imageUrl: cat.imageUrl || null,
-            }));
-          } else {
-            // Fallback to basic link extraction
+          // Fallback to basic link extraction if no categories found
+          if (categoriesToSave.length === 0) {
             const links = scrapedData.links || [];
             const categoryLinks = links.filter((link: string) => 
               link.includes('/categoria') || 
@@ -413,7 +496,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
                   .join(' ');
                 
-                return { name, slug };
+                return { name, slug, url: link };
               } catch {
                 return null;
               }
@@ -421,9 +504,23 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }
 
           // Remove duplicates
-          const uniqueCategories = categoriesToSave.filter((cat, index, self) =>
-            cat && index === self.findIndex((c) => c?.slug === cat.slug)
+          const uniqueCategories = categoriesToSave.filter((cat: any, index: number, self: any[]) =>
+            cat && index === self.findIndex((c: any) => c?.slug === cat.slug)
           );
+
+          // Fetch banners for each category (limit to first 10 to avoid too many requests)
+          const categoriesToFetchBanners = uniqueCategories.slice(0, 10);
+          toast.info(`Buscando banners de ${categoriesToFetchBanners.length} categorias...`);
+          
+          for (const cat of categoriesToFetchBanners) {
+            if (cat.url) {
+              const bannerData = await fetchCategoryBanner(cat.url);
+              if (bannerData.bannerDesktop) {
+                cat.bannerDesktop = bannerData.bannerDesktop;
+                cat.bannerMobile = bannerData.bannerMobile || bannerData.bannerDesktop;
+              }
+            }
+          }
 
           // Save categories to database with banners
           if (uniqueCategories.length > 0) {
@@ -448,6 +545,54 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }
           
           importedCount = uniqueCategories.length;
+
+        } else if (stepId === 'menu') {
+          // Create menu from extracted items
+          const menuItems = visualData?.menuItems || [];
+          
+          if (menuItems.length > 0) {
+            // Create header menu
+            const { data: menuData, error: menuError } = await supabase
+              .from('menus')
+              .upsert({
+                tenant_id: currentTenant.id,
+                name: 'Menu Principal',
+                location: 'header',
+              }, { onConflict: 'tenant_id,location' })
+              .select('id')
+              .single();
+
+            if (menuError) {
+              console.error('Error creating menu:', menuError);
+            } else if (menuData) {
+              setCreatedMenuId(menuData.id);
+              
+              // Delete existing menu items
+              await supabase
+                .from('menu_items')
+                .delete()
+                .eq('menu_id', menuData.id);
+
+              // Insert new menu items
+              for (let i = 0; i < menuItems.length; i++) {
+                const item = menuItems[i];
+                await supabase
+                  .from('menu_items')
+                  .insert({
+                    tenant_id: currentTenant.id,
+                    menu_id: menuData.id,
+                    label: item.label,
+                    url: item.url,
+                    item_type: item.type || 'link',
+                    sort_order: i,
+                  });
+              }
+              
+              importedCount = menuItems.length;
+            }
+          } else {
+            toast.info('Nenhum item de menu encontrado no site.');
+          }
           
         } else if (stepId === 'visual') {
           // Extract visual elements and create home page with blocks
@@ -497,8 +642,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             .eq('id', currentTenant.id);
 
           // Create home page with imported visual blocks
-          if (heroBanners.length > 0 || sections.length > 0) {
-            const homePageContent = generateHomePageContent(heroBanners, sections);
+          if (heroBanners.length > 0) {
+            const homePageContent = generateHomePageContent(heroBanners, createdMenuId || undefined);
             
             // Check if home page exists
             const { data: existingHome } = await supabase
@@ -534,8 +679,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             }
             
             importedCount = heroBanners.length + sections.length;
+            toast.success(`${heroBanners.length} banners importados para a página inicial!`);
           } else {
             importedCount = visualConfig.logo ? 1 : 0;
+            toast.info('Nenhum banner encontrado. Logo e cores foram importados se disponíveis.');
           }
 
           // Notify about unsupported sections
@@ -544,10 +691,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               `Alguns módulos não foram importados: ${unsupportedSections.join(', ')}. Entre em contato com o suporte para mais informações.`,
               { duration: 8000 }
             );
-          }
-
-          if (importedCount === 0) {
-            toast.info('Não foi possível extrair dados visuais detalhados da loja. Verifique se a URL está correta.');
           }
         }
       }
@@ -567,7 +710,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         [stepId]: { ...prev[stepId], status: 'active' },
       }));
     }
-  }, [scrapedData, analysisResult, importData, moveToNextStep]);
+  }, [scrapedData, analysisResult, importData, moveToNextStep, currentTenant, storeUrl, visualImportData, createdMenuId, fetchCategoryBanner]);
 
   const handleSkipStep = useCallback((stepId: string) => {
     setStepStatuses(prev => ({
@@ -644,7 +787,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
             {stepStatuses.categories?.status !== 'completed' && (
               <p className="text-xs text-muted-foreground text-center mt-4">
-                * Categorias são obrigatórias para importar o Visual da Loja
+                * Categorias são obrigatórias para importar o Menu e Visual da Loja
               </p>
             )}
           </div>

@@ -1,6 +1,6 @@
 // =============================================
 // IMPORT-VISUAL: Deep scraping for visual elements from e-commerce stores
-// Extracts banners, category images, hero sections, and maps to our builder blocks
+// Extracts banners, category images, hero sections, menus and maps to our builder blocks
 // =============================================
 
 const corsHeaders = {
@@ -18,9 +18,17 @@ interface ExtractedBanner {
 interface ExtractedCategory {
   name: string;
   slug: string;
+  url: string;
   imageUrl?: string;
   bannerDesktop?: string;
   bannerMobile?: string;
+}
+
+interface ExtractedMenuItem {
+  label: string;
+  url: string;
+  type: 'link' | 'category' | 'page';
+  children?: ExtractedMenuItem[];
 }
 
 interface ExtractedSection {
@@ -33,6 +41,7 @@ interface VisualExtractionResult {
   success: boolean;
   heroBanners: ExtractedBanner[];
   categories: ExtractedCategory[];
+  menuItems: ExtractedMenuItem[];
   sections: ExtractedSection[];
   branding: {
     logo?: string;
@@ -65,6 +74,8 @@ Deno.serve(async (req) => {
 
     const result = extractVisualElements(html, url, platform);
 
+    console.log(`Extracted: ${result.heroBanners.length} banners, ${result.categories.length} categories, ${result.menuItems.length} menu items, ${result.sections.length} sections`);
+
     return new Response(
       JSON.stringify(result),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,25 +97,36 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     success: true,
     heroBanners: [],
     categories: [],
+    menuItems: [],
     sections: [],
     branding: {},
     unsupportedSections: [],
   };
 
   try {
-    // Extract hero banners based on platform
-    result.heroBanners = extractHeroBanners(html, platform);
+    const baseUrl = extractBaseUrl(url, html);
     
-    // Extract categories with images
-    result.categories = extractCategories(html, url, platform);
+    // Extract hero banners
+    result.heroBanners = extractHeroBanners(html, baseUrl, platform);
     
-    // Extract other sections (product grids, testimonials, etc.)
+    // Extract categories with URLs (banners will be fetched separately)
+    result.categories = extractCategories(html, baseUrl, platform);
+    
+    // Extract menu items from navigation
+    result.menuItems = extractMenuItems(html, baseUrl, platform);
+    
+    // Extract other sections
     result.sections = extractSections(html, platform);
     
     // Extract branding
-    result.branding = extractBranding(html);
+    result.branding = extractBranding(html, baseUrl);
 
-    console.log(`Extracted: ${result.heroBanners.length} banners, ${result.categories.length} categories, ${result.sections.length} sections`);
+    console.log('Extraction complete:', {
+      banners: result.heroBanners.length,
+      categories: result.categories.length,
+      menuItems: result.menuItems.length,
+      sections: result.sections.length,
+    });
   } catch (error) {
     console.error('Error during extraction:', error);
     result.success = false;
@@ -114,151 +136,289 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
   return result;
 }
 
-function extractHeroBanners(html: string, platform?: string): ExtractedBanner[] {
-  const banners: ExtractedBanner[] = [];
+function extractBaseUrl(url: string, html: string): string {
+  if (url) {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.origin;
+    } catch {}
+  }
   
-  // Common banner selectors for e-commerce platforms
-  const bannerPatterns = [
-    // Shopify patterns
-    /<div[^>]*class="[^"]*slideshow[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<div[^>]*class="[^"]*hero[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<div[^>]*class="[^"]*banner[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<div[^>]*class="[^"]*carousel[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<section[^>]*class="[^"]*slider[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
-    
-    // Nuvemshop patterns
-    /<div[^>]*class="[^"]*js-home-slider[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<div[^>]*id="[^"]*slider[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    
-    // Generic patterns
-    /<div[^>]*class="[^"]*swiper[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-    /<div[^>]*class="[^"]*slick[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-  ];
+  // Try to extract from HTML
+  const canonicalMatch = /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i.exec(html);
+  if (canonicalMatch) {
+    try {
+      const urlObj = new URL(canonicalMatch[1]);
+      return urlObj.origin;
+    } catch {}
+  }
+  
+  const ogUrlMatch = /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i.exec(html);
+  if (ogUrlMatch) {
+    try {
+      const urlObj = new URL(ogUrlMatch[1]);
+      return urlObj.origin;
+    } catch {}
+  }
 
-  // Extract all images from potential banner areas
-  const imagePattern = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
-  const picturePattern = /<picture[^>]*>[\s\S]*?<source[^>]*srcset=["']([^"']+)["'][^>]*media=["']\(max-width[^"']*\)["'][^>]*>[\s\S]*?<source[^>]*srcset=["']([^"']+)["'][^>]*>[\s\S]*?<\/picture>/gi;
-  const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[\s\S]*?<\/a>/gi;
+  return '';
+}
 
-  // Extract from link+image patterns (more reliable for banners)
-  let match;
-  while ((match = linkPattern.exec(html)) !== null) {
-    const [, linkUrl, imageSrc, altText] = match;
-    
-    // Filter out small images, icons, logos
-    if (isLikelyBannerImage(imageSrc)) {
-      banners.push({
-        imageDesktop: normalizeImageUrl(imageSrc, html),
-        linkUrl: normalizeUrl(linkUrl, html),
-        altText: altText || '',
-      });
+function extractHeroBanners(html: string, baseUrl: string, platform?: string): ExtractedBanner[] {
+  const banners: ExtractedBanner[] = [];
+  const addedUrls = new Set<string>();
+  
+  // Shopify-specific patterns
+  if (platform?.toLowerCase() === 'shopify') {
+    // Slideshow sections
+    const slideshowPattern = /<div[^>]*class="[^"]*slideshow[^"]*"[^>]*>([\s\S]*?)<\/section>/gi;
+    let slideshowMatch;
+    while ((slideshowMatch = slideshowPattern.exec(html)) !== null) {
+      const slideshowHtml = slideshowMatch[1];
+      extractBannersFromSection(slideshowHtml, baseUrl, banners, addedUrls);
     }
   }
 
-  // Extract from picture elements (responsive images)
-  while ((match = picturePattern.exec(html)) !== null) {
-    const [, mobileSource, desktopSource] = match;
-    if (isLikelyBannerImage(desktopSource)) {
-      banners.push({
-        imageDesktop: normalizeImageUrl(desktopSource, html),
-        imageMobile: normalizeImageUrl(mobileSource, html),
-      });
+  // Look for picture elements first (best source for responsive images)
+  const picturePattern = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
+  let pictureMatch;
+  while ((pictureMatch = picturePattern.exec(html)) !== null) {
+    const pictureHtml = pictureMatch[0];
+    const sources: { media?: string; src: string }[] = [];
+    
+    // Extract sources
+    const sourcePattern = /<source[^>]*srcset=["']([^"'\s]+)[^"']*["'][^>]*(?:media=["']([^"']+)["'])?[^>]*>/gi;
+    let sourceMatch;
+    while ((sourceMatch = sourcePattern.exec(pictureHtml)) !== null) {
+      sources.push({ src: sourceMatch[1], media: sourceMatch[2] });
     }
-  }
-
-  // If no banners found yet, try to find large images
-  if (banners.length === 0) {
-    while ((match = imagePattern.exec(html)) !== null) {
-      const [, src, alt] = match;
-      if (isLikelyBannerImage(src) && isInBannerContext(html, match.index)) {
+    
+    // Extract img fallback
+    const imgMatch = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?/i.exec(pictureHtml);
+    const imgSrc = imgMatch?.[1] || '';
+    const altText = imgMatch?.[2] || '';
+    
+    if (imgSrc && isLikelyBannerImage(imgSrc) && isInBannerContext(html, pictureMatch.index)) {
+      const desktopSrc = normalizeImageUrl(imgSrc, baseUrl);
+      if (!addedUrls.has(desktopSrc)) {
+        const mobileSrc = sources.find(s => s.media?.includes('max-width'))?.src;
         banners.push({
-          imageDesktop: normalizeImageUrl(src, html),
-          altText: alt || '',
+          imageDesktop: desktopSrc,
+          imageMobile: mobileSrc ? normalizeImageUrl(mobileSrc, baseUrl) : undefined,
+          altText,
         });
+        addedUrls.add(desktopSrc);
       }
     }
   }
 
-  // Deduplicate banners
-  const uniqueBanners = banners.filter((banner, index, self) => 
-    index === self.findIndex(b => b.imageDesktop === banner.imageDesktop)
-  );
+  // Look for linked images (banners with links)
+  const linkImagePattern = /<a[^>]*href=["']([^"']+)["'][^>]*>\s*<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>\s*<\/a>/gi;
+  let linkMatch;
+  while ((linkMatch = linkImagePattern.exec(html)) !== null) {
+    const [, linkUrl, imageSrc, altText] = linkMatch;
+    
+    if (isLikelyBannerImage(imageSrc) && isInBannerContext(html, linkMatch.index)) {
+      const normalizedSrc = normalizeImageUrl(imageSrc, baseUrl);
+      if (!addedUrls.has(normalizedSrc)) {
+        banners.push({
+          imageDesktop: normalizedSrc,
+          linkUrl: normalizeUrl(linkUrl, baseUrl),
+          altText: altText || '',
+        });
+        addedUrls.add(normalizedSrc);
+      }
+    }
+  }
 
-  // Limit to first 10 banners (reasonable max)
-  return uniqueBanners.slice(0, 10);
+  // Look for standalone large images in banner contexts
+  const standaloneImgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
+  let imgMatch;
+  while ((imgMatch = standaloneImgPattern.exec(html)) !== null) {
+    const [, src, alt] = imgMatch;
+    
+    if (isLikelyBannerImage(src) && isInBannerContext(html, imgMatch.index)) {
+      const normalizedSrc = normalizeImageUrl(src, baseUrl);
+      if (!addedUrls.has(normalizedSrc)) {
+        banners.push({
+          imageDesktop: normalizedSrc,
+          altText: alt || '',
+        });
+        addedUrls.add(normalizedSrc);
+      }
+    }
+  }
+
+  // Limit and deduplicate
+  return banners.slice(0, 10);
 }
 
-function extractCategories(html: string, url: string, platform?: string): ExtractedCategory[] {
+function extractBannersFromSection(sectionHtml: string, baseUrl: string, banners: ExtractedBanner[], addedUrls: Set<string>) {
+  const imgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
+  let match;
+  while ((match = imgPattern.exec(sectionHtml)) !== null) {
+    const [, src, alt] = match;
+    if (isLikelyBannerImage(src)) {
+      const normalizedSrc = normalizeImageUrl(src, baseUrl);
+      if (!addedUrls.has(normalizedSrc)) {
+        banners.push({
+          imageDesktop: normalizedSrc,
+          altText: alt || '',
+        });
+        addedUrls.add(normalizedSrc);
+      }
+    }
+  }
+}
+
+function extractCategories(html: string, baseUrl: string, platform?: string): ExtractedCategory[] {
   const categories: ExtractedCategory[] = [];
-  
-  // Extract navigation links that likely represent categories
-  const navPatterns = [
-    /<nav[^>]*>[\s\S]*?<\/nav>/gi,
-    /<ul[^>]*class="[^"]*menu[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
-    /<div[^>]*class="[^"]*nav[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+  const addedSlugs = new Set<string>();
+
+  // Category URL patterns for different platforms
+  const categoryPatterns = [
+    // Shopify collections
+    /href=["']((?:https?:\/\/[^"']*)?\/collections\/([^"'?#]+))[^"']*["']/gi,
+    // Generic category/categoria patterns  
+    /href=["']((?:https?:\/\/[^"']*)?\/(?:categoria|category|c)\/([^"'?#]+))[^"']*["']/gi,
+    // Nuvemshop
+    /href=["']((?:https?:\/\/[^"']*)?\/([^"'?#]+))["'][^>]*class="[^"]*(?:category|categoria)[^"]*"/gi,
   ];
 
-  // Category link patterns
-  const categoryLinkPattern = /<a[^>]*href=["']([^"']*(?:categoria|category|colecao|collection|c\/)[^"']*)["'][^>]*>([^<]+)<\/a>/gi;
-  const categoryImagePattern = /<a[^>]*href=["']([^"']*(?:categoria|category|colecao|collection|c\/)[^"']*)["'][^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["'][^>]*>[\s\S]*?<\/a>/gi;
-
-  // Extract categories with images first
-  let match;
-  while ((match = categoryImagePattern.exec(html)) !== null) {
-    const [, href, imageSrc] = match;
-    const category = extractCategoryFromUrl(href, url);
-    if (category) {
-      category.imageUrl = normalizeImageUrl(imageSrc, html);
-      categories.push(category);
+  for (const pattern of categoryPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const fullUrl = match[1];
+      const slug = match[2];
+      
+      if (!slug || addedSlugs.has(slug)) continue;
+      
+      // Skip common non-category slugs
+      const skipSlugs = ['all', 'products', 'search', 'cart', 'account', 'login', 'register', 'checkout'];
+      if (skipSlugs.includes(slug.toLowerCase())) continue;
+      
+      const name = slug
+        .replace(/-/g, ' ')
+        .replace(/_/g, ' ')
+        .split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+      
+      const normalizedUrl = fullUrl.startsWith('http') ? fullUrl : `${baseUrl}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
+      
+      categories.push({
+        name,
+        slug,
+        url: normalizedUrl,
+      });
+      
+      addedSlugs.add(slug);
     }
   }
 
-  // Extract text-only category links
-  while ((match = categoryLinkPattern.exec(html)) !== null) {
-    const [, href, text] = match;
-    const category = extractCategoryFromUrl(href, url);
-    if (category && !categories.some(c => c.slug === category.slug)) {
-      category.name = text.trim();
-      categories.push(category);
+  // Extract from navigation menus
+  const navPattern = /<nav[^>]*>([\s\S]*?)<\/nav>/gi;
+  let navMatch;
+  while ((navMatch = navPattern.exec(html)) !== null) {
+    const navHtml = navMatch[1];
+    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi;
+    let linkMatch;
+    while ((linkMatch = linkPattern.exec(navHtml)) !== null) {
+      const [, href, text] = linkMatch;
+      
+      // Check if link is a category
+      const categoryMatch = /\/(?:collections|categoria|category|c)\/([^/?#]+)/i.exec(href);
+      if (categoryMatch) {
+        const slug = categoryMatch[1];
+        if (!addedSlugs.has(slug)) {
+          const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+          
+          categories.push({
+            name: text.trim(),
+            slug,
+            url: normalizedUrl,
+          });
+          
+          addedSlugs.add(slug);
+        }
+      }
     }
   }
-
-  // Try to extract category banners from category pages
-  // This would require fetching each category page, which we'll handle client-side
 
   return categories;
 }
 
-function extractCategoryFromUrl(href: string, baseUrl: string): ExtractedCategory | null {
-  try {
-    const urlObj = new URL(href, baseUrl);
-    const pathParts = urlObj.pathname.split('/').filter(Boolean);
-    
-    // Find category slug from URL
-    const categoryKeywords = ['categoria', 'category', 'colecao', 'collection', 'c'];
-    let slug = '';
-    let name = '';
+function extractMenuItems(html: string, baseUrl: string, platform?: string): ExtractedMenuItem[] {
+  const menuItems: ExtractedMenuItem[] = [];
+  const addedLabels = new Set<string>();
 
-    for (let i = 0; i < pathParts.length; i++) {
-      if (categoryKeywords.includes(pathParts[i].toLowerCase()) && pathParts[i + 1]) {
-        slug = pathParts[i + 1];
-        name = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        break;
-      }
+  // Find main navigation - try header nav first
+  const headerNavPatterns = [
+    /<header[^>]*>([\s\S]*?)<\/header>/gi,
+    /<nav[^>]*class="[^"]*(?:main|primary|site-nav|header)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<nav[^>]*id="[^"]*(?:main|primary|site-nav|header)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<div[^>]*class="[^"]*header[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+
+  let navHtml = '';
+  for (const pattern of headerNavPatterns) {
+    const match = pattern.exec(html);
+    if (match) {
+      navHtml = match[1];
+      break;
     }
-
-    // If no keyword found, use last path part
-    if (!slug && pathParts.length > 0) {
-      slug = pathParts[pathParts.length - 1];
-      name = slug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    }
-
-    if (!slug) return null;
-
-    return { name, slug };
-  } catch {
-    return null;
   }
+
+  if (!navHtml) {
+    // Fallback to first nav
+    const fallbackNav = /<nav[^>]*>([\s\S]*?)<\/nav>/i.exec(html);
+    if (fallbackNav) {
+      navHtml = fallbackNav[1];
+    }
+  }
+
+  if (!navHtml) return menuItems;
+
+  // Extract links from navigation
+  const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*?)<\/a>/gi;
+  let match;
+  while ((match = linkPattern.exec(navHtml)) !== null) {
+    const [, href, rawLabel] = match;
+    
+    // Clean label (remove HTML tags)
+    const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+    
+    // Skip empty labels, icons, or already added items
+    if (!label || label.length < 2 || addedLabels.has(label.toLowerCase())) continue;
+    
+    // Skip non-content links
+    const skipPatterns = ['javascript:', '#', 'mailto:', 'tel:', 'whatsapp'];
+    if (skipPatterns.some(p => href.toLowerCase().includes(p))) continue;
+    
+    // Skip utility links
+    const skipLabels = ['carrinho', 'cart', 'login', 'entrar', 'sair', 'logout', 'buscar', 'search', 'minha conta', 'my account'];
+    if (skipLabels.some(l => label.toLowerCase().includes(l))) continue;
+    
+    // Determine item type
+    let itemType: 'link' | 'category' | 'page' = 'link';
+    if (/\/(?:collections|categoria|category|c)\//i.test(href)) {
+      itemType = 'category';
+    } else if (/\/(?:pages?|pagina)\//i.test(href)) {
+      itemType = 'page';
+    }
+    
+    const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+    
+    menuItems.push({
+      label,
+      url: normalizedUrl,
+      type: itemType,
+    });
+    
+    addedLabels.add(label.toLowerCase());
+  }
+
+  return menuItems.slice(0, 15); // Limit to 15 items
 }
 
 function extractSections(html: string, platform?: string): ExtractedSection[] {
@@ -306,35 +466,46 @@ function extractSections(html: string, platform?: string): ExtractedSection[] {
   return sections;
 }
 
-function extractBranding(html: string): VisualExtractionResult['branding'] {
+function extractBranding(html: string, baseUrl: string): VisualExtractionResult['branding'] {
   const branding: VisualExtractionResult['branding'] = {};
 
-  // Extract logo
+  // Extract logo - multiple strategies
   const logoPatterns = [
     /<img[^>]*class="[^"]*logo[^"]*"[^>]*src=["']([^"']+)["']/i,
     /<img[^>]*alt="[^"]*logo[^"]*"[^>]*src=["']([^"']+)["']/i,
     /<a[^>]*class="[^"]*logo[^"]*"[^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["']/i,
+    /<header[^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["'][^>]*class="[^"]*logo[^"]*"/i,
+    /class="[^"]*logo[^"]*"[^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["']/i,
+    /<img[^>]*src=["']([^"']*logo[^"']+)["']/i,
   ];
 
   for (const pattern of logoPatterns) {
     const match = pattern.exec(html);
     if (match) {
-      branding.logo = normalizeImageUrl(match[1], html);
+      branding.logo = normalizeImageUrl(match[1], baseUrl);
       break;
     }
   }
 
   // Extract favicon
-  const faviconMatch = /<link[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']+)["']/i.exec(html);
-  if (faviconMatch) {
-    branding.favicon = faviconMatch[1];
+  const faviconPatterns = [
+    /<link[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']+)["']/i,
+    /<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:icon|shortcut icon)["']/i,
+  ];
+
+  for (const pattern of faviconPatterns) {
+    const match = pattern.exec(html);
+    if (match) {
+      branding.favicon = normalizeImageUrl(match[1], baseUrl);
+      break;
+    }
   }
 
   // Extract colors from CSS variables or inline styles
   const primaryColorPatterns = [
-    /--primary[^:]*:\s*([^;]+)/i,
-    /--brand[^:]*:\s*([^;]+)/i,
-    /\.btn-primary[^{]*\{[^}]*background[^:]*:\s*([^;]+)/i,
+    /--primary[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
+    /--brand[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
+    /--accent[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
   ];
 
   for (const pattern of primaryColorPatterns) {
@@ -359,6 +530,7 @@ function isLikelyBannerImage(src: string): boolean {
     'avatar', 'user', 'thumb', 'thumbnail', 'small', 'tiny',
     '.svg', '.gif', 'base64', 'placeholder', 'loading',
     '32x32', '64x64', '100x100', '48x48', '24x24', '16x16',
+    'favicon', 'apple-touch', 'pixel', 'tracking',
   ];
   
   for (const pattern of excludePatterns) {
@@ -368,7 +540,7 @@ function isLikelyBannerImage(src: string): boolean {
   // Include patterns that suggest banners
   const includePatterns = [
     'banner', 'slide', 'hero', 'carousel', 'home', 'promo',
-    'destaque', 'oferta', 'campanha', 'lancamento',
+    'destaque', 'oferta', 'campanha', 'lancamento', 'collection',
   ];
   
   for (const pattern of includePatterns) {
@@ -387,24 +559,38 @@ function isLikelyBannerImage(src: string): boolean {
     }
   }
 
-  return true; // Default to including if no strong signal
+  // Check file size indicators in URL
+  if (lowSrc.includes('large') || lowSrc.includes('grande') || lowSrc.includes('1920') || lowSrc.includes('1200')) {
+    return true;
+  }
+
+  return false;
 }
 
 function isInBannerContext(html: string, index: number): boolean {
   // Check surrounding context for banner indicators
-  const contextStart = Math.max(0, index - 500);
+  const contextStart = Math.max(0, index - 800);
   const contextEnd = Math.min(html.length, index + 500);
   const context = html.substring(contextStart, contextEnd).toLowerCase();
   
   const bannerKeywords = [
     'slider', 'slideshow', 'carousel', 'banner', 'hero',
     'home-banner', 'main-banner', 'swiper', 'slick',
+    'section-slideshow', 'index-section', 'shopify-section',
+    'featured', 'promo', 'destaque',
   ];
+  
+  // Exclude footer/header contexts for generic images
+  const excludeContexts = ['footer', 'payment-icons', 'trust-badges'];
+  
+  for (const exclude of excludeContexts) {
+    if (context.includes(exclude)) return false;
+  }
   
   return bannerKeywords.some(keyword => context.includes(keyword));
 }
 
-function normalizeImageUrl(src: string, html: string): string {
+function normalizeImageUrl(src: string, baseUrl: string): string {
   if (!src) return '';
   
   // Already absolute URL
@@ -416,30 +602,20 @@ function normalizeImageUrl(src: string, html: string): string {
   if (src.startsWith('//')) {
     return `https:${src}`;
   }
-
-  // Try to extract base URL from HTML
-  const baseMatch = /<base[^>]*href=["']([^"']+)["']/i.exec(html);
-  if (baseMatch) {
+  
+  // Relative URL
+  if (baseUrl) {
     try {
-      return new URL(src, baseMatch[1]).href;
-    } catch {}
-  }
-
-  // Try to find og:url or canonical
-  const urlMatch = /<meta[^>]*property=["']og:url["'][^>]*content=["']([^"']+)["']/i.exec(html) ||
-                   /<link[^>]*rel=["']canonical["'][^>]*href=["']([^"']+)["']/i.exec(html);
-  if (urlMatch) {
-    try {
-      return new URL(src, urlMatch[1]).href;
+      return new URL(src, baseUrl).href;
     } catch {}
   }
 
   return src;
 }
 
-function normalizeUrl(href: string, html: string): string {
+function normalizeUrl(href: string, baseUrl: string): string {
   if (!href || href === '#' || href.startsWith('javascript:')) {
     return '';
   }
-  return normalizeImageUrl(href, html);
+  return normalizeImageUrl(href, baseUrl);
 }
