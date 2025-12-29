@@ -247,7 +247,22 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
 
         // Normalize and import data
-        const platform = analysisResult?.platform?.toLowerCase() || 'generic';
+        const detectedPlatform = analysisResult?.platform?.toLowerCase()?.trim() || 'generic';
+        // Map detected platform to adapter key
+        const platformMap: Record<string, string> = {
+          'shopify': 'shopify',
+          'woocommerce': 'woocommerce',
+          'nuvemshop': 'nuvemshop',
+          'tiendanube': 'nuvemshop',
+          'vtex': 'vtex',
+          'loja integrada': 'loja_integrada',
+          'lojaintegrada': 'loja_integrada',
+          'tray': 'tray',
+          'yampi': 'yampi',
+          'bagy': 'bagy',
+          'wix': 'wix',
+        };
+        const platform = platformMap[detectedPlatform] || 'generic';
         const adapter = getAdapter(platform as any);
         
         let normalizedData = data;
