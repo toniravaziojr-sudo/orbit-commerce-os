@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useTenantSlug } from './useTenantSlug';
+import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
 export interface ImportJob {
@@ -21,8 +21,8 @@ export interface ImportJob {
 }
 
 export function useImportJobs() {
-  const tenantData = useTenantSlug();
-  const tenantId = typeof tenantData === 'string' ? tenantData : tenantData?.tenantId;
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
 
   const { data: jobs = [], isLoading, error } = useQuery({
@@ -151,8 +151,8 @@ export function useImportJobs() {
 }
 
 export function useImportData() {
-  const tenantData = useTenantSlug();
-  const tenantId = typeof tenantData === 'string' ? tenantData : tenantData?.tenantId;
+  const { currentTenant } = useAuth();
+  const tenantId = currentTenant?.id;
 
   const importData = async (
     platform: string,

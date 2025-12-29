@@ -51,6 +51,7 @@ import SystemEmails from "@/pages/SystemEmails";
 import PlatformIntegrations from "@/pages/PlatformIntegrations";
 import Attribution from "@/pages/Attribution";
 import Emails from "@/pages/Emails";
+import Import from "@/pages/Import";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -215,6 +216,7 @@ const App = () => {
                   <Route path="/payments" element={<Navigate to="/integrations" replace />} />
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
                   <Route path="/fiscal" element={<Fiscal />} />
+                  <Route path="/import" element={<Import />} />
                   <Route path="/purchases" element={<Purchases />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />

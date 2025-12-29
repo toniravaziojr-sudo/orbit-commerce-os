@@ -30,6 +30,7 @@ import {
   Truck,
   Shield,
   Mail,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -100,6 +101,7 @@ const navigation: NavGroup[] = [
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
+      { title: "Importar Dados", href: "/import", icon: Upload },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },
