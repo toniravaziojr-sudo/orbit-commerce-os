@@ -298,7 +298,7 @@ serve(async (req) => {
       storeContext += "\n\n### Páginas institucionais:\n";
       storeContext += storePages.map(sp => {
         let pageInfo = `- ${sp.title}`;
-        if (sp.content) {
+        if (sp.content && typeof sp.content === 'string') {
           // Extract text content from HTML if present
           const textContent = sp.content.replace(/<[^>]*>/g, ' ').slice(0, 200);
           pageInfo += `: ${textContent}`;

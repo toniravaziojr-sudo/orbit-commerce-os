@@ -186,6 +186,16 @@ serve(async (req: Request): Promise<Response> => {
 
       const customerData = customer as { id: string; full_name: string } | null;
 
+      // Check if AI is enabled BEFORE creating conversation
+      const { data: aiConfigCheck } = await supabase
+        .from('ai_support_config')
+        .select('is_enabled')
+        .eq('tenant_id', tenantId)
+        .single();
+
+      const aiEnabled = (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled === true;
+      const initialStatus = aiEnabled ? 'bot' : 'new';
+
       // Create new conversation if needed
       if (!conversationId) {
         const { data: newConv, error: convError } = await supabase
@@ -193,7 +203,7 @@ serve(async (req: Request): Promise<Response> => {
           .insert({
             tenant_id: tenantId,
             channel_type: 'email',
-            status: 'new',
+            status: initialStatus,
             customer_id: customerData?.id || null,
             customer_name: customerData?.full_name || fromName,
             customer_email: fromEmail,
@@ -210,7 +220,7 @@ serve(async (req: Request): Promise<Response> => {
         }
 
         conversationId = (newConv as { id: string }).id;
-        console.log('Created new conversation:', conversationId);
+        console.log('Created new conversation with status:', initialStatus, 'id:', conversationId);
       }
 
       // Check for duplicate message
@@ -280,11 +290,11 @@ serve(async (req: Request): Promise<Response> => {
         }
       }
 
-      // Update conversation
+      // Update conversation - keep status as 'bot' if AI is enabled, otherwise 'new'
       await supabase
         .from('conversations')
         .update({
-          status: 'new',
+          status: initialStatus,
           last_message_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -301,14 +311,8 @@ serve(async (req: Request): Promise<Response> => {
         metadata: { from: fromEmail, subject: payload.subject },
       });
 
-      // Check if AI should respond
-      const { data: aiConfig } = await supabase
-        .from('ai_support_config')
-        .select('is_enabled')
-        .eq('tenant_id', tenantId)
-        .single();
-
-      if ((aiConfig as { is_enabled: boolean } | null)?.is_enabled) {
+      // Invoke AI if enabled
+      if (aiEnabled) {
         console.log('AI is enabled, invoking ai-support-chat...');
         try {
           const aiResponse = await supabase.functions.invoke('ai-support-chat', {
