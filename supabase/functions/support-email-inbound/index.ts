@@ -208,8 +208,18 @@ serve(async (req: Request): Promise<Response> => {
         .eq('tenant_id', tenantId)
         .single();
 
-      const aiEnabled = (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled === true;
+      // Check if email channel is active in channel_accounts
+      const { data: emailChannelAccount } = await supabase
+        .from('channel_accounts')
+        .select('is_active')
+        .eq('tenant_id', tenantId)
+        .eq('channel_type', 'email')
+        .single();
+
+      const channelActive = (emailChannelAccount as { is_active: boolean } | null)?.is_active ?? true; // Default to true if no channel_account exists
+      const aiEnabled = (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled === true && channelActive;
       const initialStatus = aiEnabled ? 'bot' : 'new';
+      console.log('AI check:', { globalAiEnabled: (aiConfigCheck as { is_enabled: boolean } | null)?.is_enabled, channelActive, effectiveAiEnabled: aiEnabled });
 
       // Create new conversation if needed
       if (!conversationId) {
