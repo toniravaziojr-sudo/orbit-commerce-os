@@ -109,7 +109,14 @@ serve(async (req: Request): Promise<Response> => {
     console.log('Found tenant:', tenantId);
 
     // Step 2: Determine routing
-    const supportEmailAddress = (emailConfig.support_email_address as string || '').toLowerCase();
+    // Normalize support email address - it may be stored as just the prefix or full email
+    let supportEmailAddress = (emailConfig.support_email_address as string || '').toLowerCase().trim();
+    
+    // If support email doesn't contain @, add the domain
+    if (supportEmailAddress && !supportEmailAddress.includes('@')) {
+      supportEmailAddress = `${supportEmailAddress}@${toDomain}`;
+    }
+    
     const isSupportEmail = emailConfig.support_email_enabled && 
                            supportEmailAddress && 
                            toEmail === supportEmailAddress;
@@ -455,11 +462,37 @@ serve(async (req: Request): Promise<Response> => {
         }
       }
 
-      // Update folder unread count
+      // Update folder unread count by incrementing
+      const { data: currentFolder } = await supabase
+        .from('email_folders')
+        .select('unread_count')
+        .eq('id', folderData.id)
+        .single();
+      
+      const newFolderUnread = ((currentFolder as { unread_count: number } | null)?.unread_count || 0) + 1;
+      
       await supabase
         .from('email_folders')
-        .update({ unread_count: supabase.rpc('increment_unread', { row_id: folderData.id }) })
+        .update({ unread_count: newFolderUnread })
         .eq('id', folderData.id);
+
+      // Update mailbox unread count and total messages
+      const { data: currentMailbox } = await supabase
+        .from('mailboxes')
+        .select('unread_count, total_messages')
+        .eq('id', targetMailbox.id)
+        .single();
+      
+      const mailboxData = currentMailbox as { unread_count: number; total_messages: number } | null;
+      
+      await supabase
+        .from('mailboxes')
+        .update({ 
+          unread_count: (mailboxData?.unread_count || 0) + 1,
+          total_messages: (mailboxData?.total_messages || 0) + 1,
+          last_received_at: new Date().toISOString(),
+        })
+        .eq('id', targetMailbox.id);
 
       return new Response(
         JSON.stringify({
