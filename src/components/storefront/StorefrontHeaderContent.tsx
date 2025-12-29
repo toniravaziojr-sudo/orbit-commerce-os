@@ -424,7 +424,7 @@ export function StorefrontHeaderContent({
 
           {/* Logo - Centered on mobile, left on desktop */}
           <LinkWrapper 
-            to={baseUrl} 
+            to={baseUrl || '/'} 
             className={cn(
               "flex items-center gap-2",
               forceMobile ? "absolute left-1/2 -translate-x-1/2" : 
