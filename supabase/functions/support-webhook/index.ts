@@ -340,12 +340,25 @@ serve(async (req) => {
 
     console.log(`[support-webhook] AI config:`, aiConfig);
 
+    // Check if channel is active in channel_accounts
+    const { data: channelAccount } = await supabase
+      .from("channel_accounts")
+      .select("is_active")
+      .eq("tenant_id", tenantId)
+      .eq("channel_type", channelType)
+      .single();
+
+    const channelActive = channelAccount?.is_active ?? true; // Default to true if no channel_account exists
+    console.log(`[support-webhook] Channel account active:`, channelActive);
+
     // Trigger AI response if:
-    // - AI is enabled
+    // - AI is enabled (global)
+    // - Channel is active (toggle in Canais)
     // - Conversation is not assigned to human agent
     // - Conversation status is new or bot
     if (
       aiConfig?.is_enabled &&
+      channelActive &&
       !assignedTo &&
       ["new", "bot"].includes(conversationStatus)
     ) {
