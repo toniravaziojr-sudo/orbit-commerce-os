@@ -51,19 +51,20 @@ export default function Import() {
       <PageHeader
         title="Importar Dados"
         description="Migre seus dados de outras plataformas de e-commerce"
-      >
-        <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Upload className="h-4 w-4 mr-2" />
-              Nova Importação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <ImportWizard onComplete={() => setWizardOpen(false)} />
-          </DialogContent>
-        </Dialog>
-      </PageHeader>
+        actions={
+          <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Upload className="h-4 w-4 mr-2" />
+                Nova Importação
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <ImportWizard onComplete={() => setWizardOpen(false)} />
+            </DialogContent>
+          </Dialog>
+        }
+      />
 
       <div className="grid gap-4">
         {isLoading ? (
