@@ -489,11 +489,78 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
 
         if (stepId === 'categories') {
-          // Get categories from visual extraction
+          // Get categories from visual extraction OR derive from menu hierarchy
           let categoriesToSave = visualData?.categories || [];
+          const menuItems = visualData?.menuItems || [];
+          
+          // Build category hierarchy from menu items (more accurate for parent/child relationships)
+          interface CategoryToSave {
+            name: string;
+            slug: string;
+            url?: string;
+            imageUrl?: string;
+            bannerDesktop?: string;
+            bannerMobile?: string;
+            parentSlug?: string;
+          }
+          
+          const categoriesFromMenu: CategoryToSave[] = [];
+          const processedSlugs = new Set<string>();
+          
+          // Helper to extract slug from URL
+          const extractSlugFromUrl = (url: string): string | null => {
+            const match = /\/(?:collections|categoria|category|c)\/([^/?#]+)/i.exec(url);
+            return match ? match[1] : null;
+          };
+          
+          // Process menu items to build category hierarchy
+          for (const item of menuItems) {
+            const parentSlug = extractSlugFromUrl(item.url || '');
+            
+            // If this menu item is a category, add it
+            if (item.type === 'category' && parentSlug && !processedSlugs.has(parentSlug)) {
+              categoriesFromMenu.push({
+                name: item.label,
+                slug: parentSlug,
+                url: item.url,
+                parentSlug: undefined, // Top-level category
+              });
+              processedSlugs.add(parentSlug);
+            }
+            
+            // Process children as subcategories
+            if (item.children && item.children.length > 0) {
+              for (const child of item.children) {
+                const childSlug = extractSlugFromUrl(child.url || '');
+                if (child.type === 'category' && childSlug && !processedSlugs.has(childSlug)) {
+                  categoriesFromMenu.push({
+                    name: child.label,
+                    slug: childSlug,
+                    url: child.url,
+                    parentSlug: parentSlug || undefined, // Link to parent
+                  });
+                  processedSlugs.add(childSlug);
+                }
+              }
+            }
+          }
+          
+          // Merge with extracted categories (prefer menu hierarchy for structure)
+          const allCategories = [...categoriesFromMenu];
+          for (const cat of categoriesToSave) {
+            if (cat && cat.slug && !processedSlugs.has(cat.slug)) {
+              allCategories.push({
+                name: cat.name,
+                slug: cat.slug,
+                url: cat.url,
+                imageUrl: cat.imageUrl,
+              });
+              processedSlugs.add(cat.slug);
+            }
+          }
           
           // Fallback to basic link extraction if no categories found
-          if (categoriesToSave.length === 0) {
+          if (allCategories.length === 0) {
             const links = scrapedData.links || [];
             const categoryLinks = links.filter((link: string) => 
               link.includes('/categoria') || 
@@ -502,49 +569,53 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               link.includes('/c/')
             );
             
-            categoriesToSave = categoryLinks.map((link: string) => {
+            for (const link of categoryLinks) {
               try {
                 const url = new URL(link);
                 const pathParts = url.pathname.split('/').filter(Boolean);
                 const slug = pathParts[pathParts.length - 1] || '';
-                const name = slug
-                  .replace(/-/g, ' ')
-                  .replace(/_/g, ' ')
-                  .split(' ')
-                  .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                  .join(' ');
-                
-                return { name, slug, url: link };
+                if (slug && !processedSlugs.has(slug)) {
+                  const name = slug
+                    .replace(/-/g, ' ')
+                    .replace(/_/g, ' ')
+                    .split(' ')
+                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                  
+                  allCategories.push({ name, slug, url: link });
+                  processedSlugs.add(slug);
+                }
               } catch {
-                return null;
-              }
-            }).filter(Boolean);
-          }
-
-          // Remove duplicates
-          const uniqueCategories = categoriesToSave.filter((cat: any, index: number, self: any[]) =>
-            cat && index === self.findIndex((c: any) => c?.slug === cat.slug)
-          );
-
-          // Fetch banners for each category (limit to first 10 to avoid too many requests)
-          const categoriesToFetchBanners = uniqueCategories.slice(0, 10);
-          toast.info(`Buscando banners de ${categoriesToFetchBanners.length} categorias...`);
-          
-          for (const cat of categoriesToFetchBanners) {
-            if (cat.url) {
-              const bannerData = await fetchCategoryBanner(cat.url);
-              if (bannerData.bannerDesktop) {
-                cat.bannerDesktop = bannerData.bannerDesktop;
-                cat.bannerMobile = bannerData.bannerMobile || bannerData.bannerDesktop;
+                // Skip invalid URLs
               }
             }
           }
 
-          // Save categories to database with banners
-          if (uniqueCategories.length > 0) {
-            for (const cat of uniqueCategories) {
+          // Fetch banners for each category (limit to first 10 to avoid too many requests)
+          const categoriesToFetchBanners = allCategories.slice(0, 10);
+          if (categoriesToFetchBanners.length > 0) {
+            toast.info(`Buscando banners de ${categoriesToFetchBanners.length} categorias...`);
+            
+            for (const cat of categoriesToFetchBanners) {
+              if (cat.url) {
+                const bannerData = await fetchCategoryBanner(cat.url);
+                if (bannerData.bannerDesktop) {
+                  cat.bannerDesktop = bannerData.bannerDesktop;
+                  cat.bannerMobile = bannerData.bannerMobile || bannerData.bannerDesktop;
+                }
+              }
+            }
+          }
+
+          // First pass: Create all categories without parent_id to get their IDs
+          const slugToIdMap = new Map<string, string>();
+          
+          if (allCategories.length > 0) {
+            // Insert top-level categories first (no parentSlug)
+            const topLevel = allCategories.filter(c => !c.parentSlug);
+            for (const cat of topLevel) {
               if (!cat) continue;
-              const { error } = await supabase
+              const { data, error } = await supabase
                 .from('categories')
                 .upsert({
                   tenant_id: currentTenant.id,
@@ -554,15 +625,50 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   image_url: cat.imageUrl || null,
                   banner_desktop_url: cat.bannerDesktop || null,
                   banner_mobile_url: cat.bannerMobile || null,
-                }, { onConflict: 'tenant_id,slug' });
+                  parent_id: null,
+                }, { onConflict: 'tenant_id,slug' })
+                .select('id, slug')
+                .single();
               
+              if (data) {
+                slugToIdMap.set(cat.slug, data.id);
+              }
               if (error && !error.message.includes('duplicate')) {
                 console.error('Error saving category:', error);
               }
             }
+            
+            // Second pass: Create subcategories with parent_id
+            const subCategories = allCategories.filter(c => c.parentSlug);
+            for (const cat of subCategories) {
+              if (!cat) continue;
+              const parentId = slugToIdMap.get(cat.parentSlug!) || null;
+              
+              const { data, error } = await supabase
+                .from('categories')
+                .upsert({
+                  tenant_id: currentTenant.id,
+                  name: cat.name,
+                  slug: cat.slug,
+                  is_active: true,
+                  image_url: cat.imageUrl || null,
+                  banner_desktop_url: cat.bannerDesktop || null,
+                  banner_mobile_url: cat.bannerMobile || null,
+                  parent_id: parentId,
+                }, { onConflict: 'tenant_id,slug' })
+                .select('id, slug')
+                .single();
+              
+              if (data) {
+                slugToIdMap.set(cat.slug, data.id);
+              }
+              if (error && !error.message.includes('duplicate')) {
+                console.error('Error saving subcategory:', error);
+              }
+            }
           }
           
-          importedCount = uniqueCategories.length;
+          importedCount = allCategories.length;
 
         } else if (stepId === 'menu') {
           // Create menu from extracted items with hierarchy
