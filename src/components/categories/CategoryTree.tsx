@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -20,6 +20,7 @@ import { Category } from '@/hooks/useProducts';
 import { CategoryTreeItem } from './CategoryTreeItem';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FolderTree } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface CategoryNode extends Category {
   children: CategoryNode[];
@@ -87,12 +88,35 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [shiftPressed, setShiftPressed] = useState(false);
+
+  // Listen for Shift key to toggle drop mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setShiftPressed(true);
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setShiftPressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // Use a higher distance threshold to prevent accidental drags when clicking buttons
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 15, // Increased from 8 to 15 to reduce accidental drags
+        distance: 15,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -121,7 +145,7 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
     [flattenedItems, activeId]
   );
 
-  const toggleExpanded = (id: string) => {
+  const toggleExpanded = useCallback((id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -131,15 +155,15 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
       }
       return next;
     });
-  };
+  }, []);
 
   // Auto-expand all on mount
-  useMemo(() => {
+  useEffect(() => {
     const allParentIds = categories.filter(c => 
       categories.some(child => child.parent_id === c.id)
     ).map(c => c.id);
     setExpandedIds(new Set(allParentIds));
-  }, [categories.length]);
+  }, [categories]);
 
   const handleDragStart = (event: DragStartEvent) => {
     setActiveId(event.active.id as string);
@@ -151,6 +175,8 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
+    const wasShiftPressed = shiftPressed; // Capture at the moment of drop
+    
     setActiveId(null);
     setOverId(null);
 
@@ -169,15 +195,24 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
 
     if (!draggedItem || !targetItem) return;
 
-    // Determine new parent and position
-    // If dropping on an item, we make the dragged item a sibling after the target
-    // To make it a child, user can drop on the expand area (future enhancement)
-    const newParentId = targetItem.parent_id;
-    
-    // Calculate new position: right after target
-    const siblings = categories.filter(c => c.parent_id === newParentId);
-    const targetIndex = siblings.findIndex(c => c.id === targetId);
-    const newPosition = targetIndex + 1;
+    let newParentId: string | null;
+    let newPosition: number;
+
+    if (wasShiftPressed) {
+      // Drop as child of target: make the dragged item a child of the target
+      newParentId = targetId;
+      const targetChildren = categories.filter(c => c.parent_id === targetId);
+      newPosition = targetChildren.length; // Add at the end of children
+      
+      // Auto-expand the target so user can see the new child
+      setExpandedIds(prev => new Set([...prev, targetId]));
+    } else {
+      // Drop as sibling: place after the target in the same level
+      newParentId = targetItem.parent_id;
+      const siblings = categories.filter(c => c.parent_id === newParentId);
+      const targetIndex = siblings.findIndex(c => c.id === targetId);
+      newPosition = targetIndex + 1;
+    }
 
     await onMoveCategory(draggedId, newParentId, newPosition);
   };
@@ -189,6 +224,16 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
 
   const hasChildren = (id: string) => categories.some(c => c.parent_id === id);
 
+  // Check if currently dropping as child (shift pressed while over a valid target)
+  const isDropAsChildTarget = (id: string) => {
+    if (!activeId || !overId || activeId === id) return false;
+    if (overId !== id) return false;
+    if (!shiftPressed) return false;
+    // Can't drop onto descendant
+    if (isDescendant(categories, activeId, id)) return false;
+    return true;
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -197,7 +242,24 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
           Árvore de Categorias
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        {/* Helper text when dragging */}
+        {activeId && (
+          <Alert className="py-2">
+            <AlertDescription className="text-sm">
+              {shiftPressed ? (
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  ✓ Solte para mover DENTRO da categoria (subcategoria)
+                </span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Segure <kbd className="px-1.5 py-0.5 bg-muted rounded border text-xs font-mono">Shift</kbd> para mover dentro de outra categoria
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {categories.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             Nenhuma categoria cadastrada
@@ -226,20 +288,31 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
                     onToggleExpand={() => toggleExpanded(item.id)}
                     onEdit={() => onEdit(item)}
                     onDelete={() => onDelete(item.id)}
-                    isOver={overId === item.id}
+                    isOver={overId === item.id && !shiftPressed}
                     isDragging={activeId === item.id}
+                    isDropAsChildTarget={isDropAsChildTarget(item.id)}
                   />
                 ))}
               </div>
             </SortableContext>
             <DragOverlay>
               {activeItem ? (
-                <div className="bg-card border rounded-md p-2 shadow-lg opacity-90">
+                <div className={`bg-card border rounded-md p-2 shadow-lg opacity-90 ${shiftPressed ? 'ring-2 ring-green-500' : ''}`}>
                   <span className="font-medium">{activeItem.name}</span>
+                  {shiftPressed && (
+                    <span className="ml-2 text-xs text-green-600">→ subcategoria</span>
+                  )}
                 </div>
               ) : null}
             </DragOverlay>
           </DndContext>
+        )}
+
+        {/* Help text always visible */}
+        {categories.length > 0 && !activeId && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Arraste para reordenar. Segure <kbd className="px-1 py-0.5 bg-muted rounded border text-xs font-mono">Shift</kbd> ao soltar para criar subcategoria.
+          </p>
         )}
       </CardContent>
     </Card>
