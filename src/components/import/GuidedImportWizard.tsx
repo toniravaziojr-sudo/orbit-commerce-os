@@ -547,7 +547,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           importedCount = uniqueCategories.length;
 
         } else if (stepId === 'menu') {
-          // Create menu from extracted items
+          // Create menu from extracted items with hierarchy
           const menuItems = visualData?.menuItems || [];
           
           if (menuItems.length > 0) {
@@ -573,22 +573,56 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                 .delete()
                 .eq('menu_id', menuData.id);
 
-              // Insert new menu items
-              for (let i = 0; i < menuItems.length; i++) {
-                const item = menuItems[i];
-                await supabase
+              // Insert menu items with hierarchy
+              let sortOrder = 0;
+              for (const item of menuItems) {
+                // Use internal URL if available, otherwise use original URL
+                const itemUrl = item.internalUrl || item.url;
+                
+                // Insert parent item
+                const { data: parentItem, error: parentError } = await supabase
                   .from('menu_items')
                   .insert({
                     tenant_id: currentTenant.id,
                     menu_id: menuData.id,
                     label: item.label,
-                    url: item.url,
+                    url: itemUrl,
                     item_type: item.type || 'link',
-                    sort_order: i,
-                  });
+                    sort_order: sortOrder++,
+                  })
+                  .select('id')
+                  .single();
+                
+                if (parentError) {
+                  console.error('Error inserting parent menu item:', parentError);
+                  continue;
+                }
+                
+                // Insert children if any
+                if (item.children && item.children.length > 0 && parentItem) {
+                  for (let i = 0; i < item.children.length; i++) {
+                    const child = item.children[i];
+                    const childUrl = child.internalUrl || child.url;
+                    
+                    await supabase
+                      .from('menu_items')
+                      .insert({
+                        tenant_id: currentTenant.id,
+                        menu_id: menuData.id,
+                        label: child.label,
+                        url: childUrl,
+                        item_type: child.type || 'link',
+                        parent_id: parentItem.id,
+                        sort_order: i,
+                      });
+                  }
+                }
               }
               
-              importedCount = menuItems.length;
+              // Count total items including children
+              const totalItems = menuItems.reduce((acc, item) => 
+                acc + 1 + (item.children?.length || 0), 0);
+              importedCount = totalItems;
             }
           } else {
             toast.info('Nenhum item de menu encontrado no site.');
