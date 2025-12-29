@@ -805,6 +805,7 @@ RESTRIÇÕES DA SHOPEE:
       console.log(`Sending email response to ${conversation.customer_email}...`);
       
       try {
+        // support-send-message expects message_id, not conversation_id/content
         const sendResponse = await fetch(
           `${Deno.env.get("SUPABASE_URL")}/functions/v1/support-send-message`,
           {
@@ -814,27 +815,32 @@ RESTRIÇÕES DA SHOPEE:
               "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
             },
             body: JSON.stringify({
-              conversation_id,
-              content: aiContent,
-              sender_type: "bot",
-              sender_name: personalityName,
+              message_id: newMessage.id,
+              channel_type: "email",
             }),
           }
         );
 
-        if (sendResponse.ok) {
-          sendResult = { success: true };
-          await supabase
-            .from("messages")
-            .update({ delivery_status: "sent" })
-            .eq("id", newMessage.id);
+        const sendJson = await sendResponse.json();
+        console.log("support-send-message result:", sendJson);
+        
+        if (sendJson.success) {
+          sendResult = { success: true, message_id: sendJson.external_message_id };
+          // Message status is already updated by support-send-message
         } else {
-          const errText = await sendResponse.text();
-          sendResult = { success: false, error: errText };
+          sendResult = { success: false, error: sendJson.error || "Falha ao enviar email" };
         }
       } catch (sendError) {
         console.error("Error sending email:", sendError);
         sendResult = { success: false, error: sendError instanceof Error ? sendError.message : "Erro ao enviar" };
+        
+        await supabase
+          .from("messages")
+          .update({ 
+            delivery_status: "failed",
+            failure_reason: sendResult.error,
+          })
+          .eq("id", newMessage.id);
       }
     } else if (conversation.channel_type === "chat") {
       sendResult = { success: true, error: undefined };

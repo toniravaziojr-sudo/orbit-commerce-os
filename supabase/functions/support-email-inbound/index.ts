@@ -117,14 +117,29 @@ serve(async (req: Request): Promise<Response> => {
       supportEmailAddress = `${supportEmailAddress}@${toDomain}`;
     }
     
-    const isSupportEmail = emailConfig.support_email_enabled && 
-                           supportEmailAddress && 
-                           toEmail === supportEmailAddress;
+    // Also get from_email (notification sender) - replies to this should also go to support
+    const fromEmailConfig = (emailConfig.from_email as string || '').toLowerCase().trim();
+    
+    // Email should go to support/AI if:
+    // 1. It's sent to the designated support email (atendimento@)
+    // 2. OR it's sent to the notification email (loja@) - these are customer replies to transactional emails
+    const isDirectSupportEmail = emailConfig.support_email_enabled && 
+                                  supportEmailAddress && 
+                                  toEmail === supportEmailAddress;
+    
+    const isReplyToNotification = emailConfig.support_email_enabled && 
+                                   fromEmailConfig && 
+                                   toEmail === fromEmailConfig;
+    
+    const isSupportEmail = isDirectSupportEmail || isReplyToNotification;
 
     console.log('Routing decision:', { 
       toEmail, 
-      supportEmailAddress, 
+      supportEmailAddress,
+      fromEmailConfig,
       support_email_enabled: emailConfig.support_email_enabled,
+      isDirectSupportEmail,
+      isReplyToNotification,
       isSupportEmail 
     });
 
