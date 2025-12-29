@@ -1,5 +1,5 @@
 // =============================================
-// MEDIA LIBRARY HOOK - Manage reusable images
+// MEDIA LIBRARY HOOK - Manage reusable images and videos
 // =============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
 export type MediaVariant = 'desktop' | 'mobile';
+export type MediaType = 'image' | 'video' | 'all';
 
 export interface MediaItem {
   id: string;
@@ -20,14 +21,38 @@ export interface MediaItem {
   created_at: string;
 }
 
-export function useMediaLibrary(variant?: MediaVariant) {
+// Helper to determine media type from mime_type
+export function getMediaType(mimeType?: string): 'image' | 'video' | 'unknown' {
+  if (!mimeType) return 'unknown';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'unknown';
+}
+
+interface UseMediaLibraryOptions {
+  variant?: MediaVariant;
+  mediaType?: MediaType;
+}
+
+export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibraryOptions) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
-  // Fetch media items for the tenant (optionally filtered by variant)
+  // Handle both old signature (variant only) and new signature (options object)
+  let variant: MediaVariant | undefined;
+  let mediaType: MediaType = 'all';
+
+  if (typeof variantOrOptions === 'string') {
+    variant = variantOrOptions;
+  } else if (variantOrOptions) {
+    variant = variantOrOptions.variant;
+    mediaType = variantOrOptions.mediaType || 'all';
+  }
+
+  // Fetch media items for the tenant (filtered by variant and mediaType)
   const { data: mediaItems = [], isLoading } = useQuery({
-    queryKey: ['media-library', tenantId, variant],
+    queryKey: ['media-library', tenantId, variant, mediaType],
     queryFn: async () => {
       if (!tenantId) return [];
       
@@ -48,7 +73,16 @@ export function useMediaLibrary(variant?: MediaVariant) {
         return [];
       }
       
-      return data as MediaItem[];
+      // Filter by media type client-side since PostgreSQL pattern matching is complex
+      let items = data as MediaItem[];
+      
+      if (mediaType === 'image') {
+        items = items.filter(item => item.mime_type?.startsWith('image/'));
+      } else if (mediaType === 'video') {
+        items = items.filter(item => item.mime_type?.startsWith('video/'));
+      }
+      
+      return items;
     },
     enabled: !!tenantId,
   });
@@ -90,7 +124,7 @@ export function useMediaLibrary(variant?: MediaVariant) {
       return data as MediaItem;
     },
     onSuccess: () => {
-      // Invalidate both variants and general query
+      // Invalidate all media library queries
       queryClient.invalidateQueries({ queryKey: ['media-library', tenantId] });
     },
   });
