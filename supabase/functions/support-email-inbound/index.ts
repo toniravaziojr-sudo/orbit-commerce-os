@@ -13,10 +13,10 @@ interface SendGridInboundEmail {
   subject: string;
   text: string;
   html: string;
-  headers: string; // Raw headers string
-  envelope: string; // JSON string with from/to arrays
-  attachments?: string; // Number of attachments
-  'attachment-info'?: string; // JSON with attachment metadata
+  headers: string;
+  envelope: string;
+  attachments?: string;
+  'attachment-info'?: string;
 }
 
 interface AttachmentInfo {
@@ -29,7 +29,6 @@ serve(async (req: Request): Promise<Response> => {
   console.log('=== SUPPORT EMAIL INBOUND (SendGrid) ===');
   console.log('Method:', req.method);
 
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -39,7 +38,6 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // SendGrid Inbound Parse sends multipart/form-data
     const formData = await req.formData();
     
     const payload: SendGridInboundEmail = {
@@ -60,7 +58,7 @@ serve(async (req: Request): Promise<Response> => {
       subject: payload.subject,
     });
 
-    // Parse headers from raw string format
+    // Parse headers
     const parsedHeaders: Record<string, string> = {};
     if (payload.headers) {
       const headerLines = payload.headers.split('\n');
@@ -74,7 +72,6 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    // Extract email address from "Name <email@domain.com>" format
     const extractEmail = (str: string): string => {
       const match = str.match(/<([^>]+)>/);
       return match ? match[1].toLowerCase() : str.toLowerCase();
@@ -88,21 +85,16 @@ serve(async (req: Request): Promise<Response> => {
     const toEmail = extractEmail(payload.to);
     const fromEmail = extractEmail(payload.from);
     const fromName = extractName(payload.from);
-
-    console.log('Parsed:', { toEmail, fromEmail, fromName });
-
-    // Find tenant by email destination
-    // Uses root domain directly - client manages all email through our app
     const toDomain = toEmail.split('@')[1] || '';
-    
-    console.log('Looking for tenant with domain:', { toDomain, toEmail });
-    
-    // Check sending_domain, from_email, or support_email_address
+
+    console.log('Parsed:', { toEmail, fromEmail, fromName, toDomain });
+
+    // Step 1: Find tenant by domain
     const { data: emailConfig, error: configError } = await supabase
       .from('email_provider_configs')
-      .select('tenant_id, from_email, support_email_address, support_reply_from_name, sending_domain')
-      .eq('support_email_enabled', true)
+      .select('tenant_id, from_email, support_email_address, support_email_enabled, support_reply_from_name, sending_domain')
       .or(`sending_domain.eq.${toDomain},from_email.ilike.%@${toDomain},support_email_address.ilike.%@${toDomain}`)
+      .limit(1)
       .single();
 
     if (configError || !emailConfig) {
@@ -113,185 +105,186 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    const tenantId = emailConfig.tenant_id;
+    const tenantId = emailConfig.tenant_id as string;
     console.log('Found tenant:', tenantId);
 
-    // Extract Message-ID and References for threading from parsed headers
+    // Step 2: Determine routing
+    const supportEmailAddress = (emailConfig.support_email_address as string || '').toLowerCase();
+    const isSupportEmail = emailConfig.support_email_enabled && 
+                           supportEmailAddress && 
+                           toEmail === supportEmailAddress;
+
+    console.log('Routing decision:', { 
+      toEmail, 
+      supportEmailAddress, 
+      support_email_enabled: emailConfig.support_email_enabled,
+      isSupportEmail 
+    });
+
     const messageId = parsedHeaders['Message-ID'] || parsedHeaders['message-id'] || null;
     const inReplyTo = parsedHeaders['In-Reply-To'] || parsedHeaders['in-reply-to'] || null;
     const references = parsedHeaders['References'] || parsedHeaders['references'] || null;
 
-    console.log('Email threading:', { messageId, inReplyTo, references });
+    if (isSupportEmail) {
+      // ========== ROUTE TO SUPPORT/ATENDIMENTO ==========
+      console.log('=== ROUTING TO SUPPORT/ATENDIMENTO ===');
 
-    // Try to find existing conversation by thread
-    let conversationId: string | null = null;
-    
-    if (inReplyTo || references) {
-      // Look for existing conversation by external_message_id or external_thread_id
-      const threadIds = [inReplyTo, ...(references?.split(/\s+/) || [])].filter(Boolean);
+      let conversationId: string | null = null;
       
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('id')
+      // Find existing conversation by thread
+      if (inReplyTo || references) {
+        const threadIds = [inReplyTo, ...(references?.split(/\s+/) || [])].filter(Boolean);
+        
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('channel_type', 'email')
+          .or(threadIds.map(id => `external_thread_id.eq.${id}`).join(','))
+          .limit(1)
+          .single();
+
+        if (existingConv) {
+          conversationId = (existingConv as { id: string }).id;
+          console.log('Found existing conversation:', conversationId);
+        }
+      }
+
+      // Find by customer email
+      if (!conversationId) {
+        const { data: existingConv } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('channel_type', 'email')
+          .eq('customer_email', fromEmail)
+          .in('status', ['new', 'open', 'bot'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (existingConv) {
+          conversationId = (existingConv as { id: string }).id;
+          console.log('Found existing open conversation by email:', conversationId);
+        }
+      }
+
+      // Check for customer
+      const { data: customer } = await supabase
+        .from('customers')
+        .select('id, full_name')
         .eq('tenant_id', tenantId)
-        .eq('channel_type', 'email')
-        .or(threadIds.map(id => `external_thread_id.eq.${id}`).join(','))
-        .limit(1)
+        .ilike('email', fromEmail)
         .single();
 
-      if (existingConv) {
-        conversationId = existingConv.id;
-        console.log('Found existing conversation:', conversationId);
+      const customerData = customer as { id: string; full_name: string } | null;
+
+      // Create new conversation if needed
+      if (!conversationId) {
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert({
+            tenant_id: tenantId,
+            channel_type: 'email',
+            status: 'new',
+            customer_id: customerData?.id || null,
+            customer_name: customerData?.full_name || fromName,
+            customer_email: fromEmail,
+            subject: payload.subject || '(Sem assunto)',
+            external_conversation_id: messageId,
+            external_thread_id: messageId,
+          })
+          .select('id')
+          .single();
+
+        if (convError) {
+          console.error('Error creating conversation:', convError);
+          throw convError;
+        }
+
+        conversationId = (newConv as { id: string }).id;
+        console.log('Created new conversation:', conversationId);
       }
-    }
 
-    // If no existing conversation, check by customer email
-    if (!conversationId) {
-      const { data: existingConv } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('channel_type', 'email')
-        .eq('customer_email', fromEmail)
-        .in('status', ['new', 'open', 'bot'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      // Check for duplicate message
+      if (messageId && conversationId) {
+        const { data: existingMsg } = await supabase
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .eq('external_message_id', messageId)
+          .single();
 
-      if (existingConv) {
-        conversationId = existingConv.id;
-        console.log('Found existing open conversation by email:', conversationId);
+        if (existingMsg) {
+          console.log('Duplicate message, skipping:', messageId);
+          return new Response(
+            JSON.stringify({ success: true, duplicate: true, message_id: (existingMsg as { id: string }).id }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
-    }
 
-    // Check for customer in database
-    const { data: customer } = await supabase
-      .from('customers')
-      .select('id, full_name')
-      .eq('tenant_id', tenantId)
-      .ilike('email', fromEmail)
-      .single();
-
-    // Create new conversation if needed
-    if (!conversationId) {
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
+      // Create message
+      const { data: newMessage, error: msgError } = await supabase
+        .from('messages')
         .insert({
           tenant_id: tenantId,
-          channel_type: 'email',
-          status: 'new',
-          customer_id: customer?.id || null,
-          customer_name: customer?.full_name || fromName,
-          customer_email: fromEmail,
-          subject: payload.subject || '(Sem assunto)',
-          external_conversation_id: messageId,
-          external_thread_id: messageId,
+          conversation_id: conversationId,
+          sender_type: 'customer',
+          sender_name: fromName,
+          direction: 'inbound',
+          content: payload.text || payload.html || '',
+          delivery_status: 'delivered',
+          external_message_id: messageId,
+          metadata: {
+            subject: payload.subject,
+            headers: parsedHeaders,
+          },
         })
         .select('id')
         .single();
 
-      if (convError) {
-        console.error('Error creating conversation:', convError);
-        throw convError;
+      if (msgError) {
+        console.error('Error creating message:', msgError);
+        throw msgError;
       }
 
-      conversationId = newConv.id;
-      console.log('Created new conversation:', conversationId);
-    }
+      const messageData = newMessage as { id: string };
+      console.log('Created message:', messageData.id);
 
-    // Check for duplicate message
-    if (messageId) {
-      const { data: existingMsg } = await supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', conversationId)
-        .eq('external_message_id', messageId)
-        .single();
-
-      if (existingMsg) {
-        console.log('Duplicate message, skipping:', messageId);
-        return new Response(
-          JSON.stringify({ success: true, duplicate: true, message_id: existingMsg.id }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // Create message
-    const { data: newMessage, error: msgError } = await supabase
-      .from('messages')
-      .insert({
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        sender_type: 'customer',
-        sender_name: fromName,
-        direction: 'inbound',
-        content: payload.text || payload.html || '',
-        delivery_status: 'delivered',
-        external_message_id: messageId,
-        metadata: {
-          subject: payload.subject,
-          headers: parsedHeaders,
-        },
-      })
-      .select('id')
-      .single();
-
-    if (msgError) {
-      console.error('Error creating message:', msgError);
-      throw msgError;
-    }
-
-    console.log('Created message:', newMessage.id);
-
-    // Handle attachments (SendGrid sends them as separate form fields)
-    const numAttachments = parseInt(payload.attachments || '0', 10);
-    if (numAttachments > 0 && payload['attachment-info']) {
-      try {
-        const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
-        
-        for (const [key, info] of Object.entries(attachmentInfo)) {
-          // SendGrid sends attachment files as form fields named "attachment1", "attachment2", etc.
-          const attachmentFile = formData.get(key) as File | null;
-          
-          if (attachmentFile) {
-            // Convert to base64
-            const arrayBuffer = await attachmentFile.arrayBuffer();
-            const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-            
-            await supabase
-              .from('message_attachments')
-              .insert({
-                tenant_id: tenantId,
-                message_id: newMessage.id,
-                file_name: info.filename || attachmentFile.name,
-                file_path: `attachments/${tenantId}/${newMessage.id}/${info.filename || attachmentFile.name}`,
-                mime_type: info.type || attachmentFile.type,
-                file_size: attachmentFile.size,
-                file_url: `data:${info.type || attachmentFile.type};base64,${base64}`,
-              });
+      // Handle attachments
+      const numAttachments = parseInt(payload.attachments || '0', 10);
+      if (numAttachments > 0 && payload['attachment-info']) {
+        try {
+          const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
+          for (const [key, info] of Object.entries(attachmentInfo)) {
+            await supabase.from('message_attachments').insert({
+              tenant_id: tenantId,
+              message_id: messageData.id,
+              file_name: info.filename,
+              file_path: `attachments/${tenantId}/${messageData.id}/${info.filename}`,
+              mime_type: info.type,
+              file_size: 0,
+            });
           }
+          console.log('Saved', numAttachments, 'attachments');
+        } catch (e) {
+          console.error('Error processing attachments:', e);
         }
-        console.log('Saved', numAttachments, 'attachments');
-      } catch (e) {
-        console.error('Error processing attachments:', e);
       }
-    }
 
-    // Update conversation
-    await supabase
-      .from('conversations')
-      .update({
-        status: 'new',
-        last_message_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', conversationId);
+      // Update conversation
+      await supabase
+        .from('conversations')
+        .update({
+          status: 'new',
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversationId);
 
-    // Log event
-    await supabase
-      .from('conversation_events')
-      .insert({
+      // Log event
+      await supabase.from('conversation_events').insert({
         tenant_id: tenantId,
         conversation_id: conversationId,
         event_type: 'message_received',
@@ -301,43 +294,183 @@ serve(async (req: Request): Promise<Response> => {
         metadata: { from: fromEmail, subject: payload.subject },
       });
 
-    // Check if AI should respond
-    const { data: aiConfig } = await supabase
-      .from('ai_support_config')
-      .select('is_enabled')
-      .eq('tenant_id', tenantId)
-      .single();
+      // Check if AI should respond
+      const { data: aiConfig } = await supabase
+        .from('ai_support_config')
+        .select('is_enabled')
+        .eq('tenant_id', tenantId)
+        .single();
 
-    if (aiConfig?.is_enabled) {
-      console.log('AI is enabled, invoking ai-support-chat...');
-      
-      try {
-        const aiResponse = await supabase.functions.invoke('ai-support-chat', {
-          body: {
-            conversation_id: conversationId,
-            tenant_id: tenantId,
-          },
-        });
-
-        console.log('AI response:', aiResponse);
-        
-        // If AI generated a response, send it via email
-        if (aiResponse.data?.message_id && !aiResponse.error) {
-          console.log('AI responded successfully, message:', aiResponse.data.message_id);
+      if ((aiConfig as { is_enabled: boolean } | null)?.is_enabled) {
+        console.log('AI is enabled, invoking ai-support-chat...');
+        try {
+          const aiResponse = await supabase.functions.invoke('ai-support-chat', {
+            body: { conversation_id: conversationId, tenant_id: tenantId },
+          });
+          console.log('AI response:', aiResponse);
+        } catch (aiError) {
+          console.error('AI invocation error:', aiError);
         }
-      } catch (aiError) {
-        console.error('AI invocation error:', aiError);
       }
-    }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        conversation_id: conversationId,
-        message_id: newMessage.id,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+      return new Response(
+        JSON.stringify({
+          success: true,
+          destination: 'support',
+          conversation_id: conversationId,
+          message_id: messageData.id,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
+    } else {
+      // ========== ROUTE TO MANUAL MAILBOX ==========
+      console.log('=== ROUTING TO MANUAL MAILBOX ===');
+
+      // Find mailbox
+      const { data: mailbox } = await supabase
+        .from('mailboxes')
+        .select('id, email_address, display_name')
+        .eq('tenant_id', tenantId)
+        .ilike('email_address', toEmail)
+        .single();
+
+      let targetMailbox = mailbox as { id: string; email_address: string; display_name: string } | null;
+
+      if (!targetMailbox) {
+        // Try to find any mailbox for this domain
+        const { data: domainMailbox } = await supabase
+          .from('mailboxes')
+          .select('id, email_address, display_name')
+          .eq('tenant_id', tenantId)
+          .ilike('email_address', `%@${toDomain}`)
+          .limit(1)
+          .single();
+
+        targetMailbox = domainMailbox as { id: string; email_address: string; display_name: string } | null;
+        
+        if (targetMailbox) {
+          console.log('Using fallback mailbox:', targetMailbox.email_address);
+        }
+      }
+
+      if (!targetMailbox) {
+        console.error('No mailbox found for email:', toEmail);
+        return new Response(
+          JSON.stringify({ error: 'Mailbox not found for this email address' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('Found mailbox:', targetMailbox.id, targetMailbox.email_address);
+
+      // Find inbox folder
+      const { data: inboxFolder, error: folderError } = await supabase
+        .from('email_folders')
+        .select('id')
+        .eq('mailbox_id', targetMailbox.id)
+        .eq('slug', 'inbox')
+        .single();
+
+      if (folderError || !inboxFolder) {
+        console.error('No inbox folder found for mailbox:', targetMailbox.id);
+        return new Response(
+          JSON.stringify({ error: 'Inbox folder not found' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const folderData = inboxFolder as { id: string };
+
+      // Check for duplicate
+      if (messageId) {
+        const { data: existingMsg } = await supabase
+          .from('email_messages')
+          .select('id')
+          .eq('mailbox_id', targetMailbox.id)
+          .eq('external_message_id', messageId)
+          .single();
+
+        if (existingMsg) {
+          console.log('Duplicate email message, skipping:', messageId);
+          return new Response(
+            JSON.stringify({ success: true, duplicate: true, message_id: (existingMsg as { id: string }).id }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
+      // Create email message
+      const { data: newMessage, error: msgError } = await supabase
+        .from('email_messages')
+        .insert({
+          tenant_id: tenantId,
+          mailbox_id: targetMailbox.id,
+          folder_id: folderData.id,
+          from_email: fromEmail,
+          from_name: fromName,
+          to_emails: [toEmail],
+          subject: payload.subject || '(Sem assunto)',
+          body_text: payload.text || '',
+          body_html: payload.html || '',
+          snippet: (payload.text || payload.html || '').substring(0, 200),
+          external_message_id: messageId,
+          in_reply_to: inReplyTo,
+          thread_id: inReplyTo || messageId,
+          is_read: false,
+          is_starred: false,
+          is_sent: false,
+          received_at: new Date().toISOString(),
+          has_attachments: parseInt(payload.attachments || '0', 10) > 0,
+          attachment_count: parseInt(payload.attachments || '0', 10),
+        })
+        .select('id')
+        .single();
+
+      if (msgError) {
+        console.error('Error creating email message:', msgError);
+        throw msgError;
+      }
+
+      const emailMessageData = newMessage as { id: string };
+      console.log('Created email message:', emailMessageData.id);
+
+      // Handle attachments
+      const numAttachments = parseInt(payload.attachments || '0', 10);
+      if (numAttachments > 0 && payload['attachment-info']) {
+        try {
+          const attachmentInfo: Record<string, AttachmentInfo> = JSON.parse(payload['attachment-info']);
+          for (const [key, info] of Object.entries(attachmentInfo)) {
+            await supabase.from('email_attachments').insert({
+              message_id: emailMessageData.id,
+              filename: info.filename,
+              content_type: info.type,
+              content_id: info['content-id'] || null,
+              is_inline: !!info['content-id'],
+            });
+          }
+          console.log('Saved', numAttachments, 'email attachments');
+        } catch (e) {
+          console.error('Error processing email attachments:', e);
+        }
+      }
+
+      // Update folder unread count
+      await supabase
+        .from('email_folders')
+        .update({ unread_count: supabase.rpc('increment_unread', { row_id: folderData.id }) })
+        .eq('id', folderData.id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          destination: 'mailbox',
+          mailbox_id: targetMailbox.id,
+          message_id: emailMessageData.id,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';
