@@ -435,7 +435,24 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }
         }
 
-        const result = await importData(platform, stepId as any, normalizedData);
+        // For products, fetch existing categories to create a mapping for linking
+        let categoryMap: Record<string, string> | undefined;
+        if (stepId === 'products' && currentTenant?.id) {
+          const { data: categories } = await supabase
+            .from('categories')
+            .select('id, slug')
+            .eq('tenant_id', currentTenant.id);
+          
+          if (categories && categories.length > 0) {
+            categoryMap = {};
+            categories.forEach(cat => {
+              categoryMap![cat.slug] = cat.id;
+            });
+            toast.info(`${categories.length} categorias disponíveis para vincular aos produtos`);
+          }
+        }
+
+        const result = await importData(platform, stepId as any, normalizedData, categoryMap);
         importedCount = result?.results?.imported || data.length;
         
       } else if (step.importMethod === 'scrape' && scrapedData) {

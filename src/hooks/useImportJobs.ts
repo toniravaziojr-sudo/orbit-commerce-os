@@ -157,12 +157,13 @@ export function useImportData() {
   const importData = async (
     platform: string,
     module: 'products' | 'categories' | 'customers' | 'orders',
-    data: any[]
+    data: any[],
+    categoryMap?: Record<string, string> // slug -> id for linking products to categories
   ) => {
     if (!tenantId) throw new Error('Tenant ID required');
 
     const { data: result, error } = await supabase.functions.invoke('import-data', {
-      body: { tenantId, platform, module, data },
+      body: { tenantId, platform, module, data, categoryMap },
     });
 
     if (error) throw error;

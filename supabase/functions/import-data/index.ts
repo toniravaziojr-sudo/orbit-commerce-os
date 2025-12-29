@@ -10,6 +10,7 @@ interface ImportRequest {
   platform: string;
   module: 'products' | 'categories' | 'customers' | 'orders';
   data: any[];
+  categoryMap?: Record<string, string>; // slug -> id mapping for linking products to categories
 }
 
 Deno.serve(async (req) => {
@@ -23,10 +24,13 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { tenantId, platform, module, data } = await req.json() as ImportRequest;
+    const { tenantId, platform, module, data, categoryMap } = await req.json() as ImportRequest;
 
     console.log(`Starting import: ${module} from ${platform} for tenant ${tenantId}`);
     console.log(`Processing ${data.length} items`);
+    if (categoryMap) {
+      console.log(`Category map available with ${Object.keys(categoryMap).length} categories`);
+    }
 
     const results = {
       imported: 0,
@@ -39,7 +43,7 @@ Deno.serve(async (req) => {
       try {
         switch (module) {
           case 'products':
-            await importProduct(supabase, tenantId, item, results);
+            await importProduct(supabase, tenantId, item, results, categoryMap);
             break;
           case 'categories':
             await importCategory(supabase, tenantId, item, results);
@@ -75,7 +79,7 @@ Deno.serve(async (req) => {
   }
 });
 
-async function importProduct(supabase: any, tenantId: string, product: any, results: any) {
+async function importProduct(supabase: any, tenantId: string, product: any, results: any, categoryMap?: Record<string, string>) {
   // Check for duplicate by slug
   const { data: existing } = await supabase
     .from('products')
@@ -84,7 +88,10 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
     .eq('slug', product.slug)
     .maybeSingle();
 
+  let productId: string;
+
   if (existing) {
+    productId = existing.id;
     // Update existing product
     const { error } = await supabase
       .from('products')
@@ -141,6 +148,7 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       .single();
 
     if (error) throw error;
+    productId = newProduct.id;
 
     // Import images if available
     if (product.images?.length > 0) {
@@ -171,6 +179,43 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
     }
 
     results.imported++;
+  }
+
+  // Link product to categories via product_categories
+  if (product.categories?.length > 0 && categoryMap) {
+    for (const catSlug of product.categories) {
+      const categoryId = categoryMap[catSlug];
+      if (categoryId) {
+        // Check if link already exists
+        const { data: existingLink } = await supabase
+          .from('product_categories')
+          .select('id')
+          .eq('product_id', productId)
+          .eq('category_id', categoryId)
+          .maybeSingle();
+        
+        if (!existingLink) {
+          // Get max position for this category
+          const { data: maxPos } = await supabase
+            .from('product_categories')
+            .select('position')
+            .eq('category_id', categoryId)
+            .order('position', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          
+          const nextPosition = (maxPos?.position ?? -1) + 1;
+          
+          await supabase.from('product_categories').insert({
+            product_id: productId,
+            category_id: categoryId,
+            position: nextPosition,
+          });
+          
+          console.log(`Linked product ${product.slug} to category ${catSlug}`);
+        }
+      }
+    }
   }
 }
 
