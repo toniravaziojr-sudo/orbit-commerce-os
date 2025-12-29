@@ -7,6 +7,7 @@ import { ImportStep, ImportStepConfig } from './ImportStep';
 import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { getAdapter } from '@/lib/import/platforms';
 import { useAuth } from '@/hooks/useAuth';
 import { generateBlockId } from '@/lib/builder/utils';
@@ -512,7 +513,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               await supabase
                 .from('store_pages')
                 .update({ 
-                  content: homePageContent,
+                  content: homePageContent as unknown as Json,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', existingHome.id);
@@ -520,7 +521,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               // Create new home page
               await supabase
                 .from('store_pages')
-                .insert({
+                .insert([{
                   tenant_id: currentTenant.id,
                   title: 'Home',
                   slug: 'home',
@@ -528,8 +529,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   is_homepage: true,
                   is_published: true,
                   status: 'published',
-                  content: homePageContent,
-                });
+                  content: homePageContent as unknown as Json,
+                }]);
             }
             
             importedCount = heroBanners.length + sections.length;
