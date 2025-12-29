@@ -310,9 +310,23 @@ export function CategoryTree({ categories, onEdit, onDelete, onMoveCategory }: C
 
         {/* Help text always visible */}
         {categories.length > 0 && !activeId && (
-          <p className="text-xs text-muted-foreground mt-2">
-            Arraste para reordenar. Segure <kbd className="px-1 py-0.5 bg-muted rounded border text-xs font-mono">Shift</kbd> ao soltar para criar subcategoria.
-          </p>
+          <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-dashed">
+            <p className="text-sm font-medium mb-2">Como organizar categorias:</p>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-primary/10 text-primary text-[10px] font-bold">1</span>
+                <span>Arraste pelo ícone <span className="font-mono">⋮⋮</span> para <strong>reordenar</strong> no mesmo nível</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-green-500/10 text-green-600 text-[10px] font-bold">2</span>
+                <span>Segure <kbd className="px-1.5 py-0.5 bg-background rounded border text-[10px] font-mono mx-1">Shift</kbd> enquanto solta para criar <strong>subcategoria</strong></span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-muted text-muted-foreground text-[10px] font-bold">3</span>
+                <span>Ou selecione a "Categoria Pai" no formulário à direita ao editar</span>
+              </li>
+            </ul>
+          </div>
         )}
       </CardContent>
     </Card>
