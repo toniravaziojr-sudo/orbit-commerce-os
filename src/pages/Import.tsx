@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { ImportWizard } from '@/components/import';
+import { GuidedImportWizard } from '@/components/import/GuidedImportWizard';
 import { useImportJobs } from '@/hooks/useImportJobs';
-import { Upload, CheckCircle, XCircle, Clock, Loader2, Trash2 } from 'lucide-react';
+import { Upload, CheckCircle, XCircle, Clock, Loader2, Trash2, Globe } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -55,12 +55,12 @@ export default function Import() {
           <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
             <DialogTrigger asChild>
               <Button>
-                <Upload className="h-4 w-4 mr-2" />
+                <Globe className="h-4 w-4 mr-2" />
                 Nova Importação
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <ImportWizard onComplete={() => setWizardOpen(false)} />
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+              <GuidedImportWizard onComplete={() => setWizardOpen(false)} />
             </DialogContent>
           </Dialog>
         }
