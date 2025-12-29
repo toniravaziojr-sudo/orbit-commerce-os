@@ -1834,6 +1834,128 @@ export type Database = {
           },
         ]
       }
+      import_items: {
+        Row: {
+          created_at: string
+          data_normalized: Json | null
+          data_raw: Json | null
+          errors: Json | null
+          external_id: string | null
+          id: string
+          internal_id: string | null
+          job_id: string
+          module: string
+          status: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          data_normalized?: Json | null
+          data_raw?: Json | null
+          errors?: Json | null
+          external_id?: string | null
+          id?: string
+          internal_id?: string | null
+          job_id: string
+          module: string
+          status?: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          data_normalized?: Json | null
+          data_raw?: Json | null
+          errors?: Json | null
+          external_id?: string | null
+          id?: string
+          internal_id?: string | null
+          job_id?: string
+          module?: string
+          status?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "import_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          errors: Json | null
+          id: string
+          modules: Json
+          platform: string
+          progress: Json
+          source_data: Json | null
+          source_url: string | null
+          started_at: string | null
+          stats: Json | null
+          status: string
+          tenant_id: string
+          updated_at: string
+          warnings: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          errors?: Json | null
+          id?: string
+          modules?: Json
+          platform: string
+          progress?: Json
+          source_data?: Json | null
+          source_url?: string | null
+          started_at?: string | null
+          stats?: Json | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+          warnings?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          errors?: Json | null
+          id?: string
+          modules?: Json
+          platform?: string
+          progress?: Json
+          source_data?: Json | null
+          source_url?: string | null
+          started_at?: string | null
+          stats?: Json | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+          warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mailboxes: {
         Row: {
           auto_reply_enabled: boolean | null
