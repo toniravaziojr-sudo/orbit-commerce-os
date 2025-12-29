@@ -800,23 +800,7 @@ function pairBannerCandidates(candidates: BannerCandidate[]): ExtractedBanner[] 
   });
 }
 
-function extractBannersFromSection(sectionHtml: string, baseUrl: string, banners: ExtractedBanner[], addedUrls: Set<string>) {
-  const imgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
-  let match;
-  while ((match = imgPattern.exec(sectionHtml)) !== null) {
-    const [, src, alt] = match;
-    if (isLikelyBannerImage(src)) {
-      const normalizedSrc = normalizeImageUrl(src, baseUrl);
-      if (!addedUrls.has(normalizedSrc)) {
-        banners.push({
-          imageDesktop: normalizedSrc,
-          altText: alt || '',
-        });
-        addedUrls.add(normalizedSrc);
-      }
-    }
-  }
-}
+// extractBannersFromSection removed - replaced by pairBannerCandidates logic
 
 function extractCategories(html: string, baseUrl: string, platform?: string): ExtractedCategory[] {
   const categories: ExtractedCategory[] = [];
