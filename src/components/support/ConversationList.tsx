@@ -14,8 +14,8 @@ interface ConversationListProps {
   conversations: Conversation[];
   selectedId: string | null;
   onSelect: (conversation: Conversation) => void;
-  filter: 'needs_attention' | 'in_progress' | 'bot' | 'all';
-  onFilterChange: (filter: 'needs_attention' | 'in_progress' | 'bot' | 'all') => void;
+  filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all';
+  onFilterChange: (filter: 'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all') => void;
 }
 
 const channelIcons: Record<SupportChannelType, string> = {
@@ -67,7 +67,9 @@ export function ConversationList({
     } else if (filter === 'in_progress') {
       filtered = filtered.filter(c => c.status === 'open' || c.status === 'waiting_customer');
     } else if (filter === 'bot') {
-      filtered = filtered.filter(c => c.status === 'bot');
+      filtered = filtered.filter(c => c.status === 'bot' || c.status === 'resolved');
+    } else if (filter === 'resolved') {
+      filtered = filtered.filter(c => c.status === 'resolved');
     }
 
     // Filter by channel
@@ -92,7 +94,8 @@ export function ConversationList({
     return {
       needs_attention: conversations.filter(c => c.status === 'new' || c.status === 'waiting_agent').length,
       in_progress: conversations.filter(c => c.status === 'open' || c.status === 'waiting_customer').length,
-      bot: conversations.filter(c => c.status === 'bot').length,
+      bot: conversations.filter(c => c.status === 'bot' || c.status === 'resolved').length,
+      resolved: conversations.filter(c => c.status === 'resolved').length,
       all: conversations.length,
     };
   }, [conversations]);

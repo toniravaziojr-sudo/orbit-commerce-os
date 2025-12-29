@@ -289,7 +289,14 @@ export function ChatWindow({
                       <span>IA</span>
                     </div>
                   )}
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  {msg.content_type === 'html' || (msg.content?.startsWith('<') && msg.content?.includes('</')) ? (
+                    <div 
+                      className="text-sm prose prose-sm max-w-none dark:prose-invert"
+                      dangerouslySetInnerHTML={{ __html: msg.content || '' }}
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
                   <div className={cn(
                     "flex items-center gap-2 text-xs mt-1",
                     isOutbound ? "opacity-70" : "text-muted-foreground"

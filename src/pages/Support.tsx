@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/badge";
 export default function Support() {
   const { user, currentTenant } = useAuth();
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [listFilter, setListFilter] = useState<'needs_attention' | 'in_progress' | 'bot' | 'all'>('needs_attention');
+  const [listFilter, setListFilter] = useState<'needs_attention' | 'in_progress' | 'bot' | 'resolved' | 'all'>('needs_attention');
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [showEventsPanel, setShowEventsPanel] = useState(false);
   const [activeTab, setActiveTab] = useState("inbox");
