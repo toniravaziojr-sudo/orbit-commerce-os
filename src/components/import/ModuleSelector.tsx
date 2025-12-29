@@ -1,6 +1,6 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Package, FolderTree, Users, ShoppingCart } from 'lucide-react';
+import { Package, FolderTree, Users, ShoppingCart, Palette, Image } from 'lucide-react';
 
 interface ModuleSelectorProps {
   selected: string[];
@@ -8,6 +8,13 @@ interface ModuleSelectorProps {
 }
 
 const modules = [
+  {
+    id: 'visual',
+    label: 'Visual da Loja',
+    description: 'Importar banners, logos, cores e identidade visual',
+    icon: Palette,
+    highlight: true,
+  },
   {
     id: 'categories',
     label: 'Categorias',
@@ -47,7 +54,11 @@ export function ModuleSelector({ selected, onToggle }: ModuleSelectorProps) {
             <div
               key={module.id}
               className={`flex items-center space-x-4 p-4 border rounded-lg cursor-pointer transition-all ${
-                isSelected ? 'border-primary bg-primary/5' : 'hover:border-muted-foreground/50'
+                isSelected 
+                  ? 'border-primary bg-primary/5' 
+                  : module.highlight 
+                    ? 'border-primary/50 bg-primary/5 hover:border-primary' 
+                    : 'hover:border-muted-foreground/50'
               }`}
               onClick={() => onToggle(module.id)}
             >
@@ -55,9 +66,16 @@ export function ModuleSelector({ selected, onToggle }: ModuleSelectorProps) {
                 checked={isSelected}
                 onCheckedChange={() => onToggle(module.id)}
               />
-              <Icon className="h-5 w-5 text-muted-foreground" />
+              <Icon className={`h-5 w-5 ${module.highlight ? 'text-primary' : 'text-muted-foreground'}`} />
               <div className="flex-1">
-                <Label className="font-medium cursor-pointer">{module.label}</Label>
+                <div className="flex items-center gap-2">
+                  <Label className="font-medium cursor-pointer">{module.label}</Label>
+                  {module.highlight && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                      Recomendado
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">{module.description}</p>
               </div>
             </div>
