@@ -11,6 +11,7 @@ import type {
   NormalizedCoupon,
 } from '../types';
 
+// Shopify
 import {
   normalizeShopifyProduct,
   normalizeShopifyCustomer,
@@ -18,6 +19,7 @@ import {
   SHOPIFY_FIELD_MAPPING,
 } from './shopify';
 
+// Nuvemshop
 import {
   normalizeNuvemshopProduct,
   normalizeNuvemshopCategory,
@@ -25,6 +27,60 @@ import {
   normalizeNuvemshopOrder,
   NUVEMSHOP_FIELD_MAPPING,
 } from './nuvemshop';
+
+// Tray
+import {
+  normalizeTrayProduct,
+  normalizeTrayCategory,
+  normalizeTrayCustomer,
+  normalizeTrayOrder,
+  TRAY_FIELD_MAPPING,
+} from './tray';
+
+// WooCommerce
+import {
+  normalizeWooCommerceProduct,
+  normalizeWooCommerceCategory,
+  normalizeWooCommerceCustomer,
+  normalizeWooCommerceOrder,
+  WOOCOMMERCE_FIELD_MAPPING,
+} from './woocommerce';
+
+// Bagy
+import {
+  normalizeBagyProduct,
+  normalizeBagyCategory,
+  normalizeBagyCustomer,
+  normalizeBagyOrder,
+  BAGY_FIELD_MAPPING,
+} from './bagy';
+
+// Yampi
+import {
+  normalizeYampiProduct,
+  normalizeYampiCategory,
+  normalizeYampiCustomer,
+  normalizeYampiOrder,
+  YAMPI_FIELD_MAPPING,
+} from './yampi';
+
+// Loja Integrada
+import {
+  normalizeLojaIntegradaProduct,
+  normalizeLojaIntegradaCategory,
+  normalizeLojaIntegradaCustomer,
+  normalizeLojaIntegradaOrder,
+  LOJA_INTEGRADA_FIELD_MAPPING,
+} from './loja-integrada';
+
+// Wix
+import {
+  normalizeWixProduct,
+  normalizeWixCategory,
+  normalizeWixCustomer,
+  normalizeWixOrder,
+  WIX_FIELD_MAPPING,
+} from './wix';
 
 // Tipo do adaptador
 export interface PlatformAdapter {
@@ -55,6 +111,48 @@ const adapters: Partial<Record<PlatformType, PlatformAdapter>> = {
     normalizeCustomer: normalizeNuvemshopCustomer,
     normalizeOrder: normalizeNuvemshopOrder,
     fieldMapping: NUVEMSHOP_FIELD_MAPPING,
+  },
+  tray: {
+    normalizeProduct: normalizeTrayProduct,
+    normalizeCategory: normalizeTrayCategory,
+    normalizeCustomer: normalizeTrayCustomer,
+    normalizeOrder: normalizeTrayOrder,
+    fieldMapping: TRAY_FIELD_MAPPING,
+  },
+  woocommerce: {
+    normalizeProduct: normalizeWooCommerceProduct,
+    normalizeCategory: normalizeWooCommerceCategory,
+    normalizeCustomer: normalizeWooCommerceCustomer,
+    normalizeOrder: normalizeWooCommerceOrder,
+    fieldMapping: WOOCOMMERCE_FIELD_MAPPING,
+  },
+  bagy: {
+    normalizeProduct: normalizeBagyProduct,
+    normalizeCategory: normalizeBagyCategory,
+    normalizeCustomer: normalizeBagyCustomer,
+    normalizeOrder: normalizeBagyOrder,
+    fieldMapping: BAGY_FIELD_MAPPING,
+  },
+  yampi: {
+    normalizeProduct: normalizeYampiProduct,
+    normalizeCategory: normalizeYampiCategory,
+    normalizeCustomer: normalizeYampiCustomer,
+    normalizeOrder: normalizeYampiOrder,
+    fieldMapping: YAMPI_FIELD_MAPPING,
+  },
+  loja_integrada: {
+    normalizeProduct: normalizeLojaIntegradaProduct,
+    normalizeCategory: normalizeLojaIntegradaCategory,
+    normalizeCustomer: normalizeLojaIntegradaCustomer,
+    normalizeOrder: normalizeLojaIntegradaOrder,
+    fieldMapping: LOJA_INTEGRADA_FIELD_MAPPING,
+  },
+  wix: {
+    normalizeProduct: normalizeWixProduct,
+    normalizeCategory: normalizeWixCategory,
+    normalizeCustomer: normalizeWixCustomer,
+    normalizeOrder: normalizeWixOrder,
+    fieldMapping: WIX_FIELD_MAPPING,
   },
 };
 
@@ -127,18 +225,17 @@ export function getFieldMapping(
   return adapter.fieldMapping[type] || {};
 }
 
-// Obter todas as plataformas suportadas
+// Obter todas as plataformas suportadas (apenas as que têm adaptador implementado)
 export function getSupportedPlatforms(): { id: PlatformType; name: string; logo?: string }[] {
   return [
     { id: 'shopify', name: 'Shopify', logo: '🟢' },
     { id: 'nuvemshop', name: 'Nuvemshop / Tiendanube', logo: '☁️' },
     { id: 'tray', name: 'Tray', logo: '🔵' },
-    { id: 'vtex', name: 'VTEX', logo: '🔴' },
     { id: 'woocommerce', name: 'WooCommerce', logo: '🟣' },
+    { id: 'bagy', name: 'Bagy', logo: '🟡' },
+    { id: 'yampi', name: 'Yampi', logo: '🔶' },
     { id: 'loja_integrada', name: 'Loja Integrada', logo: '🟠' },
-    { id: 'magento', name: 'Magento / Adobe Commerce', logo: '🟤' },
-    { id: 'opencart', name: 'OpenCart', logo: '🔷' },
-    { id: 'prestashop', name: 'PrestaShop', logo: '💜' },
+    { id: 'wix', name: 'Wix', logo: '🔷' },
   ];
 }
 
@@ -185,3 +282,51 @@ export {
   normalizeNuvemshopOrder,
   NUVEMSHOP_FIELD_MAPPING,
 } from './nuvemshop';
+
+export {
+  normalizeTrayProduct,
+  normalizeTrayCategory,
+  normalizeTrayCustomer,
+  normalizeTrayOrder,
+  TRAY_FIELD_MAPPING,
+} from './tray';
+
+export {
+  normalizeWooCommerceProduct,
+  normalizeWooCommerceCategory,
+  normalizeWooCommerceCustomer,
+  normalizeWooCommerceOrder,
+  WOOCOMMERCE_FIELD_MAPPING,
+} from './woocommerce';
+
+export {
+  normalizeBagyProduct,
+  normalizeBagyCategory,
+  normalizeBagyCustomer,
+  normalizeBagyOrder,
+  BAGY_FIELD_MAPPING,
+} from './bagy';
+
+export {
+  normalizeYampiProduct,
+  normalizeYampiCategory,
+  normalizeYampiCustomer,
+  normalizeYampiOrder,
+  YAMPI_FIELD_MAPPING,
+} from './yampi';
+
+export {
+  normalizeLojaIntegradaProduct,
+  normalizeLojaIntegradaCategory,
+  normalizeLojaIntegradaCustomer,
+  normalizeLojaIntegradaOrder,
+  LOJA_INTEGRADA_FIELD_MAPPING,
+} from './loja-integrada';
+
+export {
+  normalizeWixProduct,
+  normalizeWixCategory,
+  normalizeWixCustomer,
+  normalizeWixOrder,
+  WIX_FIELD_MAPPING,
+} from './wix';
