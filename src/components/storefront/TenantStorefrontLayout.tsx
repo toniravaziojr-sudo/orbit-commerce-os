@@ -15,6 +15,7 @@ import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
 import { usePublicStorefront } from '@/hooks/useStorefront';
+import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 import { 
   isPlatformSubdomain, 
   extractTenantFromPlatformSubdomain,
@@ -187,6 +188,7 @@ export function TenantStorefrontLayout() {
       <DiscountProvider>
         <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
           <MarketingTrackerProvider tenantId={tenant.id}>
+            <StorefrontHead tenantId={tenant.id} />
             <Suspense fallback={null}>
               <DomainDisabledGuard tenantSlug={tenantSlug}>
                 <div className="min-h-screen flex flex-col bg-white">

@@ -7,7 +7,7 @@ import { DiscountProvider } from '@/contexts/DiscountContext';
 import { StorefrontConfigProvider } from '@/contexts/StorefrontConfigContext';
 import { MarketingTrackerProvider } from '@/components/storefront/MarketingTrackerProvider';
 import { useTenantCanonicalDomain } from '@/hooks/useTenantCanonicalDomain';
-
+import { StorefrontHead } from '@/components/storefront/StorefrontHead';
 /**
  * StorefrontLayout - Used for /store/:tenantSlug routes (legacy/app domain)
  * This layout is ONLY used when accessed via the app domain or fallback origin.
@@ -91,6 +91,7 @@ function StorefrontLayoutContent({
   return (
     <StorefrontConfigProvider tenantId={tenant.id} customDomain={customDomain}>
       <MarketingTrackerProvider tenantId={tenant.id}>
+        <StorefrontHead tenantId={tenant.id} />
         <Suspense fallback={null}>
           <DomainDisabledGuard tenantSlug={tenantSlug}>
             <div className="min-h-screen flex flex-col bg-white">
