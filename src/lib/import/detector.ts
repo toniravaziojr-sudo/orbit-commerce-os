@@ -58,14 +58,113 @@ const DETECTION_PATTERNS: Record<PlatformType, DetectionPattern> = {
     htmlPatterns: [
       /tray/i,
       /traycorp/i,
+      /tray-commerce/i,
     ],
     metaPatterns: [
       { name: 'generator', content: /tray/i },
     ],
     scriptPatterns: [
       /tray/i,
+      /tray\.com\.br/i,
     ],
-    features: ['tray'],
+    features: ['tray', 'carrinho'],
+  },
+  woocommerce: {
+    urlPatterns: [],
+    htmlPatterns: [
+      /woocommerce/i,
+      /wc-block/i,
+      /wp-content/i,
+      /wc-add-to-cart/i,
+    ],
+    metaPatterns: [
+      { name: 'generator', content: /woocommerce|wordpress/i },
+    ],
+    scriptPatterns: [
+      /woocommerce/i,
+      /wp-content/i,
+      /wc-cart/i,
+    ],
+    features: ['woocommerce', 'wp-json', 'cart'],
+  },
+  bagy: {
+    urlPatterns: [
+      /\.bagy\.com\.br/i,
+      /\.bfrota\.com\.br/i,
+    ],
+    htmlPatterns: [
+      /bagy/i,
+      /bfrota/i,
+      /bagy-store/i,
+    ],
+    metaPatterns: [
+      { name: 'generator', content: /bagy/i },
+    ],
+    scriptPatterns: [
+      /bagy/i,
+      /bagy\.com\.br/i,
+    ],
+    features: ['bagy', 'carrinho'],
+  },
+  yampi: {
+    urlPatterns: [
+      /\.yampi\.com\.br/i,
+      /\.yampi\.io/i,
+    ],
+    htmlPatterns: [
+      /yampi/i,
+      /yampi-checkout/i,
+      /data-yampi/i,
+    ],
+    metaPatterns: [
+      { name: 'generator', content: /yampi/i },
+    ],
+    scriptPatterns: [
+      /yampi/i,
+      /yampi\.com\.br/i,
+      /yampi\.io/i,
+    ],
+    features: ['yampi', 'checkout'],
+  },
+  loja_integrada: {
+    urlPatterns: [
+      /\.lojaintegrada\.com\.br/i,
+    ],
+    htmlPatterns: [
+      /lojaintegrada/i,
+      /loja.integrada/i,
+      /loja-integrada/i,
+    ],
+    metaPatterns: [
+      { name: 'generator', content: /loja.?integrada/i },
+    ],
+    scriptPatterns: [
+      /lojaintegrada/i,
+      /loja-integrada/i,
+    ],
+    features: ['lojaintegrada', 'carrinho'],
+  },
+  wix: {
+    urlPatterns: [
+      /\.wixsite\.com/i,
+      /\.wix\.com/i,
+      /wixstatic\.com/i,
+    ],
+    htmlPatterns: [
+      /wix/i,
+      /wixcode/i,
+      /wix-stores/i,
+      /wix-ecommerce/i,
+    ],
+    metaPatterns: [
+      { name: 'generator', content: /wix/i },
+    ],
+    scriptPatterns: [
+      /wix/i,
+      /wixstatic/i,
+      /parastorage\.com/i,
+    ],
+    features: ['wix', 'stores', 'cart'],
   },
   vtex: {
     urlPatterns: [
@@ -86,38 +185,6 @@ const DETECTION_PATTERNS: Record<PlatformType, DetectionPattern> = {
       /vteximg/i,
     ],
     features: ['vtex'],
-  },
-  woocommerce: {
-    urlPatterns: [],
-    htmlPatterns: [
-      /woocommerce/i,
-      /wc-block/i,
-      /wp-content/i,
-    ],
-    metaPatterns: [
-      { name: 'generator', content: /woocommerce|wordpress/i },
-    ],
-    scriptPatterns: [
-      /woocommerce/i,
-      /wp-content/i,
-    ],
-    features: ['woocommerce', 'wp-json'],
-  },
-  loja_integrada: {
-    urlPatterns: [
-      /\.lojaintegrada\.com\.br/i,
-    ],
-    htmlPatterns: [
-      /lojaintegrada/i,
-      /loja.integrada/i,
-    ],
-    metaPatterns: [
-      { name: 'generator', content: /loja.?integrada/i },
-    ],
-    scriptPatterns: [
-      /lojaintegrada/i,
-    ],
-    features: ['lojaintegrada'],
   },
   magento: {
     urlPatterns: [],

@@ -176,10 +176,10 @@ export function normalizeWixProduct(raw: WixProduct): NormalizedProduct {
   const discountedPrice = raw.price?.discountedPrice ?? 0;
   const price = discountedPrice > 0 ? discountedPrice : priceValue;
   const compareAtPrice = discountedPrice > 0 && priceValue > discountedPrice ? priceValue : null;
-  const costPrice = raw.costAndProfitData?.itemCost ?? (parseFloat(raw.cost || '0')) || null;
+  const costPrice = raw.costAndProfitData?.itemCost ?? (parseFloat(raw.cost || '0') || null);
   
   const sku = raw.sku || null;
-  const weight = raw.weight ?? (parseFloat(String(raw.weight) || '0')) || null;
+  const weight = typeof raw.weight === 'number' ? raw.weight : (parseFloat(String(raw.weight || '0')) || null);
   const stockQuantity = raw.inventory?.quantity ?? 0;
   
   const isVisible = raw.visible ?? true;
@@ -287,6 +287,9 @@ export function normalizeWixCollection(raw: WixCollection): NormalizedCategory {
     is_active: raw.visible !== false,
   };
 }
+
+// Alias para compatibilidade
+export const normalizeWixCategory = normalizeWixCollection;
 
 export function normalizeWixCustomer(raw: WixCustomer): NormalizedCustomer {
   const email = raw.email || raw['Email'] || '';

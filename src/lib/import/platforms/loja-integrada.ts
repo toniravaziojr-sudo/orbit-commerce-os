@@ -205,13 +205,13 @@ export function normalizeLojaIntegradaProduct(raw: LojaIntegradaProduct): Normal
   
   const price = raw.preco_venda ?? parseFloat(raw['Preço']?.replace(',', '.') || '0');
   const promotionalPrice = raw.preco_promocional ?? parseFloat(raw['Preço Promocional']?.replace(',', '.') || '0');
-  const costPrice = raw.preco_custo ?? parseFloat(raw['Preço de Custo']?.replace(',', '.') || '0') || null;
+  const costPrice = raw.preco_custo !== undefined ? raw.preco_custo : (parseFloat(raw['Preço de Custo']?.replace(',', '.') || '0') || null);
   
   const sku = raw.sku || raw['SKU'] || null;
-  const weight = raw.peso ?? parseFloat(raw['Peso']?.replace(',', '.') || '0') || null;
-  const width = raw.largura ?? parseFloat(raw['Largura']?.replace(',', '.') || '0') || null;
-  const height = raw.altura ?? parseFloat(raw['Altura']?.replace(',', '.') || '0') || null;
-  const depth = raw.profundidade ?? parseFloat(raw['Profundidade']?.replace(',', '.') || '0') || null;
+  const weight = raw.peso !== undefined ? raw.peso : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const width = raw.largura !== undefined ? raw.largura : (parseFloat(raw['Largura']?.replace(',', '.') || '0') || null);
+  const height = raw.altura !== undefined ? raw.altura : (parseFloat(raw['Altura']?.replace(',', '.') || '0') || null);
+  const depth = raw.profundidade !== undefined ? raw.profundidade : (parseFloat(raw['Profundidade']?.replace(',', '.') || '0') || null);
   const stockQuantity = raw.estoque ?? parseInt(raw['Estoque'] || '0', 10);
   
   const isActive = raw.ativo ?? raw['Ativo']?.toLowerCase() === 'sim';

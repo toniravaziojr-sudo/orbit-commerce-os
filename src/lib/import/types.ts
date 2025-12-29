@@ -228,6 +228,9 @@ export type PlatformType =
   | 'magento'
   | 'opencart'
   | 'prestashop'
+  | 'bagy'
+  | 'yampi'
+  | 'wix'
   | 'unknown';
 
 // Resultado da detecção de plataforma

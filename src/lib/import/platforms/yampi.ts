@@ -210,13 +210,13 @@ export function normalizeYampiProduct(raw: YampiProduct): NormalizedProduct {
   
   const price = raw.price ?? parseFloat(raw['Preço']?.replace(',', '.') || '0');
   const priceCompare = raw.price_compare ?? parseFloat(raw['Preço Comparativo']?.replace(',', '.') || '0');
-  const costPrice = raw.cost ?? parseFloat(raw['Custo']?.replace(',', '.') || '0') || null;
+  const costPrice = raw.cost !== undefined ? raw.cost : (parseFloat(raw['Custo']?.replace(',', '.') || '0') || null);
   
   const sku = raw.sku || raw['SKU'] || null;
-  const weight = raw.weight ?? parseFloat(raw['Peso']?.replace(',', '.') || '0') || null;
-  const width = raw.width ?? parseFloat(raw['Largura']?.replace(',', '.') || '0') || null;
-  const height = raw.height ?? parseFloat(raw['Altura']?.replace(',', '.') || '0') || null;
-  const depth = raw.depth ?? parseFloat(raw['Profundidade']?.replace(',', '.') || '0') || null;
+  const weight = raw.weight !== undefined ? raw.weight : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
+  const width = raw.width !== undefined ? raw.width : (parseFloat(raw['Largura']?.replace(',', '.') || '0') || null);
+  const height = raw.height !== undefined ? raw.height : (parseFloat(raw['Altura']?.replace(',', '.') || '0') || null);
+  const depth = raw.depth !== undefined ? raw.depth : (parseFloat(raw['Profundidade']?.replace(',', '.') || '0') || null);
   const stockQuantity = raw.quantity ?? parseInt(raw['Estoque'] || '0', 10);
   
   const isActive = raw.is_active ?? raw['Ativo']?.toLowerCase() === 'sim';
