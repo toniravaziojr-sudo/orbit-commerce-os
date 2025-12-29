@@ -8,7 +8,7 @@ import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getAdapter } from '@/lib/import/platforms';
-
+import { useAuth } from '@/hooks/useAuth';
 interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
@@ -87,7 +87,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const [scrapedData, setScrapedData] = useState<any>(null);
   const { createJob } = useImportJobs();
   const { importData } = useImportData();
-
+  const { currentTenant } = useAuth();
   const handleAnalyzeStore = useCallback(async () => {
     if (!storeUrl.trim()) return;
 
@@ -265,8 +265,12 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         importedCount = result?.results?.imported || data.length;
         
       } else if (step.importMethod === 'scrape' && scrapedData) {
-        // Extract from scraped data
+        if (!currentTenant?.id) {
+          throw new Error('Tenant não encontrado');
+        }
+
         if (stepId === 'categories') {
+          // Extract categories from links
           const links = scrapedData.links || [];
           const categoryLinks = links.filter((link: string) => 
             link.includes('/categoria') || 
@@ -274,12 +278,106 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             link.includes('/collections') ||
             link.includes('/c/')
           );
-          // TODO: Process and save categories from scraped links
-          importedCount = Math.max(categoryLinks.length, 1);
+          
+          // Extract category names from URLs
+          const categories = categoryLinks.map((link: string) => {
+            const url = new URL(link);
+            const pathParts = url.pathname.split('/').filter(Boolean);
+            const slug = pathParts[pathParts.length - 1] || '';
+            const name = slug
+              .replace(/-/g, ' ')
+              .replace(/_/g, ' ')
+              .split(' ')
+              .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(' ');
+            
+            return { name, slug };
+          }).filter((cat: any) => cat.name && cat.slug);
+
+          // Remove duplicates
+          const uniqueCategories = categories.filter((cat: any, index: number, self: any[]) =>
+            index === self.findIndex((c) => c.slug === cat.slug)
+          );
+
+          // Save categories to database
+          if (uniqueCategories.length > 0) {
+            for (const cat of uniqueCategories) {
+              const { error } = await supabase
+                .from('categories')
+                .upsert({
+                  tenant_id: currentTenant.id,
+                  name: cat.name,
+                  slug: cat.slug,
+                  is_active: true,
+                }, { onConflict: 'tenant_id,slug' });
+              
+              if (error && !error.message.includes('duplicate')) {
+                console.error('Error saving category:', error);
+              }
+            }
+          }
+          
+          importedCount = uniqueCategories.length;
+          
         } else if (stepId === 'visual') {
-          // TODO: Extract and save visual elements from branding data
+          // Extract visual elements from branding data
           const branding = scrapedData.branding;
-          importedCount = branding ? 1 : 0;
+          
+          if (branding) {
+            // Get current tenant settings first to preserve existing data
+            const { data: tenantData } = await supabase
+              .from('tenants')
+              .select('settings, logo_url')
+              .eq('id', currentTenant.id)
+              .single();
+            
+            const currentSettings = (tenantData?.settings as Record<string, any>) || {};
+            
+            const visualConfig = {
+              logo: branding.images?.logo || branding.logo || null,
+              favicon: branding.images?.favicon || null,
+              primaryColor: branding.colors?.primary || null,
+              secondaryColor: branding.colors?.secondary || null,
+              accentColor: branding.colors?.accent || null,
+              backgroundColor: branding.colors?.background || null,
+              textColor: branding.colors?.textPrimary || null,
+              fontFamily: branding.typography?.fontFamilies?.primary || branding.fonts?.[0]?.family || null,
+              headingFont: branding.typography?.fontFamilies?.heading || null,
+              colorScheme: branding.colorScheme || 'light',
+            };
+
+            // Merge with existing settings
+            const updatedSettings = {
+              ...currentSettings,
+              visual: visualConfig,
+              imported_from: storeUrl,
+              imported_at: new Date().toISOString(),
+            };
+
+            // Update tenant settings with visual config
+            const updateData: any = { settings: updatedSettings };
+            
+            // Also update logo_url if available
+            if (visualConfig.logo) {
+              updateData.logo_url = visualConfig.logo;
+            }
+
+            const { error } = await supabase
+              .from('tenants')
+              .update(updateData)
+              .eq('id', currentTenant.id);
+
+            if (error) {
+              console.error('Error saving visual config:', error);
+              throw new Error('Erro ao salvar configurações visuais');
+            }
+
+            importedCount = 1;
+          } else {
+            // Even without branding, mark as imported
+            importedCount = 0;
+            toast.info('Não foi possível extrair dados visuais da loja');
+          }
         }
       }
 
