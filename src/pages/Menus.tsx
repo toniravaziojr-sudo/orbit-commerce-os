@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useMenus, useMenuItems } from '@/hooks/useMenus';
+import { useState, useEffect } from 'react';
+import { useMenus, useMenuItems, MenuItem } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
 import { useLandingPages } from '@/hooks/useLandingPages';
@@ -12,8 +12,150 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, GripVertical, Menu as MenuIcon, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, GripVertical, Menu as MenuIcon, ChevronRight, ChevronDown, FolderOpen, FileText, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { supabase } from '@/integrations/supabase/client';
+import { cn } from '@/lib/utils';
+
+interface MenuItemWithChildren extends MenuItem {
+  children: MenuItemWithChildren[];
+}
+
+interface SortableMenuItemProps {
+  item: MenuItemWithChildren;
+  depth: number;
+  isExpanded: boolean;
+  onToggleExpand: (id: string) => void;
+  onEdit: (item: MenuItem) => void;
+  onDelete: (id: string) => void;
+  shiftPressed: boolean;
+  draggedOverId: string | null;
+}
+
+function SortableMenuItem({ 
+  item, 
+  depth, 
+  isExpanded, 
+  onToggleExpand, 
+  onEdit, 
+  onDelete,
+  shiftPressed,
+  draggedOverId,
+}: SortableMenuItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const isDropTarget = draggedOverId === item.id && shiftPressed;
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <div
+        className={cn(
+          "flex items-center gap-3 p-3 border rounded-lg bg-card transition-all",
+          isDragging && "opacity-50 ring-2 ring-primary",
+          isDropTarget && "ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20"
+        )}
+        style={{ marginLeft: depth * 24 }}
+      >
+        <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        
+        {item.children.length > 0 ? (
+          <button
+            onClick={() => onToggleExpand(item.id)}
+            className="p-1 hover:bg-muted rounded"
+          >
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+          </button>
+        ) : (
+          <div className="w-6" />
+        )}
+        
+        {item.children.length > 0 ? (
+          <FolderOpen className="h-4 w-4 text-primary" />
+        ) : (
+          <FileText className="h-4 w-4 text-muted-foreground" />
+        )}
+        
+        <div className="flex-1 min-w-0">
+          <p className="font-medium truncate">{item.label}</p>
+          <p className="text-sm text-muted-foreground truncate">
+            {item.item_type === 'category' && 'Categoria'}
+            {item.item_type === 'page' && 'Página'}
+            {item.item_type === 'external' && item.url}
+          </p>
+        </div>
+
+        {isDropTarget && (
+          <Badge className="bg-green-500 text-white text-xs shrink-0">
+            Mover para dentro
+          </Badge>
+        )}
+
+        <div className="flex items-center gap-1 shrink-0">
+          <Button variant="ghost" size="icon" onClick={() => onEdit(item)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => onDelete(item.id)}>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </Button>
+        </div>
+      </div>
+      
+      {/* Render children */}
+      {isExpanded && item.children.length > 0 && (
+        <div className="mt-2 space-y-2">
+          {item.children.map(child => (
+            <SortableMenuItem
+              key={child.id}
+              item={child}
+              depth={depth + 1}
+              isExpanded={false}
+              onToggleExpand={onToggleExpand}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              shiftPressed={shiftPressed}
+              draggedOverId={draggedOverId}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Menus() {
   const { menus, isLoading, createMenu } = useMenus();
@@ -21,7 +163,6 @@ export default function Menus() {
   const { pages } = useStorePages();
   const { landingPages } = useLandingPages();
   
-  // Combine institutional pages and landing pages that are available for menu
   const allPages = [
     ...(pages || []).map(p => ({ ...p, pageType: 'institutional' as const })),
     ...(landingPages || []).map(p => ({ ...p, pageType: 'landing_page' as const })),
@@ -31,16 +172,169 @@ export default function Menus() {
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [shiftPressed, setShiftPressed] = useState(false);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [draggedOverId, setDraggedOverId] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState({
     label: '',
     item_type: 'category' as 'category' | 'page' | 'external',
     ref_id: '',
     url: '',
+    parent_id: '' as string | null,
   });
 
   const { items, createItem, updateItem, deleteItem, reorderItems } = useMenuItems(selectedMenuId);
 
   const selectedMenu = menus?.find(m => m.id === selectedMenuId);
+
+  // Build hierarchical structure
+  const buildHierarchy = (flatItems: MenuItem[] | undefined): MenuItemWithChildren[] => {
+    if (!flatItems) return [];
+    
+    const itemMap = new Map<string, MenuItemWithChildren>();
+    const rootItems: MenuItemWithChildren[] = [];
+    
+    flatItems.forEach(item => {
+      itemMap.set(item.id, { ...item, children: [] });
+    });
+    
+    flatItems.forEach(item => {
+      const menuItem = itemMap.get(item.id)!;
+      if (item.parent_id && itemMap.has(item.parent_id)) {
+        itemMap.get(item.parent_id)!.children.push(menuItem);
+      } else {
+        rootItems.push(menuItem);
+      }
+    });
+    
+    rootItems.sort((a, b) => a.sort_order - b.sort_order);
+    rootItems.forEach(item => {
+      item.children.sort((a, b) => a.sort_order - b.sort_order);
+    });
+    
+    return rootItems;
+  };
+
+  const hierarchicalItems = buildHierarchy(items);
+  const allItemIds = items?.map(i => i.id) || [];
+
+  // Get root items only for sorting context
+  const rootItemIds = hierarchicalItems.map(i => i.id);
+
+  // Track shift key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftPressed(true);
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') setShiftPressed(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggedId(event.active.id as string);
+  };
+
+  const handleDragOver = (event: any) => {
+    const overId = event.over?.id as string | null;
+    setDraggedOverId(overId);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setDraggedId(null);
+    setDraggedOverId(null);
+    
+    if (!over || !items) return;
+    
+    const activeId = active.id as string;
+    const overId = over.id as string;
+    
+    if (activeId === overId) return;
+    
+    if (shiftPressed) {
+      // Move as child of target
+      await supabase
+        .from('menu_items')
+        .update({ parent_id: overId })
+        .eq('id', activeId);
+      
+      // Reorder children
+      const targetItem = items.find(i => i.id === overId);
+      const currentChildren = items.filter(i => i.parent_id === overId);
+      for (let i = 0; i < currentChildren.length; i++) {
+        await supabase
+          .from('menu_items')
+          .update({ sort_order: i })
+          .eq('id', currentChildren[i].id);
+      }
+      
+      // Add the new child at the end
+      await supabase
+        .from('menu_items')
+        .update({ sort_order: currentChildren.length })
+        .eq('id', activeId);
+      
+      reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+    } else {
+      // Reorder at same level
+      const activeItem = items.find(i => i.id === activeId);
+      const overItem = items.find(i => i.id === overId);
+      
+      if (activeItem && overItem) {
+        // Same parent level reorder
+        const siblings = items.filter(i => i.parent_id === overItem.parent_id);
+        const oldIndex = siblings.findIndex(i => i.id === activeId);
+        const newIndex = siblings.findIndex(i => i.id === overId);
+        
+        if (oldIndex !== -1) {
+          const reordered = arrayMove(siblings, oldIndex, newIndex);
+          const orderedIds = reordered.map(i => i.id);
+          
+          // Update sort orders
+          for (let i = 0; i < orderedIds.length; i++) {
+            await supabase
+              .from('menu_items')
+              .update({ sort_order: i, parent_id: overItem.parent_id })
+              .eq('id', orderedIds[i]);
+          }
+          
+          reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+        } else {
+          // Moving from different parent - put at same level as target
+          await supabase
+            .from('menu_items')
+            .update({ parent_id: overItem.parent_id })
+            .eq('id', activeId);
+          
+          reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+        }
+      }
+    }
+  };
+
+  const handleToggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const handleCreateMenu = async (location: 'header' | 'footer') => {
     await createMenu.mutateAsync({
@@ -50,7 +344,7 @@ export default function Menus() {
   };
 
   const resetItemForm = () => {
-    setItemForm({ label: '', item_type: 'category', ref_id: '', url: '' });
+    setItemForm({ label: '', item_type: 'category', ref_id: '', url: '', parent_id: null });
     setEditingItem(null);
   };
 
@@ -61,6 +355,7 @@ export default function Menus() {
       item_type: item.item_type,
       ref_id: item.ref_id || '',
       url: item.url || '',
+      parent_id: item.parent_id || null,
     });
     setIsItemDialogOpen(true);
   };
@@ -73,7 +368,7 @@ export default function Menus() {
       ref_id: itemForm.item_type !== 'external' ? itemForm.ref_id || null : null,
       url: itemForm.item_type === 'external' ? itemForm.url : null,
       sort_order: editingItem?.sort_order ?? (items?.length || 0),
-      parent_id: null,
+      parent_id: itemForm.parent_id || null,
     };
 
     if (editingItem) {
@@ -92,18 +387,11 @@ export default function Menus() {
     }
   };
 
-  const handleMoveItem = async (index: number, direction: 'up' | 'down') => {
-    if (!items) return;
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= items.length) return;
-
-    const newItems = [...items];
-    [newItems[index], newItems[newIndex]] = [newItems[newIndex], newItems[index]];
-    await reorderItems.mutateAsync(newItems.map(i => i.id));
-  };
-
   const headerMenu = menus?.find(m => m.location === 'header');
   const footerMenu = menus?.find(m => m.location === 'footer');
+
+  // Get parent options for dropdown
+  const parentOptions = items?.filter(i => !i.parent_id) || [];
 
   if (isLoading) {
     return (
@@ -208,49 +496,55 @@ export default function Menus() {
             </div>
           </CardHeader>
           <CardContent>
-            {items && items.length > 0 ? (
-              <div className="space-y-2">
-                {items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 p-3 border rounded-lg bg-card"
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <div className="flex-1">
-                      <p className="font-medium">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {item.item_type === 'category' && 'Categoria'}
-                        {item.item_type === 'page' && 'Página'}
-                        {item.item_type === 'external' && item.url}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleMoveItem(index, 'up')}
-                        disabled={index === 0}
-                      >
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleMoveItem(index, 'down')}
-                        disabled={index === items.length - 1}
-                      >
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => handleEditItem(item)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteItemId(item.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+            {/* Instructions */}
+            <div className="mb-4 p-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-start gap-2">
+                <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                <div className="text-sm text-muted-foreground">
+                  <p className="font-medium mb-1">Como organizar o menu:</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Arraste pelo ícone <GripVertical className="h-3 w-3 inline" /> para <strong>reordenar</strong> no mesmo nível</li>
+                    <li>Segure <kbd className="px-1.5 py-0.5 bg-background border rounded text-xs">Shift</kbd> enquanto solta para criar <strong>submenu</strong></li>
+                    <li>Ou selecione o "Item Pai" no formulário à direita ao editar</li>
+                  </ol>
+                </div>
               </div>
+            </div>
+
+            {/* Drag hint when shift is pressed */}
+            {shiftPressed && draggedId && (
+              <div className="mb-3 p-2 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
+                <ChevronRight className="h-4 w-4" />
+                <span>Solte sobre um item para transformá-lo em submenu</span>
+              </div>
+            )}
+
+            {hierarchicalItems.length > 0 ? (
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragStart={handleDragStart}
+                onDragOver={handleDragOver}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={allItemIds} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {hierarchicalItems.map(item => (
+                      <SortableMenuItem
+                        key={item.id}
+                        item={item}
+                        depth={0}
+                        isExpanded={expandedIds.has(item.id)}
+                        onToggleExpand={handleToggleExpand}
+                        onEdit={handleEditItem}
+                        onDelete={setDeleteItemId}
+                        shiftPressed={shiftPressed}
+                        draggedOverId={draggedOverId}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             ) : (
               <p className="text-center py-8 text-muted-foreground">
                 Nenhum item adicionado. Clique em "Adicionar Item" para começar.
@@ -291,6 +585,25 @@ export default function Menus() {
               />
             </div>
 
+            <div>
+              <Label>Item Pai (opcional)</Label>
+              <Select 
+                value={itemForm.parent_id || '_none'} 
+                onValueChange={(v) => setItemForm({ ...itemForm, parent_id: v === '_none' ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Nenhum (item raiz)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Nenhum (item raiz)</SelectItem>
+                  {parentOptions.filter(p => p.id !== editingItem?.id).map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Selecione um item pai para criar submenu
+              </p>
+            </div>
+
             {itemForm.item_type === 'category' && (
               <div>
                 <Label>Categoria</Label>
@@ -311,7 +624,6 @@ export default function Menus() {
                 <Select value={itemForm.ref_id} onValueChange={(v) => {
                   const page = allPages.find(p => p.id === v);
                   if (page) {
-                    // Auto-fill label with menu_label or title
                     const suggestedLabel = page.menu_label || page.title;
                     setItemForm({ ...itemForm, ref_id: v, label: itemForm.label || suggestedLabel });
                   } else {

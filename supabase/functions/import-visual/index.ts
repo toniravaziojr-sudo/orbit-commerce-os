@@ -511,39 +511,55 @@ function extractMenuItems(html: string, baseUrl: string, platform?: string): Ext
       const internalUrl = convertToInternalUrl(href);
       const itemType = getItemType(href);
       
-      // Check for submenu/dropdown
+      // Check for submenu/dropdown - multiple patterns to catch different e-commerce platforms
       const children: ExtractedMenuItem[] = [];
       const submenuPatterns = [
-        /<ul[^>]*class="[^"]*(?:submenu|dropdown|sub-menu|child)[^"]*"[^>]*>([\s\S]*?)<\/ul>/i,
-        /<div[^>]*class="[^"]*(?:dropdown|megamenu|sub-menu)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        // Shopify, Nuvemshop, WooCommerce patterns
+        /<ul[^>]*class="[^"]*(?:submenu|dropdown|sub-menu|child|dropdown-menu|mega-menu|level1|sub-nav|submenu-list)[^"]*"[^>]*>([\s\S]*?)<\/ul>/i,
+        /<div[^>]*class="[^"]*(?:dropdown|megamenu|sub-menu|dropdown-content|mega-content|submenu-container|nav-dropdown)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+        // Nested UL directly within LI (common pattern)
+        /<li[^>]*>\s*<a[^>]*>.*?<\/a>\s*<ul[^>]*>([\s\S]*?)<\/ul>/i,
+        // Any nested UL that's not the main menu
+        /(?:<\/a>\s*)<ul[^>]*(?!class="[^"]*(?:main|primary|header)[^"]*")>([\s\S]*?)<\/ul>/i,
       ];
       
       for (const subPattern of submenuPatterns) {
         const submenuMatch = subPattern.exec(liContent);
         if (submenuMatch) {
           const submenuHtml = submenuMatch[1];
-          const subLinkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*?)<\/a>/gi;
-          let subMatch;
           
-          while ((subMatch = subLinkPattern.exec(submenuHtml)) !== null) {
-            const [, subHref, subRawLabel] = subMatch;
-            const subLabel = subRawLabel.replace(/<[^>]*>/g, '').trim();
+          // Try to match links - handle both simple <a> and <a> inside <li>
+          const subLinkPatterns = [
+            /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*?)<\/a>/gi,
+            /<li[^>]*>\s*<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*?)<\/a>/gi,
+          ];
+          
+          for (const subLinkPattern of subLinkPatterns) {
+            let subMatch;
             
-            if (!subLabel || subLabel.length < 2) continue;
-            if (skipPatterns.some(p => subHref.toLowerCase().includes(p))) continue;
-            
-            const subNormalizedUrl = subHref.startsWith('http') ? subHref : `${baseUrl}${subHref.startsWith('/') ? '' : '/'}${subHref}`;
-            const subInternalUrl = convertToInternalUrl(subHref);
-            const subItemType = getItemType(subHref);
-            
-            children.push({
-              label: subLabel,
-              url: subNormalizedUrl,
-              internalUrl: subInternalUrl,
-              type: subItemType,
-            });
+            while ((subMatch = subLinkPattern.exec(submenuHtml)) !== null) {
+              const [, subHref, subRawLabel] = subMatch;
+              const subLabel = subRawLabel.replace(/<[^>]*>/g, '').trim();
+              
+              if (!subLabel || subLabel.length < 2) continue;
+              if (skipPatterns.some(p => subHref.toLowerCase().includes(p))) continue;
+              // Avoid duplicate children by checking existing children
+              if (children.some(c => c.label.toLowerCase() === subLabel.toLowerCase())) continue;
+              
+              const subNormalizedUrl = subHref.startsWith('http') ? subHref : `${baseUrl}${subHref.startsWith('/') ? '' : '/'}${subHref}`;
+              const subInternalUrl = convertToInternalUrl(subHref);
+              const subItemType = getItemType(subHref);
+              
+              children.push({
+                label: subLabel,
+                url: subNormalizedUrl,
+                internalUrl: subInternalUrl,
+                type: subItemType,
+              });
+            }
           }
-          break;
+          
+          if (children.length > 0) break;
         }
       }
       
