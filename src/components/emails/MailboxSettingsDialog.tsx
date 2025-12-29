@@ -226,31 +226,61 @@ export function MailboxSettingsDialog({ mailbox, open, onOpenChange }: MailboxSe
               </Badge>
             </div>
 
-            <div className="rounded-lg border p-4 space-y-4">
-              <h5 className="font-medium text-sm">Registros DNS Necessários</h5>
-              
-              <div className="space-y-3">
-                <DnsRecordRow
-                  type="MX"
-                  name={`@ (${mailbox.domain})`}
-                  value="mx.sendgrid.net"
-                  priority="10"
-                  onCopy={() => copyToClipboard('mx.sendgrid.net')}
-                />
-                
-                <DnsRecordRow
-                  type="TXT"
-                  name={mailbox.domain}
-                  value="v=spf1 include:sendgrid.net ~all"
-                  onCopy={() => copyToClipboard('v=spf1 include:sendgrid.net ~all')}
-                />
+            {mailbox.dns_verified ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:bg-green-900/20 dark:border-green-800">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <h5 className="font-medium text-green-800 dark:text-green-300">Domínio Configurado</h5>
+                    <p className="text-sm text-green-700 dark:text-green-400 mt-1">
+                      O domínio <strong>{mailbox.domain}</strong> está verificado e pronto para receber emails.
+                      Esta verificação é herdada da configuração principal do domínio.
+                    </p>
+                  </div>
+                </div>
               </div>
+            ) : (
+              <>
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 dark:bg-yellow-900/20 dark:border-yellow-800">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-yellow-800 dark:text-yellow-300">Verificação Pendente</h5>
+                      <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+                        Se você já configurou o domínio na aba "Configurações" de Emails, clique em "Verificar DNS" 
+                        para herdar a verificação. Caso contrário, configure os registros abaixo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-              <p className="text-xs text-muted-foreground">
-                Configure estes registros no seu provedor de DNS (Cloudflare, Route53, etc.)
-                com a opção "Somente DNS" (sem proxy).
-              </p>
-            </div>
+                <div className="rounded-lg border p-4 space-y-4">
+                  <h5 className="font-medium text-sm">Registros DNS Necessários (para recebimento)</h5>
+                  
+                  <div className="space-y-3">
+                    <DnsRecordRow
+                      type="MX"
+                      name={`@ (${mailbox.domain})`}
+                      value="mx.sendgrid.net"
+                      priority="10"
+                      onCopy={() => copyToClipboard('mx.sendgrid.net')}
+                    />
+                    
+                    <DnsRecordRow
+                      type="TXT"
+                      name={mailbox.domain}
+                      value="v=spf1 include:sendgrid.net ~all"
+                      onCopy={() => copyToClipboard('v=spf1 include:sendgrid.net ~all')}
+                    />
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Configure estes registros no seu provedor de DNS (Cloudflare, Route53, etc.)
+                    com a opção "Somente DNS" (sem proxy).
+                  </p>
+                </div>
+              </>
+            )}
 
             <Button 
               onClick={handleVerifyDns} 
