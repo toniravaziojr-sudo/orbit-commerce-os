@@ -141,16 +141,60 @@ export function useEmailActions() {
 
   const markAsRead = useMutation({
     mutationFn: async ({ messageId, isRead }: { messageId: string; isRead: boolean }) => {
+      // First get the message to find mailbox_id and folder_id
+      const { data: message, error: fetchError } = await supabase
+        .from('email_messages')
+        .select('mailbox_id, folder_id, is_read')
+        .eq('id', messageId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      // Only update if state is actually changing
+      if (message.is_read === isRead) return;
+
+      // Update the message
       const { error } = await supabase
         .from('email_messages')
         .update({ is_read: isRead })
         .eq('id', messageId);
 
       if (error) throw error;
+
+      // Update unread count on folder (decrement if marking as read, increment if marking as unread)
+      const delta = isRead ? -1 : 1;
+      
+      const { data: folder } = await supabase
+        .from('email_folders')
+        .select('unread_count')
+        .eq('id', message.folder_id)
+        .single();
+      
+      if (folder) {
+        await supabase
+          .from('email_folders')
+          .update({ unread_count: Math.max(0, (folder.unread_count || 0) + delta) })
+          .eq('id', message.folder_id);
+      }
+
+      // Update unread count on mailbox
+      const { data: mailbox } = await supabase
+        .from('mailboxes')
+        .select('unread_count')
+        .eq('id', message.mailbox_id)
+        .single();
+      
+      if (mailbox) {
+        await supabase
+          .from('mailboxes')
+          .update({ unread_count: Math.max(0, (mailbox.unread_count || 0) + delta) })
+          .eq('id', message.mailbox_id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['email-messages'] });
       queryClient.invalidateQueries({ queryKey: ['mailboxes'] });
+      queryClient.invalidateQueries({ queryKey: ['email-folders'] });
     },
   });
 
