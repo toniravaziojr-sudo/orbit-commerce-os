@@ -105,10 +105,38 @@ interface StepStatus {
 
 const IMPORT_STEPS: ImportStepConfig[] = [
   {
+    id: 'categories',
+    title: 'Categorias',
+    description: 'Extrair categorias com banners automaticamente do site',
+    icon: <FolderTree className="h-5 w-5" />,
+    required: true,
+    canSkip: false,
+    importMethod: 'scrape',
+  },
+  {
+    id: 'menu',
+    title: 'Menu',
+    description: 'Extrair menu de navegação e vincular às categorias importadas',
+    icon: <Menu className="h-5 w-5" />,
+    requiresPrevious: ['categories'],
+    canSkip: true,
+    importMethod: 'scrape',
+  },
+  {
+    id: 'visual',
+    title: 'Visual da Loja',
+    description: 'Extrair banners, logos, cores e identidade visual automaticamente',
+    icon: <Palette className="h-5 w-5" />,
+    requiresPrevious: ['categories'],
+    canSkip: false,
+    importMethod: 'scrape',
+  },
+  {
     id: 'products',
     title: 'Produtos',
-    description: 'Importar produtos, variantes e imagens via arquivo JSON ou CSV',
+    description: 'Importar produtos e vincular às categorias importadas via arquivo JSON ou CSV',
     icon: <Package className="h-5 w-5" />,
+    requiresPrevious: ['categories'],
     canSkip: true,
     importMethod: 'file',
   },
@@ -127,33 +155,6 @@ const IMPORT_STEPS: ImportStepConfig[] = [
     icon: <ShoppingCart className="h-5 w-5" />,
     canSkip: true,
     importMethod: 'file',
-  },
-  {
-    id: 'categories',
-    title: 'Categorias',
-    description: 'Extrair categorias com banners automaticamente do site',
-    icon: <FolderTree className="h-5 w-5" />,
-    required: true,
-    canSkip: false,
-    importMethod: 'scrape',
-  },
-  {
-    id: 'menu',
-    title: 'Menu',
-    description: 'Extrair menu de navegação do site',
-    icon: <Menu className="h-5 w-5" />,
-    requiresPrevious: ['categories'],
-    canSkip: true,
-    importMethod: 'scrape',
-  },
-  {
-    id: 'visual',
-    title: 'Visual da Loja',
-    description: 'Extrair banners, logos, cores e identidade visual automaticamente',
-    icon: <Palette className="h-5 w-5" />,
-    requiresPrevious: ['categories'],
-    canSkip: false,
-    importMethod: 'scrape',
   },
 ];
 
@@ -548,9 +549,43 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
         } else if (stepId === 'menu') {
           // Create menu from extracted items with hierarchy
+          // Link menu items to imported categories when possible
           const menuItems = visualData?.menuItems || [];
           
           if (menuItems.length > 0) {
+            // Fetch imported categories to link menu items
+            const { data: importedCategories } = await supabase
+              .from('categories')
+              .select('id, slug, name')
+              .eq('tenant_id', currentTenant.id);
+            
+            const categoryMap = new Map<string, { id: string; slug: string }>();
+            (importedCategories || []).forEach(cat => {
+              categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
+              categoryMap.set(cat.name.toLowerCase(), { id: cat.id, slug: cat.slug });
+            });
+            
+            // Helper to find category match from URL or label
+            const findCategoryMatch = (url: string, label: string) => {
+              // Try to extract slug from internal URL
+              const internalMatch = url.match(/\/categoria\/([^/?#]+)/i) || url.match(/\/c\/([^/?#]+)/i);
+              if (internalMatch) {
+                const slug = internalMatch[1].toLowerCase();
+                if (categoryMap.has(slug)) {
+                  return categoryMap.get(slug);
+                }
+              }
+              // Try to match by label
+              const labelLower = label.toLowerCase().replace(/\s+/g, '-');
+              if (categoryMap.has(labelLower)) {
+                return categoryMap.get(labelLower);
+              }
+              if (categoryMap.has(label.toLowerCase())) {
+                return categoryMap.get(label.toLowerCase());
+              }
+              return null;
+            };
+            
             // Create header menu
             const { data: menuData, error: menuError } = await supabase
               .from('menus')
@@ -573,11 +608,17 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                 .delete()
                 .eq('menu_id', menuData.id);
 
-              // Insert menu items with hierarchy
+              // Insert menu items with hierarchy and category links
               let sortOrder = 0;
               for (const item of menuItems) {
-                // Use internal URL if available, otherwise use original URL
-                const itemUrl = item.internalUrl || item.url;
+                const categoryMatch = findCategoryMatch(item.internalUrl || item.url, item.label);
+                
+                // Determine item type and URL based on category match
+                const itemType = categoryMatch ? 'category' : (item.type || 'link');
+                const itemUrl = categoryMatch 
+                  ? `/categoria/${categoryMatch.slug}` 
+                  : (item.internalUrl || item.url);
+                const refId = categoryMatch?.id || null;
                 
                 // Insert parent item
                 const { data: parentItem, error: parentError } = await supabase
@@ -587,7 +628,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                     menu_id: menuData.id,
                     label: item.label,
                     url: itemUrl,
-                    item_type: item.type || 'link',
+                    item_type: itemType,
+                    ref_id: refId,
                     sort_order: sortOrder++,
                   })
                   .select('id')
@@ -602,7 +644,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                 if (item.children && item.children.length > 0 && parentItem) {
                   for (let i = 0; i < item.children.length; i++) {
                     const child = item.children[i];
-                    const childUrl = child.internalUrl || child.url;
+                    const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url, child.label);
+                    
+                    const childItemType = childCategoryMatch ? 'category' : (child.type || 'link');
+                    const childUrl = childCategoryMatch 
+                      ? `/categoria/${childCategoryMatch.slug}` 
+                      : (child.internalUrl || child.url);
+                    const childRefId = childCategoryMatch?.id || null;
                     
                     await supabase
                       .from('menu_items')
@@ -611,7 +659,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                         menu_id: menuData.id,
                         label: child.label,
                         url: childUrl,
-                        item_type: child.type || 'link',
+                        item_type: childItemType,
+                        ref_id: childRefId,
                         parent_id: parentItem.id,
                         sort_order: i,
                       });
