@@ -481,93 +481,323 @@ function extractBaseUrl(url: string, html: string): string {
   return '';
 }
 
+// =============================================
+// BANNER EXTRACTION WITH DESKTOP/MOBILE PAIRING
+// Key principle: 1 logical slide = 1 banner with desktop + mobile variants
+// =============================================
+
+interface BannerCandidate {
+  src: string;
+  alt?: string;
+  linkUrl?: string;
+  variant: 'desktop' | 'mobile' | 'unknown';
+  pairKey: string; // Used to match desktop/mobile versions
+  slideIndex: number;
+  context: string; // Which section/slide container it came from
+}
+
 function extractHeroBanners(html: string, baseUrl: string, platform?: string): ExtractedBanner[] {
-  const banners: ExtractedBanner[] = [];
-  const addedUrls = new Set<string>();
+  console.log('Starting banner extraction with desktop/mobile pairing...');
   
-  // Shopify-specific patterns
-  if (platform?.toLowerCase() === 'shopify') {
-    // Slideshow sections
-    const slideshowPattern = /<div[^>]*class="[^"]*slideshow[^"]*"[^>]*>([\s\S]*?)<\/section>/gi;
-    let slideshowMatch;
-    while ((slideshowMatch = slideshowPattern.exec(html)) !== null) {
-      const slideshowHtml = slideshowMatch[1];
-      extractBannersFromSection(slideshowHtml, baseUrl, banners, addedUrls);
+  const candidates: BannerCandidate[] = [];
+  let slideIndex = 0;
+  
+  // STRATEGY 1: Find slides/sections in carousels and extract pairs
+  const slideContainerPatterns = [
+    // Shopify slideshow slides
+    /<(?:div|li)[^>]*class="[^"]*(?:slideshow__slide|slide[^"]*|swiper-slide|carousel-item|banner-slide)[^"]*"[^>]*>([\s\S]*?)<\/(?:div|li)>/gi,
+    // Generic slide patterns
+    /<(?:div|li)[^>]*(?:data-slide|data-index|data-swiper-slide)[^>]*>([\s\S]*?)<\/(?:div|li)>/gi,
+  ];
+  
+  for (const pattern of slideContainerPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const slideHtml = match[1];
+      const slideContext = `slide-${slideIndex}`;
+      
+      // Extract all images from this slide
+      extractImagesFromSlide(slideHtml, baseUrl, candidates, slideIndex, slideContext);
+      slideIndex++;
     }
   }
-
-  // Look for picture elements first (best source for responsive images)
+  
+  // STRATEGY 2: Look for <picture> elements with responsive sources
   const picturePattern = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
   let pictureMatch;
   while ((pictureMatch = picturePattern.exec(html)) !== null) {
+    if (!isInBannerContext(html, pictureMatch.index)) continue;
+    
     const pictureHtml = pictureMatch[0];
-    const sources: { media?: string; src: string }[] = [];
+    const context = `picture-${slideIndex}`;
     
-    // Extract sources
-    const sourcePattern = /<source[^>]*srcset=["']([^"'\s]+)[^"']*["'][^>]*(?:media=["']([^"']+)["'])?[^>]*>/gi;
-    let sourceMatch;
-    while ((sourceMatch = sourcePattern.exec(pictureHtml)) !== null) {
-      sources.push({ src: sourceMatch[1], media: sourceMatch[2] });
-    }
-    
-    // Extract img fallback
+    // Desktop image (usually the main <img> or largest source)
     const imgMatch = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?/i.exec(pictureHtml);
-    const imgSrc = imgMatch?.[1] || '';
-    const altText = imgMatch?.[2] || '';
-    
-    if (imgSrc && isLikelyBannerImage(imgSrc) && isInBannerContext(html, pictureMatch.index)) {
-      const desktopSrc = normalizeImageUrl(imgSrc, baseUrl);
-      if (!addedUrls.has(desktopSrc)) {
-        const mobileSrc = sources.find(s => s.media?.includes('max-width'))?.src;
-        banners.push({
-          imageDesktop: desktopSrc,
-          imageMobile: mobileSrc ? normalizeImageUrl(mobileSrc, baseUrl) : undefined,
-          altText,
+    if (imgMatch && isLikelyBannerImage(imgMatch[1])) {
+      const linkMatch = getLinkFromContext(html, pictureMatch.index);
+      const pairKey = generatePairKey(imgMatch[2] || '', linkMatch || '', slideIndex);
+      
+      candidates.push({
+        src: normalizeImageUrl(imgMatch[1], baseUrl),
+        alt: imgMatch[2],
+        linkUrl: linkMatch ? normalizeUrl(linkMatch, baseUrl) : undefined,
+        variant: 'desktop',
+        pairKey,
+        slideIndex,
+        context,
+      });
+      
+      // Mobile source (look for media with max-width)
+      const mobileSourcePattern = /<source[^>]*media=["'][^"']*max-width[^"']*["'][^>]*srcset=["']([^"'\s]+)/gi;
+      const mobileMatch = mobileSourcePattern.exec(pictureHtml);
+      if (mobileMatch) {
+        candidates.push({
+          src: normalizeImageUrl(mobileMatch[1], baseUrl),
+          alt: imgMatch[2],
+          linkUrl: linkMatch ? normalizeUrl(linkMatch, baseUrl) : undefined,
+          variant: 'mobile',
+          pairKey,
+          slideIndex,
+          context,
         });
-        addedUrls.add(desktopSrc);
+      }
+    }
+    slideIndex++;
+  }
+  
+  // STRATEGY 3: Look for mobile/desktop specific classes or attributes
+  if (candidates.length === 0) {
+    const imgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+    let imgMatch;
+    while ((imgMatch = imgPattern.exec(html)) !== null) {
+      const fullMatch = imgMatch[0];
+      const src = imgMatch[1];
+      
+      if (!isLikelyBannerImage(src) || !isInBannerContext(html, imgMatch.index)) continue;
+      
+      const altMatch = /alt=["']([^"']*)["']/i.exec(fullMatch);
+      const alt = altMatch?.[1] || '';
+      const linkUrl = getLinkFromContext(html, imgMatch.index);
+      
+      // Detect variant from class/attributes
+      const variant = detectImageVariant(fullMatch, src);
+      const pairKey = generatePairKey(alt, linkUrl || '', slideIndex);
+      
+      candidates.push({
+        src: normalizeImageUrl(src, baseUrl),
+        alt,
+        linkUrl: linkUrl ? normalizeUrl(linkUrl, baseUrl) : undefined,
+        variant,
+        pairKey,
+        slideIndex,
+        context: `img-${slideIndex}`,
+      });
+      
+      // Only increment slideIndex for unknown variants (to pair them later)
+      if (variant === 'unknown') slideIndex++;
+    }
+  }
+  
+  console.log(`Found ${candidates.length} banner candidates`);
+  
+  // PAIR desktop and mobile versions
+  const pairedBanners = pairBannerCandidates(candidates);
+  
+  console.log(`Created ${pairedBanners.length} paired banners`);
+  
+  return pairedBanners.slice(0, 10);
+}
+
+function extractImagesFromSlide(
+  slideHtml: string, 
+  baseUrl: string, 
+  candidates: BannerCandidate[], 
+  slideIndex: number,
+  context: string
+) {
+  // Look for desktop/mobile image pairs within the same slide
+  const imgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  
+  while ((match = imgPattern.exec(slideHtml)) !== null) {
+    const fullMatch = match[0];
+    const src = match[1];
+    
+    if (!isLikelyBannerImage(src)) continue;
+    
+    const altMatch = /alt=["']([^"']*)["']/i.exec(fullMatch);
+    const alt = altMatch?.[1] || '';
+    
+    // Try to find link wrapping this image
+    const linkMatch = /<a[^>]*href=["']([^"']+)["'][^>]*>[\s\S]*?<img[^>]*src=["']/.exec(slideHtml);
+    const linkUrl = linkMatch?.[1];
+    
+    const variant = detectImageVariant(fullMatch, src);
+    const pairKey = generatePairKey(alt, linkUrl || '', slideIndex);
+    
+    candidates.push({
+      src: normalizeImageUrl(src, baseUrl),
+      alt,
+      linkUrl: linkUrl ? normalizeUrl(linkUrl, baseUrl) : undefined,
+      variant,
+      pairKey,
+      slideIndex,
+      context,
+    });
+  }
+}
+
+function detectImageVariant(imgTag: string, src: string): 'desktop' | 'mobile' | 'unknown' {
+  const mobilePatterns = [
+    /class="[^"]*(?:mobile|sm:|md:|small|hidden-desktop|visible-mobile|--mobile|_mobile)[^"]*"/i,
+    /data-(?:mobile|small)-src/i,
+    /srcset="[^"]*\s(?:3[0-9]{2}|4[0-9]{2}|5[0-9]{2}|6[0-9]{2})w/i, // 300-699w
+    /_mobile\./i,
+    /-mobile\./i,
+    /_sm\./i,
+    /-sm\./i,
+  ];
+  
+  const desktopPatterns = [
+    /class="[^"]*(?:desktop|lg:|xl:|large|hidden-mobile|visible-desktop|--desktop|_desktop)[^"]*"/i,
+    /data-(?:desktop|large)-src/i,
+    /srcset="[^"]*\s(?:1[2-9][0-9]{2}|[2-9][0-9]{3})w/i, // 1200w+
+    /_desktop\./i,
+    /-desktop\./i,
+    /_lg\./i,
+    /-lg\./i,
+  ];
+  
+  for (const pattern of mobilePatterns) {
+    if (pattern.test(imgTag) || pattern.test(src)) return 'mobile';
+  }
+  
+  for (const pattern of desktopPatterns) {
+    if (pattern.test(imgTag) || pattern.test(src)) return 'desktop';
+  }
+  
+  return 'unknown';
+}
+
+function generatePairKey(alt: string, linkUrl: string, slideIndex: number): string {
+  // Use combination of alt text, link URL, and slide index to pair images
+  const cleanAlt = alt.toLowerCase().replace(/\s+/g, '-').substring(0, 30);
+  const cleanLink = linkUrl.replace(/https?:\/\/[^/]+/, '').substring(0, 50);
+  return `${slideIndex}-${cleanAlt}-${cleanLink}`;
+}
+
+function getLinkFromContext(html: string, imgIndex: number): string | null {
+  // Look backwards from the image position to find a wrapping <a> tag
+  const contextStart = Math.max(0, imgIndex - 500);
+  const contextHtml = html.substring(contextStart, imgIndex + 200);
+  
+  // Find the closest <a> that wraps this image
+  const linkMatch = /<a[^>]*href=["']([^"']+)["'][^>]*>[^<]*$/i.exec(contextHtml.substring(0, imgIndex - contextStart));
+  return linkMatch?.[1] || null;
+}
+
+function pairBannerCandidates(candidates: BannerCandidate[]): ExtractedBanner[] {
+  const banners: ExtractedBanner[] = [];
+  const processed = new Set<number>();
+  
+  // Group by slideIndex first (strongest pairing signal)
+  const bySlide = new Map<number, BannerCandidate[]>();
+  for (const candidate of candidates) {
+    const existing = bySlide.get(candidate.slideIndex) || [];
+    existing.push(candidate);
+    bySlide.set(candidate.slideIndex, existing);
+  }
+  
+  for (const [slideIdx, slideCandidates] of bySlide) {
+    if (slideCandidates.length === 0) continue;
+    
+    // If we have exactly 2 images in the same slide, likely desktop/mobile pair
+    if (slideCandidates.length === 2) {
+      const [first, second] = slideCandidates;
+      
+      // Determine which is desktop and which is mobile
+      let desktop: BannerCandidate;
+      let mobile: BannerCandidate | undefined;
+      
+      if (first.variant === 'desktop' && second.variant === 'mobile') {
+        desktop = first;
+        mobile = second;
+      } else if (first.variant === 'mobile' && second.variant === 'desktop') {
+        desktop = second;
+        mobile = first;
+      } else {
+        // Both unknown - use URL heuristics (larger dimension hints = desktop)
+        desktop = first;
+        mobile = second;
+      }
+      
+      banners.push({
+        imageDesktop: desktop.src,
+        imageMobile: mobile?.src,
+        linkUrl: desktop.linkUrl || mobile?.linkUrl,
+        altText: desktop.alt || mobile?.alt,
+      });
+      
+      processed.add(candidates.indexOf(first));
+      processed.add(candidates.indexOf(second));
+    }
+    // If we have just 1 image, use it (with same image for both variants if needed)
+    else if (slideCandidates.length === 1) {
+      const single = slideCandidates[0];
+      banners.push({
+        imageDesktop: single.src,
+        imageMobile: undefined, // Will use desktop as fallback
+        linkUrl: single.linkUrl,
+        altText: single.alt,
+      });
+      processed.add(candidates.indexOf(single));
+    }
+    // If more than 2, try to pair by variant
+    else {
+      const desktops = slideCandidates.filter(c => c.variant === 'desktop');
+      const mobiles = slideCandidates.filter(c => c.variant === 'mobile');
+      const unknowns = slideCandidates.filter(c => c.variant === 'unknown');
+      
+      // Pair desktops with mobiles
+      const maxPairs = Math.max(desktops.length, mobiles.length, Math.ceil(unknowns.length / 2));
+      for (let i = 0; i < maxPairs; i++) {
+        const desktop = desktops[i] || unknowns[i * 2];
+        const mobile = mobiles[i] || unknowns[i * 2 + 1];
+        
+        if (desktop) {
+          banners.push({
+            imageDesktop: desktop.src,
+            imageMobile: mobile?.src,
+            linkUrl: desktop.linkUrl || mobile?.linkUrl,
+            altText: desktop.alt || mobile?.alt,
+          });
+          if (desktop) processed.add(candidates.indexOf(desktop));
+          if (mobile) processed.add(candidates.indexOf(mobile));
+        }
       }
     }
   }
-
-  // Look for linked images (banners with links)
-  const linkImagePattern = /<a[^>]*href=["']([^"']+)["'][^>]*>\s*<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>\s*<\/a>/gi;
-  let linkMatch;
-  while ((linkMatch = linkImagePattern.exec(html)) !== null) {
-    const [, linkUrl, imageSrc, altText] = linkMatch;
-    
-    if (isLikelyBannerImage(imageSrc) && isInBannerContext(html, linkMatch.index)) {
-      const normalizedSrc = normalizeImageUrl(imageSrc, baseUrl);
-      if (!addedUrls.has(normalizedSrc)) {
-        banners.push({
-          imageDesktop: normalizedSrc,
-          linkUrl: normalizeUrl(linkUrl, baseUrl),
-          altText: altText || '',
-        });
-        addedUrls.add(normalizedSrc);
-      }
+  
+  // Add any remaining unprocessed candidates as individual banners
+  for (let i = 0; i < candidates.length; i++) {
+    if (!processed.has(i)) {
+      const candidate = candidates[i];
+      banners.push({
+        imageDesktop: candidate.src,
+        imageMobile: undefined,
+        linkUrl: candidate.linkUrl,
+        altText: candidate.alt,
+      });
     }
   }
-
-  // Look for standalone large images in banner contexts
-  const standaloneImgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*(?:alt=["']([^"']*)["'])?[^>]*>/gi;
-  let imgMatch;
-  while ((imgMatch = standaloneImgPattern.exec(html)) !== null) {
-    const [, src, alt] = imgMatch;
-    
-    if (isLikelyBannerImage(src) && isInBannerContext(html, imgMatch.index)) {
-      const normalizedSrc = normalizeImageUrl(src, baseUrl);
-      if (!addedUrls.has(normalizedSrc)) {
-        banners.push({
-          imageDesktop: normalizedSrc,
-          altText: alt || '',
-        });
-        addedUrls.add(normalizedSrc);
-      }
-    }
-  }
-
-  // Limit and deduplicate
-  return banners.slice(0, 10);
+  
+  // Deduplicate by desktop image URL
+  const seen = new Set<string>();
+  return banners.filter(b => {
+    if (seen.has(b.imageDesktop)) return false;
+    seen.add(b.imageDesktop);
+    return true;
+  });
 }
 
 function extractBannersFromSection(sectionHtml: string, baseUrl: string, banners: ExtractedBanner[], addedUrls: Set<string>) {
