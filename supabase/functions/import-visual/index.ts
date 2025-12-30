@@ -1352,34 +1352,41 @@ function normalizeUrl(href: string, baseUrl: string): string {
   }
   return normalizeImageUrl(href, baseUrl);
 }
-
-// Extract institutional pages from footer links
-function extractInstitutionalPages(html: string, baseUrl: string, _platform?: string): ExtractedInstitutionalPage[] {
+// Extract institutional pages from footer links and Shopify standard policies
+function extractInstitutionalPages(html: string, baseUrl: string, platform?: string): ExtractedInstitutionalPage[] {
   const pages: ExtractedInstitutionalPage[] = [];
   const addedSlugs = new Set<string>();
 
   const institutionalKeywords = [
-    'sobre', 'about', 'quem-somos', 'nossa-historia',
+    'sobre', 'about', 'quem-somos', 'nossa-historia', 'nossa-loja',
     'contato', 'contact', 'fale-conosco',
     'politica', 'policy', 'privacidade', 'privacy', 'termos', 'terms',
     'troca', 'devoluc', 'exchange', 'return', 'refund',
     'frete', 'shipping', 'entrega', 'delivery',
     'pagamento', 'payment', 'faq', 'perguntas', 'duvidas', 'ajuda', 'help',
-    'garantia', 'warranty', 'lgpd', 'cookies',
+    'garantia', 'warranty', 'lgpd', 'cookies', 'servico', 'service',
   ];
 
   const skipPatterns = [
     '/collections', '/products', '/cart', '/checkout', '/account', '/login',
-    '/search', '/blog/', '/categoria', '/produto',
+    '/search', '/categoria', '/produto', '/register', '/wishlist',
     'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', 'facebook.com',
-    'instagram.com', 'twitter.com', 'youtube.com',
+    'instagram.com', 'twitter.com', 'youtube.com', 'linkedin.com', 'pinterest.com',
+    'tiktok.com', 'wa.me', '/cdn/',
   ];
 
   const shouldSkip = (href: string): boolean => skipPatterns.some(p => href.toLowerCase().includes(p));
 
   const extractSlug = (href: string): string | null => {
-    const pageMatch = /\/(?:pages?|pagina|policies)\/([^/?#]+)/i.exec(href);
+    // Match Shopify policies
+    const policyMatch = /\/policies\/([^/?#]+)/i.exec(href);
+    if (policyMatch) return policyMatch[1];
+    
+    // Match /pages/slug
+    const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(href);
     if (pageMatch) return pageMatch[1];
+    
+    // Match root level institutional pages
     const rootMatch = /^(?:https?:\/\/[^/]+)?\/([^/?#]+)\/?$/i.exec(href);
     if (rootMatch && institutionalKeywords.some(k => rootMatch[1].toLowerCase().includes(k))) {
       return rootMatch[1];
@@ -1387,14 +1394,69 @@ function extractInstitutionalPages(html: string, baseUrl: string, _platform?: st
     return null;
   };
 
-  const footerPattern = /<footer[^>]*>([\s\S]*?)<\/footer>/gi;
-  let footerMatch;
-  
-  while ((footerMatch = footerPattern.exec(html)) !== null) {
-    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+  // Strategy 1: Look for footer element with multiple selectors
+  const footerPatterns = [
+    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
+    /<div[^>]*class="[^"]*(?:footer|Footer|site-footer)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>\s*)*<\/body>/gi,
+    /<section[^>]*class="[^"]*(?:footer|Footer)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
+  ];
+
+  for (const footerPattern of footerPatterns) {
+    let footerMatch;
+    while ((footerMatch = footerPattern.exec(html)) !== null) {
+      const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+      let linkMatch;
+      
+      while ((linkMatch = linkPattern.exec(footerMatch[1])) !== null) {
+        const [, href, rawLabel] = linkMatch;
+        const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+        
+        if (!label || label.length < 2 || shouldSkip(href)) continue;
+        
+        const slug = extractSlug(href);
+        if (!slug || addedSlugs.has(slug.toLowerCase())) continue;
+        
+        const isInstitutional = institutionalKeywords.some(k => 
+          slug.toLowerCase().includes(k) || label.toLowerCase().includes(k)
+        ) || /\/(?:pages?|pagina|policies)\//i.test(href);
+        
+        if (isInstitutional) {
+          const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+          pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
+          addedSlugs.add(slug.toLowerCase());
+        }
+      }
+    }
+  }
+
+  // Strategy 2: For Shopify stores, add standard policy pages
+  if (platform === 'Shopify' || html.includes('Shopify') || html.includes('shopify')) {
+    const shopifyPolicies = [
+      { slug: 'privacy-policy', title: 'Política de Privacidade', path: '/policies/privacy-policy' },
+      { slug: 'refund-policy', title: 'Política de Reembolso', path: '/policies/refund-policy' },
+      { slug: 'terms-of-service', title: 'Termos de Serviço', path: '/policies/terms-of-service' },
+      { slug: 'shipping-policy', title: 'Política de Frete', path: '/policies/shipping-policy' },
+    ];
+    
+    for (const policy of shopifyPolicies) {
+      if (!addedSlugs.has(policy.slug)) {
+        pages.push({
+          title: policy.title,
+          slug: policy.slug,
+          url: `${baseUrl}${policy.path}`,
+          source: 'sitemap',
+        });
+        addedSlugs.add(policy.slug);
+      }
+    }
+  }
+
+  // Strategy 3: Search entire HTML for /pages/ and /policies/ links as fallback
+  if (pages.length === 0) {
+    const globalLinkPattern = /<a[^>]*href=["']([^"']*\/(?:pages?|policies)\/[^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
     let linkMatch;
     
-    while ((linkMatch = linkPattern.exec(footerMatch[1])) !== null) {
+    while ((linkMatch = globalLinkPattern.exec(html)) !== null) {
       const [, href, rawLabel] = linkMatch;
       const label = rawLabel.replace(/<[^>]*>/g, '').trim();
       
@@ -1403,18 +1465,12 @@ function extractInstitutionalPages(html: string, baseUrl: string, _platform?: st
       const slug = extractSlug(href);
       if (!slug || addedSlugs.has(slug.toLowerCase())) continue;
       
-      const isInstitutional = institutionalKeywords.some(k => 
-        slug.toLowerCase().includes(k) || label.toLowerCase().includes(k)
-      ) || /\/(?:pages?|pagina|policies)\//i.test(href);
-      
-      if (isInstitutional) {
-        const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-        pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
-        addedSlugs.add(slug.toLowerCase());
-      }
+      const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+      pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
+      addedSlugs.add(slug.toLowerCase());
     }
   }
 
-  console.log(`Extracted ${pages.length} institutional pages from footer`);
+  console.log(`Extracted ${pages.length} institutional pages (footer + policies)`);
   return pages;
 }
