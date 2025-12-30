@@ -13,7 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Menu as MenuIcon, Search, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { Plus, Pencil, Trash2, FileText, Eye, LayoutTemplate, Search, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -274,41 +274,6 @@ export default function Pages() {
                   </Collapsible>
                 </div>
 
-                {/* Menu Section */}
-                {editingPage && (
-                  <div className="border-t pt-4">
-                    <p className="text-sm font-medium mb-3 flex items-center gap-2">
-                      <MenuIcon className="h-4 w-4" />
-                      Menu
-                    </p>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-0.5">
-                          <Label className="text-sm">Exibir no menu</Label>
-                          <p className="text-xs text-muted-foreground">Permite adicionar esta página nos menus</p>
-                        </div>
-                        <Switch
-                          checked={formData.show_in_menu}
-                          onCheckedChange={(v) => setFormData({ ...formData, show_in_menu: v })}
-                        />
-                      </div>
-                      
-                      {formData.show_in_menu && (
-                        <div>
-                          <Label>Título no menu (opcional)</Label>
-                          <Input 
-                            value={formData.menu_label} 
-                            onChange={(e) => setFormData({ ...formData, menu_label: e.target.value })}
-                            placeholder={formData.title || 'Usa o título da página'}
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Se vazio, usa o título da página
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
 
                 <Button onClick={handleSubmit} disabled={!formData.title} className="w-full">
                   {editingPage ? 'Salvar Metadados' : 'Criar e Abrir Editor'}
@@ -326,7 +291,6 @@ export default function Pages() {
               <TableRow>
                 <TableHead>Título</TableHead>
                 <TableHead>Slug</TableHead>
-                <TableHead>Menu</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-32">Ações</TableHead>
               </TableRow>
@@ -342,17 +306,7 @@ export default function Pages() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">/{page.slug}</TableCell>
                   <TableCell>
-                    {page.show_in_menu ? (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        <MenuIcon className="h-3 w-3 mr-1" />
-                        No menu
-                      </Badge>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
+                    <Badge
                       variant={page.is_published ? 'default' : 'secondary'}
                       className="cursor-pointer"
                       onClick={() => handleToggleStatus(page)}
@@ -394,7 +348,7 @@ export default function Pages() {
               ))}
               {(!pages || pages.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     Nenhuma página criada. Clique em "Nova Página" para começar.
                   </TableCell>
                 </TableRow>
