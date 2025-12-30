@@ -2,70 +2,155 @@
 
 > **Gabarito Mestre para Integração Externa via N8N**
 > 
-> Este documento é a fonte de verdade para injeção de dados externos no banco de dados Supabase da aplicação Comando Central. Qualquer agente de IA ou sistema de automação pode usar este guia para popular todas as tabelas sem causar quebras no Frontend ou erros de integridade.
+> Este documento é a **FONTE DE VERDADE ABSOLUTA** para injeção de dados externos no banco de dados Supabase da aplicação Comando Central. Qualquer agente de IA ou sistema de automação pode usar este guia para popular todas as tabelas sem causar quebras no Frontend ou erros de integridade.
 
 ---
 
-## 📋 Índice
+## 📋 Índice Completo
 
 1. [Arquitetura e Dependências](#1-arquitetura-e-dependências)
-2. [Dicionário de Dados - Tabelas Principais](#2-dicionário-de-dados---tabelas-principais)
-3. [Esquemas JSONB Detalhados](#3-esquemas-jsonb-detalhados)
-4. [Sistema de Blocos do Builder](#4-sistema-de-blocos-do-builder)
-5. [Lógica de Navegação e Slugs](#5-lógica-de-navegação-e-slugs)
-6. [Guia de Injeção de Dados (Step-by-Step)](#6-guia-de-injeção-de-dados-step-by-step)
-7. [Payloads de Exemplo](#7-payloads-de-exemplo)
+2. [Dicionário de Dados - TODAS as Tabelas](#2-dicionário-de-dados---todas-as-tabelas)
+3. [Supabase Storage e Upload de Imagens](#3-supabase-storage-e-upload-de-imagens)
+4. [Media Library - Biblioteca de Mídias](#4-media-library---biblioteca-de-mídias)
+5. [Esquemas JSONB Detalhados](#5-esquemas-jsonb-detalhados)
+6. [Sistema de Blocos do Builder](#6-sistema-de-blocos-do-builder)
+7. [ENUMs e Tipos Customizados](#7-enums-e-tipos-customizados)
+8. [Row Level Security (RLS)](#8-row-level-security-rls)
+9. [Edge Functions - Backend](#9-edge-functions---backend)
+10. [Lógica de Navegação e Slugs](#10-lógica-de-navegação-e-slugs)
+11. [Frontend - Hooks e Componentes](#11-frontend---hooks-e-componentes)
+12. [Guia de Injeção de Dados (Step-by-Step)](#12-guia-de-injeção-de-dados-step-by-step)
+13. [Payloads de Exemplo](#13-payloads-de-exemplo)
+14. [Troubleshooting e Notas Importantes](#14-troubleshooting-e-notas-importantes)
 
 ---
 
 ## 1. Arquitetura e Dependências
 
-### 1.1 Diagrama de Dependências Hierárquicas
+### 1.1 Diagrama de Dependências Hierárquicas Completo
 
 ```
-tenants (RAIZ - obrigatório para tudo)
-├── store_settings (1:1 com tenant)
+tenants (RAIZ - obrigatório para TUDO)
+│
+├── user_roles (vínculo usuário ↔ tenant)
+├── tenant_domains (domínios customizados)
+├── tenant_invites (convites de equipe)
+│
+├── store_settings (1:1 com tenant - configurações visuais)
+├── storefront_global_layout (1:1 - layout global da loja)
+│
 ├── categories
-│   └── products (via product_categories)
-│       ├── product_images
-│       └── product_variants
+│   └── parent_id (auto-referência para subcategorias)
+│
+├── products
+│   ├── product_images
+│   ├── product_variants
+│   ├── product_categories (vínculo N:N)
+│   ├── product_reviews
+│   └── related_products (vínculo N:N)
+│
 ├── menus
 │   └── menu_items
+│       └── parent_id (auto-referência para submenus)
+│
 ├── store_pages (páginas institucionais)
-├── storefront_page_templates
-│   └── store_page_versions (conteúdo do Builder)
+├── storefront_page_templates (templates do builder)
+│   └── store_page_versions (versões de conteúdo)
+│
 ├── customers
 │   ├── customer_addresses
+│   ├── customer_notes
+│   ├── customer_notifications
+│   ├── customer_tags → customer_tag_assignments
 │   └── orders
-│       └── order_items
-└── discounts
+│       ├── order_items
+│       ├── order_history
+│       └── order_attribution
+│
+├── discounts
+│   └── discount_redemptions
+│
+├── carts
+│   └── cart_items
+│       └── checkouts
+│
+├── channel_accounts (WhatsApp, Email, etc.)
+│   └── conversations
+│       ├── messages
+│       │   └── message_attachments
+│       ├── conversation_events
+│       └── conversation_participants
+│
+├── email_provider_configs
+├── mailboxes
+│   ├── email_folders
+│   └── email_messages
+│       └── email_attachments
+│
+├── notification_rules
+│   └── notifications
+│       ├── notification_attempts
+│       └── notification_logs
+│
+├── marketing_integrations
+│   └── marketing_events_log
+│
+├── payment_providers
+│   └── payment_transactions
+│       └── payment_events
+│
+├── shipping_providers
+│   └── shipments
+│       └── shipment_events
+│
+├── ai_support_config
+├── ai_channel_config
+├── quick_replies
+│
+├── finance_entries
+├── suppliers
+├── purchases
+│   └── purchase_items
+│
+├── import_jobs
+│   └── import_items
+│
+├── events_inbox (motor de eventos)
+│
+└── media_library (biblioteca de mídias)
 ```
 
 ### 1.2 Regra de Ouro
 
 > **NUNCA insira dados em tabelas filhas antes de criar o registro pai correspondente.**
 
-| Ordem de Inserção | Tabela | Dependência |
+### 1.3 Ordem de Inserção Completa
+
+| Ordem | Tabela | Dependência Obrigatória |
 |---|---|---|
 | 1 | `tenants` | Nenhuma |
-| 2 | `store_settings` | `tenant_id` |
-| 3 | `categories` | `tenant_id` |
-| 4 | `products` | `tenant_id` |
-| 5 | `product_categories` | `product_id`, `category_id` |
-| 6 | `product_images` | `product_id` |
-| 7 | `product_variants` | `product_id` |
-| 8 | `menus` | `tenant_id` |
-| 9 | `menu_items` | `tenant_id`, `menu_id`, `ref_id` (opcional) |
-| 10 | `storefront_page_templates` | `tenant_id` |
-| 11 | `store_page_versions` | `tenant_id`, `page_type` |
-| 12 | `store_pages` | `tenant_id` |
-| 13 | `customers` | `tenant_id` |
-| 14 | `orders` | `tenant_id`, `customer_id` (opcional) |
-| 15 | `order_items` | `order_id` |
+| 2 | `user_roles` | `tenant_id`, `user_id` (auth.users) |
+| 3 | `store_settings` | `tenant_id` |
+| 4 | `storefront_global_layout` | `tenant_id` |
+| 5 | `categories` | `tenant_id` |
+| 6 | `products` | `tenant_id` |
+| 7 | `product_categories` | `product_id`, `category_id`, `tenant_id` |
+| 8 | `product_images` | `product_id` |
+| 9 | `product_variants` | `product_id` |
+| 10 | `menus` | `tenant_id` |
+| 11 | `menu_items` | `tenant_id`, `menu_id` |
+| 12 | `storefront_page_templates` | `tenant_id` |
+| 13 | `store_page_versions` | `tenant_id` |
+| 14 | `store_pages` | `tenant_id` |
+| 15 | `customers` | `tenant_id` |
+| 16 | `customer_addresses` | `customer_id` |
+| 17 | `orders` | `tenant_id` |
+| 18 | `order_items` | `order_id` |
+| 19 | `media_library` | `tenant_id` |
 
 ---
 
-## 2. Dicionário de Dados - Tabelas Principais
+## 2. Dicionário de Dados - TODAS as Tabelas
 
 ### 2.1 `tenants` (Lojas/Inquilinos)
 
@@ -85,12 +170,50 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 2.2 `store_settings` (Configurações da Loja)
+### 2.2 `user_roles` (Papéis de Usuário por Tenant)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `user_id` | UUID | ❌ | - | **FK** → `auth.users.id` |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `role` | app_role | ❌ | `'operator'` | Papel do usuário |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
+
+**ENUM app_role:**
+- `owner` - Dono (acesso total)
+- `admin` - Administrador
+- `operator` - Operador
+- `viewer` - Visualizador (somente leitura)
+
+---
+
+### 2.3 `tenant_domains` (Domínios Customizados)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
 | `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
 | `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `domain` | TEXT | ❌ | - | Domínio (ex: "minhaloja.com.br") |
+| `status` | TEXT | ❌ | `'pending'` | Status de verificação |
+| `ssl_status` | TEXT | ✅ | `'pending'` | Status do SSL |
+| `ssl_active` | BOOLEAN | ✅ | `false` | SSL ativo? |
+| `verification_token` | TEXT | ✅ | - | Token de verificação DNS |
+| `verified_at` | TIMESTAMPTZ | ✅ | - | Data de verificação |
+| `is_primary` | BOOLEAN | ✅ | `false` | Domínio primário? |
+
+**Status possíveis:**
+- `pending`, `verifying`, `verified`, `failed`
+
+---
+
+### 2.4 `store_settings` (Configurações da Loja)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` (UNIQUE) |
 | `store_name` | TEXT | ✅ | - | Nome exibido da loja |
 | `store_description` | TEXT | ✅ | - | Descrição/tagline |
 | `logo_url` | TEXT | ✅ | - | URL do logo |
@@ -126,7 +249,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 2.3 `categories` (Categorias de Produtos)
+### 2.5 `categories` (Categorias de Produtos)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -143,13 +266,15 @@ tenants (RAIZ - obrigatório para tudo)
 | `parent_id` | UUID | ✅ | - | **FK** → `categories.id` (subcategoria) |
 | `sort_order` | INTEGER | ✅ | `0` | Ordem de exibição |
 | `is_active` | BOOLEAN | ✅ | `true` | Categoria ativa? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 **Constraints:**
 - `(tenant_id, slug)` deve ser único por tenant
 
 ---
 
-### 2.4 `products` (Produtos)
+### 2.6 `products` (Produtos)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -178,9 +303,17 @@ tenants (RAIZ - obrigatório para tudo)
 | `ncm` | TEXT | ✅ | - | NCM fiscal |
 | `seo_title` | TEXT | ✅ | - | Título SEO |
 | `seo_description` | TEXT | ✅ | - | Descrição SEO |
-| `status` | TEXT | ❌ | `'draft'` | `draft`, `published`, `archived` |
+| `status` | TEXT | ❌ | `'draft'` | **`draft`, `active`, `inactive`, `archived`** |
 | `is_featured` | BOOLEAN | ✅ | `false` | Produto em destaque? |
 | `has_variants` | BOOLEAN | ✅ | `false` | Possui variantes? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
+
+**⚠️ STATUS DE PRODUTOS (IMPORTANTE):**
+- `draft` - Rascunho (não visível no storefront)
+- `active` - Ativo (visível e disponível para compra)
+- `inactive` - Inativo (temporariamente indisponível)
+- `archived` - Arquivado (não visível, mantido para histórico)
 
 **Constraints:**
 - `(tenant_id, sku)` deve ser único
@@ -188,7 +321,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 2.5 `product_images` (Imagens de Produtos)
+### 2.7 `product_images` (Imagens de Produtos)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -199,10 +332,11 @@ tenants (RAIZ - obrigatório para tudo)
 | `alt_text` | TEXT | ✅ | - | Texto alternativo |
 | `sort_order` | INTEGER | ✅ | `0` | Ordem de exibição |
 | `is_primary` | BOOLEAN | ✅ | `false` | Imagem principal? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
 
 ---
 
-### 2.6 `product_variants` (Variantes de Produtos)
+### 2.8 `product_variants` (Variantes de Produtos)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -224,10 +358,12 @@ tenants (RAIZ - obrigatório para tudo)
 | `barcode` | TEXT | ✅ | - | Código de barras |
 | `gtin` | TEXT | ✅ | - | GTIN |
 | `is_active` | BOOLEAN | ✅ | `true` | Variante ativa? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 ---
 
-### 2.7 `product_categories` (Vínculo Produto ↔ Categoria)
+### 2.9 `product_categories` (Vínculo Produto ↔ Categoria)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -236,13 +372,34 @@ tenants (RAIZ - obrigatório para tudo)
 | `category_id` | UUID | ❌ | - | **FK** → `categories.id` |
 | `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
 | `position` | INTEGER | ✅ | `0` | Posição na categoria |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
 
 **Constraints:**
 - `(product_id, category_id)` deve ser único
 
 ---
 
-### 2.8 `menus` (Menus de Navegação)
+### 2.10 `product_reviews` (Avaliações de Produtos)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `product_id` | UUID | ❌ | - | **FK** → `products.id` |
+| `customer_id` | UUID | ✅ | - | **FK** → `customers.id` |
+| `order_id` | UUID | ✅ | - | **FK** → `orders.id` |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `rating` | INTEGER | ❌ | - | Nota (1-5) |
+| `title` | TEXT | ✅ | - | Título da avaliação |
+| `comment` | TEXT | ✅ | - | Comentário |
+| `author_name` | TEXT | ✅ | - | Nome do autor |
+| `is_verified_purchase` | BOOLEAN | ✅ | `false` | Compra verificada? |
+| `is_approved` | BOOLEAN | ✅ | `false` | Aprovada para exibição? |
+| `is_featured` | BOOLEAN | ✅ | `false` | Em destaque? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+
+---
+
+### 2.11 `menus` (Menus de Navegação)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -250,10 +407,12 @@ tenants (RAIZ - obrigatório para tudo)
 | `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
 | `name` | TEXT | ❌ | - | Nome do menu |
 | `location` | TEXT | ❌ | `'header'` | `header`, `footer`, `mobile` |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 ---
 
-### 2.9 `menu_items` (Itens do Menu)
+### 2.12 `menu_items` (Itens do Menu)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -266,17 +425,21 @@ tenants (RAIZ - obrigatório para tudo)
 | `url` | TEXT | ✅ | - | URL externa (se type = 'external') |
 | `sort_order` | INTEGER | ✅ | `0` | Ordem |
 | `parent_id` | UUID | ✅ | - | **FK** → `menu_items.id` (submenu) |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 **Valores de `item_type`:**
-- `category` - Link para categoria (`ref_id` = category.id)
-- `page` - Link para página institucional (`ref_id` = store_pages.id)
-- `product` - Link para produto (`ref_id` = products.id)
-- `external` - Link externo (usar campo `url`)
-- `home` - Link para home (não precisa de ref_id)
+| Valor | Descrição | ref_id | url |
+|---|---|---|---|
+| `home` | Link para home | NULL | NULL |
+| `category` | Link para categoria | `categories.id` | NULL |
+| `page` | Link para página institucional | `store_pages.id` | NULL |
+| `product` | Link para produto | `products.id` | NULL |
+| `external` | Link externo | NULL | URL completa |
 
 ---
 
-### 2.10 `storefront_page_templates` (Templates de Páginas)
+### 2.13 `storefront_page_templates` (Templates de Páginas)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -286,6 +449,8 @@ tenants (RAIZ - obrigatório para tudo)
 | `published_version` | INTEGER | ✅ | - | Versão publicada |
 | `draft_version` | INTEGER | ✅ | - | Versão rascunho |
 | `page_overrides` | JSONB | ✅ | `'{}'` | Configurações específicas |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 **Valores de `page_type`:**
 - `home` - Página inicial
@@ -300,7 +465,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 2.11 `store_page_versions` (Versões de Páginas - Builder)
+### 2.14 `store_page_versions` (Versões de Páginas - Builder)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -313,10 +478,11 @@ tenants (RAIZ - obrigatório para tudo)
 | `status` | TEXT | ❌ | `'draft'` | `draft`, `published`, `archived` |
 | `content` | JSONB | ❌ | Ver schema | **Estrutura de blocos** |
 | `created_by` | UUID | ✅ | - | Usuário que criou |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
 
 ---
 
-### 2.12 `store_pages` (Páginas Institucionais)
+### 2.15 `store_pages` (Páginas Institucionais)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -342,10 +508,12 @@ tenants (RAIZ - obrigatório para tudo)
 | `meta_image_url` | TEXT | ✅ | - | Imagem OG |
 | `no_index` | BOOLEAN | ✅ | `false` | noindex? |
 | `canonical_url` | TEXT | ✅ | - | URL canônica |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 ---
 
-### 2.13 `customers` (Clientes)
+### 2.16 `customers` (Clientes)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -369,10 +537,35 @@ tenants (RAIZ - obrigatório para tudo)
 | `last_order_at` | TIMESTAMPTZ | ✅ | - | Último pedido |
 | `loyalty_points` | INTEGER | ✅ | `0` | Pontos fidelidade |
 | `loyalty_tier` | TEXT | ✅ | `'bronze'` | Nível fidelidade |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 ---
 
-### 2.14 `orders` (Pedidos)
+### 2.17 `customer_addresses` (Endereços de Clientes)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `customer_id` | UUID | ❌ | - | **FK** → `customers.id` |
+| `label` | TEXT | ❌ | `'Casa'` | Nome do endereço |
+| `recipient_name` | TEXT | ❌ | - | Nome do destinatário |
+| `street` | TEXT | ❌ | - | Rua |
+| `number` | TEXT | ❌ | - | Número |
+| `complement` | TEXT | ✅ | - | Complemento |
+| `neighborhood` | TEXT | ❌ | - | Bairro |
+| `city` | TEXT | ❌ | - | Cidade |
+| `state` | TEXT | ❌ | - | Estado (UF) |
+| `postal_code` | TEXT | ❌ | - | CEP |
+| `country` | TEXT | ❌ | `'BR'` | País |
+| `reference` | TEXT | ✅ | - | Ponto de referência |
+| `is_default` | BOOLEAN | ✅ | `false` | Endereço padrão? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
+
+---
+
+### 2.18 `orders` (Pedidos)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
@@ -399,6 +592,7 @@ tenants (RAIZ - obrigatório para tudo)
 | `customer_name` | TEXT | ❌ | - | Nome do cliente |
 | `customer_email` | TEXT | ❌ | - | Email do cliente |
 | `customer_phone` | TEXT | ✅ | - | Telefone |
+| `customer_cpf` | TEXT | ✅ | - | CPF |
 | `shipping_street` | TEXT | ✅ | - | Rua (entrega) |
 | `shipping_number` | TEXT | ✅ | - | Número |
 | `shipping_complement` | TEXT | ✅ | - | Complemento |
@@ -418,38 +612,386 @@ tenants (RAIZ - obrigatório para tudo)
 | `internal_notes` | TEXT | ✅ | - | Notas internas |
 | `cancelled_at` | TIMESTAMPTZ | ✅ | - | Data cancelamento |
 | `cancellation_reason` | TEXT | ✅ | - | Motivo cancelamento |
-
-**ENUM order_status:**
-- `pending`, `processing`, `shipped`, `delivered`, `cancelled`, `refunded`
-
-**ENUM payment_status:**
-- `pending`, `paid`, `failed`, `refunded`, `cancelled`
-
-**ENUM shipping_status:**
-- `pending`, `processing`, `shipped`, `in_transit`, `delivered`, `returned`
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
 
 ---
 
-### 2.15 `order_items` (Itens do Pedido)
+### 2.19 `order_items` (Itens do Pedido)
 
 | Coluna | Tipo | Nullable | Default | Descrição |
 |---|---|---|---|---|
 | `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
 | `order_id` | UUID | ❌ | - | **FK** → `orders.id` |
 | `product_id` | UUID | ✅ | - | **FK** → `products.id` |
+| `variant_id` | UUID | ✅ | - | **FK** → `product_variants.id` |
 | `sku` | TEXT | ❌ | - | SKU do produto |
 | `product_name` | TEXT | ❌ | - | Nome do produto |
 | `product_image_url` | TEXT | ✅ | - | URL da imagem |
+| `variant_name` | TEXT | ✅ | - | Nome da variante |
 | `quantity` | INTEGER | ❌ | `1` | Quantidade |
 | `unit_price` | NUMERIC | ❌ | - | Preço unitário |
 | `discount_amount` | NUMERIC | ❌ | `0` | Desconto aplicado |
 | `total_price` | NUMERIC | ❌ | - | Preço total |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
 
 ---
 
-## 3. Esquemas JSONB Detalhados
+### 2.20 `discounts` (Cupons de Desconto)
 
-### 3.1 `store_settings.shipping_config`
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `name` | TEXT | ❌ | - | Nome do desconto |
+| `code` | TEXT | ✅ | - | Código do cupom |
+| `description` | TEXT | ✅ | - | Descrição |
+| `type` | TEXT | ❌ | - | `percentage`, `fixed`, `free_shipping` |
+| `value` | NUMERIC | ❌ | `0` | Valor do desconto |
+| `min_subtotal` | NUMERIC | ✅ | - | Valor mínimo do pedido |
+| `starts_at` | TIMESTAMPTZ | ✅ | - | Início da validade |
+| `ends_at` | TIMESTAMPTZ | ✅ | - | Fim da validade |
+| `usage_limit_total` | INTEGER | ✅ | - | Limite total de usos |
+| `usage_limit_per_customer` | INTEGER | ✅ | - | Limite por cliente |
+| `auto_apply_first_purchase` | BOOLEAN | ❌ | `false` | Auto-aplicar primeira compra? |
+| `is_active` | BOOLEAN | ❌ | `true` | Ativo? |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ❌ | `now()` | Data de atualização |
+
+---
+
+### 2.21 `media_library` (Biblioteca de Mídias)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `file_path` | TEXT | ❌ | - | Caminho no storage |
+| `file_url` | TEXT | ❌ | - | URL pública |
+| `file_name` | TEXT | ❌ | - | Nome do arquivo |
+| `variant` | TEXT | ❌ | - | `desktop` ou `mobile` |
+| `file_size` | INTEGER | ✅ | - | Tamanho em bytes |
+| `mime_type` | TEXT | ✅ | - | Tipo MIME |
+| `created_at` | TIMESTAMPTZ | ❌ | `now()` | Data de criação |
+| `created_by` | UUID | ✅ | - | Usuário que criou |
+
+**Variants:**
+- `desktop` - Imagem otimizada para desktop
+- `mobile` - Imagem otimizada para mobile
+
+**Tipos MIME suportados:**
+- Imagens: `image/jpeg`, `image/png`, `image/webp`, `image/gif`, `image/svg+xml`
+- Vídeos: `video/mp4`, `video/webm`, `video/quicktime`
+
+---
+
+### 2.22 `conversations` (Conversas de Suporte)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `channel_type` | support_channel_type | ❌ | - | Canal de atendimento |
+| `channel_account_id` | UUID | ✅ | - | **FK** → `channel_accounts.id` |
+| `customer_id` | UUID | ✅ | - | **FK** → `customers.id` |
+| `order_id` | UUID | ✅ | - | **FK** → `orders.id` |
+| `status` | conversation_status | ✅ | `'new'` | Status da conversa |
+| `priority` | INTEGER | ✅ | `0` | Prioridade (0-3) |
+| `assigned_to` | UUID | ✅ | - | Atendente responsável |
+| `customer_name` | TEXT | ✅ | - | Nome do cliente |
+| `customer_email` | TEXT | ✅ | - | Email do cliente |
+| `customer_phone` | TEXT | ✅ | - | Telefone do cliente |
+| `subject` | TEXT | ✅ | - | Assunto |
+| `summary` | TEXT | ✅ | - | Resumo da conversa |
+| `tags` | TEXT[] | ✅ | `'{}'` | Tags |
+| `message_count` | INTEGER | ✅ | `0` | Total de mensagens |
+| `unread_count` | INTEGER | ✅ | `0` | Mensagens não lidas |
+| `last_message_at` | TIMESTAMPTZ | ✅ | - | Última mensagem |
+| `first_response_at` | TIMESTAMPTZ | ✅ | - | Primeira resposta |
+| `resolved_at` | TIMESTAMPTZ | ✅ | - | Data de resolução |
+| `csat_score` | INTEGER | ✅ | - | Nota CSAT (1-5) |
+| `created_at` | TIMESTAMPTZ | ✅ | `now()` | Data de criação |
+| `updated_at` | TIMESTAMPTZ | ✅ | `now()` | Data de atualização |
+
+---
+
+### 2.23 `messages` (Mensagens de Suporte)
+
+| Coluna | Tipo | Nullable | Default | Descrição |
+|---|---|---|---|---|
+| `id` | UUID | ❌ | `gen_random_uuid()` | **PK** |
+| `tenant_id` | UUID | ❌ | - | **FK** → `tenants.id` |
+| `conversation_id` | UUID | ❌ | - | **FK** → `conversations.id` |
+| `direction` | message_direction | ❌ | - | `inbound` ou `outbound` |
+| `sender_type` | message_sender_type | ❌ | - | Tipo do remetente |
+| `sender_id` | UUID | ✅ | - | ID do remetente |
+| `sender_name` | TEXT | ✅ | - | Nome do remetente |
+| `content` | TEXT | ✅ | - | Conteúdo da mensagem |
+| `content_type` | TEXT | ✅ | `'text'` | Tipo do conteúdo |
+| `is_ai_generated` | BOOLEAN | ✅ | `false` | Gerada por IA? |
+| `is_internal` | BOOLEAN | ✅ | `false` | Nota interna? |
+| `delivery_status` | message_delivery_status | ✅ | - | Status de entrega |
+| `external_message_id` | TEXT | ✅ | - | ID externo |
+| `metadata` | JSONB | ✅ | `'{}'` | Metadados |
+| `created_at` | TIMESTAMPTZ | ✅ | `now()` | Data de criação |
+
+---
+
+### 2.24 Outras Tabelas (Resumo)
+
+| Tabela | Descrição |
+|---|---|
+| `channel_accounts` | Contas de canais (WhatsApp, Email) |
+| `notification_rules` | Regras de notificação automática |
+| `notifications` | Fila de notificações |
+| `notification_attempts` | Tentativas de envio |
+| `notification_logs` | Logs de notificações |
+| `marketing_integrations` | Integrações com Google/Meta/TikTok |
+| `marketing_events_log` | Eventos enviados para marketing |
+| `payment_providers` | Provedores de pagamento |
+| `payment_transactions` | Transações de pagamento |
+| `shipping_providers` | Provedores de envio |
+| `shipments` | Remessas |
+| `shipment_events` | Eventos de rastreio |
+| `ai_support_config` | Configuração da IA de suporte |
+| `ai_channel_config` | Configuração da IA por canal |
+| `quick_replies` | Respostas rápidas |
+| `finance_entries` | Lançamentos financeiros |
+| `suppliers` | Fornecedores |
+| `purchases` | Compras de fornecedores |
+| `import_jobs` | Jobs de importação |
+| `events_inbox` | Fila de eventos |
+
+---
+
+## 3. Supabase Storage e Upload de Imagens
+
+### 3.1 Buckets Disponíveis
+
+O sistema possui **2 buckets públicos** para armazenamento de arquivos:
+
+| Bucket | Descrição | Público | Uso |
+|---|---|---|---|
+| `product-images` | Imagens de produtos | ✅ Sim | Fotos de produtos e variantes |
+| `store-assets` | Assets da loja | ✅ Sim | Logo, favicon, banners, mídias |
+
+### 3.2 Estrutura de Pastas
+
+```
+product-images/
+└── {tenant_id}/
+    └── products/
+        └── {product_id}/
+            ├── main.jpg
+            ├── gallery-1.jpg
+            ├── gallery-2.jpg
+            └── variants/
+                └── {variant_id}.jpg
+
+store-assets/
+└── {tenant_id}/
+    ├── logo.png
+    ├── favicon.ico
+    ├── banners/
+    │   ├── hero-desktop-1.jpg
+    │   ├── hero-mobile-1.jpg
+    │   └── category-{slug}.jpg
+    └── media-library/
+        ├── desktop/
+        │   └── {uuid}.jpg
+        └── mobile/
+            └── {uuid}.jpg
+```
+
+### 3.3 Upload de Imagens via Storage API
+
+#### Upload Direto (JavaScript/TypeScript)
+
+```typescript
+import { supabase } from '@/integrations/supabase/client';
+
+async function uploadProductImage(
+  tenantId: string,
+  productId: string,
+  file: File
+): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+  const filePath = `${tenantId}/products/${productId}/${fileName}`;
+
+  const { data, error } = await supabase.storage
+    .from('product-images')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (error) throw error;
+
+  // Obter URL pública
+  const { data: { publicUrl } } = supabase.storage
+    .from('product-images')
+    .getPublicUrl(filePath);
+
+  return publicUrl;
+}
+```
+
+#### Upload via REST API (para N8N/automação)
+
+```http
+POST https://{project_id}.supabase.co/storage/v1/object/product-images/{tenant_id}/products/{product_id}/image.jpg
+Authorization: Bearer {service_role_key}
+Content-Type: image/jpeg
+
+[binary image data]
+```
+
+#### Resposta:
+
+```json
+{
+  "Key": "product-images/{tenant_id}/products/{product_id}/image.jpg",
+  "Id": "uuid-do-objeto"
+}
+```
+
+### 3.4 URL Pública de Imagens
+
+```
+https://{project_id}.supabase.co/storage/v1/object/public/{bucket}/{path}
+```
+
+**Exemplo completo:**
+```
+https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/public/product-images/550e8400-e29b-41d4-a716-446655440000/products/prod-001/main.jpg
+```
+
+### 3.5 RLS Policies do Storage
+
+#### Bucket `product-images`:
+
+```sql
+-- Leitura pública
+CREATE POLICY "Product images are publicly accessible"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'product-images');
+
+-- Upload por usuários autenticados
+CREATE POLICY "Authenticated users can upload product images"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+-- Update por usuários autenticados
+CREATE POLICY "Authenticated users can update product images"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+
+-- Delete por usuários autenticados
+CREATE POLICY "Authenticated users can delete product images"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'product-images' AND auth.role() = 'authenticated');
+```
+
+#### Bucket `store-assets`:
+
+```sql
+-- Leitura pública
+CREATE POLICY "Anyone can view store assets"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'store-assets');
+
+-- Upload restrito ao tenant do usuário
+CREATE POLICY "Users can upload store assets for their tenant"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'store-assets' AND
+  (storage.foldername(name))[1] IN (
+    SELECT tenant_id::text FROM user_roles WHERE user_id = auth.uid()
+  )
+);
+```
+
+### 3.6 Fluxo Completo de Upload para N8N
+
+```
+1. Obter imagem (URL externa ou arquivo)
+   ↓
+2. Converter para bytes/base64
+   ↓
+3. Upload via REST API do Supabase Storage
+   ↓
+4. Obter URL pública
+   ↓
+5. Inserir registro na tabela destino (product_images, media_library, etc.)
+   ↓
+6. Se for Media Library, registrar também na tabela media_library
+```
+
+### 3.7 Formatos Suportados
+
+| Tipo | Extensões | MIME Types |
+|---|---|---|
+| **Imagens** | .jpg, .jpeg, .png, .webp, .gif, .svg | image/jpeg, image/png, image/webp, image/gif, image/svg+xml |
+| **Vídeos** | .mp4, .webm, .mov | video/mp4, video/webm, video/quicktime |
+
+### 3.8 Limites
+
+- **Tamanho máximo por arquivo:** 50MB (pode ser configurado)
+- **Sem limite de arquivos por bucket**
+
+---
+
+## 4. Media Library - Biblioteca de Mídias
+
+### 4.1 Conceito
+
+A Media Library é uma **camada de abstração** sobre o Storage que permite:
+- Reutilização de mídias em múltiplos blocos/produtos
+- Separação Desktop vs Mobile
+- Organização por tenant
+- Suporte a imagens E vídeos
+
+### 4.2 Fluxo de Uso
+
+```
+1. Upload do arquivo para bucket store-assets
+   ↓
+2. Registro na tabela media_library
+   ↓
+3. URL da mídia disponível para uso em:
+   - Blocos do Builder (HeroBanner, Image, etc.)
+   - Categorias (banners)
+   - Produtos (imagens)
+   - Páginas institucionais
+```
+
+### 4.3 Payload de Registro na Media Library
+
+```json
+{
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "file_path": "550e8400-e29b-41d4-a716-446655440000/media-library/desktop/banner-1.jpg",
+  "file_url": "https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/public/store-assets/550e8400-e29b-41d4-a716-446655440000/media-library/desktop/banner-1.jpg",
+  "file_name": "banner-1.jpg",
+  "variant": "desktop",
+  "file_size": 245000,
+  "mime_type": "image/jpeg"
+}
+```
+
+### 4.4 Consumo no Frontend
+
+O hook `useMediaLibrary` busca mídias filtradas por:
+- `tenant_id` (obrigatório, vem do contexto de auth)
+- `variant` (opcional: 'desktop' ou 'mobile')
+- `mediaType` (opcional: 'image', 'video' ou 'all')
+
+---
+
+## 5. Esquemas JSONB Detalhados
+
+### 5.1 `store_settings.shipping_config`
 
 ```json
 {
@@ -476,7 +1018,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 3.2 `store_settings.benefit_config`
+### 5.2 `store_settings.benefit_config`
 
 ```json
 {
@@ -496,7 +1038,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 3.3 `store_settings.offers_config`
+### 5.3 `store_settings.offers_config`
 
 ```json
 {
@@ -530,7 +1072,7 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-### 3.4 `store_settings.social_custom`
+### 5.4 `store_settings.social_custom`
 
 ```json
 [
@@ -549,9 +1091,9 @@ tenants (RAIZ - obrigatório para tudo)
 
 ---
 
-## 4. Sistema de Blocos do Builder
+## 6. Sistema de Blocos do Builder
 
-### 4.1 Estrutura Base (BlockNode)
+### 6.1 Estrutura Base (BlockNode)
 
 Todo conteúdo de página segue esta estrutura:
 
@@ -565,7 +1107,7 @@ interface BlockNode {
 }
 ```
 
-### 4.2 Estrutura Raiz de uma Página
+### 6.2 Estrutura Raiz de uma Página
 
 ```json
 {
@@ -584,25 +1126,25 @@ interface BlockNode {
 }
 ```
 
-### 4.3 Blocos Disponíveis
+### 6.3 Blocos Disponíveis
 
 #### LAYOUT
 
-| Tipo | Label | Aceita Filhos | Removível |
-|---|---|---|---|
-| `Page` | Página | ✅ | ❌ |
-| `Section` | Seção | ✅ | ✅ |
-| `Container` | Container | ✅ | ✅ |
-| `Columns` | Colunas | ✅ (max 4) | ✅ |
-| `Divider` | Divisor | ❌ | ✅ |
-| `Spacer` | Espaçador | ❌ | ✅ |
+| Tipo | Label | Aceita Filhos | Removível | Essential |
+|---|---|---|---|---|
+| `Page` | Página | ✅ | ❌ | ✅ |
+| `Section` | Seção | ✅ | ✅ | ❌ |
+| `Container` | Container | ✅ | ✅ | ❌ |
+| `Columns` | Colunas | ✅ (max 4) | ✅ | ❌ |
+| `Divider` | Divisor | ❌ | ✅ | ❌ |
+| `Spacer` | Espaçador | ❌ | ✅ | ❌ |
 
 #### HEADER/FOOTER
 
-| Tipo | Label | Aceita Filhos | Removível |
-|---|---|---|---|
-| `Header` | Cabeçalho | ❌ | ❌ |
-| `Footer` | Rodapé | ❌ | ❌ |
+| Tipo | Label | Aceita Filhos | Removível | Essential |
+|---|---|---|---|---|
+| `Header` | Cabeçalho | ❌ | ❌ | ✅ |
+| `Footer` | Rodapé | ❌ | ❌ | ✅ |
 
 #### CONTENT
 
@@ -620,27 +1162,27 @@ interface BlockNode {
 |---|---|---|---|
 | `Image` | Imagem | ❌ | ✅ |
 | `HeroBanner` | Banner Principal (Carrossel) | ❌ | ✅ |
+| `VideoSection` | Seção de Vídeo | ❌ | ✅ |
 
 #### E-COMMERCE
 
-| Tipo | Label | Aceita Filhos | Removível |
-|---|---|---|---|
-| `CategoryList` | Lista de Categorias | ❌ | ✅ |
-| `ProductGrid` | Grade de Produtos | ❌ | ✅ |
-| `ProductCarousel` | Carrossel de Produtos | ❌ | ✅ |
-| `FeaturedProducts` | Produtos Selecionados | ❌ | ✅ |
-| `ProductCard` | Card de Produto | ❌ | ✅ |
-| `ProductDetails` | Detalhes do Produto | ❌ | ❌ |
-| `CartSummary` | Resumo do Carrinho | ❌ | ❌ |
-| `CheckoutSteps` | Etapas do Checkout | ❌ | ❌ |
-| `CollectionSection` | Categoria/Coleção | ❌ | ✅ |
-| `InfoHighlights` | Destaques | ❌ | ✅ |
-| `NewsletterSignup` | Newsletter | ❌ | ✅ |
-| `VideoSection` | Seção de Vídeo | ❌ | ✅ |
+| Tipo | Label | Aceita Filhos | Removível | Template |
+|---|---|---|---|---|
+| `CategoryList` | Lista de Categorias | ❌ | ✅ | home |
+| `ProductGrid` | Grade de Produtos | ❌ | ✅ | home, category |
+| `ProductCarousel` | Carrossel de Produtos | ❌ | ✅ | home |
+| `FeaturedProducts` | Produtos Selecionados | ❌ | ✅ | home |
+| `ProductCard` | Card de Produto | ❌ | ✅ | - |
+| `ProductDetails` | Detalhes do Produto | ❌ | ❌ | product |
+| `CartSummary` | Resumo do Carrinho | ❌ | ❌ | cart |
+| `CheckoutSteps` | Etapas do Checkout | ❌ | ❌ | checkout |
+| `CollectionSection` | Categoria/Coleção | ❌ | ✅ | home |
+| `InfoHighlights` | Destaques | ❌ | ✅ | home |
+| `NewsletterSignup` | Newsletter | ❌ | ✅ | home |
 
 ---
 
-### 4.4 Props por Tipo de Bloco
+### 6.4 Props por Tipo de Bloco
 
 #### `Header` (Cabeçalho)
 
@@ -853,6 +1395,9 @@ interface BlockNode {
 }
 ```
 
+**Ícones disponíveis:**
+- `truck`, `shield-check`, `credit-card`, `package`, `refresh-cw`, `headphones`, `clock`, `star`, `heart`, `gift`
+
 ---
 
 #### `Image` (Imagem)
@@ -872,6 +1417,29 @@ interface BlockNode {
   "linkUrl": ""
 }
 ```
+
+---
+
+#### `VideoSection` (Seção de Vídeo)
+
+```json
+{
+  "title": "Conheça nossa marca",
+  "videoType": "youtube",
+  "youtubeUrl": "https://www.youtube.com/watch?v=VIDEO_ID",
+  "vimeoUrl": "",
+  "uploadedVideoUrl": "",
+  "autoplay": false,
+  "muted": true,
+  "loop": true,
+  "aspectRatio": "16:9"
+}
+```
+
+**Valores de `videoType`:**
+- `youtube` - Vídeo do YouTube (usar `youtubeUrl`)
+- `vimeo` - Vídeo do Vimeo (usar `vimeoUrl`)
+- `upload` - Vídeo hospedado (usar `uploadedVideoUrl`)
 
 ---
 
@@ -902,25 +1470,309 @@ interface BlockNode {
 
 ---
 
-## 5. Lógica de Navegação e Slugs
+#### `Testimonials` (Depoimentos)
 
-### 5.1 Padrão de URLs
+```json
+{
+  "title": "O que nossos clientes dizem",
+  "items": [
+    {
+      "id": "testimonial-1",
+      "name": "Maria Silva",
+      "role": "Cliente desde 2023",
+      "content": "Excelente atendimento e produtos de qualidade!",
+      "rating": 5,
+      "avatar": ""
+    }
+  ],
+  "layout": "carousel",
+  "showRating": true
+}
+```
+
+---
+
+#### `FAQ` (Perguntas Frequentes)
+
+```json
+{
+  "title": "Perguntas Frequentes",
+  "items": [
+    {
+      "id": "faq-1",
+      "question": "Qual o prazo de entrega?",
+      "answer": "O prazo varia de acordo com sua região. Consulte no carrinho."
+    }
+  ],
+  "layout": "accordion"
+}
+```
+
+---
+
+## 7. ENUMs e Tipos Customizados
+
+### 7.1 `app_role` (Papéis de Usuário)
+
+```sql
+CREATE TYPE app_role AS ENUM ('owner', 'admin', 'operator', 'viewer');
+```
+
+| Valor | Descrição | Permissões |
+|---|---|---|
+| `owner` | Dono | Acesso total, pode excluir tenant |
+| `admin` | Administrador | Quase tudo, exceto excluir tenant |
+| `operator` | Operador | CRUD de produtos, pedidos, clientes |
+| `viewer` | Visualizador | Somente leitura |
+
+---
+
+### 7.2 `order_status` (Status do Pedido)
+
+```sql
+CREATE TYPE order_status AS ENUM (
+  'pending', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'
+);
+```
+
+| Valor | Descrição | Próximos Estados |
+|---|---|---|
+| `pending` | Aguardando pagamento | processing, cancelled |
+| `processing` | Em processamento | shipped, cancelled |
+| `shipped` | Enviado | delivered, returned |
+| `delivered` | Entregue | refunded |
+| `cancelled` | Cancelado | - |
+| `refunded` | Reembolsado | - |
+
+---
+
+### 7.3 `payment_status` (Status do Pagamento)
+
+```sql
+CREATE TYPE payment_status AS ENUM (
+  'pending', 'paid', 'failed', 'refunded', 'cancelled'
+);
+```
+
+---
+
+### 7.4 `shipping_status` (Status do Envio)
+
+```sql
+CREATE TYPE shipping_status AS ENUM (
+  'pending', 'processing', 'shipped', 'in_transit', 'delivered', 'returned'
+);
+```
+
+---
+
+### 7.5 `payment_method` (Método de Pagamento)
+
+```sql
+CREATE TYPE payment_method AS ENUM (
+  'credit_card', 'debit_card', 'pix', 'boleto', 'wallet'
+);
+```
+
+---
+
+### 7.6 `support_channel_type` (Canais de Suporte)
+
+```sql
+CREATE TYPE support_channel_type AS ENUM (
+  'whatsapp', 'email', 'instagram', 'facebook', 'telegram', 'chat', 'phone'
+);
+```
+
+---
+
+### 7.7 `conversation_status` (Status da Conversa)
+
+```sql
+CREATE TYPE conversation_status AS ENUM (
+  'new', 'open', 'bot', 'pending', 'resolved', 'closed'
+);
+```
+
+| Valor | Descrição |
+|---|---|
+| `new` | Nova conversa |
+| `open` | Em atendimento humano |
+| `bot` | Sendo atendida pela IA |
+| `pending` | Aguardando resposta do cliente |
+| `resolved` | Resolvida |
+| `closed` | Fechada |
+
+---
+
+### 7.8 `message_direction` (Direção da Mensagem)
+
+```sql
+CREATE TYPE message_direction AS ENUM ('inbound', 'outbound');
+```
+
+---
+
+### 7.9 `message_sender_type` (Tipo do Remetente)
+
+```sql
+CREATE TYPE message_sender_type AS ENUM (
+  'customer', 'agent', 'bot', 'system'
+);
+```
+
+---
+
+### 7.10 `message_delivery_status` (Status de Entrega)
+
+```sql
+CREATE TYPE message_delivery_status AS ENUM (
+  'pending', 'sent', 'delivered', 'read', 'failed'
+);
+```
+
+---
+
+## 8. Row Level Security (RLS)
+
+### 8.1 Funções Auxiliares
+
+```sql
+-- Verifica se usuário pertence ao tenant
+CREATE FUNCTION user_belongs_to_tenant(user_id UUID, tenant_id UUID)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM user_roles 
+    WHERE user_roles.user_id = $1 
+    AND user_roles.tenant_id = $2
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Verifica se usuário tem papel específico
+CREATE FUNCTION has_role(user_id UUID, tenant_id UUID, required_role app_role)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM user_roles 
+    WHERE user_roles.user_id = $1 
+    AND user_roles.tenant_id = $2
+    AND user_roles.role = $3
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Obtém tenant atual do usuário
+CREATE FUNCTION get_current_tenant_id(user_id UUID)
+RETURNS UUID AS $$
+BEGIN
+  RETURN (
+    SELECT tenant_id FROM user_roles 
+    WHERE user_roles.user_id = $1 
+    LIMIT 1
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
+### 8.2 Padrões de Policies
+
+#### Leitura por membros do tenant:
+```sql
+CREATE POLICY "Users can view their tenant data"
+ON table_name FOR SELECT
+USING (user_belongs_to_tenant(auth.uid(), tenant_id));
+```
+
+#### Escrita por admins:
+```sql
+CREATE POLICY "Admins can manage data"
+ON table_name FOR ALL
+USING (
+  has_role(auth.uid(), tenant_id, 'owner') OR 
+  has_role(auth.uid(), tenant_id, 'admin')
+);
+```
+
+#### Leitura pública (storefront):
+```sql
+CREATE POLICY "Anyone can view active products"
+ON products FOR SELECT
+USING (status = 'active');
+```
+
+### 8.3 Bypass de RLS
+
+Para operações via N8N ou automações externas, use a **service_role key** que bypassa todas as policies:
+
+```javascript
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  'https://ojssezfjhdvvncsqyhyq.supabase.co',
+  'SERVICE_ROLE_KEY' // ⚠️ NUNCA expor no frontend
+)
+```
+
+---
+
+## 9. Edge Functions - Backend
+
+### 9.1 Funções Disponíveis
+
+| Função | Descrição | Auth | Uso |
+|---|---|---|---|
+| `checkout-create-order` | Cria pedido a partir do checkout | service_role | Checkout |
+| `checkout-session-start` | Inicia sessão de checkout | anon | Storefront |
+| `checkout-session-heartbeat` | Mantém sessão ativa | anon | Storefront |
+| `get-order` | Busca pedido por número | anon | Thank You page |
+| `discount-validate` | Valida cupom de desconto | anon | Storefront |
+| `shipping-quote` | Cotação de frete | anon | Storefront |
+| `frenet-quote` | Cotação via Frenet | service_role | Interno |
+| `email-send` | Envia email transacional | service_role | Interno |
+| `whatsapp-send` | Envia WhatsApp | service_role | Interno |
+| `ai-support-chat` | IA de atendimento | service_role | Suporte |
+| `support-send-message` | Envia mensagem de suporte | service_role | Suporte |
+| `import-visual` | Importa visual de loja externa | authenticated | Importação |
+| `import-data` | Importa dados (CSV/JSON) | authenticated | Importação |
+| `process-events` | Processa fila de eventos | service_role | Background |
+| `run-notifications` | Dispara notificações | service_role | Background |
+
+### 9.2 Chamando Edge Functions via N8N
+
+```http
+POST https://ojssezfjhdvvncsqyhyq.supabase.co/functions/v1/{function_name}
+Authorization: Bearer {service_role_key}
+Content-Type: application/json
+
+{
+  "param1": "value1",
+  "param2": "value2"
+}
+```
+
+---
+
+## 10. Lógica de Navegação e Slugs
+
+### 10.1 Padrão de URLs
 
 | Entidade | Padrão de URL | Exemplo |
 |---|---|---|
 | Home | `/` | `/` |
-| Categoria | `/collections/{slug}` | `/collections/roupas-femininas` |
-| Subcategoria | `/collections/{slug}` | `/collections/vestidos` |
-| Produto | `/products/{slug}` | `/products/vestido-floral-azul` |
-| Página Institucional | `/{slug}` | `/sobre-nos` |
-| Carrinho | `/cart` | `/cart` |
+| Categoria | `/categoria/{slug}` | `/categoria/roupas-femininas` |
+| Subcategoria | `/categoria/{slug}` | `/categoria/vestidos` |
+| Produto | `/produto/{slug}` | `/produto/vestido-floral-azul` |
+| Página Institucional | `/pagina/{slug}` | `/pagina/sobre-nos` |
+| Carrinho | `/carrinho` | `/carrinho` |
 | Checkout | `/checkout` | `/checkout` |
-| Obrigado | `/thank-you/{order_number}` | `/thank-you/1001` |
-| Conta | `/account` | `/account` |
-| Pedidos | `/account/orders` | `/account/orders` |
-| Detalhe Pedido | `/account/orders/{order_number}` | `/account/orders/1001` |
+| Obrigado | `/obrigado/{order_number}` | `/obrigado/1001` |
+| Conta | `/conta` | `/conta` |
+| Pedidos | `/conta/pedidos` | `/conta/pedidos` |
+| Detalhe Pedido | `/conta/pedidos/{order_number}` | `/conta/pedidos/1001` |
 
-### 5.2 Regras de Geração de Slug
+### 10.2 Regras de Geração de Slug
 
 ```javascript
 function generateSlug(text) {
@@ -933,11 +1785,14 @@ function generateSlug(text) {
     .replace(/-+/g, '-')              // Remove hífens duplicados
     .replace(/^-|-$/g, '');           // Remove hífens no início/fim
 }
+
+// Exemplos:
+generateSlug("Vestido Floral Azul") // "vestido-floral-azul"
+generateSlug("Camiseta Básica (P)") // "camiseta-basica-p"
+generateSlug("Tênis Nike Air Max")  // "tenis-nike-air-max"
 ```
 
-### 5.3 Resolução de Links no Menu
-
-O Frontend resolve `menu_items` assim:
+### 10.3 Resolução de Links no Menu
 
 ```javascript
 function resolveMenuItemUrl(item, categories, pages) {
@@ -946,13 +1801,12 @@ function resolveMenuItemUrl(item, categories, pages) {
       return '/';
     case 'category':
       const cat = categories.find(c => c.id === item.ref_id);
-      return cat ? `/collections/${cat.slug}` : '#';
+      return cat ? `/categoria/${cat.slug}` : '#';
     case 'page':
       const page = pages.find(p => p.id === item.ref_id);
-      return page ? `/${page.slug}` : '#';
+      return page ? `/pagina/${page.slug}` : '#';
     case 'product':
-      // Busca produto pelo ID (menos comum em menus)
-      return `/products/${productSlug}`;
+      return `/produto/${productSlug}`; // Buscar slug
     case 'external':
       return item.url;
     default:
@@ -963,9 +1817,55 @@ function resolveMenuItemUrl(item, categories, pages) {
 
 ---
 
-## 6. Guia de Injeção de Dados (Step-by-Step)
+## 11. Frontend - Hooks e Componentes
 
-### 6.1 Fluxo Completo: Clonar uma Loja
+### 11.1 Hooks Principais
+
+| Hook | Descrição | Dependência |
+|---|---|---|
+| `useAuth` | Autenticação e contexto de tenant | - |
+| `useTenantSlug` | Slug do tenant atual | useAuth |
+| `useStoreSettings` | Configurações da loja | tenant_id |
+| `useProducts` | CRUD de produtos | tenant_id |
+| `useCategories` | CRUD de categorias | tenant_id |
+| `useOrders` | CRUD de pedidos | tenant_id |
+| `useCustomers` | CRUD de clientes | tenant_id |
+| `useMenus` | CRUD de menus | tenant_id |
+| `useMediaLibrary` | Biblioteca de mídias | tenant_id |
+| `useBuilderStore` | Estado do Builder | zustand |
+| `usePageBuilder` | CRUD de páginas/templates | tenant_id |
+
+### 11.2 Componentes de Upload
+
+| Componente | Uso | Props |
+|---|---|---|
+| `ImageUploader` | Upload simples | value, onChange, aspectRatio |
+| `ImageUploaderWithLibrary` | Upload + Media Library | value, onChange, variant |
+| `MediaLibraryPicker` | Seletor da biblioteca | onSelect, variant, mediaType |
+
+### 11.3 Fluxo de Renderização do Storefront
+
+```
+1. Resolve tenant pelo domínio/slug
+   ↓
+2. Carrega store_settings
+   ↓
+3. Identifica page_type (home, category, product, etc.)
+   ↓
+4. Busca storefront_page_templates.published_version
+   ↓
+5. Carrega store_page_versions.content
+   ↓
+6. Renderiza BlockTree recursivamente
+   ↓
+7. Cada bloco busca dados dinâmicos (produtos, categorias, etc.)
+```
+
+---
+
+## 12. Guia de Injeção de Dados (Step-by-Step)
+
+### 12.1 Fluxo Completo: Clonar uma Loja
 
 #### PASSO 1: Criar/Atualizar o Tenant
 
@@ -1023,7 +1923,35 @@ DO UPDATE SET
   updated_at = now();
 ```
 
-#### PASSO 3: Criar Árvore de Categorias
+#### PASSO 3: Upload de Imagens para Storage
+
+```bash
+# Via curl (exemplo para N8N HTTP Request)
+curl -X POST \
+  'https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/store-assets/550e8400-e29b-41d4-a716-446655440000/logo.png' \
+  -H 'Authorization: Bearer SERVICE_ROLE_KEY' \
+  -H 'Content-Type: image/png' \
+  --data-binary '@logo.png'
+```
+
+#### PASSO 4: Registrar na Media Library (se aplicável)
+
+```sql
+INSERT INTO media_library (
+  tenant_id, file_path, file_url, file_name, variant, file_size, mime_type
+)
+VALUES (
+  '550e8400-e29b-41d4-a716-446655440000',
+  '550e8400-e29b-41d4-a716-446655440000/media-library/desktop/banner-1.jpg',
+  'https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/public/store-assets/550e8400-e29b-41d4-a716-446655440000/media-library/desktop/banner-1.jpg',
+  'banner-1.jpg',
+  'desktop',
+  245000,
+  'image/jpeg'
+);
+```
+
+#### PASSO 5: Criar Árvore de Categorias
 
 ```sql
 -- Categoria raiz
@@ -1050,7 +1978,7 @@ VALUES (
 );
 ```
 
-#### PASSO 4: Cadastrar Produtos
+#### PASSO 6: Cadastrar Produtos
 
 ```sql
 INSERT INTO products (
@@ -1070,12 +1998,12 @@ VALUES (
   '<p>Lindo vestido floral em tons de azul.</p>',
   'Vestido floral perfeito para o verão',
   50,
-  'published',
+  'active',  -- ⚠️ Usar 'active' para produtos visíveis
   true
 );
 ```
 
-#### PASSO 5: Vincular Produtos a Categorias
+#### PASSO 7: Vincular Produtos a Categorias
 
 ```sql
 INSERT INTO product_categories (tenant_id, product_id, category_id, position)
@@ -1087,7 +2015,7 @@ VALUES (
 );
 ```
 
-#### PASSO 6: Adicionar Imagens do Produto
+#### PASSO 8: Adicionar Imagens do Produto
 
 ```sql
 INSERT INTO product_images (product_id, url, alt_text, sort_order, is_primary)
@@ -1097,7 +2025,7 @@ VALUES
   ('prod-001', 'https://storage.exemplo.com/vestido-3.jpg', 'Vestido Floral Azul - Detalhe', 3, false);
 ```
 
-#### PASSO 7: Criar Variantes (se aplicável)
+#### PASSO 9: Criar Variantes (se aplicável)
 
 ```sql
 -- Marcar produto como tendo variantes
@@ -1116,7 +2044,7 @@ VALUES
   ('prod-001', 'VF-001-G-AZ', 'G - Azul', 'Tamanho', 'G', 'Cor', 'Azul', 199.90, 10, true);
 ```
 
-#### PASSO 8: Criar Menu Principal
+#### PASSO 10: Criar Menu Principal
 
 ```sql
 -- Criar o menu
@@ -1136,10 +2064,9 @@ VALUES
   ('550e8400-e29b-41d4-a716-446655440000', 'menu-header-001', 'Vestidos', 'category', 'cat-002', 3);
 ```
 
-#### PASSO 9: Criar Templates do Storefront
+#### PASSO 11: Criar Templates do Storefront
 
 ```sql
--- Inicializar templates (normalmente feito automaticamente)
 INSERT INTO storefront_page_templates (tenant_id, page_type)
 VALUES 
   ('550e8400-e29b-41d4-a716-446655440000', 'home'),
@@ -1149,7 +2076,7 @@ VALUES
   ('550e8400-e29b-41d4-a716-446655440000', 'checkout');
 ```
 
-#### PASSO 10: Gerar e Publicar Conteúdo da Home
+#### PASSO 12: Gerar e Publicar Conteúdo da Home
 
 ```sql
 -- Criar versão publicada
@@ -1179,9 +2106,9 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
 
 ---
 
-## 7. Payloads de Exemplo
+## 13. Payloads de Exemplo
 
-### 7.1 Payload Completo: Home Page
+### 13.1 Payload Completo: Home Page
 
 ```json
 {
@@ -1218,7 +2145,7 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
             "imageDesktop": "https://storage.exemplo.com/banner-desktop.jpg",
             "imageMobile": "https://storage.exemplo.com/banner-mobile.jpg",
             "alt": "Coleção Verão 2024",
-            "linkUrl": "/collections/verao-2024"
+            "linkUrl": "/categoria/verao-2024"
           }
         ],
         "autoplaySeconds": 5,
@@ -1294,24 +2221,14 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
         "showSocial": true,
         "showLegal": true,
         "footerBgColor": "#1f2937",
-        "footerTextColor": "#f3f4f6",
-        "paymentMethods": {
-          "title": "Formas de Pagamento",
-          "items": [
-            {
-              "imageUrl": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCAzMiI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjMyIiByeD0iNCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZTBlMGUwIi8+PHBhdGggZmlsbD0iIzFBMUY3MSIgZD0iTTE5LjcgMjAuNmwtMS4xIDQuOWgtMi4zbDIuNy0xMi4yaDIuNGw0LjIgMTIuMmgtMi40bC0xLTMuOWgtMy41em0zLjEtMS44bC0xLjQtNS41LTEuMiA1LjVoMi42eiIvPjxwYXRoIGZpbGw9IiMxQTFGNzEiIGQ9Ik0xMy4zIDEzLjNoMi4zbC0yLjcgMTIuMmgtMi4zeiIvPjxwYXRoIGZpbGw9IiNGRkE2MDAiIGQ9Ik0zNC43IDEzLjNsLTMuNiA4LjItMS41LTguMmgtMi40bDIuMiAxMS41LjMuNy0yLjIgNS4zaC0yLjRsMy45LTguNyAzLjctNy44aDIuNHoiLz48L3N2Zz4=",
-              "alt": "Visa",
-              "link": ""
-            }
-          ]
-        }
+        "footerTextColor": "#f3f4f6"
       }
     }
   ]
 }
 ```
 
-### 7.2 Payload: Produto Completo
+### 13.2 Payload: Produto Completo
 
 ```json
 {
@@ -1335,13 +2252,13 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
   "depth": 5,
   "seo_title": "Vestido Floral Azul | Minha Loja",
   "seo_description": "Compre o Vestido Floral Azul com o melhor preço. Frete grátis em compras acima de R$199.",
-  "status": "published",
+  "status": "active",
   "is_featured": true,
   "has_variants": true
 }
 ```
 
-### 7.3 Payload: Menu com Submenus
+### 13.3 Payload: Menu com Submenus
 
 ```json
 {
@@ -1410,7 +2327,7 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
 }
 ```
 
-### 7.4 Payload: Pedido Completo
+### 13.4 Payload: Pedido Completo
 
 ```json
 {
@@ -1463,40 +2380,122 @@ WHERE tenant_id = '550e8400-e29b-41d4-a716-446655440000'
 }
 ```
 
+### 13.5 Payload: Media Library Item
+
+```json
+{
+  "id": "media-001",
+  "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
+  "file_path": "550e8400-e29b-41d4-a716-446655440000/media-library/desktop/hero-banner-verao.jpg",
+  "file_url": "https://ojssezfjhdvvncsqyhyq.supabase.co/storage/v1/object/public/store-assets/550e8400-e29b-41d4-a716-446655440000/media-library/desktop/hero-banner-verao.jpg",
+  "file_name": "hero-banner-verao.jpg",
+  "variant": "desktop",
+  "file_size": 524288,
+  "mime_type": "image/jpeg",
+  "created_at": "2024-12-30T10:00:00Z"
+}
+```
+
 ---
 
-## 📌 Notas Importantes
+## 14. Troubleshooting e Notas Importantes
 
-### Idempotência
+### 14.1 Idempotência
 
-Sempre use `ON CONFLICT ... DO UPDATE` para operações de upsert, garantindo que reexecuções não criem duplicatas.
+Sempre use `ON CONFLICT ... DO UPDATE` para operações de upsert, garantindo que reexecuções não criem duplicatas:
 
-### Ordem de Dependências
+```sql
+INSERT INTO categories (id, tenant_id, name, slug, is_active)
+VALUES ('cat-001', 'tenant-001', 'Roupas', 'roupas', true)
+ON CONFLICT (tenant_id, slug) 
+DO UPDATE SET 
+  name = EXCLUDED.name,
+  is_active = EXCLUDED.is_active,
+  updated_at = now();
+```
+
+### 14.2 Ordem de Dependências
 
 **SEMPRE** respeite a ordem de inserção. Tente inserir um produto antes do tenant e você terá erro de FK.
 
-### UUIDs
+### 14.3 UUIDs
 
-Prefira gerar UUIDs no lado do cliente/automação para ter controle dos IDs e facilitar referências cruzadas.
+Prefira gerar UUIDs no lado do cliente/automação para ter controle dos IDs e facilitar referências cruzadas:
 
 ```javascript
 // JavaScript - gerar UUID v4
 const uuid = crypto.randomUUID();
 ```
 
-### Timestamps
+### 14.4 Timestamps
 
 Campos `created_at` e `updated_at` são preenchidos automaticamente. Não é necessário incluí-los nos INSERTs.
 
-### Slugs
+### 14.5 Slugs
 
-Sempre valide a unicidade de slugs por tenant antes de inserir. Use a função de geração de slug descrita na seção 5.2.
+Sempre valide a unicidade de slugs por tenant antes de inserir. Use a função de geração de slug descrita na seção 10.2.
 
-### RLS (Row Level Security)
+### 14.6 RLS (Row Level Security)
 
-As tabelas possuem RLS ativo. Para operações via N8N, use a **service_role key** do Supabase que bypassa RLS.
+As tabelas possuem RLS ativo. Para operações via N8N, use a **service_role key** do Supabase que bypassa RLS:
+
+```javascript
+// ⚠️ NUNCA expor no frontend ou em código público
+const supabase = createClient(
+  'https://ojssezfjhdvvncsqyhyq.supabase.co',
+  'SERVICE_ROLE_KEY'
+)
+```
+
+### 14.7 Status de Produtos
+
+⚠️ **IMPORTANTE:** Use os status corretos:
+- `draft` - Rascunho (não visível)
+- `active` - Ativo (visível no storefront)
+- `inactive` - Inativo temporariamente
+- `archived` - Arquivado
+
+### 14.8 Upload de Imagens
+
+Para imagens externas, o fluxo recomendado é:
+1. Baixar a imagem da URL externa
+2. Fazer upload para o Supabase Storage
+3. Usar a URL do Supabase no banco
+
+Isso garante que as imagens não quebrem se a fonte externa ficar indisponível.
+
+### 14.9 Vídeos
+
+Vídeos podem ser:
+- **YouTube/Vimeo:** Armazenar apenas a URL do embed
+- **Upload direto:** Fazer upload para o bucket e armazenar a URL
+
+### 14.10 Erros Comuns
+
+| Erro | Causa | Solução |
+|---|---|---|
+| `23505` | Violação de unique constraint | Verificar se registro já existe |
+| `23503` | Violação de FK | Inserir registro pai primeiro |
+| `42501` | Permissão negada (RLS) | Usar service_role key |
+| `22P02` | UUID inválido | Verificar formato do UUID |
+
+---
+
+## 📌 Resumo Executivo
+
+1. **Sempre comece pelo tenant** - É a raiz de tudo
+2. **Respeite a hierarquia de FKs** - Pai antes do filho
+3. **Use service_role para automação** - Bypassa RLS
+4. **Imagens vão no Storage** - Nunca base64 no banco
+5. **Registre mídias na Media Library** - Para reutilização
+6. **Status de produto = `active`** - Para visibilidade
+7. **Slugs são únicos por tenant** - Não globalmente
+8. **Blocos seguem estrutura fixa** - id, type, props, children
+9. **UUIDs client-side** - Para controle de referências
+10. **Upsert com ON CONFLICT** - Para idempotência
 
 ---
 
 *Documento gerado em: 2024-12-30*
-*Versão: 1.0.0*
+*Versão: 2.0.0*
+*Autor: Comando Central AI*
