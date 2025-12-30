@@ -9,7 +9,7 @@ interface InstitutionalPage {
   title: string;
   slug: string;
   url: string;
-  source: 'footer' | 'header' | 'sitemap';
+  source: 'footer' | 'header' | 'sitemap' | 'global';
 }
 
 interface ImportPagesRequest {
@@ -60,7 +60,7 @@ function generatePageContent(htmlContent: string, pageTitle: string): object {
 }
 
 // Scrape page content using Firecrawl
-async function scrapePageContent(url: string): Promise<{ html: string; title: string; description: string } | null> {
+async function scrapePageContent(url: string): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
   try {
     const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!apiKey) {
@@ -80,98 +80,254 @@ async function scrapePageContent(url: string): Promise<{ html: string; title: st
         url,
         formats: ['html', 'markdown'],
         onlyMainContent: true,
+        waitFor: 2000, // Wait for dynamic content
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok || !data.success) {
-      console.error(`Failed to scrape ${url}:`, data.error);
+      console.error(`Failed to scrape ${url}:`, data.error || JSON.stringify(data));
       return null;
     }
 
-    const html = data.data?.html || '';
-    const title = data.data?.metadata?.title || '';
-    const description = data.data?.metadata?.description || '';
+    // Firecrawl v1 response structure: data.data.html, data.data.markdown, etc.
+    const rawHtml = data.data?.html || data.html || '';
+    const markdown = data.data?.markdown || data.markdown || '';
+    const title = data.data?.metadata?.title || data.metadata?.title || '';
+    const description = data.data?.metadata?.description || data.metadata?.description || '';
 
-    // Extract main content from HTML - remove scripts, styles, nav, header, footer
-    const cleanedHtml = cleanHtmlContent(html);
+    console.log(`Scraped ${url}: html length=${rawHtml.length}, markdown length=${markdown.length}`);
 
-    return { html: cleanedHtml, title, description };
+    // Clean the HTML content while preserving important elements
+    const cleanedHtml = cleanHtmlContent(rawHtml, markdown);
+
+    return { html: cleanedHtml, markdown, title, description };
   } catch (error) {
     console.error(`Error scraping ${url}:`, error);
     return null;
   }
 }
 
-// Clean HTML content for safe display
-function cleanHtmlContent(html: string): string {
-  if (!html) return '';
+// Clean HTML content for safe display - preserve more content
+function cleanHtmlContent(html: string, markdown?: string): string {
+  if (!html && !markdown) return '';
 
-  // Remove scripts, styles, and other unwanted elements
-  let cleaned = html
+  // If HTML is too short or looks like an error, try to convert markdown to HTML
+  if (html.length < 100 && markdown && markdown.length > 50) {
+    console.log('HTML too short, using markdown converted to HTML');
+    return convertMarkdownToHtml(markdown);
+  }
+
+  let cleaned = html;
+
+  // Remove dangerous elements first
+  cleaned = cleaned
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
-    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-    .replace(/<header[\s\S]*?<\/header>/gi, '')
-    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-    .replace(/<aside[\s\S]*?<\/aside>/gi, '')
-    .replace(/<form[\s\S]*?<\/form>/gi, '')
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '');
 
   // Remove event handlers
   cleaned = cleaned.replace(/\s*on\w+="[^"]*"/gi, '');
+  cleaned = cleaned.replace(/\s*on\w+='[^']*'/gi, '');
+
+  // Remove navigation/layout elements that are not content
+  cleaned = cleaned
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '');
 
   // Try to extract main content area
+  let mainContent = '';
+  
+  // Priority 1: <main> element
   const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
-  if (mainMatch) {
-    cleaned = mainMatch[1];
-  } else {
-    // Try article
+  if (mainMatch && mainMatch[1].length > 100) {
+    mainContent = mainMatch[1];
+  }
+  
+  // Priority 2: <article> element
+  if (!mainContent) {
     const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
-    if (articleMatch) {
-      cleaned = articleMatch[1];
-    } else {
-      // Try div with content-related class
-      const contentMatch = /<div[^>]*class="[^"]*(?:content|main|page|body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(cleaned);
-      if (contentMatch) {
-        cleaned = contentMatch[1];
-      }
+    if (articleMatch && articleMatch[1].length > 100) {
+      mainContent = articleMatch[1];
+    }
+  }
+  
+  // Priority 3: Shopify page content
+  if (!mainContent) {
+    const shopifyMatch = /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*?)<\/div>\s*(?:<\/main>|$)/i.exec(cleaned);
+    if (shopifyMatch && shopifyMatch[1].length > 100) {
+      mainContent = shopifyMatch[1];
+    }
+  }
+  
+  // Priority 4: div with content/page class
+  if (!mainContent) {
+    const contentMatch = /<div[^>]*class="[^"]*(?:page-content|content|rte|entry-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(cleaned);
+    if (contentMatch && contentMatch[1].length > 100) {
+      mainContent = contentMatch[1];
     }
   }
 
-  // Keep only allowed tags
-  const allowedTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'a', 'span', 'div', 'blockquote'];
-  
-  // Simple tag filter - keep structure but remove classes/ids
-  cleaned = cleaned.replace(/<(\w+)[^>]*>/gi, (match, tag) => {
-    const lowerTag = tag.toLowerCase();
-    if (allowedTags.includes(lowerTag)) {
-      // Keep href for links
-      if (lowerTag === 'a') {
-        const hrefMatch = /href="([^"]+)"/.exec(match);
-        return hrefMatch ? `<a href="${hrefMatch[1]}">` : '<a>';
-      }
-      return `<${lowerTag}>`;
+  // Priority 5: Use full body or cleaned content
+  if (!mainContent) {
+    const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(cleaned);
+    if (bodyMatch) {
+      mainContent = bodyMatch[1];
+    } else {
+      mainContent = cleaned;
     }
-    return '';
+  }
+
+  // Keep more tags - including images, videos, iframes (YouTube/Vimeo)
+  const allowedTags = [
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'p', 'br', 'hr',
+    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark',
+    'ul', 'ol', 'li',
+    'a',
+    'span', 'div',
+    'blockquote', 'pre', 'code',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'img',
+    'figure', 'figcaption',
+    'video', 'source',
+    'iframe', // For YouTube/Vimeo embeds
+  ];
+
+  // Process tags - keep allowed ones with safe attributes
+  mainContent = mainContent.replace(/<(\w+)([^>]*)>/gi, (match, tag, attrs) => {
+    const lowerTag = tag.toLowerCase();
+    if (!allowedTags.includes(lowerTag)) {
+      return '';
+    }
+
+    // Keep specific attributes based on tag type
+    let safeAttrs = '';
+    
+    if (lowerTag === 'a') {
+      const hrefMatch = /href="([^"]+)"/.exec(attrs);
+      const targetMatch = /target="([^"]+)"/.exec(attrs);
+      if (hrefMatch) safeAttrs += ` href="${hrefMatch[1]}"`;
+      if (targetMatch) safeAttrs += ` target="${targetMatch[1]}"`;
+    } else if (lowerTag === 'img') {
+      const srcMatch = /src="([^"]+)"/.exec(attrs);
+      const altMatch = /alt="([^"]+)"/.exec(attrs);
+      const widthMatch = /width="([^"]+)"/.exec(attrs);
+      const heightMatch = /height="([^"]+)"/.exec(attrs);
+      if (srcMatch) safeAttrs += ` src="${srcMatch[1]}"`;
+      if (altMatch) safeAttrs += ` alt="${altMatch[1]}"`;
+      if (widthMatch) safeAttrs += ` width="${widthMatch[1]}"`;
+      if (heightMatch) safeAttrs += ` height="${heightMatch[1]}"`;
+    } else if (lowerTag === 'iframe') {
+      const srcMatch = /src="([^"]+)"/.exec(attrs);
+      // Only allow YouTube/Vimeo iframes
+      if (srcMatch && /(youtube|vimeo|youtu\.be)/i.test(srcMatch[1])) {
+        safeAttrs += ` src="${srcMatch[1]}"`;
+        const widthMatch = /width="([^"]+)"/.exec(attrs);
+        const heightMatch = /height="([^"]+)"/.exec(attrs);
+        if (widthMatch) safeAttrs += ` width="${widthMatch[1]}"`;
+        if (heightMatch) safeAttrs += ` height="${heightMatch[1]}"`;
+        safeAttrs += ' frameborder="0" allowfullscreen';
+      } else {
+        return ''; // Skip non-video iframes
+      }
+    } else if (lowerTag === 'video' || lowerTag === 'source') {
+      const srcMatch = /src="([^"]+)"/.exec(attrs);
+      const typeMatch = /type="([^"]+)"/.exec(attrs);
+      if (srcMatch) safeAttrs += ` src="${srcMatch[1]}"`;
+      if (typeMatch) safeAttrs += ` type="${typeMatch[1]}"`;
+      if (lowerTag === 'video') safeAttrs += ' controls';
+    }
+
+    return `<${lowerTag}${safeAttrs}>`;
   });
 
   // Close unmatched tags
-  cleaned = cleaned.replace(/<\/(\w+)>/gi, (match, tag) => {
+  mainContent = mainContent.replace(/<\/(\w+)>/gi, (match, tag) => {
     const lowerTag = tag.toLowerCase();
-    if (allowedTags.includes(lowerTag)) {
-      return `</${lowerTag}>`;
-    }
-    return '';
+    return allowedTags.includes(lowerTag) ? `</${lowerTag}>` : '';
   });
 
-  // Clean up whitespace
-  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  // Clean up excessive whitespace but preserve structure
+  mainContent = mainContent
+    .replace(/\n\s*\n\s*\n/g, '\n\n')
+    .replace(/>\s+</g, '> <')
+    .trim();
 
-  return cleaned || '<p>Conteúdo da página</p>';
+  // If still too short or empty, try markdown fallback
+  if (mainContent.length < 50 && markdown && markdown.length > 50) {
+    console.log('Cleaned HTML too short, using markdown converted to HTML');
+    return convertMarkdownToHtml(markdown);
+  }
+
+  return mainContent || '<p>Conteúdo da página</p>';
+}
+
+// Convert markdown to basic HTML
+function convertMarkdownToHtml(markdown: string): string {
+  let html = markdown;
+
+  // Headers
+  html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+  html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+  html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+  html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+  // Bold and italic
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  html = html.replace(/_(.+?)_/g, '<em>$1</em>');
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+  // Images
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
+
+  // Horizontal rules
+  html = html.replace(/^---+$/gm, '<hr>');
+  html = html.replace(/^\*\*\*+$/gm, '<hr>');
+
+  // Lists
+  html = html.replace(/^\*\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/^-\s+(.+)$/gm, '<li>$1</li>');
+  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
+
+  // Wrap consecutive li elements in ul/ol
+  html = html.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
+
+  // Paragraphs - wrap remaining text blocks
+  const lines = html.split('\n');
+  const processed: string[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      processed.push('');
+    } else if (
+      trimmed.startsWith('<h') ||
+      trimmed.startsWith('<ul') ||
+      trimmed.startsWith('<ol') ||
+      trimmed.startsWith('<li') ||
+      trimmed.startsWith('<hr') ||
+      trimmed.startsWith('<img') ||
+      trimmed.startsWith('<blockquote')
+    ) {
+      processed.push(trimmed);
+    } else {
+      processed.push(`<p>${trimmed}</p>`);
+    }
+  }
+
+  return processed.join('\n').replace(/<p><\/p>/g, '').trim();
 }
 
 Deno.serve(async (req) => {
@@ -201,21 +357,24 @@ Deno.serve(async (req) => {
       skipped: 0,
       failed: 0,
       errors: [] as string[],
-      pages: [] as { slug: string; title: string }[],
+      pages: [] as { slug: string; title: string; hasContent: boolean }[],
     };
 
     for (const page of pages) {
       try {
+        // Normalize slug - remove leading slash
+        const normalizedSlug = page.slug.replace(/^\/+/, '').toLowerCase();
+        
         // Check if page already exists
         const { data: existing } = await supabase
           .from('store_pages')
           .select('id, slug')
           .eq('tenant_id', tenantId)
-          .eq('slug', page.slug)
+          .eq('slug', normalizedSlug)
           .maybeSingle();
 
         if (existing) {
-          console.log(`Page ${page.slug} already exists, skipping`);
+          console.log(`Page ${normalizedSlug} already exists, skipping`);
           results.skipped++;
           continue;
         }
@@ -226,45 +385,53 @@ Deno.serve(async (req) => {
         let pageContent: object;
         let seoTitle = page.title;
         let seoDescription = '';
+        let hasRealContent = false;
 
-        if (scraped) {
+        if (scraped && (scraped.html.length > 100 || scraped.markdown.length > 100)) {
           pageContent = generatePageContent(scraped.html, scraped.title || page.title);
           seoTitle = scraped.title || page.title;
           seoDescription = scraped.description || '';
+          hasRealContent = true;
+          console.log(`Page ${normalizedSlug} has real content: ${scraped.html.length} chars`);
         } else {
-          // Create placeholder page if scraping failed
-          pageContent = generatePageContent(`<p>Conteúdo de ${page.title}</p>`, page.title);
+          // Create as DRAFT if no content was extracted (don't publish empty pages)
+          console.warn(`Page ${normalizedSlug} has no content, creating as draft`);
+          pageContent = generatePageContent(`<p>Conteúdo de ${page.title} não pôde ser importado automaticamente.</p>`, page.title);
         }
 
-        // Insert page
+        // Insert page - published only if has real content
         const { error: insertError } = await supabase
           .from('store_pages')
           .insert({
             tenant_id: tenantId,
             title: page.title,
-            slug: page.slug,
+            slug: normalizedSlug,
             type: 'institutional',
-            status: 'published',
+            status: hasRealContent ? 'published' : 'draft',
             content: pageContent,
-            is_published: true,
+            is_published: hasRealContent,
             is_system: false,
             seo_title: seoTitle,
             seo_description: seoDescription,
           });
 
         if (insertError) {
-          console.error(`Error inserting page ${page.slug}:`, insertError);
+          console.error(`Error inserting page ${normalizedSlug}:`, insertError);
           results.failed++;
-          results.errors.push(`${page.slug}: ${insertError.message}`);
+          results.errors.push(`${page.title} (${normalizedSlug}): ${insertError.message}`);
         } else {
-          console.log(`Imported page: ${page.slug}`);
+          console.log(`Imported page: ${normalizedSlug} (hasContent: ${hasRealContent})`);
           results.imported++;
-          results.pages.push({ slug: page.slug, title: page.title });
+          results.pages.push({ 
+            slug: normalizedSlug, 
+            title: page.title,
+            hasContent: hasRealContent,
+          });
         }
       } catch (error) {
         console.error(`Error processing page ${page.slug}:`, error);
         results.failed++;
-        results.errors.push(`${page.slug}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        results.errors.push(`${page.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
 

@@ -50,7 +50,7 @@ interface ExtractedInstitutionalPage {
   title: string;
   slug: string;
   url: string;
-  source: 'footer' | 'header' | 'sitemap';
+  source: 'footer' | 'header' | 'sitemap' | 'global';
 }
 
 interface VisualExtractionResult {
@@ -1352,84 +1352,116 @@ function normalizeUrl(href: string, baseUrl: string): string {
   }
   return normalizeImageUrl(href, baseUrl);
 }
-// Extract institutional pages from footer links and Shopify standard policies
+// Extract institutional pages from footer links, header, nav, and Shopify standard policies
 function extractInstitutionalPages(html: string, baseUrl: string, platform?: string): ExtractedInstitutionalPage[] {
   const pages: ExtractedInstitutionalPage[] = [];
   const addedSlugs = new Set<string>();
 
-  const institutionalKeywords = [
-    'sobre', 'about', 'quem-somos', 'nossa-historia', 'nossa-loja',
-    'contato', 'contact', 'fale-conosco',
-    'politica', 'policy', 'privacidade', 'privacy', 'termos', 'terms',
-    'troca', 'devoluc', 'exchange', 'return', 'refund',
-    'frete', 'shipping', 'entrega', 'delivery',
-    'pagamento', 'payment', 'faq', 'perguntas', 'duvidas', 'ajuda', 'help',
-    'garantia', 'warranty', 'lgpd', 'cookies', 'servico', 'service',
-  ];
-
+  // Core routes to SKIP (not institutional pages)
   const skipPatterns = [
     '/collections', '/products', '/cart', '/checkout', '/account', '/login',
-    '/search', '/categoria', '/produto', '/register', '/wishlist',
-    'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', 'facebook.com',
-    'instagram.com', 'twitter.com', 'youtube.com', 'linkedin.com', 'pinterest.com',
-    'tiktok.com', 'wa.me', '/cdn/',
+    '/search', '/categoria', '/produto', '/register', '/wishlist', '/blogs/',
+    'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', '/cdn/', '/apps/',
+    'facebook.com', 'instagram.com', 'twitter.com', 'youtube.com', 'linkedin.com', 
+    'pinterest.com', 'tiktok.com', 'wa.me', 'api.whatsapp.com',
   ];
 
-  const shouldSkip = (href: string): boolean => skipPatterns.some(p => href.toLowerCase().includes(p));
+  const shouldSkip = (href: string): boolean => {
+    const lowerHref = href.toLowerCase();
+    // Skip external links and core routes
+    if (skipPatterns.some(p => lowerHref.includes(p))) return true;
+    // Skip home page
+    if (/^https?:\/\/[^/]+\/?$/.test(href) || href === '/') return true;
+    return false;
+  };
 
   const extractSlug = (href: string): string | null => {
+    // Remove UTM and tracking params
+    const cleanHref = href.split('?')[0].replace(/\/$/, '');
+    
     // Match Shopify policies
-    const policyMatch = /\/policies\/([^/?#]+)/i.exec(href);
+    const policyMatch = /\/policies\/([^/?#]+)/i.exec(cleanHref);
     if (policyMatch) return policyMatch[1];
     
     // Match /pages/slug
-    const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(href);
+    const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(cleanHref);
     if (pageMatch) return pageMatch[1];
     
-    // Match root level institutional pages
-    const rootMatch = /^(?:https?:\/\/[^/]+)?\/([^/?#]+)\/?$/i.exec(href);
-    if (rootMatch && institutionalKeywords.some(k => rootMatch[1].toLowerCase().includes(k))) {
-      return rootMatch[1];
-    }
     return null;
   };
 
-  // Strategy 1: Look for footer element with multiple selectors
-  const footerPatterns = [
-    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
-    /<div[^>]*class="[^"]*(?:footer|Footer|site-footer)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>\s*)*<\/body>/gi,
-    /<section[^>]*class="[^"]*(?:footer|Footer)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
+  const extractTitle = (rawLabel: string): string => {
+    return rawLabel.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  };
+
+  const addPage = (href: string, rawLabel: string, source: 'footer' | 'header' | 'sitemap' | 'global') => {
+    if (shouldSkip(href)) return;
+    
+    const slug = extractSlug(href);
+    if (!slug || addedSlugs.has(slug.toLowerCase())) return;
+    
+    const title = extractTitle(rawLabel);
+    if (!title || title.length < 2) return;
+    
+    const normalizedUrl = href.startsWith('http') ? href.split('?')[0] : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href.split('?')[0]}`;
+    
+    pages.push({ 
+      title, 
+      slug: slug.toLowerCase(), 
+      url: normalizedUrl, 
+      source 
+    });
+    addedSlugs.add(slug.toLowerCase());
+    console.log(`Found institutional page: ${title} -> ${slug} (${source})`);
+  };
+
+  // Link extraction pattern
+  const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+
+  // Strategy 1: Look for header/nav links to /pages/
+  const headerPatterns = [
+    /<header[^>]*>([\s\S]*?)<\/header>/gi,
+    /<nav[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<div[^>]*class="[^"]*(?:header|nav|navigation|menu)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
   ];
 
-  for (const footerPattern of footerPatterns) {
-    let footerMatch;
-    while ((footerMatch = footerPattern.exec(html)) !== null) {
-      const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+  for (const headerPattern of headerPatterns) {
+    let headerMatch;
+    while ((headerMatch = headerPattern.exec(html)) !== null) {
       let linkMatch;
-      
-      while ((linkMatch = linkPattern.exec(footerMatch[1])) !== null) {
+      while ((linkMatch = linkPattern.exec(headerMatch[1])) !== null) {
         const [, href, rawLabel] = linkMatch;
-        const label = rawLabel.replace(/<[^>]*>/g, '').trim();
-        
-        if (!label || label.length < 2 || shouldSkip(href)) continue;
-        
-        const slug = extractSlug(href);
-        if (!slug || addedSlugs.has(slug.toLowerCase())) continue;
-        
-        const isInstitutional = institutionalKeywords.some(k => 
-          slug.toLowerCase().includes(k) || label.toLowerCase().includes(k)
-        ) || /\/(?:pages?|pagina|policies)\//i.test(href);
-        
-        if (isInstitutional) {
-          const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-          pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
-          addedSlugs.add(slug.toLowerCase());
+        // Only add if it's a /pages/ or /policies/ link
+        if (/\/(?:pages?|policies)\//i.test(href)) {
+          addPage(href, rawLabel, 'header');
         }
       }
     }
   }
 
-  // Strategy 2: For Shopify stores, add standard policy pages
+  // Strategy 2: Look for footer element with multiple selectors
+  const footerPatterns = [
+    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
+    /<div[^>]*class="[^"]*(?:footer|Footer|site-footer)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>\s*)*(?=<\/body>|$)/gi,
+    /<section[^>]*class="[^"]*(?:footer|Footer)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
+    /<div[^>]*id="?footer"?[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+
+  for (const footerPattern of footerPatterns) {
+    let footerMatch;
+    while ((footerMatch = footerPattern.exec(html)) !== null) {
+      let linkMatch;
+      while ((linkMatch = linkPattern.exec(footerMatch[1])) !== null) {
+        const [, href, rawLabel] = linkMatch;
+        // Add any /pages/ or /policies/ links from footer
+        if (/\/(?:pages?|policies)\//i.test(href)) {
+          addPage(href, rawLabel, 'footer');
+        }
+      }
+    }
+  }
+
+  // Strategy 3: For Shopify stores, add standard policy pages
   if (platform === 'Shopify' || html.includes('Shopify') || html.includes('shopify')) {
     const shopifyPolicies = [
       { slug: 'privacy-policy', title: 'Política de Privacidade', path: '/policies/privacy-policy' },
@@ -1451,26 +1483,26 @@ function extractInstitutionalPages(html: string, baseUrl: string, platform?: str
     }
   }
 
-  // Strategy 3: Search entire HTML for /pages/ and /policies/ links as fallback
-  if (pages.length === 0) {
-    const globalLinkPattern = /<a[^>]*href=["']([^"']*\/(?:pages?|policies)\/[^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
-    let linkMatch;
-    
-    while ((linkMatch = globalLinkPattern.exec(html)) !== null) {
-      const [, href, rawLabel] = linkMatch;
-      const label = rawLabel.replace(/<[^>]*>/g, '').trim();
-      
-      if (!label || label.length < 2 || shouldSkip(href)) continue;
-      
-      const slug = extractSlug(href);
-      if (!slug || addedSlugs.has(slug.toLowerCase())) continue;
-      
-      const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-      pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
-      addedSlugs.add(slug.toLowerCase());
+  // Strategy 4: ALWAYS search entire HTML for ALL /pages/ and /policies/ links (not just as fallback)
+  const globalLinkPattern = /<a[^>]*href=["']([^"']*\/(?:pages?|policies)\/[^"'?#]+)[^"']*["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+  let linkMatch;
+  
+  while ((linkMatch = globalLinkPattern.exec(html)) !== null) {
+    const [, href, rawLabel] = linkMatch;
+    addPage(href, rawLabel, 'global');
+  }
+
+  // Strategy 5: Also look for links that might be institutional by URL pattern
+  // This catches pages that might not have been found through normal means
+  const allLinksPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+  while ((linkMatch = allLinksPattern.exec(html)) !== null) {
+    const [, href, rawLabel] = linkMatch;
+    // Only process if it looks like a /pages/ or /policies/ URL
+    if (/\/(?:pages?|policies)\//i.test(href)) {
+      addPage(href, rawLabel, 'global');
     }
   }
 
-  console.log(`Extracted ${pages.length} institutional pages (footer + policies)`);
+  console.log(`Extracted ${pages.length} institutional pages total`);
   return pages;
 }
