@@ -29,6 +29,8 @@ import { ReviewsBlock as ReviewsBlockComponent } from './blocks/ReviewsBlock';
 import { FeaturedCategoriesBlock as FeaturedCategoriesBlockComponent } from './blocks/FeaturedCategoriesBlock';
 import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBannersBlock';
 import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
+import { TrackingLookupBlock as TrackingLookupBlockComponent } from './blocks/TrackingLookupBlock';
+import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogListingBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -537,6 +539,9 @@ const components: Record<string, React.ComponentType<any>> = {
     AccountHub: AccountHubBlock,
     OrdersList: OrdersListBlock,
     OrderDetail: OrderDetailBlock,
+    // System blocks (Rastreio, Blog)
+    TrackingLookup: TrackingLookupBlockWrapper,
+    BlogListing: BlogListingBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -1954,6 +1959,14 @@ function TextBannersBlockWrapper({ context, ...props }: any) {
 
 function VideoUploadBlockWrapper({ context, ...props }: any) {
   return <VideoUploadBlockComponent {...props} context={context} />;
+}
+
+function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
+  return <TrackingLookupBlockComponent {...props} context={context} isEditing={isEditing} />;
+}
+
+function BlogListingBlockWrapper({ context, isEditing, ...props }: any) {
+  return <BlogListingBlockComponent {...props} context={context} isEditing={isEditing} />;
 }
 
 // ========== ACCOUNT BLOCKS (essential) ==========
