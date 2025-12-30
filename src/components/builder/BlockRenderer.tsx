@@ -31,6 +31,7 @@ import { TextBannersBlock as TextBannersBlockComponent } from './blocks/TextBann
 import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUploadBlock';
 import { TrackingLookupBlock as TrackingLookupBlockComponent } from './blocks/TrackingLookupBlock';
 import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogListingBlock';
+import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -542,6 +543,8 @@ const components: Record<string, React.ComponentType<any>> = {
     // System blocks (Rastreio, Blog)
     TrackingLookup: TrackingLookupBlockWrapper,
     BlogListing: BlogListingBlockWrapper,
+    // Template slot block (for page content)
+    PageContent: PageContentBlock,
   };
 
   return components[type] || FallbackBlock;
@@ -1967,6 +1970,10 @@ function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
 
 function BlogListingBlockWrapper({ context, isEditing, ...props }: any) {
   return <BlogListingBlockComponent {...props} context={context} isEditing={isEditing} />;
+}
+
+function PageContentBlock({ context }: any) {
+  return <PageContentBlockComponent context={context} />;
 }
 
 // ========== ACCOUNT BLOCKS (essential) ==========

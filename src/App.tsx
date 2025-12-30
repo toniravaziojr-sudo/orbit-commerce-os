@@ -33,6 +33,7 @@ import Domains from "@/pages/Domains";
 import StorefrontSettings from "@/pages/StorefrontSettings";
 import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
+import PageTemplates from "@/pages/PageTemplates";
 import LandingPages from "@/pages/LandingPages";
 
 import Reviews from "@/pages/Reviews";
@@ -212,6 +213,8 @@ const App = () => {
                   <Route path="/menus" element={<Menus />} />
                   <Route path="/pages" element={<Pages />} />
                   <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
+                  <Route path="/page-templates" element={<PageTemplates />} />
+                  <Route path="/page-templates/:templateId/builder" element={<PageBuilder />} />
                   <Route path="/landing-pages" element={<LandingPages />} />
                   <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/blog" element={<Blog />} />

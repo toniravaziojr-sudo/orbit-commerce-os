@@ -781,6 +781,15 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
   },
   {
+    type: 'PageContent',
+    label: 'Conteúdo da Página',
+    category: 'content',
+    icon: 'FileInput',
+    defaultProps: {},
+    propsSchema: {},
+    canHaveChildren: false,
+  },
+  {
     type: 'Image',
     label: 'Imagem',
     category: 'media',
