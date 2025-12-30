@@ -1,11 +1,9 @@
-import { Category } from '@/hooks/useProducts';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Save, AlertCircle } from 'lucide-react';
 import { validateSlugFormat, generateSlug as generateSlugUtil } from '@/lib/slugPolicy';
 import { ImageUploaderWithLibrary } from '@/components/builder/ImageUploaderWithLibrary';
@@ -16,7 +14,6 @@ interface CategoryFormProps {
     slug: string;
     description: string;
     image_url: string;
-    parent_id: string;
     is_active: boolean;
     sort_order: number;
     seo_title: string;
@@ -28,7 +25,6 @@ interface CategoryFormProps {
   onSubmit: () => void;
   onClose: () => void;
   isEditing: boolean;
-  parentCategories: Category[];
   editingCategoryId?: string;
   isLoading?: boolean;
 }
@@ -40,13 +36,9 @@ export function CategoryForm({
   onSubmit,
   onClose,
   isEditing,
-  parentCategories,
   editingCategoryId,
   isLoading,
 }: CategoryFormProps) {
-  // Filter out the current category and its children from parent options
-  const availableParents = parentCategories.filter(c => c.id !== editingCategoryId);
-
   // Use centralized slug generation utility
   const handleGenerateSlug = (name: string) => generateSlugUtil(name);
   
@@ -104,26 +96,6 @@ export function CategoryForm({
               Usado na URL: /c/{formData.slug || 'slug'}
             </p>
           )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="parent">Categoria Pai</Label>
-          <Select
-            value={formData.parent_id || 'none'}
-            onValueChange={(v) => onChange({ ...formData, parent_id: v === 'none' ? '' : v })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Nenhuma (categoria raiz)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Nenhuma (categoria raiz)</SelectItem>
-              {availableParents.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="space-y-2">
