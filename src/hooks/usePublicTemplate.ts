@@ -121,7 +121,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
       // Get the page with SEO fields - filter by type 'institutional' only
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, published_version, is_published, content, type, meta_title, meta_description, meta_image_url, no_index, canonical_url')
+        .select('id, title, published_version, is_published, content, type, meta_title, meta_description, meta_image_url, no_index, canonical_url, template_id, individual_content')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
         .eq('type', 'institutional')

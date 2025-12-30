@@ -76,6 +76,7 @@ const navigation: NavGroup[] = [
       { title: "Conversão de Carrinho", href: "/storefront/conversao", icon: TrendingUp },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
+      { title: "Modelos de Página", href: "/page-templates", icon: FileText },
       { title: "Blog", href: "/blog", icon: BookOpen },
       { title: "Landing Pages", href: "/landing-pages", icon: Rocket },
     ],

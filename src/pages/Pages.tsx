@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStorePages } from '@/hooks/useStorePages';
+import { usePageTemplates } from '@/hooks/usePageTemplates';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +28,7 @@ export default function Pages() {
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const { pages, isLoading, createPage, updatePage, deletePage } = useStorePages();
+  const { templates, isLoading: templatesLoading, initializeDefaultTemplate } = usePageTemplates();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingPage, setEditingPage] = useState<any>(null);
@@ -45,13 +47,27 @@ export default function Pages() {
     meta_image_url: '',
     no_index: false,
     canonical_url: '',
+    // Template selection
+    template_id: '',
+    individual_content: '',
   });
+
+  // Initialize default template if none exists
+  useEffect(() => {
+    if (!templatesLoading && templates && templates.length === 0 && currentTenant?.id) {
+      initializeDefaultTemplate.mutate();
+    }
+  }, [templatesLoading, templates, currentTenant?.id]);
+
+  // Get default template ID
+  const defaultTemplateId = templates?.find(t => t.is_default)?.id || templates?.[0]?.id || '';
 
   const resetForm = () => {
     setFormData({
       title: '', slug: '', content: '', status: 'draft', seo_title: '', seo_description: '',
       show_in_menu: false, menu_label: '',
       meta_title: '', meta_description: '', meta_image_url: '', no_index: false, canonical_url: '',
+      template_id: defaultTemplateId, individual_content: '',
     });
     setEditingPage(null);
   };
@@ -77,6 +93,9 @@ export default function Pages() {
       meta_image_url: page.meta_image_url || '',
       no_index: page.no_index || false,
       canonical_url: page.canonical_url || '',
+      // Template
+      template_id: page.template_id || defaultTemplateId,
+      individual_content: page.individual_content || '',
     });
     setIsDialogOpen(true);
   };
@@ -84,11 +103,8 @@ export default function Pages() {
   const handleSubmit = async () => {
     const slug = formData.slug || formData.title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     
-    // Get the neutral template content
-    const { defaultNeutralPageTemplate } = await import('@/lib/builder/defaults');
-    
     if (editingPage) {
-      // When editing, don't overwrite content
+      // When editing, update metadata + template + individual_content
       const updateData = {
         id: editingPage.id,
         title: formData.title,
@@ -105,27 +121,28 @@ export default function Pages() {
         meta_image_url: formData.meta_image_url || null,
         no_index: formData.no_index,
         canonical_url: formData.canonical_url || null,
+        // Template
+        template_id: formData.template_id || null,
+        individual_content: formData.individual_content || null,
       };
       await updatePage.mutateAsync(updateData);
       setIsDialogOpen(false);
       resetForm();
     } else {
+      // New page uses template system
       const data = {
         title: formData.title,
         slug,
-        content: defaultNeutralPageTemplate as unknown as Json,
+        content: null, // No longer using content for template-based pages
         status: formData.status,
         is_published: formData.status === 'published',
         seo_title: formData.seo_title || null,
         seo_description: formData.seo_description || null,
         type: 'institutional',
+        template_id: formData.template_id || defaultTemplateId || null,
+        individual_content: formData.individual_content || null,
       };
       const newPage = await createPage.mutateAsync(data);
-      // Navigate to builder after creation
-      if (newPage?.id) {
-        navigate(`/pages/${newPage.id}/builder`);
-        return;
-      }
       setIsDialogOpen(false);
       resetForm();
     }
@@ -199,6 +216,43 @@ export default function Pages() {
                       </p>
                     )}
                   </div>
+                </div>
+
+                {/* Template Selection */}
+                <div>
+                  <Label>Modelo de Página</Label>
+                  <Select 
+                    value={formData.template_id || defaultTemplateId} 
+                    onValueChange={(v) => setFormData({ ...formData, template_id: v })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um modelo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates?.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} {t.is_default && '(Padrão)'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O modelo define a estrutura visual da página (Header, Footer, layout)
+                  </p>
+                </div>
+
+                {/* Individual Content */}
+                <div>
+                  <Label>Conteúdo da Página</Label>
+                  <Textarea 
+                    value={formData.individual_content} 
+                    onChange={(e) => setFormData({ ...formData, individual_content: e.target.value })}
+                    placeholder="Escreva o conteúdo textual da página aqui..."
+                    className="min-h-[120px]"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Este texto será inserido na área de conteúdo do modelo selecionado
+                  </p>
                 </div>
                 
                 <div className="border-t pt-4">
