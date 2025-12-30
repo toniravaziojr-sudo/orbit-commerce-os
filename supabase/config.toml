@@ -213,3 +213,6 @@ verify_jwt = true
 
 [functions.mailbox-dns-verify]
 verify_jwt = true
+
+[functions.tracking-lookup]
+verify_jwt = false
