@@ -150,7 +150,7 @@ function ActionButtons({
               <Trash2 className={iconSize} />
             </Button>
           </AlertDialogTrigger>
-          <AlertDialogContent>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
             <AlertDialogHeader>
               <AlertDialogTitle>Remover bloco?</AlertDialogTitle>
               <AlertDialogDescription>
@@ -159,7 +159,14 @@ function ActionButtons({
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={onDelete}>Remover</AlertDialogAction>
+              <AlertDialogAction 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+              >
+                Remover
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
