@@ -216,3 +216,6 @@ verify_jwt = true
 
 [functions.tracking-lookup]
 verify_jwt = false
+
+[functions.import-pages]
+verify_jwt = false

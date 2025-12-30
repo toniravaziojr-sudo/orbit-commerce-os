@@ -352,13 +352,54 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       // === STEP 2.1: Import Pages (institutional/informational) ===
       setVisualProgress(prev => ({ ...prev, pages: 'processing' }));
       
-      // For now, pages are extracted from menu items with type 'page'
-      // TODO: Create actual pages in the pages table
-      const pageItems = (visualData.menuItems || []).filter((item: any) => 
-        item.type === 'page' || 
-        /\/(?:pages?|pagina|sobre|contato|politica|termos)/i.test(item.url || '')
-      );
-      stats.pages = pageItems.length;
+      // Get institutional pages from visual extraction (from footer links)
+      const institutionalPages = visualData.institutionalPages || [];
+      
+      if (institutionalPages.length > 0) {
+        toast.info(`Importando ${institutionalPages.length} páginas institucionais...`);
+        
+        try {
+          const { data: pagesResult, error: pagesError } = await supabase.functions.invoke('import-pages', {
+            body: {
+              tenantId: currentTenant.id,
+              pages: institutionalPages,
+              platform: analysisResult?.platform,
+            }
+          });
+          
+          if (pagesError) {
+            console.error('Error importing pages:', pagesError);
+            setImportErrors(prev => [...prev, `Erro ao importar páginas: ${pagesError.message}`]);
+          } else if (pagesResult?.success) {
+            stats.pages = pagesResult.results?.imported || 0;
+            console.log(`Imported ${stats.pages} institutional pages`);
+          }
+        } catch (e) {
+          console.error('Error calling import-pages:', e);
+        }
+      } else {
+        // Fallback: try to detect pages from menu items
+        const pageItems = (visualData.menuItems || []).filter((item: any) => 
+          item.type === 'page' || 
+          /\/(?:pages?|pagina|sobre|contato|politica|termos)/i.test(item.url || '')
+        );
+        
+        if (pageItems.length > 0) {
+          const pagesToImport = pageItems.map((item: any) => ({
+            title: item.label,
+            slug: item.internalUrl?.replace('/pagina/', '') || item.url.split('/').pop() || item.label.toLowerCase().replace(/\s+/g, '-'),
+            url: item.url,
+            source: 'header' as const,
+          }));
+          
+          const { data: pagesResult } = await supabase.functions.invoke('import-pages', {
+            body: { tenantId: currentTenant.id, pages: pagesToImport }
+          });
+          
+          stats.pages = pagesResult?.results?.imported || 0;
+        }
+      }
+      
       setVisualProgress(prev => ({ ...prev, pages: 'completed' }));
       
       // === STEP 2.2: Import Categories (FLAT - no hierarchy in categories) ===
