@@ -421,9 +421,15 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       // Save categories as FLAT (parent_id = null always)
       const slugToIdMap = new Map<string, string>();
+      const categoryUrlMap = new Map<string, string>(); // slug -> original URL for banner extraction
       
       for (const cat of allCategories) {
         if (!cat || !cat.slug) continue;
+        
+        // Store URL for later banner extraction
+        if (cat.url) {
+          categoryUrlMap.set(cat.slug, cat.url);
+        }
         
         const { data, error } = await supabase
           .from('categories')
@@ -449,6 +455,147 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       }
       
       stats.categories = allCategories.length;
+      
+      // === STEP 2.2.1: Extract banners for each category and save to media_assets ===
+      toast.info('Extraindo banners das categorias...');
+      let bannersExtracted = 0;
+      
+      for (const [slug, categoryUrl] of categoryUrlMap) {
+        try {
+          const categoryId = slugToIdMap.get(slug);
+          if (!categoryId) continue;
+          
+          // Call extract-category-banners edge function
+          const { data: bannerData, error: bannerError } = await supabase.functions.invoke('extract-category-banners', {
+            body: { categoryUrl }
+          });
+          
+          if (bannerError || !bannerData?.success) {
+            console.log(`No banners found for category ${slug}:`, bannerError?.message || bannerData?.error);
+            continue;
+          }
+          
+          const { bannerDesktop, bannerMobile } = bannerData;
+          
+          if (bannerDesktop || bannerMobile) {
+            // Save assets to media_assets for later use in Media Library
+            const assetsToSave = [];
+            
+            if (bannerDesktop) {
+              assetsToSave.push({
+                tenant_id: currentTenant.id,
+                file_url: bannerDesktop,
+                file_name: `banner-${slug}-desktop`,
+                variant: 'desktop',
+                mime_type: 'image/jpeg',
+              });
+            }
+            
+            if (bannerMobile) {
+              assetsToSave.push({
+                tenant_id: currentTenant.id,
+                file_url: bannerMobile,
+                file_name: `banner-${slug}-mobile`,
+                variant: 'mobile',
+                mime_type: 'image/jpeg',
+              });
+            }
+            
+            // Insert assets into media_library (ignore duplicates)
+            for (const asset of assetsToSave) {
+              await supabase
+                .from('media_library')
+                .upsert(asset, { 
+                  onConflict: 'tenant_id,file_url',
+                  ignoreDuplicates: true 
+                });
+            }
+            
+            // Update category with banner URLs
+            await supabase
+              .from('categories')
+              .update({
+                banner_desktop_url: bannerDesktop || null,
+                banner_mobile_url: bannerMobile || null,
+              })
+              .eq('id', categoryId);
+            
+            bannersExtracted++;
+          }
+        } catch (e) {
+          console.error(`Error extracting banners for ${slug}:`, e);
+        }
+      }
+      
+      console.log(`Extracted banners for ${bannersExtracted} categories`);
+      
+      // === STEP 2.2.2: Link existing products to imported categories ===
+      toast.info('Vinculando produtos às categorias...');
+      
+      // Get all products for this tenant
+      const { data: existingProducts } = await supabase
+        .from('products')
+        .select('id, slug, name')
+        .eq('tenant_id', currentTenant.id);
+      
+      if (existingProducts && existingProducts.length > 0) {
+        // Create a map of product slugs/names for matching
+        const productMap = new Map<string, string>();
+        existingProducts.forEach(p => {
+          productMap.set(p.slug.toLowerCase(), p.id);
+          productMap.set(p.name.toLowerCase().replace(/\s+/g, '-'), p.id);
+        });
+        
+        // For each category, try to match products from the source site
+        // This is a basic matching - products that contain category name in their slug/name
+        let linkedProducts = 0;
+        
+        for (const [slug, categoryId] of slugToIdMap) {
+          // Try to link products whose slug contains the category slug
+          const matchingProducts = existingProducts.filter(p => 
+            p.slug.toLowerCase().includes(slug.toLowerCase()) ||
+            p.name.toLowerCase().includes(slug.toLowerCase().replace(/-/g, ' '))
+          );
+          
+          for (const product of matchingProducts) {
+            // Check if link already exists
+            const { data: existing } = await supabase
+              .from('product_categories')
+              .select('id')
+              .eq('product_id', product.id)
+              .eq('category_id', categoryId)
+              .maybeSingle();
+            
+            if (!existing) {
+              // Get max position
+              const { data: maxPos } = await supabase
+                .from('product_categories')
+                .select('position')
+                .eq('category_id', categoryId)
+                .order('position', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              
+              const newPosition = (maxPos?.position || 0) + 1;
+              
+              const { error: linkError } = await supabase
+                .from('product_categories')
+                .insert({
+                  product_id: product.id,
+                  category_id: categoryId,
+                  position: newPosition,
+                });
+              
+              if (!linkError) {
+                linkedProducts++;
+              }
+            }
+          }
+        }
+        
+        console.log(`Linked ${linkedProducts} products to categories`);
+      }
+      
       setVisualProgress(prev => ({ ...prev, categories: 'completed' }));
       
       // === STEP 2.3: Import Menus (with hierarchy - parent_id in menu_items) ===
