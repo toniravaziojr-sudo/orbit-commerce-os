@@ -238,6 +238,7 @@ export function BuilderToolbar({
             <SelectItem value="account_order_detail">📄 Pedido</SelectItem>
             <SelectItem value="tracking">📍 Rastreio</SelectItem>
             <SelectItem value="blog">📰 Blog</SelectItem>
+            <SelectItem value="institutional">📄 Página Institucional</SelectItem>
           </SelectContent>
         </Select>
 
