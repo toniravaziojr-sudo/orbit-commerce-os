@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FolderTree, Package, Pencil, Trash2 } from 'lucide-react';
+import { Plus, FolderTree, Package, Pencil, Trash2, ExternalLink } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
@@ -157,6 +157,21 @@ export default function Categories() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="Ver no site"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Open category in storefront
+                          const baseUrl = window.location.origin.replace('app.', '').replace(/\/$/, '');
+                          const categoryUrl = `${baseUrl}/categoria/${category.slug}`;
+                          window.open(categoryUrl, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
