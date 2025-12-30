@@ -2,30 +2,37 @@
 // IMAGE UPLOADER - Upload images for builder blocks
 // =============================================
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, Link, Loader2, X, Check, Code, ChevronDown } from 'lucide-react';
+import { Upload, Link, Loader2, X, Check, Code } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { paymentSvgPresets, svgToDataUri } from '@/lib/builder/svg-presets';
+import { 
+  getSvgPresetsByCategory, 
+  svgToDataUri, 
+  type SvgPresetCategory 
+} from '@/lib/builder/svg-presets';
 
 interface ImageUploaderProps {
   value: string;
   onChange: (url: string) => void;
   placeholder?: string;
   aspectRatio?: 'square' | 'video' | 'banner';
+  /** Categoria para mostrar presets de SVG (só mostra dropdown se houver presets) */
+  svgPresetCategory?: SvgPresetCategory;
 }
 
 export function ImageUploader({ 
   value, 
   onChange, 
   placeholder = 'Selecione ou arraste uma imagem',
-  aspectRatio = 'video'
+  aspectRatio = 'video',
+  svgPresetCategory
 }: ImageUploaderProps) {
   const { currentTenant } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
@@ -35,6 +42,14 @@ export function ImageUploader({
   const [svgInput, setSvgInput] = useState('');
   const [showCustomSvg, setShowCustomSvg] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Buscar presets SVG para a categoria (se fornecida)
+  const svgPresets = useMemo(() => {
+    if (!svgPresetCategory) return [];
+    return getSvgPresetsByCategory(svgPresetCategory);
+  }, [svgPresetCategory]);
+
+  const hasSvgPresets = svgPresets.length > 0;
 
   const aspectRatioClass = {
     square: 'aspect-square',
@@ -228,26 +243,28 @@ export function ImageUploader({
         </TabsContent>
 
         <TabsContent value="svg" className="mt-2 space-y-2">
-          {/* Dropdown com presets de SVG */}
-          <Select 
-            onValueChange={(presetId) => {
-              const preset = paymentSvgPresets.find(p => p.id === presetId);
-              if (preset) {
-                onChange(svgToDataUri(preset.svg));
-              }
-            }}
-          >
-            <SelectTrigger className="h-9">
-              <SelectValue placeholder="Selecione um ícone..." />
-            </SelectTrigger>
-            <SelectContent>
-              {paymentSvgPresets.map((preset) => (
-                <SelectItem key={preset.id} value={preset.id}>
-                  {preset.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Dropdown com presets de SVG - só aparece se houver presets para a categoria */}
+          {hasSvgPresets && (
+            <Select 
+              onValueChange={(presetId) => {
+                const preset = svgPresets.find(p => p.id === presetId);
+                if (preset) {
+                  onChange(svgToDataUri(preset.svg));
+                }
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Selecione um ícone..." />
+              </SelectTrigger>
+              <SelectContent>
+                {svgPresets.map((preset) => (
+                  <SelectItem key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {/* Botão para mostrar textarea customizado */}
           {!showCustomSvg ? (

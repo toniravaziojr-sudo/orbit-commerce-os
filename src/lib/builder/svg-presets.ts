@@ -61,14 +61,22 @@ export const paymentSvgPresets: SvgPreset[] = [
   }
 ];
 
+// Type for preset categories
+export type SvgPresetCategory = SvgPreset['category'];
+
 // Get all presets
 export const getAllSvgPresets = (): SvgPreset[] => {
   return [...paymentSvgPresets];
 };
 
 // Get presets by category
-export const getSvgPresetsByCategory = (category: SvgPreset['category']): SvgPreset[] => {
+export const getSvgPresetsByCategory = (category: SvgPresetCategory): SvgPreset[] => {
   return getAllSvgPresets().filter(preset => preset.category === category);
+};
+
+// Check if category has presets available
+export const hasSvgPresetsForCategory = (category: SvgPresetCategory): boolean => {
+  return getSvgPresetsByCategory(category).length > 0;
 };
 
 // Convert SVG string to data URI

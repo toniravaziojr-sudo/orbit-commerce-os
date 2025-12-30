@@ -19,6 +19,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PropsEditor } from './PropsEditor';
 import { ImageUploader } from './ImageUploader';
+import type { SvgPresetCategory } from '@/lib/builder/svg-presets';
 import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -275,6 +276,24 @@ function FooterImageSection({
   const items = sectionData.items || [];
   const [openItems, setOpenItems] = useState<Record<number, boolean>>({});
 
+  // Mapear sectionKey para categoria de SVG preset
+  const getSvgPresetCategory = (): SvgPresetCategory | undefined => {
+    switch (sectionKey) {
+      case 'paymentMethods':
+        return 'payment';
+      case 'securitySeals':
+        return 'security';
+      case 'shippingMethods':
+        return 'shipping';
+      case 'officialStores':
+        return 'store';
+      default:
+        return undefined;
+    }
+  };
+
+  const svgCategory = getSvgPresetCategory();
+
   const toggleItem = (index: number) => {
     setOpenItems(prev => ({ ...prev, [index]: !prev[index] }));
   };
@@ -380,6 +399,7 @@ function FooterImageSection({
                           value={item.imageUrl}
                           onChange={(url) => updateItem(index, 'imageUrl', url)}
                           placeholder="Faça upload ou cole URL"
+                          svgPresetCategory={svgCategory}
                         />
                       </div>
 
