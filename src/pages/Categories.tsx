@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useCategories, Category } from '@/hooks/useProducts';
+import { useAuth } from '@/hooks/useAuth';
+import { usePrimaryPublicHost } from '@/hooks/usePrimaryPublicHost';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -25,6 +27,8 @@ const emptyFormData = {
 
 export default function Categories() {
   const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useCategories();
+  const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
@@ -164,10 +168,11 @@ export default function Categories() {
                         title="Ver no site"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Open category in storefront
-                          const baseUrl = window.location.origin.replace('app.', '').replace(/\/$/, '');
-                          const categoryUrl = `${baseUrl}/categoria/${category.slug}`;
-                          window.open(categoryUrl, '_blank');
+                          // Open category in storefront using canonical domain
+                          if (primaryOrigin) {
+                            const categoryUrl = `${primaryOrigin}/c/${category.slug}`;
+                            window.open(categoryUrl, '_blank');
+                          }
                         }}
                       >
                         <ExternalLink className="h-4 w-4" />
