@@ -365,7 +365,7 @@ export default function Pages() {
                       {/* Preview button - always show if valid slug */}
                       {primaryOrigin && page.slug && (
                         <a 
-                          href={buildPublicStorefrontUrl(primaryOrigin, `/page/${page.slug}`)} 
+                          href={buildPublicStorefrontUrl(primaryOrigin, `/page/${page.slug}?preview=1`)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
