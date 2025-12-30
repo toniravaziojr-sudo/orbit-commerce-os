@@ -51,6 +51,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { usePrimaryPublicHost } from '@/hooks/usePrimaryPublicHost';
 
 interface BuilderToolbarProps {
   pageTitle: string;
@@ -108,6 +109,7 @@ export function BuilderToolbar({
 }: BuilderToolbarProps) {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, tenantSlug);
 
   // Fetch products for Product template (for preview URL only, no UI selector)
   const { data: products } = useQuery({
@@ -187,8 +189,9 @@ export function BuilderToolbar({
   const previewResult = getPreviewResult();
 
   const handleOpenPreview = () => {
-    if (previewResult.url) {
-      window.open(previewResult.url, '_blank');
+    if (previewResult.url && primaryOrigin) {
+      const absoluteUrl = `${primaryOrigin}${previewResult.url}`;
+      window.open(absoluteUrl, '_blank');
     }
   };
 

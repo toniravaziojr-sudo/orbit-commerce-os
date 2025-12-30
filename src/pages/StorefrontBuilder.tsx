@@ -19,6 +19,7 @@ import { ptBR } from 'date-fns/locale';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl, getPreviewUrlForEditor, getPublicHomeUrl } from '@/lib/publicUrls';
+import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +46,7 @@ export default function StorefrontBuilder() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { settings: storeSettings } = useStoreSettings();
+  const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   
   const editingPageType = searchParams.get('edit') as PageType | null;
   
@@ -281,7 +283,14 @@ export default function StorefrontBuilder() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(getPreviewUrl(pageType), '_blank')}
+                                onClick={() => {
+                                  if (primaryOrigin) {
+                                    const previewPath = getPreviewUrl(pageType);
+                                    const absoluteUrl = buildPublicStorefrontUrl(primaryOrigin, previewPath);
+                                    window.open(absoluteUrl, '_blank');
+                                  }
+                                }}
+                                disabled={!primaryOrigin}
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>

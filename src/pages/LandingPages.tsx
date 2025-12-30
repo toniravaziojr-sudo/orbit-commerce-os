@@ -233,7 +233,7 @@ export default function LandingPages() {
                       {/* Preview button - always show if valid slug */}
                       {primaryOrigin && page.slug && (
                         <a 
-                          href={buildPublicStorefrontUrl(primaryOrigin, `/lp/${page.slug}`)} 
+                          href={buildPublicStorefrontUrl(primaryOrigin, `/lp/${page.slug}?preview=1`)} 
                           target="_blank" 
                           rel="noopener noreferrer"
                         >
