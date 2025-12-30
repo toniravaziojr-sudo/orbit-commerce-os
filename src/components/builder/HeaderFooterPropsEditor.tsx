@@ -273,18 +273,30 @@ function FooterImageSection({
 }) {
   const sectionData = (props[sectionKey] as FooterImageSectionData) || { title, items: [] };
   const items = sectionData.items || [];
+  const [openItems, setOpenItems] = useState<Record<number, boolean>>({});
+
+  const toggleItem = (index: number) => {
+    setOpenItems(prev => ({ ...prev, [index]: !prev[index] }));
+  };
 
   const updateSection = (newData: Partial<FooterImageSectionData>) => {
     updateProp(sectionKey, { ...sectionData, ...newData });
   };
 
   const addItem = () => {
+    const newIndex = items.length;
     updateSection({ items: [...items, { imageUrl: '', linkUrl: '' }] });
+    // Auto-expand new item
+    setOpenItems(prev => ({ ...prev, [newIndex]: true }));
   };
 
   const removeItem = (index: number) => {
     const newItems = items.filter((_, i) => i !== index);
     updateSection({ items: newItems });
+    // Clean up open state
+    const newOpenItems = { ...openItems };
+    delete newOpenItems[index];
+    setOpenItems(newOpenItems);
   };
 
   const updateItem = (index: number, field: keyof FooterImageItem, value: string) => {
@@ -292,6 +304,16 @@ function FooterImageSection({
       i === index ? { ...item, [field]: value } : item
     );
     updateSection({ items: newItems });
+  };
+
+  // Get preview label for collapsed item
+  const getItemPreview = (item: FooterImageItem) => {
+    if (item.imageUrl) {
+      if (item.imageUrl.startsWith('data:image/svg')) return 'SVG';
+      const filename = item.imageUrl.split('/').pop()?.split('?')[0];
+      return filename && filename.length > 20 ? filename.substring(0, 17) + '...' : filename || 'Imagem';
+    }
+    return 'Sem imagem';
   };
 
   return (
@@ -320,42 +342,62 @@ function FooterImageSection({
         </div>
 
         {items.length > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {items.map((item, index) => (
-              <div key={index} className="border rounded-lg p-3 space-y-3 bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-muted-foreground">Item {index + 1}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                    onClick={() => removeItem(index)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-                
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Imagem</Label>
-                  <ImageUploader
-                    value={item.imageUrl}
-                    onChange={(url) => updateItem(index, 'imageUrl', url)}
-                    placeholder="Faça upload ou cole URL"
-                  />
-                </div>
+              <Collapsible 
+                key={index} 
+                open={openItems[index]} 
+                onOpenChange={() => toggleItem(index)}
+              >
+                <div className="border rounded-lg bg-muted/30 overflow-hidden">
+                  <CollapsibleTrigger asChild>
+                    <div className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-2">
+                        <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${openItems[index] ? 'rotate-180' : ''}`} />
+                        <span className="text-xs font-medium">Item {index + 1}</span>
+                        {item.imageUrl && (
+                          <span className="text-xs text-muted-foreground">• {getItemPreview(item)}</span>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeItem(index);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="px-3 pb-3 pt-1 space-y-3 border-t">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Imagem</Label>
+                        <ImageUploader
+                          value={item.imageUrl}
+                          onChange={(url) => updateItem(index, 'imageUrl', url)}
+                          placeholder="Faça upload ou cole URL"
+                        />
+                      </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    Link {requireLink ? '' : '(opcional)'}
-                  </Label>
-                  <Input
-                    value={item.linkUrl || ''}
-                    onChange={(e) => updateItem(index, 'linkUrl', e.target.value)}
-                    placeholder="https://..."
-                    className="h-9 text-sm"
-                  />
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">
+                          Link {requireLink ? '' : '(opcional)'}
+                        </Label>
+                        <Input
+                          value={item.linkUrl || ''}
+                          onChange={(e) => updateItem(index, 'linkUrl', e.target.value)}
+                          placeholder="https://..."
+                          className="h-9 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </CollapsibleContent>
                 </div>
-              </div>
+              </Collapsible>
             ))}
           </div>
         )}
