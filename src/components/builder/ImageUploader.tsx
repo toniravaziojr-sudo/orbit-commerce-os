@@ -228,22 +228,71 @@ export function ImageUploader({
         </TabsContent>
 
         <TabsContent value="svg" className="mt-2 space-y-2">
-          <Textarea
-            value={svgInput}
-            onChange={(e) => setSvgInput(e.target.value)}
-            placeholder="<svg>...</svg> ou data:image/svg+xml;base64,..."
-            className="h-24 text-xs font-mono resize-none"
-          />
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={handleSvgApply}
-            disabled={!svgInput.trim()}
-            className="w-full h-9"
+          {/* Dropdown com presets de SVG */}
+          <Select 
+            onValueChange={(presetId) => {
+              const preset = paymentSvgPresets.find(p => p.id === presetId);
+              if (preset) {
+                onChange(svgToDataUri(preset.svg));
+              }
+            }}
           >
-            <Check className="h-4 w-4 mr-2" />
-            Aplicar SVG
-          </Button>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="Selecione um ícone..." />
+            </SelectTrigger>
+            <SelectContent>
+              {paymentSvgPresets.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {preset.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Botão para mostrar textarea customizado */}
+          {!showCustomSvg ? (
+            <Button 
+              size="sm" 
+              variant="ghost"
+              onClick={() => setShowCustomSvg(true)}
+              className="w-full h-9 text-muted-foreground"
+            >
+              <Code className="h-4 w-4 mr-2" />
+              Adicionar SVG personalizado
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <Textarea
+                value={svgInput}
+                onChange={(e) => setSvgInput(e.target.value)}
+                placeholder="<svg>...</svg> ou data:image/svg+xml;base64,..."
+                className="h-24 text-xs font-mono resize-none"
+              />
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={() => {
+                    setShowCustomSvg(false);
+                    setSvgInput('');
+                  }}
+                  className="h-9"
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleSvgApply}
+                  disabled={!svgInput.trim()}
+                  className="flex-1 h-9"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Aplicar SVG
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
