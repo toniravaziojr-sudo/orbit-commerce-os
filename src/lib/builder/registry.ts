@@ -535,6 +535,11 @@ const blockDefinitions: BlockDefinition[] = [
       // Cores do rodapé
       footerBgColor: '',
       footerTextColor: '',
+      // Seções de imagens
+      paymentMethods: { title: 'Formas de Pagamento', items: [] },
+      securitySeals: { title: 'Selos de Segurança', items: [] },
+      shippingMethods: { title: 'Formas de Envio', items: [] },
+      officialStores: { title: 'Lojas Oficiais', items: [] },
     },
     propsSchema: {
       // === SEÇÕES ===
@@ -580,6 +585,23 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'color',
         label: 'Cor do Texto',
         placeholder: 'Padrão do tema',
+      },
+      // === SEÇÕES DE IMAGENS ===
+      paymentMethods: {
+        type: 'array',
+        label: 'Formas de Pagamento',
+      },
+      securitySeals: {
+        type: 'array',
+        label: 'Selos de Segurança',
+      },
+      shippingMethods: {
+        type: 'array',
+        label: 'Formas de Envio',
+      },
+      officialStores: {
+        type: 'array',
+        label: 'Lojas Oficiais',
       },
     },
     canHaveChildren: false,

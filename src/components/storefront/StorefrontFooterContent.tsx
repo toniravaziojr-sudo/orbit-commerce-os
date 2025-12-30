@@ -301,6 +301,40 @@ export function StorefrontFooterContent({
   const hasSocialMedia = socialFacebook || socialInstagram || socialTiktok || socialYoutube || 
     (socialCustom && socialCustom.length > 0);
 
+  // ============================================
+  // IMAGE SECTIONS (payment, security, shipping, stores)
+  // ============================================
+  interface ImageSectionItem {
+    imageUrl: string;
+    linkUrl?: string;
+  }
+  interface ImageSectionData {
+    title: string;
+    items: ImageSectionItem[];
+  }
+  
+  const getImageSection = (key: string, defaultTitle: string): ImageSectionData => {
+    const sectionData = configProps[key] as ImageSectionData | undefined;
+    if (sectionData && typeof sectionData === 'object' && Array.isArray(sectionData.items)) {
+      return {
+        title: sectionData.title || defaultTitle,
+        items: sectionData.items.filter((item: ImageSectionItem) => item?.imageUrl),
+      };
+    }
+    return { title: defaultTitle, items: [] };
+  };
+
+  const paymentMethods = getImageSection('paymentMethods', 'Formas de Pagamento');
+  const securitySeals = getImageSection('securitySeals', 'Selos de Segurança');
+  const shippingMethods = getImageSection('shippingMethods', 'Formas de Envio');
+  const officialStores = getImageSection('officialStores', 'Lojas Oficiais');
+
+  const hasImageSections = 
+    paymentMethods.items.length > 0 || 
+    securitySeals.items.length > 0 || 
+    shippingMethods.items.length > 0 || 
+    officialStores.items.length > 0;
+
   // Footer custom styles
   const footerStyle: React.CSSProperties = {
     ...(footerBgColor ? { backgroundColor: footerBgColor } : {}),
@@ -499,6 +533,122 @@ export function StorefrontFooterContent({
             </div>
           )}
         </div>
+
+        {/* Image Sections: Payment, Security, Shipping, Official Stores */}
+        {hasImageSections && (
+          <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 space-y-6">
+            {/* Payment Methods */}
+            {paymentMethods.items.length > 0 && (
+              <div className="text-center">
+                <h4 
+                  className="text-sm font-medium text-muted-foreground mb-3"
+                  style={footerTextColor ? { color: footerTextColor } : {}}
+                >
+                  {paymentMethods.title}
+                </h4>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {paymentMethods.items.map((item, index) => (
+                    <img
+                      key={index}
+                      src={item.imageUrl}
+                      alt={`Pagamento ${index + 1}`}
+                      className="h-6 md:h-8 w-auto object-contain"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Security Seals */}
+            {securitySeals.items.length > 0 && (
+              <div className="text-center">
+                <h4 
+                  className="text-sm font-medium text-muted-foreground mb-3"
+                  style={footerTextColor ? { color: footerTextColor } : {}}
+                >
+                  {securitySeals.title}
+                </h4>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {securitySeals.items.map((item, index) => 
+                    item.linkUrl ? (
+                      <a
+                        key={index}
+                        href={item.linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => isEditing && e.preventDefault()}
+                      >
+                        <img
+                          src={item.imageUrl}
+                          alt={`Selo ${index + 1}`}
+                          className="h-10 md:h-12 w-auto object-contain"
+                        />
+                      </a>
+                    ) : (
+                      <img
+                        key={index}
+                        src={item.imageUrl}
+                        alt={`Selo ${index + 1}`}
+                        className="h-10 md:h-12 w-auto object-contain"
+                      />
+                    )
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Shipping Methods */}
+            {shippingMethods.items.length > 0 && (
+              <div className="text-center">
+                <h4 
+                  className="text-sm font-medium text-muted-foreground mb-3"
+                  style={footerTextColor ? { color: footerTextColor } : {}}
+                >
+                  {shippingMethods.title}
+                </h4>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {shippingMethods.items.map((item, index) => (
+                    <img
+                      key={index}
+                      src={item.imageUrl}
+                      alt={`Envio ${index + 1}`}
+                      className="h-6 md:h-8 w-auto object-contain"
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Official Stores */}
+            {officialStores.items.length > 0 && (
+              <div className="text-center">
+                <h4 
+                  className="text-sm font-medium text-muted-foreground mb-3"
+                  style={footerTextColor ? { color: footerTextColor } : {}}
+                >
+                  {officialStores.title}
+                </h4>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {officialStores.items.map((item, index) => (
+                    <a
+                      key={index}
+                      href={item.linkUrl || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => isEditing && e.preventDefault()}
+                    >
+                      <img
+                        src={item.imageUrl}
+                        alt={`Loja ${index + 1}`}
+                        className="h-8 md:h-10 w-auto object-contain hover:opacity-80 transition-opacity"
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Legal info / Copyright - respects showLegal toggle */}
         {showLegal && (
