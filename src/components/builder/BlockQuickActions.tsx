@@ -1,9 +1,11 @@
 // =============================================
 // BLOCK QUICK ACTIONS - Hover actions for blocks
+// Responsive: popover no mobile, barra lateral no desktop
 // =============================================
 
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronUp, ChevronDown, Copy, Trash2, Eye, EyeOff, Lock } from 'lucide-react';
+import { ChevronUp, ChevronDown, Copy, Trash2, Eye, EyeOff, Lock, MoreVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   AlertDialog,
@@ -22,6 +24,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+
+type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
 interface BlockQuickActionsProps {
   blockId: string;
@@ -37,14 +46,15 @@ interface BlockQuickActionsProps {
   onDuplicate: () => void;
   onDelete: () => void;
   onToggleHidden?: () => void;
+  viewport?: ViewportSize;
 }
 
-export function BlockQuickActions({
-  blockType,
+// Componente de ações reutilizável
+function ActionButtons({
   isRemovable,
-  isEssential = false,
+  isEssential,
   essentialReason,
-  isHidden = false,
+  isHidden,
   canMoveUp,
   canMoveDown,
   onMoveUp,
@@ -52,41 +62,35 @@ export function BlockQuickActions({
   onDuplicate,
   onDelete,
   onToggleHidden,
-}: BlockQuickActionsProps) {
-  // Don't show actions for Page block
-  if (blockType === 'Page') return null;
+  isMobile = false,
+}: Omit<BlockQuickActionsProps, 'blockId' | 'blockType' | 'viewport'> & { isMobile?: boolean }) {
+  const buttonSize = isMobile ? "h-9 w-9" : "h-7 w-7";
+  const iconSize = isMobile ? "h-5 w-5" : "h-4 w-4";
 
   return (
-    <div 
-      className={cn(
-        "absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full",
-        "flex flex-col gap-1 p-1 bg-background border rounded-lg shadow-lg z-20",
-        "opacity-100 transition-opacity"
-      )}
-      onClick={(e) => e.stopPropagation()}
-    >
+    <>
       {/* Move Up */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7"
+        className={buttonSize}
         onClick={onMoveUp}
         disabled={!canMoveUp}
         title="Mover para cima"
       >
-        <ChevronUp className="h-4 w-4" />
+        <ChevronUp className={iconSize} />
       </Button>
 
       {/* Move Down */}
       <Button
         variant="ghost"
         size="icon"
-        className="h-7 w-7"
+        className={buttonSize}
         onClick={onMoveDown}
         disabled={!canMoveDown}
         title="Mover para baixo"
       >
-        <ChevronDown className="h-4 w-4" />
+        <ChevronDown className={iconSize} />
       </Button>
 
       {/* Toggle Hidden */}
@@ -94,11 +98,11 @@ export function BlockQuickActions({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className={buttonSize}
           onClick={onToggleHidden}
           title={isHidden ? "Mostrar bloco" : "Ocultar bloco"}
         >
-          {isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {isHidden ? <EyeOff className={iconSize} /> : <Eye className={iconSize} />}
         </Button>
       )}
 
@@ -107,11 +111,11 @@ export function BlockQuickActions({
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7"
+          className={buttonSize}
           onClick={onDuplicate}
           title="Duplicar"
         >
-          <Copy className="h-4 w-4" />
+          <Copy className={iconSize} />
         </Button>
       )}
 
@@ -120,11 +124,11 @@ export function BlockQuickActions({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="h-7 w-7 flex items-center justify-center text-muted-foreground">
-                <Lock className="h-4 w-4" />
+              <div className={cn(buttonSize, "flex items-center justify-center text-muted-foreground")}>
+                <Lock className={iconSize} />
               </div>
             </TooltipTrigger>
-            <TooltipContent side="left" className="max-w-[200px]">
+            <TooltipContent side={isMobile ? "top" : "left"} className="max-w-[200px]">
               <p className="text-xs">
                 {essentialReason || 'Bloco essencial do template – não pode ser removido'}
               </p>
@@ -140,10 +144,10 @@ export function BlockQuickActions({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+              className={cn(buttonSize, "text-destructive hover:text-destructive hover:bg-destructive/10")}
               title="Remover"
             >
-              <Trash2 className="h-4 w-4" />
+              <Trash2 className={iconSize} />
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -160,6 +164,101 @@ export function BlockQuickActions({
           </AlertDialogContent>
         </AlertDialog>
       )}
+    </>
+  );
+}
+
+export function BlockQuickActions({
+  blockType,
+  isRemovable,
+  isEssential = false,
+  essentialReason,
+  isHidden = false,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onDuplicate,
+  onDelete,
+  onToggleHidden,
+  viewport = 'desktop',
+}: BlockQuickActionsProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  // Don't show actions for Page block
+  if (blockType === 'Page') return null;
+
+  const isMobileViewport = viewport === 'mobile';
+
+  // Mobile: Popover com botão de 3 pontos no canto superior direito
+  if (isMobileViewport) {
+    return (
+      <div 
+        className="absolute top-2 right-2 z-20"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="secondary"
+              size="icon"
+              className="h-8 w-8 rounded-full shadow-md bg-background/95 backdrop-blur-sm border"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent 
+            side="left" 
+            align="start"
+            className="w-auto p-1"
+            sideOffset={8}
+          >
+            <div className="flex flex-row gap-0.5">
+              <ActionButtons
+                isRemovable={isRemovable}
+                isEssential={isEssential}
+                essentialReason={essentialReason}
+                isHidden={isHidden}
+                canMoveUp={canMoveUp}
+                canMoveDown={canMoveDown}
+                onMoveUp={() => { onMoveUp(); setIsOpen(false); }}
+                onMoveDown={() => { onMoveDown(); setIsOpen(false); }}
+                onDuplicate={() => { onDuplicate(); setIsOpen(false); }}
+                onDelete={onDelete}
+                onToggleHidden={onToggleHidden ? () => { onToggleHidden(); setIsOpen(false); } : undefined}
+                isMobile={true}
+              />
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    );
+  }
+
+  // Desktop/Tablet: Barra lateral direita
+  return (
+    <div 
+      className={cn(
+        "absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full",
+        "flex flex-col gap-1 p-1 bg-background border rounded-lg shadow-lg z-20",
+        "opacity-100 transition-opacity"
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <ActionButtons
+        isRemovable={isRemovable}
+        isEssential={isEssential}
+        essentialReason={essentialReason}
+        isHidden={isHidden}
+        canMoveUp={canMoveUp}
+        canMoveDown={canMoveDown}
+        onMoveUp={onMoveUp}
+        onMoveDown={onMoveDown}
+        onDuplicate={onDuplicate}
+        onDelete={onDelete}
+        onToggleHidden={onToggleHidden}
+        isMobile={false}
+      />
     </div>
   );
 }
