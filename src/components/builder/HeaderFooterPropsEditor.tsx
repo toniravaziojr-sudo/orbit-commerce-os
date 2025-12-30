@@ -13,11 +13,12 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag } from 'lucide-react';
+import { Globe, Settings, Info, RotateCcw, ShoppingBag, AlertCircle, Palette, Smartphone, Bell, ChevronDown, Phone, MessageCircle, User, Tag, CreditCard, ShieldCheck, Truck, Store, Plus, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PropsEditor } from './PropsEditor';
+import { ImageUploader } from './ImageUploader';
 import { usePageOverrides, PageOverrides } from '@/hooks/usePageOverrides';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -235,6 +236,139 @@ function PromotionsSection({
             </div>
           </>
         )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+// Footer Image Section component for payment methods, security seals, shipping, official stores
+interface FooterImageItem {
+  imageUrl: string;
+  linkUrl?: string;
+}
+
+interface FooterImageSectionData {
+  title: string;
+  items: FooterImageItem[];
+}
+
+function FooterImageSection({
+  title,
+  icon,
+  sectionKey,
+  props,
+  updateProp,
+  openSections,
+  toggleSection,
+  requireLink = false,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  sectionKey: 'paymentMethods' | 'securitySeals' | 'shippingMethods' | 'officialStores';
+  props: Record<string, unknown>;
+  updateProp: (key: string, value: unknown) => void;
+  openSections: Record<string, boolean>;
+  toggleSection: (key: string) => void;
+  requireLink?: boolean;
+}) {
+  const sectionData = (props[sectionKey] as FooterImageSectionData) || { title, items: [] };
+  const items = sectionData.items || [];
+
+  const updateSection = (newData: Partial<FooterImageSectionData>) => {
+    updateProp(sectionKey, { ...sectionData, ...newData });
+  };
+
+  const addItem = () => {
+    updateSection({ items: [...items, { imageUrl: '', linkUrl: '' }] });
+  };
+
+  const removeItem = (index: number) => {
+    const newItems = items.filter((_, i) => i !== index);
+    updateSection({ items: newItems });
+  };
+
+  const updateItem = (index: number, field: keyof FooterImageItem, value: string) => {
+    const newItems = items.map((item, i) => 
+      i === index ? { ...item, [field]: value } : item
+    );
+    updateSection({ items: newItems });
+  };
+
+  return (
+    <Collapsible open={openSections[sectionKey]} onOpenChange={() => toggleSection(sectionKey)}>
+      <CollapsibleTrigger asChild>
+        <Button variant="ghost" className="w-full justify-between p-3 h-auto">
+          <div className="flex items-center gap-2">
+            {icon}
+            <span className="font-medium">{title}</span>
+            {items.length > 0 && (
+              <Badge variant="secondary" className="text-xs">{items.length}</Badge>
+            )}
+          </div>
+          <ChevronDown className={`h-4 w-4 transition-transform ${openSections[sectionKey] ? 'rotate-180' : ''}`} />
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="px-3 pb-4 space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Título da Seção</Label>
+          <Input
+            value={sectionData.title || ''}
+            onChange={(e) => updateSection({ title: e.target.value })}
+            placeholder={title}
+            className="h-9 text-sm"
+          />
+        </div>
+
+        {items.length > 0 && (
+          <div className="space-y-3">
+            {items.map((item, index) => (
+              <div key={index} className="border rounded-lg p-3 space-y-3 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Item {index + 1}</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                    onClick={() => removeItem(index)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Imagem</Label>
+                  <ImageUploader
+                    value={item.imageUrl}
+                    onChange={(url) => updateItem(index, 'imageUrl', url)}
+                    placeholder="Faça upload ou cole URL"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">
+                    Link {requireLink ? '' : '(opcional)'}
+                  </Label>
+                  <Input
+                    value={item.linkUrl || ''}
+                    onChange={(e) => updateItem(index, 'linkUrl', e.target.value)}
+                    placeholder="https://..."
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={addItem}
+        >
+          <Plus className="h-4 w-4" />
+          Adicionar Item
+        </Button>
       </CollapsibleContent>
     </Collapsible>
   );
@@ -924,6 +1058,59 @@ export function HeaderFooterPropsEditor({
                 </div>
               </CollapsibleContent>
             </Collapsible>
+
+            <Separator />
+
+            {/* === FORMAS DE PAGAMENTO === */}
+            <FooterImageSection
+              title="Formas de Pagamento"
+              icon={<CreditCard className="h-4 w-4 text-primary" />}
+              sectionKey="paymentMethods"
+              props={props}
+              updateProp={updateProp}
+              openSections={openSections}
+              toggleSection={toggleSection}
+            />
+
+            <Separator />
+
+            {/* === SELOS DE SEGURANÇA === */}
+            <FooterImageSection
+              title="Selos de Segurança"
+              icon={<ShieldCheck className="h-4 w-4 text-primary" />}
+              sectionKey="securitySeals"
+              props={props}
+              updateProp={updateProp}
+              openSections={openSections}
+              toggleSection={toggleSection}
+            />
+
+            <Separator />
+
+            {/* === FORMAS DE ENVIO === */}
+            <FooterImageSection
+              title="Formas de Envio"
+              icon={<Truck className="h-4 w-4 text-primary" />}
+              sectionKey="shippingMethods"
+              props={props}
+              updateProp={updateProp}
+              openSections={openSections}
+              toggleSection={toggleSection}
+            />
+
+            <Separator />
+
+            {/* === LOJAS OFICIAIS === */}
+            <FooterImageSection
+              title="Lojas Oficiais"
+              icon={<Store className="h-4 w-4 text-primary" />}
+              sectionKey="officialStores"
+              props={props}
+              updateProp={updateProp}
+              openSections={openSections}
+              toggleSection={toggleSection}
+              requireLink
+            />
           </div>
         </ScrollArea>
       </div>
