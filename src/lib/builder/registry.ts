@@ -2028,6 +2028,81 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: false,
   },
+  // ========== SYSTEM BLOCKS (Rastreio, Blog) ==========
+  {
+    type: 'TrackingLookup',
+    label: 'Consulta de Rastreio',
+    category: 'ecommerce',
+    icon: 'Package',
+    defaultProps: {
+      title: 'Rastrear Pedido',
+      description: 'Acompanhe o status da sua entrega',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'Rastrear Pedido',
+      },
+      description: {
+        type: 'string',
+        label: 'Descrição',
+        defaultValue: 'Acompanhe o status da sua entrega',
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: false,
+  },
+  {
+    type: 'BlogListing',
+    label: 'Listagem do Blog',
+    category: 'content',
+    icon: 'FileText',
+    defaultProps: {
+      title: 'Blog',
+      description: 'Novidades e dicas',
+      postsPerPage: 9,
+      showExcerpt: true,
+      showImage: true,
+      showTags: true,
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'Blog',
+      },
+      description: {
+        type: 'string',
+        label: 'Descrição',
+        defaultValue: 'Novidades e dicas',
+      },
+      postsPerPage: {
+        type: 'number',
+        label: 'Posts por página',
+        defaultValue: 9,
+        min: 3,
+        max: 24,
+      },
+      showExcerpt: {
+        type: 'boolean',
+        label: 'Mostrar resumo',
+        defaultValue: true,
+      },
+      showImage: {
+        type: 'boolean',
+        label: 'Mostrar imagem',
+        defaultValue: true,
+      },
+      showTags: {
+        type: 'boolean',
+        label: 'Mostrar tags',
+        defaultValue: true,
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: false,
+  },
 ];
 
 // Registry class

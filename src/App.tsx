@@ -72,6 +72,7 @@ import StorefrontAccountForgotPassword from "@/pages/storefront/StorefrontAccoun
 import StorefrontOrdersList from "@/pages/storefront/StorefrontOrdersList";
 import StorefrontOrderDetail from "@/pages/storefront/StorefrontOrderDetail";
 import StorefrontResetPassword from "@/pages/storefront/StorefrontResetPassword";
+import StorefrontBlogPost from "@/pages/storefront/StorefrontBlogPost";
 
 // Helper to check if we're on a tenant host (custom domain or platform subdomain)
 import { isPlatformSubdomain, isAppDomain, SAAS_CONFIG } from "@/lib/canonicalDomainService";
@@ -137,6 +138,9 @@ const App = () => {
                   <Route path="p/:productSlug" element={<StorefrontProduct />} />
                   <Route path="page/:pageSlug" element={<StorefrontPage />} />
                   <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
+                  <Route path="rastreio" element={<StorefrontPage />} />
+                  <Route path="blog" element={<StorefrontPage />} />
+                  <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                   <Route path="cart" element={<StorefrontCart />} />
                   <Route path="checkout" element={<StorefrontCheckout />} />
                   <Route path="obrigado" element={<StorefrontThankYou />} />
@@ -158,6 +162,9 @@ const App = () => {
                 <Route path="p/:productSlug" element={<StorefrontProduct />} />
                 <Route path="page/:pageSlug" element={<StorefrontPage />} />
                 <Route path="lp/:pageSlug" element={<StorefrontLandingPage />} />
+                <Route path="rastreio" element={<StorefrontPage />} />
+                <Route path="blog" element={<StorefrontPage />} />
+                <Route path="blog/:postSlug" element={<StorefrontBlogPost />} />
                 <Route path="cart" element={<StorefrontCart />} />
                 <Route path="checkout" element={<StorefrontCheckout />} />
                 <Route path="obrigado" element={<StorefrontThankYou />} />

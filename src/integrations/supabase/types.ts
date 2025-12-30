@@ -171,6 +171,80 @@ export type Database = {
           },
         ]
       }
+      blog_posts: {
+        Row: {
+          author_id: string | null
+          content: Json | null
+          created_at: string
+          excerpt: string | null
+          featured_image_alt: string | null
+          featured_image_url: string | null
+          id: string
+          published_at: string | null
+          read_time_minutes: number | null
+          seo_description: string | null
+          seo_image_url: string | null
+          seo_title: string | null
+          slug: string
+          status: string
+          tags: string[] | null
+          tenant_id: string
+          title: string
+          updated_at: string
+          view_count: number | null
+        }
+        Insert: {
+          author_id?: string | null
+          content?: Json | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          published_at?: string | null
+          read_time_minutes?: number | null
+          seo_description?: string | null
+          seo_image_url?: string | null
+          seo_title?: string | null
+          slug: string
+          status?: string
+          tags?: string[] | null
+          tenant_id: string
+          title: string
+          updated_at?: string
+          view_count?: number | null
+        }
+        Update: {
+          author_id?: string | null
+          content?: Json | null
+          created_at?: string
+          excerpt?: string | null
+          featured_image_alt?: string | null
+          featured_image_url?: string | null
+          id?: string
+          published_at?: string | null
+          read_time_minutes?: number | null
+          seo_description?: string | null
+          seo_image_url?: string | null
+          seo_title?: string | null
+          slug?: string
+          status?: string
+          tags?: string[] | null
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buy_together_rules: {
         Row: {
           created_at: string
@@ -4669,6 +4743,7 @@ export type Database = {
           id: string
           is_homepage: boolean | null
           is_published: boolean | null
+          is_system: boolean | null
           menu_label: string | null
           menu_order: number | null
           meta_description: string | null
@@ -4696,6 +4771,7 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          is_system?: boolean | null
           menu_label?: string | null
           menu_order?: number | null
           meta_description?: string | null
@@ -4723,6 +4799,7 @@ export type Database = {
           id?: string
           is_homepage?: boolean | null
           is_published?: boolean | null
+          is_system?: boolean | null
           menu_label?: string | null
           menu_order?: number | null
           meta_description?: string | null
@@ -5865,6 +5942,10 @@ export type Database = {
         Returns: boolean
       }
       initialize_storefront_templates: {
+        Args: { p_tenant_id: string }
+        Returns: undefined
+      }
+      initialize_system_pages: {
         Args: { p_tenant_id: string }
         Returns: undefined
       }
