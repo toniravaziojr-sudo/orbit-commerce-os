@@ -21,11 +21,24 @@ export interface MediaItem {
   created_at: string;
 }
 
-// Helper to determine media type from mime_type
-export function getMediaType(mimeType?: string): 'image' | 'video' | 'unknown' {
-  if (!mimeType) return 'unknown';
-  if (mimeType.startsWith('image/')) return 'image';
-  if (mimeType.startsWith('video/')) return 'video';
+// Helper to determine media type from mime_type or file extension
+export function getMediaType(mimeType?: string, fileUrl?: string): 'image' | 'video' | 'unknown' {
+  // Check mime_type first
+  if (mimeType) {
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('video/')) return 'video';
+  }
+  
+  // Fallback: check file extension in URL
+  if (fileUrl) {
+    const lowerUrl = fileUrl.toLowerCase();
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+    const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.mkv', '.m4v'];
+    
+    if (imageExtensions.some(ext => lowerUrl.includes(ext))) return 'image';
+    if (videoExtensions.some(ext => lowerUrl.includes(ext))) return 'video';
+  }
+  
   return 'unknown';
 }
 
@@ -73,13 +86,19 @@ export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibrar
         return [];
       }
       
-      // Filter by media type client-side since PostgreSQL pattern matching is complex
+      // Filter by media type using both mime_type and file URL extension
       let items = data as MediaItem[];
       
       if (mediaType === 'image') {
-        items = items.filter(item => item.mime_type?.startsWith('image/'));
+        items = items.filter(item => {
+          const type = getMediaType(item.mime_type, item.file_url);
+          return type === 'image' || type === 'unknown'; // Include 'unknown' as image by default for banners
+        });
       } else if (mediaType === 'video') {
-        items = items.filter(item => item.mime_type?.startsWith('video/'));
+        items = items.filter(item => {
+          const type = getMediaType(item.mime_type, item.file_url);
+          return type === 'video';
+        });
       }
       
       return items;
