@@ -7,10 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Upload, Link, Loader2, X, Check, Code } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Upload, Link, Loader2, X, Check, Code, ChevronDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { paymentSvgPresets, svgToDataUri } from '@/lib/builder/svg-presets';
 
 interface ImageUploaderProps {
   value: string;
@@ -31,6 +33,7 @@ export function ImageUploader({
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState(value || '');
   const [svgInput, setSvgInput] = useState('');
+  const [showCustomSvg, setShowCustomSvg] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const aspectRatioClass = {
