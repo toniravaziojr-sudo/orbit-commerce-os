@@ -1,22 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useCategories, Category } from '@/hooks/useProducts';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, FolderTree, Package } from 'lucide-react';
+import { Plus, FolderTree, Package, Pencil, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CategoryTree } from '@/components/categories/CategoryTree';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { CategoryProductsManager } from '@/components/categories/CategoryProductsManager';
-import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const emptyFormData = {
   name: '',
   slug: '',
   description: '',
   image_url: '',
-  parent_id: '',
   is_active: true,
   sort_order: 0,
   seo_title: '',
@@ -26,15 +24,12 @@ const emptyFormData = {
 };
 
 export default function Categories() {
-  const { categories, isLoading, createCategory, updateCategory, deleteCategory, reorderCategories } = useCategories();
+  const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useCategories();
   const [showForm, setShowForm] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState(emptyFormData);
   const [activeTab, setActiveTab] = useState<'details' | 'products'>('details');
-
-  // All categories can be parents (for multiple levels)
-  const parentCategories = useMemo(() => categories || [], [categories]);
 
   const resetForm = () => {
     setFormData(emptyFormData);
@@ -55,7 +50,6 @@ export default function Categories() {
       slug: category.slug,
       description: category.description || '',
       image_url: category.image_url || '',
-      parent_id: category.parent_id || '',
       is_active: category.is_active ?? true,
       sort_order: category.sort_order || 0,
       seo_title: category.seo_title || '',
@@ -69,7 +63,7 @@ export default function Categories() {
   const handleSubmit = async () => {
     const data = {
       ...formData,
-      parent_id: formData.parent_id || null,
+      parent_id: null, // Categories are flat - hierarchy is managed in menus
       slug: formData.slug || formData.name.toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -91,34 +85,8 @@ export default function Categories() {
 
   const handleDelete = async () => {
     if (deleteId) {
-      // Check if category has children
-      const hasChildren = categories?.some(c => c.parent_id === deleteId);
-      if (hasChildren) {
-        toast.error('Não é possível excluir uma categoria com subcategorias. Remova ou mova as subcategorias primeiro.');
-        setDeleteId(null);
-        return;
-      }
       await deleteCategory.mutateAsync(deleteId);
       setDeleteId(null);
-    }
-  };
-
-  const handleMoveCategory = async (categoryId: string, newParentId: string | null, newPosition: number) => {
-    try {
-      // Get siblings at the target level
-      const siblings = categories?.filter(c => c.parent_id === newParentId && c.id !== categoryId) || [];
-      
-      // Insert the moved category at the new position
-      const orderedIds = [...siblings.map(c => c.id)];
-      orderedIds.splice(newPosition, 0, categoryId);
-
-      await reorderCategories.mutateAsync({
-        categoryId,
-        newParentId,
-        orderedSiblingIds: orderedIds,
-      });
-    } catch (error) {
-      toast.error('Erro ao mover categoria');
     }
   };
 
@@ -138,7 +106,7 @@ export default function Categories() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="Categorias"
-        description="Organize suas categorias arrastando para reordenar ou criar hierarquias"
+        description="Gerencie as categorias da sua loja. A hierarquia de navegação é definida nos Menus."
         actions={
           <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
@@ -148,14 +116,82 @@ export default function Categories() {
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Category Tree with Drag & Drop */}
+        {/* Category List */}
         <div className="lg:col-span-1">
-          <CategoryTree
-            categories={categories || []}
-            onEdit={handleEdit}
-            onDelete={setDeleteId}
-            onMoveCategory={handleMoveCategory}
-          />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <FolderTree className="h-5 w-5" />
+                Lista de Categorias
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {categories?.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  Nenhuma categoria cadastrada
+                </p>
+              ) : (
+                categories?.map((category) => (
+                  <div
+                    key={category.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-accent/50 transition-colors ${
+                      editingCategory?.id === category.id ? 'border-primary bg-accent' : ''
+                    }`}
+                    onClick={() => handleEdit(category)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {category.image_url ? (
+                        <img 
+                          src={category.image_url} 
+                          alt={category.name}
+                          className="w-10 h-10 rounded object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded bg-muted flex items-center justify-center">
+                          <FolderTree className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-medium">{category.name}</p>
+                        <p className="text-xs text-muted-foreground">/c/{category.slug}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEdit(category);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteId(category.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+              
+              {/* Helper text */}
+              <div className="mt-4 p-3 bg-muted/50 rounded-lg border border-dashed">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Dica:</strong> Categorias são entidades simples. A hierarquia de navegação (menus com submenus) é configurada em <strong>Menus</strong>.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Category Form / Products Manager */}
@@ -180,7 +216,6 @@ export default function Categories() {
                     onSubmit={handleSubmit}
                     onClose={resetForm}
                     isEditing={!!editingCategory}
-                    parentCategories={parentCategories}
                     editingCategoryId={editingCategory?.id}
                     isLoading={createCategory.isPending || updateCategory.isPending}
                   />
@@ -199,7 +234,6 @@ export default function Categories() {
                 onSubmit={handleSubmit}
                 onClose={resetForm}
                 isEditing={false}
-                parentCategories={parentCategories}
                 editingCategoryId={undefined}
                 isLoading={createCategory.isPending}
               />

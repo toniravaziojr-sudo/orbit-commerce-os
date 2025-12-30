@@ -520,11 +520,11 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
 
         if (stepId === 'categories') {
-          // Get categories from visual extraction OR derive from menu hierarchy
+          // Get categories from visual extraction OR derive from menu items
+          // IMPORTANT: Categories are FLAT (no parent_id) - hierarchy is only in menus
           let categoriesToSave = visualData?.categories || [];
           const menuItems = visualData?.menuItems || [];
           
-          // Build category hierarchy from menu items (more accurate for parent/child relationships)
           interface CategoryToSave {
             name: string;
             slug: string;
@@ -532,10 +532,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             imageUrl?: string;
             bannerDesktop?: string;
             bannerMobile?: string;
-            parentSlug?: string;
           }
           
-          const categoriesFromMenu: CategoryToSave[] = [];
+          const allCategories: CategoryToSave[] = [];
           const processedSlugs = new Set<string>();
           
           // Helper to extract slug from URL
@@ -544,40 +543,31 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             return match ? match[1] : null;
           };
           
-          // Process menu items to build category hierarchy
-          for (const item of menuItems) {
-            const parentSlug = extractSlugFromUrl(item.url || '');
-            
-            // If this menu item is a category, add it
-            if (item.type === 'category' && parentSlug && !processedSlugs.has(parentSlug)) {
-              categoriesFromMenu.push({
+          // Process menu items to extract all categories (flat, no hierarchy)
+          const processMenuItem = (item: any) => {
+            const slug = extractSlugFromUrl(item.url || '');
+            if (item.type === 'category' && slug && !processedSlugs.has(slug)) {
+              allCategories.push({
                 name: item.label,
-                slug: parentSlug,
+                slug: slug,
                 url: item.url,
-                parentSlug: undefined, // Top-level category
               });
-              processedSlugs.add(parentSlug);
+              processedSlugs.add(slug);
             }
             
-            // Process children as subcategories
+            // Process children (also flat, not as subcategories)
             if (item.children && item.children.length > 0) {
               for (const child of item.children) {
-                const childSlug = extractSlugFromUrl(child.url || '');
-                if (child.type === 'category' && childSlug && !processedSlugs.has(childSlug)) {
-                  categoriesFromMenu.push({
-                    name: child.label,
-                    slug: childSlug,
-                    url: child.url,
-                    parentSlug: parentSlug || undefined, // Link to parent
-                  });
-                  processedSlugs.add(childSlug);
-                }
+                processMenuItem(child);
               }
             }
+          };
+          
+          for (const item of menuItems) {
+            processMenuItem(item);
           }
           
-          // Merge with extracted categories (prefer menu hierarchy for structure)
-          const allCategories = [...categoriesFromMenu];
+          // Add categories from visual extraction
           for (const cat of categoriesToSave) {
             if (cat && cat.slug && !processedSlugs.has(cat.slug)) {
               allCategories.push({
@@ -638,64 +628,31 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             }
           }
 
-          // First pass: Create all categories without parent_id to get their IDs
+          // Save all categories as FLAT (no parent_id)
           const slugToIdMap = new Map<string, string>();
           
-          if (allCategories.length > 0) {
-            // Insert top-level categories first (no parentSlug)
-            const topLevel = allCategories.filter(c => !c.parentSlug);
-            for (const cat of topLevel) {
-              if (!cat) continue;
-              const { data, error } = await supabase
-                .from('categories')
-                .upsert({
-                  tenant_id: currentTenant.id,
-                  name: cat.name,
-                  slug: cat.slug,
-                  is_active: true,
-                  image_url: cat.imageUrl || null,
-                  banner_desktop_url: cat.bannerDesktop || null,
-                  banner_mobile_url: cat.bannerMobile || null,
-                  parent_id: null,
-                }, { onConflict: 'tenant_id,slug' })
-                .select('id, slug')
-                .single();
-              
-              if (data) {
-                slugToIdMap.set(cat.slug, data.id);
-              }
-              if (error && !error.message.includes('duplicate')) {
-                console.error('Error saving category:', error);
-              }
-            }
+          for (const cat of allCategories) {
+            if (!cat) continue;
+            const { data, error } = await supabase
+              .from('categories')
+              .upsert({
+                tenant_id: currentTenant.id,
+                name: cat.name,
+                slug: cat.slug,
+                is_active: true,
+                image_url: cat.imageUrl || null,
+                banner_desktop_url: cat.bannerDesktop || null,
+                banner_mobile_url: cat.bannerMobile || null,
+                parent_id: null, // Categories are FLAT - hierarchy is in menus
+              }, { onConflict: 'tenant_id,slug' })
+              .select('id, slug')
+              .single();
             
-            // Second pass: Create subcategories with parent_id
-            const subCategories = allCategories.filter(c => c.parentSlug);
-            for (const cat of subCategories) {
-              if (!cat) continue;
-              const parentId = slugToIdMap.get(cat.parentSlug!) || null;
-              
-              const { data, error } = await supabase
-                .from('categories')
-                .upsert({
-                  tenant_id: currentTenant.id,
-                  name: cat.name,
-                  slug: cat.slug,
-                  is_active: true,
-                  image_url: cat.imageUrl || null,
-                  banner_desktop_url: cat.bannerDesktop || null,
-                  banner_mobile_url: cat.bannerMobile || null,
-                  parent_id: parentId,
-                }, { onConflict: 'tenant_id,slug' })
-                .select('id, slug')
-                .single();
-              
-              if (data) {
-                slugToIdMap.set(cat.slug, data.id);
-              }
-              if (error && !error.message.includes('duplicate')) {
-                console.error('Error saving subcategory:', error);
-              }
+            if (data) {
+              slugToIdMap.set(cat.slug, data.id);
+            }
+            if (error && !error.message.includes('duplicate')) {
+              console.error('Error saving category:', error);
             }
           }
           
