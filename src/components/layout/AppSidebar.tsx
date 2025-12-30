@@ -31,6 +31,7 @@ import {
   Shield,
   Mail,
   Upload,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -75,6 +76,7 @@ const navigation: NavGroup[] = [
       { title: "Conversão de Carrinho", href: "/storefront/conversao", icon: TrendingUp },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas", href: "/pages", icon: FileText },
+      { title: "Blog", href: "/blog", icon: BookOpen },
       { title: "Landing Pages", href: "/landing-pages", icon: Rocket },
     ],
   },

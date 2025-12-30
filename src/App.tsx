@@ -52,6 +52,8 @@ import PlatformIntegrations from "@/pages/PlatformIntegrations";
 import Attribution from "@/pages/Attribution";
 import Emails from "@/pages/Emails";
 import Import from "@/pages/Import";
+import Blog from "@/pages/Blog";
+import BlogPostEditor from "@/pages/BlogPostEditor";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -212,6 +214,8 @@ const App = () => {
                   <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/landing-pages" element={<LandingPages />} />
                   <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
+                  <Route path="/blog" element={<Blog />} />
+                  <Route path="/blog/:postId/editor" element={<BlogPostEditor />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />
