@@ -46,6 +46,13 @@ interface ExtractedSection {
   data: any;
 }
 
+interface ExtractedInstitutionalPage {
+  title: string;
+  slug: string;
+  url: string;
+  source: 'footer' | 'header' | 'sitemap';
+}
+
 interface VisualExtractionResult {
   success: boolean;
   heroBanners: ExtractedBanner[];
@@ -53,6 +60,7 @@ interface VisualExtractionResult {
   menuItems: ExtractedMenuItem[];
   videos: ExtractedVideo[];
   sections: ExtractedSection[];
+  institutionalPages: ExtractedInstitutionalPage[];
   branding: {
     logo?: string;
     favicon?: string;
@@ -359,6 +367,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     menuItems: [],
     videos: [],
     sections: [],
+    institutionalPages: [],
     branding: {},
     unsupportedSections: [],
   };
@@ -383,6 +392,9 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     
     // Extract branding
     result.branding = extractBranding(html, baseUrl);
+    
+    // Extract institutional pages from footer
+    result.institutionalPages = extractInstitutionalPages(html, baseUrl, platform);
 
     console.log('Extraction complete:', {
       banners: result.heroBanners.length,
@@ -390,6 +402,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
       menuItems: result.menuItems.length,
       videos: result.videos.length,
       sections: result.sections.length,
+      institutionalPages: result.institutionalPages.length,
     });
   } catch (error) {
     console.error('Error during extraction:', error);
@@ -1338,4 +1351,70 @@ function normalizeUrl(href: string, baseUrl: string): string {
     return '';
   }
   return normalizeImageUrl(href, baseUrl);
+}
+
+// Extract institutional pages from footer links
+function extractInstitutionalPages(html: string, baseUrl: string, _platform?: string): ExtractedInstitutionalPage[] {
+  const pages: ExtractedInstitutionalPage[] = [];
+  const addedSlugs = new Set<string>();
+
+  const institutionalKeywords = [
+    'sobre', 'about', 'quem-somos', 'nossa-historia',
+    'contato', 'contact', 'fale-conosco',
+    'politica', 'policy', 'privacidade', 'privacy', 'termos', 'terms',
+    'troca', 'devoluc', 'exchange', 'return', 'refund',
+    'frete', 'shipping', 'entrega', 'delivery',
+    'pagamento', 'payment', 'faq', 'perguntas', 'duvidas', 'ajuda', 'help',
+    'garantia', 'warranty', 'lgpd', 'cookies',
+  ];
+
+  const skipPatterns = [
+    '/collections', '/products', '/cart', '/checkout', '/account', '/login',
+    '/search', '/blog/', '/categoria', '/produto',
+    'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', 'facebook.com',
+    'instagram.com', 'twitter.com', 'youtube.com',
+  ];
+
+  const shouldSkip = (href: string): boolean => skipPatterns.some(p => href.toLowerCase().includes(p));
+
+  const extractSlug = (href: string): string | null => {
+    const pageMatch = /\/(?:pages?|pagina|policies)\/([^/?#]+)/i.exec(href);
+    if (pageMatch) return pageMatch[1];
+    const rootMatch = /^(?:https?:\/\/[^/]+)?\/([^/?#]+)\/?$/i.exec(href);
+    if (rootMatch && institutionalKeywords.some(k => rootMatch[1].toLowerCase().includes(k))) {
+      return rootMatch[1];
+    }
+    return null;
+  };
+
+  const footerPattern = /<footer[^>]*>([\s\S]*?)<\/footer>/gi;
+  let footerMatch;
+  
+  while ((footerMatch = footerPattern.exec(html)) !== null) {
+    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+    let linkMatch;
+    
+    while ((linkMatch = linkPattern.exec(footerMatch[1])) !== null) {
+      const [, href, rawLabel] = linkMatch;
+      const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+      
+      if (!label || label.length < 2 || shouldSkip(href)) continue;
+      
+      const slug = extractSlug(href);
+      if (!slug || addedSlugs.has(slug.toLowerCase())) continue;
+      
+      const isInstitutional = institutionalKeywords.some(k => 
+        slug.toLowerCase().includes(k) || label.toLowerCase().includes(k)
+      ) || /\/(?:pages?|pagina|policies)\//i.test(href);
+      
+      if (isInstitutional) {
+        const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+        pages.push({ title: label, slug: slug.toLowerCase(), url: normalizedUrl, source: 'footer' });
+        addedSlugs.add(slug.toLowerCase());
+      }
+    }
+  }
+
+  console.log(`Extracted ${pages.length} institutional pages from footer`);
+  return pages;
 }
