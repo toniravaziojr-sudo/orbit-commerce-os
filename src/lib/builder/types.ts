@@ -59,7 +59,7 @@ export interface BuilderState {
   isDirty: boolean;
 }
 
-export type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
+export type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
 export interface PageVersion {
   id: string;

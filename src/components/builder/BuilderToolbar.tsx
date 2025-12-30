@@ -236,6 +236,8 @@ export function BuilderToolbar({
             <SelectItem value="account">👤 Minha Conta</SelectItem>
             <SelectItem value="account_orders">📋 Pedidos</SelectItem>
             <SelectItem value="account_order_detail">📄 Pedido</SelectItem>
+            <SelectItem value="tracking">📍 Rastreio</SelectItem>
+            <SelectItem value="blog">📰 Blog</SelectItem>
           </SelectContent>
         </Select>
 
