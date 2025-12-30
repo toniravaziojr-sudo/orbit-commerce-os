@@ -90,8 +90,11 @@ function isOnTenantHost(): boolean {
   const fallbackHost = new URL(SAAS_CONFIG.fallbackOrigin).hostname;
   if (hostname === fallbackHost) return false;
   
-  // If on ANY lovable.app domain (previews, etc.) → NOT tenant host
+  // If on ANY lovable hosted preview/build domains → NOT tenant host
+  // - id-preview--*.lovable.app
+  // - *.lovableproject.com
   if (hostname.endsWith('.lovable.app')) return false;
+  if (hostname.endsWith('.lovableproject.com')) return false;
   
   // If on localhost → NOT tenant host (development)
   if (hostname === 'localhost' || hostname === '127.0.0.1') return false;
