@@ -5,9 +5,9 @@
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, Image, Loader2, X, Check } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Upload, Link, Loader2, X, Check, Code } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ export function ImageUploader({
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState(value || '');
+  const [svgInput, setSvgInput] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const aspectRatioClass = {
@@ -63,7 +64,7 @@ export function ImageUploader({
       const fileExt = file.name.split('.').pop();
       const fileName = `${currentTenant.id}/builder/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('product-images')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -107,18 +108,49 @@ export function ImageUploader({
   };
 
   const handleUrlApply = () => {
+    setError(null);
     onChange(urlInput);
+  };
+
+  const handleSvgApply = () => {
+    if (!svgInput.trim()) return;
+    
+    setError(null);
+    
+    // Se já é data URI, usar diretamente
+    if (svgInput.trim().startsWith('data:image/svg+xml')) {
+      onChange(svgInput.trim());
+      setSvgInput('');
+      return;
+    }
+    
+    // Validar se contém <svg
+    if (!svgInput.toLowerCase().includes('<svg')) {
+      setError('Código SVG inválido. Deve conter <svg>');
+      return;
+    }
+    
+    // Converter para data URI
+    try {
+      const base64 = btoa(unescape(encodeURIComponent(svgInput.trim())));
+      onChange(`data:image/svg+xml;base64,${base64}`);
+      setSvgInput('');
+    } catch (err) {
+      setError('Erro ao processar SVG. Verifique o código.');
+    }
   };
 
   const handleClear = () => {
     onChange('');
     setUrlInput('');
+    setSvgInput('');
+    setError(null);
   };
 
   return (
     <div className="space-y-3">
-      <Tabs defaultValue="upload" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-8">
+      <Tabs defaultValue="upload" className="w-full" onValueChange={() => setError(null)}>
+        <TabsList className="grid w-full grid-cols-3 h-8">
           <TabsTrigger value="upload" className="text-xs gap-1">
             <Upload className="h-3 w-3" />
             Upload
@@ -126,6 +158,10 @@ export function ImageUploader({
           <TabsTrigger value="url" className="text-xs gap-1">
             <Link className="h-3 w-3" />
             URL
+          </TabsTrigger>
+          <TabsTrigger value="svg" className="text-xs gap-1">
+            <Code className="h-3 w-3" />
+            SVG
           </TabsTrigger>
         </TabsList>
 
@@ -187,6 +223,25 @@ export function ImageUploader({
             </Button>
           </div>
         </TabsContent>
+
+        <TabsContent value="svg" className="mt-2 space-y-2">
+          <Textarea
+            value={svgInput}
+            onChange={(e) => setSvgInput(e.target.value)}
+            placeholder="<svg>...</svg> ou data:image/svg+xml;base64,..."
+            className="h-24 text-xs font-mono resize-none"
+          />
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={handleSvgApply}
+            disabled={!svgInput.trim()}
+            className="w-full h-9"
+          >
+            <Check className="h-4 w-4 mr-2" />
+            Aplicar SVG
+          </Button>
+        </TabsContent>
       </Tabs>
 
       {/* Error message */}
@@ -200,7 +255,7 @@ export function ImageUploader({
           <img
             src={value}
             alt="Preview"
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={(e) => {
               (e.target as HTMLImageElement).src = '/placeholder.svg';
             }}
