@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { useStorefrontTemplates, useTemplateVersion } from '@/hooks/useBuilderData';
 import { VisualBuilder } from '@/components/builder/VisualBuilder';
-import { BlockRenderContext } from '@/lib/builder/types';
+import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,7 +27,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
 const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string; isSystem?: boolean }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
@@ -39,6 +39,8 @@ const pageTypeInfo: Record<PageType, { title: string; description: string; icon:
   account: { title: 'Minha Conta', description: 'Hub do cliente', icon: '👤' },
   account_orders: { title: 'Pedidos', description: 'Lista de pedidos', icon: '📋' },
   account_order_detail: { title: 'Pedido', description: 'Detalhe do pedido', icon: '📄' },
+  tracking: { title: 'Rastreio', description: 'Página de rastreio de pedidos', icon: '📍', isSystem: true },
+  blog: { title: 'Blog', description: 'Índice do blog', icon: '📰', isSystem: true },
 };
 
 export default function StorefrontBuilder() {
@@ -50,9 +52,52 @@ export default function StorefrontBuilder() {
   
   const editingPageType = searchParams.get('edit') as PageType | null;
   
+  // Check if editing a system page (tracking or blog)
+  const isSystemPage = editingPageType === 'tracking' || editingPageType === 'blog';
+  const systemPageSlug = editingPageType === 'tracking' ? 'rastreio' : editingPageType === 'blog' ? 'blog' : null;
+  
   const { data: templates, isLoading: templatesLoading } = useStorefrontTemplates();
+  
+  // Fetch system page data when editing tracking or blog
+  const { data: systemPageData, isLoading: systemPageLoading } = useQuery({
+    queryKey: ['system-page', currentTenant?.id, systemPageSlug],
+    queryFn: async () => {
+      if (!currentTenant?.id || !systemPageSlug) return null;
+      
+      // Get the page
+      const { data: page, error: pageError } = await supabase
+        .from('store_pages')
+        .select('*')
+        .eq('tenant_id', currentTenant.id)
+        .eq('slug', systemPageSlug)
+        .eq('is_system', true)
+        .maybeSingle();
+      
+      if (pageError) throw pageError;
+      if (!page) return null;
+      
+      // If there's a draft version, get the version content
+      if (page.draft_version) {
+        const { data: version, error: versionError } = await supabase
+          .from('store_page_versions')
+          .select('content')
+          .eq('page_id', page.id)
+          .eq('version', page.draft_version)
+          .maybeSingle();
+        
+        if (!versionError && version) {
+          return { ...page, content: version.content };
+        }
+      }
+      
+      return page;
+    },
+    enabled: !!currentTenant?.id && isSystemPage && !!systemPageSlug,
+  });
+  
+  // Use template version only for non-system pages
   const { data: templateData, isLoading: templateLoading } = useTemplateVersion(
-    editingPageType || 'home', 
+    !isSystemPage ? (editingPageType || 'home') : 'home', 
     'draft'
   );
 
@@ -139,7 +184,10 @@ export default function StorefrontBuilder() {
       })) || [],
     };
 
-    if (templateLoading) {
+    // Loading state - check both template and system page loading
+    const isEditorLoading = isSystemPage ? systemPageLoading : templateLoading;
+    
+    if (isEditorLoading) {
       return (
         <div className="h-screen flex items-center justify-center bg-background">
           <div className="text-center">
@@ -150,6 +198,22 @@ export default function StorefrontBuilder() {
       );
     }
 
+    // For system pages, use the system page data
+    if (isSystemPage && systemPageData) {
+      return (
+        <VisualBuilder
+          tenantId={currentTenant.id}
+          pageType={editingPageType}
+          pageId={systemPageData.id}
+          pageTitle={pageTypeInfo[editingPageType]?.title}
+          pageSlug={systemPageSlug || undefined}
+          initialContent={systemPageData.content as unknown as BlockNode | undefined}
+          context={context}
+        />
+      );
+    }
+
+    // For regular templates
     return (
       <VisualBuilder
         tenantId={currentTenant.id}
