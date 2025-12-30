@@ -456,303 +456,218 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       stats.categories = allCategories.length;
       
-      // === STEP 2.2.1: Extract banners for each category and save to media_assets ===
-      toast.info('Extraindo banners das categorias...');
+      // === STEP 2.2.1: Extract banners + products using new unified edge function ===
+      toast.info('Extraindo banners e produtos das categorias...');
       let bannersExtracted = 0;
+      let totalProductsLinked = 0;
+      
+      // Get all products for this tenant for matching
+      const { data: existingProducts } = await supabase
+        .from('products')
+        .select('id, slug, name')
+        .eq('tenant_id', currentTenant.id);
+      
+      // Create maps for matching products
+      const productBySlug = new Map<string, { id: string; name: string }>();
+      const productByName = new Map<string, { id: string; slug: string }>();
+      
+      if (existingProducts) {
+        existingProducts.forEach(p => {
+          productBySlug.set(p.slug.toLowerCase(), { id: p.id, name: p.name });
+          const normalizedName = p.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
+          productByName.set(normalizedName, { id: p.id, slug: p.slug });
+        });
+      }
       
       for (const [slug, categoryUrl] of categoryUrlMap) {
         try {
           const categoryId = slugToIdMap.get(slug);
           if (!categoryId) continue;
           
-          // Call extract-category-banners edge function
-          const { data: bannerData, error: bannerError } = await supabase.functions.invoke('extract-category-banners', {
-            body: { categoryUrl }
+          // Call import-category-data edge function (extracts products + banners + internalizes assets)
+          const { data: categoryData, error: categoryError } = await supabase.functions.invoke('import-category-data', {
+            body: { 
+              categoryUrl, 
+              categorySlug: slug,
+              tenantId: currentTenant.id,
+              platform: analysisResult?.platform,
+            }
           });
           
-          if (bannerError || !bannerData?.success) {
-            console.log(`No banners found for category ${slug}:`, bannerError?.message || bannerData?.error);
+          if (categoryError) {
+            console.error(`Error importing category ${slug}:`, categoryError.message);
             continue;
           }
           
-          let { bannerDesktop, bannerMobile } = bannerData;
-          
-          // FALLBACK: If no mobile banner, use desktop banner
-          if (bannerDesktop && !bannerMobile) {
-            bannerMobile = bannerDesktop;
+          if (!categoryData?.success) {
+            console.log(`Failed to import category ${slug}:`, categoryData?.error);
+            continue;
           }
           
-          if (bannerDesktop || bannerMobile) {
-            // Save assets to media_library with proper dedupe
-            const assetsToSave = [];
-            
-            if (bannerDesktop) {
-              assetsToSave.push({
-                tenant_id: currentTenant.id,
-                file_url: bannerDesktop,
-                file_name: `Banner ${slug} - Desktop`,
-                variant: 'desktop',
-                mime_type: 'image/jpeg',
-                category: 'banners',
-              });
-            }
-            
-            if (bannerMobile && bannerMobile !== bannerDesktop) {
-              assetsToSave.push({
-                tenant_id: currentTenant.id,
-                file_url: bannerMobile,
-                file_name: `Banner ${slug} - Mobile`,
-                variant: 'mobile',
-                mime_type: 'image/jpeg',
-                category: 'banners',
-              });
-            }
-            
-            // Insert assets into media_library (upsert to avoid duplicates)
-            for (const asset of assetsToSave) {
-              const { error: mediaError } = await supabase
-                .from('media_library')
-                .upsert(asset, { 
-                  onConflict: 'tenant_id,file_url',
-                  ignoreDuplicates: false 
-                });
-              
-              if (mediaError) {
-                console.log(`Media library upsert note for ${asset.file_name}:`, mediaError.message);
-              }
-            }
-            
-            // Update category with banner URLs
+          console.log(`Category ${slug}: ${categoryData.productCount} products, banners: ${!!categoryData.bannerDesktopUrl}`);
+          
+          // Update category with internalized banner URLs
+          if (categoryData.bannerDesktopUrl || categoryData.bannerMobileUrl) {
             await supabase
               .from('categories')
               .update({
-                banner_desktop_url: bannerDesktop || null,
-                banner_mobile_url: bannerMobile || null,
+                banner_desktop_url: categoryData.bannerDesktopUrl || null,
+                banner_mobile_url: categoryData.bannerMobileUrl || categoryData.bannerDesktopUrl || null,
               })
               .eq('id', categoryId);
             
             bannersExtracted++;
           }
+          
+          // Link products to this category
+          const productHandles: string[] = categoryData.products || [];
+          
+          for (const handle of productHandles) {
+            const normalizedHandle = handle.toLowerCase();
+            let productId: string | null = null;
+            
+            // Try exact slug match
+            if (productBySlug.has(normalizedHandle)) {
+              productId = productBySlug.get(normalizedHandle)!.id;
+            } else {
+              // Try name-based match
+              if (productByName.has(normalizedHandle)) {
+                productId = productByName.get(normalizedHandle)!.id;
+              }
+            }
+            
+            if (productId) {
+              // Check if link already exists
+              const { data: existing } = await supabase
+                .from('product_categories')
+                .select('id')
+                .eq('product_id', productId)
+                .eq('category_id', categoryId)
+                .maybeSingle();
+              
+              if (!existing) {
+                // Get max position
+                const { data: maxPos } = await supabase
+                  .from('product_categories')
+                  .select('position')
+                  .eq('category_id', categoryId)
+                  .order('position', { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                
+                const newPosition = (maxPos?.position || 0) + 1;
+                
+                const { error: linkError } = await supabase
+                  .from('product_categories')
+                  .insert({
+                    product_id: productId,
+                    category_id: categoryId,
+                    position: newPosition,
+                  });
+                
+                if (!linkError) {
+                  totalProductsLinked++;
+                }
+              }
+            }
+          }
+          
+          // Log warning if expected products != found products
+          if (productHandles.length > 0) {
+            const linkedForThisCategory = productHandles.filter(h => 
+              productBySlug.has(h.toLowerCase()) || productByName.has(h.toLowerCase())
+            ).length;
+            
+            if (linkedForThisCategory < productHandles.length) {
+              console.warn(`Category ${slug}: Found ${productHandles.length} products on source, but only ${linkedForThisCategory} matched internal products`);
+            }
+          }
         } catch (e) {
-          console.error(`Error extracting banners for ${slug}:`, e);
+          console.error(`Error processing category ${slug}:`, e);
         }
       }
       
-      console.log(`Extracted banners for ${bannersExtracted} categories`);
+      console.log(`Extracted banners for ${bannersExtracted} categories, linked ${totalProductsLinked} products`);
       
-      // === STEP 2.2.2: Link existing products to imported categories via Shopify API ===
-      toast.info('Vinculando produtos às categorias...');
+      // === STEP 2.2.2: Aggregate products for parent categories (from menu hierarchy) ===
+      // Note: Product linking is now done inside the loop above via import-category-data edge function
+      toast.info('Agregando produtos para categorias mãe...');
       
-      // Get all products for this tenant
-      const { data: existingProducts } = await supabase
-        .from('products')
-        .select('id, slug, name')
-        .eq('tenant_id', currentTenant.id);
+      // Get menu items with hierarchy to identify parent categories
+      const { data: menuItemsForAgg } = await supabase
+        .from('menu_items')
+        .select('id, ref_id, item_type, parent_id')
+        .eq('tenant_id', currentTenant.id)
+        .eq('item_type', 'category')
+        .not('ref_id', 'is', null);
       
-      if (existingProducts && existingProducts.length > 0) {
-        // Create maps for matching products
-        const productBySlug = new Map<string, { id: string; name: string }>();
-        const productByName = new Map<string, { id: string; slug: string }>();
+      if (menuItemsForAgg && menuItemsForAgg.length > 0) {
+        // Build parent-child relationship
+        const parentToChildren = new Map<string, string[]>();
         
-        existingProducts.forEach(p => {
-          productBySlug.set(p.slug.toLowerCase(), { id: p.id, name: p.name });
-          const normalizedName = p.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '-');
-          productByName.set(normalizedName, { id: p.id, slug: p.slug });
+        menuItemsForAgg.forEach(item => {
+          if (item.parent_id && item.ref_id) {
+            // This is a child item - find its parent's category
+            const parent = menuItemsForAgg.find(m => m.id === item.parent_id);
+            if (parent && parent.ref_id) {
+              if (!parentToChildren.has(parent.ref_id)) {
+                parentToChildren.set(parent.ref_id, []);
+              }
+              parentToChildren.get(parent.ref_id)!.push(item.ref_id);
+            }
+          }
         });
         
-        let linkedProducts = 0;
+        // For each parent category, get all products from children and link them
+        let aggregatedProducts = 0;
         
-        // For each category, fetch products from the source site
-        for (const [slug, categoryUrl] of categoryUrlMap) {
-          const categoryId = slugToIdMap.get(slug);
-          if (!categoryId) continue;
+        for (const [parentCategoryId, childCategoryIds] of parentToChildren) {
+          // Get all products from child categories
+          const { data: childProducts } = await supabase
+            .from('product_categories')
+            .select('product_id')
+            .in('category_id', childCategoryIds);
           
-          try {
-            // For Shopify, try to get products via JSON endpoint
-            const isShopify = analysisResult?.platform?.toLowerCase() === 'shopify';
-            let productHandles: string[] = [];
+          if (childProducts && childProducts.length > 0) {
+            const uniqueProductIds = [...new Set(childProducts.map(cp => cp.product_id))];
             
-            if (isShopify) {
-              // Shopify collection products JSON endpoint (with pagination)
-              const jsonUrl = categoryUrl.replace(/\/?$/, '/products.json?limit=250');
-              try {
-                const response = await fetch(jsonUrl, {
-                  headers: { 'Accept': 'application/json' }
-                });
-                if (response.ok) {
-                  const data = await response.json();
-                  productHandles = (data.products || []).map((p: any) => p.handle);
-                  console.log(`Shopify API: Found ${productHandles.length} products for ${slug}`);
-                }
-              } catch (e) {
-                console.log(`Shopify JSON fetch failed for ${slug}, falling back to HTML`);
-              }
-            }
-            
-            // Fallback: Extract from HTML if JSON failed or non-Shopify
-            if (productHandles.length === 0) {
-              try {
-                const response = await fetch(categoryUrl, {
-                  headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
-                if (response.ok) {
-                  const html = await response.text();
-                  // Extract product handles from URLs
-                  const productUrlPattern = /\/products?\/([^"'\/\s?#]+)/gi;
-                  let match;
-                  const handles = new Set<string>();
-                  while ((match = productUrlPattern.exec(html)) !== null) {
-                    const handle = match[1].toLowerCase();
-                    if (handle && !handle.includes('.') && handle !== 'products') {
-                      handles.add(handle);
-                    }
-                  }
-                  productHandles = Array.from(handles);
-                  console.log(`HTML extraction: Found ${productHandles.length} products for ${slug}`);
-                }
-              } catch (e) {
-                console.log(`HTML fetch failed for ${slug}`);
-              }
-            }
-            
-            // Match and link products
-            for (const handle of productHandles) {
-              const normalizedHandle = handle.toLowerCase();
-              let productId: string | null = null;
+            for (const productId of uniqueProductIds) {
+              // Check if product is already linked to parent
+              const { data: existingLink } = await supabase
+                .from('product_categories')
+                .select('id')
+                .eq('product_id', productId)
+                .eq('category_id', parentCategoryId)
+                .maybeSingle();
               
-              // Try exact slug match first
-              if (productBySlug.has(normalizedHandle)) {
-                productId = productBySlug.get(normalizedHandle)!.id;
-              } else {
-                // Try name-based match
-                if (productByName.has(normalizedHandle)) {
-                  productId = productByName.get(normalizedHandle)!.id;
-                }
-              }
-              
-              if (productId) {
-                // Check if link already exists
-                const { data: existing } = await supabase
+              if (!existingLink) {
+                const { data: maxPos } = await supabase
                   .from('product_categories')
-                  .select('id')
-                  .eq('product_id', productId)
-                  .eq('category_id', categoryId)
-                  .maybeSingle();
-                
-                if (!existing) {
-                  // Get max position
-                  const { data: maxPos } = await supabase
-                    .from('product_categories')
-                    .select('position')
-                    .eq('category_id', categoryId)
-                    .order('position', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                  
-                  const newPosition = (maxPos?.position || 0) + 1;
-                  
-                  const { error: linkError } = await supabase
-                    .from('product_categories')
-                    .insert({
-                      product_id: productId,
-                      category_id: categoryId,
-                      position: newPosition,
-                    });
-                  
-                  if (!linkError) {
-                    linkedProducts++;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.error(`Error linking products for category ${slug}:`, e);
-          }
-        }
-        
-        console.log(`Linked ${linkedProducts} products to categories`);
-        
-        // === STEP 2.2.3: Aggregate products for parent categories (from menu hierarchy) ===
-        toast.info('Agregando produtos para categorias mãe...');
-        
-        // Get menu items with hierarchy to identify parent categories
-        const { data: menuItems } = await supabase
-          .from('menu_items')
-          .select('id, ref_id, item_type, parent_id')
-          .eq('tenant_id', currentTenant.id)
-          .eq('item_type', 'category')
-          .not('ref_id', 'is', null);
-        
-        if (menuItems && menuItems.length > 0) {
-          // Build parent-child relationship
-          const parentToChildren = new Map<string, string[]>();
-          const childrenCategoryIds: string[] = [];
-          
-          menuItems.forEach(item => {
-            if (item.parent_id && item.ref_id) {
-              // This is a child item - find its parent's category
-              const parent = menuItems.find(m => m.id === item.parent_id);
-              if (parent && parent.ref_id) {
-                if (!parentToChildren.has(parent.ref_id)) {
-                  parentToChildren.set(parent.ref_id, []);
-                }
-                parentToChildren.get(parent.ref_id)!.push(item.ref_id);
-                childrenCategoryIds.push(item.ref_id);
-              }
-            }
-          });
-          
-          // For each parent category, get all products from children and link them
-          let aggregatedProducts = 0;
-          
-          for (const [parentCategoryId, childCategoryIds] of parentToChildren) {
-            // Get all products from child categories
-            const { data: childProducts } = await supabase
-              .from('product_categories')
-              .select('product_id')
-              .in('category_id', childCategoryIds);
-            
-            if (childProducts && childProducts.length > 0) {
-              const uniqueProductIds = [...new Set(childProducts.map(cp => cp.product_id))];
-              
-              for (const productId of uniqueProductIds) {
-                // Check if product is already linked to parent
-                const { data: existing } = await supabase
-                  .from('product_categories')
-                  .select('id')
-                  .eq('product_id', productId)
+                  .select('position')
                   .eq('category_id', parentCategoryId)
+                  .order('position', { ascending: false })
+                  .limit(1)
                   .maybeSingle();
                 
-                if (!existing) {
-                  const { data: maxPos } = await supabase
-                    .from('product_categories')
-                    .select('position')
-                    .eq('category_id', parentCategoryId)
-                    .order('position', { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-                  
-                  const newPosition = (maxPos?.position || 0) + 1;
-                  
-                  const { error: linkError } = await supabase
-                    .from('product_categories')
-                    .insert({
-                      product_id: productId,
-                      category_id: parentCategoryId,
-                      position: newPosition,
-                    });
-                  
-                  if (!linkError) {
-                    aggregatedProducts++;
-                  }
+                const newPosition = (maxPos?.position || 0) + 1;
+                
+                const { error: linkError } = await supabase
+                  .from('product_categories')
+                  .insert({
+                    product_id: productId,
+                    category_id: parentCategoryId,
+                    position: newPosition,
+                  });
+                
+                if (!linkError) {
+                  aggregatedProducts++;
                 }
               }
             }
           }
-          
-          console.log(`Aggregated ${aggregatedProducts} products to parent categories`);
         }
+        
+        console.log(`Aggregated ${aggregatedProducts} products to parent categories`);
       }
       
       setVisualProgress(prev => ({ ...prev, categories: 'completed' }));
