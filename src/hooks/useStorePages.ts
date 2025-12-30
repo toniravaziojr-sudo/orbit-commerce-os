@@ -28,6 +28,9 @@ export interface StorePage {
   meta_image_url: string | null;
   no_index: boolean | null;
   canonical_url: string | null;
+  // Template fields (Shopify-like)
+  template_id: string | null;
+  individual_content: string | null;
 }
 
 export type StorePageFormData = {
@@ -43,6 +46,9 @@ export type StorePageFormData = {
   show_in_menu?: boolean;
   menu_label?: string | null;
   menu_order?: number;
+  // Template fields
+  template_id?: string | null;
+  individual_content?: string | null;
 };
 
 export function useStorePages() {

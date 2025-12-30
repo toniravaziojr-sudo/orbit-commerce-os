@@ -3444,6 +3444,53 @@ export type Database = {
           },
         ]
       }
+      page_templates: {
+        Row: {
+          content: Json | null
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          is_system: boolean | null
+          name: string
+          slug: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_system?: boolean | null
+          name: string
+          slug: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_system?: boolean | null
+          name?: string
+          slug?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "page_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_events: {
         Row: {
           created_at: string
@@ -4741,6 +4788,7 @@ export type Database = {
           created_at: string
           draft_version: number | null
           id: string
+          individual_content: string | null
           is_homepage: boolean | null
           is_published: boolean | null
           is_system: boolean | null
@@ -4757,6 +4805,7 @@ export type Database = {
           show_in_menu: boolean | null
           slug: string
           status: string | null
+          template_id: string | null
           tenant_id: string
           title: string
           type: string | null
@@ -4769,6 +4818,7 @@ export type Database = {
           created_at?: string
           draft_version?: number | null
           id?: string
+          individual_content?: string | null
           is_homepage?: boolean | null
           is_published?: boolean | null
           is_system?: boolean | null
@@ -4785,6 +4835,7 @@ export type Database = {
           show_in_menu?: boolean | null
           slug: string
           status?: string | null
+          template_id?: string | null
           tenant_id: string
           title: string
           type?: string | null
@@ -4797,6 +4848,7 @@ export type Database = {
           created_at?: string
           draft_version?: number | null
           id?: string
+          individual_content?: string | null
           is_homepage?: boolean | null
           is_published?: boolean | null
           is_system?: boolean | null
@@ -4813,12 +4865,20 @@ export type Database = {
           show_in_menu?: boolean | null
           slug?: string
           status?: string | null
+          template_id?: string | null
           tenant_id?: string
           title?: string
           type?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "store_pages_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "page_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "store_pages_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -5940,6 +6000,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      initialize_default_page_template: {
+        Args: { p_tenant_id: string }
+        Returns: string
       }
       initialize_storefront_templates: {
         Args: { p_tenant_id: string }

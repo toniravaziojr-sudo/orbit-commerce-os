@@ -226,6 +226,9 @@ export interface BlockRenderContext {
     slug: string;
   };
   
+  // Individual page content (text/HTML) for template-based pages
+  pageContent?: string;
+  
   // Order confirmation context (for thank you page)
   order?: {
     orderNumber?: string;
