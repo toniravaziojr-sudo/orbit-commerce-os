@@ -2,10 +2,9 @@
 // STOREFRONT BLOG POST - Renders individual blog post
 // =============================================
 
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, Clock, ArrowLeft } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { usePublicStorefront } from '@/hooks/useStorefront';
 import { PublicTemplateRenderer } from '@/components/storefront/PublicTemplateRenderer';
@@ -17,6 +16,7 @@ import { getStoreBaseUrl } from '@/lib/publicUrls';
 import { Storefront404 } from '@/components/storefront/Storefront404';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import type { BlockNode } from '@/lib/builder/types';
+import type { Json } from '@/integrations/supabase/types';
 
 export default function StorefrontBlogPost() {
   const { tenantSlug, postSlug } = useParams<{ tenantSlug?: string; postSlug: string }>();
@@ -69,7 +69,7 @@ export default function StorefrontBlogPost() {
   }
 
   if (!post) {
-    return <Storefront404 />;
+    return <Storefront404 tenantSlug={tenantSlug || ''} entityType="page" entitySlug={postSlug} />;
   }
 
   // Build context for the renderer
@@ -103,9 +103,8 @@ export default function StorefrontBlogPost() {
   if (post.content) {
     return (
       <PublicTemplateRenderer
-        content={post.content as BlockNode}
+        content={post.content as unknown as BlockNode}
         context={context}
-        isPreview={false}
       />
     );
   }
@@ -169,7 +168,6 @@ export default function StorefrontBlogPost() {
           </article>
         ),
       }}
-      isPreview={false}
     />
   );
 }
