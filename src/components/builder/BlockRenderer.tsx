@@ -475,6 +475,7 @@ export function BlockRenderer({
           onDuplicate={() => onDuplicateBlock?.(node.id)}
           onDelete={() => onDeleteBlock?.(node.id)}
           onToggleHidden={() => onToggleHidden?.(node.id)}
+          viewport={context.viewport}
         />
       )}
       
