@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2, Menu, FileText, Loader2, Upload, AlertTriangle } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
 import { ImportStep, ImportStepConfig } from './ImportStep';
 import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
@@ -12,6 +12,7 @@ import { getAdapter } from '@/lib/import/platforms';
 import { useAuth } from '@/hooks/useAuth';
 import { generateBlockId } from '@/lib/builder/utils';
 import type { BlockNode } from '@/lib/builder/types';
+import { Progress } from '@/components/ui/progress';
 
 // Generate home page content from imported visual data
 function generateHomePageContent(heroBanners: any[], menuId?: string): BlockNode {
@@ -96,47 +97,31 @@ interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
 
-type WizardStep = 'url' | 'import-steps' | 'complete';
+// Wizard steps: url -> visual-import -> file-import -> complete
+type WizardStep = 'url' | 'visual-import' | 'file-import' | 'complete';
 
-interface StepStatus {
-  status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing';
-  importedCount?: number;
+// Sub-steps within visual import (Etapa 2)
+interface VisualImportProgress {
+  pages: 'pending' | 'processing' | 'completed' | 'error';
+  categories: 'pending' | 'processing' | 'completed' | 'error';
+  menus: 'pending' | 'processing' | 'completed' | 'error';
+  visual: 'pending' | 'processing' | 'completed' | 'error';
 }
 
-const IMPORT_STEPS: ImportStepConfig[] = [
-  {
-    id: 'categories',
-    title: 'Categorias',
-    description: 'Extrair categorias com banners automaticamente do site',
-    icon: <FolderTree className="h-5 w-5" />,
-    required: true,
-    canSkip: false,
-    importMethod: 'scrape',
-  },
-  {
-    id: 'menu',
-    title: 'Menu',
-    description: 'Extrair menu de navegação e vincular às categorias importadas',
-    icon: <Menu className="h-5 w-5" />,
-    requiresPrevious: ['categories'],
-    canSkip: true,
-    importMethod: 'scrape',
-  },
-  {
-    id: 'visual',
-    title: 'Visual da Loja',
-    description: 'Extrair banners, logos, cores e identidade visual automaticamente',
-    icon: <Palette className="h-5 w-5" />,
-    requiresPrevious: ['categories'],
-    canSkip: false,
-    importMethod: 'scrape',
-  },
+interface ImportStats {
+  pages: number;
+  categories: number;
+  menuItems: number;
+  banners: number;
+}
+
+// File import steps (Etapa 3 - opcional)
+const FILE_IMPORT_STEPS: ImportStepConfig[] = [
   {
     id: 'products',
     title: 'Produtos',
     description: 'Importar produtos e vincular às categorias importadas via arquivo JSON ou CSV',
     icon: <Package className="h-5 w-5" />,
-    requiresPrevious: ['categories'],
     canSkip: true,
     importMethod: 'file',
   },
@@ -158,15 +143,6 @@ const IMPORT_STEPS: ImportStepConfig[] = [
   },
 ];
 
-interface VisualImportData {
-  heroBanners: any[];
-  menuItems: any[];
-  categories: any[];
-  branding: any;
-  sections: any[];
-  unsupportedSections: string[];
-}
-
 export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const [wizardStep, setWizardStep] = useState<WizardStep>('url');
   const [storeUrl, setStoreUrl] = useState('');
@@ -174,26 +150,46 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const [analysisResult, setAnalysisResult] = useState<{
     success: boolean;
     platform?: string;
+    confidence?: string;
     error?: string;
     data?: any;
   } | null>(null);
   
-  const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>(() => {
-    const initial: Record<string, StepStatus> = {};
-    IMPORT_STEPS.forEach((step, index) => {
+  // Visual import state (Etapa 2)
+  const [isImportingVisual, setIsImportingVisual] = useState(false);
+  const [visualProgress, setVisualProgress] = useState<VisualImportProgress>({
+    pages: 'pending',
+    categories: 'pending',
+    menus: 'pending',
+    visual: 'pending',
+  });
+  const [importStats, setImportStats] = useState<ImportStats>({
+    pages: 0,
+    categories: 0,
+    menuItems: 0,
+    banners: 0,
+  });
+  const [importErrors, setImportErrors] = useState<string[]>([]);
+  
+  // File import state (Etapa 3)
+  const [fileStepStatuses, setFileStepStatuses] = useState<Record<string, {
+    status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing';
+    importedCount?: number;
+  }>>(() => {
+    const initial: Record<string, any> = {};
+    FILE_IMPORT_STEPS.forEach((step, index) => {
       initial[step.id] = { status: index === 0 ? 'active' : 'pending' };
     });
     return initial;
   });
-
+  
   const [scrapedData, setScrapedData] = useState<any>(null);
-  const [visualImportData, setVisualImportData] = useState<VisualImportData | null>(null);
   const [createdMenuId, setCreatedMenuId] = useState<string | null>(null);
   
-  const { createJob } = useImportJobs();
   const { importData } = useImportData();
   const { currentTenant } = useAuth();
 
+  // Etapa 1: Analyze store URL and detect platform
   const handleAnalyzeStore = useCallback(async () => {
     if (!storeUrl.trim()) return;
 
@@ -219,13 +215,17 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       if (error) throw error;
 
       if (data?.success) {
+        const html = data.data?.html || data.html || '';
+        const platform = detectPlatformFromHtml(html);
+        
         setScrapedData(data.data || data);
         setAnalysisResult({
           success: true,
-          platform: detectPlatformFromHtml(data.data?.html || data.html || ''),
+          platform: platform.name,
+          confidence: platform.confidence,
           data: data.data || data,
         });
-        toast.success('Loja analisada com sucesso!');
+        toast.success(`Loja analisada! Plataforma detectada: ${platform.name}`);
       } else {
         throw new Error(data?.error || 'Falha ao analisar a loja');
       }
@@ -241,30 +241,501 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     }
   }, [storeUrl]);
 
-  const detectPlatformFromHtml = (html: string): string => {
-    if (html.includes('Shopify') || html.includes('shopify')) return 'Shopify';
-    if (html.includes('WooCommerce') || html.includes('woocommerce')) return 'WooCommerce';
-    if (html.includes('Nuvemshop') || html.includes('nuvemshop')) return 'Nuvemshop';
-    if (html.includes('VTEX') || html.includes('vtex')) return 'VTEX';
-    if (html.includes('Loja Integrada') || html.includes('lojaintegrada')) return 'Loja Integrada';
-    if (html.includes('Tray') || html.includes('tray.com')) return 'Tray';
-    if (html.includes('Yampi') || html.includes('yampi')) return 'Yampi';
-    return 'Plataforma não identificada';
+  const detectPlatformFromHtml = (html: string): { name: string; confidence: string } => {
+    const htmlLower = html.toLowerCase();
+    
+    // Shopify signals
+    const shopifySignals = [
+      htmlLower.includes('shopify'),
+      htmlLower.includes('cdn.shopify.com'),
+      htmlLower.includes('/collections/'),
+      htmlLower.includes('myshopify.com'),
+    ].filter(Boolean).length;
+    
+    if (shopifySignals >= 2) return { name: 'Shopify', confidence: 'alta' };
+    if (shopifySignals >= 1) return { name: 'Shopify', confidence: 'média' };
+    
+    // WooCommerce
+    if (htmlLower.includes('woocommerce') || htmlLower.includes('wp-content')) {
+      return { name: 'WooCommerce', confidence: 'alta' };
+    }
+    
+    // Nuvemshop
+    if (htmlLower.includes('nuvemshop') || htmlLower.includes('tiendanube')) {
+      return { name: 'Nuvemshop', confidence: 'alta' };
+    }
+    
+    // VTEX
+    if (htmlLower.includes('vtex') || htmlLower.includes('vteximg')) {
+      return { name: 'VTEX', confidence: 'alta' };
+    }
+    
+    // Loja Integrada
+    if (htmlLower.includes('lojaintegrada')) {
+      return { name: 'Loja Integrada', confidence: 'alta' };
+    }
+    
+    // Tray
+    if (htmlLower.includes('tray.com')) {
+      return { name: 'Tray', confidence: 'alta' };
+    }
+    
+    // Yampi
+    if (htmlLower.includes('yampi')) {
+      return { name: 'Yampi', confidence: 'alta' };
+    }
+    
+    return { name: 'Plataforma não identificada', confidence: 'baixa' };
   };
 
-  const moveToNextStep = useCallback((currentStepId: string) => {
-    const currentIndex = IMPORT_STEPS.findIndex(s => s.id === currentStepId);
-    if (currentIndex < IMPORT_STEPS.length - 1) {
-      const nextStep = IMPORT_STEPS[currentIndex + 1];
-      setStepStatuses(prev => ({
-        ...prev,
-        [nextStep.id]: { status: 'active' },
-      }));
-    } else {
-      setWizardStep('complete');
+  // Etapa 2: Import visual structure (pages, categories, menus, visual) in one click
+  const handleImportVisualStructure = useCallback(async () => {
+    if (!currentTenant?.id || !scrapedData) {
+      toast.error('Dados da loja não disponíveis');
+      return;
     }
-  }, []);
 
+    setIsImportingVisual(true);
+    setImportErrors([]);
+    const stats: ImportStats = { pages: 0, categories: 0, menuItems: 0, banners: 0 };
+    
+    try {
+      // Step 1: Get better HTML with JS rendered (for menus)
+      let htmlToUse = scrapedData.html || '';
+      
+      setVisualProgress(prev => ({ ...prev, pages: 'processing' }));
+      toast.info('Extraindo estrutura visual da loja...');
+      
+      // Try to get better HTML for JS-rendered content
+      try {
+        const { data: betterScrape, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
+          body: { 
+            url: storeUrl,
+            options: {
+              formats: ['html', 'links'],
+              onlyMainContent: false,
+              waitFor: 3000,
+            }
+          }
+        });
+        
+        if (!scrapeError && betterScrape?.data?.html) {
+          htmlToUse = betterScrape.data.html;
+        }
+      } catch (e) {
+        console.log('Fallback scrape failed, using original HTML');
+      }
+      
+      // Step 2: Call import-visual edge function for deep extraction
+      const { data: visualData, error: visualError } = await supabase.functions.invoke('import-visual', {
+        body: { 
+          url: storeUrl,
+          html: htmlToUse,
+          platform: analysisResult?.platform,
+        }
+      });
+
+      if (visualError) {
+        throw new Error(`Erro ao extrair visual: ${visualError.message}`);
+      }
+
+      if (!visualData?.success) {
+        throw new Error(visualData?.error || 'Falha na extração visual');
+      }
+
+      console.log('Visual extraction result:', {
+        banners: visualData.heroBanners?.length || 0,
+        categories: visualData.categories?.length || 0,
+        menuItems: visualData.menuItems?.length || 0,
+      });
+
+      // === STEP 2.1: Import Pages (institutional/informational) ===
+      setVisualProgress(prev => ({ ...prev, pages: 'processing' }));
+      
+      // For now, pages are extracted from menu items with type 'page'
+      // TODO: Create actual pages in the pages table
+      const pageItems = (visualData.menuItems || []).filter((item: any) => 
+        item.type === 'page' || 
+        /\/(?:pages?|pagina|sobre|contato|politica|termos)/i.test(item.url || '')
+      );
+      stats.pages = pageItems.length;
+      setVisualProgress(prev => ({ ...prev, pages: 'completed' }));
+      
+      // === STEP 2.2: Import Categories (FLAT - no hierarchy in categories) ===
+      setVisualProgress(prev => ({ ...prev, categories: 'processing' }));
+      
+      const allCategories: Array<{
+        name: string;
+        slug: string;
+        url?: string;
+        imageUrl?: string;
+        bannerDesktop?: string;
+        bannerMobile?: string;
+      }> = [];
+      const processedSlugs = new Set<string>();
+      
+      // Extract slug from URL
+      const extractSlugFromUrl = (url: string): string | null => {
+        const match = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i.exec(url);
+        return match ? match[1] : null;
+      };
+      
+      // Process menu items to extract categories (FLAT - no parent_id)
+      const processMenuItem = (item: any) => {
+        const slug = extractSlugFromUrl(item.url || '');
+        if ((item.type === 'category' || slug) && slug && !processedSlugs.has(slug)) {
+          allCategories.push({
+            name: item.label || item.name,
+            slug: slug,
+            url: item.url,
+          });
+          processedSlugs.add(slug);
+        }
+        
+        // Process children (also flat, NOT as subcategories)
+        if (item.children && item.children.length > 0) {
+          for (const child of item.children) {
+            processMenuItem(child);
+          }
+        }
+      };
+      
+      for (const item of (visualData.menuItems || [])) {
+        processMenuItem(item);
+      }
+      
+      // Add categories from visual extraction
+      for (const cat of (visualData.categories || [])) {
+        if (cat && cat.slug && !processedSlugs.has(cat.slug)) {
+          allCategories.push({
+            name: cat.name,
+            slug: cat.slug,
+            url: cat.url,
+            imageUrl: cat.imageUrl,
+            bannerDesktop: cat.bannerDesktop,
+            bannerMobile: cat.bannerMobile,
+          });
+          processedSlugs.add(cat.slug);
+        }
+      }
+      
+      // Save categories as FLAT (parent_id = null always)
+      const slugToIdMap = new Map<string, string>();
+      
+      for (const cat of allCategories) {
+        if (!cat || !cat.slug) continue;
+        
+        const { data, error } = await supabase
+          .from('categories')
+          .upsert({
+            tenant_id: currentTenant.id,
+            name: cat.name,
+            slug: cat.slug,
+            is_active: true,
+            image_url: cat.imageUrl || null,
+            banner_desktop_url: cat.bannerDesktop || null,
+            banner_mobile_url: cat.bannerMobile || null,
+            parent_id: null, // FLAT - hierarchy is ONLY in menus
+          }, { onConflict: 'tenant_id,slug' })
+          .select('id, slug')
+          .single();
+        
+        if (data) {
+          slugToIdMap.set(cat.slug, data.id);
+        }
+        if (error && !error.message.includes('duplicate')) {
+          console.error('Error saving category:', error);
+        }
+      }
+      
+      stats.categories = allCategories.length;
+      setVisualProgress(prev => ({ ...prev, categories: 'completed' }));
+      
+      // === STEP 2.3: Import Menus (with hierarchy - parent_id in menu_items) ===
+      setVisualProgress(prev => ({ ...prev, menus: 'processing' }));
+      
+      const menuItems = visualData.menuItems || [];
+      let menuId: string | null = null;
+      
+      if (menuItems.length > 0) {
+        // Fetch imported categories to link menu items
+        const { data: importedCategories } = await supabase
+          .from('categories')
+          .select('id, slug, name')
+          .eq('tenant_id', currentTenant.id);
+        
+        const categoryMap = new Map<string, { id: string; slug: string }>();
+        (importedCategories || []).forEach(cat => {
+          categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
+          categoryMap.set(cat.name.toLowerCase().replace(/\s+/g, '-'), { id: cat.id, slug: cat.slug });
+        });
+        
+        // Helper to find category match from URL or label
+        const findCategoryMatch = (url: string, label: string) => {
+          // Try to extract slug from URL
+          const collectionMatch = url.match(/\/(?:collections?|categoria|category|c)\/([^/?#]+)/i);
+          if (collectionMatch) {
+            const slug = collectionMatch[1].toLowerCase();
+            if (categoryMap.has(slug)) {
+              return categoryMap.get(slug);
+            }
+          }
+          // Try to match by label
+          const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
+          if (categoryMap.has(labelSlug)) {
+            return categoryMap.get(labelSlug);
+          }
+          return null;
+        };
+        
+        // Create or update header menu
+        const { data: menuData, error: menuError } = await supabase
+          .from('menus')
+          .upsert({
+            tenant_id: currentTenant.id,
+            name: 'Menu Principal',
+            location: 'header',
+          }, { onConflict: 'tenant_id,location' })
+          .select('id')
+          .single();
+
+        if (menuError) {
+          console.error('Error creating menu:', menuError);
+          setImportErrors(prev => [...prev, 'Erro ao criar menu principal']);
+        } else if (menuData) {
+          menuId = menuData.id;
+          setCreatedMenuId(menuData.id);
+          
+          // Delete existing menu items for idempotency
+          await supabase
+            .from('menu_items')
+            .delete()
+            .eq('menu_id', menuData.id);
+
+          // Insert menu items WITH HIERARCHY (parent_id in menu_items)
+          let sortOrder = 0;
+          let totalMenuItems = 0;
+          
+          for (const item of menuItems) {
+            const categoryMatch = findCategoryMatch(item.internalUrl || item.url || '', item.label || '');
+            
+            // Determine item type and URL based on category match
+            const itemType = categoryMatch ? 'category' : (item.type || 'link');
+            const itemUrl = categoryMatch 
+              ? `/categoria/${categoryMatch.slug}` 
+              : (item.internalUrl || item.url || '#');
+            const refId = categoryMatch?.id || null;
+            
+            // Insert parent item
+            const { data: parentItem, error: parentError } = await supabase
+              .from('menu_items')
+              .insert({
+                tenant_id: currentTenant.id,
+                menu_id: menuData.id,
+                label: item.label,
+                url: itemUrl,
+                item_type: itemType,
+                ref_id: refId,
+                sort_order: sortOrder++,
+                parent_id: null, // Parent items have no parent
+              })
+              .select('id')
+              .single();
+            
+            if (parentError) {
+              console.error('Error inserting parent menu item:', parentError);
+              continue;
+            }
+            
+            totalMenuItems++;
+            
+            // Insert children with parent_id (THIS IS THE HIERARCHY)
+            if (item.children && item.children.length > 0 && parentItem) {
+              for (let i = 0; i < item.children.length; i++) {
+                const child = item.children[i];
+                const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url || '', child.label || '');
+                
+                const childItemType = childCategoryMatch ? 'category' : (child.type || 'link');
+                const childUrl = childCategoryMatch 
+                  ? `/categoria/${childCategoryMatch.slug}` 
+                  : (child.internalUrl || child.url || '#');
+                const childRefId = childCategoryMatch?.id || null;
+                
+                const { error: childError } = await supabase
+                  .from('menu_items')
+                  .insert({
+                    tenant_id: currentTenant.id,
+                    menu_id: menuData.id,
+                    label: child.label,
+                    url: childUrl,
+                    item_type: childItemType,
+                    ref_id: childRefId,
+                    parent_id: parentItem.id, // HIERARCHY: children reference parent
+                    sort_order: i,
+                  });
+                
+                if (childError) {
+                  console.error('Error inserting child menu item:', childError);
+                } else {
+                  totalMenuItems++;
+                }
+              }
+            }
+          }
+          
+          stats.menuItems = totalMenuItems;
+        }
+      } else {
+        toast.info('Nenhum item de menu encontrado no site.');
+      }
+      
+      setVisualProgress(prev => ({ ...prev, menus: 'completed' }));
+      
+      // === STEP 2.4: Import Home Page + Visual (banners, branding) ===
+      setVisualProgress(prev => ({ ...prev, visual: 'processing' }));
+      
+      const heroBanners = visualData.heroBanners || [];
+      const branding = scrapedData.branding || visualData.branding || {};
+      
+      // Update tenant with visual config
+      const { data: tenantData } = await supabase
+        .from('tenants')
+        .select('settings, logo_url')
+        .eq('id', currentTenant.id)
+        .single();
+      
+      const currentSettings = (tenantData?.settings as Record<string, any>) || {};
+      
+      const visualConfig = {
+        logo: branding.images?.logo || branding.logo || null,
+        favicon: branding.images?.favicon || branding.favicon || null,
+        primaryColor: branding.colors?.primary || branding.primaryColor || null,
+        secondaryColor: branding.colors?.secondary || branding.secondaryColor || null,
+        accentColor: branding.colors?.accent || branding.accentColor || null,
+        backgroundColor: branding.colors?.background || null,
+        textColor: branding.colors?.textPrimary || null,
+        fontFamily: branding.typography?.fontFamilies?.primary || branding.fonts?.[0]?.family || null,
+        headingFont: branding.typography?.fontFamilies?.heading || null,
+        colorScheme: branding.colorScheme || 'light',
+      };
+
+      const updatedSettings = {
+        ...currentSettings,
+        visual: visualConfig,
+        imported_from: storeUrl,
+        imported_at: new Date().toISOString(),
+      };
+
+      const updateData: any = { settings: updatedSettings };
+      if (visualConfig.logo) {
+        updateData.logo_url = visualConfig.logo;
+      }
+
+      await supabase
+        .from('tenants')
+        .update(updateData)
+        .eq('id', currentTenant.id);
+
+      // Create and publish home page with banners
+      if (heroBanners.length > 0) {
+        const homePageContent = generateHomePageContent(heroBanners, menuId || undefined);
+        
+        // Initialize storefront templates
+        await supabase.rpc('initialize_storefront_templates', { 
+          p_tenant_id: currentTenant.id 
+        });
+        
+        // Archive old published versions
+        await supabase
+          .from('store_page_versions')
+          .update({ status: 'archived' })
+          .eq('tenant_id', currentTenant.id)
+          .eq('entity_type', 'template')
+          .eq('page_type', 'home')
+          .eq('status', 'published');
+        
+        // Get max version
+        const { data: maxVersionData } = await supabase
+          .from('store_page_versions')
+          .select('version')
+          .eq('tenant_id', currentTenant.id)
+          .eq('entity_type', 'template')
+          .eq('page_type', 'home')
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        const newVersion = (maxVersionData?.version || 0) + 1;
+        
+        // Insert new published version
+        const { error: insertError } = await supabase
+          .from('store_page_versions')
+          .insert([{
+            tenant_id: currentTenant.id,
+            entity_type: 'template',
+            version: newVersion,
+            status: 'published',
+            content: homePageContent as unknown as Json,
+            page_type: 'home',
+          }]);
+        
+        if (insertError) {
+          console.error('Error inserting home template version:', insertError);
+          setImportErrors(prev => [...prev, 'Erro ao publicar página inicial']);
+        } else {
+          // Update template to point to this version
+          await supabase
+            .from('storefront_page_templates')
+            .update({ 
+              published_version: newVersion,
+              draft_version: newVersion,
+            })
+            .eq('tenant_id', currentTenant.id)
+            .eq('page_type', 'home');
+        }
+        
+        stats.banners = heroBanners.length;
+      }
+      
+      setVisualProgress(prev => ({ ...prev, visual: 'completed' }));
+      setImportStats(stats);
+      
+      toast.success('Estrutura visual importada com sucesso!');
+      
+    } catch (error: any) {
+      console.error('Visual import error:', error);
+      const errorMessage = error.message || 'Erro ao importar estrutura visual';
+      setImportErrors(prev => [...prev, errorMessage]);
+      toast.error(errorMessage);
+      
+      // Mark current step as error
+      setVisualProgress(prev => {
+        if (prev.pages === 'processing') return { ...prev, pages: 'error' };
+        if (prev.categories === 'processing') return { ...prev, categories: 'error' };
+        if (prev.menus === 'processing') return { ...prev, menus: 'error' };
+        if (prev.visual === 'processing') return { ...prev, visual: 'error' };
+        return prev;
+      });
+    } finally {
+      setIsImportingVisual(false);
+    }
+  }, [currentTenant, scrapedData, storeUrl, analysisResult]);
+
+  // Check if visual import is complete
+  const isVisualImportComplete = 
+    visualProgress.pages === 'completed' &&
+    visualProgress.categories === 'completed' &&
+    visualProgress.menus === 'completed' &&
+    visualProgress.visual === 'completed';
+
+  // Calculate visual import progress percentage
+  const getVisualProgressPercent = () => {
+    const steps = ['pages', 'categories', 'menus', 'visual'] as const;
+    const completed = steps.filter(s => visualProgress[s] === 'completed').length;
+    return (completed / steps.length) * 100;
+  };
+
+  // Etapa 3: File import handlers
   const parseFileContent = async (file: File): Promise<any[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -333,616 +804,121 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     return result;
   };
 
-  // Fetch category page to extract banner
-  const fetchCategoryBanner = async (categoryUrl: string): Promise<{ bannerDesktop?: string; bannerMobile?: string }> => {
-    try {
-      const { data, error } = await supabase.functions.invoke('firecrawl-scrape', {
-        body: { 
-          url: categoryUrl,
-          options: {
-            formats: ['html'],
-            onlyMainContent: false,
-          }
-        },
-      });
+  const handleFileImportStep = useCallback(async (stepId: string, file?: File) => {
+    if (!file || !currentTenant?.id) return;
 
-      if (error || !data?.success) return {};
-
-      const html = data.data?.html || data.html || '';
-      
-      // Look for collection/category banner in the page
-      const bannerPatterns = [
-        // Shopify collection image
-        /<img[^>]*class="[^"]*collection[^"]*"[^>]*src=["']([^"']+)["']/i,
-        // Generic category banner
-        /<img[^>]*class="[^"]*(?:banner|hero|categoria)[^"]*"[^>]*src=["']([^"']+)["']/i,
-        // Picture source for category
-        /<div[^>]*class="[^"]*(?:collection|category|banner)[^"]*"[^>]*>[\s\S]*?<img[^>]*src=["']([^"']+)["']/i,
-        // Background image style
-        /class="[^"]*(?:collection|category|hero)[^"]*"[^>]*style="[^"]*background[^"]*url\(['"]?([^'")\s]+)['"]?\)/i,
-        // Any large image at the top of the page (first 5000 chars)
-      ];
-
-      for (const pattern of bannerPatterns) {
-        const match = pattern.exec(html);
-        if (match && match[1]) {
-          let bannerUrl = match[1];
-          // Normalize URL
-          if (bannerUrl.startsWith('//')) {
-            bannerUrl = `https:${bannerUrl}`;
-          } else if (!bannerUrl.startsWith('http')) {
-            try {
-              const baseUrl = new URL(categoryUrl).origin;
-              bannerUrl = new URL(bannerUrl, baseUrl).href;
-            } catch {}
-          }
-          return { bannerDesktop: bannerUrl };
-        }
-      }
-
-      return {};
-    } catch (error) {
-      console.error('Error fetching category banner:', error);
-      return {};
-    }
-  };
-
-  const handleImportStep = useCallback(async (stepId: string, file?: File) => {
-    const step = IMPORT_STEPS.find(s => s.id === stepId);
-    if (!step) return;
-
-    setStepStatuses(prev => ({
+    setFileStepStatuses(prev => ({
       ...prev,
       [stepId]: { ...prev[stepId], status: 'processing' },
     }));
 
     try {
-      let importedCount = 0;
+      const data = await parseFileContent(file);
+      
+      if (data.length === 0) {
+        throw new Error('Arquivo vazio ou sem dados válidos');
+      }
 
-      if (step.importMethod === 'file' && file) {
-        const data = await parseFileContent(file);
-        
-        if (data.length === 0) {
-          throw new Error('Arquivo vazio ou sem dados válidos');
-        }
-
-        // Normalize and import data
-        const detectedPlatform = analysisResult?.platform?.toLowerCase()?.trim() || 'generic';
-        const platformMap: Record<string, string> = {
-          'shopify': 'shopify',
-          'woocommerce': 'woocommerce',
-          'nuvemshop': 'nuvemshop',
-          'tiendanube': 'nuvemshop',
-          'vtex': 'vtex',
-          'loja integrada': 'loja_integrada',
-          'lojaintegrada': 'loja_integrada',
-          'tray': 'tray',
-          'yampi': 'yampi',
-          'bagy': 'bagy',
-          'wix': 'wix',
-        };
-        const platform = platformMap[detectedPlatform] || 'generic';
-        const adapter = getAdapter(platform as any);
-        
-        let normalizedData = data;
-        if (adapter) {
-          if (stepId === 'products' && adapter.normalizeProduct) {
-            normalizedData = data.map(item => adapter.normalizeProduct!(item));
-          } else if (stepId === 'customers' && adapter.normalizeCustomer) {
-            normalizedData = data.map(item => adapter.normalizeCustomer!(item));
-          } else if (stepId === 'orders' && adapter.normalizeOrder) {
-            normalizedData = data.map(item => adapter.normalizeOrder!(item));
-          }
-        }
-
-        // For products, fetch existing categories to create a mapping for linking
-        let categoryMap: Record<string, string> | undefined;
-        if (stepId === 'products' && currentTenant?.id) {
-          const { data: categories } = await supabase
-            .from('categories')
-            .select('id, slug')
-            .eq('tenant_id', currentTenant.id);
-          
-          if (categories && categories.length > 0) {
-            categoryMap = {};
-            categories.forEach(cat => {
-              categoryMap![cat.slug] = cat.id;
-            });
-            toast.info(`${categories.length} categorias disponíveis para vincular aos produtos`);
-          }
-        }
-
-        const result = await importData(platform, stepId as any, normalizedData, categoryMap);
-        importedCount = result?.results?.imported || data.length;
-        
-      } else if (step.importMethod === 'scrape' && scrapedData) {
-        if (!currentTenant?.id) {
-          throw new Error('Tenant não encontrado');
-        }
-
-        // Call import-visual edge function for deep extraction (only once)
-        let visualData = visualImportData;
-        if (!visualData) {
-          // First, try to get better HTML with JavaScript rendered using waitFor
-          let htmlToUse = scrapedData.html || '';
-          
-          // If we don't have good menu data in the initial HTML, try scraping with waitFor
-          const hasMenuInHtml = htmlToUse.includes('nav') || htmlToUse.includes('header-nav') || htmlToUse.includes('mega-menu');
-          if (!hasMenuInHtml || !htmlToUse.includes('dropdown')) {
-            console.log('Attempting to scrape with waitFor for JS-rendered content...');
-            try {
-              const { data: betterScrape, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
-                body: { 
-                  url: storeUrl,
-                  options: {
-                    formats: ['html', 'links'],
-                    onlyMainContent: false,
-                    waitFor: 3000, // Wait 3 seconds for JS to render menus
-                  }
-                }
-              });
-              
-              if (!scrapeError && betterScrape?.data?.html) {
-                htmlToUse = betterScrape.data.html;
-                console.log('Got better HTML with JS-rendered content');
-              }
-            } catch (e) {
-              console.log('Fallback scrape failed, using original HTML');
-            }
-          }
-          
-          const { data: extractedData, error: visualError } = await supabase.functions.invoke('import-visual', {
-            body: { 
-              url: storeUrl,
-              html: htmlToUse,
-              platform: analysisResult?.platform,
-            }
-          });
-
-          if (visualError) {
-            console.error('Error calling import-visual:', visualError);
-          }
-
-          if (extractedData?.success) {
-            visualData = {
-              heroBanners: extractedData.heroBanners || [],
-              menuItems: extractedData.menuItems || [],
-              categories: extractedData.categories || [],
-              branding: extractedData.branding || {},
-              sections: extractedData.sections || [],
-              unsupportedSections: extractedData.unsupportedSections || [],
-            };
-            setVisualImportData(visualData);
-            
-            // Log menu structure for debugging
-            console.log('Extracted menu items:', JSON.stringify(visualData.menuItems, null, 2));
-          }
-        }
-
-        if (stepId === 'categories') {
-          // Get categories from visual extraction OR derive from menu items
-          // IMPORTANT: Categories are FLAT (no parent_id) - hierarchy is only in menus
-          let categoriesToSave = visualData?.categories || [];
-          const menuItems = visualData?.menuItems || [];
-          
-          interface CategoryToSave {
-            name: string;
-            slug: string;
-            url?: string;
-            imageUrl?: string;
-            bannerDesktop?: string;
-            bannerMobile?: string;
-          }
-          
-          const allCategories: CategoryToSave[] = [];
-          const processedSlugs = new Set<string>();
-          
-          // Helper to extract slug from URL
-          const extractSlugFromUrl = (url: string): string | null => {
-            const match = /\/(?:collections|categoria|category|c)\/([^/?#]+)/i.exec(url);
-            return match ? match[1] : null;
-          };
-          
-          // Process menu items to extract all categories (flat, no hierarchy)
-          const processMenuItem = (item: any) => {
-            const slug = extractSlugFromUrl(item.url || '');
-            if (item.type === 'category' && slug && !processedSlugs.has(slug)) {
-              allCategories.push({
-                name: item.label,
-                slug: slug,
-                url: item.url,
-              });
-              processedSlugs.add(slug);
-            }
-            
-            // Process children (also flat, not as subcategories)
-            if (item.children && item.children.length > 0) {
-              for (const child of item.children) {
-                processMenuItem(child);
-              }
-            }
-          };
-          
-          for (const item of menuItems) {
-            processMenuItem(item);
-          }
-          
-          // Add categories from visual extraction
-          for (const cat of categoriesToSave) {
-            if (cat && cat.slug && !processedSlugs.has(cat.slug)) {
-              allCategories.push({
-                name: cat.name,
-                slug: cat.slug,
-                url: cat.url,
-                imageUrl: cat.imageUrl,
-              });
-              processedSlugs.add(cat.slug);
-            }
-          }
-          
-          // Fallback to basic link extraction if no categories found
-          if (allCategories.length === 0) {
-            const links = scrapedData.links || [];
-            const categoryLinks = links.filter((link: string) => 
-              link.includes('/categoria') || 
-              link.includes('/category') || 
-              link.includes('/collections') ||
-              link.includes('/c/')
-            );
-            
-            for (const link of categoryLinks) {
-              try {
-                const url = new URL(link);
-                const pathParts = url.pathname.split('/').filter(Boolean);
-                const slug = pathParts[pathParts.length - 1] || '';
-                if (slug && !processedSlugs.has(slug)) {
-                  const name = slug
-                    .replace(/-/g, ' ')
-                    .replace(/_/g, ' ')
-                    .split(' ')
-                    .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join(' ');
-                  
-                  allCategories.push({ name, slug, url: link });
-                  processedSlugs.add(slug);
-                }
-              } catch {
-                // Skip invalid URLs
-              }
-            }
-          }
-
-          // Fetch banners for each category (limit to first 10 to avoid too many requests)
-          const categoriesToFetchBanners = allCategories.slice(0, 10);
-          if (categoriesToFetchBanners.length > 0) {
-            toast.info(`Buscando banners de ${categoriesToFetchBanners.length} categorias...`);
-            
-            for (const cat of categoriesToFetchBanners) {
-              if (cat.url) {
-                const bannerData = await fetchCategoryBanner(cat.url);
-                if (bannerData.bannerDesktop) {
-                  cat.bannerDesktop = bannerData.bannerDesktop;
-                  cat.bannerMobile = bannerData.bannerMobile || bannerData.bannerDesktop;
-                }
-              }
-            }
-          }
-
-          // Save all categories as FLAT (no parent_id)
-          const slugToIdMap = new Map<string, string>();
-          
-          for (const cat of allCategories) {
-            if (!cat) continue;
-            const { data, error } = await supabase
-              .from('categories')
-              .upsert({
-                tenant_id: currentTenant.id,
-                name: cat.name,
-                slug: cat.slug,
-                is_active: true,
-                image_url: cat.imageUrl || null,
-                banner_desktop_url: cat.bannerDesktop || null,
-                banner_mobile_url: cat.bannerMobile || null,
-                parent_id: null, // Categories are FLAT - hierarchy is in menus
-              }, { onConflict: 'tenant_id,slug' })
-              .select('id, slug')
-              .single();
-            
-            if (data) {
-              slugToIdMap.set(cat.slug, data.id);
-            }
-            if (error && !error.message.includes('duplicate')) {
-              console.error('Error saving category:', error);
-            }
-          }
-          
-          importedCount = allCategories.length;
-
-        } else if (stepId === 'menu') {
-          // Create menu from extracted items with hierarchy
-          // Link menu items to imported categories when possible
-          const menuItems = visualData?.menuItems || [];
-          
-          if (menuItems.length > 0) {
-            // Fetch imported categories to link menu items
-            const { data: importedCategories } = await supabase
-              .from('categories')
-              .select('id, slug, name')
-              .eq('tenant_id', currentTenant.id);
-            
-            const categoryMap = new Map<string, { id: string; slug: string }>();
-            (importedCategories || []).forEach(cat => {
-              categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
-              categoryMap.set(cat.name.toLowerCase(), { id: cat.id, slug: cat.slug });
-            });
-            
-            // Helper to find category match from URL or label
-            const findCategoryMatch = (url: string, label: string) => {
-              // Try to extract slug from internal URL
-              const internalMatch = url.match(/\/categoria\/([^/?#]+)/i) || url.match(/\/c\/([^/?#]+)/i);
-              if (internalMatch) {
-                const slug = internalMatch[1].toLowerCase();
-                if (categoryMap.has(slug)) {
-                  return categoryMap.get(slug);
-                }
-              }
-              // Try to match by label
-              const labelLower = label.toLowerCase().replace(/\s+/g, '-');
-              if (categoryMap.has(labelLower)) {
-                return categoryMap.get(labelLower);
-              }
-              if (categoryMap.has(label.toLowerCase())) {
-                return categoryMap.get(label.toLowerCase());
-              }
-              return null;
-            };
-            
-            // Create header menu
-            const { data: menuData, error: menuError } = await supabase
-              .from('menus')
-              .upsert({
-                tenant_id: currentTenant.id,
-                name: 'Menu Principal',
-                location: 'header',
-              }, { onConflict: 'tenant_id,location' })
-              .select('id')
-              .single();
-
-            if (menuError) {
-              console.error('Error creating menu:', menuError);
-            } else if (menuData) {
-              setCreatedMenuId(menuData.id);
-              
-              // Delete existing menu items
-              await supabase
-                .from('menu_items')
-                .delete()
-                .eq('menu_id', menuData.id);
-
-              // Insert menu items with hierarchy and category links
-              let sortOrder = 0;
-              for (const item of menuItems) {
-                const categoryMatch = findCategoryMatch(item.internalUrl || item.url, item.label);
-                
-                // Determine item type and URL based on category match
-                const itemType = categoryMatch ? 'category' : (item.type || 'link');
-                const itemUrl = categoryMatch 
-                  ? `/categoria/${categoryMatch.slug}` 
-                  : (item.internalUrl || item.url);
-                const refId = categoryMatch?.id || null;
-                
-                // Insert parent item
-                const { data: parentItem, error: parentError } = await supabase
-                  .from('menu_items')
-                  .insert({
-                    tenant_id: currentTenant.id,
-                    menu_id: menuData.id,
-                    label: item.label,
-                    url: itemUrl,
-                    item_type: itemType,
-                    ref_id: refId,
-                    sort_order: sortOrder++,
-                  })
-                  .select('id')
-                  .single();
-                
-                if (parentError) {
-                  console.error('Error inserting parent menu item:', parentError);
-                  continue;
-                }
-                
-                // Insert children if any
-                if (item.children && item.children.length > 0 && parentItem) {
-                  for (let i = 0; i < item.children.length; i++) {
-                    const child = item.children[i];
-                    const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url, child.label);
-                    
-                    const childItemType = childCategoryMatch ? 'category' : (child.type || 'link');
-                    const childUrl = childCategoryMatch 
-                      ? `/categoria/${childCategoryMatch.slug}` 
-                      : (child.internalUrl || child.url);
-                    const childRefId = childCategoryMatch?.id || null;
-                    
-                    await supabase
-                      .from('menu_items')
-                      .insert({
-                        tenant_id: currentTenant.id,
-                        menu_id: menuData.id,
-                        label: child.label,
-                        url: childUrl,
-                        item_type: childItemType,
-                        ref_id: childRefId,
-                        parent_id: parentItem.id,
-                        sort_order: i,
-                      });
-                  }
-                }
-              }
-              
-              // Count total items including children
-              const totalItems = menuItems.reduce((acc, item) => 
-                acc + 1 + (item.children?.length || 0), 0);
-              importedCount = totalItems;
-            }
-          } else {
-            toast.info('Nenhum item de menu encontrado no site.');
-          }
-          
-        } else if (stepId === 'visual') {
-          // Extract visual elements and publish home page template
-          const branding = scrapedData.branding || visualData?.branding || {};
-          const heroBanners = visualData?.heroBanners || [];
-          const sections = visualData?.sections || [];
-          const unsupportedSections = visualData?.unsupportedSections || [];
-          
-          // Get current tenant settings first
-          const { data: tenantData } = await supabase
-            .from('tenants')
-            .select('settings, logo_url')
-            .eq('id', currentTenant.id)
-            .single();
-          
-          const currentSettings = (tenantData?.settings as Record<string, any>) || {};
-          
-          const visualConfig = {
-            logo: branding.images?.logo || branding.logo || null,
-            favicon: branding.images?.favicon || branding.favicon || null,
-            primaryColor: branding.colors?.primary || branding.primaryColor || null,
-            secondaryColor: branding.colors?.secondary || branding.secondaryColor || null,
-            accentColor: branding.colors?.accent || branding.accentColor || null,
-            backgroundColor: branding.colors?.background || null,
-            textColor: branding.colors?.textPrimary || null,
-            fontFamily: branding.typography?.fontFamilies?.primary || branding.fonts?.[0]?.family || null,
-            headingFont: branding.typography?.fontFamilies?.heading || null,
-            colorScheme: branding.colorScheme || 'light',
-          };
-
-          // Update tenant settings
-          const updatedSettings = {
-            ...currentSettings,
-            visual: visualConfig,
-            imported_from: storeUrl,
-            imported_at: new Date().toISOString(),
-          };
-
-          const updateData: any = { settings: updatedSettings };
-          if (visualConfig.logo) {
-            updateData.logo_url = visualConfig.logo;
-          }
-
-          await supabase
-            .from('tenants')
-            .update(updateData)
-            .eq('id', currentTenant.id);
-
-          // Create and publish home page template using the correct template system
-          if (heroBanners.length > 0) {
-            const homePageContent = generateHomePageContent(heroBanners, createdMenuId || undefined);
-            
-            // 1. Ensure storefront_page_templates entry exists for 'home'
-            await supabase.rpc('initialize_storefront_templates', { 
-              p_tenant_id: currentTenant.id 
-            });
-            
-            // 2. Archive any currently published version for home template
-            await supabase
-              .from('store_page_versions')
-              .update({ status: 'archived' })
-              .eq('tenant_id', currentTenant.id)
-              .eq('entity_type', 'template')
-              .eq('page_type', 'home')
-              .eq('status', 'published');
-            
-            // 3. Get the max version for home template
-            const { data: maxVersionData } = await supabase
-              .from('store_page_versions')
-              .select('version')
-              .eq('tenant_id', currentTenant.id)
-              .eq('entity_type', 'template')
-              .eq('page_type', 'home')
-              .order('version', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            
-            const newVersion = (maxVersionData?.version || 0) + 1;
-            
-            // 4. Insert new published version
-            const { error: insertError } = await supabase
-              .from('store_page_versions')
-              .insert([{
-                tenant_id: currentTenant.id,
-                entity_type: 'template',
-                version: newVersion,
-                status: 'published',
-                content: homePageContent as unknown as Json,
-                page_type: 'home',
-              }]);
-            
-            if (insertError) {
-              console.error('Error inserting home template version:', insertError);
-              throw insertError;
-            }
-            
-            // 5. Update storefront_page_templates to point to this version
-            await supabase
-              .from('storefront_page_templates')
-              .update({ 
-                published_version: newVersion,
-                draft_version: newVersion,
-              })
-              .eq('tenant_id', currentTenant.id)
-              .eq('page_type', 'home');
-            
-            importedCount = heroBanners.length + sections.length;
-            toast.success(`${heroBanners.length} banners importados e página inicial publicada!`);
-          } else {
-            importedCount = visualConfig.logo ? 1 : 0;
-            toast.info('Nenhum banner encontrado. Logo e cores foram importados se disponíveis.');
-          }
-
-          // Notify about unsupported sections
-          if (unsupportedSections.length > 0) {
-            toast.warning(
-              `Alguns módulos não foram importados: ${unsupportedSections.join(', ')}. Entre em contato com o suporte para mais informações.`,
-              { duration: 8000 }
-            );
-          }
+      // Normalize and import data
+      const detectedPlatform = analysisResult?.platform?.toLowerCase()?.trim() || 'generic';
+      const platformMap: Record<string, string> = {
+        'shopify': 'shopify',
+        'woocommerce': 'woocommerce',
+        'nuvemshop': 'nuvemshop',
+        'tiendanube': 'nuvemshop',
+        'vtex': 'vtex',
+        'loja integrada': 'loja_integrada',
+        'tray': 'tray',
+        'yampi': 'yampi',
+      };
+      const platform = platformMap[detectedPlatform] || 'generic';
+      const adapter = getAdapter(platform as any);
+      
+      let normalizedData = data;
+      if (adapter) {
+        if (stepId === 'products' && adapter.normalizeProduct) {
+          normalizedData = data.map(item => adapter.normalizeProduct!(item));
+        } else if (stepId === 'customers' && adapter.normalizeCustomer) {
+          normalizedData = data.map(item => adapter.normalizeCustomer!(item));
+        } else if (stepId === 'orders' && adapter.normalizeOrder) {
+          normalizedData = data.map(item => adapter.normalizeOrder!(item));
         }
       }
 
-      setStepStatuses(prev => ({
+      // For products, fetch existing categories to create a mapping
+      let categoryMap: Record<string, string> | undefined;
+      if (stepId === 'products') {
+        const { data: categories } = await supabase
+          .from('categories')
+          .select('id, slug')
+          .eq('tenant_id', currentTenant.id);
+        
+        if (categories && categories.length > 0) {
+          categoryMap = {};
+          categories.forEach(cat => {
+            categoryMap![cat.slug] = cat.id;
+          });
+        }
+      }
+
+      const result = await importData(platform, stepId as any, normalizedData, categoryMap);
+      const importedCount = result?.results?.imported || data.length;
+
+      setFileStepStatuses(prev => ({
         ...prev,
         [stepId]: { status: 'completed', importedCount },
       }));
 
-      toast.success(`${step.title} importado com sucesso!`);
-      moveToNextStep(stepId);
+      toast.success(`${importedCount} itens importados com sucesso!`);
+
+      // Activate next step
+      const currentIndex = FILE_IMPORT_STEPS.findIndex(s => s.id === stepId);
+      if (currentIndex < FILE_IMPORT_STEPS.length - 1) {
+        const nextStep = FILE_IMPORT_STEPS[currentIndex + 1];
+        setFileStepStatuses(prev => ({
+          ...prev,
+          [nextStep.id]: { status: 'active' },
+        }));
+      }
     } catch (error: any) {
-      console.error('Import error:', error);
+      console.error('File import error:', error);
       toast.error(`Erro ao importar: ${error.message}`);
-      setStepStatuses(prev => ({
+      setFileStepStatuses(prev => ({
         ...prev,
         [stepId]: { ...prev[stepId], status: 'active' },
       }));
     }
-  }, [scrapedData, analysisResult, importData, moveToNextStep, currentTenant, storeUrl, visualImportData, createdMenuId, fetchCategoryBanner]);
+  }, [analysisResult, importData, currentTenant]);
 
-  const handleSkipStep = useCallback((stepId: string) => {
-    setStepStatuses(prev => ({
+  const handleSkipFileStep = useCallback((stepId: string) => {
+    setFileStepStatuses(prev => ({
       ...prev,
       [stepId]: { status: 'skipped' },
     }));
-    moveToNextStep(stepId);
-  }, [moveToNextStep]);
+    
+    const currentIndex = FILE_IMPORT_STEPS.findIndex(s => s.id === stepId);
+    if (currentIndex < FILE_IMPORT_STEPS.length - 1) {
+      const nextStep = FILE_IMPORT_STEPS[currentIndex + 1];
+      setFileStepStatuses(prev => ({
+        ...prev,
+        [nextStep.id]: { status: 'active' },
+      }));
+    }
+  }, []);
 
   const canProceedFromUrl = analysisResult?.success;
 
-  const isStepDisabled = (step: ImportStepConfig): boolean => {
-    if (!step.requiresPrevious) return false;
-    return step.requiresPrevious.some(reqId => {
-      const reqStatus = stepStatuses[reqId]?.status;
-      return reqStatus !== 'completed';
-    });
+  const getStepStatusIcon = (status: 'pending' | 'processing' | 'completed' | 'error') => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle2 className="h-4 w-4 text-primary" />;
+      case 'processing':
+        return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+      case 'error':
+        return <AlertTriangle className="h-4 w-4 text-destructive" />;
+      default:
+        return <div className="h-4 w-4 rounded-full border-2 border-muted-foreground/30" />;
+    }
   };
 
   return (
@@ -950,18 +926,21 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-5 w-5" />
-          {wizardStep === 'url' && 'Importar Loja'}
-          {wizardStep === 'import-steps' && 'Importação Guiada'}
+          {wizardStep === 'url' && 'Etapa 1: Análise da Loja'}
+          {wizardStep === 'visual-import' && 'Etapa 2: Importação Visual'}
+          {wizardStep === 'file-import' && 'Etapa 3: Importação de Dados (Opcional)'}
           {wizardStep === 'complete' && 'Importação Concluída'}
         </CardTitle>
         <CardDescription>
-          {wizardStep === 'url' && 'Informe o link da sua loja para começar a migração'}
-          {wizardStep === 'import-steps' && 'Siga as etapas para importar os dados da sua loja'}
+          {wizardStep === 'url' && 'Informe o link da sua loja para identificar a plataforma'}
+          {wizardStep === 'visual-import' && 'Importar páginas, categorias, menus e visual da loja em um clique'}
+          {wizardStep === 'file-import' && 'Importar produtos, clientes e pedidos via arquivo (opcional)'}
           {wizardStep === 'complete' && 'Sua loja foi importada com sucesso!'}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="min-h-[400px]">
+        {/* ETAPA 1: URL Analysis */}
         {wizardStep === 'url' && (
           <StoreUrlInput
             url={storeUrl}
@@ -972,42 +951,152 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           />
         )}
 
-        {wizardStep === 'import-steps' && (
-          <div className="space-y-4">
-            <div className="bg-muted/50 rounded-lg p-3 mb-6">
+        {/* ETAPA 2: Visual Import (1 click) */}
+        {wizardStep === 'visual-import' && (
+          <div className="space-y-6">
+            <div className="bg-muted/50 rounded-lg p-3">
               <p className="text-sm">
                 <span className="font-medium">Loja:</span>{' '}
                 <span className="text-muted-foreground">{storeUrl}</span>
                 {analysisResult?.platform && (
                   <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                    {analysisResult.platform}
+                    {analysisResult.platform} ({analysisResult.confidence})
                   </span>
                 )}
               </p>
             </div>
 
-            <div className="space-y-3">
-              {IMPORT_STEPS.map((step) => (
-                <ImportStep
-                  key={step.id}
-                  step={step}
-                  status={stepStatuses[step.id]?.status || 'pending'}
-                  onImport={(file) => handleImportStep(step.id, file)}
-                  onSkip={() => handleSkipStep(step.id)}
-                  isDisabled={isStepDisabled(step)}
-                  importedCount={stepStatuses[step.id]?.importedCount}
-                />
-              ))}
-            </div>
+            {!isImportingVisual && !isVisualImportComplete && (
+              <div className="text-center py-8 space-y-6">
+                <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
+                  <Palette className="h-10 w-10 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Importar Estrutura Visual</h3>
+                  <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                    Com um clique, vamos importar automaticamente: páginas institucionais, categorias, menus (header/footer com hierarquia) e a página inicial com banners.
+                  </p>
+                </div>
+                <Button size="lg" onClick={handleImportVisualStructure}>
+                  <Globe className="h-4 w-4 mr-2" />
+                  Importar Estrutura Visual
+                </Button>
+              </div>
+            )}
 
-            {stepStatuses.categories?.status !== 'completed' && (
-              <p className="text-xs text-muted-foreground text-center mt-4">
-                * Categorias são obrigatórias para importar o Menu e Visual da Loja
-              </p>
+            {(isImportingVisual || isVisualImportComplete) && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 mb-4">
+                  <Progress value={getVisualProgressPercent()} className="flex-1" />
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round(getVisualProgressPercent())}%
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                    {getStepStatusIcon(visualProgress.pages)}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Páginas Institucionais</p>
+                      <p className="text-xs text-muted-foreground">Sobre, Contato, Políticas, etc.</p>
+                    </div>
+                    {visualProgress.pages === 'completed' && importStats.pages > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {importStats.pages} encontradas
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                    {getStepStatusIcon(visualProgress.categories)}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Categorias</p>
+                      <p className="text-xs text-muted-foreground">Páginas de listagem de produtos (flat)</p>
+                    </div>
+                    {visualProgress.categories === 'completed' && importStats.categories > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {importStats.categories} importadas
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                    {getStepStatusIcon(visualProgress.menus)}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Menus (Header/Footer)</p>
+                      <p className="text-xs text-muted-foreground">Com hierarquia de dropdowns preservada</p>
+                    </div>
+                    {visualProgress.menus === 'completed' && importStats.menuItems > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {importStats.menuItems} itens
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+                    {getStepStatusIcon(visualProgress.visual)}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Página Inicial + Visual</p>
+                      <p className="text-xs text-muted-foreground">Banners, cores e identidade visual</p>
+                    </div>
+                    {visualProgress.visual === 'completed' && importStats.banners > 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                        {importStats.banners} banners
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {importErrors.length > 0 && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
+                    <p className="text-sm font-medium text-destructive mb-1">Erros encontrados:</p>
+                    <ul className="text-xs text-destructive/80 list-disc list-inside">
+                      {importErrors.map((error, idx) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {isVisualImportComplete && (
+                  <div className="text-center pt-4">
+                    <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      Estrutura visual importada! Você pode continuar para importar produtos, clientes e pedidos via arquivo.
+                    </p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
 
+        {/* ETAPA 3: File Import (optional) */}
+        {wizardStep === 'file-import' && (
+          <div className="space-y-4">
+            <div className="bg-muted/50 rounded-lg p-3 mb-6">
+              <p className="text-sm text-muted-foreground">
+                Esta etapa é <strong>opcional</strong>. Importe produtos, clientes e pedidos via arquivo JSON ou CSV exportado da sua plataforma.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {FILE_IMPORT_STEPS.map((step) => (
+                <ImportStep
+                  key={step.id}
+                  step={step}
+                  status={fileStepStatuses[step.id]?.status || 'pending'}
+                  onImport={(file) => handleFileImportStep(step.id, file)}
+                  onSkip={() => handleSkipFileStep(step.id)}
+                  isDisabled={false}
+                  importedCount={fileStepStatuses[step.id]?.importedCount}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* COMPLETE */}
         {wizardStep === 'complete' && (
           <div className="text-center space-y-6 py-8">
             <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
@@ -1023,23 +1112,36 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             <div className="bg-muted/50 rounded-lg p-4 text-left max-w-md mx-auto">
               <h4 className="font-medium mb-2">Resumo:</h4>
               <ul className="text-sm space-y-1">
-                {IMPORT_STEPS.map(step => {
-                  const status = stepStatuses[step.id];
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span>Categorias: {importStats.categories}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span>Itens de Menu: {importStats.menuItems}</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span>Banners: {importStats.banners}</span>
+                </li>
+                {Object.entries(fileStepStatuses).map(([stepId, status]) => {
+                  const step = FILE_IMPORT_STEPS.find(s => s.id === stepId);
+                  if (!step || status.status === 'pending') return null;
                   return (
-                    <li key={step.id} className="flex items-center gap-2">
-                      {status?.status === 'completed' ? (
+                    <li key={stepId} className="flex items-center gap-2">
+                      {status.status === 'completed' ? (
                         <CheckCircle2 className="h-4 w-4 text-primary" />
                       ) : (
                         <span className="text-muted-foreground">–</span>
                       )}
-                      <span className={status?.status === 'completed' ? '' : 'text-muted-foreground'}>
+                      <span className={status.status === 'completed' ? '' : 'text-muted-foreground'}>
                         {step.title}
-                        {status?.importedCount !== undefined && status.importedCount > 0 && (
+                        {status.importedCount !== undefined && status.importedCount > 0 && (
                           <span className="text-muted-foreground ml-1">
                             ({status.importedCount})
                           </span>
                         )}
-                        {status?.status === 'skipped' && (
+                        {status.status === 'skipped' && (
                           <span className="text-muted-foreground ml-1">(pulado)</span>
                         )}
                       </span>
@@ -1057,7 +1159,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           <>
             <div />
             <Button 
-              onClick={() => setWizardStep('import-steps')} 
+              onClick={() => setWizardStep('visual-import')} 
               disabled={!canProceedFromUrl}
             >
               Continuar
@@ -1066,13 +1168,32 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           </>
         )}
 
-        {wizardStep === 'import-steps' && (
+        {wizardStep === 'visual-import' && (
           <>
             <Button variant="outline" onClick={() => setWizardStep('url')}>
               <ChevronLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
-            <div />
+            <Button 
+              onClick={() => setWizardStep('file-import')}
+              disabled={!isVisualImportComplete}
+            >
+              Continuar
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </>
+        )}
+
+        {wizardStep === 'file-import' && (
+          <>
+            <Button variant="outline" onClick={() => setWizardStep('visual-import')}>
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              Voltar
+            </Button>
+            <Button onClick={() => setWizardStep('complete')}>
+              Concluir
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
           </>
         )}
 
@@ -1080,7 +1201,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           <>
             <div />
             <Button onClick={onComplete}>
-              Concluir
+              Fechar
             </Button>
           </>
         )}
