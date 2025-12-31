@@ -196,8 +196,9 @@ export function BuilderToolbar({
     }
     
     // For institutional/landing pages, use the pageSlug prop
-    if (pageType === 'institutional' || pageType === 'landing_page') {
-      return getPreviewUrlWithValidation(tenantSlug, pageType, pageSlug);
+    // page_template is treated as institutional for preview purposes
+    if (pageType === 'institutional' || pageType === 'landing_page' || pageType === 'page_template') {
+      return getPreviewUrlWithValidation(tenantSlug, 'institutional', pageSlug);
     }
     
     return getPreviewUrlWithValidation(tenantSlug, pageType);
