@@ -56,7 +56,7 @@ export function useStorePages() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: pages, isLoading, error } = useQuery({
+  const { data: pages, isLoading, error, refetch } = useQuery({
     queryKey: ['store-pages', currentTenant?.id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -150,6 +150,7 @@ export function useStorePages() {
     pages,
     isLoading,
     error,
+    refetch,
     createPage,
     updatePage,
     deletePage,
