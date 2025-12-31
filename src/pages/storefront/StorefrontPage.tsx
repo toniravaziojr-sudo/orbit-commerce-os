@@ -34,6 +34,11 @@ export default function StorefrontPage() {
   // Select appropriate data based on mode
   const pageData = isPreviewMode ? previewPage : publicPage;
 
+  // Check preview access
+  const canPreview = isPreviewMode 
+    ? ('canPreview' in pageData ? Boolean(pageData.canPreview) : true) 
+    : true;
+
   // Apply SEO meta tags (only for public pages with SEO fields)
   useEffect(() => {
     if (!pageData.isLoading && pageData.content && 'metaTitle' in pageData) {
@@ -58,6 +63,15 @@ export default function StorefrontPage() {
       applySeoToDocument(seo);
     }
   }, [pageData, storeSettings]);
+
+  // Redirect to public URL if preview mode is requested but user can't access preview
+  useEffect(() => {
+    if (isPreviewMode && !canPreview && !pageData.isLoading) {
+      const basePath = getStoreBaseUrl(tenantSlug || '');
+      const cleanPath = `${basePath}/page/${pageSlug}${getCleanQueryString(searchParams)}`;
+      navigate(cleanPath, { replace: true });
+    }
+  }, [isPreviewMode, canPreview, pageData.isLoading, tenantSlug, pageSlug, searchParams, navigate]);
 
   // Loading state
   if (pageData.isLoading || storeLoading) {
@@ -88,20 +102,6 @@ export default function StorefrontPage() {
       </div>
     );
   }
-
-  // Check preview access
-  const canPreview = isPreviewMode 
-    ? ('canPreview' in pageData ? Boolean(pageData.canPreview) : true) 
-    : true;
-
-  // Redirect to public URL if preview mode is requested but user can't access preview
-  useEffect(() => {
-    if (isPreviewMode && !canPreview && !pageData.isLoading) {
-      const basePath = getStoreBaseUrl(tenantSlug || '');
-      const cleanPath = `${basePath}/page/${pageSlug}${getCleanQueryString(searchParams)}`;
-      navigate(cleanPath, { replace: true });
-    }
-  }, [isPreviewMode, canPreview, pageData.isLoading, tenantSlug, pageSlug, searchParams, navigate]);
 
   // Page not found - show 404, never redirect to home
   if (!pageData.content && !pageData.isLoading) {
