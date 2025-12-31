@@ -1105,8 +1105,18 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        summary: { imported, skipped, failed },
-        results,
+        results: { 
+          imported, 
+          skipped, 
+          failed,
+          pages: results.map(r => ({
+            slug: r.page,
+            title: r.page.split('-').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+            hasContent: r.status === 'imported',
+            status: r.status,
+          })),
+          errors: results.filter(r => r.status === 'failed').map(r => r.reason),
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
