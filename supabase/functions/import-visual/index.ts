@@ -1415,7 +1415,20 @@ function extractInstitutionalPages(html: string, baseUrl: string, platform?: str
     // Clean URL - remove UTM params
     let cleanUrl = href.split('?')[0];
     if (!cleanUrl.startsWith('http')) {
+      // Only add baseUrl if it's not empty, otherwise skip this page
+      if (!baseUrl) {
+        console.warn(`Skipping page ${slug}: relative URL "${cleanUrl}" but no baseUrl available`);
+        return;
+      }
       cleanUrl = `${baseUrl}${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+    }
+    
+    // Validate the final URL
+    try {
+      new URL(cleanUrl);
+    } catch (e) {
+      console.warn(`Skipping page ${slug}: invalid URL "${cleanUrl}"`);
+      return;
     }
     
     pages.push({ 
@@ -1425,7 +1438,7 @@ function extractInstitutionalPages(html: string, baseUrl: string, platform?: str
       source 
     });
     addedSlugs.add(slug.toLowerCase());
-    console.log(`Found institutional page: ${title} -> ${slug} (${source})`);
+    console.log(`Found institutional page: ${title} -> ${slug} (${cleanUrl})`);
   };
 
   // Link extraction pattern
