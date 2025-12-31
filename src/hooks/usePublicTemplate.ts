@@ -94,6 +94,7 @@ interface PublicPageTemplateResult {
   error: Error | null;
   pageTitle: string | null;
   pageId: string | null;
+  individualContent: string | null;
   // SEO fields
   metaTitle: string | null;
   metaDescription: string | null;
@@ -149,6 +150,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             content: template.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             metaTitle: page.meta_title,
             metaDescription: page.meta_description,
             metaImageUrl: page.meta_image_url,
@@ -251,6 +253,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
     pageId: data?.pageId || null,
+    individualContent: data?.individualContent || null,
     metaTitle: data?.metaTitle || null,
     metaDescription: data?.metaDescription || null,
     metaImageUrl: data?.metaImageUrl || null,
