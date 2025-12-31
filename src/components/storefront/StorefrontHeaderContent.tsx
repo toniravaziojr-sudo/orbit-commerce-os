@@ -387,18 +387,27 @@ export function StorefrontHeaderContent({
                         <div key={item.id}>
                           {item.children.length > 0 ? (
                             <>
-                              {/* Parent item with toggle button */}
-                              <button
-                                type="button"
-                                onClick={() => toggleMobileDropdown(item.id)}
-                                className="w-full py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
-                              >
-                                {item.label}
-                                <ChevronDown className={cn(
-                                  "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                                  openMobileDropdowns.has(item.id) && "rotate-180"
-                                )} />
-                              </button>
+                              {/* Parent item with link + separate toggle button */}
+                              <div className="flex items-center">
+                                <LinkWrapper
+                                  to={getMenuItemUrl(item)}
+                                  onClick={() => setMobileMenuOpen(false)}
+                                  className="flex-1 py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-l-lg"
+                                >
+                                  {item.label}
+                                </LinkWrapper>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleMobileDropdown(item.id)}
+                                  className="py-3 px-3 text-muted-foreground hover:bg-muted rounded-r-lg"
+                                  aria-label={openMobileDropdowns.has(item.id) ? 'Fechar submenu' : 'Abrir submenu'}
+                                >
+                                  <ChevronDown className={cn(
+                                    "h-4 w-4 transition-transform duration-200",
+                                    openMobileDropdowns.has(item.id) && "rotate-180"
+                                  )} />
+                                </button>
+                              </div>
                               {/* Show children when open */}
                               {openMobileDropdowns.has(item.id) && (
                                 <div className="ml-4 border-l-2 border-muted">
