@@ -149,6 +149,8 @@ export default function StorefrontPage() {
       title: pageData.pageTitle || '',
       slug: pageSlug || '',
     },
+    // Individual page content for PageContent block (used in template-based pages)
+    pageContent: pageData.individualContent || undefined,
   };
 
   return (
