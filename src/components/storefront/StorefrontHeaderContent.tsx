@@ -313,6 +313,9 @@ export function StorefrontHeaderContent({
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
 
+  // DEBUG: Log viewport and layout modes
+  console.log('[StorefrontHeaderContent] viewportOverride:', viewportOverride, 'forceMobile:', forceMobile, 'forceDesktop:', forceDesktop);
+
   return (
     <header 
       className={cn(
