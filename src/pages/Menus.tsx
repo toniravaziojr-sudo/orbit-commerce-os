@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useMenus, useMenuItems, MenuItem } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
-import { useLandingPages } from '@/hooks/useLandingPages';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,12 +160,10 @@ export default function Menus() {
   const { menus, isLoading, createMenu } = useMenus();
   const { categories } = useCategories();
   const { pages } = useStorePages();
-  const { landingPages } = useLandingPages();
   
-  const allPages = [
-    ...(pages || []).map(p => ({ ...p, pageType: 'institutional' as const })),
-    ...(landingPages || []).map(p => ({ ...p, pageType: 'landing_page' as const })),
-  ];
+  // Use all pages directly (useStorePages already returns institutional pages only, 
+  // but landing_pages in store_pages table can be included if needed)
+  const allPages = (pages || []).map(p => ({ ...p, pageType: 'institutional' as const }));
   
   const [selectedMenuId, setSelectedMenuId] = useState<string | null>(null);
   const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
@@ -640,7 +637,7 @@ export default function Menus() {
                             <span className="text-xs text-green-600">✓ Menu</span>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            ({p.pageType === 'landing_page' ? 'Landing' : 'Institucional'})
+                            (Página da Loja)
                           </span>
                         </div>
                       </SelectItem>

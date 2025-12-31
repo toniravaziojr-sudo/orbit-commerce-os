@@ -75,9 +75,8 @@ const navigation: NavGroup[] = [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
       { title: "Conversão de Carrinho", href: "/storefront/conversao", icon: TrendingUp },
       { title: "Menus", href: "/menus", icon: Menu },
-      { title: "Páginas", href: "/pages", icon: FileText },
+      { title: "Páginas da Loja", href: "/pages", icon: FileText },
       { title: "Blog", href: "/blog", icon: BookOpen },
-      { title: "Landing Pages", href: "/landing-pages", icon: Rocket },
     ],
   },
   {
@@ -129,13 +128,7 @@ export function AppSidebar() {
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     
-    // Special handling for landing pages - must check BEFORE pages
-    if (href === "/landing-pages") {
-      return location.pathname === "/landing-pages" || 
-        location.pathname.startsWith("/landing-pages/");
-    }
-    
-    // Special handling for pages routes to avoid conflicts with landing pages
+    // Special handling for pages routes
     if (href === "/pages") {
       return location.pathname === "/pages" || 
         location.pathname.startsWith("/pages/");

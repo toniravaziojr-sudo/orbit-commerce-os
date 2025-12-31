@@ -35,7 +35,7 @@ import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import PageTemplates from "@/pages/PageTemplates";
 import TemplateBuilder from "@/pages/TemplateBuilder";
-import LandingPages from "@/pages/LandingPages";
+
 
 import Reviews from "@/pages/Reviews";
 import Offers from "@/pages/Offers";
@@ -216,8 +216,6 @@ const App = () => {
                   <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
                   <Route path="/page-templates/:templateId/builder" element={<TemplateBuilder />} />
-                  <Route path="/landing-pages" element={<LandingPages />} />
-                  <Route path="/landing-pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/blog" element={<Blog />} />
                   <Route path="/blog/:postId/editor" element={<BlogPostEditor />} />
                   <Route path="/customers" element={<Customers />} />
