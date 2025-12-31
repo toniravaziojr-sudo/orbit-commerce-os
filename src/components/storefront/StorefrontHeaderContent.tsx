@@ -223,9 +223,12 @@ export function StorefrontHeaderContent({
     return rootItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   }, [menuItems]);
 
-  // State for dropdown hover
+  // State for dropdown hover (desktop)
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const dropdownTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State for mobile menu dropdowns (toggle on click)
+  const [openMobileDropdowns, setOpenMobileDropdowns] = useState<Set<string>>(new Set());
 
   const handleDropdownEnter = (itemId: string) => {
     if (dropdownTimeoutRef.current) {
@@ -238,6 +241,19 @@ export function StorefrontHeaderContent({
     dropdownTimeoutRef.current = setTimeout(() => {
       setOpenDropdown(null);
     }, 150);
+  };
+  
+  // Toggle mobile dropdown
+  const toggleMobileDropdown = (itemId: string) => {
+    setOpenMobileDropdowns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
   };
   
   // Use helper functions for validation
@@ -369,30 +385,44 @@ export function StorefrontHeaderContent({
                     <nav className="flex flex-col gap-1">
                       {hierarchicalMenuItems.map((item) => (
                         <div key={item.id}>
-                          <LinkWrapper
-                            to={getMenuItemUrl(item)}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
-                          >
-                            {item.label}
-                            {item.children.length > 0 && (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            )}
-                          </LinkWrapper>
-                          {/* Show children indented */}
-                          {item.children.length > 0 && (
-                            <div className="ml-4 border-l-2 border-muted">
-                              {item.children.map((child) => (
-                                <LinkWrapper
-                                  key={child.id}
-                                  to={getMenuItemUrl(child)}
-                                  onClick={() => setMobileMenuOpen(false)}
-                                  className="py-2 px-4 text-sm text-muted-foreground hover:bg-muted rounded-lg block"
-                                >
-                                  {child.label}
-                                </LinkWrapper>
-                              ))}
-                            </div>
+                          {item.children.length > 0 ? (
+                            <>
+                              {/* Parent item with toggle button */}
+                              <button
+                                type="button"
+                                onClick={() => toggleMobileDropdown(item.id)}
+                                className="w-full py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                              >
+                                {item.label}
+                                <ChevronDown className={cn(
+                                  "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                                  openMobileDropdowns.has(item.id) && "rotate-180"
+                                )} />
+                              </button>
+                              {/* Show children when open */}
+                              {openMobileDropdowns.has(item.id) && (
+                                <div className="ml-4 border-l-2 border-muted">
+                                  {item.children.map((child) => (
+                                    <LinkWrapper
+                                      key={child.id}
+                                      to={getMenuItemUrl(child)}
+                                      onClick={() => setMobileMenuOpen(false)}
+                                      className="py-2 px-4 text-sm text-muted-foreground hover:bg-muted rounded-lg block"
+                                    >
+                                      {child.label}
+                                    </LinkWrapper>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <LinkWrapper
+                              to={getMenuItemUrl(item)}
+                              onClick={() => setMobileMenuOpen(false)}
+                              className="py-3 px-4 text-sm font-medium text-foreground hover:bg-muted rounded-lg flex items-center justify-between"
+                            >
+                              {item.label}
+                            </LinkWrapper>
                           )}
                         </div>
                       ))}
@@ -542,18 +572,12 @@ export function StorefrontHeaderContent({
                   <LinkWrapper
                     to={getMenuItemUrl(item)}
                     className={cn(
-                      "text-sm font-medium hover:opacity-70 transition-colors flex items-center gap-1",
+                      "text-sm font-medium hover:opacity-70 transition-colors",
                       item.children.length > 0 && "cursor-pointer"
                     )}
                     style={{ color: headerTextColor || undefined }}
                   >
                     {item.label}
-                    {item.children.length > 0 && (
-                      <ChevronDown className={cn(
-                        "h-3 w-3 transition-transform duration-200",
-                        openDropdown === item.id && "rotate-180"
-                      )} />
-                    )}
                   </LinkWrapper>
                   
                   {/* Dropdown Menu */}
