@@ -322,7 +322,215 @@ function extractInfoHighlights(html: string): { items: InfoHighlightItem[]; rema
 }
 
 // =====================================================
-// MAIN MAPPING FUNCTION
+// IMAGE EXTRACTION - Convert <img> to Image blocks
+// =====================================================
+interface ExtractedImage {
+  src: string;
+  alt: string;
+  linkUrl?: string;
+  width?: string;
+  height?: string;
+}
+
+function extractImages(html: string): { images: ExtractedImage[]; remainingHtml: string } {
+  const images: ExtractedImage[] = [];
+  let remainingHtml = html;
+  const addedSrcs = new Set<string>();
+
+  console.log(`[IMAGES] Starting extraction`);
+
+  // Skip patterns - icons, very small images, tracking pixels
+  const skipPatterns = [
+    /icon/i, /logo/i, /favicon/i, /sprite/i, /badge/i, /payment/i, /flag/i,
+    /1x1\.gif/i, /pixel/i, /tracking/i, /spacer/i, /blank\./i,
+    /data:image\/svg/i, /\.svg$/i,
+  ];
+
+  const isValidImage = (src: string, width?: string, height?: string): boolean => {
+    if (!src || src.length < 10) return false;
+    if (skipPatterns.some(p => p.test(src))) return false;
+    
+    // Skip very small images (icons, spacers)
+    const w = width ? parseInt(width) : 0;
+    const h = height ? parseInt(height) : 0;
+    if ((w > 0 && w < 50) || (h > 0 && h < 50)) return false;
+    
+    return true;
+  };
+
+  // Pattern 1: <img> tags
+  const imgPattern = /<img[^>]*src=["']([^"']+)["'][^>]*>/gi;
+  let match;
+  
+  while ((match = imgPattern.exec(html)) !== null) {
+    const fullTag = match[0];
+    const src = match[1];
+    
+    // Extract alt text
+    const altMatch = /alt=["']([^"']*)["']/i.exec(fullTag);
+    const alt = altMatch ? cleanText(altMatch[1]) : '';
+    
+    // Extract dimensions
+    const widthMatch = /width=["']?(\d+)/i.exec(fullTag);
+    const heightMatch = /height=["']?(\d+)/i.exec(fullTag);
+    
+    if (!isValidImage(src, widthMatch?.[1], heightMatch?.[1])) continue;
+    if (addedSrcs.has(src)) continue;
+    
+    // Check if image is wrapped in a link
+    const imgIndex = match.index;
+    const contextStart = Math.max(0, imgIndex - 200);
+    const contextBefore = html.substring(contextStart, imgIndex);
+    const linkMatch = /<a[^>]*href=["']([^"']+)["'][^>]*>[^<]*$/i.exec(contextBefore);
+    const linkUrl = linkMatch?.[1];
+    
+    images.push({
+      src,
+      alt,
+      linkUrl: linkUrl && !linkUrl.startsWith('javascript:') && linkUrl !== '#' ? linkUrl : undefined,
+      width: widthMatch?.[1],
+      height: heightMatch?.[1],
+    });
+    addedSrcs.add(src);
+    
+    // Remove the image tag from remaining HTML
+    remainingHtml = remainingHtml.replace(fullTag, '');
+  }
+
+  // Pattern 2: <picture> elements
+  const picturePattern = /<picture[^>]*>([\s\S]*?)<\/picture>/gi;
+  while ((match = picturePattern.exec(html)) !== null) {
+    const pictureHtml = match[1];
+    
+    // Get the main image
+    const mainImgMatch = /<img[^>]*src=["']([^"']+)["'][^>]*>/i.exec(pictureHtml);
+    if (!mainImgMatch) continue;
+    
+    const src = mainImgMatch[1];
+    if (!isValidImage(src) || addedSrcs.has(src)) continue;
+    
+    const altMatch = /alt=["']([^"']*)["']/i.exec(pictureHtml);
+    const alt = altMatch ? cleanText(altMatch[1]) : '';
+    
+    images.push({ src, alt });
+    addedSrcs.add(src);
+    
+    // Remove the picture element from remaining HTML
+    remainingHtml = remainingHtml.replace(match[0], '');
+  }
+
+  // Pattern 3: Background images in style attributes (for hero/banner sections)
+  const bgPattern = /style=["'][^"']*background(?:-image)?:\s*url\(['"]?([^'")\s]+)['"]?\)[^"']*["']/gi;
+  while ((match = bgPattern.exec(html)) !== null) {
+    const src = match[1];
+    if (!isValidImage(src) || addedSrcs.has(src)) continue;
+    
+    images.push({ src, alt: '' });
+    addedSrcs.add(src);
+  }
+
+  console.log(`[IMAGES] Total: ${images.length}`);
+  return { images, remainingHtml };
+}
+
+// =====================================================
+// VIDEO EXTRACTION - Convert videos to Video blocks
+// =====================================================
+interface ExtractedVideo {
+  type: 'youtube' | 'vimeo' | 'upload';
+  url: string;
+  embedUrl?: string;
+  videoId?: string;
+  title?: string;
+}
+
+function extractVideos(html: string): { videos: ExtractedVideo[]; remainingHtml: string } {
+  const videos: ExtractedVideo[] = [];
+  let remainingHtml = html;
+  const addedIds = new Set<string>();
+
+  console.log(`[VIDEOS] Starting extraction`);
+
+  // Pattern 1: YouTube iframes
+  const youtubeIframePattern = /<iframe[^>]*src=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["'][^>]*>[\s\S]*?<\/iframe>/gi;
+  let match;
+  
+  while ((match = youtubeIframePattern.exec(html)) !== null) {
+    const embedUrl = match[1].startsWith('//') ? `https:${match[1]}` : match[1];
+    const videoIdMatch = /(?:embed\/|watch\?v=|youtu\.be\/)([^&?/]+)/.exec(embedUrl);
+    
+    if (videoIdMatch && !addedIds.has(videoIdMatch[1])) {
+      videos.push({
+        type: 'youtube',
+        url: `https://www.youtube.com/watch?v=${videoIdMatch[1]}`,
+        embedUrl: `https://www.youtube.com/embed/${videoIdMatch[1]}`,
+        videoId: videoIdMatch[1],
+      });
+      addedIds.add(videoIdMatch[1]);
+      remainingHtml = remainingHtml.replace(match[0], '');
+    }
+  }
+
+  // Pattern 2: YouTube links (not in iframes)
+  const youtubeLinkPattern = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi;
+  while ((match = youtubeLinkPattern.exec(html)) !== null) {
+    const videoId = match[1];
+    if (!addedIds.has(videoId)) {
+      videos.push({
+        type: 'youtube',
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        embedUrl: `https://www.youtube.com/embed/${videoId}`,
+        videoId,
+      });
+      addedIds.add(videoId);
+    }
+  }
+
+  // Pattern 3: Vimeo iframes
+  const vimeoIframePattern = /<iframe[^>]*src=["']([^"']*vimeo\.com[^"']*)["'][^>]*>[\s\S]*?<\/iframe>/gi;
+  while ((match = vimeoIframePattern.exec(html)) !== null) {
+    const embedUrl = match[1].startsWith('//') ? `https:${match[1]}` : match[1];
+    const videoIdMatch = /vimeo\.com\/(?:video\/)?(\d+)/.exec(embedUrl);
+    
+    if (videoIdMatch && !addedIds.has(videoIdMatch[1])) {
+      videos.push({
+        type: 'vimeo',
+        url: `https://vimeo.com/${videoIdMatch[1]}`,
+        embedUrl: `https://player.vimeo.com/video/${videoIdMatch[1]}`,
+        videoId: videoIdMatch[1],
+      });
+      addedIds.add(videoIdMatch[1]);
+      remainingHtml = remainingHtml.replace(match[0], '');
+    }
+  }
+
+  // Pattern 4: Direct video files (<video> or <source> tags)
+  const videoFilePattern = /<video[^>]*(?:src=["']([^"']+\.(?:mp4|webm|mov))["'])?[^>]*>([\s\S]*?)<\/video>/gi;
+  while ((match = videoFilePattern.exec(html)) !== null) {
+    let videoUrl = match[1];
+    
+    // If no src on video tag, look for source element
+    if (!videoUrl && match[2]) {
+      const sourceMatch = /<source[^>]*src=["']([^"']+\.(?:mp4|webm|mov))["'][^>]*>/i.exec(match[2]);
+      if (sourceMatch) videoUrl = sourceMatch[1];
+    }
+    
+    if (videoUrl && !addedIds.has(videoUrl)) {
+      videos.push({
+        type: 'upload',
+        url: videoUrl,
+      });
+      addedIds.add(videoUrl);
+      remainingHtml = remainingHtml.replace(match[0], '');
+    }
+  }
+
+  console.log(`[VIDEOS] Total: ${videos.length}`);
+  return { videos, remainingHtml };
+}
+
+// =====================================================
+// MAIN MAPPING FUNCTION - Enhanced with Images & Videos
 // =====================================================
 function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const blocks: BlockNode[] = [];
@@ -334,7 +542,70 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
   const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?/i.test(pageTitle);
 
-  // 1. FAQ
+  // 1. Extract Videos FIRST (they take priority for visibility)
+  const videoResult = extractVideos(remainingContent);
+  for (const video of videoResult.videos) {
+    if (video.type === 'youtube') {
+      console.log(`[MAPPER] ✓ Creating YouTubeEmbed block: ${video.videoId}`);
+      blocks.push({
+        id: generateBlockId('youtube'),
+        type: 'YouTubeEmbed',
+        props: { 
+          title: video.title || '',
+          youtubeUrl: video.url,
+        },
+        children: [],
+      });
+    } else if (video.type === 'vimeo') {
+      // Vimeo can be embedded as iframe in RichText or we could create a custom block
+      // For now, keep in remainingContent to be handled by RichText
+      console.log(`[MAPPER] ℹ Vimeo video found, will be in RichText: ${video.videoId}`);
+    } else if (video.type === 'upload') {
+      console.log(`[MAPPER] ✓ Creating VideoUpload block: ${video.url.substring(0, 50)}...`);
+      blocks.push({
+        id: generateBlockId('video'),
+        type: 'VideoUpload',
+        props: { 
+          videoDesktop: video.url,
+          videoMobile: '',
+          controls: true,
+          autoplay: false,
+          loop: false,
+          muted: false,
+          aspectRatio: 'auto',
+        },
+        children: [],
+      });
+    }
+  }
+  remainingContent = videoResult.remainingHtml;
+
+  // 2. Extract Images and convert to Image blocks
+  const imageResult = extractImages(remainingContent);
+  for (const image of imageResult.images) {
+    console.log(`[MAPPER] ✓ Creating Image block: ${image.src.substring(0, 50)}...`);
+    blocks.push({
+      id: generateBlockId('image'),
+      type: 'Image',
+      props: { 
+        imageDesktop: image.src,
+        imageMobile: '', // Could try to detect mobile version
+        alt: image.alt || 'Imagem',
+        linkUrl: image.linkUrl || '',
+        width: 'full',
+        height: 'auto',
+        objectFit: 'cover',
+        objectPosition: 'center',
+        aspectRatio: 'auto',
+        rounded: 'none',
+        shadow: 'none',
+      },
+      children: [],
+    });
+  }
+  remainingContent = imageResult.remainingHtml;
+
+  // 3. FAQ
   const faqResult = extractFAQItems(remainingContent);
   if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
     console.log(`[MAPPER] ✓ Creating FAQ block: ${faqResult.items.length} items`);
@@ -347,7 +618,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = faqResult.remainingHtml;
   }
 
-  // 2. Testimonials
+  // 4. Testimonials
   const testimonialResult = extractTestimonials(remainingContent);
   if (testimonialResult.items.length >= 2 || (isTestimonialPage && testimonialResult.items.length >= 1)) {
     console.log(`[MAPPER] ✓ Creating Testimonials block: ${testimonialResult.items.length} items`);
@@ -360,7 +631,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = testimonialResult.remainingHtml;
   }
 
-  // 3. InfoHighlights
+  // 5. InfoHighlights
   const infoResult = extractInfoHighlights(remainingContent);
   if (infoResult.items.length >= 3) {
     console.log(`[MAPPER] ✓ Creating InfoHighlights block: ${infoResult.items.length} items`);
@@ -373,7 +644,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = infoResult.remainingHtml;
   }
 
-  // 4. RichText fallback
+  // 6. RichText fallback for remaining text content
   const cleanedRemaining = stripHtml(remainingContent);
   if (cleanedRemaining.length > 50) {
     console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
@@ -385,6 +656,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     });
   }
 
+  // If no blocks at all, add a RichText with original content
   if (blocks.length === 0) {
     blocks.push({
       id: generateBlockId('richtext'),
