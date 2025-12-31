@@ -475,10 +475,51 @@ Deno.serve(async (req) => {
           individualContent = '';
         }
 
-        // Insert page using Shopify-like model:
-        // - individual_content contains the actual text/HTML
-        // - template_id references the default template (or null)
-        // - content can be null (template structure is used)
+        // Generate block structure with RichText block containing the imported content
+        // This makes the content editable in the builder
+        const pageBlockId = `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const sectionBlockId = `section-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const richTextBlockId = `richtext-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        
+        const pageContent = {
+          id: pageBlockId,
+          type: 'Page',
+          props: {
+            backgroundColor: 'transparent',
+            padding: 'none',
+          },
+          children: [
+            {
+              id: sectionBlockId,
+              type: 'Section',
+              props: {
+                backgroundColor: 'transparent',
+                paddingX: 16,
+                paddingY: 32,
+                marginTop: 0,
+                marginBottom: 0,
+                gap: 16,
+                alignItems: 'stretch',
+                fullWidth: false,
+              },
+              children: [
+                {
+                  id: richTextBlockId,
+                  type: 'RichText',
+                  props: {
+                    content: individualContent || '<p>Conteúdo da página...</p>',
+                    fontFamily: 'inherit',
+                    fontSize: 'base',
+                    fontWeight: 'normal',
+                  },
+                  children: [],
+                },
+              ],
+            },
+          ],
+        };
+
+        // Insert page with block-based content (editable in builder)
         const { error: insertError } = await supabase
           .from('store_pages')
           .insert({
@@ -487,9 +528,9 @@ Deno.serve(async (req) => {
             slug: normalizedSlug,
             type: 'institutional',
             status: hasRealContent ? 'published' : 'draft',
-            content: null, // Template provides structure, not page-specific blocks
-            individual_content: individualContent, // The actual page content
-            template_id: defaultTemplateId, // Reference to default template
+            content: pageContent, // Block structure for builder editing
+            individual_content: null, // Not using template model
+            template_id: null, // Not using template for imported pages
             is_published: hasRealContent,
             is_system: false,
             seo_title: seoTitle,

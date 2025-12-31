@@ -147,20 +147,27 @@ export default function PageBuilder() {
     },
   };
 
-  // If page has a template, edit the template directly
+  // Priority: Use page's own content (imported pages) > template content > undefined
+  // Imported pages have their content in the 'content' field as block structure
+  const pageOwnContent = page.content as unknown as BlockNode | null;
   const templateId = page.template_id;
   const template = page.page_templates as { id: string; content: Json; name: string } | null;
   
-  // Get initial content from template if exists, with proper type casting
-  const initialContent = template?.content 
-    ? (template.content as unknown as BlockNode)
-    : undefined;
+  // Get initial content - prioritize page's own content for imported pages
+  const initialContent = pageOwnContent 
+    ? pageOwnContent 
+    : template?.content 
+      ? (template.content as unknown as BlockNode)
+      : undefined;
+
+  // For pages with their own content, edit the page directly (not the template)
+  const editingPageDirectly = !!pageOwnContent;
 
   return (
     <VisualBuilder
       tenantId={currentTenant.id}
-      pageType="page_template"
-      pageId={templateId || pageId}
+      pageType={editingPageDirectly ? "institutional" : "page_template"}
+      pageId={editingPageDirectly ? pageId : (templateId || pageId)}
       pageTitle={page.title}
       pageSlug={page.slug}
       initialContent={initialContent}
