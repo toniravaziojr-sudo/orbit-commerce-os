@@ -186,6 +186,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             ...seoData,
           };
         }
@@ -197,6 +198,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
           content: page.content as unknown as BlockNode,
           pageTitle: page.title,
           pageId: page.id,
+          individualContent: page.individual_content as string | null,
           ...seoData,
         };
       }
@@ -231,6 +233,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
             content: updateContent(defaultTemplate),
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             ...seoData,
           };
         }
@@ -242,6 +245,7 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         content: defaultTemplate,
         pageTitle: page.title,
         pageId: page.id,
+        individualContent: page.individual_content as string | null,
         ...seoData,
       };
     },
