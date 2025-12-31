@@ -171,6 +171,94 @@ export type Database = {
           },
         ]
       }
+      block_implementation_requests: {
+        Row: {
+          created_at: string | null
+          css_sample: string | null
+          custom_block_id: string | null
+          html_sample: string
+          id: string
+          implementation_notes: string | null
+          implemented_as: string | null
+          mapped_to_block: string | null
+          occurrences_count: number | null
+          pattern_description: string | null
+          pattern_name: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source_platform: string | null
+          source_url: string | null
+          status: string | null
+          suggested_props: Json | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          css_sample?: string | null
+          custom_block_id?: string | null
+          html_sample: string
+          id?: string
+          implementation_notes?: string | null
+          implemented_as?: string | null
+          mapped_to_block?: string | null
+          occurrences_count?: number | null
+          pattern_description?: string | null
+          pattern_name: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_platform?: string | null
+          source_url?: string | null
+          status?: string | null
+          suggested_props?: Json | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          css_sample?: string | null
+          custom_block_id?: string | null
+          html_sample?: string
+          id?: string
+          implementation_notes?: string | null
+          implemented_as?: string | null
+          mapped_to_block?: string | null
+          occurrences_count?: number | null
+          pattern_description?: string | null
+          pattern_name?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source_platform?: string | null
+          source_url?: string | null
+          status?: string | null
+          suggested_props?: Json | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "block_implementation_requests_custom_block_id_fkey"
+            columns: ["custom_block_id"]
+            isOneToOne: false
+            referencedRelation: "custom_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "block_implementation_requests_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "block_implementation_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_posts: {
         Row: {
           author_id: string | null
@@ -1046,6 +1134,65 @@ export type Database = {
           },
           {
             foreignKeyName: "conversations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_blocks: {
+        Row: {
+          block_type: string
+          created_at: string | null
+          css_snapshot: string | null
+          detected_pattern: Json | null
+          html_template: string
+          id: string
+          name: string
+          pattern_hash: string | null
+          promoted_to_block: string | null
+          source_platform: string | null
+          source_url: string | null
+          status: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          block_type: string
+          created_at?: string | null
+          css_snapshot?: string | null
+          detected_pattern?: Json | null
+          html_template: string
+          id?: string
+          name: string
+          pattern_hash?: string | null
+          promoted_to_block?: string | null
+          source_platform?: string | null
+          source_url?: string | null
+          status?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          block_type?: string
+          created_at?: string | null
+          css_snapshot?: string | null
+          detected_pattern?: Json | null
+          html_template?: string
+          id?: string
+          name?: string
+          pattern_hash?: string | null
+          promoted_to_block?: string | null
+          source_platform?: string | null
+          source_url?: string | null
+          status?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_blocks_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

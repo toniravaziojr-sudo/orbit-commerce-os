@@ -32,6 +32,7 @@ import { VideoUploadBlock as VideoUploadBlockComponent } from './blocks/VideoUpl
 import { TrackingLookupBlock as TrackingLookupBlockComponent } from './blocks/TrackingLookupBlock';
 import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogListingBlock';
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
+import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -545,6 +546,8 @@ const components: Record<string, React.ComponentType<any>> = {
     BlogListing: BlogListingBlockWrapper,
     // Template slot block (for page content)
     PageContent: PageContentBlock,
+    // Custom block (imported HTML/CSS content)
+    CustomBlock: CustomBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -2207,4 +2210,25 @@ function OrderDetailBlock({ context, isEditing }: any) {
   // Dynamic import for public mode
   const StorefrontOrderDetailComponent = require('@/pages/storefront/StorefrontOrderDetail').default;
   return <StorefrontOrderDetailComponent />;
+}
+
+// ========== CUSTOM BLOCK WRAPPER ==========
+function CustomBlockWrapper({
+  customBlockId,
+  htmlContent,
+  cssContent,
+  blockName,
+  context,
+  isEditing,
+}: any) {
+  return (
+    <CustomBlockRendererComponent
+      customBlockId={customBlockId}
+      htmlContent={htmlContent}
+      cssContent={cssContent}
+      blockName={blockName}
+      context={context}
+      isEditing={isEditing}
+    />
+  );
 }
