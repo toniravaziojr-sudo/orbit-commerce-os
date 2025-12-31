@@ -546,10 +546,10 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const videoResult = extractVideos(remainingContent);
   for (const video of videoResult.videos) {
     if (video.type === 'youtube') {
-      console.log(`[MAPPER] ✓ Creating YouTubeEmbed block: ${video.videoId}`);
+      console.log(`[MAPPER] ✓ Creating YouTubeVideo block: ${video.videoId}`);
       blocks.push({
         id: generateBlockId('youtube'),
-        type: 'YouTubeEmbed',
+        type: 'YouTubeVideo', // Corrected: registry uses 'YouTubeVideo', not 'YouTubeEmbed'
         props: { 
           title: video.title || '',
           youtubeUrl: video.url,
