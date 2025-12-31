@@ -86,12 +86,14 @@ export function useStorePages() {
           seo_title: formData.seo_title || null,
           seo_description: formData.seo_description || null,
           is_published: formData.is_published ?? false,
+          template_id: formData.template_id || null,
+          individual_content: formData.individual_content || null,
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      return data as StorePage;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
