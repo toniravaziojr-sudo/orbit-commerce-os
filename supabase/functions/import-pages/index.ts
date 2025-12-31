@@ -20,8 +20,9 @@ interface ImportPagesRequest {
 }
 
 // =============================================
-// CONTENT-TO-BLOCK MAPPER v2
-// Enhanced FAQ extraction with nested accordion support
+// CONTENT-TO-BLOCK MAPPER v3 - Inline Copy
+// Enhanced extraction with 6 strategies for FAQ, 
+// improved Testimonials and InfoHighlights detection
 // =============================================
 
 interface FAQItem {
@@ -29,15 +30,17 @@ interface FAQItem {
   answer: string;
 }
 
-interface FAQCategory {
-  categoryTitle: string;
-  items: FAQItem[];
-}
-
 interface TestimonialItem {
   name: string;
   text: string;
   rating?: number;
+}
+
+interface InfoHighlightItem {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
 }
 
 interface BlockNode {
@@ -70,22 +73,18 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// =============================================
-// ENHANCED FAQ EXTRACTION
-// Supports: 
-// - Nested accordions (categories with questions)
-// - Shopify collapsible sections
-// - Numbered Q&A pairs
-// - Bold questions with text answers
-// =============================================
+// =====================================================
+// FAQ EXTRACTION - Enhanced with 6 strategies
+// =====================================================
 function extractFAQItems(html: string): { items: FAQItem[]; title: string; remainingHtml: string } {
   const items: FAQItem[] = [];
   let title = 'Perguntas Frequentes';
   let remainingHtml = html;
+  const plainText = stripHtml(html);
 
-  console.log(`[FAQ EXTRACTOR] Starting extraction, HTML length: ${html.length}`);
+  console.log(`[FAQ] Starting extraction, HTML: ${html.length} chars, Text: ${plainText.length} chars`);
 
-  // First, try to find the FAQ title
+  // Find FAQ title
   const faqTitlePatterns = [
     /<h[1-6][^>]*>([^<]*(?:perguntas?\s*frequentes?|faq|dúvidas?\s*comuns?)[^<]*)<\/h[1-6]>/gi,
     /<strong>([^<]*(?:perguntas?\s*frequentes?|faq)[^<]*)<\/strong>/gi,
@@ -94,385 +93,329 @@ function extractFAQItems(html: string): { items: FAQItem[]; title: string; remai
   for (const pattern of faqTitlePatterns) {
     const match = pattern.exec(html);
     if (match) {
-      title = match[1].trim().replace(/\s*\(FAQ\)\s*/gi, '').trim() || title;
-      console.log(`[FAQ EXTRACTOR] Found title: ${title}`);
+      title = cleanText(match[1].replace(/\s*\(FAQ\)\s*/gi, '')) || title;
+      console.log(`[FAQ] Found title: ${title}`);
       break;
     }
   }
 
-  // ===== STRATEGY 1: Detect Shopify-style nested accordions =====
-  // Pattern: Category headers (like "COMPRA & ENTREGA") with questions inside
-  // Look for collapsible sections with inner collapsibles
-  
-  // Pattern for category headers (uppercase titles, often in buttons or summary)
-  const categoryPattern = /<(?:button|summary|div|h[2-4])[^>]*>[\s\S]*?([A-ZÀ-Ú][A-ZÀ-Ú\s&]+(?:&(?:amp;)?|E|\s)[A-ZÀ-Ú\s&]+)[\s\S]*?<\/(?:button|summary|div|h[2-4])>/g;
-  
-  // First, detect if this is a nested accordion structure
-  const plainText = stripHtml(html);
-  const hasCategories = /(?:COMPRA|USO|SEGURANÇA|GARANTIA|PAGAMENTO|ENTREGA|RESULTADOS|EFEITOS|SUPORTE|DÚVIDAS)\s*[&E]\s*/i.test(plainText);
-  
-  console.log(`[FAQ EXTRACTOR] Has category structure: ${hasCategories}`);
-
-  // ===== STRATEGY 2: Parse numbered Q&A with category awareness =====
-  // Pattern: "1. Question? Answer text..." grouped by categories
-  
-  // Look for numbered questions with their answers
-  // This handles: "1. O site é seguro? Como tenho garantia de que não vou cair em golpe?"
-  // Followed by: "Sim! Nosso site é oficial..."
-  
-  const lines = plainText.split(/(?=\d+\.\s)/);
-  let currentCategory = '';
-  
-  for (const line of lines) {
-    // Check if this line is a category header (all caps with &)
-    const categoryMatch = /^([A-ZÀ-Ú][A-ZÀ-Ú\s&]+(?:&|E)[A-ZÀ-Ú\s&]+)\s*$/m.exec(line.trim());
-    if (categoryMatch) {
-      currentCategory = categoryMatch[1].trim();
-      console.log(`[FAQ EXTRACTOR] Found category: ${currentCategory}`);
-      continue;
-    }
+  // Helper to add unique item
+  const addUniqueItem = (question: string, answer: string, source: string) => {
+    question = cleanText(question);
+    answer = cleanText(answer);
     
-    // Look for numbered Q&A: "1. Question? Answer..."
-    const numberedMatch = /^(\d+)\.\s*([^?]+\?(?:[^?]+\?)?)\s*(.+)$/s.exec(line.trim());
-    if (numberedMatch) {
-      const num = numberedMatch[1];
-      let question = numberedMatch[2].trim();
-      let answer = numberedMatch[3].trim();
+    if (question.length < 10 || answer.length < 15) return false;
+    if (!question.includes('?')) return false;
+    
+    const isDuplicate = items.some(i => {
+      const q1 = i.question.toLowerCase().substring(0, 30);
+      const q2 = question.toLowerCase().substring(0, 30);
+      return q1 === q2 || i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20));
+    });
+    
+    if (isDuplicate) return false;
+    
+    items.push({ question, answer });
+    console.log(`[FAQ] Added (${source}): "${question.substring(0, 50)}..."`);
+    return true;
+  };
+
+  // ===== STRATEGY 1: Numbered Q&A pairs in plain text =====
+  console.log(`[FAQ] Strategy 1: Numbered Q&A`);
+  const numberedSections = plainText.split(/(?=\d+\.\s+[A-ZÀ-Ú])/);
+  
+  for (const section of numberedSections) {
+    const match = /^(\d+)\.\s*(.+?\?)\s*(.+)$/s.exec(section.trim());
+    if (match) {
+      let question = match[2].trim();
+      let answer = match[3].trim();
       
-      // Sometimes the answer continues with more sentences
-      // Clean up question - might have multiple questions, take the main one
-      if (question.includes('?') && question.split('?').length > 2) {
-        const parts = question.split('?');
-        question = parts[0] + '?';
-        // Rest becomes part of the answer
-        answer = parts.slice(1).join('?').trim() + ' ' + answer;
+      const questionParts = question.match(/[^?]+\?/g);
+      if (questionParts && questionParts.length > 1) {
+        question = questionParts[0].trim();
+        answer = questionParts.slice(1).join(' ').trim() + ' ' + answer;
       }
       
-      // Cut answer at next question number or category
-      const nextQMatch = answer.search(/\s+\d+\.\s+[A-ZÀ-Ú]/);
-      if (nextQMatch > 50) {
-        answer = answer.substring(0, nextQMatch).trim();
+      const cutPoints = [
+        answer.search(/\s+\d+\.\s+[A-ZÀ-Ú]/),
+        answer.search(/\s+[A-ZÀ-Ú]{4,}\s+[&E]\s+[A-ZÀ-Ú]{4,}/),
+      ].filter(p => p > 50);
+      
+      if (cutPoints.length > 0) {
+        answer = answer.substring(0, Math.min(...cutPoints)).trim();
       }
       
-      const nextCatMatch = answer.search(/\s+[A-ZÀ-Ú]{3,}\s*[&E]\s*[A-ZÀ-Ú]{3,}/);
-      if (nextCatMatch > 50) {
-        answer = answer.substring(0, nextCatMatch).trim();
-      }
-      
-      // Validate
-      if (question.length > 10 && answer.length > 20) {
-        // Check for duplicates
-        const isDuplicate = items.some(i => 
-          i.question.toLowerCase().substring(0, 30) === question.toLowerCase().substring(0, 30)
-        );
-        
-        if (!isDuplicate) {
-          items.push({
-            question: cleanText(question),
-            answer: cleanText(answer),
-          });
-          console.log(`[FAQ EXTRACTOR] Found Q${num}: "${question.substring(0, 50)}..."`);
-        }
-      }
+      addUniqueItem(question, answer, 'numbered');
     }
   }
 
-  // ===== STRATEGY 3: Parse HTML accordion structures =====
-  // Look for <details>/<summary> or collapsible divs
-  
+  // ===== STRATEGY 2: <details>/<summary> HTML accordions =====
+  console.log(`[FAQ] Strategy 2: Details/Summary`);
+  const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>\s*([\s\S]*?)<\/details>/gi;
   let match;
-  const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([^<]+)<\/summary>\s*([\s\S]*?)<\/details>/gi;
   
   while ((match = detailsPattern.exec(html)) !== null) {
-    const question = match[1].trim();
+    const question = stripHtml(match[1]).trim();
     const answer = stripHtml(match[2]).trim();
-    
-    // Skip if it looks like a category header (all caps)
-    if (/^[A-ZÀ-Ú\s&]+$/.test(question)) {
-      console.log(`[FAQ EXTRACTOR] Skipping category: ${question}`);
-      continue;
-    }
-    
-    if (question.length > 5 && answer.length > 10) {
-      const isDuplicate = items.some(i => 
-        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
-      );
-      
-      if (!isDuplicate) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-        console.log(`[FAQ EXTRACTOR] Found accordion Q: "${question.substring(0, 50)}..."`);
-      }
+    if (/^[A-ZÀ-Ú\s&]+$/.test(question)) continue;
+    addUniqueItem(question, answer, 'details');
+  }
+
+  // ===== STRATEGY 3: Shopify collapsible patterns =====
+  console.log(`[FAQ] Strategy 3: Collapsible divs`);
+  const collapsiblePatterns = [
+    /<div[^>]*class="[^"]*collapsible[^"]*"[^>]*>[\s\S]*?<(?:button|summary)[^>]*>([^<]+)<\/(?:button|summary)>[\s\S]*?<div[^>]*class="[^"]*(?:content|body|panel)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<div[^>]*class="[^"]*accordion[^"]*"[^>]*>[\s\S]*?<(?:button|h[3-6])[^>]*>([^<]+)<\/(?:button|h[3-6])>[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  for (const pattern of collapsiblePatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const question = stripHtml(match[1]).trim();
+      const answer = stripHtml(match[2]).trim();
+      if (/^[A-ZÀ-Ú\s&]+$/.test(question) && !question.includes('?')) continue;
+      addUniqueItem(question, answer, 'collapsible');
     }
   }
 
-  // ===== STRATEGY 4: Parse Shopify collapsible-row patterns =====
-  // Pattern: <div class="collapsible-row..."><button>Question</button><div>Answer</div></div>
+  // ===== STRATEGY 4: Bold questions with text answers =====
+  console.log(`[FAQ] Strategy 4: Bold Q&A`);
+  const boldPatterns = [
+    /<(?:strong|b)>\s*\d*\.?\s*([^<]*\?)<\/(?:strong|b)>\s*(?:<br\s*\/?>|<\/p>\s*<p>)?\s*([^<]+)/gi,
+    /<(?:strong|b)>([^<]*\?)<\/(?:strong|b)>(?:<\/p>)?\s*<p>([^<]+)/gi,
+  ];
   
-  const collapsibleRowPattern = /<div[^>]*class="[^"]*collapsible[^"]*"[^>]*>[\s\S]*?<(?:button|summary)[^>]*>([^<]+)<\/(?:button|summary)>[\s\S]*?<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-  
-  while ((match = collapsibleRowPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    const answer = stripHtml(match[2]).trim();
-    
-    // Skip category headers
-    if (/^[A-ZÀ-Ú\s&]+$/.test(question) && !question.includes('?')) {
-      continue;
-    }
-    
-    if (question.length > 10 && answer.length > 20) {
-      const isDuplicate = items.some(i => 
-        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
-      );
-      
-      if (!isDuplicate) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-        console.log(`[FAQ EXTRACTOR] Found collapsible Q: "${question.substring(0, 50)}..."`);
-      }
+  for (const pattern of boldPatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      addUniqueItem(match[1].trim(), match[2].trim(), 'bold');
     }
   }
 
-  // ===== STRATEGY 5: Parse bold questions followed by text =====
-  const boldQAPattern = /<(?:strong|b)>\s*\d*\.?\s*([^<]*\?)<\/(?:strong|b)>\s*(?:<br\s*\/?>|<\/p>\s*<p>)?\s*([^<]+)/gi;
-  
-  while ((match = boldQAPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    let answer = match[2].trim();
-    
-    // Clean up answer
-    answer = answer.replace(/^\s*Sim[!.]?\s*/i, '').trim();
-    if (!answer) answer = match[2].trim();
-    
-    if (question.length > 10 && answer.length > 20) {
-      const isDuplicate = items.some(i => 
-        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
-      );
-      
-      if (!isDuplicate) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-        console.log(`[FAQ EXTRACTOR] Found bold Q: "${question.substring(0, 50)}..."`);
-      }
-    }
-  }
-
-  // ===== STRATEGY 6: H3/H4 with question mark followed by paragraph =====
-  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
-  
+  // ===== STRATEGY 5: Headings with questions =====
+  console.log(`[FAQ] Strategy 5: Heading Q&A`);
+  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*(?:<[^>]+>)*\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
   while ((match = headingQAPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    const answer = stripHtml(match[2]).trim();
-    
-    if (question.length > 10 && answer.length > 20) {
-      const isDuplicate = items.some(i => 
-        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
-      );
-      
-      if (!isDuplicate) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-        console.log(`[FAQ EXTRACTOR] Found heading Q: "${question.substring(0, 50)}..."`);
-      }
+    addUniqueItem(match[1].trim(), stripHtml(match[2]).trim(), 'heading');
+  }
+
+  // ===== STRATEGY 6: Div-based FAQ structures =====
+  console.log(`[FAQ] Strategy 6: FAQ divs`);
+  const divFAQPattern = /<div[^>]*class="[^"]*(?:faq-item|question-item|pergunta)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  while ((match = divFAQPattern.exec(html)) !== null) {
+    const content = match[1];
+    const questionMatch = /<(?:h[3-6]|strong|span[^>]*class="[^"]*question)[^>]*>([^<]+)</i.exec(content);
+    const answerMatch = /<(?:p|div[^>]*class="[^"]*answer)[^>]*>([\s\S]+?)<\/(?:p|div)>/i.exec(content);
+    if (questionMatch && answerMatch) {
+      addUniqueItem(questionMatch[1], stripHtml(answerMatch[1]), 'divFAQ');
     }
   }
 
-  console.log(`[FAQ EXTRACTOR] Total items found: ${items.length}`);
+  console.log(`[FAQ] Total unique items: ${items.length}`);
 
-  // Clean up remaining HTML if we found items
   if (items.length >= 2) {
-    const faqSectionPatterns = [
-      /<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi,
-      /<h[1-6][^>]*>[^<]*(?:perguntas?\s*frequentes?|faq)[^<]*<\/h[1-6]>[\s\S]*?(?=<h[1-3]|<footer|<\/main|$)/gi,
-    ];
-    
-    for (const pattern of faqSectionPatterns) {
-      remainingHtml = remainingHtml.replace(pattern, '');
-    }
+    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi, '');
   }
 
   return { items, title, remainingHtml };
 }
 
-// Extract testimonials from HTML content
+// =====================================================
+// TESTIMONIALS EXTRACTION - Enhanced
+// =====================================================
 function extractTestimonials(html: string): { items: TestimonialItem[]; title: string; remainingHtml: string } {
   const items: TestimonialItem[] = [];
   let title = 'Depoimentos';
   let remainingHtml = html;
   let match;
 
-  // Pattern 1: Blockquotes with attribution
-  const blockquotePattern = /<blockquote[^>]*>\s*(?:<p[^>]*>)?([^<]+)(?:<\/p>)?\s*(?:<cite[^>]*>|<footer[^>]*>|—|-)?\s*([^<]+)?<\/(?:cite|footer|blockquote)>/gi;
-  
+  console.log(`[TESTIMONIALS] Starting extraction`);
+
+  const titlePatterns = [
+    /<h[1-6][^>]*>([^<]*(?:depoimentos?|avalia[çc][õo]es?|feedback|o\s+que\s+dizem)[^<]*)<\/h[1-6]>/gi,
+  ];
+
+  for (const pattern of titlePatterns) {
+    match = pattern.exec(html);
+    if (match) { title = cleanText(match[1]) || title; break; }
+  }
+
+  const addUniqueItem = (name: string, text: string, rating: number, source: string) => {
+    name = cleanText(name);
+    text = cleanText(text);
+    if (text.length < 20) return false;
+    if (items.some(i => i.text.substring(0, 30) === text.substring(0, 30))) return false;
+    items.push({ name: name || 'Cliente', text, rating });
+    console.log(`[TESTIMONIALS] Added (${source}): "${text.substring(0, 40)}..." - ${name}`);
+    return true;
+  };
+
+  // Strategy 1: Blockquotes
+  const blockquotePattern = /<blockquote[^>]*>\s*(?:<p[^>]*>)?([\s\S]*?)(?:<\/p>)?\s*(?:<cite[^>]*>|<footer[^>]*>|—|-)?\s*([^<]*)?<\/(?:cite|footer|blockquote)>/gi;
   while ((match = blockquotePattern.exec(html)) !== null) {
-    const text = match[1].trim();
-    const name = match[2]?.trim() || 'Cliente';
-    
-    if (text.length > 20) {
-      items.push({
-        name: cleanText(name),
-        text: cleanText(text),
-        rating: 5,
-      });
+    addUniqueItem(stripHtml(match[2] || ''), stripHtml(match[1]), 5, 'blockquote');
+  }
+
+  // Strategy 2: Testimonial divs
+  const testimonialDivPatterns = [
+    /<div[^>]*class="[^"]*(?:testimonial|depoimento|review|avaliacao|feedback)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  for (const pattern of testimonialDivPatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const content = match[1];
+      const textMatch = /<p[^>]*>([\s\S]+?)<\/p>/i.exec(content);
+      let name = '';
+      const namePatterns = [/(?:—|-|by|por)\s*([^<]+)/i, /<(?:strong|b|cite)[^>]*>([^<]+)<\/(?:strong|b|cite)>/i];
+      for (const np of namePatterns) { const nm = np.exec(content); if (nm) { name = nm[1]; break; } }
+      if (textMatch) addUniqueItem(name, stripHtml(textMatch[1]), 5, 'testimonialDiv');
     }
   }
 
-  // Pattern 2: Testimonial divs with common classes
-  const testimonialDivPattern = /<div[^>]*class="[^"]*(?:testimonial|depoimento|review|avaliacao)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-  
-  while ((match = testimonialDivPattern.exec(html)) !== null) {
-    const content = match[1];
-    const textMatch = /<p[^>]*>([^<]+)<\/p>/i.exec(content);
-    const nameMatch = /(?:—|-|by|por)\s*([^<]+)/i.exec(content) || /<(?:strong|b|cite)>([^<]+)<\/(?:strong|b|cite)>/i.exec(content);
-    
-    if (textMatch) {
-      items.push({
-        name: nameMatch?.[1]?.trim() || 'Cliente',
-        text: cleanText(textMatch[1]),
-        rating: 5,
-      });
-    }
-  }
+  console.log(`[TESTIMONIALS] Total: ${items.length}`);
 
   if (items.length >= 2) {
-    console.log(`[MAPPER] Found ${items.length} testimonials`);
-    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*class="[^"]*(?:testimonial|depoimento|review)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
+    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*class="[^"]*(?:testimonial|depoimento|review|feedback)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
   }
 
   return { items, title, remainingHtml };
 }
 
-// Main function: Analyze content and return structured blocks
+// =====================================================
+// INFO HIGHLIGHTS EXTRACTION - Enhanced
+// =====================================================
+function extractInfoHighlights(html: string): { items: InfoHighlightItem[]; remainingHtml: string } {
+  const items: InfoHighlightItem[] = [];
+  const remainingHtml = html;
+  const textContent = stripHtml(html).toLowerCase();
+
+  console.log(`[INFO] Starting extraction`);
+
+  const infoPatterns = [
+    { patterns: [/frete\s*gr[áa]tis/i, /entrega\s*r[áa]pida/i, /envio\s*(?:em\s*)?\d+/i], icon: 'Truck', title: 'Entrega', defaultDesc: 'Entrega rápida e segura' },
+    { patterns: [/site\s*seguro/i, /compra\s*segura/i, /cnpj\s*ativo/i], icon: 'Shield', title: 'Segurança', defaultDesc: 'Compra 100% segura' },
+    { patterns: [/parcel(?:amento|e)\s*(?:em\s*)?\d+x/i, /at[ée]\s*\d+x\s*sem\s*juros/i, /pix/i, /boleto/i], icon: 'CreditCard', title: 'Pagamento', defaultDesc: 'Diversas formas de pagamento' },
+    { patterns: [/atendimento/i, /suporte/i, /whatsapp/i], icon: 'Headphones', title: 'Atendimento', defaultDesc: 'Suporte ao cliente' },
+    { patterns: [/garantia\s*(?:de\s*)?\d+/i, /troca\s*gr[áa]tis/i, /devolu[çc][ãa]o/i], icon: 'Award', title: 'Garantia', defaultDesc: 'Garantia de satisfação' },
+  ];
+
+  let idCounter = 1;
+  for (const { patterns, icon, title, defaultDesc } of infoPatterns) {
+    for (const pattern of patterns) {
+      const match = pattern.exec(textContent);
+      if (match) {
+        const matchIndex = textContent.indexOf(match[0].toLowerCase());
+        let context = textContent.substring(matchIndex, Math.min(textContent.length, matchIndex + match[0].length + 60));
+        const periodIdx = context.indexOf('.');
+        if (periodIdx > 10) context = context.substring(0, periodIdx);
+        const description = cleanText(context.charAt(0).toUpperCase() + context.slice(1)) || defaultDesc;
+        
+        if (!items.some(i => i.title === title)) {
+          items.push({ id: String(idCounter++), icon, title, description: description.length > 100 ? description.substring(0, 100) + '...' : description });
+          console.log(`[INFO] Added: ${title}`);
+        }
+        break;
+      }
+    }
+  }
+
+  console.log(`[INFO] Total: ${items.length}`);
+  if (items.length < 3) return { items: [], remainingHtml };
+  return { items, remainingHtml };
+}
+
+// =====================================================
+// MAIN MAPPING FUNCTION
+// =====================================================
 function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const blocks: BlockNode[] = [];
   let remainingContent = html;
 
-  console.log(`[MAPPER] Starting analysis for: "${pageTitle}"`);
+  console.log(`[MAPPER] ========================================`);
+  console.log(`[MAPPER] Analyzing: "${pageTitle}", HTML: ${html.length} chars`);
 
-  // Check if page title suggests FAQ content
   const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
-  console.log(`[MAPPER] Is FAQ page: ${isFAQPage}`);
-  
-  // 1. Extract FAQ content (prioritize if page title suggests FAQ)
+  const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?/i.test(pageTitle);
+
+  // 1. FAQ
   const faqResult = extractFAQItems(remainingContent);
-  console.log(`[MAPPER] FAQ extraction result: ${faqResult.items.length} items`);
-  
   if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
-    console.log(`[MAPPER] Creating FAQ block with ${faqResult.items.length} items`);
-    
+    console.log(`[MAPPER] ✓ Creating FAQ block: ${faqResult.items.length} items`);
     blocks.push({
       id: generateBlockId('faq'),
       type: 'FAQ',
-      props: {
-        title: faqResult.title || 'Perguntas Frequentes',
-        titleAlign: 'left',
-        items: faqResult.items,
-        allowMultiple: false,
-      },
+      props: { title: faqResult.title, titleAlign: 'left', items: faqResult.items, allowMultiple: false },
       children: [],
     });
-    
     remainingContent = faqResult.remainingHtml;
   }
 
-  // 2. Extract Testimonials
+  // 2. Testimonials
   const testimonialResult = extractTestimonials(remainingContent);
-  if (testimonialResult.items.length >= 2) {
-    console.log(`[MAPPER] Creating Testimonials block with ${testimonialResult.items.length} items`);
-    
+  if (testimonialResult.items.length >= 2 || (isTestimonialPage && testimonialResult.items.length >= 1)) {
+    console.log(`[MAPPER] ✓ Creating Testimonials block: ${testimonialResult.items.length} items`);
     blocks.push({
       id: generateBlockId('testimonials'),
       type: 'Testimonials',
-      props: {
-        title: testimonialResult.title || 'Depoimentos',
-        items: testimonialResult.items,
-      },
+      props: { title: testimonialResult.title, items: testimonialResult.items },
       children: [],
     });
-    
     remainingContent = testimonialResult.remainingHtml;
   }
 
-  // 3. If remaining content has substantial text, add as RichText block
+  // 3. InfoHighlights
+  const infoResult = extractInfoHighlights(remainingContent);
+  if (infoResult.items.length >= 3) {
+    console.log(`[MAPPER] ✓ Creating InfoHighlights block: ${infoResult.items.length} items`);
+    blocks.push({
+      id: generateBlockId('info'),
+      type: 'InfoHighlights',
+      props: { items: infoResult.items, layout: 'horizontal' },
+      children: [],
+    });
+    remainingContent = infoResult.remainingHtml;
+  }
+
+  // 4. RichText fallback
   const cleanedRemaining = stripHtml(remainingContent);
   if (cleanedRemaining.length > 50) {
-    console.log(`[MAPPER] Adding remaining content as RichText (${cleanedRemaining.length} chars)`);
-    
+    console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
     blocks.push({
       id: generateBlockId('richtext'),
       type: 'RichText',
-      props: {
-        content: remainingContent.trim() || '<p>Conteúdo da página...</p>',
-        fontFamily: 'inherit',
-        fontSize: 'base',
-        fontWeight: 'normal',
-      },
+      props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
       children: [],
     });
   }
 
-  // 4. If no blocks were created, create a RichText with original content
   if (blocks.length === 0) {
-    console.log(`[MAPPER] No structured content found, using RichText fallback`);
-    
     blocks.push({
       id: generateBlockId('richtext'),
       type: 'RichText',
-      props: {
-        content: html || '<p>Conteúdo da página...</p>',
-        fontFamily: 'inherit',
-        fontSize: 'base',
-        fontWeight: 'normal',
-      },
+      props: { content: html || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
       children: [],
     });
   }
 
-  console.log(`[MAPPER] Final result: ${blocks.length} blocks created`);
+  console.log(`[MAPPER] Result: ${blocks.length} blocks - ${blocks.map(b => b.type).join(', ')}`);
+  console.log(`[MAPPER] ========================================`);
   return blocks;
 }
 
-// Create a complete page structure with mapped blocks
 function createPageWithMappedBlocks(html: string, pageTitle: string): BlockNode {
   const contentBlocks = analyzeAndMapContent(html, pageTitle);
-  
   return {
     id: generateBlockId('page'),
     type: 'Page',
-    props: {
-      backgroundColor: 'transparent',
-      padding: 'none',
-    },
-    children: [
-      {
-        id: generateBlockId('section'),
-        type: 'Section',
-        props: {
-          backgroundColor: 'transparent',
-          paddingX: 16,
-          paddingY: 32,
-          marginTop: 0,
-          marginBottom: 0,
-          gap: 24,
-          alignItems: 'stretch',
-          fullWidth: false,
-        },
-        children: contentBlocks,
-      },
-    ],
+    props: { backgroundColor: 'transparent', padding: 'none' },
+    children: [{
+      id: generateBlockId('section'),
+      type: 'Section',
+      props: { backgroundColor: 'transparent', paddingX: 16, paddingY: 32, marginTop: 0, marginBottom: 0, gap: 24, alignItems: 'stretch', fullWidth: false },
+      children: contentBlocks,
+    }],
   };
 }
 
 // =============================================
-// END CONTENT-TO-BLOCK MAPPER
+// END CONTENT-TO-BLOCK MAPPER v3
 // =============================================
 
 // Scrape page content using Firecrawl with retry logic
