@@ -132,6 +132,7 @@ interface PreviewPageTemplateResult {
   canPreview: boolean;
   pageTitle: string | null;
   pageId: string | null;
+  individualContent: string | null;
 }
 
 export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): PreviewPageTemplateResult {
@@ -170,7 +171,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
       // Get the page - filter by type to get correct content per page (institutional only)
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, draft_version, published_version, content, type')
+        .select('id, title, draft_version, published_version, content, type, template_id, individual_content')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
         .eq('type', 'institutional')
@@ -196,6 +197,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             canPreview: true,
           };
         }
@@ -207,6 +209,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
           content: page.content as unknown as BlockNode,
           pageTitle: page.title,
           pageId: page.id,
+          individualContent: page.individual_content as string | null,
           canPreview: true,
         };
       }
@@ -241,6 +244,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
             content: updateContent(defaultTemplate),
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             canPreview: true,
           };
         }
@@ -250,6 +254,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
         content: getDefaultTemplate('institutional'),
         pageTitle: page.title,
         pageId: page.id,
+        individualContent: page.individual_content as string | null,
         canPreview: true,
       };
     },
@@ -265,6 +270,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
       canPreview: false,
       pageTitle: null,
       pageId: null,
+      individualContent: null,
     };
   }
 
@@ -272,6 +278,7 @@ export function usePreviewPageTemplate(tenantSlug: string, pageSlug: string): Pr
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
     pageId: data?.pageId || null,
+    individualContent: data?.individualContent || null,
     isLoading,
     error: error as Error | null,
     canPreview: data?.canPreview ?? false,
@@ -315,7 +322,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
       // Get the page - must be landing_page type
       const { data: page, error: pageError } = await supabase
         .from('store_pages')
-        .select('id, title, draft_version, published_version, content, type')
+        .select('id, title, draft_version, published_version, content, type, individual_content')
         .eq('tenant_id', tenant.id)
         .eq('slug', pageSlug)
         .eq('type', 'landing_page')
@@ -343,6 +350,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
             content: version.content as unknown as BlockNode,
             pageTitle: page.title,
             pageId: page.id,
+            individualContent: page.individual_content as string | null,
             canPreview: true,
           };
         }
@@ -354,6 +362,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
           content: page.content as unknown as BlockNode,
           pageTitle: page.title,
           pageId: page.id,
+          individualContent: page.individual_content as string | null,
           canPreview: true,
         };
       }
@@ -362,6 +371,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
         content: getDefaultTemplate('institutional'),
         pageTitle: page.title,
         pageId: page.id,
+        individualContent: page.individual_content as string | null,
         canPreview: true,
       };
     },
@@ -377,6 +387,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
       canPreview: false,
       pageTitle: null,
       pageId: null,
+      individualContent: null,
     };
   }
 
@@ -384,6 +395,7 @@ export function usePreviewLandingPageTemplate(tenantSlug: string, pageSlug: stri
     content: data?.content || null,
     pageTitle: data?.pageTitle || null,
     pageId: data?.pageId || null,
+    individualContent: data?.individualContent || null,
     isLoading,
     error: error as Error | null,
     canPreview: data?.canPreview ?? false,
