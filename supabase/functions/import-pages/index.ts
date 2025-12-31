@@ -21,17 +21,28 @@ interface ImportPagesRequest {
 // Note: generatePageContent removed - we now use Shopify-like model
 // where content is stored in individual_content field and template provides structure
 
-// Scrape page content using Firecrawl
-async function scrapePageContent(url: string): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
+// Scrape page content using Firecrawl with retry logic
+async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
+  const MAX_RETRIES = 2;
+  
   try {
     const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
     if (!apiKey) {
-      console.error('FIRECRAWL_API_KEY not configured');
+      console.error('FIRECRAWL_API_KEY not configured - check connector settings');
       return null;
     }
 
-    console.log(`Scraping page: ${url}`);
+    // Validate and normalize URL
+    let normalizedUrl = url;
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    }
+    
+    console.log(`[SCRAPE] Starting scrape for: ${normalizedUrl} (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
@@ -39,17 +50,32 @@ async function scrapePageContent(url: string): Promise<{ html: string; markdown:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        url,
+        url: normalizedUrl,
         formats: ['html', 'markdown'],
         onlyMainContent: true,
-        waitFor: 2000, // Wait for dynamic content
+        waitFor: 3000, // Wait for dynamic content
       }),
+      signal: controller.signal,
     });
+    
+    clearTimeout(timeoutId);
 
     const data = await response.json();
 
-    if (!response.ok || !data.success) {
-      console.error(`Failed to scrape ${url}:`, data.error || JSON.stringify(data));
+    if (!response.ok) {
+      console.error(`[SCRAPE] HTTP error ${response.status} for ${normalizedUrl}:`, JSON.stringify(data));
+      
+      // Retry on 5xx errors or rate limiting
+      if ((response.status >= 500 || response.status === 429) && retryCount < MAX_RETRIES) {
+        console.log(`[SCRAPE] Retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        return scrapePageContent(url, retryCount + 1);
+      }
+      return null;
+    }
+    
+    if (!data.success) {
+      console.error(`[SCRAPE] API error for ${normalizedUrl}:`, data.error || JSON.stringify(data));
       return null;
     }
 
@@ -59,14 +85,23 @@ async function scrapePageContent(url: string): Promise<{ html: string; markdown:
     const title = data.data?.metadata?.title || data.metadata?.title || '';
     const description = data.data?.metadata?.description || data.metadata?.description || '';
 
-    console.log(`Scraped ${url}: html length=${rawHtml.length}, markdown length=${markdown.length}`);
+    console.log(`[SCRAPE] Success for ${normalizedUrl}: html=${rawHtml.length}chars, md=${markdown.length}chars`);
 
     // Clean the HTML content while preserving important elements
     const cleanedHtml = cleanHtmlContent(rawHtml, markdown);
+    console.log(`[SCRAPE] Cleaned HTML: ${cleanedHtml.length}chars`);
 
     return { html: cleanedHtml, markdown, title, description };
   } catch (error) {
-    console.error(`Error scraping ${url}:`, error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[SCRAPE] Exception for ${url}: ${errorMsg}`);
+    
+    // Retry on timeout
+    if (errorMsg.includes('abort') && retryCount < MAX_RETRIES) {
+      console.log(`[SCRAPE] Timeout, retrying in 1s...`);
+      await new Promise(r => setTimeout(r, 1000));
+      return scrapePageContent(url, retryCount + 1);
+    }
     return null;
   }
 }
@@ -409,7 +444,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Importing ${pages.length} institutional pages for tenant ${tenantId}`);
+    console.log(`[IMPORT] Starting import of ${pages.length} institutional pages for tenant ${tenantId}`);
+    console.log(`[IMPORT] Pages to import:`, pages.map(p => `${p.title} (${p.url})`).join(', '));
 
     // ===== Fetch default page template (Shopify-like model) =====
     let defaultTemplateId: string | null = null;
@@ -422,9 +458,9 @@ Deno.serve(async (req) => {
     
     if (defaultTemplate) {
       defaultTemplateId = defaultTemplate.id;
-      console.log(`Using default template: ${defaultTemplateId}`);
+      console.log(`[IMPORT] Using default template: ${defaultTemplateId}`);
     } else {
-      console.log('No default template found, pages will be created without template');
+      console.log('[IMPORT] No default template found, pages will be created without template');
     }
 
     const results = {
@@ -435,10 +471,28 @@ Deno.serve(async (req) => {
       pages: [] as { slug: string; title: string; hasContent: boolean }[],
     };
 
+    let pageIndex = 0;
     for (const page of pages) {
+      pageIndex++;
+      
       try {
+        // Add delay between scrapes to avoid rate limiting (except first one)
+        if (pageIndex > 1) {
+          console.log(`[IMPORT] Waiting 1s before next scrape (page ${pageIndex}/${pages.length})...`);
+          await new Promise(r => setTimeout(r, 1000));
+        }
+        
         // Normalize slug - remove leading slash
         const normalizedSlug = page.slug.replace(/^\/+/, '').toLowerCase();
+        console.log(`[IMPORT] Processing page ${pageIndex}/${pages.length}: ${page.title} -> ${normalizedSlug}`);
+        
+        // Validate URL
+        if (!page.url) {
+          console.error(`[IMPORT] No URL for page ${normalizedSlug}, skipping`);
+          results.failed++;
+          results.errors.push(`${page.title}: URL não fornecida`);
+          continue;
+        }
         
         // Check if page already exists
         const { data: existing } = await supabase
@@ -449,12 +503,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (existing) {
-          console.log(`Page ${normalizedSlug} already exists, skipping`);
+          console.log(`[IMPORT] Page ${normalizedSlug} already exists, skipping`);
           results.skipped++;
           continue;
         }
 
-        // Scrape page content
+        // Scrape page content with logging
+        console.log(`[IMPORT] Scraping content from: ${page.url}`);
         const scraped = await scrapePageContent(page.url);
 
         let individualContent = '';
