@@ -27,9 +27,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog' | 'institutional';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
-const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string; isSystem?: boolean; isTemplate?: boolean }> = {
+const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string; isSystem?: boolean }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
   category: { title: 'Categoria', description: 'Listagem de produtos', icon: '📁' },
   product: { title: 'Produto', description: 'Detalhes do produto', icon: '📦' },
@@ -41,7 +41,6 @@ const pageTypeInfo: Record<PageType, { title: string; description: string; icon:
   account_order_detail: { title: 'Pedido', description: 'Detalhe do pedido', icon: '📄' },
   tracking: { title: 'Rastreio', description: 'Página de rastreio de pedidos', icon: '📍', isSystem: true },
   blog: { title: 'Blog', description: 'Índice do blog', icon: '📰', isSystem: true },
-  institutional: { title: 'Página Institucional', description: 'Modelo para páginas como Sobre, FAQ, Políticas', icon: '📄', isTemplate: true },
 };
 
 export default function StorefrontBuilder() {
@@ -296,7 +295,6 @@ export default function StorefrontBuilder() {
             <CardContent className="pt-0">
               <div className="divide-y divide-border rounded-lg border">
                 {(Object.keys(pageTypeInfo) as PageType[])
-                  .filter(pt => !pageTypeInfo[pt].isTemplate) // Exclude template pages from this section
                   .map((pageType) => {
                   const info = pageTypeInfo[pageType];
                   const template = templates?.find(t => t.page_type === pageType);
@@ -386,87 +384,6 @@ export default function StorefrontBuilder() {
                   );
                 })}
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Page Templates Section */}
-          <Card>
-            <CardHeader className="pb-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-blue-500/10">
-                  <span className="text-xl">📄</span>
-                </div>
-                <div>
-                  <CardTitle className="text-lg">Modelos de Página</CardTitle>
-                  <CardDescription>
-                    Modelos reutilizáveis para páginas institucionais e de conteúdo
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="divide-y divide-border rounded-lg border">
-                {(Object.keys(pageTypeInfo) as PageType[])
-                  .filter(pt => pageTypeInfo[pt].isTemplate)
-                  .map((pageType) => {
-                  const info = pageTypeInfo[pageType];
-                  const template = templates?.find(t => t.page_type === pageType);
-                  const hasPublished = !!template?.published_version;
-                  const hasDraft = !!template?.draft_version;
-                  const lastUpdated = template?.updated_at;
-
-                  return (
-                    <div 
-                      key={pageType} 
-                      className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg">{info.icon}</span>
-                        <div>
-                          <p className="font-medium text-sm">{info.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {info.description}
-                            {lastUpdated && (
-                              <span className="ml-2">
-                                · {format(new Date(lastUpdated), "dd/MM 'às' HH:mm", { locale: ptBR })}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {hasPublished ? (
-                          <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-200 gap-1 text-xs">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Publicado
-                          </Badge>
-                        ) : hasDraft ? (
-                          <Badge variant="secondary" className="gap-1 text-xs">
-                            <Clock className="h-3 w-3" />
-                            Rascunho
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-muted-foreground text-xs">
-                            Não editado
-                          </Badge>
-                        )}
-                        <div className="flex gap-1">
-                          <Button
-                            onClick={() => navigate(`/storefront/builder?edit=${pageType}`)}
-                            variant="ghost"
-                            size="sm"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground mt-3">
-                Alterações no modelo de Página Institucional serão aplicadas a todas as páginas que usam esse modelo.
-              </p>
             </CardContent>
           </Card>
         </>
