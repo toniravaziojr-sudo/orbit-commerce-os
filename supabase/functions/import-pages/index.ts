@@ -1027,11 +1027,12 @@ async function importPage(
         tenant_id: tenantId,
         title: finalTitle,
         slug: page.slug.replace(/^\/+/, ''), // Remove leading slashes
-        page_type: 'custom',
+        type: 'custom',
         content: pageContent,
         seo_title: seoTitle.substring(0, 60),
         seo_description: seoDescription.substring(0, 160),
-        is_active: true,
+        is_published: false, // Start as draft
+        status: 'draft',
         is_system: false,
       })
       .select('id')
