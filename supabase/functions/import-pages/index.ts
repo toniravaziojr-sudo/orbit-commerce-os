@@ -1027,7 +1027,7 @@ async function importPage(
         tenant_id: tenantId,
         title: finalTitle,
         slug: page.slug.replace(/^\/+/, ''), // Remove leading slashes
-        type: 'custom',
+        type: 'institutional',
         content: pageContent,
         seo_title: seoTitle.substring(0, 60),
         seo_description: seoDescription.substring(0, 160),
