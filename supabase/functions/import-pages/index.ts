@@ -644,16 +644,36 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = infoResult.remainingHtml;
   }
 
-  // 6. RichText fallback for remaining text content
+  // 6. Fallback: Check if remaining content is complex (candidate for CustomBlock)
   const cleanedRemaining = stripHtml(remainingContent);
+  const patternInfo = detectComplexPattern(remainingContent);
+  
   if (cleanedRemaining.length > 50) {
-    console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
-    blocks.push({
-      id: generateBlockId('richtext'),
-      type: 'RichText',
-      props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
-      children: [],
-    });
+    if (patternInfo.isComplex && patternInfo.confidence >= 0.6) {
+      // Complex pattern detected - mark for CustomBlock creation
+      // We'll use a placeholder that importPage will replace with actual CustomBlock
+      console.log(`[MAPPER] Detected complex pattern: ${patternInfo.patternName} (${Math.round(patternInfo.confidence * 100)}% confidence)`);
+      blocks.push({
+        id: generateBlockId('customblock-pending'),
+        type: '__CustomBlockPending__', // Placeholder, will be replaced in importPage
+        props: { 
+          htmlContent: remainingContent.trim(),
+          patternType: patternInfo.patternType,
+          patternName: patternInfo.patternName,
+          confidence: patternInfo.confidence,
+        },
+        children: [],
+      });
+    } else {
+      // Simple text content - use RichText
+      console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
+      blocks.push({
+        id: generateBlockId('richtext'),
+        type: 'RichText',
+        props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
+        children: [],
+      });
+    }
   }
 
   // If no blocks at all, add a RichText with original content
@@ -685,6 +705,229 @@ function createPageWithMappedBlocks(html: string, pageTitle: string): BlockNode 
     }],
   };
 }
+
+// =============================================
+// CUSTOM BLOCK FALLBACK - For complex HTML patterns
+// =============================================
+
+// Detect if remaining HTML has complex visual structure worth preserving
+function detectComplexPattern(html: string): { 
+  isComplex: boolean; 
+  patternType: string; 
+  confidence: number;
+  patternName: string;
+} {
+  const trimmedHtml = html.trim();
+  if (!trimmedHtml || trimmedHtml.length < 100) {
+    return { isComplex: false, patternType: 'simple', confidence: 0, patternName: '' };
+  }
+
+  // Count structural indicators
+  const divCount = (trimmedHtml.match(/<div/gi) || []).length;
+  const classCount = (trimmedHtml.match(/class="/gi) || []).length;
+  const styleCount = (trimmedHtml.match(/style="/gi) || []).length;
+  const gridFlexCount = (trimmedHtml.match(/grid|flex|display:/gi) || []).length;
+  const imgCount = (trimmedHtml.match(/<img/gi) || []).length;
+  const nestedDivs = (trimmedHtml.match(/<div[^>]*>.*?<div/gi) || []).length;
+
+  // Pattern detection
+  const patterns: { type: string; name: string; score: number }[] = [];
+
+  // Hero/Banner pattern: large container with background/image
+  if (/hero|banner|jumbotron|cover/i.test(trimmedHtml) || 
+      (imgCount >= 1 && divCount >= 3 && /background/i.test(trimmedHtml))) {
+    patterns.push({ type: 'hero', name: 'Hero/Banner Section', score: 0.8 });
+  }
+
+  // Grid/Card layout: multiple similar items
+  if (gridFlexCount >= 1 && divCount >= 4) {
+    patterns.push({ type: 'grid', name: 'Grid/Card Layout', score: 0.7 });
+  }
+
+  // Feature section: icons + text blocks
+  if (divCount >= 4 && (trimmedHtml.includes('svg') || trimmedHtml.includes('icon'))) {
+    patterns.push({ type: 'features', name: 'Features Section', score: 0.7 });
+  }
+
+  // Gallery: multiple images
+  if (imgCount >= 3) {
+    patterns.push({ type: 'gallery', name: 'Image Gallery', score: 0.8 });
+  }
+
+  // Timeline/Steps: numbered or sequential content
+  if (/step|timeline|processo|etapa|passo/i.test(trimmedHtml)) {
+    patterns.push({ type: 'timeline', name: 'Timeline/Steps', score: 0.75 });
+  }
+
+  // Pricing table
+  if (/pre[çc]o|price|plan|plano/i.test(trimmedHtml) && divCount >= 3) {
+    patterns.push({ type: 'pricing', name: 'Pricing Table', score: 0.8 });
+  }
+
+  // Generic complex structure
+  const complexityScore = (divCount * 0.1) + (classCount * 0.15) + (nestedDivs * 0.2) + (gridFlexCount * 0.3);
+  if (complexityScore > 1.5) {
+    patterns.push({ type: 'complex', name: 'Complex Layout', score: Math.min(complexityScore / 3, 0.9) });
+  }
+
+  // Return highest scoring pattern
+  if (patterns.length > 0) {
+    const best = patterns.sort((a, b) => b.score - a.score)[0];
+    return { isComplex: true, patternType: best.type, confidence: best.score, patternName: best.name };
+  }
+
+  return { isComplex: false, patternType: 'simple', confidence: 0, patternName: '' };
+}
+
+// Generate a hash for pattern deduplication
+function generatePatternHash(html: string): string {
+  // Simple hash based on structure (tag sequence) rather than content
+  const structureOnly = html
+    .replace(/>[\s\S]*?</g, '><') // Remove text content
+    .replace(/\s+/g, '') // Remove whitespace
+    .replace(/id="[^"]*"/g, '') // Remove IDs
+    .replace(/src="[^"]*"/g, 'src=""') // Normalize sources
+    .slice(0, 500); // Take first 500 chars of structure
+
+  // Simple hash
+  let hash = 0;
+  for (let i = 0; i < structureOnly.length; i++) {
+    const char = structureOnly.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+// Create CustomBlock and notification for admin
+async function createCustomBlockFallback(
+  supabase: any,
+  tenantId: string,
+  html: string,
+  css: string | null,
+  sourceUrl: string,
+  platform: string,
+  patternInfo: { patternType: string; patternName: string; confidence: number }
+): Promise<BlockNode | null> {
+  try {
+    const patternHash = generatePatternHash(html);
+    const blockType = `custom_${patternInfo.patternType}_${patternHash.substring(0, 8)}`;
+    const blockName = patternInfo.patternName || 'Conteúdo Importado';
+
+    console.log(`[CUSTOM] Creating CustomBlock: ${blockType} (${patternInfo.patternName})`);
+
+    // Check if similar pattern already exists (deduplication by hash)
+    const { data: existingBlock } = await supabase
+      .from('custom_blocks')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('pattern_hash', patternHash)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    let customBlockId: string;
+
+    if (existingBlock) {
+      console.log(`[CUSTOM] Found existing CustomBlock with same pattern: ${existingBlock.id}`);
+      customBlockId = existingBlock.id;
+
+      // Increment occurrence count in request - first fetch current count
+      const { data: existingRequest } = await supabase
+        .from('block_implementation_requests')
+        .select('id, occurrences_count')
+        .eq('custom_block_id', customBlockId)
+        .eq('status', 'pending')
+        .maybeSingle();
+
+      if (existingRequest) {
+        await supabase
+          .from('block_implementation_requests')
+          .update({ 
+            occurrences_count: (existingRequest.occurrences_count || 1) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingRequest.id);
+      }
+    } else {
+      // Create new custom_block
+      const { data: newBlock, error: blockError } = await supabase
+        .from('custom_blocks')
+        .insert({
+          tenant_id: tenantId,
+          block_type: blockType,
+          name: blockName,
+          html_template: html,
+          css_snapshot: css,
+          detected_pattern: {
+            type: patternInfo.patternType,
+            name: patternInfo.patternName,
+            confidence: patternInfo.confidence,
+          },
+          source_url: sourceUrl,
+          source_platform: platform,
+          pattern_hash: patternHash,
+          status: 'active',
+        })
+        .select('id')
+        .single();
+
+      if (blockError) {
+        console.error('[CUSTOM] Error creating custom_block:', blockError);
+        return null;
+      }
+
+      customBlockId = newBlock.id;
+      console.log(`[CUSTOM] Created custom_block: ${customBlockId}`);
+
+      // Create implementation request for admin notification
+      const { error: requestError } = await supabase
+        .from('block_implementation_requests')
+        .insert({
+          tenant_id: tenantId,
+          custom_block_id: customBlockId,
+          pattern_name: blockName,
+          pattern_description: `Padrão detectado: ${patternInfo.patternType} (confiança: ${Math.round(patternInfo.confidence * 100)}%)`,
+          html_sample: html.substring(0, 5000), // Limit size
+          css_sample: css?.substring(0, 2000) || null,
+          source_url: sourceUrl,
+          source_platform: platform,
+          suggested_props: {
+            patternType: patternInfo.patternType,
+            confidence: patternInfo.confidence,
+          },
+          occurrences_count: 1,
+          status: 'pending',
+        });
+
+      if (requestError) {
+        console.warn('[CUSTOM] Error creating implementation request:', requestError);
+        // Non-fatal, continue
+      } else {
+        console.log(`[CUSTOM] Created implementation request for admin`);
+      }
+    }
+
+    // Return CustomBlock node
+    return {
+      id: generateBlockId('customblock'),
+      type: 'CustomBlock',
+      props: {
+        customBlockId: customBlockId,
+        htmlContent: '', // Will be fetched from DB
+        cssContent: '',
+        blockName: blockName,
+      },
+      children: [],
+    };
+  } catch (error) {
+    console.error('[CUSTOM] Exception in createCustomBlockFallback:', error);
+    return null;
+  }
+}
+
+// =============================================
+// END CUSTOM BLOCK FALLBACK
+// =============================================
 
 // =============================================
 // END CONTENT-TO-BLOCK MAPPER v3
@@ -1010,9 +1253,48 @@ async function importPage(
     console.log(`[IMPORT] Creating page structure for: ${finalTitle}`);
     const pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
     
-    // Log the blocks being created
+    // Process any pending CustomBlock placeholders
     const section = pageContent.children[0];
     if (section && section.children) {
+      for (let i = 0; i < section.children.length; i++) {
+        const block = section.children[i];
+        if (block.type === '__CustomBlockPending__') {
+          console.log(`[IMPORT] Processing CustomBlock placeholder...`);
+          const customBlock = await createCustomBlockFallback(
+            supabase,
+            tenantId,
+            block.props.htmlContent as string,
+            null, // No CSS capture for now
+            page.url,
+            'import',
+            {
+              patternType: block.props.patternType as string,
+              patternName: block.props.patternName as string,
+              confidence: block.props.confidence as number,
+            }
+          );
+          
+          if (customBlock) {
+            section.children[i] = customBlock;
+            console.log(`[IMPORT] Created CustomBlock: ${customBlock.props.customBlockId}`);
+          } else {
+            // Fallback to RichText if CustomBlock creation failed
+            section.children[i] = {
+              id: generateBlockId('richtext'),
+              type: 'RichText',
+              props: { 
+                content: block.props.htmlContent as string || '<p>Conteúdo da página...</p>', 
+                fontFamily: 'inherit', 
+                fontSize: 'base', 
+                fontWeight: 'normal' 
+              },
+              children: [],
+            };
+            console.log(`[IMPORT] CustomBlock failed, using RichText fallback`);
+          }
+        }
+      }
+      
       console.log(`[IMPORT] Page blocks: ${section.children.map((b: BlockNode) => `${b.type}(${b.type === 'FAQ' ? (b.props.items as FAQItem[])?.length + ' items' : ''})`).join(', ')}`);
     }
     
