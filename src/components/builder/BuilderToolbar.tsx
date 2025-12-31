@@ -147,6 +147,23 @@ export function BuilderToolbar({
     enabled: !!currentTenant?.id && pageType === 'category',
   });
 
+  // Fetch institutional and landing pages for the dropdown
+  const { data: storePages } = useQuery({
+    queryKey: ['builder-store-pages', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('id, title, slug, type')
+        .eq('tenant_id', currentTenant.id)
+        .in('type', ['institutional', 'landing_page'])
+        .order('title');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentTenant?.id,
+  });
+
   // Auto-select first product/category if none selected
   const effectiveProductId = exampleProductId || (products?.length ? products[0].id : undefined);
   const effectiveCategoryId = exampleCategoryId || (categories?.length ? categories[0].id : undefined);
@@ -195,14 +212,25 @@ export function BuilderToolbar({
     }
   };
 
-  const handlePageChange = (newPageType: string) => {
+  const handlePageChange = (value: string) => {
     if (isDirty) {
       if (!confirm('Você tem alterações não salvas. Deseja trocar de página?')) {
         return;
       }
     }
-    navigate(`/storefront/builder?edit=${newPageType}`);
+    
+    // Check if it's a page ID (for institutional/landing pages)
+    if (value.startsWith('page:')) {
+      const pageId = value.replace('page:', '');
+      navigate(`/pages/${pageId}/builder`);
+    } else {
+      navigate(`/storefront/builder?edit=${value}`);
+    }
   };
+
+  // Separate institutional and landing pages
+  const institutionalPages = storePages?.filter(p => p.type === 'institutional') || [];
+  const landingPages = storePages?.filter(p => p.type === 'landing_page') || [];
 
   return (
     <div className="h-14 flex items-center justify-between px-4 bg-background border-b shadow-sm">
@@ -223,10 +251,10 @@ export function BuilderToolbar({
         
         {/* Page Selector */}
         <Select value={pageType} onValueChange={handlePageChange}>
-          <SelectTrigger className="w-[180px] h-9 font-medium">
+          <SelectTrigger className="w-[200px] h-9 font-medium">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[400px]">
             <SelectItem value="home">🏠 Página Inicial</SelectItem>
             <SelectItem value="category">📁 Categoria</SelectItem>
             <SelectItem value="product">📦 Produto</SelectItem>
@@ -238,7 +266,34 @@ export function BuilderToolbar({
             <SelectItem value="account_order_detail">📄 Pedido</SelectItem>
             <SelectItem value="tracking">📍 Rastreio</SelectItem>
             <SelectItem value="blog">📰 Blog</SelectItem>
-            <SelectItem value="institutional">📄 Página Institucional</SelectItem>
+            
+            {/* Institutional Pages */}
+            {institutionalPages.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                  Páginas Institucionais
+                </div>
+                {institutionalPages.map((page) => (
+                  <SelectItem key={page.id} value={`page:${page.id}`}>
+                    📄 {page.title}
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            
+            {/* Landing Pages */}
+            {landingPages.length > 0 && (
+              <>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                  Landing Pages
+                </div>
+                {landingPages.map((page) => (
+                  <SelectItem key={page.id} value={`page:${page.id}`}>
+                    🚀 {page.title}
+                  </SelectItem>
+                ))}
+              </>
+            )}
           </SelectContent>
         </Select>
 
