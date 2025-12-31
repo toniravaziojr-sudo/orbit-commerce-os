@@ -1,5 +1,5 @@
 // =====================================================
-// CONTENT-TO-BLOCK MAPPER
+// CONTENT-TO-BLOCK MAPPER v3
 // =====================================================
 // 
 // This module analyzes imported HTML content and intelligently maps it 
@@ -12,14 +12,15 @@
 // CURRENTLY SUPPORTED MAPPINGS:
 // - FAQ content → 'FAQ' block (minimum 2 items required)
 // - Testimonials → 'Testimonials' block (minimum 2 items required)
-// - Contact Info → 'InfoHighlights' block (when contact patterns detected)
+// - Contact/Policy Info → 'InfoHighlights' block (minimum 3 items required)
 // - Remaining text → 'RichText' block (fallback)
 //
-// TO ADD NEW BLOCK MAPPING:
-// 1. Create extraction function (e.g., extractContactInfo)
-// 2. Add detection logic in analyzeAndMapContent
-// 3. Ensure block type exists in registry.ts
-// 4. Ensure block is in BlockPalette.tsx visibleBlockTypes
+// EXTRACTION STRATEGIES (priority order):
+// 1. Shopify-style nested accordions (categories with questions)
+// 2. Numbered Q&A pairs (1. Question? Answer...)
+// 3. <details>/<summary> HTML elements
+// 4. Bold questions with text answers
+// 5. Heading questions followed by paragraphs
 // =====================================================
 
 interface FAQItem {
@@ -34,6 +35,7 @@ interface TestimonialItem {
 }
 
 interface InfoHighlightItem {
+  id: string;
   icon: string;
   title: string;
   description: string;
@@ -46,294 +48,10 @@ interface BlockNode {
   children: BlockNode[];
 }
 
-interface ContentAnalysis {
-  hasFAQ: boolean;
-  faqItems: FAQItem[];
-  faqTitle: string;
-  hasTestimonials: boolean;
-  testimonialItems: TestimonialItem[];
-  testimonialTitle: string;
-  hasInfoHighlights: boolean;
-  infoHighlightItems: InfoHighlightItem[];
-  remainingHtml: string;
-}
-
 // Generate unique block ID
 function generateBlockId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
-
-// =====================================================
-// FAQ EXTRACTION
-// Block type: 'FAQ' (from registry.ts)
-// =====================================================
-function extractFAQItems(html: string): { items: FAQItem[]; title: string; remainingHtml: string } {
-  const items: FAQItem[] = [];
-  let title = 'Perguntas Frequentes';
-  let remainingHtml = html;
-
-  // First, try to find the FAQ title
-  const faqTitlePatterns = [
-    /<h[1-6][^>]*>([^<]*(?:perguntas?\s*frequentes?|faq|dúvidas?\s*comuns?)[^<]*)<\/h[1-6]>/gi,
-    /<strong>([^<]*(?:perguntas?\s*frequentes?|faq)[^<]*)<\/strong>/gi,
-  ];
-
-  for (const pattern of faqTitlePatterns) {
-    const match = pattern.exec(html);
-    if (match) {
-      title = match[1].trim().replace(/\s*\(FAQ\)\s*/gi, '').trim() || title;
-      break;
-    }
-  }
-
-  // Pattern 1: Numbered question/answer pairs
-  // Example: "1. O site é seguro? Sim! Nosso site é oficial..."
-  const numberedQAPattern = /(\d+)\.\s*([^?]+\?)\s*([^1-9]+?)(?=\d+\.\s*[^?]+\?|$)/g;
-  let match;
-  
-  const tempHtml = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-  
-  while ((match = numberedQAPattern.exec(tempHtml)) !== null) {
-    const question = match[2].trim();
-    const answer = match[3].trim();
-    
-    if (question.length > 10 && answer.length > 10) {
-      items.push({
-        question: cleanText(question),
-        answer: cleanText(answer),
-      });
-    }
-  }
-
-  // Pattern 2: <details>/<summary> patterns (accordion-like)
-  const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([^<]+)<\/summary>\s*([\s\S]*?)<\/details>/gi;
-  let tempHtml2 = html;
-  
-  while ((match = detailsPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    const answer = stripHtml(match[2]).trim();
-    
-    if (question.length > 5 && answer.length > 5) {
-      items.push({
-        question: cleanText(question),
-        answer: cleanText(answer),
-      });
-      tempHtml2 = tempHtml2.replace(match[0], '');
-    }
-  }
-
-  // Pattern 3: Bold questions followed by regular text
-  // Example: <strong>Pergunta?</strong> Resposta aqui...
-  const boldQAPattern = /<(?:strong|b)>([^<]*\?)<\/(?:strong|b)>\s*([^<]+)/gi;
-  
-  while ((match = boldQAPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    const answer = match[2].trim();
-    
-    if (question.length > 10 && answer.length > 20) {
-      if (!items.some(i => i.question.includes(question.substring(0, 20)))) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-      }
-    }
-  }
-
-  // Pattern 4: H3/H4 with question mark followed by paragraph
-  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*<p[^>]*>([^<]+)<\/p>/gi;
-  
-  while ((match = headingQAPattern.exec(html)) !== null) {
-    const question = match[1].trim();
-    const answer = match[2].trim();
-    
-    if (question.length > 10 && answer.length > 20) {
-      if (!items.some(i => i.question.includes(question.substring(0, 20)))) {
-        items.push({
-          question: cleanText(question),
-          answer: cleanText(answer),
-        });
-      }
-    }
-  }
-
-  // Pattern 5: Div-based FAQ structures (common in e-commerce)
-  const divFAQPattern = /<div[^>]*class="[^"]*(?:faq-item|accordion-item|pergunta)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-  
-  while ((match = divFAQPattern.exec(html)) !== null) {
-    const content = match[1];
-    const questionMatch = /<(?:h[3-6]|strong|b|span[^>]*class="[^"]*question)[^>]*>([^<]+)</i.exec(content);
-    const answerMatch = /<(?:p|div[^>]*class="[^"]*answer)[^>]*>([\s\S]+?)<\/(?:p|div)>/i.exec(content);
-    
-    if (questionMatch && answerMatch) {
-      const question = questionMatch[1].trim();
-      const answer = stripHtml(answerMatch[1]).trim();
-      
-      if (question.length > 5 && answer.length > 10) {
-        if (!items.some(i => i.question.includes(question.substring(0, Math.min(20, question.length))))) {
-          items.push({
-            question: cleanText(question),
-            answer: cleanText(answer),
-          });
-        }
-      }
-    }
-  }
-
-  // If we found FAQ items, remove the FAQ section from remaining HTML
-  if (items.length >= 2) {
-    const faqSectionPatterns = [
-      /<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi,
-      /<h[1-6][^>]*>[^<]*(?:perguntas?\s*frequentes?|faq)[^<]*<\/h[1-6]>[\s\S]*?(?=<h[1-3]|<footer|<\/main|$)/gi,
-    ];
-    
-    for (const pattern of faqSectionPatterns) {
-      remainingHtml = remainingHtml.replace(pattern, '');
-    }
-    
-    remainingHtml = remainingHtml.replace(/\d+\.\s*[^?]+\?\s*[^1-9]+?(?=\d+\.\s*[^?]+\?|<\/|$)/g, '');
-  }
-
-  return { items, title, remainingHtml };
-}
-
-// =====================================================
-// TESTIMONIALS EXTRACTION
-// Block type: 'Testimonials' (from registry.ts)
-// =====================================================
-function extractTestimonials(html: string): { items: TestimonialItem[]; title: string; remainingHtml: string } {
-  const items: TestimonialItem[] = [];
-  let title = 'Depoimentos';
-  let remainingHtml = html;
-
-  // Look for testimonial title
-  const testimonialTitlePatterns = [
-    /<h[1-6][^>]*>([^<]*(?:depoimentos?|avalia[çc][õo]es?|feedback|o\s+que\s+dizem)[^<]*)<\/h[1-6]>/gi,
-  ];
-
-  for (const pattern of testimonialTitlePatterns) {
-    const match = pattern.exec(html);
-    if (match) {
-      title = match[1].trim() || title;
-      break;
-    }
-  }
-
-  let match;
-
-  // Pattern 1: Blockquotes with attribution
-  const blockquotePattern = /<blockquote[^>]*>\s*(?:<p[^>]*>)?([^<]+)(?:<\/p>)?\s*(?:<cite[^>]*>|<footer[^>]*>|—|-)?\s*([^<]+)?<\/(?:cite|footer|blockquote)>/gi;
-  
-  while ((match = blockquotePattern.exec(html)) !== null) {
-    const text = match[1].trim();
-    const name = match[2]?.trim() || 'Cliente';
-    
-    if (text.length > 20) {
-      items.push({
-        name: cleanText(name),
-        text: cleanText(text),
-        rating: 5,
-      });
-    }
-  }
-
-  // Pattern 2: Testimonial divs with common classes
-  const testimonialDivPattern = /<div[^>]*class="[^"]*(?:testimonial|depoimento|review|avaliacao|feedback)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
-  
-  while ((match = testimonialDivPattern.exec(html)) !== null) {
-    const content = match[1];
-    const textMatch = /<p[^>]*>([^<]+)<\/p>/i.exec(content);
-    const nameMatch = /(?:—|-|by|por)\s*([^<]+)/i.exec(content) || /<(?:strong|b|cite)>([^<]+)<\/(?:strong|b|cite)>/i.exec(content);
-    
-    if (textMatch) {
-      items.push({
-        name: nameMatch?.[1]?.trim() || 'Cliente',
-        text: cleanText(textMatch[1]),
-        rating: 5,
-      });
-    }
-  }
-
-  // Pattern 3: Star rating with text (common in e-commerce)
-  const ratingPattern = /(?:★{4,5}|⭐{4,5}|5\s*(?:estrelas?|stars?))\s*[—-]?\s*"?([^"<]+)"?\s*[—-]?\s*([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú]\.?)?)/gi;
-  
-  while ((match = ratingPattern.exec(html)) !== null) {
-    const text = match[1].trim();
-    const name = match[2].trim();
-    
-    if (text.length > 10 && !items.some(i => i.text.includes(text.substring(0, 20)))) {
-      items.push({
-        name: cleanText(name),
-        text: cleanText(text),
-        rating: 5,
-      });
-    }
-  }
-
-  // If found testimonials, try to remove from remaining HTML
-  if (items.length >= 2) {
-    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*class="[^"]*(?:testimonial|depoimento|review|feedback)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
-  }
-
-  return { items, title, remainingHtml };
-}
-
-// =====================================================
-// INFO HIGHLIGHTS EXTRACTION
-// Block type: 'InfoHighlights' (from registry.ts)
-// Detects: Contact info, policies, shipping info, etc.
-// =====================================================
-function extractInfoHighlights(html: string): { items: InfoHighlightItem[]; remainingHtml: string } {
-  const items: InfoHighlightItem[] = [];
-  let remainingHtml = html;
-
-  // Common patterns for info highlights
-  const infoPatterns = [
-    // Shipping/delivery
-    { pattern: /(?:frete\s*gr[áa]tis|entrega\s*r[áa]pida|envio\s*em\s*\d+)/gi, icon: 'Truck', title: 'Entrega' },
-    // Security
-    { pattern: /(?:site\s*seguro|compra\s*segura|pagamento\s*seguro|ssl|https)/gi, icon: 'Shield', title: 'Segurança' },
-    // Payment
-    { pattern: /(?:parcelamento|pague\s*em\s*at[ée]\s*\d+x|cart[ãa]o|boleto|pix)/gi, icon: 'CreditCard', title: 'Pagamento' },
-    // Support
-    { pattern: /(?:atendimento|suporte|whatsapp|telefone|chat)/gi, icon: 'Headphones', title: 'Atendimento' },
-    // Guarantee
-    { pattern: /(?:garantia|troca\s*gr[áa]tis|devolu[çc][ãa]o)/gi, icon: 'Award', title: 'Garantia' },
-  ];
-
-  // Check text content for info patterns
-  const textContent = stripHtml(html).toLowerCase();
-  
-  for (const { pattern, icon, title } of infoPatterns) {
-    const match = pattern.exec(textContent);
-    if (match) {
-      // Extract surrounding context for description
-      const matchIndex = textContent.indexOf(match[0].toLowerCase());
-      const start = Math.max(0, matchIndex - 20);
-      const end = Math.min(textContent.length, matchIndex + match[0].length + 50);
-      const context = textContent.substring(start, end).trim();
-      
-      if (!items.some(i => i.title === title)) {
-        items.push({
-          icon,
-          title,
-          description: cleanText(context.charAt(0).toUpperCase() + context.slice(1)),
-        });
-      }
-    }
-  }
-
-  // Only return if we found multiple info items (to warrant a block)
-  if (items.length < 3) {
-    return { items: [], remainingHtml };
-  }
-
-  return { items, remainingHtml };
-}
-
-// =====================================================
-// UTILITY FUNCTIONS
-// =====================================================
 
 // Clean text by removing extra whitespace and HTML entities
 function cleanText(text: string): string {
@@ -354,31 +72,439 @@ function stripHtml(html: string): string {
 }
 
 // =====================================================
-// MAIN MAPPING FUNCTION
+// FAQ EXTRACTION - Enhanced with 6 strategies
+// Block type: 'FAQ' (from registry.ts)
 // =====================================================
-// 
+function extractFAQItems(html: string): { items: FAQItem[]; title: string; remainingHtml: string } {
+  const items: FAQItem[] = [];
+  let title = 'Perguntas Frequentes';
+  let remainingHtml = html;
+  const plainText = stripHtml(html);
+
+  console.log(`[FAQ] Starting extraction, HTML: ${html.length} chars, Text: ${plainText.length} chars`);
+
+  // Find FAQ title
+  const faqTitlePatterns = [
+    /<h[1-6][^>]*>([^<]*(?:perguntas?\s*frequentes?|faq|dúvidas?\s*comuns?)[^<]*)<\/h[1-6]>/gi,
+    /<strong>([^<]*(?:perguntas?\s*frequentes?|faq)[^<]*)<\/strong>/gi,
+  ];
+
+  for (const pattern of faqTitlePatterns) {
+    const match = pattern.exec(html);
+    if (match) {
+      title = cleanText(match[1].replace(/\s*\(FAQ\)\s*/gi, '')) || title;
+      console.log(`[FAQ] Found title: ${title}`);
+      break;
+    }
+  }
+
+  // Helper to add unique item
+  const addUniqueItem = (question: string, answer: string, source: string) => {
+    question = cleanText(question);
+    answer = cleanText(answer);
+    
+    // Validation
+    if (question.length < 10 || answer.length < 15) return false;
+    if (!question.includes('?')) return false;
+    
+    // Check for duplicates
+    const isDuplicate = items.some(i => {
+      const q1 = i.question.toLowerCase().substring(0, 30);
+      const q2 = question.toLowerCase().substring(0, 30);
+      return q1 === q2 || i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20));
+    });
+    
+    if (isDuplicate) return false;
+    
+    items.push({ question, answer });
+    console.log(`[FAQ] Added (${source}): "${question.substring(0, 50)}..."`);
+    return true;
+  };
+
+  // ===== STRATEGY 1: Numbered Q&A pairs in plain text =====
+  // Pattern: "1. Question here? Answer text..." 
+  // Handles: "1. O site é seguro? Como tenho garantia...? Sim! Nosso site..."
+  console.log(`[FAQ] Strategy 1: Numbered Q&A`);
+  
+  // Split by numbered items
+  const numberedSections = plainText.split(/(?=\d+\.\s+[A-ZÀ-Ú])/);
+  
+  for (const section of numberedSections) {
+    // Match: number. Question? Answer...
+    const match = /^(\d+)\.\s*(.+?\?)\s*(.+)$/s.exec(section.trim());
+    if (match) {
+      let question = match[2].trim();
+      let answer = match[3].trim();
+      
+      // If question has multiple ?, take first complete question
+      const questionParts = question.match(/[^?]+\?/g);
+      if (questionParts && questionParts.length > 1) {
+        question = questionParts[0].trim();
+        // Append remaining as part of answer
+        answer = questionParts.slice(1).join(' ').trim() + ' ' + answer;
+      }
+      
+      // Cut answer at next numbered question or category header
+      const cutPoints = [
+        answer.search(/\s+\d+\.\s+[A-ZÀ-Ú]/),
+        answer.search(/\s+[A-ZÀ-Ú]{4,}\s+[&E]\s+[A-ZÀ-Ú]{4,}/),
+      ].filter(p => p > 50);
+      
+      if (cutPoints.length > 0) {
+        answer = answer.substring(0, Math.min(...cutPoints)).trim();
+      }
+      
+      addUniqueItem(question, answer, 'numbered');
+    }
+  }
+
+  // ===== STRATEGY 2: <details>/<summary> HTML accordions =====
+  console.log(`[FAQ] Strategy 2: Details/Summary`);
+  
+  const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([\s\S]*?)<\/summary>\s*([\s\S]*?)<\/details>/gi;
+  let match;
+  
+  while ((match = detailsPattern.exec(html)) !== null) {
+    const question = stripHtml(match[1]).trim();
+    const answer = stripHtml(match[2]).trim();
+    
+    // Skip category headers (all caps)
+    if (/^[A-ZÀ-Ú\s&]+$/.test(question)) continue;
+    
+    addUniqueItem(question, answer, 'details');
+  }
+
+  // ===== STRATEGY 3: Shopify collapsible patterns =====
+  console.log(`[FAQ] Strategy 3: Collapsible divs`);
+  
+  const collapsiblePatterns = [
+    /<div[^>]*class="[^"]*collapsible[^"]*"[^>]*>[\s\S]*?<(?:button|summary)[^>]*>([^<]+)<\/(?:button|summary)>[\s\S]*?<div[^>]*class="[^"]*(?:content|body|panel)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<div[^>]*class="[^"]*accordion[^"]*"[^>]*>[\s\S]*?<(?:button|h[3-6])[^>]*>([^<]+)<\/(?:button|h[3-6])>[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  for (const pattern of collapsiblePatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const question = stripHtml(match[1]).trim();
+      const answer = stripHtml(match[2]).trim();
+      
+      // Skip category headers
+      if (/^[A-ZÀ-Ú\s&]+$/.test(question) && !question.includes('?')) continue;
+      
+      addUniqueItem(question, answer, 'collapsible');
+    }
+  }
+
+  // ===== STRATEGY 4: Bold questions with text answers =====
+  console.log(`[FAQ] Strategy 4: Bold Q&A`);
+  
+  const boldPatterns = [
+    /<(?:strong|b)>\s*\d*\.?\s*([^<]*\?)<\/(?:strong|b)>\s*(?:<br\s*\/?>|<\/p>\s*<p>)?\s*([^<]+)/gi,
+    /<(?:strong|b)>([^<]*\?)<\/(?:strong|b)>(?:<\/p>)?\s*<p>([^<]+)/gi,
+  ];
+  
+  for (const pattern of boldPatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const question = match[1].trim();
+      const answer = match[2].trim();
+      addUniqueItem(question, answer, 'bold');
+    }
+  }
+
+  // ===== STRATEGY 5: H3/H4/H5 with question followed by paragraph =====
+  console.log(`[FAQ] Strategy 5: Heading Q&A`);
+  
+  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*(?:<[^>]+>)*\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
+  
+  while ((match = headingQAPattern.exec(html)) !== null) {
+    const question = match[1].trim();
+    const answer = stripHtml(match[2]).trim();
+    addUniqueItem(question, answer, 'heading');
+  }
+
+  // ===== STRATEGY 6: Div-based FAQ structures =====
+  console.log(`[FAQ] Strategy 6: FAQ divs`);
+  
+  const divFAQPattern = /<div[^>]*class="[^"]*(?:faq-item|question-item|pergunta)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  
+  while ((match = divFAQPattern.exec(html)) !== null) {
+    const content = match[1];
+    const questionMatch = /<(?:h[3-6]|strong|span[^>]*class="[^"]*question)[^>]*>([^<]+)</i.exec(content);
+    const answerMatch = /<(?:p|div[^>]*class="[^"]*answer)[^>]*>([\s\S]+?)<\/(?:p|div)>/i.exec(content);
+    
+    if (questionMatch && answerMatch) {
+      addUniqueItem(questionMatch[1], stripHtml(answerMatch[1]), 'divFAQ');
+    }
+  }
+
+  console.log(`[FAQ] Total unique items: ${items.length}`);
+
+  // Remove FAQ section from remaining HTML if found items
+  if (items.length >= 2) {
+    const faqSectionPatterns = [
+      /<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi,
+    ];
+    
+    for (const pattern of faqSectionPatterns) {
+      remainingHtml = remainingHtml.replace(pattern, '');
+    }
+  }
+
+  return { items, title, remainingHtml };
+}
+
+// =====================================================
+// TESTIMONIALS EXTRACTION - Enhanced
+// Block type: 'Testimonials' (from registry.ts)
+// =====================================================
+function extractTestimonials(html: string): { items: TestimonialItem[]; title: string; remainingHtml: string } {
+  const items: TestimonialItem[] = [];
+  let title = 'Depoimentos';
+  let remainingHtml = html;
+  let match;
+
+  console.log(`[TESTIMONIALS] Starting extraction`);
+
+  // Find testimonial section title
+  const titlePatterns = [
+    /<h[1-6][^>]*>([^<]*(?:depoimentos?|avalia[çc][õo]es?|feedback|o\s+que\s+dizem|testemunhos?)[^<]*)<\/h[1-6]>/gi,
+  ];
+
+  for (const pattern of titlePatterns) {
+    match = pattern.exec(html);
+    if (match) {
+      title = cleanText(match[1]) || title;
+      break;
+    }
+  }
+
+  // Helper to add unique testimonial
+  const addUniqueItem = (name: string, text: string, rating: number, source: string) => {
+    name = cleanText(name);
+    text = cleanText(text);
+    
+    if (text.length < 20) return false;
+    if (items.some(i => i.text.substring(0, 30) === text.substring(0, 30))) return false;
+    
+    items.push({ name: name || 'Cliente', text, rating });
+    console.log(`[TESTIMONIALS] Added (${source}): "${text.substring(0, 40)}..." - ${name}`);
+    return true;
+  };
+
+  // Strategy 1: Blockquotes with attribution
+  const blockquotePattern = /<blockquote[^>]*>\s*(?:<p[^>]*>)?([\s\S]*?)(?:<\/p>)?\s*(?:<cite[^>]*>|<footer[^>]*>|—|-)?\s*([^<]*)?<\/(?:cite|footer|blockquote)>/gi;
+  
+  while ((match = blockquotePattern.exec(html)) !== null) {
+    const text = stripHtml(match[1]);
+    const name = stripHtml(match[2] || '');
+    addUniqueItem(name, text, 5, 'blockquote');
+  }
+
+  // Strategy 2: Testimonial divs with common classes
+  const testimonialDivPatterns = [
+    /<div[^>]*class="[^"]*(?:testimonial|depoimento|review|avaliacao|feedback)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<article[^>]*class="[^"]*(?:testimonial|depoimento|review)[^"]*"[^>]*>([\s\S]*?)<\/article>/gi,
+  ];
+  
+  for (const pattern of testimonialDivPatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const content = match[1];
+      const textMatch = /<p[^>]*>([\s\S]+?)<\/p>/i.exec(content);
+      const namePatterns = [
+        /(?:—|-|by|por)\s*([^<]+)/i,
+        /<(?:strong|b|cite|span[^>]*class="[^"]*name)[^>]*>([^<]+)<\/(?:strong|b|cite|span)>/i,
+      ];
+      
+      let name = '';
+      for (const np of namePatterns) {
+        const nm = np.exec(content);
+        if (nm) { name = nm[1]; break; }
+      }
+      
+      if (textMatch) {
+        addUniqueItem(name, stripHtml(textMatch[1]), 5, 'testimonialDiv');
+      }
+    }
+  }
+
+  // Strategy 3: Star ratings with quotes
+  const ratingPattern = /(?:★{4,5}|⭐{4,5}|5\s*(?:estrelas?|stars?))\s*[—-]?\s*"?([^"<]+)"?\s*[—-]?\s*([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú]\.?)?)/gi;
+  
+  while ((match = ratingPattern.exec(html)) !== null) {
+    addUniqueItem(match[2], match[1], 5, 'starRating');
+  }
+
+  // Strategy 4: Figure with figcaption (common pattern)
+  const figurePattern = /<figure[^>]*>[\s\S]*?<blockquote>([\s\S]*?)<\/blockquote>[\s\S]*?<figcaption>([\s\S]*?)<\/figcaption>[\s\S]*?<\/figure>/gi;
+  
+  while ((match = figurePattern.exec(html)) !== null) {
+    addUniqueItem(stripHtml(match[2]), stripHtml(match[1]), 5, 'figure');
+  }
+
+  console.log(`[TESTIMONIALS] Total: ${items.length}`);
+
+  // Remove testimonial sections from remaining HTML
+  if (items.length >= 2) {
+    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*class="[^"]*(?:testimonial|depoimento|review|feedback)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
+  }
+
+  return { items, title, remainingHtml };
+}
+
+// =====================================================
+// INFO HIGHLIGHTS EXTRACTION - Enhanced
+// Block type: 'InfoHighlights' (from registry.ts)
+// Detects: Shipping, payment, security, policies, contact info
+// =====================================================
+function extractInfoHighlights(html: string): { items: InfoHighlightItem[]; remainingHtml: string } {
+  const items: InfoHighlightItem[] = [];
+  let remainingHtml = html;
+  const textContent = stripHtml(html).toLowerCase();
+
+  console.log(`[INFO] Starting extraction`);
+
+  // Info patterns with icons (matching registry.ts InfoHighlights icons)
+  const infoPatterns = [
+    // Shipping/delivery
+    { 
+      patterns: [/frete\s*gr[áa]tis/i, /entrega\s*r[áa]pida/i, /envio\s*(?:em\s*)?\d+/i, /entrega\s*(?:em\s*)?\d+/i],
+      icon: 'Truck', 
+      title: 'Entrega',
+      defaultDesc: 'Entrega rápida e segura'
+    },
+    // Security
+    { 
+      patterns: [/site\s*seguro/i, /compra\s*segura/i, /pagamento\s*seguro/i, /cnpj\s*ativo/i, /ssl/i],
+      icon: 'Shield', 
+      title: 'Segurança',
+      defaultDesc: 'Compra 100% segura'
+    },
+    // Payment
+    { 
+      patterns: [/parcel(?:amento|e)\s*(?:em\s*)?\d+x/i, /at[ée]\s*\d+x\s*sem\s*juros/i, /pix\s*(?:\d+%|desconto)/i, /boleto/i, /cart[ãa]o/i],
+      icon: 'CreditCard', 
+      title: 'Pagamento',
+      defaultDesc: 'Diversas formas de pagamento'
+    },
+    // Support
+    { 
+      patterns: [/atendimento/i, /suporte\s*(?:\d+h|dedicado)/i, /whatsapp/i, /fale\s*conosco/i],
+      icon: 'Headphones', 
+      title: 'Atendimento',
+      defaultDesc: 'Suporte ao cliente'
+    },
+    // Guarantee
+    { 
+      patterns: [/garantia\s*(?:de\s*)?\d+/i, /troca\s*gr[áa]tis/i, /devolu[çc][ãa]o/i, /satisfa[çc][ãa]o\s*garantida/i],
+      icon: 'Award', 
+      title: 'Garantia',
+      defaultDesc: 'Garantia de satisfação'
+    },
+    // Quality
+    { 
+      patterns: [/produto\s*original/i, /qualidade\s*garantida/i, /100%\s*original/i],
+      icon: 'CheckCircle', 
+      title: 'Qualidade',
+      defaultDesc: 'Produtos originais e de qualidade'
+    },
+  ];
+
+  let idCounter = 1;
+  
+  for (const { patterns, icon, title, defaultDesc } of infoPatterns) {
+    for (const pattern of patterns) {
+      const match = pattern.exec(textContent);
+      if (match) {
+        // Try to extract context around the match
+        const matchIndex = textContent.indexOf(match[0].toLowerCase());
+        const start = Math.max(0, matchIndex);
+        const end = Math.min(textContent.length, matchIndex + match[0].length + 60);
+        
+        // Find sentence boundary
+        let context = textContent.substring(start, end);
+        const periodIdx = context.indexOf('.');
+        if (periodIdx > 10) {
+          context = context.substring(0, periodIdx);
+        }
+        
+        const description = cleanText(context.charAt(0).toUpperCase() + context.slice(1)) || defaultDesc;
+        
+        // Avoid duplicates
+        if (!items.some(i => i.title === title)) {
+          items.push({
+            id: String(idCounter++),
+            icon,
+            title,
+            description: description.length > 100 ? description.substring(0, 100) + '...' : description,
+          });
+          console.log(`[INFO] Added: ${title} - ${description.substring(0, 40)}...`);
+        }
+        break;
+      }
+    }
+  }
+
+  console.log(`[INFO] Total: ${items.length}`);
+
+  // Only return if we found at least 3 items
+  if (items.length < 3) {
+    return { items: [], remainingHtml };
+  }
+
+  return { items, remainingHtml };
+}
+
+// =====================================================
+// POLICY CONTENT DETECTION
+// Helps identify policy pages for appropriate RichText formatting
+// =====================================================
+function detectPolicyContent(html: string, pageTitle: string): boolean {
+  const policyIndicators = [
+    /pol[ií]tica\s*de\s*privacidade/i,
+    /termos\s*(?:de\s*(?:uso|servi[çc]o)|e\s*condi[çc][õo]es)/i,
+    /pol[ií]tica\s*de\s*(?:troca|devolu[çc][ãa]o|reembolso|entrega|frete|cookies?)/i,
+    /aviso\s*legal/i,
+    /lgpd/i,
+  ];
+  
+  const text = stripHtml(html).toLowerCase() + ' ' + pageTitle.toLowerCase();
+  
+  return policyIndicators.some(p => p.test(text));
+}
+
+// =====================================================
+// MAIN MAPPING FUNCTION
 // Priority order:
-// 1. FAQ (structured Q&A content)
-// 2. Testimonials (customer reviews/feedback)
-// 3. InfoHighlights (shipping/payment/security info)
-// 4. RichText (remaining content - fallback)
+// 1. FAQ → 'FAQ' block
+// 2. Testimonials → 'Testimonials' block  
+// 3. InfoHighlights → 'InfoHighlights' block
+// 4. RichText (remaining/fallback)
 // =====================================================
 export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const blocks: BlockNode[] = [];
   let remainingContent = html;
 
-  console.log(`[MAPPER] Analyzing content for page: ${pageTitle}`);
+  console.log(`[MAPPER] ========================================`);
+  console.log(`[MAPPER] Starting analysis for: "${pageTitle}"`);
+  console.log(`[MAPPER] HTML length: ${html.length} chars`);
+
+  const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
+  const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?|feedback/i.test(pageTitle);
+  const isPolicyPage = detectPolicyContent(html, pageTitle);
+
+  console.log(`[MAPPER] Page type hints - FAQ: ${isFAQPage}, Testimonials: ${isTestimonialPage}, Policy: ${isPolicyPage}`);
 
   // 1. Extract FAQ content → 'FAQ' block
   const faqResult = extractFAQItems(remainingContent);
-  if (faqResult.items.length >= 2) {
-    console.log(`[MAPPER] ✓ Found ${faqResult.items.length} FAQ items → Creating FAQ block`);
+  console.log(`[MAPPER] FAQ result: ${faqResult.items.length} items`);
+  
+  if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
+    console.log(`[MAPPER] ✓ Creating FAQ block with ${faqResult.items.length} items`);
     
     blocks.push({
       id: generateBlockId('faq'),
-      type: 'FAQ', // Must match registry.ts type exactly
+      type: 'FAQ',
       props: {
-        title: faqResult.title || 'Perguntas Frequentes',
+        title: faqResult.title,
         titleAlign: 'left',
         items: faqResult.items,
         allowMultiple: false,
@@ -391,14 +517,16 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
 
   // 2. Extract Testimonials → 'Testimonials' block
   const testimonialResult = extractTestimonials(remainingContent);
-  if (testimonialResult.items.length >= 2) {
-    console.log(`[MAPPER] ✓ Found ${testimonialResult.items.length} testimonials → Creating Testimonials block`);
+  console.log(`[MAPPER] Testimonials result: ${testimonialResult.items.length} items`);
+  
+  if (testimonialResult.items.length >= 2 || (isTestimonialPage && testimonialResult.items.length >= 1)) {
+    console.log(`[MAPPER] ✓ Creating Testimonials block with ${testimonialResult.items.length} items`);
     
     blocks.push({
       id: generateBlockId('testimonials'),
-      type: 'Testimonials', // Must match registry.ts type exactly
+      type: 'Testimonials',
       props: {
-        title: testimonialResult.title || 'O que dizem nossos clientes',
+        title: testimonialResult.title,
         items: testimonialResult.items,
       },
       children: [],
@@ -409,15 +537,17 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
 
   // 3. Extract InfoHighlights → 'InfoHighlights' block
   const infoResult = extractInfoHighlights(remainingContent);
+  console.log(`[MAPPER] InfoHighlights result: ${infoResult.items.length} items`);
+  
   if (infoResult.items.length >= 3) {
-    console.log(`[MAPPER] ✓ Found ${infoResult.items.length} info items → Creating InfoHighlights block`);
+    console.log(`[MAPPER] ✓ Creating InfoHighlights block with ${infoResult.items.length} items`);
     
     blocks.push({
       id: generateBlockId('info'),
-      type: 'InfoHighlights', // Must match registry.ts type exactly
+      type: 'InfoHighlights',
       props: {
         items: infoResult.items,
-        columns: Math.min(infoResult.items.length, 4),
+        layout: 'horizontal',
       },
       children: [],
     });
@@ -426,13 +556,13 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
   }
 
   // 4. Remaining content → 'RichText' block (fallback)
-  const cleanedRemaining = remainingContent.replace(/<[^>]*>/g, '').trim();
+  const cleanedRemaining = stripHtml(remainingContent);
   if (cleanedRemaining.length > 50) {
     console.log(`[MAPPER] Adding remaining content as RichText (${cleanedRemaining.length} chars)`);
     
     blocks.push({
       id: generateBlockId('richtext'),
-      type: 'RichText', // Must match registry.ts type exactly
+      type: 'RichText',
       props: {
         content: remainingContent.trim() || '<p>Conteúdo da página...</p>',
         fontFamily: 'inherit',
@@ -443,9 +573,9 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
     });
   }
 
-  // 5. If no blocks were created, create a RichText with original content
+  // 5. If no blocks created, use original content as RichText
   if (blocks.length === 0) {
-    console.log(`[MAPPER] No structured content found → Using original as RichText`);
+    console.log(`[MAPPER] No structured content found → Creating RichText fallback`);
     
     blocks.push({
       id: generateBlockId('richtext'),
@@ -460,7 +590,9 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
     });
   }
 
-  console.log(`[MAPPER] Created ${blocks.length} block(s): ${blocks.map(b => b.type).join(', ')}`);
+  console.log(`[MAPPER] Final result: ${blocks.length} block(s) - ${blocks.map(b => b.type).join(', ')}`);
+  console.log(`[MAPPER] ========================================`);
+  
   return blocks;
 }
 
@@ -468,11 +600,8 @@ export function analyzeAndMapContent(html: string, pageTitle: string): BlockNode
 export function createPageWithMappedBlocks(html: string, pageTitle: string): BlockNode {
   const contentBlocks = analyzeAndMapContent(html, pageTitle);
   
-  const pageBlockId = generateBlockId('page');
-  const sectionBlockId = generateBlockId('section');
-  
   return {
-    id: pageBlockId,
+    id: generateBlockId('page'),
     type: 'Page',
     props: {
       backgroundColor: 'transparent',
@@ -480,7 +609,7 @@ export function createPageWithMappedBlocks(html: string, pageTitle: string): Blo
     },
     children: [
       {
-        id: sectionBlockId,
+        id: generateBlockId('section'),
         type: 'Section',
         props: {
           backgroundColor: 'transparent',
