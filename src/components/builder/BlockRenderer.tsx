@@ -981,16 +981,30 @@ function RichTextBlock({ content, align, fontFamily, fontSize, fontWeight, conte
     return html;
   };
 
+  // Sanitize external links to prevent navigation in editor
+  const sanitizeLinks = (html: string): string => {
+    if (!html) return html;
+    // Replace external hrefs with # to prevent navigation in editor mode
+    // Keep internal links (starting with /) but still add data attribute for editor detection
+    return html.replace(
+      /<a\s+([^>]*?)href=["']([^"']+)["']([^>]*)>/gi,
+      (match, before, href, after) => {
+        // Mark as editor-disabled link
+        return `<a ${before}href="#" data-original-href="${href}" data-editor-link="true"${after}>`;
+      }
+    );
+  };
+
   return (
     <div 
-      className="prose prose-lg max-w-none"
+      className="prose prose-lg max-w-none [&_a[data-editor-link]]:pointer-events-none [&_a[data-editor-link]]:cursor-text [&_a[data-editor-link]]:no-underline"
       style={{ 
         textAlign: align || 'left',
         fontFamily: fontFamily || 'inherit',
         fontSize: fontSizeMap[fontSize] || fontSizeMap.base,
         fontWeight: fontWeight || 'normal',
       }}
-      dangerouslySetInnerHTML={{ __html: processContent(content) }}
+      dangerouslySetInnerHTML={{ __html: sanitizeLinks(processContent(content)) }}
     />
   );
 }

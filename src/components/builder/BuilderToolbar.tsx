@@ -166,14 +166,21 @@ export function BuilderToolbar({
     enabled: !!currentTenant?.id,
   });
 
-  // Resolve the correct selector value for page_template type
-  // When editing a page template, we need to find the page that uses this template
+  // Resolve the correct selector value for page_template or institutional type
+  // When editing a page template or institutional page, we need to show the correct page
   const resolvedSelectorValue = (() => {
     // For page_template, find the page that uses this template ID
     if (pageType === 'page_template' && pageId && storePages) {
       const associatedPage = storePages.find(p => p.template_id === pageId);
       if (associatedPage) {
         return `page:${associatedPage.id}`;
+      }
+    }
+    // For institutional pages (imported pages with own content), use the pageId directly
+    if (pageType === 'institutional' && pageId && storePages) {
+      const page = storePages.find(p => p.id === pageId);
+      if (page) {
+        return `page:${pageId}`;
       }
     }
     // For normal page types, use pageType directly
