@@ -386,8 +386,20 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     // Extract menu items from header navigation
     result.menuItems = extractMenuItems(html, baseUrl, platform);
     
-    // Extract footer menu items
+    // Extract footer menu items - try dedicated extraction first
     result.footerMenuItems = extractFooterMenuItems(html, baseUrl, platform);
+    
+    // If footer menu is empty or too small, derive from header menu (main items only, no children)
+    if (result.footerMenuItems.length < 2 && result.menuItems.length > 0) {
+      console.log('Footer menu empty/small, deriving from header menu main items');
+      result.footerMenuItems = result.menuItems.map(item => ({
+        label: item.label,
+        url: item.url,
+        internalUrl: item.internalUrl,
+        type: item.type,
+        // No children for footer - just top-level items
+      }));
+    }
     
     // Extract videos (YouTube, Vimeo, direct uploads)
     result.videos = extractVideos(html, baseUrl);
@@ -405,6 +417,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
       banners: result.heroBanners.length,
       categories: result.categories.length,
       menuItems: result.menuItems.length,
+      menuItemsWithChildren: result.menuItems.filter(m => m.children && m.children.length > 0).length,
       footerMenuItems: result.footerMenuItems.length,
       videos: result.videos.length,
       sections: result.sections.length,
