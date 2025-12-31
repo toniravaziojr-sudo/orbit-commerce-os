@@ -20,13 +20,18 @@ interface ImportPagesRequest {
 }
 
 // =============================================
-// CONTENT-TO-BLOCK MAPPER
-// Analyzes imported HTML content and maps it to appropriate block structures
+// CONTENT-TO-BLOCK MAPPER v2
+// Enhanced FAQ extraction with nested accordion support
 // =============================================
 
 interface FAQItem {
   question: string;
   answer: string;
+}
+
+interface FAQCategory {
+  categoryTitle: string;
+  items: FAQItem[];
 }
 
 interface TestimonialItem {
@@ -65,11 +70,20 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-// Extract FAQ items from HTML content
+// =============================================
+// ENHANCED FAQ EXTRACTION
+// Supports: 
+// - Nested accordions (categories with questions)
+// - Shopify collapsible sections
+// - Numbered Q&A pairs
+// - Bold questions with text answers
+// =============================================
 function extractFAQItems(html: string): { items: FAQItem[]; title: string; remainingHtml: string } {
   const items: FAQItem[] = [];
   let title = 'Perguntas Frequentes';
   let remainingHtml = html;
+
+  console.log(`[FAQ EXTRACTOR] Starting extraction, HTML length: ${html.length}`);
 
   // First, try to find the FAQ title
   const faqTitlePatterns = [
@@ -81,93 +95,200 @@ function extractFAQItems(html: string): { items: FAQItem[]; title: string; remai
     const match = pattern.exec(html);
     if (match) {
       title = match[1].trim().replace(/\s*\(FAQ\)\s*/gi, '').trim() || title;
+      console.log(`[FAQ EXTRACTOR] Found title: ${title}`);
       break;
     }
   }
 
-  // Convert HTML to plain text for pattern matching
-  const plainText = stripHtml(html);
-
-  // Pattern 1: Look for numbered question/answer pairs
-  // Example: "1. O site é seguro? Sim! Nosso site é oficial..."
-  const numberedQAPattern = /(\d+)\.\s*([^?]+\?)\s*([^1-9]+?)(?=\d+\.\s*[^?]+\?|$)/g;
-  let match;
+  // ===== STRATEGY 1: Detect Shopify-style nested accordions =====
+  // Pattern: Category headers (like "COMPRA & ENTREGA") with questions inside
+  // Look for collapsible sections with inner collapsibles
   
-  while ((match = numberedQAPattern.exec(plainText)) !== null) {
-    const question = match[2].trim();
-    let answer = match[3].trim();
-    
-    // Stop answer at next question pattern or section heading
-    const nextSection = answer.search(/^[A-Z]{2,}[^a-z]/m);
-    if (nextSection > 50) {
-      answer = answer.substring(0, nextSection).trim();
+  // Pattern for category headers (uppercase titles, often in buttons or summary)
+  const categoryPattern = /<(?:button|summary|div|h[2-4])[^>]*>[\s\S]*?([A-ZÀ-Ú][A-ZÀ-Ú\s&]+(?:&(?:amp;)?|E|\s)[A-ZÀ-Ú\s&]+)[\s\S]*?<\/(?:button|summary|div|h[2-4])>/g;
+  
+  // First, detect if this is a nested accordion structure
+  const plainText = stripHtml(html);
+  const hasCategories = /(?:COMPRA|USO|SEGURANÇA|GARANTIA|PAGAMENTO|ENTREGA|RESULTADOS|EFEITOS|SUPORTE|DÚVIDAS)\s*[&E]\s*/i.test(plainText);
+  
+  console.log(`[FAQ EXTRACTOR] Has category structure: ${hasCategories}`);
+
+  // ===== STRATEGY 2: Parse numbered Q&A with category awareness =====
+  // Pattern: "1. Question? Answer text..." grouped by categories
+  
+  // Look for numbered questions with their answers
+  // This handles: "1. O site é seguro? Como tenho garantia de que não vou cair em golpe?"
+  // Followed by: "Sim! Nosso site é oficial..."
+  
+  const lines = plainText.split(/(?=\d+\.\s)/);
+  let currentCategory = '';
+  
+  for (const line of lines) {
+    // Check if this line is a category header (all caps with &)
+    const categoryMatch = /^([A-ZÀ-Ú][A-ZÀ-Ú\s&]+(?:&|E)[A-ZÀ-Ú\s&]+)\s*$/m.exec(line.trim());
+    if (categoryMatch) {
+      currentCategory = categoryMatch[1].trim();
+      console.log(`[FAQ EXTRACTOR] Found category: ${currentCategory}`);
+      continue;
     }
     
-    if (question.length > 10 && answer.length > 20) {
-      items.push({
-        question: cleanText(question),
-        answer: cleanText(answer),
-      });
+    // Look for numbered Q&A: "1. Question? Answer..."
+    const numberedMatch = /^(\d+)\.\s*([^?]+\?(?:[^?]+\?)?)\s*(.+)$/s.exec(line.trim());
+    if (numberedMatch) {
+      const num = numberedMatch[1];
+      let question = numberedMatch[2].trim();
+      let answer = numberedMatch[3].trim();
+      
+      // Sometimes the answer continues with more sentences
+      // Clean up question - might have multiple questions, take the main one
+      if (question.includes('?') && question.split('?').length > 2) {
+        const parts = question.split('?');
+        question = parts[0] + '?';
+        // Rest becomes part of the answer
+        answer = parts.slice(1).join('?').trim() + ' ' + answer;
+      }
+      
+      // Cut answer at next question number or category
+      const nextQMatch = answer.search(/\s+\d+\.\s+[A-ZÀ-Ú]/);
+      if (nextQMatch > 50) {
+        answer = answer.substring(0, nextQMatch).trim();
+      }
+      
+      const nextCatMatch = answer.search(/\s+[A-ZÀ-Ú]{3,}\s*[&E]\s*[A-ZÀ-Ú]{3,}/);
+      if (nextCatMatch > 50) {
+        answer = answer.substring(0, nextCatMatch).trim();
+      }
+      
+      // Validate
+      if (question.length > 10 && answer.length > 20) {
+        // Check for duplicates
+        const isDuplicate = items.some(i => 
+          i.question.toLowerCase().substring(0, 30) === question.toLowerCase().substring(0, 30)
+        );
+        
+        if (!isDuplicate) {
+          items.push({
+            question: cleanText(question),
+            answer: cleanText(answer),
+          });
+          console.log(`[FAQ EXTRACTOR] Found Q${num}: "${question.substring(0, 50)}..."`);
+        }
+      }
     }
   }
 
-  // Pattern 2: Look for <details>/<summary> patterns
+  // ===== STRATEGY 3: Parse HTML accordion structures =====
+  // Look for <details>/<summary> or collapsible divs
+  
+  let match;
   const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([^<]+)<\/summary>\s*([\s\S]*?)<\/details>/gi;
   
   while ((match = detailsPattern.exec(html)) !== null) {
     const question = match[1].trim();
     const answer = stripHtml(match[2]).trim();
     
-    if (question.length > 5 && answer.length > 5) {
-      // Avoid duplicates
-      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+    // Skip if it looks like a category header (all caps)
+    if (/^[A-ZÀ-Ú\s&]+$/.test(question)) {
+      console.log(`[FAQ EXTRACTOR] Skipping category: ${question}`);
+      continue;
+    }
+    
+    if (question.length > 5 && answer.length > 10) {
+      const isDuplicate = items.some(i => 
+        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
+      );
+      
+      if (!isDuplicate) {
         items.push({
           question: cleanText(question),
           answer: cleanText(answer),
         });
+        console.log(`[FAQ EXTRACTOR] Found accordion Q: "${question.substring(0, 50)}..."`);
       }
     }
   }
 
-  // Pattern 3: Look for bold questions followed by regular text
-  const boldQAPattern = /<(?:strong|b)>([^<]*\?)<\/(?:strong|b)>\s*([^<]+)/gi;
+  // ===== STRATEGY 4: Parse Shopify collapsible-row patterns =====
+  // Pattern: <div class="collapsible-row..."><button>Question</button><div>Answer</div></div>
+  
+  const collapsibleRowPattern = /<div[^>]*class="[^"]*collapsible[^"]*"[^>]*>[\s\S]*?<(?:button|summary)[^>]*>([^<]+)<\/(?:button|summary)>[\s\S]*?<div[^>]*class="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  
+  while ((match = collapsibleRowPattern.exec(html)) !== null) {
+    const question = match[1].trim();
+    const answer = stripHtml(match[2]).trim();
+    
+    // Skip category headers
+    if (/^[A-ZÀ-Ú\s&]+$/.test(question) && !question.includes('?')) {
+      continue;
+    }
+    
+    if (question.length > 10 && answer.length > 20) {
+      const isDuplicate = items.some(i => 
+        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
+      );
+      
+      if (!isDuplicate) {
+        items.push({
+          question: cleanText(question),
+          answer: cleanText(answer),
+        });
+        console.log(`[FAQ EXTRACTOR] Found collapsible Q: "${question.substring(0, 50)}..."`);
+      }
+    }
+  }
+
+  // ===== STRATEGY 5: Parse bold questions followed by text =====
+  const boldQAPattern = /<(?:strong|b)>\s*\d*\.?\s*([^<]*\?)<\/(?:strong|b)>\s*(?:<br\s*\/?>|<\/p>\s*<p>)?\s*([^<]+)/gi;
   
   while ((match = boldQAPattern.exec(html)) !== null) {
     const question = match[1].trim();
-    const answer = match[2].trim();
+    let answer = match[2].trim();
+    
+    // Clean up answer
+    answer = answer.replace(/^\s*Sim[!.]?\s*/i, '').trim();
+    if (!answer) answer = match[2].trim();
     
     if (question.length > 10 && answer.length > 20) {
-      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+      const isDuplicate = items.some(i => 
+        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
+      );
+      
+      if (!isDuplicate) {
         items.push({
           question: cleanText(question),
           answer: cleanText(answer),
         });
+        console.log(`[FAQ EXTRACTOR] Found bold Q: "${question.substring(0, 50)}..."`);
       }
     }
   }
 
-  // Pattern 4: H3/H4 with question mark followed by paragraph
-  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*<p[^>]*>([^<]+)<\/p>/gi;
+  // ===== STRATEGY 6: H3/H4 with question mark followed by paragraph =====
+  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
   
   while ((match = headingQAPattern.exec(html)) !== null) {
     const question = match[1].trim();
-    const answer = match[2].trim();
+    const answer = stripHtml(match[2]).trim();
     
     if (question.length > 10 && answer.length > 20) {
-      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+      const isDuplicate = items.some(i => 
+        i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20))
+      );
+      
+      if (!isDuplicate) {
         items.push({
           question: cleanText(question),
           answer: cleanText(answer),
         });
+        console.log(`[FAQ EXTRACTOR] Found heading Q: "${question.substring(0, 50)}..."`);
       }
     }
   }
 
-  // If we found FAQ items, remove the FAQ section from remaining HTML
+  console.log(`[FAQ EXTRACTOR] Total items found: ${items.length}`);
+
+  // Clean up remaining HTML if we found items
   if (items.length >= 2) {
-    console.log(`[MAPPER] Found ${items.length} FAQ items`);
-    
-    // Try to remove the entire FAQ section
     const faqSectionPatterns = [
       /<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi,
       /<h[1-6][^>]*>[^<]*(?:perguntas?\s*frequentes?|faq)[^<]*<\/h[1-6]>[\s\S]*?(?=<h[1-3]|<footer|<\/main|$)/gi,
@@ -234,12 +355,19 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const blocks: BlockNode[] = [];
   let remainingContent = html;
 
+  console.log(`[MAPPER] Starting analysis for: "${pageTitle}"`);
+
   // Check if page title suggests FAQ content
   const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
+  console.log(`[MAPPER] Is FAQ page: ${isFAQPage}`);
   
   // 1. Extract FAQ content (prioritize if page title suggests FAQ)
   const faqResult = extractFAQItems(remainingContent);
+  console.log(`[MAPPER] FAQ extraction result: ${faqResult.items.length} items`);
+  
   if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
+    console.log(`[MAPPER] Creating FAQ block with ${faqResult.items.length} items`);
+    
     blocks.push({
       id: generateBlockId('faq'),
       type: 'FAQ',
@@ -258,6 +386,8 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   // 2. Extract Testimonials
   const testimonialResult = extractTestimonials(remainingContent);
   if (testimonialResult.items.length >= 2) {
+    console.log(`[MAPPER] Creating Testimonials block with ${testimonialResult.items.length} items`);
+    
     blocks.push({
       id: generateBlockId('testimonials'),
       type: 'Testimonials',
@@ -274,6 +404,8 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   // 3. If remaining content has substantial text, add as RichText block
   const cleanedRemaining = stripHtml(remainingContent);
   if (cleanedRemaining.length > 50) {
+    console.log(`[MAPPER] Adding remaining content as RichText (${cleanedRemaining.length} chars)`);
+    
     blocks.push({
       id: generateBlockId('richtext'),
       type: 'RichText',
@@ -289,6 +421,8 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
 
   // 4. If no blocks were created, create a RichText with original content
   if (blocks.length === 0) {
+    console.log(`[MAPPER] No structured content found, using RichText fallback`);
+    
     blocks.push({
       id: generateBlockId('richtext'),
       type: 'RichText',
@@ -302,6 +436,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     });
   }
 
+  console.log(`[MAPPER] Final result: ${blocks.length} blocks created`);
   return blocks;
 }
 
@@ -500,434 +635,272 @@ function cleanHtmlContent(html: string, markdown?: string): string {
       if (footerIdx > 0) {
         content = content.substring(0, footerIdx);
       }
-      mainContent = content;
-      console.log('Found main content via MainContent ID');
+      mainContent = content.trim();
+      console.log('[CLEAN] Extracted MainContent div');
       break;
     }
   }
-  
-  // Priority 2: <main> element
+
+  // Priority 2: Look for main element
   if (!mainContent) {
     const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
     if (mainMatch && mainMatch[1].trim().length > 100) {
-      mainContent = mainMatch[1];
-      console.log('Found main content via <main> tag');
+      mainContent = mainMatch[1].trim();
+      console.log('[CLEAN] Extracted <main> element');
     }
   }
-  
-  // Priority 3: <article> element
+
+  // Priority 3: Look for article element
   if (!mainContent) {
     const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
     if (articleMatch && articleMatch[1].trim().length > 100) {
-      mainContent = articleMatch[1];
-      console.log('Found main content via <article> tag');
+      mainContent = articleMatch[1].trim();
+      console.log('[CLEAN] Extracted <article> element');
     }
   }
-  
-  // Priority 4: Content/RTE class divs (Shopify rich text editor output)
+
+  // Priority 4: Look for content container
   if (!mainContent) {
     const contentPatterns = [
-      /<div[^>]*class="[^"]*(?:rte|entry-content|page-content|text-content|content-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<div[^>]*class="[^"]*(?:page-width|container|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<section[^>]*class="[^"]*(?:page|content|main-content)[^"]*"[^>]*>([\s\S]*?)<\/section>/i,
+      /<div[^>]*class="[^"]*(?:page-content|main-content|content-wrapper|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*(?:page|content|wrapper)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
     ];
     
     for (const pattern of contentPatterns) {
       const match = pattern.exec(cleaned);
       if (match && match[1].trim().length > 100) {
-        mainContent = match[1];
-        console.log('Found main content via content class pattern');
+        mainContent = match[1].trim();
+        console.log('[CLEAN] Extracted content container');
         break;
       }
     }
   }
 
-  // Priority 5: Use body content if nothing else found
-  if (!mainContent) {
-    const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(cleaned);
-    if (bodyMatch) {
-      mainContent = bodyMatch[1];
-      console.log('Using body content as fallback');
-    } else {
-      mainContent = cleaned;
-    }
+  // Use main content if found, otherwise use cleaned HTML
+  if (mainContent && mainContent.length > 50) {
+    cleaned = mainContent;
   }
 
-  // ===== PHASE 4: Clean up the extracted content =====
-  // Remove any remaining navigation/layout elements
-  mainContent = mainContent
-    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-    .replace(/<header[\s\S]*?<\/header>/gi, '')
-    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
-    .replace(/<aside[\s\S]*?<\/aside>/gi, '');
+  // ===== PHASE 4: Final cleanup =====
+  // Remove empty elements
+  cleaned = cleaned
+    .replace(/<(div|span|p|section)[^>]*>\s*<\/\1>/gi, '')
+    .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '<br>')
+    .replace(/\n\s*\n\s*\n/g, '\n\n');
 
-  // Remove breadcrumb sections
-  mainContent = mainContent.replace(/<(?:nav|div|ol|ul)[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>[\s\S]*?<\/(?:nav|div|ol|ul)>/gi, '');
-
-  // Remove "Back to" navigation links
-  mainContent = mainContent.replace(/<a[^>]*class="[^"]*(?:back-link|return-link)[^"]*"[^>]*>[\s\S]*?<\/a>/gi, '');
-
-  // ===== NEW: Remove elements with header-like content AFTER extraction =====
-  // This catches content that slipped through (like the WhatsApp/horário text)
-  const textBasedRemovePatterns = [
-    // Remove divs containing WhatsApp/phone/hours patterns
-    /<(?:div|p|span)[^>]*>[\s\S]*?Fale no WhatsApp[\s\S]*?<\/(?:div|p|span)>/gi,
-    /<(?:div|p|span)[^>]*>[\s\S]*?HORÁRIO DE ATENDIMENTO[\s\S]*?<\/(?:div|p|span)>/gi,
-    /<(?:div|p|span)[^>]*>[\s\S]*?Compre por telefone[\s\S]*?<\/(?:div|p|span)>/gi,
-    // Remove empty anchors with WhatsApp links
-    /<a[^>]*(?:wa\.me|whatsapp)[^>]*>[\s\S]*?<\/a>/gi,
-  ];
-  
-  for (const pattern of textBasedRemovePatterns) {
-    mainContent = mainContent.replace(pattern, '');
-  }
-
-  // ===== PHASE 5: Keep allowed tags for content =====
-  const allowedTags = [
-    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-    'p', 'br', 'hr',
-    'strong', 'b', 'em', 'i', 'u', 's', 'del', 'ins', 'mark',
-    'ul', 'ol', 'li',
-    'a',
-    'span', 'div',
-    'blockquote', 'pre', 'code',
-    'table', 'thead', 'tbody', 'tr', 'th', 'td',
-    'img',
-    'figure', 'figcaption',
-    'video', 'source',
-    'iframe',
-  ];
-
-  // Process tags - keep allowed ones with safe attributes
-  mainContent = mainContent.replace(/<(\w+)([^>]*)>/gi, (match, tag, attrs) => {
-    const lowerTag = tag.toLowerCase();
-    if (!allowedTags.includes(lowerTag)) {
-      return '';
-    }
-
-    // Keep specific attributes based on tag type
-    let safeAttrs = '';
-    
-    if (lowerTag === 'a') {
-      const hrefMatch = /href="([^"]+)"/.exec(attrs);
-      const targetMatch = /target="([^"]+)"/.exec(attrs);
-      // Skip WhatsApp/phone links
-      if (hrefMatch && /(wa\.me|whatsapp|tel:)/i.test(hrefMatch[1])) {
-        return '';
-      }
-      if (hrefMatch) safeAttrs += ` href="${hrefMatch[1]}"`;
-      if (targetMatch) safeAttrs += ` target="${targetMatch[1]}"`;
-    } else if (lowerTag === 'img') {
-      const srcMatch = /src="([^"]+)"/.exec(attrs);
-      const altMatch = /alt="([^"]+)"/.exec(attrs);
-      const widthMatch = /width="([^"]+)"/.exec(attrs);
-      const heightMatch = /height="([^"]+)"/.exec(attrs);
-      if (srcMatch) safeAttrs += ` src="${srcMatch[1]}"`;
-      if (altMatch) safeAttrs += ` alt="${altMatch[1]}"`;
-      if (widthMatch) safeAttrs += ` width="${widthMatch[1]}"`;
-      if (heightMatch) safeAttrs += ` height="${heightMatch[1]}"`;
-    } else if (lowerTag === 'iframe') {
-      const srcMatch = /src="([^"]+)"/.exec(attrs);
-      // Only allow YouTube/Vimeo iframes
-      if (srcMatch && /(youtube|vimeo|youtu\.be)/i.test(srcMatch[1])) {
-        safeAttrs += ` src="${srcMatch[1]}"`;
-        const widthMatch = /width="([^"]+)"/.exec(attrs);
-        const heightMatch = /height="([^"]+)"/.exec(attrs);
-        if (widthMatch) safeAttrs += ` width="${widthMatch[1]}"`;
-        if (heightMatch) safeAttrs += ` height="${heightMatch[1]}"`;
-        safeAttrs += ' frameborder="0" allowfullscreen';
-      } else {
-        return ''; // Skip non-video iframes
-      }
-    } else if (lowerTag === 'video' || lowerTag === 'source') {
-      const srcMatch = /src="([^"]+)"/.exec(attrs);
-      const typeMatch = /type="([^"]+)"/.exec(attrs);
-      if (srcMatch) safeAttrs += ` src="${srcMatch[1]}"`;
-      if (typeMatch) safeAttrs += ` type="${typeMatch[1]}"`;
-      if (lowerTag === 'video') safeAttrs += ' controls';
-    }
-
-    return `<${lowerTag}${safeAttrs}>`;
-  });
-
-  // Close unmatched tags
-  mainContent = mainContent.replace(/<\/(\w+)>/gi, (match, tag) => {
-    const lowerTag = tag.toLowerCase();
-    return allowedTags.includes(lowerTag) ? `</${lowerTag}>` : '';
-  });
-
-  // ===== PHASE 6: Final cleanup =====
-  // Remove empty divs and spans
-  mainContent = mainContent
-    .replace(/<div>\s*<\/div>/gi, '')
-    .replace(/<span>\s*<\/span>/gi, '')
-    .replace(/<p>\s*<\/p>/gi, '')
-    .replace(/<a>\s*<\/a>/gi, '');
-
-  // Clean up excessive whitespace but preserve structure
-  mainContent = mainContent
-    .replace(/\n\s*\n\s*\n/g, '\n\n')
-    .replace(/>\s+</g, '> <')
-    .trim();
-
-  // If still too short or empty, try markdown fallback
-  if (mainContent.length < 50 && markdown && markdown.length > 50) {
-    console.log('Cleaned HTML too short, using markdown converted to HTML');
-    return convertMarkdownToHtml(markdown);
-  }
-
-  return mainContent || '';
+  return cleaned.trim();
 }
 
 // Convert markdown to basic HTML
 function convertMarkdownToHtml(markdown: string): string {
   let html = markdown;
-
+  
   // Headers
-  html = html.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-  html = html.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-  html = html.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-  html = html.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-  html = html.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-  html = html.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  
   // Bold and italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
-  html = html.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
-  html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  html = html.replace(/_(.+?)_/g, '<em>$1</em>');
-
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  
   // Links
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-
-  // Images
-  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">');
-
-  // Horizontal rules
-  html = html.replace(/^---+$/gm, '<hr>');
-  html = html.replace(/^\*\*\*+$/gm, '<hr>');
-
-  // Lists
-  html = html.replace(/^\*\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/^-\s+(.+)$/gm, '<li>$1</li>');
-  html = html.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-
-  // Wrap consecutive li elements in ul/ol
-  html = html.replace(/(<li>[\s\S]*?<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
-
-  // Paragraphs - wrap remaining text blocks
-  const lines = html.split('\n');
-  const processed: string[] = [];
   
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      processed.push('');
-    } else if (
-      trimmed.startsWith('<h') ||
-      trimmed.startsWith('<ul') ||
-      trimmed.startsWith('<ol') ||
-      trimmed.startsWith('<li') ||
-      trimmed.startsWith('<hr') ||
-      trimmed.startsWith('<img') ||
-      trimmed.startsWith('<blockquote')
-    ) {
-      processed.push(trimmed);
-    } else {
-      processed.push(`<p>${trimmed}</p>`);
-    }
-  }
+  // Lists
+  html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>\n)+/g, '<ul>$&</ul>');
+  
+  // Paragraphs (lines separated by blank lines)
+  html = html.replace(/^(?!<[houl])(.*$)/gim, '<p>$1</p>');
+  html = html.replace(/<p><\/p>/g, '');
+  
+  return html;
+}
 
-  return processed.join('\n').replace(/<p><\/p>/g, '').trim();
+// Parse title from a URL slug
+function getTitleFromSlug(slug: string): string {
+  return slug
+    .split('/').pop()! // Get last part
+    .replace(/-/g, ' ') // Replace hyphens with spaces
+    .replace(/_/g, ' ') // Replace underscores with spaces
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+// Check if URL is a core page that should not be imported
+function isCorePageUrl(url: string, slug: string): boolean {
+  const corePatterns = [
+    /^\/?$/,                          // Homepage
+    /^\/?(products?|produto)s?\/?$/i, // Products listing
+    /^\/?(products?|produto)\/[^/]+/i, // Individual product pages
+    /^\/?(collections?|colec[aã]o|colec[oõ]es?)($|\/)/i, // Collections
+    /^\/?(cart|carrinho)\/?$/i,       // Cart
+    /^\/?(checkout|finalizar)\/?$/i,  // Checkout
+    /^\/?(account|conta|minha-conta)\/?$/i, // Account
+    /^\/?(login|entrar|signin)\/?$/i, // Login
+    /^\/?(register|cadastro|signup)\/?$/i, // Register
+    /^\/?(search|busca|pesquisa)\/?$/i, // Search
+    /^\/?(orders?|pedidos?)\/?$/i,    // Orders
+    /^\/?(wishlist|favoritos)\/?$/i,  // Wishlist
+  ];
+  
+  const fullPath = slug.startsWith('/') ? slug : `/${slug}`;
+  
+  return corePatterns.some(pattern => pattern.test(fullPath));
+}
+
+// Process a single page import
+async function importPage(
+  supabase: any,
+  tenantId: string,
+  page: InstitutionalPage,
+  storeUrl?: string
+): Promise<{ success: boolean; error?: string; pageId?: string }> {
+  try {
+    console.log(`[IMPORT] Processing page: ${page.title} (${page.url})`);
+    
+    // Check if this is a core page
+    if (isCorePageUrl(page.url, page.slug)) {
+      console.log(`[IMPORT] Skipping core page: ${page.slug}`);
+      return { success: false, error: 'Core page - not imported' };
+    }
+    
+    // Check if page with same slug already exists
+    const { data: existingPage, error: checkError } = await supabase
+      .from('store_pages')
+      .select('id, title')
+      .eq('tenant_id', tenantId)
+      .eq('slug', page.slug)
+      .single();
+    
+    if (existingPage) {
+      console.log(`[IMPORT] Page already exists: ${page.slug}`);
+      return { success: false, error: 'Page already exists' };
+    }
+    
+    // Scrape the page content
+    const scraped = await scrapePageContent(page.url);
+    
+    if (!scraped || (!scraped.html && !scraped.markdown)) {
+      console.log(`[IMPORT] Failed to scrape: ${page.url}`);
+      return { success: false, error: 'Failed to scrape content' };
+    }
+    
+    // Use scraped title if available, otherwise use provided title
+    const finalTitle = scraped.title || page.title || getTitleFromSlug(page.slug);
+    
+    // Create page content using intelligent block mapping
+    console.log(`[IMPORT] Creating page structure for: ${finalTitle}`);
+    const pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+    
+    // Log the blocks being created
+    const section = pageContent.children[0];
+    if (section && section.children) {
+      console.log(`[IMPORT] Page blocks: ${section.children.map((b: BlockNode) => `${b.type}(${b.type === 'FAQ' ? (b.props.items as FAQItem[])?.length + ' items' : ''})`).join(', ')}`);
+    }
+    
+    // Prepare SEO metadata
+    const seoTitle = scraped.title || finalTitle;
+    const seoDescription = scraped.description || `${finalTitle} - Informações importantes`;
+    
+    // Insert the page
+    const { data: newPage, error: insertError } = await supabase
+      .from('store_pages')
+      .insert({
+        tenant_id: tenantId,
+        title: finalTitle,
+        slug: page.slug.replace(/^\/+/, ''), // Remove leading slashes
+        page_type: 'custom',
+        content: pageContent,
+        seo_title: seoTitle.substring(0, 60),
+        seo_description: seoDescription.substring(0, 160),
+        is_active: true,
+        is_system: false,
+      })
+      .select('id')
+      .single();
+    
+    if (insertError) {
+      console.error(`[IMPORT] Insert error for ${page.slug}:`, insertError);
+      return { success: false, error: insertError.message };
+    }
+    
+    console.log(`[IMPORT] Successfully imported: ${finalTitle} (${newPage.id})`);
+    return { success: true, pageId: newPage.id };
+    
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error(`[IMPORT] Exception for ${page.url}:`, errorMsg);
+    return { success: false, error: errorMsg };
+  }
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error('Missing Supabase configuration');
+    }
 
-    const { tenantId, pages, storeUrl } = await req.json() as ImportPagesRequest;
-
-    if (!tenantId || !pages || !Array.isArray(pages)) {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    const body: ImportPagesRequest = await req.json();
+    const { tenantId, pages, storeUrl } = body;
+    
+    if (!tenantId || !Array.isArray(pages)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'tenantId e pages são obrigatórios' }),
+        JSON.stringify({ error: 'tenantId and pages array are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // Extract base URL from storeUrl if provided
-    let baseUrl = '';
-    if (storeUrl) {
-      try {
-        const urlObj = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`);
-        baseUrl = urlObj.origin;
-      } catch (e) {
-        console.warn(`[IMPORT] Could not parse storeUrl: ${storeUrl}`);
-      }
-    }
-
-    console.log(`[IMPORT] Starting import of ${pages.length} institutional pages for tenant ${tenantId}`);
-    console.log(`[IMPORT] Base URL for relative URLs: ${baseUrl || 'none'}`);
-    console.log(`[IMPORT] Pages to import:`, pages.map(p => `${p.title} (${p.url})`).join(', '));
-
-    // ===== Fetch default page template (Shopify-like model) =====
-    let defaultTemplateId: string | null = null;
-    const { data: defaultTemplate } = await supabase
-      .from('page_templates')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .eq('is_default', true)
-      .maybeSingle();
     
-    if (defaultTemplate) {
-      defaultTemplateId = defaultTemplate.id;
-      console.log(`[IMPORT] Using default template: ${defaultTemplateId}`);
-    } else {
-      console.log('[IMPORT] No default template found, pages will be created without template');
-    }
-
-    const results = {
-      imported: 0,
-      skipped: 0,
-      failed: 0,
-      errors: [] as string[],
-      pages: [] as { slug: string; title: string; hasContent: boolean }[],
-    };
-
-    let pageIndex = 0;
+    console.log(`[IMPORT-PAGES] Starting import of ${pages.length} pages for tenant ${tenantId}`);
+    
+    // Process pages
+    const results: { page: string; status: 'imported' | 'skipped' | 'failed'; reason?: string }[] = [];
+    
     for (const page of pages) {
-      pageIndex++;
+      const result = await importPage(supabase, tenantId, page, storeUrl);
       
-      try {
-        // Add delay between scrapes to avoid rate limiting (except first one)
-        if (pageIndex > 1) {
-          console.log(`[IMPORT] Waiting 1s before next scrape (page ${pageIndex}/${pages.length})...`);
-          await new Promise(r => setTimeout(r, 1000));
-        }
-        
-        // Normalize slug - remove leading slash
-        const normalizedSlug = page.slug.replace(/^\/+/, '').toLowerCase();
-        console.log(`[IMPORT] Processing page ${pageIndex}/${pages.length}: ${page.title} -> ${normalizedSlug}`);
-        
-        // Validate and normalize URL
-        if (!page.url) {
-          console.error(`[IMPORT] No URL for page ${normalizedSlug}, skipping`);
-          results.failed++;
-          results.errors.push(`${page.title}: URL não fornecida`);
-          continue;
-        }
-        
-        // Resolve relative URLs using baseUrl
-        let fullUrl = page.url;
-        if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-          if (baseUrl) {
-            fullUrl = `${baseUrl}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
-            console.log(`[IMPORT] Resolved relative URL: ${page.url} -> ${fullUrl}`);
-          } else {
-            console.error(`[IMPORT] Page ${normalizedSlug} has relative URL but no baseUrl available: ${page.url}`);
-            results.failed++;
-            results.errors.push(`${page.title}: URL relativa sem domínio base`);
-            continue;
-          }
-        }
-        
-        // Check if page already exists
-        const { data: existing } = await supabase
-          .from('store_pages')
-          .select('id, slug')
-          .eq('tenant_id', tenantId)
-          .eq('slug', normalizedSlug)
-          .maybeSingle();
-
-        if (existing) {
-          console.log(`[IMPORT] Page ${normalizedSlug} already exists, skipping`);
-          results.skipped++;
-          continue;
-        }
-
-        // Scrape page content with logging
-        console.log(`[IMPORT] Scraping content from: ${fullUrl}`);
-        const scraped = await scrapePageContent(fullUrl);
-
-        let individualContent = '';
-        let seoTitle = page.title;
-        let seoDescription = '';
-        let hasRealContent = false;
-
-        if (scraped && (scraped.html.length > 50 || scraped.markdown.length > 50)) {
-          // Use cleaned HTML as individual_content (Shopify-like model)
-          individualContent = scraped.html;
-          seoTitle = scraped.title || page.title;
-          seoDescription = scraped.description || '';
-          hasRealContent = individualContent.length > 50;
-          console.log(`Page ${normalizedSlug} has real content: ${individualContent.length} chars`);
-        } else {
-          // Create as DRAFT if no content was extracted (don't publish empty pages)
-          console.warn(`Page ${normalizedSlug} has no content, creating as draft`);
-          individualContent = '';
-        }
-
-        // Generate intelligent block structure based on content analysis
-        // Uses content-to-block mapper to create FAQ, Testimonials, etc. blocks
-        console.log(`[IMPORT] Analyzing content for intelligent block mapping: ${page.title}`);
-        const pageContent = createPageWithMappedBlocks(individualContent, page.title);
-
-        // Insert page with block-based content (editable in builder)
-        const { error: insertError } = await supabase
-          .from('store_pages')
-          .insert({
-            tenant_id: tenantId,
-            title: page.title,
-            slug: normalizedSlug,
-            type: 'institutional',
-            status: hasRealContent ? 'published' : 'draft',
-            content: pageContent, // Block structure for builder editing
-            individual_content: null, // Not using template model
-            template_id: null, // Not using template for imported pages
-            is_published: hasRealContent,
-            is_system: false,
-            seo_title: seoTitle,
-            seo_description: seoDescription,
-          });
-
-        if (insertError) {
-          console.error(`Error inserting page ${normalizedSlug}:`, insertError);
-          results.failed++;
-          results.errors.push(`${page.title} (${normalizedSlug}): ${insertError.message}`);
-        } else {
-          console.log(`Imported page: ${normalizedSlug} (hasContent: ${hasRealContent})`);
-          results.imported++;
-          results.pages.push({ 
-            slug: normalizedSlug, 
-            title: page.title,
-            hasContent: hasRealContent,
-          });
-        }
-      } catch (error) {
-        console.error(`Error processing page ${page.slug}:`, error);
-        results.failed++;
-        results.errors.push(`${page.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      if (result.success) {
+        results.push({ page: page.slug, status: 'imported' });
+      } else if (result.error === 'Page already exists' || result.error === 'Core page - not imported') {
+        results.push({ page: page.slug, status: 'skipped', reason: result.error });
+      } else {
+        results.push({ page: page.slug, status: 'failed', reason: result.error });
       }
     }
-
-    console.log(`Import completed: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed`);
-
+    
+    const imported = results.filter(r => r.status === 'imported').length;
+    const skipped = results.filter(r => r.status === 'skipped').length;
+    const failed = results.filter(r => r.status === 'failed').length;
+    
+    console.log(`[IMPORT-PAGES] Complete: ${imported} imported, ${skipped} skipped, ${failed} failed`);
+    
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({
+        success: true,
+        summary: { imported, skipped, failed },
+        results,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+    
   } catch (error) {
-    console.error('Import pages error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[IMPORT-PAGES] Error:', errorMsg);
+    
     return new Response(
-      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      JSON.stringify({ error: errorMsg }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
