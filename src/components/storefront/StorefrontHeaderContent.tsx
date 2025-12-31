@@ -190,6 +190,8 @@ export function StorefrontHeaderContent({
   
   // Organize menu items into hierarchy (parents with children)
   const hierarchicalMenuItems = useMemo((): MenuItemWithChildren[] => {
+    if (!menuItems || menuItems.length === 0) return [];
+    
     const itemMap = new Map<string, MenuItemWithChildren>();
     const rootItems: MenuItemWithChildren[] = [];
     
@@ -201,11 +203,14 @@ export function StorefrontHeaderContent({
     // Second pass: organize into hierarchy
     menuItems.forEach(item => {
       const itemWithChildren = itemMap.get(item.id)!;
-      if (item.parent_id && itemMap.has(item.parent_id)) {
-        // This is a child item
-        itemMap.get(item.parent_id)!.children.push(itemWithChildren);
+      // Check if item has a parent and the parent exists in our map
+      const hasParent = item.parent_id !== null && item.parent_id !== undefined && item.parent_id !== '';
+      
+      if (hasParent && itemMap.has(item.parent_id!)) {
+        // This is a child item - add to parent's children
+        itemMap.get(item.parent_id!)!.children.push(itemWithChildren);
       } else {
-        // This is a root item
+        // This is a root item (no parent or parent not found)
         rootItems.push(itemWithChildren);
       }
     });
