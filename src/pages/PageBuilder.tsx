@@ -1,11 +1,10 @@
 // =============================================
-// PAGE BUILDER - Edit institutional pages with visual builder
+// PAGE BUILDER - Edit institutional pages via their template
 // =============================================
 
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
-import { usePageBuilder } from '@/hooks/usePageBuilder';
 import { VisualBuilder } from '@/components/builder/VisualBuilder';
 import { BlockRenderContext } from '@/lib/builder/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,21 +13,37 @@ import { ArrowLeft } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl as buildMenuUrl } from '@/lib/publicUrls';
+import type { BlockNode } from '@/lib/builder/types';
+import type { Json } from '@/integrations/supabase/types';
 
 export default function PageBuilder() {
   const { pageId } = useParams();
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { settings: storeSettings } = useStoreSettings();
-  const { page, draftVersion, isLoading } = usePageBuilder(pageId);
 
-  // Fetch header menu for editor context (same as StorefrontBuilder)
+  // Get page info with template_id
+  const { data: page, isLoading: pageLoading } = useQuery({
+    queryKey: ['store-page', pageId],
+    queryFn: async () => {
+      if (!pageId) return null;
+      const { data, error } = await supabase
+        .from('store_pages')
+        .select('*, page_templates(*)')
+        .eq('id', pageId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!pageId,
+  });
+
+  // Fetch header menu for editor context
   const { data: headerMenuData } = useQuery({
     queryKey: ['editor-header-menu', currentTenant?.id],
     queryFn: async () => {
       if (!currentTenant?.id) return null;
       
-      // First find the header menu
       const { data: menu, error: menuError } = await supabase
         .from('menus')
         .select('id')
@@ -38,7 +53,6 @@ export default function PageBuilder() {
       
       if (menuError || !menu) return null;
       
-      // Then fetch menu items with full info for proper URL generation
       const { data: items, error: itemsError } = await supabase
         .from('menu_items')
         .select('id, label, url, item_type, ref_id, sort_order')
@@ -87,7 +101,7 @@ export default function PageBuilder() {
     return buildMenuUrl(currentTenant.slug, item, categoriesData || [], pagesData || []);
   };
 
-  if (isLoading) {
+  if (pageLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center">
@@ -120,7 +134,6 @@ export default function PageBuilder() {
       logo_url: storeSettings?.logo_url || undefined,
       primary_color: storeSettings?.primary_color || undefined,
     },
-    // Include header menu in editor context (with resolved URLs)
     headerMenu: headerMenuData?.map(item => ({
       id: item.id,
       label: item.label,
@@ -128,17 +141,23 @@ export default function PageBuilder() {
     })) || [],
   };
 
-  // Determine page type from page data
-  const pageType = page.type === 'landing_page' ? 'landing_page' : 'institutional';
+  // If page has a template, edit the template directly
+  const templateId = page.template_id;
+  const template = page.page_templates as { id: string; content: Json; name: string } | null;
+  
+  // Get initial content from template if exists, with proper type casting
+  const initialContent = template?.content 
+    ? (template.content as unknown as BlockNode)
+    : undefined;
 
   return (
     <VisualBuilder
       tenantId={currentTenant.id}
-      pageType={pageType}
-      pageId={pageId}
+      pageType="page_template"
+      pageId={templateId || pageId}
       pageTitle={page.title}
       pageSlug={page.slug}
-      initialContent={draftVersion?.content}
+      initialContent={initialContent}
       context={context}
     />
   );

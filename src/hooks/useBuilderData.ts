@@ -134,6 +134,20 @@ export function useSaveDraft() {
       const { entityType, pageId, pageType, content } = params;
       if (!currentTenant?.id) throw new Error('No tenant');
 
+      // Special handling for page_template - save directly to page_templates table
+      if (pageType === 'page_template' && pageId) {
+        const { error } = await supabase
+          .from('page_templates')
+          .update({ 
+            content: content as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
+        return 1;
+      }
+
       // Get the MAX version from store_page_versions directly to avoid conflicts
       let maxVersionQuery = supabase
         .from('store_page_versions')
@@ -185,6 +199,7 @@ export function useSaveDraft() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['template-version'] });
       queryClient.invalidateQueries({ queryKey: ['page-version-history'] });
+      queryClient.invalidateQueries({ queryKey: ['page-templates'] });
       toast({ title: 'Rascunho salvo!' });
     },
     onError: (error: Error) => {
@@ -211,6 +226,30 @@ export function usePublish() {
     }) => {
       const { entityType, pageId, pageType, content } = params;
       if (!currentTenant?.id) throw new Error('No tenant');
+
+      // Special handling for page_template - save directly to page_templates table
+      if (pageType === 'page_template' && pageId) {
+        const { error } = await supabase
+          .from('page_templates')
+          .update({ 
+            content: content as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
+        
+        // Also update the store_page to mark as published
+        await supabase
+          .from('store_pages')
+          .update({ 
+            is_published: true,
+            status: 'published',
+          })
+          .eq('template_id', pageId);
+        
+        return 1;
+      }
 
       // Archive any currently published version
       if (entityType === 'template' && pageType) {
@@ -291,6 +330,7 @@ export function usePublish() {
       queryClient.invalidateQueries({ queryKey: ['template-version'] });
       queryClient.invalidateQueries({ queryKey: ['page-version-history'] });
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page-templates'] });
       toast({ title: 'Publicado com sucesso!' });
     },
     onError: (error: Error) => {
