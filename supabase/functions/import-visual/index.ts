@@ -922,131 +922,42 @@ function extractMenuItems(html: string, baseUrl: string, platform?: string): Ext
   };
 
   const skipPatterns = ['javascript:', '#', 'mailto:', 'tel:', 'whatsapp'];
-  const skipLabels = ['carrinho', 'cart', 'login', 'entrar', 'sair', 'logout', 'buscar', 'search', 'minha conta', 'my account', 'conta', 'pesquisar', 'wishlist', 'lista de desejos'];
+  const skipLabels = ['carrinho', 'cart', 'login', 'entrar', 'sair', 'logout', 'buscar', 'search', 'minha conta', 'my account', 'conta', 'pesquisar', 'wishlist', 'lista de desejos', 'atendimento', 'fale conosco'];
 
   const shouldSkip = (href: string, label: string) => {
-    if (!label || label.length < 2 || addedLabels.has(label.toLowerCase())) return true;
+    if (!label || label.length < 2) return true;
     if (skipPatterns.some(p => href.toLowerCase().includes(p))) return true;
     if (skipLabels.some(l => label.toLowerCase() === l)) return true;
     return false;
   };
+  
+  const isDuplicate = (label: string) => addedLabels.has(label.toLowerCase().trim());
+  const markAdded = (label: string) => addedLabels.add(label.toLowerCase().trim());
+
+  const normalizeUrl = (href: string): string => {
+    if (!href || href === '#') return '';
+    if (href.startsWith('http')) return href;
+    return `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+  };
 
   console.log('Starting menu extraction for platform:', platform);
 
-  // STRATEGY 1: Look for Shopify-specific menu data in JSON/script tags
-  // Many Shopify themes embed menu data as JSON in the page
-  const jsonMenuPatterns = [
-    // Look for linklist data
-    /"linklist"\s*:\s*\{[^}]*"links"\s*:\s*(\[[^\]]*\])/gi,
-    // Look for menu/navigation objects
-    /"menu"\s*:\s*(\[[^\]]*\])/gi,
-    /"navigation"\s*:\s*(\[[^\]]*\])/gi,
-    // Look for global theme object with menus
-    /theme\.header\.menu\s*=\s*(\[[^\]]*\])/gi,
-  ];
-
-  for (const pattern of jsonMenuPatterns) {
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      try {
-        const menuData = JSON.parse(match[1]);
-        if (Array.isArray(menuData) && menuData.length > 0) {
-          console.log('Found JSON menu data with', menuData.length, 'items');
-          const parsed = parseShopifyMenuItems(menuData, baseUrl);
-          if (parsed.length > 0 && parsed.some(m => m.children && m.children.length > 0)) {
-            return parsed;
-          }
-        }
-      } catch (e) {
-        // Continue
-      }
-    }
-  }
-
-  // STRATEGY 2: Look for <details> elements (common in modern Shopify themes for dropdowns)
-  const detailsPattern = /<details[^>]*class="[^"]*(?:menu|nav|mega|disclosure)[^"]*"[^>]*>([\s\S]*?)<\/details>/gi;
-  let detailsMatch;
-  
-  while ((detailsMatch = detailsPattern.exec(html)) !== null) {
-    const detailsHtml = detailsMatch[1];
-    
-    // Get the summary link (parent menu item)
-    const summaryMatch = /<summary[^>]*>[\s\S]*?<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/i.exec(detailsHtml) 
-      || /<summary[^>]*>[\s\S]*?<span[^>]*>([^<]*)<\/span>/i.exec(detailsHtml);
-    
-    if (summaryMatch) {
-      const [, hrefOrLabel, rawLabelOrUndef] = summaryMatch;
-      const parentHref = rawLabelOrUndef ? hrefOrLabel : '#';
-      const parentLabel = (rawLabelOrUndef || hrefOrLabel || '').replace(/<[^>]*>/g, '').trim();
-      
-      if (!shouldSkip(parentHref, parentLabel)) {
-        const children: ExtractedMenuItem[] = [];
-        
-        // Find nested links in this details block
-        const nestedLinks = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
-        let linkMatch;
-        let isFirst = true;
-        
-        while ((linkMatch = nestedLinks.exec(detailsHtml)) !== null) {
-          // Skip the first link if it's the same as parent
-          if (isFirst) {
-            isFirst = false;
-            if (linkMatch[2].replace(/<[^>]*>/g, '').trim().toLowerCase() === parentLabel.toLowerCase()) {
-              continue;
-            }
-          }
-          
-          const [, href, rawLabel] = linkMatch;
-          const label = rawLabel.replace(/<[^>]*>/g, '').trim();
-          
-          if (shouldSkip(href, label)) continue;
-          if (children.some(c => c.label.toLowerCase() === label.toLowerCase())) continue;
-          
-          const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-          children.push({
-            label,
-            url: normalizedUrl,
-            internalUrl: convertToInternalUrl(href),
-            type: getItemType(href),
-          });
-        }
-        
-        if (children.length > 0) {
-          const normalizedUrl = parentHref.startsWith('http') || parentHref === '#' 
-            ? (parentHref === '#' ? '' : parentHref) 
-            : `${baseUrl}${parentHref.startsWith('/') ? '' : '/'}${parentHref}`;
-          
-          menuItems.push({
-            label: parentLabel,
-            url: normalizedUrl || children[0]?.url || '',
-            internalUrl: convertToInternalUrl(parentHref) || children[0]?.internalUrl,
-            type: getItemType(parentHref) || 'category',
-            children,
-          });
-          addedLabels.add(parentLabel.toLowerCase());
-          console.log(`Found menu with children via details: ${parentLabel} -> ${children.length} children`);
-        }
-      }
-    }
-  }
-
-  if (menuItems.length > 0 && menuItems.some(m => m.children && m.children.length > 0)) {
-    console.log('Returning', menuItems.length, 'menu items from details strategy');
-    return menuItems;
-  }
-
-  // STRATEGY 3: Look for traditional navigation structures with nested lists
+  // ===== FIND HEADER/NAV HTML =====
   const headerPatterns = [
+    /<header[^>]*id="[^"]*header[^"]*"[^>]*>([\s\S]*?)<\/header>/gi,
+    /<header[^>]*class="[^"]*header[^"]*"[^>]*>([\s\S]*?)<\/header>/gi,
     /<header[^>]*>([\s\S]*?)<\/header>/gi,
-    /<nav[^>]*class="[^"]*(?:main|primary|site-nav|header|mega)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
-    /<div[^>]*class="[^"]*(?:header-nav|main-nav|site-nav|mega-menu)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<nav[^>]*class="[^"]*(?:main|primary|site|header|mega)[^"]*nav[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<nav[^>]*id="[^"]*(?:nav|menu|header)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    /<div[^>]*class="[^"]*(?:header-nav|main-nav|site-nav|mega-menu|navigation)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
   ];
 
   let headerHtml = '';
   for (const pattern of headerPatterns) {
     let match;
     while ((match = pattern.exec(html)) !== null) {
-      if (match[1].length > headerHtml.length) {
+      // Prefer larger matches that likely contain the full navigation
+      if (match[1].length > headerHtml.length && match[1].length < 100000) {
         headerHtml = match[1];
       }
     }
@@ -1062,102 +973,216 @@ function extractMenuItems(html: string, baseUrl: string, platform?: string): Ext
     return menuItems;
   }
 
-  // Find all list items with potential submenus
-  // Pattern: <li> with a main link followed by nested <ul>
-  const menuListPattern = /<li[^>]*class="[^"]*(?:has-dropdown|has-submenu|menu-item|nav-item|mega)[^"]*"[^>]*>([\s\S]*?)<\/li>(?=\s*<li|<\/ul|$)/gi;
+  console.log('Found header HTML, length:', headerHtml.length);
+
+  // ===== STRATEGY 1: Look for <details> dropdown elements (common in Shopify Dawn and modern themes) =====
+  const detailsBlocks: { parent: string; content: string }[] = [];
+  const detailsPattern = /<details[^>]*>([\s\S]*?)<\/details>/gi;
+  let detailsMatch;
   
-  let liMatch;
-  while ((liMatch = menuListPattern.exec(headerHtml)) !== null) {
-    const liContent = liMatch[1];
+  while ((detailsMatch = detailsPattern.exec(headerHtml)) !== null) {
+    const content = detailsMatch[1];
+    // Look for summary which contains the parent menu item
+    const summaryMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(content);
+    if (summaryMatch) {
+      // Extract text from summary, could be a link or just text
+      const summaryContent = summaryMatch[1];
+      const textMatch = summaryContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (textMatch && textMatch.length > 1 && textMatch.length < 50) {
+        detailsBlocks.push({ parent: textMatch, content });
+      }
+    }
+  }
+
+  console.log('Found', detailsBlocks.length, 'details dropdown blocks');
+
+  for (const block of detailsBlocks) {
+    const parentLabel = block.parent;
+    if (shouldSkip('#', parentLabel) || isDuplicate(parentLabel)) continue;
     
-    // Get main link
-    const mainLinkMatch = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/i.exec(liContent);
-    if (!mainLinkMatch) continue;
-    
-    const [, href, rawLabel] = mainLinkMatch;
-    const label = rawLabel.replace(/<[^>]*>/g, '').trim();
-    
-    if (shouldSkip(href, label)) continue;
-    
-    const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
-    
-    // Look for nested submenu
+    // Extract all links from the dropdown content (excluding the summary/parent)
     const children: ExtractedMenuItem[] = [];
-    const submenuPatterns = [
-      /<ul[^>]*class="[^"]*(?:submenu|dropdown|sub-menu|mega-menu|level-1|child)[^"]*"[^>]*>([\s\S]*?)<\/ul>/i,
-      /<div[^>]*class="[^"]*(?:dropdown|submenu|mega)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<ul[^>]*>([\s\S]*?)<\/ul>/i, // Fallback: any nested UL
-    ];
+    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+    let linkMatch;
+    let parentUrl = '';
+    let isFirstLink = true;
     
-    for (const subPattern of submenuPatterns) {
-      const submenuMatch = subPattern.exec(liContent);
-      if (submenuMatch) {
-        const submenuHtml = submenuMatch[1];
-        const subLinkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+    while ((linkMatch = linkPattern.exec(block.content)) !== null) {
+      const href = linkMatch[1];
+      const rawLabel = linkMatch[2].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      // First link might be the parent item itself
+      if (isFirstLink) {
+        isFirstLink = false;
+        if (rawLabel.toLowerCase() === parentLabel.toLowerCase()) {
+          parentUrl = normalizeUrl(href);
+          continue;
+        }
+      }
+      
+      if (shouldSkip(href, rawLabel)) continue;
+      if (children.some(c => c.label.toLowerCase() === rawLabel.toLowerCase())) continue;
+      
+      children.push({
+        label: rawLabel,
+        url: normalizeUrl(href),
+        internalUrl: convertToInternalUrl(href),
+        type: getItemType(href),
+      });
+    }
+    
+    if (children.length > 0) {
+      menuItems.push({
+        label: parentLabel,
+        url: parentUrl || children[0]?.url || '',
+        internalUrl: convertToInternalUrl(parentUrl) || children[0]?.internalUrl,
+        type: 'category',
+        children,
+      });
+      markAdded(parentLabel);
+      console.log(`Found dropdown menu: "${parentLabel}" with ${children.length} children`);
+    }
+  }
+
+  // ===== STRATEGY 2: Look for li elements with nested ul/div submenus =====
+  // Pattern for li items that have class indicating dropdown (Shopify, WooCommerce, etc.)
+  const liWithDropdownPatterns = [
+    /<li[^>]*class="[^"]*(?:has-dropdown|has-submenu|has-mega|menu-item-has-children|dropdown|mega-menu-item|has-child|parent)[^"]*"[^>]*>([\s\S]*?)<\/li>(?=\s*<li|\s*<\/ul|$)/gi,
+    /<li[^>]*data-(?:dropdown|submenu|mega)[^>]*>([\s\S]*?)<\/li>(?=\s*<li|\s*<\/ul|$)/gi,
+  ];
+
+  for (const pattern of liWithDropdownPatterns) {
+    let liMatch;
+    while ((liMatch = pattern.exec(headerHtml)) !== null) {
+      const liContent = liMatch[1];
+      
+      // Get main link (first link in this li)
+      const mainLinkMatch = /<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/i.exec(liContent);
+      if (!mainLinkMatch) continue;
+      
+      const [, href, rawLabelHtml] = mainLinkMatch;
+      const label = rawLabelHtml.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      if (shouldSkip(href, label) || isDuplicate(label)) continue;
+      
+      // Look for nested submenu (ul, div with links)
+      const children: ExtractedMenuItem[] = [];
+      const submenuPatterns = [
+        /<ul[^>]*class="[^"]*(?:sub|drop|child|mega|level|nested)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+        /<div[^>]*class="[^"]*(?:sub|drop|mega|child)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+        /<ul[^>]*>([\s\S]*?)<\/ul>/gi,
+      ];
+      
+      for (const subPattern of submenuPatterns) {
         let subMatch;
+        // Reset lastIndex for this pattern
+        subPattern.lastIndex = 0;
         
-        while ((subMatch = subLinkPattern.exec(submenuHtml)) !== null) {
-          const [, subHref, subRawLabel] = subMatch;
-          const subLabel = subRawLabel.replace(/<[^>]*>/g, '').trim();
+        while ((subMatch = subPattern.exec(liContent)) !== null) {
+          const submenuHtml = subMatch[1];
+          const subLinkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+          let subLinkMatch;
           
-          if (shouldSkip(subHref, subLabel)) continue;
-          if (children.some(c => c.label.toLowerCase() === subLabel.toLowerCase())) continue;
-          if (subLabel.toLowerCase() === label.toLowerCase()) continue; // Skip duplicates of parent
-          
-          const subNormalizedUrl = subHref.startsWith('http') ? subHref : `${baseUrl}${subHref.startsWith('/') ? '' : '/'}${subHref}`;
-          children.push({
-            label: subLabel,
-            url: subNormalizedUrl,
-            internalUrl: convertToInternalUrl(subHref),
-            type: getItemType(subHref),
-          });
+          while ((subLinkMatch = subLinkPattern.exec(submenuHtml)) !== null) {
+            const [, subHref, subRawLabel] = subLinkMatch;
+            const subLabel = subRawLabel.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            
+            if (shouldSkip(subHref, subLabel)) continue;
+            if (children.some(c => c.label.toLowerCase() === subLabel.toLowerCase())) continue;
+            if (subLabel.toLowerCase() === label.toLowerCase()) continue;
+            
+            children.push({
+              label: subLabel,
+              url: normalizeUrl(subHref),
+              internalUrl: convertToInternalUrl(subHref),
+              type: getItemType(subHref),
+            });
+          }
         }
         
         if (children.length > 0) break;
       }
+      
+      if (!isDuplicate(label)) {
+        menuItems.push({
+          label,
+          url: normalizeUrl(href),
+          internalUrl: convertToInternalUrl(href),
+          type: getItemType(href),
+          children: children.length > 0 ? children : undefined,
+        });
+        markAdded(label);
+        
+        if (children.length > 0) {
+          console.log(`Found dropdown menu via li: "${label}" with ${children.length} children`);
+        }
+      }
     }
+  }
+
+  // ===== STRATEGY 3: Look for standalone top-level links in nav (items without dropdowns) =====
+  // Only add these if we haven't found them via dropdown strategies
+  if (menuItems.length < 10) {
+    // Find nav or menu list
+    const navListPatterns = [
+      /<ul[^>]*class="[^"]*(?:menu|nav|navigation|header-menu|main-menu|site-nav)[^"]*"[^>]*>([\s\S]*?)<\/ul>/gi,
+      /<nav[^>]*class="[^"]*(?:desktop|main|primary)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
+    ];
     
-    menuItems.push({
-      label,
-      url: normalizedUrl,
-      internalUrl: convertToInternalUrl(href),
-      type: getItemType(href),
-      children: children.length > 0 ? children : undefined,
-    });
-    addedLabels.add(label.toLowerCase());
+    for (const pattern of navListPatterns) {
+      let navMatch;
+      while ((navMatch = pattern.exec(headerHtml)) !== null) {
+        const navContent = navMatch[1];
+        
+        // Find direct links (not inside nested structures we already processed)
+        const directLinkPattern = /<li[^>]*>\s*<a[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>\s*<\/li>/gi;
+        let linkMatch;
+        
+        while ((linkMatch = directLinkPattern.exec(navContent)) !== null) {
+          const [fullMatch, href, rawLabel] = linkMatch;
+          const label = rawLabel.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+          
+          // Skip if this li has children (submenu)
+          if (/<ul|<div[^>]*class="[^"]*(?:sub|drop)/i.test(fullMatch)) continue;
+          
+          if (shouldSkip(href, label) || isDuplicate(label)) continue;
+          
+          menuItems.push({
+            label,
+            url: normalizeUrl(href),
+            internalUrl: convertToInternalUrl(href),
+            type: getItemType(href),
+          });
+          markAdded(label);
+        }
+      }
+    }
   }
 
-  // If we got items with children, return them
-  if (menuItems.length > 0 && menuItems.some(m => m.children && m.children.length > 0)) {
-    console.log('Returning', menuItems.length, 'menu items from li strategy');
-    return menuItems;
-  }
-
-  // STRATEGY 4: Fallback - extract flat links from header
+  // ===== STRATEGY 4: Fallback - extract any visible navigation links =====
   if (menuItems.length === 0) {
-    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+    console.log('Using fallback link extraction');
+    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*class="[^"]*(?:nav|menu|header)[^"]*"[^>]*>([\s\S]*?)<\/a>/gi;
     let match;
+    
     while ((match = linkPattern.exec(headerHtml)) !== null) {
       const [, href, rawLabel] = match;
-      const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+      const label = rawLabel.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       
-      if (shouldSkip(href, label)) continue;
-      
-      const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+      if (shouldSkip(href, label) || isDuplicate(label)) continue;
       
       menuItems.push({
         label,
-        url: normalizedUrl,
+        url: normalizeUrl(href),
         internalUrl: convertToInternalUrl(href),
         type: getItemType(href),
       });
-      
-      addedLabels.add(label.toLowerCase());
+      markAdded(label);
     }
   }
 
-  console.log('Final menu extraction result:', menuItems.length, 'items,', menuItems.filter(m => m.children && m.children.length > 0).length, 'with children');
-  return menuItems.slice(0, 20);
+  console.log('Final menu extraction:', menuItems.length, 'items,', menuItems.filter(m => m.children && m.children.length > 0).length, 'with children');
+  return menuItems.slice(0, 25);
 }
 
 // =============================================
