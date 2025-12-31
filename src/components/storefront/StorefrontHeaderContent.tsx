@@ -192,14 +192,6 @@ export function StorefrontHeaderContent({
   const hierarchicalMenuItems = useMemo((): MenuItemWithChildren[] => {
     if (!menuItems || menuItems.length === 0) return [];
     
-    // DEBUG: Log all menu items to see their parent_id values
-    console.log('[StorefrontHeaderContent] menuItems received:', menuItems.map(m => ({
-      id: m.id,
-      label: m.label,
-      parent_id: m.parent_id,
-      hasParentId: m.parent_id !== null && m.parent_id !== undefined && m.parent_id !== ''
-    })));
-    
     const itemMap = new Map<string, MenuItemWithChildren>();
     const rootItems: MenuItemWithChildren[] = [];
     
@@ -228,16 +220,7 @@ export function StorefrontHeaderContent({
       item.children.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     });
     
-    const result = rootItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-    
-    // DEBUG: Log result showing which items have children
-    console.log('[StorefrontHeaderContent] hierarchicalMenuItems result:', result.map(r => ({
-      label: r.label,
-      childrenCount: r.children.length,
-      children: r.children.map(c => c.label)
-    })));
-    
-    return result;
+    return rootItems.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   }, [menuItems]);
 
   // State for dropdown hover
@@ -313,8 +296,6 @@ export function StorefrontHeaderContent({
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
 
-  // DEBUG: Log viewport and layout modes
-  console.log('[StorefrontHeaderContent] viewportOverride:', viewportOverride, 'forceMobile:', forceMobile, 'forceDesktop:', forceDesktop);
 
   return (
     <header 

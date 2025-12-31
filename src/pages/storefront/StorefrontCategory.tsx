@@ -148,6 +148,7 @@ export default function StorefrontCategory() {
       item_type: item.item_type,
       ref_id: item.ref_id || undefined,
       sort_order: item.sort_order,
+      parent_id: item.parent_id,
     })) as any,
     footerMenu: footerMenu?.items?.map(item => ({
       id: item.id,
