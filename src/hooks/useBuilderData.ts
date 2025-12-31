@@ -148,6 +148,20 @@ export function useSaveDraft() {
         return 1;
       }
 
+      // Special handling for institutional pages with direct content - save to store_pages.content
+      if (pageType === 'institutional' && pageId) {
+        const { error } = await supabase
+          .from('store_pages')
+          .update({ 
+            content: content as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
+        return 1;
+      }
+
       // Get the MAX version from store_page_versions directly to avoid conflicts
       let maxVersionQuery = supabase
         .from('store_page_versions')
@@ -248,6 +262,22 @@ export function usePublish() {
           })
           .eq('template_id', pageId);
         
+        return 1;
+      }
+
+      // Special handling for institutional pages with direct content - save to store_pages.content
+      if (pageType === 'institutional' && pageId) {
+        const { error } = await supabase
+          .from('store_pages')
+          .update({ 
+            content: content as unknown as Json,
+            is_published: true,
+            status: 'published',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
         return 1;
       }
 
