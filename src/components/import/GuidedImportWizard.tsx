@@ -714,143 +714,227 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       setVisualProgress(prev => ({ ...prev, categories: 'completed' }));
       
-      // === STEP 2.3: Import Menus (with hierarchy - parent_id in menu_items) ===
+      // === STEP 2.3: Import Menus (Header AND Footer with hierarchy) ===
       setVisualProgress(prev => ({ ...prev, menus: 'processing' }));
       
-      const menuItems = visualData.menuItems || [];
+      const headerMenuItems = visualData.menuItems || [];
+      const footerMenuItems = visualData.footerMenuItems || [];
       let menuId: string | null = null;
       
-      if (menuItems.length > 0) {
-        // Fetch imported categories to link menu items
-        const { data: importedCategories } = await supabase
-          .from('categories')
-          .select('id, slug, name')
-          .eq('tenant_id', currentTenant.id);
+      // Fetch imported categories to link menu items
+      const { data: importedCategories } = await supabase
+        .from('categories')
+        .select('id, slug, name')
+        .eq('tenant_id', currentTenant.id);
+      
+      const categoryMap = new Map<string, { id: string; slug: string }>();
+      (importedCategories || []).forEach(cat => {
+        categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
+        categoryMap.set(cat.name.toLowerCase().replace(/\s+/g, '-'), { id: cat.id, slug: cat.slug });
+      });
+      
+      // Fetch imported pages to link menu items
+      const { data: importedPages } = await supabase
+        .from('store_pages')
+        .select('id, slug, title')
+        .eq('tenant_id', currentTenant.id);
+      
+      const pageMap = new Map<string, { id: string; slug: string }>();
+      (importedPages || []).forEach(page => {
+        pageMap.set(page.slug.toLowerCase(), { id: page.id, slug: page.slug });
+        pageMap.set(page.title.toLowerCase().replace(/\s+/g, '-'), { id: page.id, slug: page.slug });
+      });
+      
+      // Helper to find category match from URL or label
+      const findCategoryMatch = (url: string, label: string) => {
+        const collectionMatch = url.match(/\/(?:collections?|categoria|category|c)\/([^/?#]+)/i);
+        if (collectionMatch) {
+          const slug = collectionMatch[1].toLowerCase();
+          if (categoryMap.has(slug)) {
+            return categoryMap.get(slug);
+          }
+        }
+        const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
+        if (categoryMap.has(labelSlug)) {
+          return categoryMap.get(labelSlug);
+        }
+        return null;
+      };
+      
+      // Helper to find page match from URL or label
+      const findPageMatch = (url: string, label: string) => {
+        const pageMatch = url.match(/\/(?:pages?|pagina|policies)\/([^/?#]+)/i);
+        if (pageMatch) {
+          const slug = pageMatch[1].toLowerCase();
+          if (pageMap.has(slug)) {
+            return pageMap.get(slug);
+          }
+        }
+        const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
+        if (pageMap.has(labelSlug)) {
+          return pageMap.get(labelSlug);
+        }
+        return null;
+      };
+      
+      // Helper to insert menu items with hierarchy
+      const insertMenuItems = async (items: any[], targetMenuId: string) => {
+        let sortOrder = 0;
+        let totalItems = 0;
         
-        const categoryMap = new Map<string, { id: string; slug: string }>();
-        (importedCategories || []).forEach(cat => {
-          categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
-          categoryMap.set(cat.name.toLowerCase().replace(/\s+/g, '-'), { id: cat.id, slug: cat.slug });
-        });
-        
-        // Helper to find category match from URL or label
-        const findCategoryMatch = (url: string, label: string) => {
-          // Try to extract slug from URL
-          const collectionMatch = url.match(/\/(?:collections?|categoria|category|c)\/([^/?#]+)/i);
-          if (collectionMatch) {
-            const slug = collectionMatch[1].toLowerCase();
-            if (categoryMap.has(slug)) {
-              return categoryMap.get(slug);
+        for (const item of items) {
+          const categoryMatch = findCategoryMatch(item.internalUrl || item.url || '', item.label || '');
+          const pageMatch = !categoryMatch ? findPageMatch(item.internalUrl || item.url || '', item.label || '') : null;
+          
+          let itemType = item.type || 'external';
+          let itemUrl = item.internalUrl || item.url || '#';
+          let refId = null;
+          
+          if (categoryMatch) {
+            itemType = 'category';
+            itemUrl = `/categoria/${categoryMatch.slug}`;
+            refId = categoryMatch.id;
+          } else if (pageMatch) {
+            itemType = 'page';
+            itemUrl = `/pagina/${pageMatch.slug}`;
+            refId = pageMatch.id;
+          }
+          
+          // Insert parent item
+          const { data: parentItem, error: parentError } = await supabase
+            .from('menu_items')
+            .insert({
+              tenant_id: currentTenant.id,
+              menu_id: targetMenuId,
+              label: item.label,
+              url: itemUrl,
+              item_type: itemType,
+              ref_id: refId,
+              sort_order: sortOrder++,
+              parent_id: null,
+            })
+            .select('id')
+            .single();
+          
+          if (parentError) {
+            console.error('Error inserting menu item:', parentError);
+            continue;
+          }
+          
+          totalItems++;
+          
+          // Insert children with parent_id
+          if (item.children && item.children.length > 0 && parentItem) {
+            for (let i = 0; i < item.children.length; i++) {
+              const child = item.children[i];
+              const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url || '', child.label || '');
+              const childPageMatch = !childCategoryMatch ? findPageMatch(child.internalUrl || child.url || '', child.label || '') : null;
+              
+              let childItemType = child.type || 'external';
+              let childUrl = child.internalUrl || child.url || '#';
+              let childRefId = null;
+              
+              if (childCategoryMatch) {
+                childItemType = 'category';
+                childUrl = `/categoria/${childCategoryMatch.slug}`;
+                childRefId = childCategoryMatch.id;
+              } else if (childPageMatch) {
+                childItemType = 'page';
+                childUrl = `/pagina/${childPageMatch.slug}`;
+                childRefId = childPageMatch.id;
+              }
+              
+              const { error: childError } = await supabase
+                .from('menu_items')
+                .insert({
+                  tenant_id: currentTenant.id,
+                  menu_id: targetMenuId,
+                  label: child.label,
+                  url: childUrl,
+                  item_type: childItemType,
+                  ref_id: childRefId,
+                  parent_id: parentItem.id,
+                  sort_order: i,
+                });
+              
+              if (childError) {
+                console.error('Error inserting child menu item:', childError);
+              } else {
+                totalItems++;
+              }
             }
           }
-          // Try to match by label
-          const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
-          if (categoryMap.has(labelSlug)) {
-            return categoryMap.get(labelSlug);
-          }
-          return null;
-        };
+        }
         
-        // Create or update header menu
-        const { data: menuData, error: menuError } = await supabase
+        return totalItems;
+      };
+      
+      let totalMenuItems = 0;
+      
+      // === HEADER MENU ===
+      if (headerMenuItems.length > 0) {
+        const { data: headerMenuData, error: headerMenuError } = await supabase
           .from('menus')
           .upsert({
             tenant_id: currentTenant.id,
-            name: 'Menu Principal',
+            name: 'Menu Header',
             location: 'header',
           }, { onConflict: 'tenant_id,location' })
           .select('id')
           .single();
 
-        if (menuError) {
-          console.error('Error creating menu:', menuError);
-          setImportErrors(prev => [...prev, 'Erro ao criar menu principal']);
-        } else if (menuData) {
-          menuId = menuData.id;
-          setCreatedMenuId(menuData.id);
+        if (headerMenuError) {
+          console.error('Error creating header menu:', headerMenuError);
+          setImportErrors(prev => [...prev, 'Erro ao criar menu do header']);
+        } else if (headerMenuData) {
+          menuId = headerMenuData.id;
+          setCreatedMenuId(headerMenuData.id);
           
           // Delete existing menu items for idempotency
           await supabase
             .from('menu_items')
             .delete()
-            .eq('menu_id', menuData.id);
+            .eq('menu_id', headerMenuData.id);
 
-          // Insert menu items WITH HIERARCHY (parent_id in menu_items)
-          let sortOrder = 0;
-          let totalMenuItems = 0;
-          
-          for (const item of menuItems) {
-            const categoryMatch = findCategoryMatch(item.internalUrl || item.url || '', item.label || '');
-            
-            // Determine item type and URL based on category match
-            const itemType = categoryMatch ? 'category' : (item.type || 'link');
-            const itemUrl = categoryMatch 
-              ? `/categoria/${categoryMatch.slug}` 
-              : (item.internalUrl || item.url || '#');
-            const refId = categoryMatch?.id || null;
-            
-            // Insert parent item
-            const { data: parentItem, error: parentError } = await supabase
-              .from('menu_items')
-              .insert({
-                tenant_id: currentTenant.id,
-                menu_id: menuData.id,
-                label: item.label,
-                url: itemUrl,
-                item_type: itemType,
-                ref_id: refId,
-                sort_order: sortOrder++,
-                parent_id: null, // Parent items have no parent
-              })
-              .select('id')
-              .single();
-            
-            if (parentError) {
-              console.error('Error inserting parent menu item:', parentError);
-              continue;
-            }
-            
-            totalMenuItems++;
-            
-            // Insert children with parent_id (THIS IS THE HIERARCHY)
-            if (item.children && item.children.length > 0 && parentItem) {
-              for (let i = 0; i < item.children.length; i++) {
-                const child = item.children[i];
-                const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url || '', child.label || '');
-                
-                const childItemType = childCategoryMatch ? 'category' : (child.type || 'link');
-                const childUrl = childCategoryMatch 
-                  ? `/categoria/${childCategoryMatch.slug}` 
-                  : (child.internalUrl || child.url || '#');
-                const childRefId = childCategoryMatch?.id || null;
-                
-                const { error: childError } = await supabase
-                  .from('menu_items')
-                  .insert({
-                    tenant_id: currentTenant.id,
-                    menu_id: menuData.id,
-                    label: child.label,
-                    url: childUrl,
-                    item_type: childItemType,
-                    ref_id: childRefId,
-                    parent_id: parentItem.id, // HIERARCHY: children reference parent
-                    sort_order: i,
-                  });
-                
-                if (childError) {
-                  console.error('Error inserting child menu item:', childError);
-                } else {
-                  totalMenuItems++;
-                }
-              }
-            }
-          }
-          
-          stats.menuItems = totalMenuItems;
+          const headerItemsCount = await insertMenuItems(headerMenuItems, headerMenuData.id);
+          totalMenuItems += headerItemsCount;
+          console.log(`Imported ${headerItemsCount} header menu items`);
         }
-      } else {
+      }
+      
+      // === FOOTER MENU ===
+      if (footerMenuItems.length > 0) {
+        const { data: footerMenuData, error: footerMenuError } = await supabase
+          .from('menus')
+          .upsert({
+            tenant_id: currentTenant.id,
+            name: 'Menu Footer',
+            location: 'footer',
+          }, { onConflict: 'tenant_id,location' })
+          .select('id')
+          .single();
+
+        if (footerMenuError) {
+          console.error('Error creating footer menu:', footerMenuError);
+          setImportErrors(prev => [...prev, 'Erro ao criar menu do footer']);
+        } else if (footerMenuData) {
+          // Delete existing menu items for idempotency
+          await supabase
+            .from('menu_items')
+            .delete()
+            .eq('menu_id', footerMenuData.id);
+
+          const footerItemsCount = await insertMenuItems(footerMenuItems, footerMenuData.id);
+          totalMenuItems += footerItemsCount;
+          console.log(`Imported ${footerItemsCount} footer menu items`);
+        }
+      }
+      
+      if (headerMenuItems.length === 0 && footerMenuItems.length === 0) {
         toast.info('Nenhum item de menu encontrado no site.');
       }
+      
+      stats.menuItems = totalMenuItems;
       
       setVisualProgress(prev => ({ ...prev, menus: 'completed' }));
       

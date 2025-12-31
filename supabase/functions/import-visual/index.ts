@@ -57,7 +57,8 @@ interface VisualExtractionResult {
   success: boolean;
   heroBanners: ExtractedBanner[];
   categories: ExtractedCategory[];
-  menuItems: ExtractedMenuItem[];
+  menuItems: ExtractedMenuItem[]; // Header menu items (backward compatibility)
+  footerMenuItems: ExtractedMenuItem[]; // Footer menu items
   videos: ExtractedVideo[];
   sections: ExtractedSection[];
   institutionalPages: ExtractedInstitutionalPage[];
@@ -365,6 +366,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     heroBanners: [],
     categories: [],
     menuItems: [],
+    footerMenuItems: [],
     videos: [],
     sections: [],
     institutionalPages: [],
@@ -381,8 +383,11 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     // Extract categories with URLs (banners will be fetched separately)
     result.categories = extractCategories(html, baseUrl, platform);
     
-    // Extract menu items from navigation
+    // Extract menu items from header navigation
     result.menuItems = extractMenuItems(html, baseUrl, platform);
+    
+    // Extract footer menu items
+    result.footerMenuItems = extractFooterMenuItems(html, baseUrl, platform);
     
     // Extract videos (YouTube, Vimeo, direct uploads)
     result.videos = extractVideos(html, baseUrl);
@@ -400,6 +405,7 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
       banners: result.heroBanners.length,
       categories: result.categories.length,
       menuItems: result.menuItems.length,
+      footerMenuItems: result.footerMenuItems.length,
       videos: result.videos.length,
       sections: result.sections.length,
       institutionalPages: result.institutionalPages.length,
@@ -1152,6 +1158,177 @@ function extractMenuItems(html: string, baseUrl: string, platform?: string): Ext
 
   console.log('Final menu extraction result:', menuItems.length, 'items,', menuItems.filter(m => m.children && m.children.length > 0).length, 'with children');
   return menuItems.slice(0, 20);
+}
+
+// =============================================
+// FOOTER MENU EXTRACTION
+// =============================================
+function extractFooterMenuItems(html: string, baseUrl: string, platform?: string): ExtractedMenuItem[] {
+  const menuItems: ExtractedMenuItem[] = [];
+  const addedLabels = new Set<string>();
+  
+  // Helper to convert external URL to internal format
+  const convertToInternalUrl = (href: string): string | undefined => {
+    const categoryMatch = /\/(?:collections|categoria|category|c)\/([^/?#]+)/i.exec(href);
+    if (categoryMatch) return `/categoria/${categoryMatch[1]}`;
+    const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(href);
+    if (pageMatch) return `/pagina/${pageMatch[1]}`;
+    const blogMatch = /\/(?:blogs?|artigos?)(?:\/([^/?#]+))?/i.exec(href);
+    if (blogMatch) return blogMatch[1] ? `/blog/${blogMatch[1]}` : '/blog';
+    const productMatch = /\/(?:products?|produto)\/([^/?#]+)/i.exec(href);
+    if (productMatch) return `/produto/${productMatch[1]}`;
+    return undefined;
+  };
+
+  const getItemType = (href: string): 'link' | 'category' | 'page' => {
+    if (/\/(?:collections|categoria|category|c)\//i.test(href)) return 'category';
+    if (/\/(?:pages?|pagina|blogs?|artigos?|policies)\//i.test(href)) return 'page';
+    return 'link';
+  };
+
+  const skipPatterns = ['javascript:', '#', 'mailto:', 'tel:', 'whatsapp'];
+  const skipLabels = ['carrinho', 'cart', 'login', 'entrar', 'sair', 'logout', 'buscar', 'search', 'minha conta', 'my account', 'conta', 'pesquisar', 'wishlist', 'lista de desejos'];
+
+  const shouldSkip = (href: string, label: string) => {
+    if (!label || label.length < 2 || addedLabels.has(label.toLowerCase())) return true;
+    if (skipPatterns.some(p => href.toLowerCase().includes(p))) return true;
+    if (skipLabels.some(l => label.toLowerCase() === l)) return true;
+    return false;
+  };
+
+  console.log('Starting footer menu extraction...');
+
+  // Find footer HTML
+  const footerPatterns = [
+    /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
+    /<div[^>]*id="?(?:footer|shopify-section-footer)"?[^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>\s*)*(?=<\/body>|$)/gi,
+    /<div[^>]*class="[^"]*(?:footer|Footer|site-footer)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    /<section[^>]*class="[^"]*(?:footer|Footer)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
+  ];
+
+  let footerHtml = '';
+  for (const pattern of footerPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      if (match[1].length > footerHtml.length) {
+        footerHtml = match[1];
+      }
+    }
+  }
+
+  if (!footerHtml) {
+    console.log('No footer HTML found');
+    return menuItems;
+  }
+
+  console.log('Found footer HTML, length:', footerHtml.length);
+
+  // STRATEGY 1: Look for menu sections in footer (labeled sections like "MENU", "POLITICAS", etc.)
+  // Shopify footers often have divs with headings followed by lists
+  const sectionPatterns = [
+    // Look for heading followed by list or links
+    /<(?:h[2-6]|p|span)[^>]*class="[^"]*(?:title|heading|footer-title|widget-title)[^"]*"[^>]*>([^<]+)<\/(?:h[2-6]|p|span)>\s*(?:<(?:nav|div|ul)[^>]*>)?([\s\S]*?)(?=<(?:h[2-6]|p|span)[^>]*class="[^"]*(?:title|heading|footer-title|widget-title)|<\/(?:footer|section)|$)/gi,
+    // Simpler pattern: any heading followed by links
+    /<(?:h[2-6]|strong|b)[^>]*>([^<]+)<\/(?:h[2-6]|strong|b)>\s*([\s\S]*?)(?=<(?:h[2-6]|strong|b)[^>]*>|<\/(?:footer|section|div)>\s*<\/(?:footer|section)|$)/gi,
+    // Footer column divs
+    /<div[^>]*class="[^"]*(?:footer-col|footer-column|footer-block|footer-menu|footer-widget)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+
+  // Try to extract labeled sections
+  for (let patternIndex = 0; patternIndex < 2; patternIndex++) {
+    const pattern = sectionPatterns[patternIndex];
+    let match;
+    
+    while ((match = pattern.exec(footerHtml)) !== null) {
+      const sectionTitle = (patternIndex < 2 ? match[1] : '').replace(/<[^>]*>/g, '').trim();
+      const sectionContent = patternIndex < 2 ? match[2] : match[1];
+      
+      if (!sectionContent) continue;
+      
+      // Skip if this looks like contact/social section
+      if (/(?:contato|contact|social|redes|sobre|about|telefone|email|endereço|newsletter|inscrev)/i.test(sectionTitle)) {
+        continue;
+      }
+      
+      // Extract links from this section
+      const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+      const sectionItems: ExtractedMenuItem[] = [];
+      let linkMatch;
+      
+      while ((linkMatch = linkPattern.exec(sectionContent)) !== null) {
+        const [, href, rawLabel] = linkMatch;
+        const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+        
+        if (shouldSkip(href, label)) continue;
+        if (sectionItems.some(i => i.label.toLowerCase() === label.toLowerCase())) continue;
+        
+        const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+        sectionItems.push({
+          label,
+          url: normalizedUrl,
+          internalUrl: convertToInternalUrl(href),
+          type: getItemType(href),
+        });
+      }
+      
+      if (sectionItems.length > 0) {
+        // Check if this section title should become a parent menu item
+        if (sectionTitle && sectionTitle.length > 1 && !addedLabels.has(sectionTitle.toLowerCase())) {
+          menuItems.push({
+            label: sectionTitle,
+            url: '#',
+            type: 'link',
+            children: sectionItems,
+          });
+          addedLabels.add(sectionTitle.toLowerCase());
+          sectionItems.forEach(item => addedLabels.add(item.label.toLowerCase()));
+          console.log(`Found footer section: ${sectionTitle} with ${sectionItems.length} items`);
+        } else {
+          // Add items directly without parent
+          for (const item of sectionItems) {
+            if (!addedLabels.has(item.label.toLowerCase())) {
+              menuItems.push(item);
+              addedLabels.add(item.label.toLowerCase());
+            }
+          }
+        }
+      }
+    }
+    
+    if (menuItems.length > 0) break;
+  }
+
+  // STRATEGY 2: Fallback - extract all links from footer
+  if (menuItems.length === 0) {
+    const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
+    let match;
+    
+    while ((match = linkPattern.exec(footerHtml)) !== null) {
+      const [, href, rawLabel] = match;
+      const label = rawLabel.replace(/<[^>]*>/g, '').trim();
+      
+      // Only include pages/policies links in footer
+      if (!/(\/pages?\/|\/policies\/|\/blogs?\/|\/sobre|\/contato|\/faq|\/perguntas|\/politica|\/termos|\/garantia|\/troca)/i.test(href)) {
+        continue;
+      }
+      
+      if (shouldSkip(href, label)) continue;
+      
+      const normalizedUrl = href.startsWith('http') ? href : `${baseUrl}${href.startsWith('/') ? '' : '/'}${href}`;
+      
+      menuItems.push({
+        label,
+        url: normalizedUrl,
+        internalUrl: convertToInternalUrl(href),
+        type: getItemType(href),
+      });
+      
+      addedLabels.add(label.toLowerCase());
+    }
+  }
+
+  console.log('Final footer menu extraction result:', menuItems.length, 'items');
+  return menuItems.slice(0, 30);
 }
 
 function extractSections(html: string, platform?: string): ExtractedSection[] {
