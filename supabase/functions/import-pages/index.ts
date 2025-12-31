@@ -18,46 +18,8 @@ interface ImportPagesRequest {
   platform?: string;
 }
 
-// Generate a unique block ID
-function generateBlockId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-}
-
-// Generate page content structure for Builder
-function generatePageContent(htmlContent: string, pageTitle: string): object {
-  return {
-    id: generateBlockId('page'),
-    type: 'Page',
-    props: {},
-    children: [
-      {
-        id: generateBlockId('Header'),
-        type: 'Header',
-        props: {},
-      },
-      {
-        id: generateBlockId('Section'),
-        type: 'Section',
-        props: { paddingY: 48 },
-        children: [
-          {
-            id: generateBlockId('RichText'),
-            type: 'RichText',
-            props: {
-              title: pageTitle,
-              content: htmlContent,
-            },
-          },
-        ],
-      },
-      {
-        id: generateBlockId('Footer'),
-        type: 'Footer',
-        props: {},
-      },
-    ],
-  };
-}
+// Note: generatePageContent removed - we now use Shopify-like model
+// where content is stored in individual_content field and template provides structure
 
 // Scrape page content using Firecrawl
 async function scrapePageContent(url: string): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
@@ -109,7 +71,7 @@ async function scrapePageContent(url: string): Promise<{ html: string; markdown:
   }
 }
 
-// Clean HTML content for safe display - extract main content only
+// Clean HTML content for safe display - extract ONLY main page content
 function cleanHtmlContent(html: string, markdown?: string): string {
   if (!html && !markdown) return '';
 
@@ -133,7 +95,6 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   cleaned = cleaned.replace(/\s*on\w+='[^']*'/gi, '');
 
   // ===== PHASE 2: Remove navigation/header/footer elements COMPLETELY =====
-  // These patterns remove the ENTIRE element including all nested content
   const removePatterns = [
     // Remove nav elements
     /<nav[\s\S]*?<\/nav>/gi,
@@ -141,6 +102,8 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     /<header[\s\S]*?<\/header>/gi,
     // Remove footer elements
     /<footer[\s\S]*?<\/footer>/gi,
+    // Remove aside elements
+    /<aside[\s\S]*?<\/aside>/gi,
     // Remove Shopify announcement/topbar (common patterns)
     /<div[^>]*class="[^"]*(?:announcement|topbar|top-bar|utility-bar|header-bar|ticker|marquee|promo-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
     // Remove mobile menu overlays
@@ -153,6 +116,12 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     /<section[^>]*class="[^"]*(?:shopify-section-header|shopify-section-announcement)[^"]*"[^>]*>[\s\S]*?<\/section>/gi,
     // Remove common Shopify elements by ID
     /<div[^>]*id="[^"]*(?:shopify-section-header|shopify-section-announcement|announcement-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // ===== NEW: Remove contact/support dropdowns (WhatsApp, phone, hours) =====
+    /<div[^>]*class="[^"]*(?:dropdown|popover|tooltip|support-menu|contact-menu|atendimento)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove WhatsApp/phone links that are clearly from header
+    /<a[^>]*href="[^"]*(?:wa\.me|whatsapp|tel:)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+    // Remove elements containing specific header-like text patterns
+    /<div[^>]*>[\s\S]*?(?:Fale no WhatsApp|HORÁRIO DE ATENDIMENTO|Compre por telefone)[\s\S]*?<\/div>/gi,
   ];
 
   for (const pattern of removePatterns) {
@@ -162,14 +131,37 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   // ===== PHASE 3: Try to extract ONLY main content area =====
   let mainContent = '';
   
-  // Priority 1: <main> element (most reliable)
-  const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
-  if (mainMatch && mainMatch[1].trim().length > 100) {
-    mainContent = mainMatch[1];
-    console.log('Found main content via <main> tag');
+  // Priority 1: Shopify MainContent div (most reliable for pages)
+  const mainContentPatterns = [
+    /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i,
+    /<main[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i,
+  ];
+  
+  for (const pattern of mainContentPatterns) {
+    const match = pattern.exec(cleaned);
+    if (match && match[1].trim().length > 100) {
+      // Extract until footer
+      let content = match[1];
+      const footerIdx = content.search(/<footer|<div[^>]*class="[^"]*footer/i);
+      if (footerIdx > 0) {
+        content = content.substring(0, footerIdx);
+      }
+      mainContent = content;
+      console.log('Found main content via MainContent ID');
+      break;
+    }
   }
   
-  // Priority 2: <article> element
+  // Priority 2: <main> element
+  if (!mainContent) {
+    const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
+    if (mainMatch && mainMatch[1].trim().length > 100) {
+      mainContent = mainMatch[1];
+      console.log('Found main content via <main> tag');
+    }
+  }
+  
+  // Priority 3: <article> element
   if (!mainContent) {
     const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
     if (articleMatch && articleMatch[1].trim().length > 100) {
@@ -178,29 +170,12 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     }
   }
   
-  // Priority 3: Shopify MainContent div
-  if (!mainContent) {
-    const shopifyMainPatterns = [
-      /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*?)<\/div>\s*(?:<\/main>|<footer|<div[^>]*class="[^"]*footer)/i,
-      /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i, // Catch rest of page
-      /<div[^>]*class="[^"]*page-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    ];
-    
-    for (const pattern of shopifyMainPatterns) {
-      const match = pattern.exec(cleaned);
-      if (match && match[1].trim().length > 100) {
-        mainContent = match[1];
-        console.log('Found main content via Shopify MainContent');
-        break;
-      }
-    }
-  }
-  
   // Priority 4: Content/RTE class divs (Shopify rich text editor output)
   if (!mainContent) {
     const contentPatterns = [
       /<div[^>]*class="[^"]*(?:rte|entry-content|page-content|text-content|content-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<div[^>]*class="[^"]*(?:page|content|section--page)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*(?:page-width|container|content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<section[^>]*class="[^"]*(?:page|content|main-content)[^"]*"[^>]*>([\s\S]*?)<\/section>/i,
     ];
     
     for (const pattern of contentPatterns) {
@@ -225,20 +200,35 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   }
 
   // ===== PHASE 4: Clean up the extracted content =====
-  // Remove any remaining navigation/layout elements that weren't caught before
+  // Remove any remaining navigation/layout elements
   mainContent = mainContent
     .replace(/<nav[\s\S]*?<\/nav>/gi, '')
     .replace(/<header[\s\S]*?<\/header>/gi, '')
     .replace(/<footer[\s\S]*?<\/footer>/gi, '')
     .replace(/<aside[\s\S]*?<\/aside>/gi, '');
 
-  // Remove breadcrumb sections (keep the main content after breadcrumbs)
+  // Remove breadcrumb sections
   mainContent = mainContent.replace(/<(?:nav|div|ol|ul)[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>[\s\S]*?<\/(?:nav|div|ol|ul)>/gi, '');
 
   // Remove "Back to" navigation links
   mainContent = mainContent.replace(/<a[^>]*class="[^"]*(?:back-link|return-link)[^"]*"[^>]*>[\s\S]*?<\/a>/gi, '');
 
-  // Keep allowed tags for content
+  // ===== NEW: Remove elements with header-like content AFTER extraction =====
+  // This catches content that slipped through (like the WhatsApp/horário text)
+  const textBasedRemovePatterns = [
+    // Remove divs containing WhatsApp/phone/hours patterns
+    /<(?:div|p|span)[^>]*>[\s\S]*?Fale no WhatsApp[\s\S]*?<\/(?:div|p|span)>/gi,
+    /<(?:div|p|span)[^>]*>[\s\S]*?HORÁRIO DE ATENDIMENTO[\s\S]*?<\/(?:div|p|span)>/gi,
+    /<(?:div|p|span)[^>]*>[\s\S]*?Compre por telefone[\s\S]*?<\/(?:div|p|span)>/gi,
+    // Remove empty anchors with WhatsApp links
+    /<a[^>]*(?:wa\.me|whatsapp)[^>]*>[\s\S]*?<\/a>/gi,
+  ];
+  
+  for (const pattern of textBasedRemovePatterns) {
+    mainContent = mainContent.replace(pattern, '');
+  }
+
+  // ===== PHASE 5: Keep allowed tags for content =====
   const allowedTags = [
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'p', 'br', 'hr',
@@ -267,6 +257,10 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     if (lowerTag === 'a') {
       const hrefMatch = /href="([^"]+)"/.exec(attrs);
       const targetMatch = /target="([^"]+)"/.exec(attrs);
+      // Skip WhatsApp/phone links
+      if (hrefMatch && /(wa\.me|whatsapp|tel:)/i.test(hrefMatch[1])) {
+        return '';
+      }
       if (hrefMatch) safeAttrs += ` href="${hrefMatch[1]}"`;
       if (targetMatch) safeAttrs += ` target="${targetMatch[1]}"`;
     } else if (lowerTag === 'img') {
@@ -308,12 +302,13 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     return allowedTags.includes(lowerTag) ? `</${lowerTag}>` : '';
   });
 
-  // ===== PHASE 5: Final cleanup =====
+  // ===== PHASE 6: Final cleanup =====
   // Remove empty divs and spans
   mainContent = mainContent
     .replace(/<div>\s*<\/div>/gi, '')
     .replace(/<span>\s*<\/span>/gi, '')
-    .replace(/<p>\s*<\/p>/gi, '');
+    .replace(/<p>\s*<\/p>/gi, '')
+    .replace(/<a>\s*<\/a>/gi, '');
 
   // Clean up excessive whitespace but preserve structure
   mainContent = mainContent
@@ -327,7 +322,7 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     return convertMarkdownToHtml(markdown);
   }
 
-  return mainContent || '<p>Conteúdo da página</p>';
+  return mainContent || '';
 }
 
 // Convert markdown to basic HTML
@@ -416,6 +411,22 @@ Deno.serve(async (req) => {
 
     console.log(`Importing ${pages.length} institutional pages for tenant ${tenantId}`);
 
+    // ===== Fetch default page template (Shopify-like model) =====
+    let defaultTemplateId: string | null = null;
+    const { data: defaultTemplate } = await supabase
+      .from('page_templates')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('is_default', true)
+      .maybeSingle();
+    
+    if (defaultTemplate) {
+      defaultTemplateId = defaultTemplate.id;
+      console.log(`Using default template: ${defaultTemplateId}`);
+    } else {
+      console.log('No default template found, pages will be created without template');
+    }
+
     const results = {
       imported: 0,
       skipped: 0,
@@ -446,24 +457,28 @@ Deno.serve(async (req) => {
         // Scrape page content
         const scraped = await scrapePageContent(page.url);
 
-        let pageContent: object;
+        let individualContent = '';
         let seoTitle = page.title;
         let seoDescription = '';
         let hasRealContent = false;
 
-        if (scraped && (scraped.html.length > 100 || scraped.markdown.length > 100)) {
-          pageContent = generatePageContent(scraped.html, scraped.title || page.title);
+        if (scraped && (scraped.html.length > 50 || scraped.markdown.length > 50)) {
+          // Use cleaned HTML as individual_content (Shopify-like model)
+          individualContent = scraped.html;
           seoTitle = scraped.title || page.title;
           seoDescription = scraped.description || '';
-          hasRealContent = true;
-          console.log(`Page ${normalizedSlug} has real content: ${scraped.html.length} chars`);
+          hasRealContent = individualContent.length > 50;
+          console.log(`Page ${normalizedSlug} has real content: ${individualContent.length} chars`);
         } else {
           // Create as DRAFT if no content was extracted (don't publish empty pages)
           console.warn(`Page ${normalizedSlug} has no content, creating as draft`);
-          pageContent = generatePageContent(`<p>Conteúdo de ${page.title} não pôde ser importado automaticamente.</p>`, page.title);
+          individualContent = '';
         }
 
-        // Insert page - published only if has real content
+        // Insert page using Shopify-like model:
+        // - individual_content contains the actual text/HTML
+        // - template_id references the default template (or null)
+        // - content can be null (template structure is used)
         const { error: insertError } = await supabase
           .from('store_pages')
           .insert({
@@ -472,7 +487,9 @@ Deno.serve(async (req) => {
             slug: normalizedSlug,
             type: 'institutional',
             status: hasRealContent ? 'published' : 'draft',
-            content: pageContent,
+            content: null, // Template provides structure, not page-specific blocks
+            individual_content: individualContent, // The actual page content
+            template_id: defaultTemplateId, // Reference to default template
             is_published: hasRealContent,
             is_system: false,
             seo_title: seoTitle,
