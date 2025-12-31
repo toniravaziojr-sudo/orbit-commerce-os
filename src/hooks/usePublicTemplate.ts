@@ -136,6 +136,29 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
         throw new Error('Page not published');
       }
 
+      // If page has a template_id, get content from page_templates table
+      if (page.template_id) {
+        const { data: template, error: templateError } = await supabase
+          .from('page_templates')
+          .select('content')
+          .eq('id', page.template_id)
+          .single();
+        
+        if (!templateError && template?.content) {
+          return {
+            content: template.content as unknown as BlockNode,
+            pageTitle: page.title,
+            pageId: page.id,
+            metaTitle: page.meta_title,
+            metaDescription: page.meta_description,
+            metaImageUrl: page.meta_image_url,
+            noIndex: page.no_index || false,
+            canonicalUrl: page.canonical_url,
+            pageType: page.type,
+          };
+        }
+      }
+
       // Prepare SEO data
       const seoData = {
         metaTitle: page.meta_title,
