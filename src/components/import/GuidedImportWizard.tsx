@@ -1260,7 +1260,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                     {getStepStatusIcon(visualProgress.pages)}
                     <div className="flex-1">
-                      <p className="text-sm font-medium">Páginas Institucionais</p>
+                      <p className="text-sm font-medium">Páginas da Loja</p>
                       <p className="text-xs text-muted-foreground">Sobre, Contato, Políticas, etc.</p>
                     </div>
                     {visualProgress.pages === 'completed' && importStats.pages > 0 && (
