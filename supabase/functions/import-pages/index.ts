@@ -19,8 +19,326 @@ interface ImportPagesRequest {
   storeUrl?: string; // Base URL of the store for relative URL resolution
 }
 
-// Note: generatePageContent removed - we now use Shopify-like model
-// where content is stored in individual_content field and template provides structure
+// =============================================
+// CONTENT-TO-BLOCK MAPPER
+// Analyzes imported HTML content and maps it to appropriate block structures
+// =============================================
+
+interface FAQItem {
+  question: string;
+  answer: string;
+}
+
+interface TestimonialItem {
+  name: string;
+  text: string;
+  rating?: number;
+}
+
+interface BlockNode {
+  id: string;
+  type: string;
+  props: Record<string, unknown>;
+  children: BlockNode[];
+}
+
+// Generate unique block ID
+function generateBlockId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Clean text by removing extra whitespace and HTML entities
+function cleanText(text: string): string {
+  return text
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Strip all HTML tags
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+// Extract FAQ items from HTML content
+function extractFAQItems(html: string): { items: FAQItem[]; title: string; remainingHtml: string } {
+  const items: FAQItem[] = [];
+  let title = 'Perguntas Frequentes';
+  let remainingHtml = html;
+
+  // First, try to find the FAQ title
+  const faqTitlePatterns = [
+    /<h[1-6][^>]*>([^<]*(?:perguntas?\s*frequentes?|faq|dúvidas?\s*comuns?)[^<]*)<\/h[1-6]>/gi,
+    /<strong>([^<]*(?:perguntas?\s*frequentes?|faq)[^<]*)<\/strong>/gi,
+  ];
+
+  for (const pattern of faqTitlePatterns) {
+    const match = pattern.exec(html);
+    if (match) {
+      title = match[1].trim().replace(/\s*\(FAQ\)\s*/gi, '').trim() || title;
+      break;
+    }
+  }
+
+  // Convert HTML to plain text for pattern matching
+  const plainText = stripHtml(html);
+
+  // Pattern 1: Look for numbered question/answer pairs
+  // Example: "1. O site é seguro? Sim! Nosso site é oficial..."
+  const numberedQAPattern = /(\d+)\.\s*([^?]+\?)\s*([^1-9]+?)(?=\d+\.\s*[^?]+\?|$)/g;
+  let match;
+  
+  while ((match = numberedQAPattern.exec(plainText)) !== null) {
+    const question = match[2].trim();
+    let answer = match[3].trim();
+    
+    // Stop answer at next question pattern or section heading
+    const nextSection = answer.search(/^[A-Z]{2,}[^a-z]/m);
+    if (nextSection > 50) {
+      answer = answer.substring(0, nextSection).trim();
+    }
+    
+    if (question.length > 10 && answer.length > 20) {
+      items.push({
+        question: cleanText(question),
+        answer: cleanText(answer),
+      });
+    }
+  }
+
+  // Pattern 2: Look for <details>/<summary> patterns
+  const detailsPattern = /<details[^>]*>\s*<summary[^>]*>([^<]+)<\/summary>\s*([\s\S]*?)<\/details>/gi;
+  
+  while ((match = detailsPattern.exec(html)) !== null) {
+    const question = match[1].trim();
+    const answer = stripHtml(match[2]).trim();
+    
+    if (question.length > 5 && answer.length > 5) {
+      // Avoid duplicates
+      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+        items.push({
+          question: cleanText(question),
+          answer: cleanText(answer),
+        });
+      }
+    }
+  }
+
+  // Pattern 3: Look for bold questions followed by regular text
+  const boldQAPattern = /<(?:strong|b)>([^<]*\?)<\/(?:strong|b)>\s*([^<]+)/gi;
+  
+  while ((match = boldQAPattern.exec(html)) !== null) {
+    const question = match[1].trim();
+    const answer = match[2].trim();
+    
+    if (question.length > 10 && answer.length > 20) {
+      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+        items.push({
+          question: cleanText(question),
+          answer: cleanText(answer),
+        });
+      }
+    }
+  }
+
+  // Pattern 4: H3/H4 with question mark followed by paragraph
+  const headingQAPattern = /<h[3-6][^>]*>([^<]*\?)<\/h[3-6]>\s*<p[^>]*>([^<]+)<\/p>/gi;
+  
+  while ((match = headingQAPattern.exec(html)) !== null) {
+    const question = match[1].trim();
+    const answer = match[2].trim();
+    
+    if (question.length > 10 && answer.length > 20) {
+      if (!items.some(i => i.question.toLowerCase().includes(question.toLowerCase().substring(0, 20)))) {
+        items.push({
+          question: cleanText(question),
+          answer: cleanText(answer),
+        });
+      }
+    }
+  }
+
+  // If we found FAQ items, remove the FAQ section from remaining HTML
+  if (items.length >= 2) {
+    console.log(`[MAPPER] Found ${items.length} FAQ items`);
+    
+    // Try to remove the entire FAQ section
+    const faqSectionPatterns = [
+      /<(?:section|div)[^>]*>[\s\S]*?(?:perguntas?\s*frequentes?|faq)[\s\S]*?<\/(?:section|div)>/gi,
+      /<h[1-6][^>]*>[^<]*(?:perguntas?\s*frequentes?|faq)[^<]*<\/h[1-6]>[\s\S]*?(?=<h[1-3]|<footer|<\/main|$)/gi,
+    ];
+    
+    for (const pattern of faqSectionPatterns) {
+      remainingHtml = remainingHtml.replace(pattern, '');
+    }
+  }
+
+  return { items, title, remainingHtml };
+}
+
+// Extract testimonials from HTML content
+function extractTestimonials(html: string): { items: TestimonialItem[]; title: string; remainingHtml: string } {
+  const items: TestimonialItem[] = [];
+  let title = 'Depoimentos';
+  let remainingHtml = html;
+  let match;
+
+  // Pattern 1: Blockquotes with attribution
+  const blockquotePattern = /<blockquote[^>]*>\s*(?:<p[^>]*>)?([^<]+)(?:<\/p>)?\s*(?:<cite[^>]*>|<footer[^>]*>|—|-)?\s*([^<]+)?<\/(?:cite|footer|blockquote)>/gi;
+  
+  while ((match = blockquotePattern.exec(html)) !== null) {
+    const text = match[1].trim();
+    const name = match[2]?.trim() || 'Cliente';
+    
+    if (text.length > 20) {
+      items.push({
+        name: cleanText(name),
+        text: cleanText(text),
+        rating: 5,
+      });
+    }
+  }
+
+  // Pattern 2: Testimonial divs with common classes
+  const testimonialDivPattern = /<div[^>]*class="[^"]*(?:testimonial|depoimento|review|avaliacao)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi;
+  
+  while ((match = testimonialDivPattern.exec(html)) !== null) {
+    const content = match[1];
+    const textMatch = /<p[^>]*>([^<]+)<\/p>/i.exec(content);
+    const nameMatch = /(?:—|-|by|por)\s*([^<]+)/i.exec(content) || /<(?:strong|b|cite)>([^<]+)<\/(?:strong|b|cite)>/i.exec(content);
+    
+    if (textMatch) {
+      items.push({
+        name: nameMatch?.[1]?.trim() || 'Cliente',
+        text: cleanText(textMatch[1]),
+        rating: 5,
+      });
+    }
+  }
+
+  if (items.length >= 2) {
+    console.log(`[MAPPER] Found ${items.length} testimonials`);
+    remainingHtml = remainingHtml.replace(/<(?:section|div)[^>]*class="[^"]*(?:testimonial|depoimento|review)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
+  }
+
+  return { items, title, remainingHtml };
+}
+
+// Main function: Analyze content and return structured blocks
+function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  let remainingContent = html;
+
+  // Check if page title suggests FAQ content
+  const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
+  
+  // 1. Extract FAQ content (prioritize if page title suggests FAQ)
+  const faqResult = extractFAQItems(remainingContent);
+  if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
+    blocks.push({
+      id: generateBlockId('faq'),
+      type: 'FAQ',
+      props: {
+        title: faqResult.title || 'Perguntas Frequentes',
+        titleAlign: 'left',
+        items: faqResult.items,
+        allowMultiple: false,
+      },
+      children: [],
+    });
+    
+    remainingContent = faqResult.remainingHtml;
+  }
+
+  // 2. Extract Testimonials
+  const testimonialResult = extractTestimonials(remainingContent);
+  if (testimonialResult.items.length >= 2) {
+    blocks.push({
+      id: generateBlockId('testimonials'),
+      type: 'Testimonials',
+      props: {
+        title: testimonialResult.title || 'Depoimentos',
+        items: testimonialResult.items,
+      },
+      children: [],
+    });
+    
+    remainingContent = testimonialResult.remainingHtml;
+  }
+
+  // 3. If remaining content has substantial text, add as RichText block
+  const cleanedRemaining = stripHtml(remainingContent);
+  if (cleanedRemaining.length > 50) {
+    blocks.push({
+      id: generateBlockId('richtext'),
+      type: 'RichText',
+      props: {
+        content: remainingContent.trim() || '<p>Conteúdo da página...</p>',
+        fontFamily: 'inherit',
+        fontSize: 'base',
+        fontWeight: 'normal',
+      },
+      children: [],
+    });
+  }
+
+  // 4. If no blocks were created, create a RichText with original content
+  if (blocks.length === 0) {
+    blocks.push({
+      id: generateBlockId('richtext'),
+      type: 'RichText',
+      props: {
+        content: html || '<p>Conteúdo da página...</p>',
+        fontFamily: 'inherit',
+        fontSize: 'base',
+        fontWeight: 'normal',
+      },
+      children: [],
+    });
+  }
+
+  return blocks;
+}
+
+// Create a complete page structure with mapped blocks
+function createPageWithMappedBlocks(html: string, pageTitle: string): BlockNode {
+  const contentBlocks = analyzeAndMapContent(html, pageTitle);
+  
+  return {
+    id: generateBlockId('page'),
+    type: 'Page',
+    props: {
+      backgroundColor: 'transparent',
+      padding: 'none',
+    },
+    children: [
+      {
+        id: generateBlockId('section'),
+        type: 'Section',
+        props: {
+          backgroundColor: 'transparent',
+          paddingX: 16,
+          paddingY: 32,
+          marginTop: 0,
+          marginBottom: 0,
+          gap: 24,
+          alignItems: 'stretch',
+          fullWidth: false,
+        },
+        children: contentBlocks,
+      },
+    ],
+  };
+}
+
+// =============================================
+// END CONTENT-TO-BLOCK MAPPER
+// =============================================
 
 // Scrape page content using Firecrawl with retry logic
 async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
@@ -557,49 +875,10 @@ Deno.serve(async (req) => {
           individualContent = '';
         }
 
-        // Generate block structure with RichText block containing the imported content
-        // This makes the content editable in the builder
-        const pageBlockId = `page-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const sectionBlockId = `section-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const richTextBlockId = `richtext-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        
-        const pageContent = {
-          id: pageBlockId,
-          type: 'Page',
-          props: {
-            backgroundColor: 'transparent',
-            padding: 'none',
-          },
-          children: [
-            {
-              id: sectionBlockId,
-              type: 'Section',
-              props: {
-                backgroundColor: 'transparent',
-                paddingX: 16,
-                paddingY: 32,
-                marginTop: 0,
-                marginBottom: 0,
-                gap: 16,
-                alignItems: 'stretch',
-                fullWidth: false,
-              },
-              children: [
-                {
-                  id: richTextBlockId,
-                  type: 'RichText',
-                  props: {
-                    content: individualContent || '<p>Conteúdo da página...</p>',
-                    fontFamily: 'inherit',
-                    fontSize: 'base',
-                    fontWeight: 'normal',
-                  },
-                  children: [],
-                },
-              ],
-            },
-          ],
-        };
+        // Generate intelligent block structure based on content analysis
+        // Uses content-to-block mapper to create FAQ, Testimonials, etc. blocks
+        console.log(`[IMPORT] Analyzing content for intelligent block mapping: ${page.title}`);
+        const pageContent = createPageWithMappedBlocks(individualContent, page.title);
 
         // Insert page with block-based content (editable in builder)
         const { error: insertError } = await supabase
