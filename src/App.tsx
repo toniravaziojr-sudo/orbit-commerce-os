@@ -56,6 +56,7 @@ import Emails from "@/pages/Emails";
 import Import from "@/pages/Import";
 import Blog from "@/pages/Blog";
 import BlogPostEditor from "@/pages/BlogPostEditor";
+import BlockSuggestions from "@/pages/BlockSuggestions";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -246,6 +247,7 @@ const App = () => {
                   {/* Platform admin routes */}
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
                   <Route path="/platform/health-monitor" element={<HealthMonitor />} />
+                  <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />

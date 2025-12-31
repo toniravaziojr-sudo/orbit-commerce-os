@@ -2112,6 +2112,43 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: false,
   },
+  // ========== CUSTOM BLOCK (Imported Content) ==========
+  {
+    type: 'CustomBlock',
+    label: 'Bloco Importado',
+    category: 'content',
+    icon: 'Code',
+    defaultProps: {
+      customBlockId: '',
+      htmlContent: '',
+      cssContent: '',
+      blockName: 'Conteúdo Importado',
+    },
+    propsSchema: {
+      customBlockId: {
+        type: 'string',
+        label: 'ID do Bloco (DB)',
+        placeholder: 'UUID do custom_blocks',
+      },
+      htmlContent: {
+        type: 'textarea',
+        label: 'HTML (fallback)',
+        placeholder: 'HTML direto se não usar ID',
+      },
+      cssContent: {
+        type: 'textarea',
+        label: 'CSS (fallback)',
+        placeholder: 'CSS direto se não usar ID',
+      },
+      blockName: {
+        type: 'string',
+        label: 'Nome do Bloco',
+        defaultValue: 'Conteúdo Importado',
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: true,
+  },
 ];
 
 // Registry class

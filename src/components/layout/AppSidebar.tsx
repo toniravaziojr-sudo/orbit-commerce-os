@@ -32,6 +32,7 @@ import {
   Mail,
   Upload,
   BookOpen,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -117,6 +118,7 @@ const platformNavigation: NavGroup = {
   items: [
     { title: "Integrações", href: "/platform/integrations", icon: Plug },
     { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
+    { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
   ],
 };
 
