@@ -56,6 +56,7 @@ import { usePrimaryPublicHost } from '@/hooks/usePrimaryPublicHost';
 interface BuilderToolbarProps {
   pageTitle: string;
   pageType: string;
+  pageId?: string; // For institutional/landing pages (page ID)
   tenantSlug?: string;
   pageSlug?: string; // For institutional/landing pages
   isDirty: boolean;
@@ -85,6 +86,7 @@ interface BuilderToolbarProps {
 export function BuilderToolbar({
   pageTitle,
   pageType,
+  pageId,
   tenantSlug,
   pageSlug,
   isDirty,
@@ -154,7 +156,7 @@ export function BuilderToolbar({
       if (!currentTenant?.id) return [];
       const { data, error } = await supabase
         .from('store_pages')
-        .select('id, title, slug, type')
+        .select('id, title, slug, type, template_id')
         .eq('tenant_id', currentTenant.id)
         .in('type', ['institutional', 'landing_page'])
         .order('title');
@@ -163,6 +165,20 @@ export function BuilderToolbar({
     },
     enabled: !!currentTenant?.id,
   });
+
+  // Resolve the correct selector value for page_template type
+  // When editing a page template, we need to find the page that uses this template
+  const resolvedSelectorValue = (() => {
+    // For page_template, find the page that uses this template ID
+    if (pageType === 'page_template' && pageId && storePages) {
+      const associatedPage = storePages.find(p => p.template_id === pageId);
+      if (associatedPage) {
+        return `page:${associatedPage.id}`;
+      }
+    }
+    // For normal page types, use pageType directly
+    return pageType;
+  })();
 
   // Auto-select first product/category if none selected
   const effectiveProductId = exampleProductId || (products?.length ? products[0].id : undefined);
@@ -251,7 +267,7 @@ export function BuilderToolbar({
         </div>
         
         {/* Page Selector */}
-        <Select value={pageType} onValueChange={handlePageChange}>
+        <Select value={resolvedSelectorValue} onValueChange={handlePageChange}>
           <SelectTrigger className="w-[200px] h-9 font-medium">
             <SelectValue />
           </SelectTrigger>

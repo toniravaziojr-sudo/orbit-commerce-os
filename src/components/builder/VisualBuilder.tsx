@@ -530,6 +530,7 @@ export function VisualBuilder({
       <BuilderToolbar
         pageTitle={pageTypeLabels[pageType] || pageType}
         pageType={pageType}
+        pageId={pageId}
         tenantSlug={context.tenantSlug}
         pageSlug={pageSlug}
         isDirty={store.isDirty}
