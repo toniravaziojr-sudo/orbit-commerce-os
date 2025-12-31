@@ -74,11 +74,12 @@ export default function Pages() {
       // Create new page with auto-generated template
       setIsCreating(true);
       try {
-        // 1. Create a dedicated template for this page
+        // 1. Create a dedicated template for this page with unique slug
         const templateName = `Modelo - ${formData.title}`;
+        const uniqueSuffix = Date.now().toString(36);
         const newTemplate = await createTemplate.mutateAsync({
           name: templateName,
-          slug: `modelo-${slug}`,
+          slug: `modelo-${slug}-${uniqueSuffix}`,
           is_default: false,
         });
 
