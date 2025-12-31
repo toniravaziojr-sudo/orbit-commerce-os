@@ -55,7 +55,7 @@ export default function PageBuilder() {
       
       const { data: items, error: itemsError } = await supabase
         .from('menu_items')
-        .select('id, label, url, item_type, ref_id, sort_order')
+        .select('id, label, url, item_type, ref_id, sort_order, parent_id')
         .eq('menu_id', menu.id)
         .order('sort_order');
       
@@ -138,6 +138,10 @@ export default function PageBuilder() {
       id: item.id,
       label: item.label,
       url: buildMenuItemUrl(item),
+      item_type: item.item_type,
+      ref_id: item.ref_id,
+      sort_order: item.sort_order,
+      parent_id: item.parent_id,
     })) || [],
     // Pass individual_content to context for PageContent block rendering
     pageContent: (page.individual_content as string) || undefined,

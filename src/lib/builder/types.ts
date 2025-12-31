@@ -186,8 +186,24 @@ export interface BlockRenderContext {
   settings?: StoreSettingsContext;
   
   // Menus
-  headerMenu?: { id: string; label: string; url?: string }[];
-  footerMenu?: { id: string; label: string; url?: string }[];
+  headerMenu?: { 
+    id: string; 
+    label: string; 
+    url?: string; 
+    item_type?: string;
+    ref_id?: string | null;
+    sort_order?: number | null;
+    parent_id?: string | null;
+  }[];
+  footerMenu?: { 
+    id: string; 
+    label: string; 
+    url?: string;
+    item_type?: string;
+    ref_id?: string | null;
+    sort_order?: number | null;
+    parent_id?: string | null;
+  }[];
   
   // Category page context
   category?: CategoryContext;
