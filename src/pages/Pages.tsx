@@ -138,8 +138,8 @@ export default function Pages() {
   return (
     <div className="p-6 space-y-6">
       <PageHeader
-        title="Páginas Institucionais"
-        description="Crie e gerencie páginas como Sobre Nós, Política de Privacidade, etc."
+        title="Páginas da Loja"
+        description="Crie e gerencie páginas como Sobre Nós, Política de Privacidade, Landing Pages, etc."
         actions={
           <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>

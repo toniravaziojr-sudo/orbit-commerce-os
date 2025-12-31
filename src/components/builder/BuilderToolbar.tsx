@@ -284,29 +284,20 @@ export function BuilderToolbar({
             <SelectItem value="tracking">📍 Rastreio</SelectItem>
             <SelectItem value="blog">📰 Blog</SelectItem>
             
-            {/* Institutional Pages */}
-            {institutionalPages.length > 0 && (
+            {/* Páginas da Loja */}
+            {(institutionalPages.length > 0 || landingPages.length > 0) && (
               <>
                 <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                  Páginas Institucionais
+                  Páginas da Loja
                 </div>
                 {institutionalPages.map((page) => (
                   <SelectItem key={page.id} value={`page:${page.id}`}>
                     📄 {page.title}
                   </SelectItem>
                 ))}
-              </>
-            )}
-            
-            {/* Landing Pages */}
-            {landingPages.length > 0 && (
-              <>
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
-                  Landing Pages
-                </div>
                 {landingPages.map((page) => (
                   <SelectItem key={page.id} value={`page:${page.id}`}>
-                    🚀 {page.title}
+                    📄 {page.title}
                   </SelectItem>
                 ))}
               </>
