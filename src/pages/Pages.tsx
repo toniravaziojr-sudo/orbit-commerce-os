@@ -17,12 +17,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug } from '@/lib/slugValidation';
 import { toast } from 'sonner';
+import { ImportPageDialog } from '@/components/pages/ImportPageDialog';
 
 export default function Pages() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
-  const { pages, isLoading, createPage, updatePage, deletePage } = useStorePages();
+  const { pages, isLoading, createPage, updatePage, deletePage, refetch } = useStorePages();
   const { templates, isLoading: templatesLoading, initializeDefaultTemplate, createTemplate } = usePageTemplates();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -141,59 +142,67 @@ export default function Pages() {
         title="Páginas da Loja"
         description="Crie e gerencie páginas como Sobre Nós, Política de Privacidade, Landing Pages, etc."
         actions={
-          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button><Plus className="mr-2 h-4 w-4" />Nova Página</Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>{editingPage ? 'Editar Página' : 'Nova Página'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div>
-                  <Label>Título *</Label>
-                  <Input 
-                    value={formData.title} 
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
-                    placeholder="Ex: Sobre Nós"
-                  />
-                </div>
-                <div>
-                  <Label>Slug</Label>
-                  <Input 
-                    value={formData.slug} 
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
-                    placeholder="sobre-nos (gerado automaticamente)"
-                    className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
-                  />
-                  {!validateSlug(formData.slug).isValid && formData.slug ? (
-                    <p className="text-xs text-destructive flex items-center gap-1 mt-1">
-                      <AlertCircle className="h-3 w-3" />
-                      {validateSlug(formData.slug).error}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Usado na URL: /page/{formData.slug || 'slug'}
+          <div className="flex gap-2">
+            {currentTenant?.id && (
+              <ImportPageDialog 
+                tenantId={currentTenant.id} 
+                onSuccess={() => refetch()} 
+              />
+            )}
+            <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button><Plus className="mr-2 h-4 w-4" />Nova Página</Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingPage ? 'Editar Página' : 'Nova Página'}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div>
+                    <Label>Título *</Label>
+                    <Input 
+                      value={formData.title} 
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
+                      placeholder="Ex: Sobre Nós"
+                    />
+                  </div>
+                  <div>
+                    <Label>Slug</Label>
+                    <Input 
+                      value={formData.slug} 
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-') })} 
+                      placeholder="sobre-nos (gerado automaticamente)"
+                      className={!validateSlug(formData.slug).isValid && formData.slug ? 'border-destructive' : ''}
+                    />
+                    {!validateSlug(formData.slug).isValid && formData.slug ? (
+                      <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                        <AlertCircle className="h-3 w-3" />
+                        {validateSlug(formData.slug).error}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Usado na URL: /page/{formData.slug || 'slug'}
+                      </p>
+                    )}
+                  </div>
+
+                  {!editingPage && (
+                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+                      Após criar a página, você será redirecionado ao editor visual para construir o conteúdo.
                     </p>
                   )}
+
+                  <Button 
+                    onClick={handleSubmit} 
+                    disabled={!formData.title || isCreating} 
+                    className="w-full"
+                  >
+                    {isCreating ? 'Criando...' : editingPage ? 'Salvar' : 'Criar e Abrir Editor'}
+                  </Button>
                 </div>
-
-                {!editingPage && (
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-                    Após criar a página, você será redirecionado ao editor visual para construir o conteúdo.
-                  </p>
-                )}
-
-                <Button 
-                  onClick={handleSubmit} 
-                  disabled={!formData.title || isCreating} 
-                  className="w-full"
-                >
-                  {isCreating ? 'Criando...' : editingPage ? 'Salvar' : 'Criar e Abrir Editor'}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         }
       />
 
