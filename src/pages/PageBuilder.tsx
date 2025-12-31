@@ -139,6 +139,12 @@ export default function PageBuilder() {
       label: item.label,
       url: buildMenuItemUrl(item),
     })) || [],
+    // Pass individual_content to context for PageContent block rendering
+    pageContent: (page.individual_content as string) || undefined,
+    page: {
+      title: page.title,
+      slug: page.slug,
+    },
   };
 
   // If page has a template, edit the template directly
