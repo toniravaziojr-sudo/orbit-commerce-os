@@ -268,7 +268,8 @@ export function VisualBuilder({
   }, [store]);
 
   // Determine entity type based on pageType
-  const entityType = (pageType === 'institutional' || pageType === 'landing_page') ? 'page' : 'template';
+  // page_template is treated as 'page' entity but saved directly to page_templates table
+  const entityType = (pageType === 'institutional' || pageType === 'landing_page' || pageType === 'page_template') ? 'page' : 'template';
 
   // Handle saving draft - save global Header/Footer ONLY from Home page
   const handleSave = useCallback(async () => {
@@ -312,7 +313,7 @@ export function VisualBuilder({
 
       await saveDraft.mutateAsync({
         entityType,
-        pageType: entityType === 'template' ? pageType : undefined,
+        pageType: (entityType === 'template' || pageType === 'page_template') ? pageType : undefined,
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
@@ -360,7 +361,7 @@ export function VisualBuilder({
 
       await publish.mutateAsync({
         entityType,
-        pageType: entityType === 'template' ? pageType : undefined,
+        pageType: (entityType === 'template' || pageType === 'page_template') ? pageType : undefined,
         pageId: entityType === 'page' ? pageId : undefined,
         content: contentToSave,
       });
