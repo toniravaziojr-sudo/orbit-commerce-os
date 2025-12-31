@@ -86,6 +86,10 @@ export default function StorefrontBlogPost() {
       id: item.id,
       label: item.label,
       url: item.url || undefined,
+      item_type: item.item_type,
+      ref_id: item.ref_id || undefined,
+      sort_order: item.sort_order,
+      parent_id: item.parent_id,
     })),
     footerMenu: footerMenu?.items?.map((item: any) => ({
       id: item.id,
