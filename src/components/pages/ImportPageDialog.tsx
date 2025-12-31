@@ -31,6 +31,22 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     }
   };
 
+  // Clean URL - remove UTM and tracking parameters
+  const cleanUrl = (urlString: string): string => {
+    try {
+      const url = new URL(urlString);
+      // Remove common tracking parameters
+      const paramsToRemove = [
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+        'fbclid', 'gclid', 'ref', 'source', 'mc_cid', 'mc_eid'
+      ];
+      paramsToRemove.forEach(param => url.searchParams.delete(param));
+      return url.toString();
+    } catch {
+      return urlString;
+    }
+  };
+
   const extractPageInfo = (urlString: string) => {
     try {
       const url = new URL(urlString);
@@ -67,7 +83,9 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     setResult(null);
 
     try {
-      const pageInfo = extractPageInfo(url);
+      // Clean the URL first (remove UTM params)
+      const cleanedUrl = cleanUrl(url);
+      const pageInfo = extractPageInfo(cleanedUrl);
 
       // Call the import-pages edge function with a single page
       const { data, error } = await supabase.functions.invoke('import-pages', {
@@ -76,7 +94,7 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
           pages: [{
             title: pageInfo.title,
             slug: pageInfo.slug,
-            url: url,
+            url: cleanedUrl,
             source: 'global',
           }],
         },

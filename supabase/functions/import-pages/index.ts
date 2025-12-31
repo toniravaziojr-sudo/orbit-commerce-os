@@ -109,7 +109,7 @@ async function scrapePageContent(url: string): Promise<{ html: string; markdown:
   }
 }
 
-// Clean HTML content for safe display - preserve more content
+// Clean HTML content for safe display - extract main content only
 function cleanHtmlContent(html: string, markdown?: string): string {
   if (!html && !markdown) return '';
 
@@ -121,7 +121,7 @@ function cleanHtmlContent(html: string, markdown?: string): string {
 
   let cleaned = html;
 
-  // Remove dangerous elements first
+  // ===== PHASE 1: Remove dangerous elements first =====
   cleaned = cleaned
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -132,56 +132,113 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   cleaned = cleaned.replace(/\s*on\w+="[^"]*"/gi, '');
   cleaned = cleaned.replace(/\s*on\w+='[^']*'/gi, '');
 
-  // Remove navigation/layout elements that are not content
-  cleaned = cleaned
-    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
-    .replace(/<header[\s\S]*?<\/header>/gi, '')
-    .replace(/<footer[\s\S]*?<\/footer>/gi, '');
+  // ===== PHASE 2: Remove navigation/header/footer elements COMPLETELY =====
+  // These patterns remove the ENTIRE element including all nested content
+  const removePatterns = [
+    // Remove nav elements
+    /<nav[\s\S]*?<\/nav>/gi,
+    // Remove header elements 
+    /<header[\s\S]*?<\/header>/gi,
+    // Remove footer elements
+    /<footer[\s\S]*?<\/footer>/gi,
+    // Remove Shopify announcement/topbar (common patterns)
+    /<div[^>]*class="[^"]*(?:announcement|topbar|top-bar|utility-bar|header-bar|ticker|marquee|promo-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove mobile menu overlays
+    /<div[^>]*class="[^"]*(?:mobile-menu|drawer|side-menu|nav-overlay)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove search overlays
+    /<div[^>]*class="[^"]*(?:search-modal|search-drawer|predictive-search)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove sticky headers
+    /<div[^>]*class="[^"]*(?:sticky-header|fixed-header)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove Shopify section headers specifically
+    /<section[^>]*class="[^"]*(?:shopify-section-header|shopify-section-announcement)[^"]*"[^>]*>[\s\S]*?<\/section>/gi,
+    // Remove common Shopify elements by ID
+    /<div[^>]*id="[^"]*(?:shopify-section-header|shopify-section-announcement|announcement-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+  ];
 
-  // Try to extract main content area
+  for (const pattern of removePatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // ===== PHASE 3: Try to extract ONLY main content area =====
   let mainContent = '';
   
-  // Priority 1: <main> element
+  // Priority 1: <main> element (most reliable)
   const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
-  if (mainMatch && mainMatch[1].length > 100) {
+  if (mainMatch && mainMatch[1].trim().length > 100) {
     mainContent = mainMatch[1];
+    console.log('Found main content via <main> tag');
   }
   
   // Priority 2: <article> element
   if (!mainContent) {
     const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
-    if (articleMatch && articleMatch[1].length > 100) {
+    if (articleMatch && articleMatch[1].trim().length > 100) {
       mainContent = articleMatch[1];
+      console.log('Found main content via <article> tag');
     }
   }
   
-  // Priority 3: Shopify page content
+  // Priority 3: Shopify MainContent div
   if (!mainContent) {
-    const shopifyMatch = /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*?)<\/div>\s*(?:<\/main>|$)/i.exec(cleaned);
-    if (shopifyMatch && shopifyMatch[1].length > 100) {
-      mainContent = shopifyMatch[1];
+    const shopifyMainPatterns = [
+      /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*?)<\/div>\s*(?:<\/main>|<footer|<div[^>]*class="[^"]*footer)/i,
+      /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i, // Catch rest of page
+      /<div[^>]*class="[^"]*page-content[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    ];
+    
+    for (const pattern of shopifyMainPatterns) {
+      const match = pattern.exec(cleaned);
+      if (match && match[1].trim().length > 100) {
+        mainContent = match[1];
+        console.log('Found main content via Shopify MainContent');
+        break;
+      }
     }
   }
   
-  // Priority 4: div with content/page class
+  // Priority 4: Content/RTE class divs (Shopify rich text editor output)
   if (!mainContent) {
-    const contentMatch = /<div[^>]*class="[^"]*(?:page-content|content|rte|entry-content)[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(cleaned);
-    if (contentMatch && contentMatch[1].length > 100) {
-      mainContent = contentMatch[1];
+    const contentPatterns = [
+      /<div[^>]*class="[^"]*(?:rte|entry-content|page-content|text-content|content-body)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+      /<div[^>]*class="[^"]*(?:page|content|section--page)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
+    ];
+    
+    for (const pattern of contentPatterns) {
+      const match = pattern.exec(cleaned);
+      if (match && match[1].trim().length > 100) {
+        mainContent = match[1];
+        console.log('Found main content via content class pattern');
+        break;
+      }
     }
   }
 
-  // Priority 5: Use full body or cleaned content
+  // Priority 5: Use body content if nothing else found
   if (!mainContent) {
     const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(cleaned);
     if (bodyMatch) {
       mainContent = bodyMatch[1];
+      console.log('Using body content as fallback');
     } else {
       mainContent = cleaned;
     }
   }
 
-  // Keep more tags - including images, videos, iframes (YouTube/Vimeo)
+  // ===== PHASE 4: Clean up the extracted content =====
+  // Remove any remaining navigation/layout elements that weren't caught before
+  mainContent = mainContent
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+    .replace(/<aside[\s\S]*?<\/aside>/gi, '');
+
+  // Remove breadcrumb sections (keep the main content after breadcrumbs)
+  mainContent = mainContent.replace(/<(?:nav|div|ol|ul)[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>[\s\S]*?<\/(?:nav|div|ol|ul)>/gi, '');
+
+  // Remove "Back to" navigation links
+  mainContent = mainContent.replace(/<a[^>]*class="[^"]*(?:back-link|return-link)[^"]*"[^>]*>[\s\S]*?<\/a>/gi, '');
+
+  // Keep allowed tags for content
   const allowedTags = [
     'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
     'p', 'br', 'hr',
@@ -194,7 +251,7 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     'img',
     'figure', 'figcaption',
     'video', 'source',
-    'iframe', // For YouTube/Vimeo embeds
+    'iframe',
   ];
 
   // Process tags - keep allowed ones with safe attributes
@@ -250,6 +307,13 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     const lowerTag = tag.toLowerCase();
     return allowedTags.includes(lowerTag) ? `</${lowerTag}>` : '';
   });
+
+  // ===== PHASE 5: Final cleanup =====
+  // Remove empty divs and spans
+  mainContent = mainContent
+    .replace(/<div>\s*<\/div>/gi, '')
+    .replace(/<span>\s*<\/span>/gi, '')
+    .replace(/<p>\s*<\/p>/gi, '');
 
   // Clean up excessive whitespace but preserve structure
   mainContent = mainContent
