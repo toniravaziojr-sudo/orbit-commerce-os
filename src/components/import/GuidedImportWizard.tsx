@@ -364,6 +364,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               tenantId: currentTenant.id,
               pages: institutionalPages,
               platform: analysisResult?.platform,
+              storeUrl: storeUrl, // Pass storeUrl for relative URL resolution
             }
           });
           
@@ -393,7 +394,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }));
           
           const { data: pagesResult } = await supabase.functions.invoke('import-pages', {
-            body: { tenantId: currentTenant.id, pages: pagesToImport }
+            body: { tenantId: currentTenant.id, pages: pagesToImport, storeUrl: storeUrl }
           });
           
           stats.pages = pagesResult?.results?.imported || 0;

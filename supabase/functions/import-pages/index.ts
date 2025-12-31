@@ -16,6 +16,7 @@ interface ImportPagesRequest {
   tenantId: string;
   pages: InstitutionalPage[];
   platform?: string;
+  storeUrl?: string; // Base URL of the store for relative URL resolution
 }
 
 // Note: generatePageContent removed - we now use Shopify-like model
@@ -435,7 +436,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { tenantId, pages } = await req.json() as ImportPagesRequest;
+    const { tenantId, pages, storeUrl } = await req.json() as ImportPagesRequest;
 
     if (!tenantId || !pages || !Array.isArray(pages)) {
       return new Response(
@@ -444,7 +445,19 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Extract base URL from storeUrl if provided
+    let baseUrl = '';
+    if (storeUrl) {
+      try {
+        const urlObj = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`);
+        baseUrl = urlObj.origin;
+      } catch (e) {
+        console.warn(`[IMPORT] Could not parse storeUrl: ${storeUrl}`);
+      }
+    }
+
     console.log(`[IMPORT] Starting import of ${pages.length} institutional pages for tenant ${tenantId}`);
+    console.log(`[IMPORT] Base URL for relative URLs: ${baseUrl || 'none'}`);
     console.log(`[IMPORT] Pages to import:`, pages.map(p => `${p.title} (${p.url})`).join(', '));
 
     // ===== Fetch default page template (Shopify-like model) =====
@@ -486,12 +499,26 @@ Deno.serve(async (req) => {
         const normalizedSlug = page.slug.replace(/^\/+/, '').toLowerCase();
         console.log(`[IMPORT] Processing page ${pageIndex}/${pages.length}: ${page.title} -> ${normalizedSlug}`);
         
-        // Validate URL
+        // Validate and normalize URL
         if (!page.url) {
           console.error(`[IMPORT] No URL for page ${normalizedSlug}, skipping`);
           results.failed++;
           results.errors.push(`${page.title}: URL não fornecida`);
           continue;
+        }
+        
+        // Resolve relative URLs using baseUrl
+        let fullUrl = page.url;
+        if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+          if (baseUrl) {
+            fullUrl = `${baseUrl}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
+            console.log(`[IMPORT] Resolved relative URL: ${page.url} -> ${fullUrl}`);
+          } else {
+            console.error(`[IMPORT] Page ${normalizedSlug} has relative URL but no baseUrl available: ${page.url}`);
+            results.failed++;
+            results.errors.push(`${page.title}: URL relativa sem domínio base`);
+            continue;
+          }
         }
         
         // Check if page already exists
@@ -509,8 +536,8 @@ Deno.serve(async (req) => {
         }
 
         // Scrape page content with logging
-        console.log(`[IMPORT] Scraping content from: ${page.url}`);
-        const scraped = await scrapePageContent(page.url);
+        console.log(`[IMPORT] Scraping content from: ${fullUrl}`);
+        const scraped = await scrapePageContent(fullUrl);
 
         let individualContent = '';
         let seoTitle = page.title;
