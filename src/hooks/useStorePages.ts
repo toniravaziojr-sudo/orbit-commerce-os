@@ -63,7 +63,7 @@ export function useStorePages() {
         .from('store_pages')
         .select('*')
         .eq('tenant_id', currentTenant!.id)
-        .eq('type', 'institutional') // Only institutional pages
+        .in('type', ['institutional', 'landing_page']) // Include both types in unified "Páginas da Loja"
         .order('created_at', { ascending: false });
 
       if (error) throw error;
