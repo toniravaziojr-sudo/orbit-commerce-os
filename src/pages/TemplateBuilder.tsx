@@ -52,7 +52,7 @@ export default function TemplateBuilder() {
       if (!menu) return null;
       const { data: items } = await supabase
         .from('menu_items')
-        .select('id, label, url, item_type, ref_id, sort_order')
+        .select('id, label, url, item_type, ref_id, sort_order, parent_id')
         .eq('menu_id', menu.id)
         .order('sort_order');
       return items || [];
@@ -152,6 +152,10 @@ export default function TemplateBuilder() {
       id: item.id,
       label: item.label,
       url: buildMenuItemUrl(item),
+      item_type: item.item_type,
+      ref_id: item.ref_id,
+      sort_order: item.sort_order,
+      parent_id: item.parent_id,
     })) || [],
     // For template editing, we show placeholder text for page content
     pageContent: '<p style="color:#888;text-align:center;padding:40px;">[Conteúdo individual da página será exibido aqui]</p>',
