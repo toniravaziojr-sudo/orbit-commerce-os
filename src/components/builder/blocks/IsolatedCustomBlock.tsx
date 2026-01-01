@@ -55,16 +55,17 @@ function sanitizeHtml(html: string): string {
 function getResponsiveVariantCss(): string {
   return `
     /* === RESPONSIVE VARIANT HIDING === */
-    /* On mobile (< 768px): hide desktop-only sections */
+    /* On mobile (< 768px): hide desktop-only sections when tablet variant exists */
     @media (max-width: 767px) {
-      /* Hide sections with sectionN class but NOT tablet - only when tablet variant exists */
-      /* This is controlled by inline styles for sections with tablet variants */
-      
       /* Hide desktop-variant wrappers from import */
       .section-desktop-variant { display: none !important; }
       
       /* Hide non-tablet products div when tablet exists */
       .products:not(.tablet) { display: none !important; }
+      
+      /* Reset any spacing issues */
+      body > section,
+      body > div { margin: 0 !important; }
     }
     
     /* On desktop (>= 768px): hide tablet sections */
@@ -320,10 +321,10 @@ export function IsolatedCustomBlock({
     [processedHtml, finalCss, baseUrl, isEditing]
   );
   
-  // Measure and update height - LIMITED iterations to prevent infinite loop
+  // Measure and update height - ALWAYS update, with hard limit for iterations
   const measureAndUpdateHeight = useCallback(() => {
     // CRITICAL: Hard limit to prevent infinite loops
-    if (measurementCountRef.current >= 10 || isStableRef.current) {
+    if (measurementCountRef.current >= 15) {
       return;
     }
     
@@ -334,17 +335,19 @@ export function IsolatedCustomBlock({
     const doc = iframeRef.current.contentDocument;
     const newHeight = measureContentHeight(doc);
     
-    const delta = Math.abs(newHeight - lastHeightRef.current);
-    
-    // Update height if changed significantly
-    if (delta > 10) {
-      lastHeightRef.current = newHeight;
-      if (iframeRef.current) {
-        iframeRef.current.style.height = `${newHeight}px`;
+    // ALWAYS update height if meaningful (> 50px) - don't skip on first load
+    if (newHeight > 50) {
+      const delta = Math.abs(newHeight - lastHeightRef.current);
+      
+      if (delta > 5 || lastHeightRef.current === 200) {
+        lastHeightRef.current = newHeight;
+        if (iframeRef.current) {
+          iframeRef.current.style.height = `${newHeight}px`;
+        }
+      } else if (delta < 3) {
+        // Height is stable
+        isStableRef.current = true;
       }
-    } else {
-      // Height is stable
-      isStableRef.current = true;
     }
   }, []);
   
@@ -359,21 +362,18 @@ export function IsolatedCustomBlock({
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
     
-    // Initial set
-    if (iframeRef.current) {
-      iframeRef.current.style.height = '200px';
-    }
+    // DON'T set initial height to 200 - let measureAndUpdateHeight do it
     
-    // Start measurement sequence with LIMITED retries
+    // Start measurement sequence immediately and repeatedly
     requestAnimationFrame(() => {
       measureAndUpdateHeight();
     });
     
-    // Only a few delayed measurements (not continuous)
-    const delays = [100, 300, 800, 1500];
+    // Multiple delayed measurements to catch late-loading content
+    const delays = [50, 150, 300, 600, 1000, 2000, 3000];
     delays.forEach(delay => {
       const timeout = setTimeout(() => {
-        if (!isStableRef.current) {
+        if (!isStableRef.current && measurementCountRef.current < 15) {
           measureAndUpdateHeight();
         }
       }, delay);
