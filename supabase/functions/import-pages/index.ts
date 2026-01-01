@@ -729,9 +729,64 @@ function detectComplexPattern(html: string): {
   const gridFlexCount = (trimmedHtml.match(/grid|flex|display:/gi) || []).length;
   const imgCount = (trimmedHtml.match(/<img/gi) || []).length;
   const nestedDivs = (trimmedHtml.match(/<div[^>]*>.*?<div/gi) || []).length;
+  const iframeCount = (trimmedHtml.match(/<iframe/gi) || []).length;
+  const youtubeCount = (trimmedHtml.match(/youtube\.com|youtu\.be/gi) || []).length;
+  const vimeoCount = (trimmedHtml.match(/vimeo\.com/gi) || []).length;
 
   // Pattern detection
   const patterns: { type: string; name: string; score: number }[] = [];
+
+  // ===== VIDEO PATTERNS (high priority) =====
+  // Video carousel/slider: multiple videos with slider indicators
+  const hasSliderIndicators = /swiper|slider|carousel|glide|slick|splide|owl|flickity/i.test(trimmedHtml);
+  const multipleVideos = (youtubeCount + vimeoCount + iframeCount) >= 2;
+  
+  if (multipleVideos && hasSliderIndicators) {
+    patterns.push({ type: 'video_carousel', name: 'Carrossel de Vídeos', score: 0.95 });
+  } else if (multipleVideos && divCount >= 3) {
+    // Multiple videos in grid/list layout
+    patterns.push({ type: 'video_gallery', name: 'Galeria de Vídeos', score: 0.9 });
+  }
+
+  // Testimonial videos: depoimentos em vídeo
+  if ((youtubeCount >= 1 || vimeoCount >= 1) && /depoimento|testemunho|cliente|feedback|review/i.test(trimmedHtml)) {
+    patterns.push({ type: 'video_testimonials', name: 'Depoimentos em Vídeo', score: 0.92 });
+  }
+
+  // ===== SLIDER/CAROUSEL PATTERNS =====
+  if (hasSliderIndicators && imgCount >= 2) {
+    patterns.push({ type: 'image_carousel', name: 'Carrossel de Imagens', score: 0.85 });
+  }
+  if (hasSliderIndicators && divCount >= 3) {
+    patterns.push({ type: 'content_slider', name: 'Slider de Conteúdo', score: 0.8 });
+  }
+
+  // ===== TABS PATTERN =====
+  if (/tab-?content|tab-?panel|tabs|tabbed/i.test(trimmedHtml) || 
+      (/role="tablist"|role="tabpanel"|aria-selected/i.test(trimmedHtml))) {
+    patterns.push({ type: 'tabs', name: 'Conteúdo em Abas', score: 0.85 });
+  }
+
+  // ===== ACCORDION PATTERN (different from FAQ - visual accordion) =====
+  if (/accordion|collapse|expandable/i.test(trimmedHtml) && !/faq|pergunta|d[úu]vida/i.test(trimmedHtml)) {
+    patterns.push({ type: 'accordion', name: 'Accordion Visual', score: 0.8 });
+  }
+
+  // ===== BEFORE/AFTER PATTERN =====
+  if (/antes.*depois|before.*after|compare|comparison/i.test(trimmedHtml)) {
+    patterns.push({ type: 'before_after', name: 'Antes e Depois', score: 0.9 });
+  }
+
+  // ===== COUNTDOWN/TIMER PATTERN =====
+  if (/countdown|timer|count-?down|tempo|restante|expire/i.test(trimmedHtml) && divCount >= 3) {
+    patterns.push({ type: 'countdown', name: 'Contagem Regressiva', score: 0.85 });
+  }
+
+  // ===== CTA SECTION PATTERN =====
+  if (/cta|call-to-action|comprar|assinar|cadastr/i.test(trimmedHtml) && 
+      /<button|<a[^>]*class="[^"]*btn/i.test(trimmedHtml) && divCount >= 2) {
+    patterns.push({ type: 'cta_section', name: 'Seção de CTA', score: 0.75 });
+  }
 
   // Hero/Banner pattern: large container with background/image
   if (/hero|banner|jumbotron|cover/i.test(trimmedHtml) || 
@@ -750,7 +805,7 @@ function detectComplexPattern(html: string): {
   }
 
   // Gallery: multiple images
-  if (imgCount >= 3) {
+  if (imgCount >= 3 && !hasSliderIndicators) {
     patterns.push({ type: 'gallery', name: 'Image Gallery', score: 0.8 });
   }
 
