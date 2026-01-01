@@ -48,81 +48,104 @@ function sanitizeHtml(html: string): string {
 }
 
 // =============================================
-// CRITICAL: Remove duplicate desktop/mobile variants from HTML
-// Many landing pages have both .section1 (desktop) and .section1.tablet (mobile)
-// We need to REMOVE the wrong variant based on current viewport width
-// This cannot be done with media queries in iframes reliably
+// CRITICAL: Inject CSS to hide the wrong desktop/mobile variant
+// Instead of trying to parse/remove HTML with regex (fragile),
+// we inject inline CSS that hides elements based on viewport
+// This is more reliable and handles nested elements properly
 // =============================================
-function removeWrongVariant(html: string, isMobile: boolean): string {
-  if (!html) return html;
-  
-  // Patterns for mobile/tablet variants that should be hidden on desktop
-  // On desktop (>=768px): hide .tablet, show regular
-  // On mobile (<768px): hide regular (without .tablet), show .tablet
-  
-  // Pattern 1: Our wrapper classes from import
-  if (html.includes('section-mobile-variant') || html.includes('section-desktop-variant')) {
-    if (isMobile) {
-      // Remove desktop variant wrapper
-      html = html.replace(/<div class="section-desktop-variant"[^>]*>[\s\S]*?<\/div>\s*(?=<style|<\/div|$)/gi, '');
-    } else {
-      // Remove mobile variant wrapper
-      html = html.replace(/<div class="section-mobile-variant"[^>]*>[\s\S]*?<\/div>\s*(?=<div class="section-desktop-variant"|<style|$)/gi, '');
-    }
-  }
-  
-  // Pattern 2: Original Shopify/Dooca patterns - .sectionN vs .sectionN.tablet
-  // Handle sections with both class="section1" and class="section1 tablet"
+function getVariantHidingCss(isMobile: boolean): string {
   if (isMobile) {
-    // On mobile: remove sections that are DESKTOP ONLY (have sectionN but NOT tablet)
-    // Keep sections with class="sectionN tablet" or just "tablet" class
-    // This is tricky - we need to remove <section class="section1 ..."> when it doesn't have tablet
-    html = removeDesktopOnlySections(html);
+    // On mobile: hide desktop-only sections (those WITHOUT tablet class)
+    // Show elements WITH tablet class
+    return `
+      /* Hide desktop sections on mobile - sections with sectionN class but NOT tablet */
+      section.section1:not(.tablet),
+      section.section2:not(.tablet),
+      section.section3:not(.tablet),
+      section.section4:not(.tablet),
+      section.section5:not(.tablet),
+      section.section6:not(.tablet),
+      section.section7:not(.tablet),
+      section.section8:not(.tablet),
+      section.section9:not(.tablet),
+      section.section10:not(.tablet) {
+        display: none !important;
+      }
+      /* But show if there's no tablet version - detect by checking if tablet exists */
+      /* This is handled by the JavaScript check below */
+      
+      /* Also hide desktop-variant wrappers from import */
+      .section-desktop-variant { display: none !important; }
+      
+      /* Hide non-tablet products div */
+      .products:not(.tablet) { display: none !important; }
+    `;
   } else {
-    // On desktop: remove sections with "tablet" in their class
-    html = html.replace(/<section[^>]*class="[^"]*\btablet\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-    // Also remove elements with class="... tablet"
-    html = html.replace(/<div[^>]*class="[^"]*\bproducts\s+tablet\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-    html = html.replace(/<ul[^>]*class="[^"]*\btablet\b[^"]*"[^>]*>[\s\S]*?<\/ul>/gi, '');
+    // On desktop: hide tablet sections
+    return `
+      /* Hide tablet sections on desktop */
+      section.tablet,
+      .section1.tablet,
+      .section2.tablet,
+      .section3.tablet,
+      .section4.tablet,
+      .section5.tablet,
+      .section6.tablet,
+      .section7.tablet,
+      .section8.tablet,
+      .section9.tablet,
+      .section10.tablet,
+      [class*="section"][class*="tablet"] {
+        display: none !important;
+      }
+      
+      /* Also hide mobile-variant wrappers from import */
+      .section-mobile-variant { display: none !important; }
+      
+      /* Hide tablet products div */
+      .products.tablet { display: none !important; }
+    `;
   }
-  
-  // Remove inline media query styles (they won't work reliably in iframes)
-  // These are added by our import process
-  html = html.replace(/<style>\s*@media\s*\([^)]+\)\s*\{[^}]*\.section-(?:mobile|desktop)-variant[^}]*\}\s*<\/style>/gi, '');
-  
-  return html;
 }
 
-// Remove sections that are desktop-only (have sectionN class but NOT tablet)
-function removeDesktopOnlySections(html: string): string {
-  // Find all section tags with class containing "section" followed by number
-  // Remove if they DON'T have "tablet" in the class
+// Check if section has a tablet variant to decide if we should hide the desktop version
+function checkAndHideDesktopOnlySections(html: string, isMobile: boolean): string {
+  if (!isMobile) return html;
   
-  // Pattern: <section class="section1 ..."> where ... does NOT contain "tablet"
-  const sectionPattern = /<section([^>]*)class="([^"]*\bsection\d+\b[^"]*)"([^>]*)>([\s\S]*?)<\/section>/gi;
+  // If on mobile, we need to check each sectionN if it has a tablet variant
+  // If it does, the CSS above will hide the non-tablet version
+  // If it doesn't, we need to show the non-tablet version (it's the only one)
   
-  return html.replace(sectionPattern, (match, before, classAttr, after, content) => {
-    // If this section has "tablet" class, KEEP it (it's for mobile)
-    if (/\btablet\b/i.test(classAttr)) {
-      return match;
+  // Parse which sections have tablet variants
+  const tabletSections = new Set<string>();
+  const tabletPattern = /<section[^>]*class="[^"]*\bsection(\d+)\b[^"]*\btablet\b[^"]*"/gi;
+  let match;
+  while ((match = tabletPattern.exec(html)) !== null) {
+    tabletSections.add(match[1]);
+  }
+  
+  // Generate CSS that shows non-tablet sections that DON'T have a tablet variant
+  let showDesktopCss = '';
+  for (let i = 1; i <= 10; i++) {
+    if (!tabletSections.has(String(i))) {
+      // This section has no tablet variant, show the desktop version on mobile too
+      showDesktopCss += `section.section${i}:not(.tablet) { display: block !important; }\n`;
     }
-    
-    // Check if there's a corresponding tablet version nearby
-    // If the HTML has both section1 and section1 tablet, remove the non-tablet one on mobile
-    const sectionMatch = classAttr.match(/\bsection(\d+)\b/i);
-    if (sectionMatch) {
-      const sectionNum = sectionMatch[1];
-      // Check if there's a tablet version of this section
-      const tabletPattern = new RegExp(`class="[^"]*\\bsection${sectionNum}\\b[^"]*\\btablet\\b[^"]*"`, 'i');
-      if (tabletPattern.test(html)) {
-        // There IS a tablet version, so remove this desktop version on mobile
-        return '';
-      }
+  }
+  
+  // Inject this CSS at the end of any existing style tag or add a new one
+  if (showDesktopCss) {
+    if (html.includes('</style>')) {
+      // Insert before last </style>
+      const lastStyleIndex = html.lastIndexOf('</style>');
+      html = html.slice(0, lastStyleIndex) + `\n/* Show sections without tablet variant */\n${showDesktopCss}` + html.slice(lastStyleIndex);
+    } else {
+      // Add style tag
+      html = `<style>/* Show sections without tablet variant */\n${showDesktopCss}</style>` + html;
     }
-    
-    // No tablet version exists, keep this section
-    return match;
-  });
+  }
+  
+  return html;
 }
 
 // Materialize YouTube/Vimeo placeholders into real iframes
@@ -316,19 +339,25 @@ export function IsolatedCustomBlock({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
   
-  // Process HTML - sanitize, materialize videos, AND remove wrong variant
+  // Process HTML - sanitize, materialize videos, AND prepare variant handling
   const processedHtml = useMemo(() => {
     let html = sanitizeHtml(htmlContent);
     html = materializeVideos(html);
-    // CRITICAL: Remove the wrong desktop/mobile variant based on current viewport
-    html = removeWrongVariant(html, isMobile);
+    // Check for sections without tablet variant (on mobile, show desktop if no tablet exists)
+    html = checkAndHideDesktopOnlySections(html, isMobile);
     return html;
   }, [htmlContent, isMobile]);
   
+  // Get variant hiding CSS based on mobile/desktop
+  const variantCss = useMemo(() => getVariantHidingCss(isMobile), [isMobile]);
+  
+  // Combine CSS with variant hiding rules
+  const finalCss = useMemo(() => `${cssContent}\n${variantCss}`, [cssContent, variantCss]);
+  
   // Build iframe document
   const iframeDoc = useMemo(
-    () => buildIframeDocument(processedHtml, cssContent, baseUrl, isEditing),
-    [processedHtml, cssContent, baseUrl, isEditing]
+    () => buildIframeDocument(processedHtml, finalCss, baseUrl, isEditing),
+    [processedHtml, finalCss, baseUrl, isEditing]
   );
   
   // Measure and update height imperatively (no setState = no re-render)
