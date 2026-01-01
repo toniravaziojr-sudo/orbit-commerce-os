@@ -2947,7 +2947,7 @@ async function tryAIOrRegexAnalysis(
   return createPageWithMappedBlocks(scraped.html, finalTitle);
 }
 
-// Process a single page import - NOW WITH AI SUPPORT
+// Process a single page import - NOW WITH ELEMENT-BASED PIPELINE
 async function importPage(
   supabase: any,
   tenantId: string,
@@ -2956,7 +2956,7 @@ async function importPage(
   useAI: boolean = true // AI is ON by default
 ): Promise<{ success: boolean; error?: string; pageId?: string }> {
   try {
-    console.log(`[IMPORT] Processing page: ${page.title} (${page.url}) - AI: ${useAI ? 'ON' : 'OFF'}`);
+    console.log(`[IMPORT] Processing page: ${page.title} (${page.url}) - ELEMENT-BASED PIPELINE`);
     
     // Check if this is a core page
     if (isCorePageUrl(page.url, page.slug)) {
@@ -2990,9 +2990,7 @@ async function importPage(
     
     let pageContent: BlockNode;
     
-    // =============================================
-    // PRIORIDADE 1: SEGMENTAÇÃO DETERMINÍSTICA (antes de IA)
-    // =============================================
+    // Store extracted CSS globally for pixel-perfect blocks
     const rawHtmlToCheck = scraped.rawHtml || scraped.html || '';
     globalExtractedCss = scraped.extractedCss || '';
     console.log(`[IMPORT] CSS available: ${globalExtractedCss.length} chars`);
@@ -3001,24 +2999,21 @@ async function importPage(
     const { html: videoMaterializedHtml, videosFound, patterns: videoPatterns } = materializeVideos(rawHtmlToCheck);
     console.log(`[IMPORT] Videos materialized: ${videosFound} (patterns: ${videoPatterns.join(', ') || 'none'})`);
     
-    // STEP 1: Try deterministic section segmentation FIRST
+    // =============================================
+    // PRIORIDADE 1: SEGMENTAÇÃO DETERMINÍSTICA (section markers)
+    // =============================================
     if (hasExplicitSectionMarkers(videoMaterializedHtml)) {
       console.log(`[IMPORT] Section markers detected - using DETERMINISTIC segmentation`);
       
       const segmentResult = segmentPageBySections(videoMaterializedHtml);
       console.log(`[IMPORT] Segmentation result: ${segmentResult.success ? segmentResult.totalSections + ' sections' : 'failed'}`);
-      console.log(`[IMPORT] Diagnostics: comments=${segmentResult.diagnostics.commentsFound}, desktop=${segmentResult.diagnostics.desktopVariants}, mobile=${segmentResult.diagnostics.mobileVariants}`);
       
       if (segmentResult.success && segmentResult.sections.length >= 1) {
-        // Create one HTMLSection block per section (using new segmenter output)
         const sectionBlocks: BlockNode[] = [];
         
         for (const section of segmentResult.sections) {
-          // Combine desktop + mobile HTML for rendering
-          // If both exist, include both with responsive wrapper
           let combinedHtml = section.htmlDesktop || section.htmlMobile || '';
           if (section.htmlDesktop && section.htmlMobile) {
-            // Include both with CSS-based visibility
             combinedHtml = `
               <div class="section-mobile-variant" style="display: block;">
                 ${section.htmlMobile}
@@ -3035,8 +3030,7 @@ async function importPage(
             `;
           }
           
-          const contentLength = combinedHtml.length;
-          console.log(`[IMPORT] Creating block for ${section.name} (${contentLength} chars, hasVariants: ${section.hasDesktopMobile})`);
+          console.log(`[IMPORT] Creating block for ${section.name} (${combinedHtml.length} chars)`);
           
           sectionBlocks.push({
             id: generateBlockId('htmlsection'),
@@ -3060,16 +3054,7 @@ async function importPage(
           children: [{
             id: generateBlockId('section'),
             type: 'Section',
-            props: { 
-              backgroundColor: 'transparent', 
-              paddingX: 0, 
-              paddingY: 0, 
-              marginTop: 0, 
-              marginBottom: 0, 
-              gap: 0, 
-              alignItems: 'stretch', 
-              fullWidth: true 
-            },
+            props: { backgroundColor: 'transparent', paddingX: 0, paddingY: 0, marginTop: 0, marginBottom: 0, gap: 0, alignItems: 'stretch', fullWidth: true },
             children: sectionBlocks,
           }],
         };
@@ -3078,57 +3063,78 @@ async function importPage(
       }
     }
     
-    // STEP 2: Fallback to existing logic if no deterministic segmentation
+    // =============================================
+    // PRIORIDADE 2: PIPELINE DE EXTRAÇÃO POR ELEMENTOS (NOVO)
+    // =============================================
     if (!pageContent!) {
-      // =============================================
-      // NEW: HYBRID ANALYSIS - Check for native content FIRST
-      // =============================================
+      console.log(`[IMPORT] Using ELEMENT-BASED PIPELINE for: ${finalTitle}`);
+      
+      // FASE 1: Extrair TODOS os elementos com posição
+      const extractedElements = extractAllElementsInOrder(videoMaterializedHtml);
+      console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
+      
+      if (extractedElements.length > 0) {
+        // FASE 2: Classificar cada elemento
+        const classifiedElements = classifyAllElements(extractedElements);
+        console.log(`[IMPORT] Phase 2 - Classified ${classifiedElements.length} elements`);
+        
+        // Log classified elements
+        for (const el of classifiedElements) {
+          console.log(`[IMPORT]   - ${el.type} -> ${el.blockType} (confidence: ${(el.confidence * 100).toFixed(0)}%, needsNewBlock: ${el.needsNewBlock})`);
+        }
+        
+        // FASE 3: Mesclar elementos consecutivos do mesmo tipo
+        const mergedElements = mergeConsecutiveElements(classifiedElements);
+        console.log(`[IMPORT] Phase 3 - Merged to ${mergedElements.length} elements`);
+        
+        // FASE 4: Processar com criação automática de blocos
+        const { page: builtPage, newBlockRequests } = await processElementsWithAutoBlockCreation(
+          supabase,
+          tenantId,
+          mergedElements,
+          {
+            extractedCss: globalExtractedCss,
+            sourceUrl: page.url,
+            sourcePlatform: 'import',
+          }
+        );
+        
+        console.log(`[IMPORT] Phase 4 - Page built, ${newBlockRequests.length} new block requests created`);
+        
+        if (newBlockRequests.length > 0) {
+          console.log(`[IMPORT] New block patterns detected: ${newBlockRequests.join(', ')}`);
+        }
+        
+        pageContent = builtPage;
+        
+        const blockTypes = pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
+        console.log(`[IMPORT] ELEMENT-BASED RESULT: ${blockTypes}`);
+      }
+    }
+    
+    // =============================================
+    // FALLBACK: Análise híbrida/AI se pipeline falhou
+    // =============================================
+    if (!pageContent!) {
+      console.log(`[IMPORT] FALLBACK - Using hybrid analysis`);
+      
       const hybridResult = analyzeForHybridImport(videoMaterializedHtml);
       
       if (hybridResult.hasNativeContent) {
-        console.log(`[IMPORT] HYBRID IMPORT - Native content detected: ${hybridResult.reason}`);
-        
-        // Use the enhanced analyzeAndMapContent that extracts videos, buttons, text as native blocks
         pageContent = await tryAIOrRegexAnalysis(
-          { 
-            html: videoMaterializedHtml, 
-            rawHtml: scraped.rawHtml, 
-            markdown: scraped.markdown, 
-            extractedCss: scraped.extractedCss 
-          }, 
-          finalTitle, 
-          page.url, 
-          false, // Don't use AI for simple pages - regex is enough
-          supabase, 
-          tenantId
+          { html: videoMaterializedHtml, rawHtml: scraped.rawHtml, markdown: scraped.markdown, extractedCss: scraped.extractedCss }, 
+          finalTitle, page.url, false, supabase, tenantId
         );
-        
-        // Log what we created
-        const section = pageContent.children[0];
-        const blockTypes = section?.children?.map((b: BlockNode) => b.type) || [];
-        console.log(`[IMPORT] HYBRID RESULT: ${blockTypes.length} blocks - ${blockTypes.join(', ')}`);
       } else {
-        // Check if it's a highly custom page
         const isCustomPage = isHighlyCustomPage(videoMaterializedHtml);
         
         if (isCustomPage) {
-          console.log(`[IMPORT] CUSTOM PAGE detected - using pixel-perfect fallback`);
-          
-          // Extract desktop/mobile image pairs
           const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
-          console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
-        
-          // STEP 2: Extract main content (which removes mobile duplicates)
           const mainContent = extractMainContent(videoMaterializedHtml);
           
           if (mainContent.length > 500) {
-            // STEP 3: Create Image blocks from responsive pairs
             const imageBlocks = createImageBlocksFromPairs(responsiveImages);
-            
-            // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
             const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
-            
-            // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
             const allBlocks = [...imageBlocks, ...customBlocks];
             
             pageContent = {
@@ -3138,67 +3144,40 @@ async function importPage(
               children: [{
                 id: generateBlockId('section'),
                 type: 'Section',
-                props: { 
-                  backgroundColor: 'transparent', 
-                  paddingX: 0, 
-                  paddingY: 0, 
-                  marginTop: 0, 
-                  marginBottom: 0, 
-                  gap: 16, 
-                  alignItems: 'stretch', 
-                  fullWidth: true 
-                },
+                props: { backgroundColor: 'transparent', paddingX: 0, paddingY: 0, marginTop: 0, marginBottom: 0, gap: 16, alignItems: 'stretch', fullWidth: true },
                 children: allBlocks,
               }],
             };
-            
-            console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
           } else {
-            // Content too small, try AI
-            console.log(`[IMPORT] Custom page content too small, trying AI...`);
             pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
           }
         } else {
-          // For non-custom pages, use AI or regex
           pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
         }
       }
     }
     
-    // Process any pending complex page placeholders (from regex path)
-    const section = pageContent.children[0];
-    if (section && section.children) {
+    // Process any pending complex page placeholders
+    const pageSection = pageContent.children[0];
+    if (pageSection && pageSection.children) {
       const newChildren: BlockNode[] = [];
       
-      for (const block of section.children) {
+      for (const block of pageSection.children) {
         if (block.type === '__CustomBlockPending__') {
-          console.log(`[IMPORT] Processing complex page block...`);
-          
-          // Create actual CustomBlock with the imported content
           const customBlocks = await createComplexPageBlocks(
-            supabase,
-            tenantId,
-            block.props.htmlContent as string,
-            page.url,
-            {
-              patternType: block.props.patternType as string,
-              patternName: block.props.patternName as string,
-              confidence: block.props.confidence as number,
-            }
+            supabase, tenantId, block.props.htmlContent as string, page.url,
+            { patternType: block.props.patternType as string, patternName: block.props.patternName as string, confidence: block.props.confidence as number }
           );
-          
-          // Add all created blocks
           newChildren.push(...customBlocks);
-          console.log(`[IMPORT] Created ${customBlocks.length} CustomBlock(s)`);
         } else {
           newChildren.push(block);
         }
       }
       
-      section.children = newChildren;
+      pageSection.children = newChildren;
     }
     
-    const blockTypes = section?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
+    const blockTypes = pageSection?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
     console.log(`[IMPORT] Final page blocks: ${blockTypes}`);
     
     // Prepare SEO metadata
