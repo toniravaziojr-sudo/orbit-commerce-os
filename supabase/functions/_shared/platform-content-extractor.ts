@@ -34,10 +34,37 @@ export function extractMainContentByPlatform(
   const originalLength = html.length;
   
   // =============================================
-  // STEP 1: Remover por COMENTÁRIOS HTML (mais preciso)
+  // STEP 1: PRIMEIRO extrair o conteúdo principal (main)
+  // Isso é importante porque header/footer podem estar DENTRO do main
+  // =============================================
+  console.log(`[PLATFORM-EXTRACT] STEP 1: Trying to extract main content area FIRST`);
+  
+  let extractedFrom: string | null = null;
+  
+  for (const mainSelector of config.mainContentSelectors) {
+    const extracted = extractBySelector(content, mainSelector);
+    
+    // Aceitar se tiver conteúdo substancial (>300 chars)
+    if (extracted && extracted.length > 300) {
+      console.log(`[PLATFORM-EXTRACT]   - Found main content via: ${mainSelector} (${extracted.length} chars)`);
+      content = extracted;
+      extractedFrom = mainSelector;
+      break;
+    } else if (extracted) {
+      console.log(`[PLATFORM-EXTRACT]   - Skipped ${mainSelector}: too short (${extracted.length} chars)`);
+    }
+  }
+  
+  if (!extractedFrom) {
+    console.log(`[PLATFORM-EXTRACT]   - No main content selector matched, using full HTML`);
+  }
+  
+  // =============================================
+  // STEP 2: Remover por COMENTÁRIOS HTML (mais preciso)
+  // Agora aplicado ao conteúdo extraído (que pode ter header/footer dentro)
   // =============================================
   if (config.sectionComments) {
-    console.log(`[PLATFORM-EXTRACT] STEP 1: Removing sections by HTML comments`);
+    console.log(`[PLATFORM-EXTRACT] STEP 2: Removing sections by HTML comments`);
     
     // Remover header-group
     const headerPattern = new RegExp(
@@ -52,6 +79,8 @@ export function extractMainContentByPlatform(
       content = content.replace(headerPattern, '<!-- HEADER-GROUP REMOVED BY PLATFORM-EXTRACT -->');
       removedSections.push('header-group (by comment)');
       console.log(`[PLATFORM-EXTRACT]   - Removed header-group: ${headerMatches.length} matches, ${headerMatches[0]?.length || 0} chars`);
+    } else {
+      console.log(`[PLATFORM-EXTRACT]   - No header-group comment pattern found`);
     }
     
     // Remover footer-group
@@ -67,6 +96,8 @@ export function extractMainContentByPlatform(
       content = content.replace(footerPattern, '<!-- FOOTER-GROUP REMOVED BY PLATFORM-EXTRACT -->');
       removedSections.push('footer-group (by comment)');
       console.log(`[PLATFORM-EXTRACT]   - Removed footer-group: ${footerMatches.length} matches, ${footerMatches[0]?.length || 0} chars`);
+    } else {
+      console.log(`[PLATFORM-EXTRACT]   - No footer-group comment pattern found`);
     }
     
     // Remover padrões adicionais de comentários (overlay-group, etc)
@@ -90,9 +121,9 @@ export function extractMainContentByPlatform(
   }
   
   // =============================================
-  // STEP 2: Remover por SELETORES CSS
+  // STEP 3: Remover por SELETORES CSS
   // =============================================
-  console.log(`[PLATFORM-EXTRACT] STEP 2: Removing elements by CSS selectors`);
+  console.log(`[PLATFORM-EXTRACT] STEP 3: Removing elements by CSS selectors`);
   
   for (const selector of config.excludeSelectors) {
     const result = removeElementBySelector(content, selector);
@@ -101,31 +132,6 @@ export function extractMainContentByPlatform(
       removedSections.push(`${selector} (${result.count} elements)`);
       console.log(`[PLATFORM-EXTRACT]   - Removed: ${selector} (${result.count} elements, ~${result.charsRemoved} chars)`);
     }
-  }
-  
-  // =============================================
-  // STEP 3: Tentar extrair APENAS o conteúdo principal
-  // =============================================
-  console.log(`[PLATFORM-EXTRACT] STEP 3: Extracting main content area`);
-  
-  let extractedFrom: string | null = null;
-  
-  for (const mainSelector of config.mainContentSelectors) {
-    const extracted = extractBySelector(content, mainSelector);
-    
-    // Aceitar se tiver conteúdo substancial (>300 chars)
-    if (extracted && extracted.length > 300) {
-      console.log(`[PLATFORM-EXTRACT]   - Found main content via: ${mainSelector} (${extracted.length} chars)`);
-      content = extracted;
-      extractedFrom = mainSelector;
-      break;
-    } else if (extracted) {
-      console.log(`[PLATFORM-EXTRACT]   - Skipped ${mainSelector}: too short (${extracted.length} chars)`);
-    }
-  }
-  
-  if (!extractedFrom) {
-    console.log(`[PLATFORM-EXTRACT]   - No main content selector matched, using full cleaned content`);
   }
   
   // =============================================
