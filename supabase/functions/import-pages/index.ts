@@ -1662,20 +1662,98 @@ function extractImagesFromSection(html: string): Array<{ src: string; alt: strin
   return images;
 }
 
+// Remove a single HTML element (with proper nesting support) given its opening tag position
+function removeNestedElement(html: string, tagName: string, startPos: number): string {
+  // Find the end of the opening tag
+  const openTagEnd = html.indexOf('>', startPos);
+  if (openTagEnd === -1) return html;
+  
+  // Check if it's a self-closing tag
+  if (html.charAt(openTagEnd - 1) === '/') {
+    return html.substring(0, startPos) + html.substring(openTagEnd + 1);
+  }
+  
+  // Find matching closing tag with nesting support
+  let depth = 1;
+  let pos = openTagEnd + 1;
+  const openPattern = new RegExp(`<${tagName}[\\s>]`, 'gi');
+  const closePattern = new RegExp(`</${tagName}>`, 'gi');
+  
+  while (depth > 0 && pos < html.length) {
+    // Find next opening or closing tag
+    openPattern.lastIndex = pos;
+    closePattern.lastIndex = pos;
+    
+    const openMatch = openPattern.exec(html);
+    const closeMatch = closePattern.exec(html);
+    
+    if (!closeMatch) break; // No closing tag found
+    
+    if (openMatch && openMatch.index < closeMatch.index) {
+      depth++;
+      pos = openMatch.index + openMatch[0].length;
+    } else {
+      depth--;
+      if (depth === 0) {
+        // Found matching closing tag
+        return html.substring(0, startPos) + html.substring(closeMatch.index + closeMatch[0].length);
+      }
+      pos = closeMatch.index + closeMatch[0].length;
+    }
+  }
+  
+  return html; // Could not find matching closing tag
+}
+
 // Remove duplicate mobile elements BUT keep track of what we removed for image extraction
 function removeDuplicateMobileElements(html: string): string {
   let content = html;
+  let removedCount = 0;
   
-  // Remove mobile/tablet sections (but we already extracted images above)
-  content = content.replace(/<section[^>]*class="[^"]*\b(tablet|mobile)\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  // Pattern to find elements with "tablet" or "mobile" class (word boundary)
+  const mobileClassPatterns = [
+    /<(section|div)[^>]*class="[^"]*\btablet\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bmobile\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bd-sm-block\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bd-md-none\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bshow-mobile\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bhide-desktop\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\bmobile-only\b[^"]*"[^>]*/gi,
+    /<(section|div)[^>]*class="[^"]*\btablet-only\b[^"]*"[^>]*/gi,
+  ];
   
-  // Remove other mobile-specific elements
-  content = content.replace(/<div[^>]*class="[^"]*\b(d-sm-block|d-md-none|show-mobile|hide-desktop|mobile-only|tablet-only)\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  // Process each pattern
+  for (const pattern of mobileClassPatterns) {
+    let match;
+    // Reset lastIndex for each iteration
+    pattern.lastIndex = 0;
+    
+    // Find and remove all matches - we need to loop because removing changes indices
+    let searchStart = 0;
+    while (searchStart < content.length) {
+      pattern.lastIndex = searchStart;
+      match = pattern.exec(content);
+      
+      if (!match) break;
+      
+      const tagName = match[1]; // "section" or "div"
+      const newContent = removeNestedElement(content, tagName, match.index);
+      
+      if (newContent.length < content.length) {
+        removedCount++;
+        content = newContent;
+        // Don't advance searchStart - we removed content so positions shifted
+      } else {
+        // Could not remove, advance past this match
+        searchStart = match.index + match[0].length;
+      }
+    }
+  }
   
   // Remove mobile comment blocks
   content = content.replace(/<!--\s*(?:MOBILE|TABLET|mobile|tablet)\s*-->[\s\S]*?<!--\s*\/(?:MOBILE|TABLET|mobile|tablet)\s*-->/gi, '');
   
-  console.log(`[DEDUPE] Removed mobile/tablet duplicate elements`);
+  console.log(`[DEDUPE] Removed ${removedCount} mobile/tablet duplicate elements`);
   return content;
 }
 
