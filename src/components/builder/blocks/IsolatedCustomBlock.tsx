@@ -1,10 +1,14 @@
 // =============================================
 // ISOLATED CUSTOM BLOCK RENDERER - Uses iframe for 100% CSS isolation
 // This prevents ANY CSS leakage to/from the builder or storefront
-// CRITICAL: Height measured from PARENT via contentDocument (same-origin)
+// 
+// CRITICAL FIX v3: Stable auto-height without loops
+// - Uses refs for height (no setState causing re-render)
+// - Debounced measurement with stabilization detection
+// - Measures from parent via contentDocument (same-origin)
 // =============================================
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Code, AlertTriangle } from 'lucide-react';
 
@@ -12,12 +16,12 @@ interface IsolatedCustomBlockProps {
   htmlContent: string;
   cssContent?: string;
   blockName?: string;
-  baseUrl?: string; // Source URL for resolving relative paths (images, fonts, etc.)
+  baseUrl?: string;
   isEditing?: boolean;
   className?: string;
 }
 
-// Sanitize HTML to remove dangerous elements (runs before iframe injection)
+// Sanitize HTML to remove dangerous elements
 function sanitizeHtml(html: string): string {
   if (!html) return '';
   
@@ -53,7 +57,6 @@ function materializeVideos(html: string): string {
   result = result.replace(
     /<([a-z]+)[^>]*(?:data-youtube|data-video-id|data-yt-id|data-video-url)=["']([^"']+)["'][^>]*>[\s\S]*?<\/\1>/gi,
     (match, tag, videoId) => {
-      // Extract video ID from various formats
       let id = videoId;
       if (videoId.includes('youtube.com/watch')) {
         const urlMatch = videoId.match(/[?&]v=([a-zA-Z0-9_-]{11})/);
@@ -67,7 +70,6 @@ function materializeVideos(html: string): string {
       }
       
       if (id && id.length === 11) {
-        console.log('[MaterializeVideos] Converted placeholder to YouTube iframe:', id);
         return `<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
           <iframe src="https://www.youtube.com/embed/${id}?rel=0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen loading="lazy"></iframe>
         </div>`;
@@ -80,20 +82,17 @@ function materializeVideos(html: string): string {
   result = result.replace(
     /<(lite-youtube|youtube-video)[^>]*(?:videoid|video-id)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi,
     (match, tag, videoId) => {
-      console.log('[MaterializeVideos] Converted custom element to YouTube iframe:', videoId);
       return `<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
         <iframe src="https://www.youtube.com/embed/${videoId}?rel=0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen loading="lazy"></iframe>
       </div>`;
     }
   );
   
-  // Pattern 3: Thumbnails with YouTube URLs in data attributes or links
+  // Pattern 3: Thumbnails with YouTube URLs in links
   result = result.replace(
     /<a[^>]*href=["'](?:https?:)?\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*["'][^>]*>[\s\S]*?<\/a>/gi,
     (match, videoId) => {
-      // Only replace if it looks like a video thumbnail (contains img)
       if (match.includes('<img')) {
-        console.log('[MaterializeVideos] Converted thumbnail link to YouTube iframe:', videoId);
         return `<div class="video-embed" style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
           <iframe src="https://www.youtube.com/embed/${videoId}?rel=0" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen loading="lazy"></iframe>
         </div>`;
@@ -105,43 +104,14 @@ function materializeVideos(html: string): string {
   return result;
 }
 
-// Process CSS for pixel-perfect rendering
-// CRITICAL: For pixel-perfect, we keep EVERYTHING including display:none
-// because the page uses CSS to show/hide mobile vs desktop elements
-function processPixelPerfectCss(css: string): string {
-  if (!css) return '';
-  
-  // For pixel-perfect, only remove rules that could affect the PARENT page
-  // Since we're in an iframe, almost nothing can leak out
-  const safeCss = css
-    // Remove @import (already resolved at import time)
-    .replace(/@import[^;]*;/gi, '')
-    // Remove :root from outside our scope (could conflict with parent)
-    .replace(/^\s*:root\s*\{[^}]*\}/gm, '')
-    ;
-  
-  // KEEP EVERYTHING ELSE:
-  // - @font-face (fonts load inside iframe)
-  // - @keyframes (animations work)
-  // - @media (ESSENTIAL for responsiveness)
-  // - display:none rules (ESSENTIAL - CSS uses them to toggle mobile/desktop elements)
-  // - visibility:hidden (same reason)
-  
-  return safeCss;
-}
-
 // Build complete HTML document for iframe
-// CRITICAL: Include <base href> to resolve relative URLs (images, fonts, etc.)
-// NO INTERNAL SCRIPT - height is measured from parent via contentDocument
-function buildIframeDocument(html: string, css: string, baseUrl?: string): string {
-  // Extract origin from baseUrl for <base href>
+function buildIframeDocument(html: string, css: string, baseUrl?: string, disableLinks: boolean = false): string {
   let baseHref = '';
   if (baseUrl) {
     try {
       const url = new URL(baseUrl);
       baseHref = `${url.origin}/`;
     } catch {
-      // If URL parsing fails, try to use as-is
       if (baseUrl.startsWith('http')) {
         baseHref = baseUrl.split('/').slice(0, 3).join('/') + '/';
       }
@@ -155,10 +125,7 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${baseHref ? `<base href="${baseHref}" target="_blank">` : ''}
   <style>
-    /* ========================================
-       CSS RESET ANTI-INTERFERÊNCIA - ANTES do CSS importado
-       Garante que o conteúdo pode expandir e ser medido
-       ======================================== */
+    /* CSS Reset - Anti-interference for height measurement */
     html, body {
       margin: 0 !important;
       padding: 0 !important;
@@ -168,11 +135,9 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
       overflow: visible !important;
       overflow-x: hidden !important;
     }
-    
     *, *::before, *::after {
       box-sizing: border-box !important;
     }
-    
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
@@ -180,29 +145,20 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
       display: block !important;
       position: relative !important;
     }
-    
     img { max-width: 100%; height: auto; display: block; }
-    a { color: inherit; pointer-events: none; }
+    ${disableLinks ? 'a { pointer-events: none; cursor: default; }' : 'a { color: inherit; }'}
     
-    /* YouTube/Vimeo iframe responsive */
     iframe[src*="youtube.com"], iframe[src*="youtu.be"], iframe[src*="vimeo.com"] {
       max-width: 100%;
     }
-    
-    .video-embed {
-      margin: 1rem 0;
-    }
+    .video-embed { margin: 1rem 0; }
   </style>
   <style>
-    /* ========================================
-       IMPORTED CSS - Depois do reset
-       ======================================== */
+    /* Imported CSS */
     ${css}
   </style>
   <style>
-    /* ========================================
-       OVERRIDE PÓS-IMPORT - Garante que html/body não bloqueiam medição
-       ======================================== */
+    /* Override to ensure measurement works */
     html, body {
       height: auto !important;
       min-height: 0 !important;
@@ -217,54 +173,31 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
 </html>`;
 }
 
-// Measure content height from parent (same-origin iframe)
+// Measure content height from contentDocument
 function measureContentHeight(doc: Document): number {
   if (!doc || !doc.body) return 200;
   
-  // Force layout recalculation
+  // Force layout
   doc.body.offsetHeight;
   
-  // Method 1: Document scroll/offset heights
-  const docHeight = Math.max(
+  // Get heights from multiple sources
+  const heights = [
     doc.body.scrollHeight || 0,
     doc.body.offsetHeight || 0,
     doc.documentElement?.scrollHeight || 0,
     doc.documentElement?.offsetHeight || 0,
-    doc.documentElement?.clientHeight || 0
-  );
+  ];
   
-  // Method 2: Find the bottommost visible element via getBoundingClientRect
-  let maxBottom = 0;
+  // Also try bounding rect
   try {
-    const elements = doc.body.getElementsByTagName('*');
-    const elemCount = Math.min(elements.length, 500); // Limit scan for performance
-    
-    for (let i = 0; i < elemCount; i++) {
-      const el = elements[i] as HTMLElement;
-      try {
-        const style = doc.defaultView?.getComputedStyle(el);
-        // Skip invisible elements
-        if (style?.display === 'none' || style?.visibility === 'hidden' || style?.opacity === '0') {
-          continue;
-        }
-        
-        const rect = el.getBoundingClientRect();
-        if (rect.height > 0 && rect.width > 0) {
-          maxBottom = Math.max(maxBottom, rect.bottom);
-        }
-      } catch {
-        // Ignore errors from getComputedStyle
-      }
-    }
-  } catch {
-    // Fallback if getElementsByTagName fails
-  }
+    const bodyRect = doc.body.getBoundingClientRect();
+    if (bodyRect.height > 0) heights.push(Math.ceil(bodyRect.height));
+  } catch {}
   
-  // Use the maximum of both methods + padding
-  const height = Math.max(docHeight, Math.ceil(maxBottom)) + 20;
+  const maxHeight = Math.max(...heights);
   
-  // Clamp to reasonable range
-  return Math.max(50, Math.min(height, 30000));
+  // Add small padding and clamp
+  return Math.max(50, Math.min(maxHeight + 10, 25000));
 }
 
 export function IsolatedCustomBlock({
@@ -276,175 +209,123 @@ export function IsolatedCustomBlock({
   className,
 }: IsolatedCustomBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [iframeHeight, setIframeHeight] = useState<number>(200);
-  const lastHeightRef = useRef<number>(0);
-  const measureCountRef = useRef<number>(0);
-  const isStabilizedRef = useRef<boolean>(false);
-  const observersRef = useRef<{ resize?: ResizeObserver; mutation?: MutationObserver }>({});
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastHeightRef = useRef<number>(200);
+  const stableCountRef = useRef<number>(0);
+  const rafIdRef = useRef<number | null>(null);
+  const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   
-  // Sanitize HTML, materialize videos, and process CSS
-  const sanitizedHtml = useMemo(() => {
+  // Process HTML
+  const processedHtml = useMemo(() => {
     const sanitized = sanitizeHtml(htmlContent);
     return materializeVideos(sanitized);
   }, [htmlContent]);
   
-  const processedCss = useMemo(() => processPixelPerfectCss(cssContent), [cssContent]);
-  
-  // Build iframe document with base URL for resolving relative paths
+  // Build iframe document
   const iframeDoc = useMemo(
-    () => buildIframeDocument(sanitizedHtml, processedCss, baseUrl),
-    [sanitizedHtml, processedCss, baseUrl]
+    () => buildIframeDocument(processedHtml, cssContent, baseUrl, isEditing),
+    [processedHtml, cssContent, baseUrl, isEditing]
   );
   
-  // Measure height from parent (same-origin contentDocument)
-  const measureHeight = useCallback(() => {
-    if (!iframeRef.current?.contentDocument) return;
-    if (isStabilizedRef.current && measureCountRef.current > 10) return; // Stop after stabilization
+  // Measure and update height imperatively (no setState = no re-render)
+  const measureAndUpdateHeight = useCallback(() => {
+    if (!iframeRef.current?.contentDocument || !containerRef.current) return;
     
-    measureCountRef.current++;
     const doc = iframeRef.current.contentDocument;
     const newHeight = measureContentHeight(doc);
     
     const delta = Math.abs(newHeight - lastHeightRef.current);
     
-    // Only update if delta > 4px (avoid micro-adjustments)
-    if (delta <= 4) {
-      // Count stable readings
-      if (measureCountRef.current > 5) {
-        isStabilizedRef.current = true;
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[IsolatedCustomBlock:${blockName}] Stabilized at ${lastHeightRef.current}px after ${measureCountRef.current} measurements`);
-        }
+    // Only update if significant change
+    if (delta > 5) {
+      lastHeightRef.current = newHeight;
+      // Direct DOM update - no React state
+      if (iframeRef.current) {
+        iframeRef.current.style.height = `${newHeight}px`;
       }
-      return;
+      stableCountRef.current = 0;
+    } else {
+      stableCountRef.current++;
     }
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[IsolatedCustomBlock:${blockName}] Height: ${newHeight}px (delta: ${delta})`);
+    // Continue measuring until stable (5 consecutive stable readings)
+    if (stableCountRef.current < 5) {
+      const timeout = setTimeout(measureAndUpdateHeight, 150);
+      timeoutsRef.current.push(timeout);
     }
-    
-    lastHeightRef.current = newHeight;
-    setIframeHeight(newHeight);
-  }, [blockName]);
-  
-  // Debounced measurement
-  const debouncedMeasure = useCallback(() => {
-    const timerId = setTimeout(measureHeight, 100);
-    return () => clearTimeout(timerId);
-  }, [measureHeight]);
-  
-  // Setup observers on iframe content
-  const setupObservers = useCallback(() => {
-    if (!iframeRef.current?.contentDocument) return;
-    
-    const doc = iframeRef.current.contentDocument;
-    
-    // Cleanup existing observers
-    observersRef.current.resize?.disconnect();
-    observersRef.current.mutation?.disconnect();
-    
-    // ResizeObserver for body size changes
-    if (typeof ResizeObserver !== 'undefined' && doc.body) {
-      observersRef.current.resize = new ResizeObserver(() => {
-        if (!isStabilizedRef.current) {
-          debouncedMeasure();
-        }
-      });
-      observersRef.current.resize.observe(doc.body);
-    }
-    
-    // MutationObserver for DOM changes
-    if (doc.body) {
-      observersRef.current.mutation = new MutationObserver(() => {
-        if (!isStabilizedRef.current) {
-          debouncedMeasure();
-        }
-      });
-      observersRef.current.mutation.observe(doc.body, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class', 'src']
-      });
-    }
-    
-    // Image load handlers
-    doc.querySelectorAll('img').forEach((img: HTMLImageElement) => {
-      if (!img.complete) {
-        img.addEventListener('load', measureHeight);
-        img.addEventListener('error', measureHeight);
-      }
-    });
-    
-    // Iframe load handlers (YouTube embeds)
-    doc.querySelectorAll('iframe').forEach((frame: HTMLIFrameElement) => {
-      frame.addEventListener('load', measureHeight);
-    });
-    
-    // Font loading
-    if (doc.fonts?.ready) {
-      doc.fonts.ready.then(() => {
-        setTimeout(measureHeight, 50);
-        setTimeout(measureHeight, 200);
-      });
-    }
-  }, [debouncedMeasure, measureHeight]);
+  }, []);
   
   // Handle iframe load
-  const handleIframeLoad = useCallback(() => {
-    // Reset state
-    lastHeightRef.current = 0;
-    measureCountRef.current = 0;
-    isStabilizedRef.current = false;
+  const handleLoad = useCallback(() => {
+    // Reset
+    lastHeightRef.current = 200;
+    stableCountRef.current = 0;
     
-    // Initial measurements at various intervals to catch late-loading content
-    setTimeout(measureHeight, 0);
-    setTimeout(measureHeight, 50);
-    setTimeout(measureHeight, 150);
-    setTimeout(measureHeight, 300);
-    setTimeout(measureHeight, 600);
-    setTimeout(measureHeight, 1000);
-    setTimeout(measureHeight, 2000);
+    // Clear pending timeouts
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
     
-    // Setup observers
-    setTimeout(setupObservers, 100);
-  }, [measureHeight, setupObservers]);
-  
-  // Write content to iframe
-  useEffect(() => {
+    // Initial set
     if (iframeRef.current) {
-      const doc = iframeRef.current.contentDocument;
-      if (doc) {
-        doc.open();
-        doc.write(iframeDoc);
-        doc.close();
-        
-        // Trigger load handling
-        handleIframeLoad();
-      }
+      iframeRef.current.style.height = '200px';
     }
     
-    // Cleanup on unmount
-    return () => {
-      observersRef.current.resize?.disconnect();
-      observersRef.current.mutation?.disconnect();
-    };
-  }, [iframeDoc, handleIframeLoad]);
+    // Start measurement sequence
+    requestAnimationFrame(() => {
+      measureAndUpdateHeight();
+    });
+    
+    // Additional measurements for late-loading content
+    const delays = [100, 300, 600, 1000, 2000];
+    delays.forEach(delay => {
+      const timeout = setTimeout(measureAndUpdateHeight, delay);
+      timeoutsRef.current.push(timeout);
+    });
+  }, [measureAndUpdateHeight]);
   
-  // Re-measure on window resize (breakpoint change)
+  // Write content to iframe and setup
   useEffect(() => {
+    if (!iframeRef.current) return;
+    
+    const doc = iframeRef.current.contentDocument;
+    if (doc) {
+      doc.open();
+      doc.write(iframeDoc);
+      doc.close();
+      handleLoad();
+    }
+    
+    return () => {
+      // Cleanup
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+    };
+  }, [iframeDoc, handleLoad]);
+  
+  // Re-measure on window resize
+  useEffect(() => {
+    let resizeTimeout: NodeJS.Timeout;
+    
     const handleResize = () => {
-      isStabilizedRef.current = false;
-      measureCountRef.current = 0;
-      measureHeight();
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        stableCountRef.current = 0;
+        measureAndUpdateHeight();
+      }, 100);
     };
     
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, [measureHeight]);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, [measureAndUpdateHeight]);
   
-  // No content
-  if (!sanitizedHtml) {
+  // Empty state
+  if (!processedHtml) {
     if (isEditing) {
       return (
         <div className="p-4 bg-amber-500/10 border border-amber-500 rounded text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
@@ -458,17 +339,14 @@ export function IsolatedCustomBlock({
   
   return (
     <div 
+      ref={containerRef}
       className={cn(
         'isolated-custom-block relative w-full',
         isEditing && 'ring-1 ring-indigo-500/30 rounded-lg',
         className
       )}
-      style={{
-        // CRITICAL: Container must not restrict height - overflow visible
-        overflow: 'visible',
-      }}
+      style={{ overflow: 'visible' }}
     >
-      {/* Editor indicator */}
       {isEditing && (
         <div className="absolute -top-6 right-0 bg-indigo-500 text-white text-xs px-2 py-1 rounded-t z-10 flex items-center gap-2 opacity-80">
           <Code className="w-3 h-3" />
@@ -476,17 +354,14 @@ export function IsolatedCustomBlock({
         </div>
       )}
       
-      {/* Isolated iframe - NO internal scroll, auto-height */}
       <iframe
         ref={iframeRef}
         className="w-full border-0"
         style={{
-          height: iframeHeight,
+          height: 200, // Initial height, updated imperatively
           minHeight: 50,
           display: 'block',
-          // CRITICAL: No scrolling in iframe - content height is auto
           overflow: 'hidden',
-          // Pointer events in editor mode
           pointerEvents: isEditing ? 'none' : 'auto',
         }}
         title={blockName}

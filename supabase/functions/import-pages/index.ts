@@ -2938,24 +2938,47 @@ async function importPage(
       
       const segmentResult = segmentPageBySections(videoMaterializedHtml);
       console.log(`[IMPORT] Segmentation result: ${segmentResult.success ? segmentResult.totalSections + ' sections' : 'failed'}`);
-      console.log(`[IMPORT] Diagnostics: comments=${segmentResult.diagnostics.commentsFound}, sections=${segmentResult.diagnostics.sectionsFound}, pairs=${segmentResult.diagnostics.desktopMobilePairs}`);
+      console.log(`[IMPORT] Diagnostics: comments=${segmentResult.diagnostics.commentsFound}, desktop=${segmentResult.diagnostics.desktopVariants}, mobile=${segmentResult.diagnostics.mobileVariants}`);
       
-      if (segmentResult.success && segmentResult.sections.length >= 2) {
-        // Create one CustomBlock per section
+      if (segmentResult.success && segmentResult.sections.length >= 1) {
+        // Create one HTMLSection block per section (using new segmenter output)
         const sectionBlocks: BlockNode[] = [];
         
         for (const section of segmentResult.sections) {
-          console.log(`[IMPORT] Creating block for ${section.name} (${section.htmlContent.length} chars, desktop+mobile: ${section.hasDesktopMobile})`);
+          // Combine desktop + mobile HTML for rendering
+          // If both exist, include both with responsive wrapper
+          let combinedHtml = section.htmlDesktop || section.htmlMobile || '';
+          if (section.htmlDesktop && section.htmlMobile) {
+            // Include both with CSS-based visibility
+            combinedHtml = `
+              <div class="section-mobile-variant" style="display: block;">
+                ${section.htmlMobile}
+              </div>
+              <div class="section-desktop-variant" style="display: none;">
+                ${section.htmlDesktop}
+              </div>
+              <style>
+                @media (min-width: 768px) {
+                  .section-mobile-variant { display: none !important; }
+                  .section-desktop-variant { display: block !important; }
+                }
+              </style>
+            `;
+          }
+          
+          const contentLength = combinedHtml.length;
+          console.log(`[IMPORT] Creating block for ${section.name} (${contentLength} chars, hasVariants: ${section.hasDesktopMobile})`);
           
           sectionBlocks.push({
-            id: generateBlockId('customblock'),
-            type: 'CustomBlock',
+            id: generateBlockId('htmlsection'),
+            type: 'HTMLSection',
             props: {
-              htmlContent: section.htmlContent,
+              htmlContent: combinedHtml,
+              htmlDesktop: section.htmlDesktop || '',
+              htmlMobile: section.htmlMobile || '',
               cssContent: globalExtractedCss,
               blockName: section.name,
               baseUrl: page.url,
-              isPixelPerfect: true,
             },
             children: [],
           });

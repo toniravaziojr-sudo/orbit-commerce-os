@@ -2240,19 +2240,24 @@ function CustomBlockWrapper({
 // ========== HTML SECTION WRAPPER ==========
 function HTMLSectionWrapper({
   htmlContent,
+  htmlDesktop,
+  htmlMobile,
   cssContent,
   blockName,
   baseUrl,
   isEditing,
+  context,
 }: any) {
   // HTMLSection uses the same IsolatedCustomBlock but without DB fetch
+  // Pass viewport from context so it can choose the right variant
   return (
     <CustomBlockRendererComponent
-      htmlContent={htmlContent || ''}
+      htmlContent={htmlContent || htmlDesktop || htmlMobile || ''}
       cssContent={cssContent || ''}
       blockName={blockName || 'Seção HTML'}
       baseUrl={baseUrl}
       isEditing={isEditing}
+      context={context}
     />
   );
 }

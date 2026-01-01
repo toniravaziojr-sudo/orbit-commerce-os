@@ -1,225 +1,290 @@
 // =============================================
-// SEGMENTAÇÃO DETERMINÍSTICA POR SEÇÃO
+// SEGMENTAÇÃO DETERMINÍSTICA POR SEÇÃO v2
 // =============================================
-// Este módulo detecta e segmenta páginas que já possuem
-// marcação clara de seções (SECTION 1, section1, etc.)
-// ANTES de qualquer processamento de IA.
+// Este módulo detecta e segmenta páginas que possuem
+// marcação clara de seções via comentários HTML.
 // 
-// Regras:
-// 1. Detectar comentários <!-- SECTION X --> ou <!-- ========== SECTION X ========== -->
-// 2. Detectar <section class="sectionN"> (desktop) e <section class="sectionN tablet"> (mobile)
-// 3. Agrupar desktop + mobile da mesma seção no mesmo bloco
-// 4. Criar 1 CustomBlock por seção, preservando ordem
+// PADRÕES SUPORTADOS:
+// <!-- ========== SECTION N ========== --> (desktop)
+// <!-- ========== SECTION N tablet ========== --> (mobile/tablet)
+// <!-- ========== SECTION N NOME ========== --> (com nome)
+// 
+// REGRAS:
+// 1. Cada comentário SECTION inicia um novo bloco
+// 2. Variantes "tablet" são tratadas como htmlMobile
+// 3. Se houver múltiplas <section class="section5">, criar 5A/5B/5C
+// 4. Conteúdo entre comentários inclui TUDO (não só <section>)
 // =============================================
 
-interface SegmentedSection {
+export interface SegmentedSection {
   sectionNumber: number;
+  subIndex?: string; // 'A', 'B', 'C' para seções repetidas
   name: string;
-  htmlContent: string; // Combined desktop + mobile HTML
+  htmlDesktop: string;
+  htmlMobile: string;
   hasDesktopMobile: boolean;
-  startIndex: number;
+  order: number; // Ordem no HTML original
+  markerStart: string; // Comentário original para debug
 }
 
-interface SegmentationResult {
+export interface SegmentationResult {
   success: boolean;
   sections: SegmentedSection[];
-  method: 'comments' | 'section-classes' | 'none';
+  method: 'comments-v2' | 'section-classes' | 'none';
   totalSections: number;
   diagnostics: {
     commentsFound: number;
-    sectionsFound: number;
-    desktopMobilePairs: number;
+    desktopVariants: number;
+    mobileVariants: number;
+    duplicateSectionNumbers: string[];
   };
 }
 
-// Detect sections by HTML comments like <!-- ========== SECTION 1 ========== -->
-function detectSectionsByComments(html: string): { sections: Map<number, { desktop: string; mobile: string }>; count: number } {
-  const sections = new Map<number, { desktop: string; mobile: string }>();
-  
-  // Pattern: <!-- ========== SECTION X ========== --> or <!-- SECTION X -->
-  const commentPattern = /<!--\s*=* SECTION\s*(\d+)\s*=*-->/gi;
-  
-  const matches = [...html.matchAll(commentPattern)];
-  console.log(`[SEGMENTER] Found ${matches.length} section comments`);
-  
-  if (matches.length < 2) {
-    return { sections, count: 0 };
-  }
-  
-  // Extract content between section markers
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    const sectionNum = parseInt(match[1], 10);
-    const startIdx = match.index! + match[0].length;
-    
-    // Find end: either next SECTION comment or end of HTML
-    let endIdx = html.length;
-    if (i + 1 < matches.length) {
-      endIdx = matches[i + 1].index!;
-    }
-    
-    const sectionHtml = html.substring(startIdx, endIdx).trim();
-    
-    if (sectionHtml.length > 50) {
-      // Check if this is mobile/tablet version
-      const isMobile = /class="[^"]*\b(?:tablet|mobile)\b[^"]*"/i.test(sectionHtml.substring(0, 500));
-      
-      if (!sections.has(sectionNum)) {
-        sections.set(sectionNum, { desktop: '', mobile: '' });
-      }
-      
-      const existing = sections.get(sectionNum)!;
-      if (isMobile) {
-        existing.mobile = sectionHtml;
-      } else {
-        // If desktop already exists, append (both desktop versions)
-        existing.desktop = existing.desktop ? existing.desktop + '\n' + sectionHtml : sectionHtml;
-      }
-    }
-  }
-  
-  return { sections, count: matches.length };
+interface SectionMarker {
+  index: number; // Posição no HTML
+  fullMatch: string; // O comentário completo
+  sectionNumber: number;
+  isTablet: boolean; // true se "tablet" no marcador
+  rawName?: string; // Nome extra no marcador (ex: "graus 1 e 2")
 }
 
-// Detect sections by <section class="sectionN"> elements
-function detectSectionsByClasses(html: string): { sections: Map<number, { desktop: string; mobile: string }>; count: number } {
-  const sections = new Map<number, { desktop: string; mobile: string }>();
+// =============================================
+// PARSE SECTION COMMENTS
+// =============================================
+// Detecta comentários no formato:
+// <!-- ========== SECTION 1 ========== -->
+// <!-- ========== SECTION 1 tablet ========== -->
+// =============================================
+function parseSectionComments(html: string): SectionMarker[] {
+  const markers: SectionMarker[] = [];
   
-  // Pattern: <section ... class="... sectionN ..." ...> ... </section>
-  // Need to handle nested sections properly
-  const sectionPattern = /<section\s+[^>]*class="([^"]*\bsection(\d+)\b[^"]*)"[^>]*>([\s\S]*?)<\/section>/gi;
+  // Regex mais flexível para capturar variantes
+  // Grupo 1: número da seção
+  // Grupo 2: opcional "tablet" ou "mobile"
+  // Grupo 3: opcional nome extra
+  const pattern = /<!--\s*=+\s*SECTION\s*(\d+)\s*(tablet|mobile)?\s*([^=\-]*?)\s*=*\s*-->/gi;
   
   let match;
-  let count = 0;
-  
-  while ((match = sectionPattern.exec(html)) !== null) {
-    count++;
-    const fullClass = match[1];
-    const sectionNum = parseInt(match[2], 10);
-    const content = match[0]; // Full section including tags
+  while ((match = pattern.exec(html)) !== null) {
+    const sectionNum = parseInt(match[1], 10);
+    const variantType = (match[2] || '').toLowerCase();
+    const extraName = (match[3] || '').trim();
     
-    // Check if mobile/tablet version
-    const isMobile = /\b(?:tablet|mobile)\b/i.test(fullClass);
+    markers.push({
+      index: match.index,
+      fullMatch: match[0],
+      sectionNumber: sectionNum,
+      isTablet: variantType === 'tablet' || variantType === 'mobile',
+      rawName: extraName || undefined,
+    });
     
-    if (!sections.has(sectionNum)) {
-      sections.set(sectionNum, { desktop: '', mobile: '' });
-    }
-    
-    const existing = sections.get(sectionNum)!;
-    if (isMobile) {
-      existing.mobile = content;
-    } else {
-      existing.desktop = content;
-    }
+    console.log(`[SEGMENTER-v2] Found marker: SECTION ${sectionNum}${variantType ? ` ${variantType}` : ''}${extraName ? ` (${extraName})` : ''} at ${match.index}`);
   }
   
-  console.log(`[SEGMENTER] Found ${count} section elements with sectionN classes`);
+  return markers;
+}
+
+// =============================================
+// EXTRACT CONTENT BETWEEN MARKERS
+// =============================================
+// Pega TODO o conteúdo entre dois marcadores
+// (não apenas <section>)
+// =============================================
+function extractContentBetweenMarkers(
+  html: string,
+  startMarker: SectionMarker,
+  endMarkerIndex: number | null
+): string {
+  const startPos = startMarker.index + startMarker.fullMatch.length;
+  const endPos = endMarkerIndex !== null ? endMarkerIndex : html.length;
   
-  return { sections, count };
+  const content = html.substring(startPos, endPos).trim();
+  return content;
 }
 
-// Combine desktop and mobile HTML for a section
-function combineSectionHtml(desktop: string, mobile: string): string {
-  // Keep both versions - CSS will handle visibility via media queries
-  // Mobile first (typically hidden on desktop), then desktop
-  if (mobile && desktop) {
-    return `${mobile}\n${desktop}`;
-  }
-  return desktop || mobile;
-}
-
-// Main segmentation function
+// =============================================
+// MAIN SEGMENTATION FUNCTION v2
+// =============================================
 export function segmentPageBySections(html: string): SegmentationResult {
-  console.log(`[SEGMENTER] Starting segmentation of ${html.length} chars`);
+  console.log(`[SEGMENTER-v2] Starting segmentation of ${html.length} chars`);
   
   const diagnostics = {
     commentsFound: 0,
-    sectionsFound: 0,
-    desktopMobilePairs: 0,
+    desktopVariants: 0,
+    mobileVariants: 0,
+    duplicateSectionNumbers: [] as string[],
   };
   
-  // Try comment-based segmentation first (highest confidence)
-  const commentResult = detectSectionsByComments(html);
-  diagnostics.commentsFound = commentResult.count;
+  // Parse all section comments
+  const markers = parseSectionComments(html);
+  diagnostics.commentsFound = markers.length;
   
-  if (commentResult.sections.size >= 2) {
-    console.log(`[SEGMENTER] Using COMMENT-based segmentation (${commentResult.sections.size} sections)`);
-    
-    const sections: SegmentedSection[] = [];
-    const sortedNums = [...commentResult.sections.keys()].sort((a, b) => a - b);
-    
-    for (const num of sortedNums) {
-      const { desktop, mobile } = commentResult.sections.get(num)!;
-      const hasDesktopMobile = !!desktop && !!mobile;
-      if (hasDesktopMobile) diagnostics.desktopMobilePairs++;
-      
-      sections.push({
-        sectionNumber: num,
-        name: `Section ${num}`,
-        htmlContent: combineSectionHtml(desktop, mobile),
-        hasDesktopMobile,
-        startIndex: num,
-      });
-    }
-    
+  if (markers.length < 2) {
+    console.log(`[SEGMENTER-v2] Not enough markers (${markers.length}), falling back`);
     return {
-      success: true,
-      sections,
-      method: 'comments',
-      totalSections: sections.length,
+      success: false,
+      sections: [],
+      method: 'none',
+      totalSections: 0,
       diagnostics,
     };
   }
   
-  // Try class-based segmentation
-  const classResult = detectSectionsByClasses(html);
-  diagnostics.sectionsFound = classResult.count;
+  // Sort markers by position in HTML (should already be sorted, but be safe)
+  markers.sort((a, b) => a.index - b.index);
   
-  if (classResult.sections.size >= 2) {
-    console.log(`[SEGMENTER] Using CLASS-based segmentation (${classResult.sections.size} sections)`);
+  // Group by section number and track order
+  // Map: sectionNumber -> { desktop: [contents], mobile: [contents], order }
+  const sectionMap = new Map<number, {
+    desktopContents: string[];
+    mobileContents: string[];
+    names: string[];
+    firstOrder: number;
+  }>();
+  
+  for (let i = 0; i < markers.length; i++) {
+    const marker = markers[i];
+    const nextMarkerIndex = i + 1 < markers.length ? markers[i + 1].index : null;
     
-    const sections: SegmentedSection[] = [];
-    const sortedNums = [...classResult.sections.keys()].sort((a, b) => a - b);
+    const content = extractContentBetweenMarkers(html, marker, nextMarkerIndex);
     
-    for (const num of sortedNums) {
-      const { desktop, mobile } = classResult.sections.get(num)!;
-      const hasDesktopMobile = !!desktop && !!mobile;
-      if (hasDesktopMobile) diagnostics.desktopMobilePairs++;
-      
-      sections.push({
-        sectionNumber: num,
-        name: `Section ${num}`,
-        htmlContent: combineSectionHtml(desktop, mobile),
-        hasDesktopMobile,
-        startIndex: num,
+    // Skip empty or trivial content
+    if (content.length < 50) {
+      console.log(`[SEGMENTER-v2] Skipping SECTION ${marker.sectionNumber} (too short: ${content.length} chars)`);
+      continue;
+    }
+    
+    if (!sectionMap.has(marker.sectionNumber)) {
+      sectionMap.set(marker.sectionNumber, {
+        desktopContents: [],
+        mobileContents: [],
+        names: [],
+        firstOrder: i,
       });
     }
     
-    return {
-      success: true,
-      sections,
-      method: 'section-classes',
-      totalSections: sections.length,
-      diagnostics,
-    };
+    const entry = sectionMap.get(marker.sectionNumber)!;
+    
+    if (marker.isTablet) {
+      entry.mobileContents.push(content);
+      diagnostics.mobileVariants++;
+    } else {
+      entry.desktopContents.push(content);
+      diagnostics.desktopVariants++;
+    }
+    
+    if (marker.rawName && !entry.names.includes(marker.rawName)) {
+      entry.names.push(marker.rawName);
+    }
   }
   
-  // No clear segmentation found
-  console.log(`[SEGMENTER] No clear section markers found`);
+  // Build final sections
+  const sections: SegmentedSection[] = [];
+  
+  // Sort by section number
+  const sortedSectionNums = [...sectionMap.keys()].sort((a, b) => a - b);
+  
+  for (const sectionNum of sortedSectionNums) {
+    const entry = sectionMap.get(sectionNum)!;
+    
+    // Handle multiple desktop contents for same section number (e.g., multiple section5)
+    const desktopCount = entry.desktopContents.length;
+    
+    if (desktopCount > 1) {
+      // Multiple sections with same number - create sub-indices (A, B, C)
+      diagnostics.duplicateSectionNumbers.push(`${sectionNum}x${desktopCount}`);
+      
+      for (let j = 0; j < desktopCount; j++) {
+        const subIndex = String.fromCharCode(65 + j); // A, B, C...
+        const nameSuffix = entry.names[j] || `Parte ${subIndex}`;
+        
+        sections.push({
+          sectionNumber: sectionNum,
+          subIndex,
+          name: `Section ${sectionNum}${subIndex} - ${nameSuffix}`,
+          htmlDesktop: entry.desktopContents[j],
+          htmlMobile: entry.mobileContents[j] || '', // May not have mobile variant per sub-section
+          hasDesktopMobile: !!entry.mobileContents[j],
+          order: entry.firstOrder + j,
+          markerStart: `<!-- SECTION ${sectionNum}${subIndex} -->`,
+        });
+        
+        console.log(`[SEGMENTER-v2] Created Section ${sectionNum}${subIndex}: ${entry.desktopContents[j].length} desktop, ${entry.mobileContents[j]?.length || 0} mobile`);
+      }
+    } else {
+      // Single section with this number
+      const name = entry.names[0] || '';
+      
+      sections.push({
+        sectionNumber: sectionNum,
+        name: name ? `Section ${sectionNum} - ${name}` : `Section ${sectionNum}`,
+        htmlDesktop: entry.desktopContents[0] || '',
+        htmlMobile: entry.mobileContents[0] || '',
+        hasDesktopMobile: !!entry.mobileContents[0] && !!entry.desktopContents[0],
+        order: entry.firstOrder,
+        markerStart: `<!-- SECTION ${sectionNum} -->`,
+      });
+      
+      console.log(`[SEGMENTER-v2] Created Section ${sectionNum}: ${entry.desktopContents[0]?.length || 0} desktop, ${entry.mobileContents[0]?.length || 0} mobile, hasVariants=${!!entry.mobileContents[0]}`);
+    }
+  }
+  
+  // Sort by original order in HTML
+  sections.sort((a, b) => a.order - b.order);
+  
+  console.log(`[SEGMENTER-v2] Complete: ${sections.length} sections created`);
+  console.log(`[SEGMENTER-v2] Diagnostics:`, diagnostics);
+  
   return {
-    success: false,
-    sections: [],
-    method: 'none',
-    totalSections: 0,
+    success: sections.length >= 1,
+    sections,
+    method: 'comments-v2',
+    totalSections: sections.length,
     diagnostics,
   };
 }
 
-// Check if page has section markers (quick check before full segmentation)
+// =============================================
+// QUICK CHECK FOR SECTION MARKERS
+// =============================================
 export function hasExplicitSectionMarkers(html: string): boolean {
-  // Quick check for section comments or sectionN classes
-  const hasComments = /<!--\s*=* SECTION\s*\d+/i.test(html);
-  const hasSectionClasses = /<section[^>]*class="[^"]*\bsection\d+\b/i.test(html);
+  // Quick check for section comments
+  return /<!--\s*=*\s*SECTION\s*\d+/i.test(html);
+}
+
+// =============================================
+// COMBINE DESKTOP + MOBILE HTML
+// =============================================
+// For pixel-perfect rendering, we keep ONLY the appropriate variant
+// based on viewport. This function returns combined HTML where
+// CSS media queries will handle visibility.
+// =============================================
+export function combineDesktopMobileHtml(
+  htmlDesktop: string, 
+  htmlMobile: string,
+  wrapWithClasses: boolean = true
+): string {
+  if (!htmlMobile) return htmlDesktop;
+  if (!htmlDesktop) return htmlMobile;
   
-  return hasComments || hasSectionClasses;
+  if (wrapWithClasses) {
+    // Wrap each in a container with responsive classes
+    return `
+      <div class="section-variant-mobile" style="display: block;">
+        ${htmlMobile}
+      </div>
+      <div class="section-variant-desktop" style="display: none;">
+        ${htmlDesktop}
+      </div>
+      <style>
+        @media (min-width: 768px) {
+          .section-variant-mobile { display: none !important; }
+          .section-variant-desktop { display: block !important; }
+        }
+      </style>
+    `;
+  }
+  
+  // Just concatenate (let original CSS handle visibility)
+  return `${htmlMobile}\n${htmlDesktop}`;
 }
