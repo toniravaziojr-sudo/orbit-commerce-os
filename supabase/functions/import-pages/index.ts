@@ -5,7 +5,8 @@ import { extractAllElementsInOrder } from '../_shared/element-extractor.ts';
 import { classifyAllElements } from '../_shared/element-classifier.ts';
 import { buildPageFromElements, processElementsWithAutoBlockCreation, mergeConsecutiveElements } from '../_shared/block-builder.ts';
 import { analyzePageVisually, filterElementsByVisualAnalysis } from '../_shared/visual-content-analyzer.ts';
-
+import { extractMainContentByPlatform } from '../_shared/platform-content-extractor.ts';
+import { detectPlatformFromHtml } from '../_shared/platform-detector.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -479,8 +480,10 @@ function buildPageFromClassification(
     console.log(`[BUILD] Using PIXEL-PERFECT strategy (100% visual fidelity)`);
     console.log(`[BUILD] Reason: complexity=${classification.complexity}, type=${classification.pageType}, externalCss=${classification.dependsOnExternalCss}, highConfRatio=${(highConfNativeRatio * 100).toFixed(0)}%`);
     
-    // Extract main content and create CustomBlock
-    const mainContent = extractMainContent(rawHtml);
+    // Extract main content using platform-based extractor
+    const platformDetection = detectPlatformFromHtml(rawHtml, sourceUrl);
+    const extractionResult = extractMainContentByPlatform(rawHtml, platformDetection.platform);
+    const mainContent = extractionResult.content;
     
     // IMPORTANTE: Para pixel-perfect, manter CSS mais completo (incluindo media queries)
     // Apenas remover regras perigosas, não filtrar agressivamente
@@ -603,7 +606,9 @@ function buildPageFromClassification(
     // Se nenhum bloco foi criado, fallback para pixel-perfect completo
     if (blocks.length === 0) {
       console.log(`[BUILD] No high-confidence blocks, falling back to PIXEL-PERFECT`);
-      const mainContent = extractMainContent(rawHtml);
+      const fallbackDetection = detectPlatformFromHtml(rawHtml, sourceUrl);
+      const fallbackExtraction = extractMainContentByPlatform(rawHtml, fallbackDetection.platform);
+      const mainContent = fallbackExtraction.content;
       const safeCss = extractSafePixelPerfectCss(extractedCss, mainContent);
       
       blocks.push({
@@ -3126,9 +3131,15 @@ async function importPage(
         console.log(`[IMPORT] Phase 0 - No screenshot available, skipping visual analysis`);
       }
       
-      // IMPORTANTE: Remover header/footer ANTES de extrair elementos
-      const mainContentHtml = extractMainContent(videoMaterializedHtml);
-      console.log(`[IMPORT] Main content extracted: ${mainContentHtml.length} chars (from ${videoMaterializedHtml.length})`);
+      // IMPORTANTE: Detectar plataforma e remover header/footer ANTES de extrair elementos
+      const platformDetection = detectPlatformFromHtml(videoMaterializedHtml, page.url);
+      console.log(`[IMPORT] Platform detected: ${platformDetection.platform} (confidence: ${platformDetection.confidence}%)`);
+      
+      // Usar extração baseada na plataforma detectada
+      const extractionResult = extractMainContentByPlatform(videoMaterializedHtml, platformDetection.platform);
+      const mainContentHtml = extractionResult.content;
+      console.log(`[IMPORT] Main content extracted via PLATFORM-BASED: ${mainContentHtml.length} chars (from ${videoMaterializedHtml.length})`);
+      console.log(`[IMPORT] Sections removed: [${extractionResult.removedSections.slice(0, 5).join(', ')}${extractionResult.removedSections.length > 5 ? '...' : ''}]`);
       
       // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
       const extractedElements = extractAllElementsInOrder(mainContentHtml);
@@ -3216,7 +3227,10 @@ async function importPage(
         
         if (isCustomPage) {
           const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
-          const mainContent = extractMainContent(videoMaterializedHtml);
+          // Use platform-based extraction for fallback too
+          const fallbackPlatformDetection = detectPlatformFromHtml(videoMaterializedHtml, page.url);
+          const fallbackExtractionResult = extractMainContentByPlatform(videoMaterializedHtml, fallbackPlatformDetection.platform);
+          const mainContent = fallbackExtractionResult.content;
           
           if (mainContent.length > 500) {
             const imageBlocks = createImageBlocksFromPairs(responsiveImages);
