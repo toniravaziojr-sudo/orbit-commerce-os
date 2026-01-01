@@ -50,11 +50,11 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group)',
     ],
     excludeSelectors: [
-      // Tags semânticas
+      // Tags semânticas de navegação
       'header',
       'footer',
       'nav',
-      // Shopify section groups
+      // Shopify section groups (navegação)
       '.shopify-section-group-header-group',
       '.shopify-section-group-footer-group',
       '.shopify-section-group-overlay-group',
@@ -65,11 +65,17 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '.announcement-bar-section',
       '#shopify-section-announcement-bar',
       'nav[role="navigation"]',
-      // PADRÕES GENÉRICOS - qualquer elemento com header/footer no nome
-      '[class*="header"]',
-      '[class*="footer"]',
-      '[id*="header"]',
-      '[id*="footer"]',
+      // Classes de navegação específicas (NÃO genéricas para não pegar "heading")
+      '.header-container',
+      '.header-wrapper',
+      '.footer-wrapper',
+      '.footer-container',
+      '.footer-top',
+      '.footer-bottom',
+      '.footer-main',
+      '.selos-footer',
+      '#header',
+      '#footer',
       // Modais e overlays comuns do Shopify
       '.modal-parcel',
       '.backdrop-modal-parcel',
@@ -78,10 +84,11 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '[class*="modal"]',
       '[class*="overlay"]',
       '[class*="popup"]',
-      // Outros elementos comuns de navegação
-      '[class*="nav-"]',
-      '[class*="menu-"]',
-      '[class*="selos-"]',
+      // Navegação
+      '.site-header',
+      '.site-footer',
+      '.nav-menu',
+      '.main-nav',
     ],
     sectionComments: {
       headerStart: /<!-- BEGIN sections: header-group -->/i,
