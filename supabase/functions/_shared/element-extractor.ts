@@ -1,5 +1,5 @@
 // =====================================================
-// ELEMENT EXTRACTOR v1
+// ELEMENT EXTRACTOR v2 - WITH DETAILED LOGGING
 // =====================================================
 // Extracts ALL elements from HTML with their POSITION
 // This enables reconstruction in original page order
@@ -106,6 +106,9 @@ function stripHtml(html: string): string {
 // VIDEO EXTRACTION - With Position
 // =====================================================
 export function extractVideosWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractVideosWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   const foundVideoIds = new Set<string>();
   
@@ -153,9 +156,16 @@ export function extractVideosWithPosition(html: string): ExtractedElement[] {
         }
       });
       
-      console.log(`[EXTRACT-VIDEO] Found ${source} video: ${videoId} @ position ${match.index}`);
+      console.log(`[FUNC:extractVideosWithPosition] FOUND: ${JSON.stringify({ source, videoId, position: match.index })}`);
     }
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractVideosWithPosition] OUTPUT: ${JSON.stringify({ 
+    elementsFound: elements.length, 
+    videoIds: Array.from(foundVideoIds),
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -164,6 +174,9 @@ export function extractVideosWithPosition(html: string): ExtractedElement[] {
 // VIDEO CAROUSEL EXTRACTION - Detect multiple videos in container
 // =====================================================
 export function extractVideoCarouselsWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractVideoCarouselsWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   
   // Pattern: section/div with carousel class containing multiple videos
@@ -217,10 +230,16 @@ export function extractVideoCarouselsWithPosition(html: string): ExtractedElemen
           }
         });
         
-        console.log(`[EXTRACT-VIDEO-CAROUSEL] Found carousel with ${videos.length} videos @ position ${match.index}`);
+        console.log(`[FUNC:extractVideoCarouselsWithPosition] FOUND: ${JSON.stringify({ videosCount: videos.length, position: match.index })}`);
       }
     }
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractVideoCarouselsWithPosition] OUTPUT: ${JSON.stringify({ 
+    carouselsFound: elements.length,
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -229,6 +248,9 @@ export function extractVideoCarouselsWithPosition(html: string): ExtractedElemen
 // IMAGE EXTRACTION - With Position
 // =====================================================
 export function extractImagesWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractImagesWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   const foundSrcs = new Set<string>();
   
@@ -241,7 +263,10 @@ export function extractImagesWithPosition(html: string): ExtractedElement[] {
     const imgTag = match[0];
     
     // Skip small images, icons, lazy placeholders
-    if (isSmallOrIconImage(src, imgTag)) continue;
+    if (isSmallOrIconImage(src, imgTag)) {
+      console.log(`[FUNC:extractImagesWithPosition] SKIP_SMALL: ${JSON.stringify({ src: src.substring(0, 50) })}`);
+      continue;
+    }
     
     // Skip duplicates
     const normalizedSrc = src.replace(/\?.*$/, ''); // Remove query params for comparison
@@ -268,8 +293,14 @@ export function extractImagesWithPosition(html: string): ExtractedElement[] {
       }
     });
     
-    console.log(`[EXTRACT-IMAGE] Found image @ position ${match.index}: ${src.substring(0, 50)}...`);
+    console.log(`[FUNC:extractImagesWithPosition] FOUND: ${JSON.stringify({ src: src.substring(0, 60), alt: alt.substring(0, 30), position: match.index })}`);
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractImagesWithPosition] OUTPUT: ${JSON.stringify({ 
+    imagesFound: elements.length,
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -323,6 +354,9 @@ function findMobileVersion(html: string, desktopSrc: string, position: number): 
 // HEADING EXTRACTION - With Position
 // =====================================================
 export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractHeadingsWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   const foundTexts = new Set<string>();
   
@@ -375,7 +409,7 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
       }
     });
     
-    console.log(`[EXTRACT-HEADING] Found ${level}: "${text.substring(0, 40)}..." @ position ${match.index}`);
+    console.log(`[FUNC:extractHeadingsWithPosition] FOUND: ${JSON.stringify({ level, text: text.substring(0, 40), position: match.index })}`);
   }
   
   // Pattern 2: Spans/Divs with title/heading classes (including BEM notation)
@@ -402,7 +436,7 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
       
       // Skip footer content headings
       if (isFooterContent(text)) {
-        console.log(`[EXTRACT-HEADING] Skipping footer heading: "${text.substring(0, 40)}..."`);
+        console.log(`[FUNC:extractHeadingsWithPosition] SKIP_FOOTER: ${JSON.stringify({ text: text.substring(0, 40) })}`);
         continue;
       }
       
@@ -424,7 +458,7 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
         }
       });
       
-      console.log(`[EXTRACT-HEADING] Found BEM/title-class: "${text.substring(0, 40)}..." @ position ${match.index}`);
+      console.log(`[FUNC:extractHeadingsWithPosition] FOUND_BEM: ${JSON.stringify({ level, text: text.substring(0, 40), position: match.index })}`);
     }
   }
   
@@ -444,7 +478,7 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
     
     // Skip footer content headings
     if (isFooterContent(text)) {
-      console.log(`[EXTRACT-HEADING] Skipping footer strong-heading: "${text.substring(0, 40)}..."`);
+      console.log(`[FUNC:extractHeadingsWithPosition] SKIP_FOOTER_STRONG: ${JSON.stringify({ text: text.substring(0, 40) })}`);
       continue;
     }
     
@@ -462,8 +496,15 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
       }
     });
     
-    console.log(`[EXTRACT-HEADING] Found strong-heading: "${text.substring(0, 40)}..." @ position ${match.index}`);
+    console.log(`[FUNC:extractHeadingsWithPosition] FOUND_STRONG: ${JSON.stringify({ text: text.substring(0, 40), position: match.index })}`);
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractHeadingsWithPosition] OUTPUT: ${JSON.stringify({ 
+    headingsFound: elements.length,
+    levels: elements.map(e => e.metadata.level),
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -472,6 +513,9 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
 // BUTTON/CTA EXTRACTION - With Position
 // =====================================================
 export function extractButtonsWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractButtonsWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   const foundTexts = new Set<string>();
   
@@ -503,7 +547,7 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       
       // Skip footer buttons
       if (isFooterButton(text, url)) {
-        console.log(`[EXTRACT-BUTTON] Skipping footer button: "${text}"`);
+        console.log(`[FUNC:extractButtonsWithPosition] SKIP_FOOTER: ${JSON.stringify({ text, url })}`);
         continue;
       }
       
@@ -527,7 +571,7 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
         }
       });
       
-      console.log(`[EXTRACT-BUTTON] Found button: "${text}" -> ${url} @ position ${match.index}`);
+      console.log(`[FUNC:extractButtonsWithPosition] FOUND: ${JSON.stringify({ text, url: url.substring(0, 40), variant, position: match.index })}`);
     }
   }
   
@@ -544,13 +588,13 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
     
     // Skip footer buttons
     if (isFooterButton(text, url)) {
-      console.log(`[EXTRACT-BUTTON] Skipping footer CTA: "${text}"`);
+      console.log(`[FUNC:extractButtonsWithPosition] SKIP_FOOTER_CTA: ${JSON.stringify({ text, url })}`);
       continue;
     }
     
     // Skip navigation/menu links
     if (isNavigationLink(text, url)) {
-      console.log(`[EXTRACT-BUTTON] Skipping navigation link: "${text}" -> ${url}`);
+      console.log(`[FUNC:extractButtonsWithPosition] SKIP_NAV: ${JSON.stringify({ text, url })}`);
       continue;
     }
     
@@ -568,7 +612,7 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       }
     });
     
-    console.log(`[EXTRACT-BUTTON] Found CTA link: "${text}" -> ${url} @ position ${match.index}`);
+    console.log(`[FUNC:extractButtonsWithPosition] FOUND_CTA: ${JSON.stringify({ text, url: url.substring(0, 40), position: match.index })}`);
   }
   
   // Pattern 3: Links with inline background-color styles (styled buttons)
@@ -597,8 +641,15 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       }
     });
     
-    console.log(`[EXTRACT-BUTTON] Found styled button: "${text}" -> ${url} @ position ${match.index}`);
+    console.log(`[FUNC:extractButtonsWithPosition] FOUND_STYLED: ${JSON.stringify({ text, url: url.substring(0, 40), position: match.index })}`);
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractButtonsWithPosition] OUTPUT: ${JSON.stringify({ 
+    buttonsFound: elements.length,
+    buttonTexts: elements.map(e => e.metadata.buttonText),
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -627,7 +678,7 @@ function isFooterContent(text: string): boolean {
   const isObviousFooter = obviousFooterPatterns.some(pattern => pattern.test(text));
   
   if (isObviousFooter) {
-    console.log(`[EXTRACT-v2] OBVIOUS footer detected: "${text.substring(0, 40)}..."`);
+    console.log(`[FUNC:isFooterContent] DETECTED: ${JSON.stringify({ text: text.substring(0, 40), isFooter: true })}`);
   }
   
   return isObviousFooter;
@@ -647,7 +698,7 @@ function isFooterButton(text: string, url: string): boolean {
   const isObviousLegal = obviousLegalUrls.some(p => p.test(url));
   
   if (isObviousLegal) {
-    console.log(`[EXTRACT-v2] Obvious legal button: "${text}" -> ${url}`);
+    console.log(`[FUNC:isFooterButton] DETECTED: ${JSON.stringify({ text, url: url.substring(0, 40), isLegal: true })}`);
   }
   
   return isObviousLegal;
@@ -665,7 +716,7 @@ function isNavigationLink(text: string, url: string): boolean {
   ];
   
   if (text.length <= 15 && obviousSearchUrls.some(p => p.test(url))) {
-    console.log(`[EXTRACT-v2] Obvious search link: "${text}" -> ${url}`);
+    console.log(`[FUNC:isNavigationLink] DETECTED: ${JSON.stringify({ text, url: url.substring(0, 40), isSearch: true })}`);
     return true;
   }
   
@@ -676,6 +727,9 @@ function isNavigationLink(text: string, url: string): boolean {
 // TEXT/PARAGRAPH EXTRACTION - With Position
 // =====================================================
 export function extractTextBlocksWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractTextBlocksWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   const foundTexts = new Set<string>();
   
@@ -706,7 +760,7 @@ export function extractTextBlocksWithPosition(html: string): ExtractedElement[] 
       
       // Skip footer content
       if (isFooterContent(text)) {
-        console.log(`[EXTRACT-TEXT] Skipping footer content: "${text.substring(0, 50)}..."`);
+        console.log(`[FUNC:extractTextBlocksWithPosition] SKIP_FOOTER: ${JSON.stringify({ text: text.substring(0, 50) })}`);
         continue;
       }
       
@@ -721,9 +775,15 @@ export function extractTextBlocksWithPosition(html: string): ExtractedElement[] 
         }
       });
       
-      console.log(`[EXTRACT-TEXT] Found text block (${text.length} chars) @ position ${match.index}`);
+      console.log(`[FUNC:extractTextBlocksWithPosition] FOUND: ${JSON.stringify({ textLength: text.length, textPreview: text.substring(0, 50), position: match.index })}`);
     }
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractTextBlocksWithPosition] OUTPUT: ${JSON.stringify({ 
+    textBlocksFound: elements.length,
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -732,6 +792,9 @@ export function extractTextBlocksWithPosition(html: string): ExtractedElement[] 
 // FAQ EXTRACTION - With Position
 // =====================================================
 export function extractFAQWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractFAQWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   
   // Pattern for FAQ sections
@@ -765,10 +828,16 @@ export function extractFAQWithPosition(html: string): ExtractedElement[] {
           }
         });
         
-        console.log(`[EXTRACT-FAQ] Found FAQ section with ${items.length} items @ position ${match.index}`);
+        console.log(`[FUNC:extractFAQWithPosition] FOUND: ${JSON.stringify({ itemsCount: items.length, title, position: match.index })}`);
       }
     }
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractFAQWithPosition] OUTPUT: ${JSON.stringify({ 
+    faqSectionsFound: elements.length,
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -804,6 +873,9 @@ function extractFAQItemsFromContent(html: string): Array<{ question: string; ans
 // TESTIMONIAL EXTRACTION - With Position
 // =====================================================
 export function extractTestimonialsWithPosition(html: string): ExtractedElement[] {
+  const startTime = Date.now();
+  console.log(`[FUNC:extractTestimonialsWithPosition] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  
   const elements: ExtractedElement[] = [];
   
   // Pattern for testimonial sections
@@ -835,10 +907,16 @@ export function extractTestimonialsWithPosition(html: string): ExtractedElement[
           }
         });
         
-        console.log(`[EXTRACT-TESTIMONIAL] Found testimonial section with ${items.length} items @ position ${match.index}`);
+        console.log(`[FUNC:extractTestimonialsWithPosition] FOUND: ${JSON.stringify({ itemsCount: items.length, title, position: match.index })}`);
       }
     }
   }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractTestimonialsWithPosition] OUTPUT: ${JSON.stringify({ 
+    testimonialSectionsFound: elements.length,
+    elapsedMs: elapsed 
+  })}`);
   
   return elements;
 }
@@ -880,22 +958,56 @@ function extractTestimonialItemsFromContent(html: string): Array<{ name: string;
 // MAIN EXTRACTION FUNCTION
 // =====================================================
 export function extractAllElementsInOrder(html: string): ExtractedElement[] {
-  console.log(`[EXTRACT] Starting extraction from ${html.length} chars of HTML`);
-  console.log(`[EXTRACT] First 500 chars: ${html.substring(0, 500)}`);
-  console.log(`[EXTRACT] Last 500 chars: ${html.substring(Math.max(0, html.length - 500))}`);
+  const startTime = Date.now();
+  console.log(`[FUNC:extractAllElementsInOrder] INPUT: ${JSON.stringify({ htmlLength: html.length })}`);
+  console.log(`[FUNC:extractAllElementsInOrder] HTML_PREVIEW_START: ${html.substring(0, 300).replace(/\n/g, ' ')}`);
+  console.log(`[FUNC:extractAllElementsInOrder] HTML_PREVIEW_END: ${html.substring(Math.max(0, html.length - 300)).replace(/\n/g, ' ')}`);
   
   const allElements: ExtractedElement[] = [];
   
   // Extract all element types
   // ORDER MATTERS: more specific first to avoid conflicts
-  allElements.push(...extractVideoCarouselsWithPosition(html));
-  allElements.push(...extractVideosWithPosition(html));
-  allElements.push(...extractImagesWithPosition(html));
-  allElements.push(...extractFAQWithPosition(html));
-  allElements.push(...extractTestimonialsWithPosition(html));
-  allElements.push(...extractHeadingsWithPosition(html));
-  allElements.push(...extractButtonsWithPosition(html));
-  allElements.push(...extractTextBlocksWithPosition(html));
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting video carousels...`);
+  const videoCarousels = extractVideoCarouselsWithPosition(html);
+  allElements.push(...videoCarousels);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Video carousels done: ${videoCarousels.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting videos...`);
+  const videos = extractVideosWithPosition(html);
+  allElements.push(...videos);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Videos done: ${videos.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting images...`);
+  const images = extractImagesWithPosition(html);
+  allElements.push(...images);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Images done: ${images.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting FAQs...`);
+  const faqs = extractFAQWithPosition(html);
+  allElements.push(...faqs);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: FAQs done: ${faqs.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting testimonials...`);
+  const testimonials = extractTestimonialsWithPosition(html);
+  allElements.push(...testimonials);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Testimonials done: ${testimonials.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting headings...`);
+  const headings = extractHeadingsWithPosition(html);
+  allElements.push(...headings);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Headings done: ${headings.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting buttons...`);
+  const buttons = extractButtonsWithPosition(html);
+  allElements.push(...buttons);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Buttons done: ${buttons.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Extracting text blocks...`);
+  const textBlocks = extractTextBlocksWithPosition(html);
+  allElements.push(...textBlocks);
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Text blocks done: ${textBlocks.length}`);
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: Before removeOverlapping: ${allElements.length} elements`);
   
   // Remove overlapping elements (prefer more specific types)
   const filtered = removeOverlappingElements(allElements);
@@ -903,15 +1015,34 @@ export function extractAllElementsInOrder(html: string): ExtractedElement[] {
   // Sort by position to maintain original order
   filtered.sort((a, b) => a.position - b.position);
   
-  console.log(`[EXTRACT] Found ${filtered.length} elements in order`);
+  // Count by type
+  const countByType = filtered.reduce((acc, el) => {
+    acc[el.type] = (acc[el.type] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:extractAllElementsInOrder] OUTPUT: ${JSON.stringify({ 
+    totalElements: filtered.length,
+    byType: countByType,
+    elapsedMs: elapsed 
+  })}`);
+  
+  // Log each element
   filtered.forEach((el, i) => {
-    console.log(`  ${i}: ${el.type} @ ${el.position}`);
+    console.log(`[FUNC:extractAllElementsInOrder] ELEMENT[${i}]: ${JSON.stringify({ 
+      type: el.type, 
+      position: el.position,
+      textPreview: (el.metadata.text || el.metadata.buttonText || el.metadata.videoId || '').substring(0, 40)
+    })}`);
   });
   
   return filtered;
 }
 
 function removeOverlappingElements(elements: ExtractedElement[]): ExtractedElement[] {
+  console.log(`[FUNC:removeOverlappingElements] INPUT: ${JSON.stringify({ elementsCount: elements.length })}`);
+  
   // Priority order (higher = keep when overlapping)
   const priority: Record<ElementType, number> = {
     'video-carousel': 10,
@@ -936,7 +1067,6 @@ function removeOverlappingElements(elements: ExtractedElement[]): ExtractedEleme
   });
   
   const result: ExtractedElement[] = [];
-  let lastEndPosition = -1;
   
   for (const element of sorted) {
     const elementEnd = element.position + element.rawHtml.length;
@@ -957,10 +1087,26 @@ function removeOverlappingElements(elements: ExtractedElement[]): ExtractedEleme
       });
       
       if (overlappingIdx >= 0 && priority[element.type] > priority[result[overlappingIdx].type]) {
+        console.log(`[FUNC:removeOverlappingElements] REPLACE: ${JSON.stringify({ 
+          old: result[overlappingIdx].type, 
+          new: element.type,
+          reason: 'higher_priority'
+        })}`);
         result[overlappingIdx] = element; // Replace with higher priority
+      } else {
+        console.log(`[FUNC:removeOverlappingElements] SKIP_OVERLAP: ${JSON.stringify({ 
+          type: element.type, 
+          position: element.position
+        })}`);
       }
     }
   }
+  
+  console.log(`[FUNC:removeOverlappingElements] OUTPUT: ${JSON.stringify({ 
+    beforeCount: elements.length, 
+    afterCount: result.length, 
+    removedCount: elements.length - result.length 
+  })}`);
   
   return result;
 }

@@ -1,5 +1,5 @@
 // =====================================================
-// ELEMENT CLASSIFIER v1
+// ELEMENT CLASSIFIER v2 - WITH DETAILED LOGGING
 // =====================================================
 // Classifies extracted elements into native block types
 // Determines confidence level and whether new block is needed
@@ -21,8 +21,17 @@ export interface ClassifiedElement extends ExtractedElement {
 function classifyVideo(element: ExtractedElement): ClassifiedElement {
   const { videoId, videoSource, videoUrl } = element.metadata;
   
+  console.log(`[FUNC:classifyVideo] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    videoId, 
+    videoSource, 
+    videoUrl 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (videoSource === 'youtube' && videoId) {
-    return {
+    result = {
       ...element,
       blockType: 'YouTubeVideo',
       blockProps: {
@@ -34,10 +43,8 @@ function classifyVideo(element: ExtractedElement): ClassifiedElement {
       confidence: 1.0,
       needsNewBlock: false,
     };
-  }
-  
-  if (videoSource === 'vimeo' && videoId) {
-    return {
+  } else if (videoSource === 'vimeo' && videoId) {
+    result = {
       ...element,
       blockType: 'YouTubeVideo', // We use same block for Vimeo
       blockProps: {
@@ -49,19 +56,27 @@ function classifyVideo(element: ExtractedElement): ClassifiedElement {
       confidence: 0.9,
       needsNewBlock: false,
     };
+  } else {
+    // Unknown video source - use CustomBlock
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'Vídeo Importado',
+      },
+      confidence: 0.5,
+      needsNewBlock: false,
+    };
   }
   
-  // Unknown video source - use CustomBlock
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'Vídeo Importado',
-    },
-    confidence: 0.5,
-    needsNewBlock: false,
-  };
+  console.log(`[FUNC:classifyVideo] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -70,11 +85,18 @@ function classifyVideo(element: ExtractedElement): ClassifiedElement {
 function classifyVideoCarousel(element: ExtractedElement): ClassifiedElement {
   const { videos } = element.metadata;
   
+  console.log(`[FUNC:classifyVideoCarousel] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    videosCount: videos?.length 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (videos && videos.length >= 2) {
     // Convert to VideoCarousel block format
     const videosJson = videos.map(v => v.url).join('\n');
     
-    return {
+    result = {
       ...element,
       blockType: 'VideoCarousel',
       blockProps: {
@@ -87,20 +109,28 @@ function classifyVideoCarousel(element: ExtractedElement): ClassifiedElement {
       confidence: 0.95,
       needsNewBlock: false,
     };
+  } else {
+    // Fallback
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'Carrossel de Vídeos',
+      },
+      confidence: 0.5,
+      needsNewBlock: true,
+      suggestedBlockName: 'VideoCarousel',
+    };
   }
   
-  // Fallback
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'Carrossel de Vídeos',
-    },
-    confidence: 0.5,
-    needsNewBlock: true,
-    suggestedBlockName: 'VideoCarousel',
-  };
+  console.log(`[FUNC:classifyVideoCarousel] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -109,8 +139,17 @@ function classifyVideoCarousel(element: ExtractedElement): ClassifiedElement {
 function classifyImage(element: ExtractedElement): ClassifiedElement {
   const { imageDesktop, imageMobile, imageAlt } = element.metadata;
   
+  console.log(`[FUNC:classifyImage] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    imageDesktop: imageDesktop?.substring(0, 50), 
+    imageMobile: imageMobile?.substring(0, 50), 
+    imageAlt 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (imageDesktop) {
-    return {
+    result = {
       ...element,
       blockType: 'Image',
       blockProps: {
@@ -123,19 +162,27 @@ function classifyImage(element: ExtractedElement): ClassifiedElement {
       confidence: 0.95,
       needsNewBlock: false,
     };
+  } else {
+    // Fallback
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'Imagem',
+      },
+      confidence: 0.4,
+      needsNewBlock: false,
+    };
   }
   
-  // Fallback
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'Imagem',
-    },
-    confidence: 0.4,
-    needsNewBlock: false,
-  };
+  console.log(`[FUNC:classifyImage] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -143,6 +190,12 @@ function classifyImage(element: ExtractedElement): ClassifiedElement {
 // =====================================================
 function classifyHeading(element: ExtractedElement): ClassifiedElement {
   const { level, text, content, styles } = element.metadata;
+  
+  console.log(`[FUNC:classifyHeading] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    level, 
+    text: text?.substring(0, 40) 
+  })}`);
   
   // Build HTML with preserved styling
   let htmlContent = `<${level}`;
@@ -156,7 +209,7 @@ function classifyHeading(element: ExtractedElement): ClassifiedElement {
   
   htmlContent += `>${content || text}</${level}>`;
   
-  return {
+  const result: ClassifiedElement = {
     ...element,
     blockType: 'RichText',
     blockProps: {
@@ -168,6 +221,14 @@ function classifyHeading(element: ExtractedElement): ClassifiedElement {
     confidence: 0.95,
     needsNewBlock: false,
   };
+  
+  console.log(`[FUNC:classifyHeading] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -176,8 +237,17 @@ function classifyHeading(element: ExtractedElement): ClassifiedElement {
 function classifyButton(element: ExtractedElement): ClassifiedElement {
   const { buttonText, buttonUrl, buttonVariant } = element.metadata;
   
+  console.log(`[FUNC:classifyButton] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    buttonText, 
+    buttonUrl: buttonUrl?.substring(0, 40), 
+    buttonVariant 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (buttonText && buttonText.length >= 2) {
-    return {
+    result = {
       ...element,
       blockType: 'Button',
       blockProps: {
@@ -191,19 +261,27 @@ function classifyButton(element: ExtractedElement): ClassifiedElement {
       confidence: 0.9,
       needsNewBlock: false,
     };
+  } else {
+    // Fallback
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'Botão',
+      },
+      confidence: 0.4,
+      needsNewBlock: false,
+    };
   }
   
-  // Fallback
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'Botão',
-    },
-    confidence: 0.4,
-    needsNewBlock: false,
-  };
+  console.log(`[FUNC:classifyButton] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -212,7 +290,13 @@ function classifyButton(element: ExtractedElement): ClassifiedElement {
 function classifyText(element: ExtractedElement): ClassifiedElement {
   const { text, content } = element.metadata;
   
-  return {
+  console.log(`[FUNC:classifyText] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    textLength: text?.length, 
+    textPreview: text?.substring(0, 40) 
+  })}`);
+  
+  const result: ClassifiedElement = {
     ...element,
     blockType: 'RichText',
     blockProps: {
@@ -224,6 +308,14 @@ function classifyText(element: ExtractedElement): ClassifiedElement {
     confidence: 0.85,
     needsNewBlock: false,
   };
+  
+  console.log(`[FUNC:classifyText] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -232,8 +324,16 @@ function classifyText(element: ExtractedElement): ClassifiedElement {
 function classifyFAQ(element: ExtractedElement): ClassifiedElement {
   const { faqItems, faqTitle } = element.metadata;
   
+  console.log(`[FUNC:classifyFAQ] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    faqItemsCount: faqItems?.length, 
+    faqTitle 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (faqItems && faqItems.length >= 2) {
-    return {
+    result = {
       ...element,
       blockType: 'FAQ',
       blockProps: {
@@ -245,19 +345,27 @@ function classifyFAQ(element: ExtractedElement): ClassifiedElement {
       confidence: 0.95,
       needsNewBlock: false,
     };
+  } else {
+    // Fallback if too few items
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'FAQ',
+      },
+      confidence: 0.5,
+      needsNewBlock: false,
+    };
   }
   
-  // Fallback if too few items
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'FAQ',
-    },
-    confidence: 0.5,
-    needsNewBlock: false,
-  };
+  console.log(`[FUNC:classifyFAQ] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
@@ -266,8 +374,16 @@ function classifyFAQ(element: ExtractedElement): ClassifiedElement {
 function classifyTestimonial(element: ExtractedElement): ClassifiedElement {
   const { testimonialItems, testimonialTitle } = element.metadata;
   
+  console.log(`[FUNC:classifyTestimonial] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    testimonialItemsCount: testimonialItems?.length, 
+    testimonialTitle 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   if (testimonialItems && testimonialItems.length >= 2) {
-    return {
+    result = {
       ...element,
       blockType: 'Testimonials',
       blockProps: {
@@ -277,26 +393,39 @@ function classifyTestimonial(element: ExtractedElement): ClassifiedElement {
       confidence: 0.95,
       needsNewBlock: false,
     };
+  } else {
+    // Fallback
+    result = {
+      ...element,
+      blockType: 'CustomBlock',
+      blockProps: {
+        htmlContent: element.rawHtml,
+        blockName: 'Depoimentos',
+      },
+      confidence: 0.5,
+      needsNewBlock: false,
+    };
   }
   
-  // Fallback
-  return {
-    ...element,
-    blockType: 'CustomBlock',
-    blockProps: {
-      htmlContent: element.rawHtml,
-      blockName: 'Depoimentos',
-    },
-    confidence: 0.5,
-    needsNewBlock: false,
-  };
+  console.log(`[FUNC:classifyTestimonial] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
 // UNKNOWN/FALLBACK CLASSIFICATION
 // =====================================================
 function classifyUnknown(element: ExtractedElement): ClassifiedElement {
-  return {
+  console.log(`[FUNC:classifyUnknown] INPUT: ${JSON.stringify({ 
+    elementId: element.id, 
+    type: element.type 
+  })}`);
+  
+  const result: ClassifiedElement = {
     ...element,
     blockType: 'CustomBlock',
     blockProps: {
@@ -307,44 +436,81 @@ function classifyUnknown(element: ExtractedElement): ClassifiedElement {
     needsNewBlock: true,
     suggestedBlockName: element.type,
   };
+  
+  console.log(`[FUNC:classifyUnknown] OUTPUT: ${JSON.stringify({ 
+    blockType: result.blockType, 
+    confidence: result.confidence, 
+    needsNewBlock: result.needsNewBlock 
+  })}`);
+  
+  return result;
 }
 
 // =====================================================
 // MAIN CLASSIFICATION FUNCTION
 // =====================================================
 export function classifyElement(element: ExtractedElement): ClassifiedElement {
+  console.log(`[FUNC:classifyElement] INPUT: ${JSON.stringify({ 
+    id: element.id, 
+    type: element.type, 
+    position: element.position,
+    textPreview: (element.metadata.text || element.metadata.buttonText || '').substring(0, 40) 
+  })}`);
+  
+  let result: ClassifiedElement;
+  
   switch (element.type) {
     case 'video':
-      return classifyVideo(element);
+      result = classifyVideo(element);
+      break;
     case 'video-carousel':
-      return classifyVideoCarousel(element);
+      result = classifyVideoCarousel(element);
+      break;
     case 'image':
-      return classifyImage(element);
+      result = classifyImage(element);
+      break;
     case 'image-carousel':
-      return classifyImage(element); // Use same as image for now
+      result = classifyImage(element); // Use same as image for now
+      break;
     case 'heading':
-      return classifyHeading(element);
+      result = classifyHeading(element);
+      break;
     case 'button':
-      return classifyButton(element);
+      result = classifyButton(element);
+      break;
     case 'text':
-      return classifyText(element);
+      result = classifyText(element);
+      break;
     case 'faq':
-      return classifyFAQ(element);
+      result = classifyFAQ(element);
+      break;
     case 'testimonial':
-      return classifyTestimonial(element);
+      result = classifyTestimonial(element);
+      break;
     default:
-      return classifyUnknown(element);
+      result = classifyUnknown(element);
   }
+  
+  console.log(`[FUNC:classifyElement] OUTPUT: ${JSON.stringify({ 
+    inputType: element.type, 
+    outputBlockType: result.blockType, 
+    confidence: result.confidence 
+  })}`);
+  
+  return result;
 }
 
 // Classify all elements
 export function classifyAllElements(elements: ExtractedElement[]): ClassifiedElement[] {
-  console.log(`[CLASSIFY] Classifying ${elements.length} elements`);
+  const startTime = Date.now();
+  console.log(`[FUNC:classifyAllElements] INPUT: ${JSON.stringify({ 
+    elementsCount: elements.length, 
+    types: elements.map(e => e.type) 
+  })}`);
   
-  const classified = elements.map(element => {
-    const result = classifyElement(element);
-    console.log(`[CLASSIFY] ${element.type} @ ${element.position} -> ${result.blockType} (conf: ${(result.confidence * 100).toFixed(0)}%)`);
-    return result;
+  const classified = elements.map((element, index) => {
+    console.log(`[FUNC:classifyAllElements] PROCESSING[${index}]: ${element.type} @ position ${element.position}`);
+    return classifyElement(element);
   });
   
   // Log summary
@@ -354,12 +520,16 @@ export function classifyAllElements(elements: ExtractedElement[]): ClassifiedEle
     return acc;
   }, {} as Record<string, number>);
   
-  console.log(`[CLASSIFY] Summary:`, typeCounts);
-  
   const needsNew = classified.filter(c => c.needsNewBlock);
-  if (needsNew.length > 0) {
-    console.log(`[CLASSIFY] Needs new blocks: ${needsNew.map(c => c.suggestedBlockName).join(', ')}`);
-  }
+  
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:classifyAllElements] OUTPUT: ${JSON.stringify({ 
+    classifiedCount: classified.length, 
+    blockTypes: typeCounts,
+    needsNewBlockCount: needsNew.length,
+    needsNewBlockNames: needsNew.map(c => c.suggestedBlockName),
+    elapsedMs: elapsed 
+  })}`);
   
   return classified;
 }

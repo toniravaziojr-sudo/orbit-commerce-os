@@ -1,5 +1,5 @@
 // =============================================
-// VISUAL CONTENT ANALYZER
+// VISUAL CONTENT ANALYZER v3 - WITH DETAILED LOGGING
 // Uses Gemini Vision to analyze page screenshots
 // and identify main content vs widgets/navigation
 // =============================================
@@ -103,12 +103,11 @@ RESPONDA APENAS em JSON válido:
 
 /**
  * Downloads an image from URL and converts to Base64
- * Version: 2026-01-01-v2 - force redeploy
+ * Version: v3 with detailed logging
  */
 async function fetchImageAsBase64(url: string): Promise<string> {
-  // FORCE REDEPLOY v2
-  console.log(`[VISUAL-v2] fetchImageAsBase64 CALLED`);
-  console.log(`[VISUAL-v2] Downloading from: ${url.substring(0, 80)}...`);
+  const startTime = Date.now();
+  console.log(`[FUNC:fetchImageAsBase64] INPUT: ${JSON.stringify({ url: url.substring(0, 80) })}`);
   
   try {
     const response = await fetch(url);
@@ -117,7 +116,7 @@ async function fetchImageAsBase64(url: string): Promise<string> {
     }
     
     const arrayBuffer = await response.arrayBuffer();
-    console.log(`[VISUAL-v2] Downloaded ${arrayBuffer.byteLength} bytes`);
+    console.log(`[FUNC:fetchImageAsBase64] STEP: Downloaded ${arrayBuffer.byteLength} bytes`);
     
     const uint8Array = new Uint8Array(arrayBuffer);
     
@@ -128,10 +127,16 @@ async function fetchImageAsBase64(url: string): Promise<string> {
     }
     const base64 = btoa(binary);
     
-    console.log(`[VISUAL-v2] Converted to Base64: ${Math.round(base64.length / 1024)}KB`);
+    const elapsed = Date.now() - startTime;
+    console.log(`[FUNC:fetchImageAsBase64] OUTPUT: ${JSON.stringify({ 
+      base64Length: base64.length, 
+      base64KB: Math.round(base64.length / 1024),
+      elapsedMs: elapsed 
+    })}`);
+    
     return `data:image/png;base64,${base64}`;
   } catch (error) {
-    console.error(`[VISUAL-v2] Download FAILED:`, error);
+    console.error(`[FUNC:fetchImageAsBase64] ERROR: ${JSON.stringify({ error: String(error) })}`);
     throw error;
   }
 }
@@ -146,11 +151,18 @@ export async function analyzePageVisually(
 ): Promise<VisualAnalysisResult> {
   const startTime = Date.now();
   
+  console.log(`[FUNC:analyzePageVisually] INPUT: ${JSON.stringify({ 
+    pageUrl, 
+    pageTitle, 
+    screenshotInputType: screenshotInput.startsWith('http') ? 'URL' : (screenshotInput.startsWith('data:') ? 'dataUri' : 'base64'),
+    screenshotInputLength: screenshotInput.length 
+  })}`);
+  
   try {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     if (!LOVABLE_API_KEY) {
-      console.error('[VISUAL] LOVABLE_API_KEY not configured');
+      console.error('[FUNC:analyzePageVisually] ERROR: LOVABLE_API_KEY not configured');
       return {
         success: false,
         sections: [],
@@ -161,29 +173,26 @@ export async function analyzePageVisually(
       };
     }
 
-    // FORCE REDEPLOY v2 - 2026-01-01
-    console.log(`[VISUAL-v2] === VISUAL ANALYZER v2 ACTIVE ===`);
-    console.log(`[VISUAL-v2] Analyzing: ${pageTitle} (${pageUrl})`);
-    console.log(`[VISUAL-v2] Input type check: ${screenshotInput.substring(0, 30)}...`);
+    console.log(`[FUNC:analyzePageVisually] STEP: Processing screenshot input...`);
 
     // Detect if screenshot is URL or Base64 and process accordingly
     let imageDataUrl: string;
     
     if (screenshotInput.startsWith('http://') || screenshotInput.startsWith('https://')) {
       // It's a URL - need to download and convert to Base64
-      console.log('[VISUAL-v2] Screenshot is HTTP URL, will download...');
+      console.log('[FUNC:analyzePageVisually] STEP: Screenshot is HTTP URL, downloading...');
       imageDataUrl = await fetchImageAsBase64(screenshotInput);
     } else if (screenshotInput.startsWith('data:')) {
       // Already has data URI prefix
-      console.log('[VISUAL-v2] Screenshot is data URI');
+      console.log('[FUNC:analyzePageVisually] STEP: Screenshot is data URI');
       imageDataUrl = screenshotInput;
     } else {
       // Assume it's raw Base64
-      console.log('[VISUAL-v2] Screenshot is raw Base64');
+      console.log('[FUNC:analyzePageVisually] STEP: Screenshot is raw Base64');
       imageDataUrl = `data:image/png;base64,${screenshotInput}`;
     }
 
-    console.log(`[VISUAL-v2] Image ready for Gemini: ${Math.round(imageDataUrl.length / 1024)}KB`);
+    console.log(`[FUNC:analyzePageVisually] STEP: Image ready for Gemini, size: ${Math.round(imageDataUrl.length / 1024)}KB`);
 
     // Prepare the message with image
     const messages = [
@@ -204,6 +213,8 @@ export async function analyzePageVisually(
       }
     ];
 
+    console.log(`[FUNC:analyzePageVisually] STEP: Calling Gemini Vision API...`);
+
     // Call Lovable AI Gateway with Gemini Vision
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -221,7 +232,7 @@ export async function analyzePageVisually(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[VISUAL] API error: ${response.status}`, errorText);
+      console.error(`[FUNC:analyzePageVisually] API_ERROR: ${JSON.stringify({ status: response.status, error: errorText.substring(0, 200) })}`);
       
       if (response.status === 429) {
         return {
@@ -248,7 +259,7 @@ export async function analyzePageVisually(
     const content = data.choices?.[0]?.message?.content;
 
     if (!content) {
-      console.error('[VISUAL] No content in response');
+      console.error('[FUNC:analyzePageVisually] ERROR: No content in response');
       return {
         success: false,
         sections: [],
@@ -258,6 +269,9 @@ export async function analyzePageVisually(
         error: 'No content in AI response'
       };
     }
+
+    console.log(`[FUNC:analyzePageVisually] STEP: Received response, parsing JSON...`);
+    console.log(`[FUNC:analyzePageVisually] RAW_RESPONSE_PREVIEW: ${content.substring(0, 500)}`);
 
     // Parse JSON from response (handle markdown code blocks)
     let jsonContent = content;
@@ -270,8 +284,8 @@ export async function analyzePageVisually(
     try {
       parsed = JSON.parse(jsonContent);
     } catch (parseError) {
-      console.error('[VISUAL] Failed to parse JSON:', parseError);
-      console.log('[VISUAL] Raw content:', content.substring(0, 500));
+      console.error(`[FUNC:analyzePageVisually] PARSE_ERROR: ${JSON.stringify({ error: String(parseError) })}`);
+      console.log(`[FUNC:analyzePageVisually] RAW_CONTENT: ${content.substring(0, 1000)}`);
       return {
         success: false,
         sections: [],
@@ -297,17 +311,24 @@ export async function analyzePageVisually(
     }
 
     const elapsed = Date.now() - startTime;
-    console.log(`[VISUAL] Analysis complete in ${elapsed}ms`);
-    console.log(`[VISUAL] Sections: ${sections.length}`);
-    console.log(`[VISUAL] Approved texts: ${approvedTexts.length}`);
-    console.log(`[VISUAL] Rejected texts: ${rejectedTexts.length}`);
     
-    // Log section breakdown
+    // Count section types
     const sectionTypes = sections.reduce((acc, s) => {
       acc[s.type] = (acc[s.type] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    console.log(`[VISUAL] Section types:`, sectionTypes);
+    
+    console.log(`[FUNC:analyzePageVisually] OUTPUT: ${JSON.stringify({ 
+      success: true,
+      sectionsCount: sections.length,
+      sectionTypes,
+      approvedTextsCount: approvedTexts.length,
+      rejectedTextsCount: rejectedTexts.length,
+      approvedTextsPreview: approvedTexts.slice(0, 5),
+      rejectedTextsPreview: rejectedTexts.slice(0, 5),
+      summary: parsed.summary?.substring(0, 100),
+      elapsedMs: elapsed 
+    })}`);
 
     return {
       success: true,
@@ -318,7 +339,7 @@ export async function analyzePageVisually(
     };
 
   } catch (error) {
-    console.error('[VISUAL] Exception:', error);
+    console.error(`[FUNC:analyzePageVisually] EXCEPTION: ${JSON.stringify({ error: String(error) })}`);
     return {
       success: false,
       sections: [],
@@ -333,7 +354,7 @@ export async function analyzePageVisually(
 /**
  * Filters extracted elements based on visual analysis
  * Only keeps elements whose text appears in the approved list
- * v2 - 2026-01-01: Melhorado para ser o GATE PRINCIPAL de filtragem
+ * v3 - with detailed logging for every element
  */
 export function filterElementsByVisualAnalysis(
   elements: any[],
@@ -343,15 +364,20 @@ export function filterElementsByVisualAnalysis(
     minSimilarity?: number; // Minimum text similarity to consider a match (0-1)
   } = {}
 ): { approved: any[]; rejected: any[] } {
-  const { strictMode = false, minSimilarity = 0.4 } = options; // v2: lowered default minSimilarity
+  const startTime = Date.now();
+  const { strictMode = false, minSimilarity = 0.4 } = options;
   
-  console.log(`[VISUAL-FILTER-v2] Starting filter with ${elements.length} elements`);
-  console.log(`[VISUAL-FILTER-v2] Approved texts: ${visualAnalysis.approvedTexts.length}`);
-  console.log(`[VISUAL-FILTER-v2] Rejected texts: ${visualAnalysis.rejectedTexts.length}`);
-  console.log(`[VISUAL-FILTER-v2] strictMode=${strictMode}, minSimilarity=${minSimilarity}`);
+  console.log(`[FUNC:filterElementsByVisualAnalysis] INPUT: ${JSON.stringify({ 
+    elementsCount: elements.length, 
+    approvedTextsCount: visualAnalysis.approvedTexts.length,
+    rejectedTextsCount: visualAnalysis.rejectedTexts.length,
+    visualAnalysisSuccess: visualAnalysis.success,
+    strictMode,
+    minSimilarity 
+  })}`);
   
   if (!visualAnalysis.success || visualAnalysis.approvedTexts.length === 0) {
-    console.log('[VISUAL-FILTER-v2] No visual analysis available, keeping all elements');
+    console.log('[FUNC:filterElementsByVisualAnalysis] DECISION: No visual analysis, keeping ALL elements');
     return { approved: elements, rejected: [] };
   }
 
@@ -364,7 +390,7 @@ export function filterElementsByVisualAnalysis(
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-      .replace(/[^\w\s]/g, '') // Remove punctuation (fixed regex)
+      .replace(/[^\\w\\s]/g, '') // Remove punctuation (fixed regex)
       .replace(/\s+/g, ' ')
       .trim();
   };
@@ -372,13 +398,8 @@ export function filterElementsByVisualAnalysis(
   const approvedNormalized = visualAnalysis.approvedTexts.map(normalizeText);
   const rejectedNormalized = visualAnalysis.rejectedTexts.map(normalizeText);
   
-  // Log sample approved/rejected for debugging
-  if (approvedNormalized.length > 0) {
-    console.log(`[VISUAL-FILTER-v2] Sample approved: "${approvedNormalized[0].substring(0, 60)}..."`);
-  }
-  if (rejectedNormalized.length > 0) {
-    console.log(`[VISUAL-FILTER-v2] Sample rejected: "${rejectedNormalized[0].substring(0, 60)}..."`);
-  }
+  console.log(`[FUNC:filterElementsByVisualAnalysis] NORMALIZED_APPROVED_SAMPLE: ${JSON.stringify(approvedNormalized.slice(0, 3))}`);
+  console.log(`[FUNC:filterElementsByVisualAnalysis] NORMALIZED_REJECTED_SAMPLE: ${JSON.stringify(rejectedNormalized.slice(0, 3))}`);
 
   // Simple text similarity (Jaccard-like)
   const calculateSimilarity = (text1: string, text2: string): number => {
@@ -393,7 +414,7 @@ export function filterElementsByVisualAnalysis(
     return intersection / union;
   };
   
-  // v2: Check if text CONTAINS key phrases from rejected list
+  // Check if text CONTAINS key phrases from rejected list
   const containsRejectedPhrase = (text: string): boolean => {
     const rejectedPhrases = [
       'mais pesquisados',
@@ -411,16 +432,24 @@ export function filterElementsByVisualAnalysis(
     return rejectedPhrases.some(phrase => textLower.includes(phrase));
   };
 
-  for (const element of elements) {
+  for (let i = 0; i < elements.length; i++) {
+    const element = elements[i];
+    
     // Get text content from element
     const rawText = element.metadata?.text || element.metadata?.content || element.text || '';
     const elementText = normalizeText(rawText);
     
-    // v2: Tipos sem texto (vídeos, imagens) são SEMPRE aprovados
+    console.log(`[FUNC:filterElementsByVisualAnalysis] PROCESSING[${i}]: ${JSON.stringify({ 
+      type: element.type, 
+      textLength: rawText.length,
+      textPreview: rawText.substring(0, 50) 
+    })}`);
+    
+    // Media types (videos, images) are ALWAYS approved
     const isMediaType = ['video', 'video-carousel', 'image', 'image-carousel'].includes(element.type);
     
     if (isMediaType) {
-      console.log(`[VISUAL-FILTER-v2] AUTO-APPROVED (media): ${element.type}`);
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: AUTO_APPROVED (media type: ${element.type})`);
       approved.push(element);
       continue;
     }
@@ -428,60 +457,83 @@ export function filterElementsByVisualAnalysis(
     if (!elementText || elementText.length < 5) {
       // Very short or empty text elements - check type
       if (['button'].includes(element.type)) {
-        // Buttons with very short text might be OK
-        console.log(`[VISUAL-FILTER-v2] KEPT (short button): "${rawText}"`);
+        console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: KEPT (short button)`);
         approved.push(element);
       } else {
-        console.log(`[VISUAL-FILTER-v2] SKIPPED (too short): "${rawText}"`);
-        approved.push(element); // Keep anyway
+        console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: KEPT (too short to filter)`);
+        approved.push(element);
       }
       continue;
     }
     
-    // v2: Check for obvious rejected phrases first
+    // Check for obvious rejected phrases first
     if (containsRejectedPhrase(elementText)) {
-      console.log(`[VISUAL-FILTER-v2] REJECTED (contains blocked phrase): "${elementText.substring(0, 50)}..."`);
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: REJECTED (contains blocked phrase)`);
       rejected.push(element);
       continue;
     }
 
     // Check if explicitly rejected by visual analysis
-    const isExplicitlyRejected = rejectedNormalized.some(rejectedText => {
-      if (rejectedText.length < 10) return false; // Skip very short rejected texts
-      return elementText.includes(rejectedText) || 
-             rejectedText.includes(elementText) ||
-             calculateSimilarity(elementText, rejectedText) > 0.6;
-    });
+    let isExplicitlyRejected = false;
+    let rejectedReason = '';
+    
+    for (const rejectedText of rejectedNormalized) {
+      if (rejectedText.length < 10) continue;
+      
+      const includesCheck = elementText.includes(rejectedText) || rejectedText.includes(elementText);
+      const similarityCheck = calculateSimilarity(elementText, rejectedText) > 0.6;
+      
+      if (includesCheck || similarityCheck) {
+        isExplicitlyRejected = true;
+        rejectedReason = `matches rejected: "${rejectedText.substring(0, 30)}"`;
+        break;
+      }
+    }
 
     if (isExplicitlyRejected) {
-      console.log(`[VISUAL-FILTER-v2] REJECTED (visual analysis): "${elementText.substring(0, 50)}..."`);
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: REJECTED (${rejectedReason})`);
       rejected.push(element);
       continue;
     }
 
     // Check if matches approved texts
-    const matchesApproved = approvedNormalized.some(approvedText => {
-      if (approvedText.length < 5) return false; // Skip very short approved texts
-      return elementText.includes(approvedText) || 
-             approvedText.includes(elementText) ||
-             calculateSimilarity(elementText, approvedText) >= minSimilarity;
-    });
+    let matchesApproved = false;
+    let approvedReason = '';
+    
+    for (const approvedText of approvedNormalized) {
+      if (approvedText.length < 5) continue;
+      
+      const includesCheck = elementText.includes(approvedText) || approvedText.includes(elementText);
+      const similarity = calculateSimilarity(elementText, approvedText);
+      
+      if (includesCheck || similarity >= minSimilarity) {
+        matchesApproved = true;
+        approvedReason = `matches approved: "${approvedText.substring(0, 30)}" (sim: ${similarity.toFixed(2)})`;
+        break;
+      }
+    }
 
     if (matchesApproved) {
-      console.log(`[VISUAL-FILTER-v2] APPROVED (visual match): "${elementText.substring(0, 50)}..."`);
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: APPROVED (${approvedReason})`);
       approved.push(element);
     } else if (strictMode) {
-      console.log(`[VISUAL-FILTER-v2] REJECTED (strict mode): "${elementText.substring(0, 50)}..."`);
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: REJECTED (strict mode, no match)`);
       rejected.push(element);
     } else {
-      // v2: In non-strict mode, keep elements not explicitly rejected
-      // But log that we're being lenient
-      console.log(`[VISUAL-FILTER-v2] KEPT (lenient): "${elementText.substring(0, 50)}..."`);
+      // In non-strict mode, keep elements not explicitly rejected
+      console.log(`[FUNC:filterElementsByVisualAnalysis] DECISION[${i}]: KEPT (lenient mode, no explicit rejection)`);
       approved.push(element);
     }
   }
 
-  console.log(`[VISUAL-FILTER-v2] FINAL RESULT: ${approved.length} approved, ${rejected.length} rejected`);
+  const elapsed = Date.now() - startTime;
+  console.log(`[FUNC:filterElementsByVisualAnalysis] OUTPUT: ${JSON.stringify({ 
+    approvedCount: approved.length, 
+    rejectedCount: rejected.length,
+    approvedTypes: approved.reduce((acc, el) => { acc[el.type] = (acc[el.type] || 0) + 1; return acc; }, {} as Record<string, number>),
+    rejectedTypes: rejected.reduce((acc, el) => { acc[el.type] = (acc[el.type] || 0) + 1; return acc; }, {} as Record<string, number>),
+    elapsedMs: elapsed 
+  })}`);
   
   return { approved, rejected };
 }
@@ -493,7 +545,13 @@ export function isTextApprovedByVisualAnalysis(
   text: string,
   visualAnalysis: VisualAnalysisResult
 ): boolean {
+  console.log(`[FUNC:isTextApprovedByVisualAnalysis] INPUT: ${JSON.stringify({ 
+    textLength: text.length, 
+    textPreview: text.substring(0, 40) 
+  })}`);
+  
   if (!visualAnalysis.success || visualAnalysis.approvedTexts.length === 0) {
+    console.log(`[FUNC:isTextApprovedByVisualAnalysis] OUTPUT: true (no analysis)`);
     return true; // No analysis = allow all
   }
 
@@ -507,24 +565,14 @@ export function isTextApprovedByVisualAnalysis(
       .trim();
   };
 
-  const normalized = normalizeText(text);
+  const normalizedInput = normalizeText(text);
   
-  // Check rejected first
-  for (const rejected of visualAnalysis.rejectedTexts) {
-    const rejectedNorm = normalizeText(rejected);
-    if (normalized.includes(rejectedNorm) || rejectedNorm.includes(normalized)) {
-      return false;
-    }
-  }
+  const isApproved = visualAnalysis.approvedTexts.some(approved => {
+    const normalizedApproved = normalizeText(approved);
+    return normalizedInput.includes(normalizedApproved) || 
+           normalizedApproved.includes(normalizedInput);
+  });
 
-  // Check approved
-  for (const approved of visualAnalysis.approvedTexts) {
-    const approvedNorm = normalizeText(approved);
-    if (normalized.includes(approvedNorm) || approvedNorm.includes(normalized)) {
-      return true;
-    }
-  }
-
-  // Not explicitly mentioned - default to allow (non-strict)
-  return true;
+  console.log(`[FUNC:isTextApprovedByVisualAnalysis] OUTPUT: ${JSON.stringify({ isApproved })}`);
+  return isApproved;
 }
