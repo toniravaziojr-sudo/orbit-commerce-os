@@ -133,7 +133,7 @@ const REMOVAL_SELECTORS = {
     '#cookie-policy',
   ],
   
-  // Shopify-specific
+  // Shopify-specific - target specific Shopify sections, NOT generic class patterns
   shopify: [
     '.shopify-section-group-header-group',
     '.shopify-section-group-footer-group',
@@ -147,15 +147,10 @@ const REMOVAL_SELECTORS = {
     '#shopify-section-menu-drawer',
     '.announcement-bar',
     '.announcement-bar-section',
-    // Footer content specifically
-    '[class*="footer"]',
-    '[id*="footer"]',
-    // Header content specifically  
-    '[class*="header"]',
-    '[id*="header"]',
-    // Navigation
-    '[class*="nav-"]',
-    '[class*="-nav"]',
+    // Specific Shopify footer/header IDs
+    '#footer',
+    '#header',
+    // Mobile menu
     '.menu-mobile',
     '.mobile-menu',
   ],
@@ -177,7 +172,7 @@ const REMOVAL_SELECTORS = {
     '#MenuFlutuante',
   ],
   
-  // Non-content elements (footers, headers, banners)
+  // Non-content elements - specific classes only, NOT wildcards
   nonContent: [
     '.search-trending',
     '.trending-searches',
@@ -185,18 +180,12 @@ const REMOVAL_SELECTORS = {
     '.selos-footer',
     '.promo-bar',
     '.top-bar',
-    // Footer-like content
-    '[class*="atendimento"]',
-    '[class*="contato"]',
-    '[class*="selos"]',
-    '[class*="pagamento"]',
-    '[class*="certificado"]',
-    // Social links
-    '[class*="social"]',
-    '[class*="redes-sociais"]',
-    // Newsletter/subscriptions
-    '[class*="newsletter"]',
-    '[class*="subscribe"]',
+    '.menu-flutuante',
+    '#MenuFlutuante',
+    // Specific footer/contact sections (exact classes, not wildcards)
+    '.footer-selos',
+    '.footer-contact',
+    '.newsletter-section',
   ],
 };
 
@@ -390,18 +379,18 @@ function findLargestTextContainer(
   
   // CRITICAL: Patterns to EXCLUDE from heuristic selection
   // These are modals, drawers, overlays that should NEVER be selected as main content
+  // NOTE: Be specific - do NOT use broad patterns like /header/i or /footer/i 
+  // as these can match legitimate content containers
   const EXCLUDED_ID_PATTERNS = [
-    /modal/i, /drawer/i, /overlay/i, /backdrop/i, /popup/i, 
-    /lightbox/i, /dialog/i, /menu/i, /cart/i, /search/i,
-    /cookie/i, /consent/i, /gdpr/i, /banner/i, /announcement/i,
-    /header/i, /footer/i, /nav/i, /sidebar/i,
+    /^modal/i, /^drawer/i, /^overlay/i, /^backdrop/i, /^popup/i, 
+    /^lightbox/i, /^dialog/i, /^cart-drawer/i, /^menu-drawer/i,
+    /^cookie/i, /^consent/i, /^gdpr/i, /-modal$/i, /-drawer$/i,
   ];
   
   const EXCLUDED_CLASS_PATTERNS = [
-    /modal/i, /drawer/i, /overlay/i, /backdrop/i, /popup/i,
-    /lightbox/i, /dialog/i, /menu/i, /cart/i, /search/i,
-    /cookie/i, /consent/i, /gdpr/i, /banner/i, /announcement/i,
-    /header/i, /footer/i, /nav/i, /sidebar/i, /hidden/i,
+    /^modal$/i, /^drawer$/i, /^overlay$/i, /^backdrop$/i, /^popup$/i,
+    /^lightbox$/i, /modal-parcel/i, /backdrop-modal/i, /cart-drawer/i,
+    /menu-drawer/i, /cookie-banner/i, /consent-banner/i,
   ];
   
   // Check various container elements
