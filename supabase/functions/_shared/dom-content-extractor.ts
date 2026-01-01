@@ -359,21 +359,163 @@ export async function extractContentWithDOM(
 // STEP 2: Main Container Selection
 // =============================================
 
+/**
+ * SHOPIFY DETERMINISTIC MODE:
+ * Instead of picking a single container, collect ALL content sections
+ * inside main and concatenate them. This ensures we get ALL content
+ * (title + text + video + button) instead of just one section.
+ */
+function extractShopifySectionsContent(
+  doc: Document,
+  logs: string[]
+): { element: Element; extractedFrom: string; found: boolean } | null {
+  logs.push(`[SHOPIFY-DETERMINISTIC] Starting Shopify sections extraction`);
+  
+  // Step 1: Find the main container
+  const mainSelectors = ['#MainContent', 'main[role="main"]', 'main.main-content', 'main'];
+  let mainContainer: Element | null = null;
+  let mainSelector = '';
+  
+  for (const selector of mainSelectors) {
+    const el = doc.querySelector(selector);
+    if (el) {
+      mainContainer = el as Element;
+      mainSelector = selector;
+      logs.push(`[SHOPIFY-DETERMINISTIC] Found main container: ${selector}`);
+      break;
+    }
+  }
+  
+  if (!mainContainer) {
+    logs.push(`[SHOPIFY-DETERMINISTIC] ERROR: No main container found (#MainContent, main[role="main"], main.main-content, main)`);
+    return null; // Will trigger error, NOT fallback to body
+  }
+  
+  // Step 2: Collect ALL shopify-section elements inside main
+  const allSections = mainContainer.querySelectorAll('section.shopify-section, .shopify-section');
+  logs.push(`[SHOPIFY-DETERMINISTIC] Found ${allSections.length} total shopify-section elements in main`);
+  
+  // Step 3: Filter out header/footer/overlay sections
+  const excludePatterns = [
+    /header/i, /footer/i, /announcement/i, /overlay/i, /drawer/i, 
+    /modal/i, /cookie/i, /consent/i, /nav/i, /menu/i, /cart-drawer/i,
+    /trending/i, /popular/i, /search/i // "Mais pesquisados" type sections
+  ];
+  
+  const contentSections: Element[] = [];
+  const excludedSections: string[] = [];
+  
+  for (const section of allSections) {
+    const el = section as Element;
+    const id = el.getAttribute('id') || '';
+    const className = el.getAttribute('class') || '';
+    const identifier = id || className.split(' ').slice(0, 2).join(' ');
+    
+    // Check if section should be excluded
+    const shouldExclude = excludePatterns.some(pattern => 
+      pattern.test(id) || pattern.test(className)
+    ) || el.closest('.shopify-section-group-header-group') !== null
+      || el.closest('.shopify-section-group-footer-group') !== null
+      || el.closest('.shopify-section-group-overlay-group') !== null;
+    
+    if (shouldExclude) {
+      excludedSections.push(identifier);
+      logs.push(`[SHOPIFY-DETERMINISTIC] Excluding section: ${identifier}`);
+    } else {
+      contentSections.push(el);
+      logs.push(`[SHOPIFY-DETERMINISTIC] Including section: ${identifier}`);
+    }
+  }
+  
+  logs.push(`[SHOPIFY-DETERMINISTIC] Content sections: ${contentSections.length}, Excluded: ${excludedSections.length}`);
+  
+  if (contentSections.length === 0) {
+    logs.push(`[SHOPIFY-DETERMINISTIC] WARNING: No content sections found after filtering`);
+    // Try the main container itself if no sections found
+    return {
+      element: mainContainer,
+      extractedFrom: `shopify-deterministic: ${mainSelector} (no sections, using main)`,
+      found: true,
+    };
+  }
+  
+  // Step 4: Create a wrapper div and concatenate all content sections
+  // This preserves the DOM order and includes ALL content
+  const wrapper = doc.createElement('div');
+  wrapper.setAttribute('data-import-root', 'shopify');
+  wrapper.setAttribute('data-sections-count', String(contentSections.length));
+  
+  for (const section of contentSections) {
+    // Clone the section to avoid mutation issues
+    const clone = section.cloneNode(true) as Element;
+    wrapper.appendChild(clone);
+  }
+  
+  // Step 5: Log primitive counts for debugging
+  const headings = wrapper.querySelectorAll('h1, h2, h3, h4, h5, h6').length;
+  const paragraphs = wrapper.querySelectorAll('p').length;
+  const links = wrapper.querySelectorAll('a').length;
+  const buttons = wrapper.querySelectorAll('button, [role="button"], .btn, .button, a.btn, a.button').length;
+  const iframes = wrapper.querySelectorAll('iframe').length;
+  
+  logs.push(`[SHOPIFY-DETERMINISTIC] Primitives in combined content:`);
+  logs.push(`[SHOPIFY-DETERMINISTIC]   - Headings: ${headings}`);
+  logs.push(`[SHOPIFY-DETERMINISTIC]   - Paragraphs: ${paragraphs}`);
+  logs.push(`[SHOPIFY-DETERMINISTIC]   - Links: ${links}`);
+  logs.push(`[SHOPIFY-DETERMINISTIC]   - Buttons: ${buttons}`);
+  logs.push(`[SHOPIFY-DETERMINISTIC]   - Iframes: ${iframes}`);
+  
+  // Step 6: Log text preview
+  const textContent = wrapper.textContent || '';
+  const textPreview = textContent.replace(/\s+/g, ' ').trim().substring(0, 300);
+  logs.push(`[SHOPIFY-DETERMINISTIC] Text preview (first 300 chars): ${textPreview}`);
+  
+  const sectionIds = contentSections.slice(0, 10).map(s => 
+    (s as Element).getAttribute('id') || (s as Element).getAttribute('class')?.split(' ')[0] || 'unknown'
+  );
+  logs.push(`[SHOPIFY-DETERMINISTIC] Included section IDs (up to 10): ${sectionIds.join(', ')}`);
+  
+  return {
+    element: wrapper,
+    extractedFrom: `shopify-deterministic: ${contentSections.length} sections from ${mainSelector}`,
+    found: true,
+  };
+}
+
 function selectMainContainer(
   doc: Document,
   platformHint: string | undefined,
   logs: string[]
 ): { element: Element; extractedFrom: string; found: boolean } {
   
-  // Get platform-specific selectors first
+  // SHOPIFY DETERMINISTIC MODE: Use specialized extraction
+  if (platformHint?.toLowerCase() === 'shopify') {
+    logs.push(`[DOM-EXTRACT] Using Shopify deterministic mode`);
+    const shopifyResult = extractShopifySectionsContent(doc, logs);
+    
+    if (shopifyResult) {
+      return shopifyResult;
+    }
+    
+    // If Shopify extraction failed, DO NOT fall back to body - return error
+    logs.push(`[DOM-EXTRACT] ERROR: Shopify deterministic extraction failed - not falling back to body`);
+    // Return a minimal element that will trigger proper error handling
+    const errorWrapper = doc.createElement('div');
+    errorWrapper.setAttribute('data-extraction-error', 'shopify-no-content');
+    return {
+      element: errorWrapper,
+      extractedFrom: 'error: shopify-extraction-failed',
+      found: false,
+    };
+  }
+  
+  // NON-SHOPIFY: Use standard selector-based extraction
   const platformSelectors = platformHint && PLATFORM_MAIN_SELECTORS[platformHint.toLowerCase()]
     ? PLATFORM_MAIN_SELECTORS[platformHint.toLowerCase()]
     : [];
   
-  // Combined selectors: platform-specific first, then universal
   const allSelectors = [...platformSelectors, ...UNIVERSAL_MAIN_SELECTORS];
   
-  // Try each selector
   for (const selector of allSelectors) {
     try {
       const element = doc.querySelector(selector);
@@ -381,7 +523,6 @@ function selectMainContainer(
         const textContent = element.textContent || '';
         const textLength = textContent.trim().length;
         
-        // Check minimum content criteria
         if (textLength >= MIN_CONTENT_LENGTH) {
           const hasParagraphs = element.querySelectorAll('p').length > 0;
           const hasHeadings = element.querySelectorAll('h1, h2, h3, h4, h5, h6').length > 0;
@@ -400,12 +541,11 @@ function selectMainContainer(
         }
       }
     } catch (e) {
-      // Invalid selector, skip
       logs.push(`[DOM-EXTRACT] Invalid selector: ${selector}`);
     }
   }
   
-  // Fallback: Find largest text container heuristically
+  // Fallback: Find largest text container heuristically (non-Shopify only)
   logs.push(`[DOM-EXTRACT] No selector matched, trying heuristic fallback`);
   const heuristicResult = findLargestTextContainer(doc, logs);
   
@@ -417,7 +557,7 @@ function selectMainContainer(
     };
   }
   
-  // Last resort: use body
+  // Last resort: use body (non-Shopify only)
   logs.push(`[DOM-EXTRACT] FALLBACK: Using document.body as last resort`);
   return {
     element: doc.body as Element,
