@@ -43,29 +43,57 @@ export interface PlatformContentConfig {
 export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig> = {
   shopify: {
     mainContentSelectors: [
+      // Shopify-specific: tentar seções de conteúdo primeiro
+      '#MainContent',
+      'main#MainContent',
       'main[role="main"]',
       'main.main-content',
-      'main#MainContent',
-      '[data-section-type="main"]',
-      '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group)',
+      // Fallback genérico
+      'main',
     ],
     excludeSelectors: [
-      // Tags semânticas de navegação
+      // === PRIORITY 1: Tags semânticas ===
       'header',
       'footer',
       'nav',
-      // Shopify section groups (navegação)
+      'aside',
+      
+      // === PRIORITY 2: Shopify section-groups (estruturais) ===
       '.shopify-section-group-header-group',
       '.shopify-section-group-footer-group',
       '.shopify-section-group-overlay-group',
       '[data-section-type="header"]',
       '[data-section-type="footer"]',
-      // Announcement bar
+      '[data-section-type="announcement-bar"]',
+      
+      // === PRIORITY 3: Modais/overlays/drawers (Shopify e genéricos) ===
+      '[role="dialog"]',
+      '[aria-modal="true"]',
+      '.modal',
+      '.drawer',
+      '.overlay',
+      '.backdrop',
+      '.modal-parcel',
+      '.backdrop-modal-parcel',
+      '.popup',
+      '.cart-drawer',
+      '.menu-drawer',
+      '.search-modal',
+      
+      // === PRIORITY 4: Announcement bars e promos ===
       '.announcement-bar',
       '.announcement-bar-section',
       '#shopify-section-announcement-bar',
+      '.promo-bar',
+      '.top-bar',
+      
+      // === PRIORITY 5: Navegação/menu ===
       'nav[role="navigation"]',
-      // Classes de navegação específicas (NÃO genéricas para não pegar "heading")
+      '.site-header',
+      '.site-footer',
+      '.nav-menu',
+      '.main-nav',
+      '.mobile-nav',
       '.header-container',
       '.header-wrapper',
       '.footer-wrapper',
@@ -73,22 +101,22 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '.footer-top',
       '.footer-bottom',
       '.footer-main',
-      '.selos-footer',
       '#header',
       '#footer',
-      // Modais e overlays comuns do Shopify
-      '.modal-parcel',
-      '.backdrop-modal-parcel',
+      
+      // === PRIORITY 6: "Mais pesquisados" e seções específicas que não são conteúdo ===
+      '.search-trending',
+      '.trending-searches',
+      '.popular-searches',
       '.menu-flutuante',
       '#MenuFlutuante',
-      '[class*="modal"]',
-      '[class*="overlay"]',
-      '[class*="popup"]',
-      // Navegação
-      '.site-header',
-      '.site-footer',
-      '.nav-menu',
-      '.main-nav',
+      '.selos-footer',
+      
+      // === PRIORITY 7: Seções Shopify que NÃO são conteúdo ===
+      '#shopify-section-header',
+      '#shopify-section-footer',
+      '#shopify-section-cart-drawer',
+      '#shopify-section-menu-drawer',
     ],
     sectionComments: {
       headerStart: /<!-- BEGIN sections: header-group -->/i,
