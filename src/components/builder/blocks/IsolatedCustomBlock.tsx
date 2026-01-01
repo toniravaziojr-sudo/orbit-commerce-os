@@ -8,7 +8,7 @@
 // - Measures from parent via contentDocument (same-origin)
 // =============================================
 
-import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Code, AlertTriangle } from 'lucide-react';
 
@@ -49,40 +49,26 @@ function sanitizeHtml(html: string): string {
 
 // =============================================
 // CRITICAL: Inject CSS to hide the wrong desktop/mobile variant
-// Instead of trying to parse/remove HTML with regex (fragile),
-// we inject inline CSS that hides elements based on viewport
-// This is more reliable and handles nested elements properly
+// Uses CSS media queries so we don't need to rewrite HTML on resize
+// This prevents loops and is more reliable
 // =============================================
-function getVariantHidingCss(isMobile: boolean): string {
-  if (isMobile) {
-    // On mobile: hide desktop-only sections (those WITHOUT tablet class)
-    // Show elements WITH tablet class
-    return `
-      /* Hide desktop sections on mobile - sections with sectionN class but NOT tablet */
-      section.section1:not(.tablet),
-      section.section2:not(.tablet),
-      section.section3:not(.tablet),
-      section.section4:not(.tablet),
-      section.section5:not(.tablet),
-      section.section6:not(.tablet),
-      section.section7:not(.tablet),
-      section.section8:not(.tablet),
-      section.section9:not(.tablet),
-      section.section10:not(.tablet) {
-        display: none !important;
-      }
-      /* But show if there's no tablet version - detect by checking if tablet exists */
-      /* This is handled by the JavaScript check below */
+function getResponsiveVariantCss(): string {
+  return `
+    /* === RESPONSIVE VARIANT HIDING === */
+    /* On mobile (< 768px): hide desktop-only sections */
+    @media (max-width: 767px) {
+      /* Hide sections with sectionN class but NOT tablet - only when tablet variant exists */
+      /* This is controlled by inline styles for sections with tablet variants */
       
-      /* Also hide desktop-variant wrappers from import */
+      /* Hide desktop-variant wrappers from import */
       .section-desktop-variant { display: none !important; }
       
-      /* Hide non-tablet products div */
+      /* Hide non-tablet products div when tablet exists */
       .products:not(.tablet) { display: none !important; }
-    `;
-  } else {
-    // On desktop: hide tablet sections
-    return `
+    }
+    
+    /* On desktop (>= 768px): hide tablet sections */
+    @media (min-width: 768px) {
       /* Hide tablet sections on desktop */
       section.tablet,
       .section1.tablet,
@@ -99,23 +85,17 @@ function getVariantHidingCss(isMobile: boolean): string {
         display: none !important;
       }
       
-      /* Also hide mobile-variant wrappers from import */
+      /* Hide mobile-variant wrappers from import */
       .section-mobile-variant { display: none !important; }
       
       /* Hide tablet products div */
       .products.tablet { display: none !important; }
-    `;
-  }
+    }
+  `;
 }
 
-// Check if section has a tablet variant to decide if we should hide the desktop version
-function checkAndHideDesktopOnlySections(html: string, isMobile: boolean): string {
-  if (!isMobile) return html;
-  
-  // If on mobile, we need to check each sectionN if it has a tablet variant
-  // If it does, the CSS above will hide the non-tablet version
-  // If it doesn't, we need to show the non-tablet version (it's the only one)
-  
+// Add inline style to hide desktop sections that have a tablet variant (on mobile)
+function addMobileHidingStyles(html: string): string {
   // Parse which sections have tablet variants
   const tabletSections = new Set<string>();
   const tabletPattern = /<section[^>]*class="[^"]*\bsection(\d+)\b[^"]*\btablet\b[^"]*"/gi;
@@ -124,28 +104,32 @@ function checkAndHideDesktopOnlySections(html: string, isMobile: boolean): strin
     tabletSections.add(match[1]);
   }
   
-  // Generate CSS that shows non-tablet sections that DON'T have a tablet variant
-  let showDesktopCss = '';
+  if (tabletSections.size === 0) return html;
+  
+  // Generate CSS that hides non-tablet sections on mobile ONLY for sections that have tablet variant
+  let hidingCss = '@media (max-width: 767px) {\n';
+  tabletSections.forEach(num => {
+    hidingCss += `  section.section${num}:not(.tablet) { display: none !important; }\n`;
+  });
+  hidingCss += '}\n';
+  
+  // Also ensure sections WITHOUT tablet variant are shown on mobile
+  let showingCss = '@media (max-width: 767px) {\n';
   for (let i = 1; i <= 10; i++) {
     if (!tabletSections.has(String(i))) {
-      // This section has no tablet variant, show the desktop version on mobile too
-      showDesktopCss += `section.section${i}:not(.tablet) { display: block !important; }\n`;
+      showingCss += `  section.section${i}:not(.tablet) { display: block !important; }\n`;
     }
   }
+  showingCss += '}\n';
   
-  // Inject this CSS at the end of any existing style tag or add a new one
-  if (showDesktopCss) {
-    if (html.includes('</style>')) {
-      // Insert before last </style>
-      const lastStyleIndex = html.lastIndexOf('</style>');
-      html = html.slice(0, lastStyleIndex) + `\n/* Show sections without tablet variant */\n${showDesktopCss}` + html.slice(lastStyleIndex);
-    } else {
-      // Add style tag
-      html = `<style>/* Show sections without tablet variant */\n${showDesktopCss}</style>` + html;
-    }
+  // Inject CSS into HTML
+  const combinedCss = `<style data-variant-hiding="true">\n${hidingCss}\n${showingCss}</style>`;
+  
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${combinedCss}</body>`);
+  } else {
+    return html + combinedCss;
   }
-  
-  return html;
 }
 
 // Materialize YouTube/Vimeo placeholders into real iframes
@@ -316,40 +300,21 @@ export function IsolatedCustomBlock({
   const rafIdRef = useRef<number | null>(null);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   
-  // Track container width to determine mobile/desktop
-  const [isMobile, setIsMobile] = useState(false);
+  // NOTE: We no longer need isMobile state - CSS media queries handle responsive hiding
+  // This eliminates the re-render loop that was causing infinite recalculation
   
-  // Detect if we're on mobile based on container/window width
-  useEffect(() => {
-    const checkMobile = () => {
-      // Use container width if available, otherwise window width
-      const width = containerRef.current?.offsetWidth || window.innerWidth;
-      const mobile = width < 768;
-      setIsMobile(mobile);
-    };
-    
-    checkMobile();
-    
-    // Recheck on resize
-    const handleResize = () => {
-      checkMobile();
-    };
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
-  // Process HTML - sanitize, materialize videos, AND prepare variant handling
+  // Process HTML - sanitize, materialize videos, AND add responsive variant hiding
+  // No longer depends on isMobile - uses CSS media queries instead
   const processedHtml = useMemo(() => {
     let html = sanitizeHtml(htmlContent);
     html = materializeVideos(html);
-    // Check for sections without tablet variant (on mobile, show desktop if no tablet exists)
-    html = checkAndHideDesktopOnlySections(html, isMobile);
+    // Add CSS that hides desktop sections on mobile (only when tablet variant exists)
+    html = addMobileHidingStyles(html);
     return html;
-  }, [htmlContent, isMobile]);
+  }, [htmlContent]);
   
-  // Get variant hiding CSS based on mobile/desktop
-  const variantCss = useMemo(() => getVariantHidingCss(isMobile), [isMobile]);
+  // Get responsive variant CSS (uses media queries, no JS-based switching)
+  const variantCss = useMemo(() => getResponsiveVariantCss(), []);
   
   // Combine CSS with variant hiding rules
   const finalCss = useMemo(() => `${cssContent}\n${variantCss}`, [cssContent, variantCss]);
@@ -416,12 +381,21 @@ export function IsolatedCustomBlock({
     });
   }, [measureAndUpdateHeight]);
   
-  // Write content to iframe and setup
+  // Track last written content to prevent unnecessary rewrites
+  const lastWrittenDocRef = useRef<string>('');
+  
+  // Write content to iframe and setup - only if content actually changed
   useEffect(() => {
     if (!iframeRef.current) return;
     
+    // Skip if content hasn't changed (prevents loop on resize)
+    if (lastWrittenDocRef.current === iframeDoc) {
+      return;
+    }
+    
     const doc = iframeRef.current.contentDocument;
     if (doc) {
+      lastWrittenDocRef.current = iframeDoc;
       doc.open();
       doc.write(iframeDoc);
       doc.close();
@@ -498,7 +472,7 @@ export function IsolatedCustomBlock({
           pointerEvents: isEditing ? 'none' : 'auto',
         }}
         title={blockName}
-        sandbox="allow-same-origin"
+        sandbox="allow-same-origin allow-scripts allow-popups"
         loading="lazy"
         scrolling="no"
       />
