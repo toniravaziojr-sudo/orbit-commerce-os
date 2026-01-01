@@ -2262,6 +2262,106 @@ function createImageBlocksFromPairs(images: ResponsiveImagePair[]): BlockNode[] 
   
   return blocks;
 }
+// =====================================================
+// YOUTUBE MATERIALIZATION - Convert placeholders to real iframes
+// =====================================================
+// Shopify/Dooca pages often have YouTube as placeholders with data-attributes
+// or lazy-load wrappers that require JS to work. We need to materialize
+// these into real <iframe> elements for pixel-perfect rendering.
+// =====================================================
+function materializeYouTubeVideos(html: string): string {
+  if (!html) return html;
+  
+  let content = html;
+  let materialized = 0;
+  
+  // Pattern 1: data-youtube or data-video-id attributes
+  // <div data-youtube="VIDEO_ID" ...> or <div data-video-id="VIDEO_ID">
+  const dataYoutubePattern = /<([a-z]+)[^>]*(?:data-youtube|data-video-id|data-youtube-id)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi;
+  content = content.replace(dataYoutubePattern, (match, tag, videoId) => {
+    materialized++;
+    console.log(`[YOUTUBE] Materialized from data-attr: ${videoId}`);
+    return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+      <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0" 
+        style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+    </div>`;
+  });
+  
+  // Pattern 2: data-src with YouTube URL (lazy loading)
+  // <iframe data-src="https://www.youtube.com/embed/VIDEO_ID" ...>
+  const dataSrcPattern = /<iframe[^>]*data-src=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["'][^>]*>/gi;
+  content = content.replace(dataSrcPattern, (match, dataSrc) => {
+    // Convert data-src to src
+    const withSrc = match.replace(/data-src=/gi, 'src=');
+    materialized++;
+    console.log(`[YOUTUBE] Materialized from data-src`);
+    return withSrc;
+  });
+  
+  // Pattern 3: YouTube links in href with play button overlay
+  // <a href="https://www.youtube.com/watch?v=VIDEO_ID" class="video-play">
+  const youtubeLinkPattern = /<a[^>]*href=["'](?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*["'][^>]*class=["'][^"']*(?:video|play|youtube)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi;
+  content = content.replace(youtubeLinkPattern, (match, videoId) => {
+    materialized++;
+    console.log(`[YOUTUBE] Materialized from link: ${videoId}`);
+    return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+      <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0" 
+        style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+    </div>`;
+  });
+  
+  // Pattern 4: YouTube thumbnail images with video class
+  // <img src="...ytimg.com/vi/VIDEO_ID/..." class="video-thumbnail">
+  const ytThumbnailPattern = /<img[^>]*src=["'][^"']*(?:ytimg\.com|youtube\.com)\/vi\/([a-zA-Z0-9_-]{11})[^"']*["'][^>]*>/gi;
+  content = content.replace(ytThumbnailPattern, (match, videoId) => {
+    materialized++;
+    console.log(`[YOUTUBE] Materialized from thumbnail: ${videoId}`);
+    return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+      <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0" 
+        style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+    </div>`;
+  });
+  
+  // Pattern 5: Divs with YouTube URL in any attribute
+  // <div data-url="https://youtube.com/embed/VIDEO_ID">
+  const anyAttrYoutubePattern = /<([a-z]+)[^>]*(?:data-url|data-video|data-embed)=["']([^"']*(?:youtube\.com|youtu\.be)\/(?:embed\/|watch\?v=)?([a-zA-Z0-9_-]{11})[^"']*)["'][^>]*>/gi;
+  content = content.replace(anyAttrYoutubePattern, (match, tag, fullUrl, videoId) => {
+    if (!videoId) return match;
+    materialized++;
+    console.log(`[YOUTUBE] Materialized from data-url: ${videoId}`);
+    return `<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;">
+      <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0" 
+        style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>
+    </div>`;
+  });
+  
+  // Pattern 6: Protocol-relative YouTube iframes (//www.youtube.com)
+  content = content.replace(/src=["']\/\/(?:www\.)?youtube\.com/gi, 'src="https://www.youtube.com');
+  content = content.replace(/src=["']\/\/(?:www\.)?youtu\.be/gi, 'src="https://youtu.be');
+  
+  // Pattern 7: Vimeo lazy-load
+  const vimeoDataSrcPattern = /<iframe[^>]*data-src=["']([^"']*vimeo\.com[^"']*)["'][^>]*>/gi;
+  content = content.replace(vimeoDataSrcPattern, (match, dataSrc) => {
+    const withSrc = match.replace(/data-src=/gi, 'src=');
+    materialized++;
+    console.log(`[VIMEO] Materialized from data-src`);
+    return withSrc;
+  });
+  
+  if (materialized > 0) {
+    console.log(`[VIDEOS] Materialized ${materialized} video(s) from placeholders/lazy-load`);
+  }
+  
+  return content;
+}
 
 // Extract main content from Shopify pages - IMPROVED with desktop/mobile image handling
 function extractMainContent(html: string): string {
@@ -2269,7 +2369,11 @@ function extractMainContent(html: string): string {
   
   let content = html;
   
-  // STEP 0: Remove duplicate mobile elements (keeping only desktop for HTML)
+  // STEP 0: MATERIALIZE YouTube videos before any processing
+  // This ensures lazy-load videos become real iframes
+  content = materializeYouTubeVideos(content);
+  
+  // STEP 0b: Remove duplicate mobile elements (keeping only desktop for HTML)
   // Note: Images are extracted separately before this
   content = removeDuplicateMobileElements(content);
   

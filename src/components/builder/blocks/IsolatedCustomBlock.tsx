@@ -92,15 +92,23 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${baseHref ? `<base href="${baseHref}" target="_blank">` : ''}
   <style>
-    /* Reset */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Reset - minimal to not conflict with imported styles */
+    *, *::before, *::after { box-sizing: border-box; }
     body { 
+      margin: 0;
+      padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
     img { max-width: 100%; height: auto; display: block; }
     a { color: inherit; }
+    
+    /* YouTube iframe responsive */
+    iframe[src*="youtube.com"], iframe[src*="youtu.be"] {
+      max-width: 100%;
+    }
     
     /* Imported CSS */
     ${css}
@@ -109,18 +117,42 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
 <body>
   ${html}
   <script>
-    // Resize handler for parent
+    // CRITICAL: Auto-height for iframe - removes internal scroll
     function updateHeight() {
-      const height = document.body.scrollHeight;
+      // Wait for images and iframes to load
+      const height = Math.max(
+        document.body.scrollHeight,
+        document.body.offsetHeight,
+        document.documentElement.scrollHeight,
+        document.documentElement.offsetHeight
+      );
       window.parent.postMessage({ type: 'resize', height: height }, '*');
     }
     
-    // Initial size
-    updateHeight();
+    // Initial size after short delay for content render
+    setTimeout(updateHeight, 100);
+    setTimeout(updateHeight, 500); // Second check for lazy content
+    setTimeout(updateHeight, 1500); // Third check for images
     
-    // Observe size changes
-    const observer = new ResizeObserver(updateHeight);
-    observer.observe(document.body);
+    // Watch for size changes (images loading, content changes)
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(() => {
+        setTimeout(updateHeight, 50);
+      });
+      observer.observe(document.body);
+      observer.observe(document.documentElement);
+    }
+    
+    // Also trigger on images loaded
+    document.querySelectorAll('img').forEach(img => {
+      img.onload = updateHeight;
+      img.onerror = updateHeight;
+    });
+    
+    // Watch for YouTube iframes loading
+    document.querySelectorAll('iframe').forEach(iframe => {
+      iframe.onload = () => setTimeout(updateHeight, 100);
+    });
     
     // Prevent navigation in editing mode
     document.addEventListener('click', function(e) {
@@ -144,7 +176,9 @@ export function IsolatedCustomBlock({
   className,
 }: IsolatedCustomBlockProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [iframeHeight, setIframeHeight] = useState(400);
+  const containerRef = useRef<string | null>(null);
+  const [iframeHeight, setIframeHeight] = useState<number | 'auto'>('auto');
+  const [minHeight, setMinHeight] = useState(200);
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Sanitize HTML and process CSS (less aggressive for pixel-perfect)
@@ -157,11 +191,18 @@ export function IsolatedCustomBlock({
     [sanitizedHtml, processedCss, baseUrl]
   );
   
-  // Handle messages from iframe
+  // Generate unique ID for this block
+  useEffect(() => {
+    containerRef.current = `iframe-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }, []);
+  
+  // Handle messages from iframe - CRITICAL for auto-height
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (event.data?.type === 'resize' && typeof event.data.height === 'number') {
-        setIframeHeight(Math.max(100, event.data.height + 20));
+        const newHeight = Math.max(100, event.data.height);
+        setIframeHeight(newHeight);
+        setMinHeight(Math.max(minHeight, newHeight));
       }
       if (event.data?.type === 'link-click' && isEditing) {
         // In editing mode, just log - don't navigate
@@ -171,7 +212,7 @@ export function IsolatedCustomBlock({
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isEditing]);
+  }, [isEditing, minHeight]);
   
   // Write content to iframe
   useEffect(() => {
@@ -198,7 +239,11 @@ export function IsolatedCustomBlock({
     return null;
   }
   
-  const maxHeight = isExpanded ? undefined : 800;
+  // For auto-height: no max height restriction, iframe grows with content
+  const maxHeight = isExpanded ? undefined : 2000; // Increased max for big pages
+  const computedHeight = typeof iframeHeight === 'number' 
+    ? (maxHeight ? Math.min(iframeHeight, maxHeight) : iframeHeight)
+    : minHeight;
   
   return (
     <div 
@@ -223,12 +268,13 @@ export function IsolatedCustomBlock({
         </div>
       )}
       
-      {/* Isolated iframe */}
+      {/* Isolated iframe - NO internal scroll, auto-height */}
       <iframe
         ref={iframeRef}
         className="w-full border-0"
         style={{
-          height: maxHeight ? Math.min(iframeHeight, maxHeight) : iframeHeight,
+          height: computedHeight,
+          minHeight: minHeight,
           display: 'block',
           overflow: 'hidden',
         }}
@@ -237,8 +283,8 @@ export function IsolatedCustomBlock({
         loading="lazy"
       />
       
-      {/* Show more indicator */}
-      {!isExpanded && maxHeight && iframeHeight > maxHeight && (
+      {/* Show more indicator (only when maxHeight is active and content is bigger) */}
+      {!isExpanded && maxHeight && typeof iframeHeight === 'number' && iframeHeight > maxHeight && (
         <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent pointer-events-none" />
       )}
     </div>
