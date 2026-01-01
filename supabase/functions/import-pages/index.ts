@@ -1515,211 +1515,143 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
 }
 
 // Clean HTML content for safe display - extract ONLY main page content
+// NEW APPROACH: Use markdown as primary source when available (it's cleaner and has real content)
 function cleanHtmlContent(html: string, markdown?: string): string {
   if (!html && !markdown) return '';
 
-  // If HTML is too short or looks like an error, try to convert markdown to HTML
-  if (html.length < 100 && markdown && markdown.length > 50) {
-    console.log('HTML too short, using markdown converted to HTML');
-    return convertMarkdownToHtml(markdown);
+  // STRATEGY CHANGE: Markdown from Firecrawl is already cleaned!
+  // If markdown is substantial, convert it to HTML for AI analysis
+  // This avoids the regex cleanup issues that remove too much content
+  if (markdown && markdown.length > 500) {
+    console.log(`[CLEAN] Using MARKDOWN as source (${markdown.length} chars) - cleaner than regex`);
+    
+    // Remove obvious header/footer content from markdown first
+    let cleanedMarkdown = markdown;
+    
+    // Remove lines that look like header elements (navigation, top bar, etc.)
+    const headerPatterns = [
+      /^Frete grátis.*$/gim,
+      /^Parcele em até.*$/gim,
+      /^Desconto de.*no pix$/gim,
+      /^Atendimento$/gim,
+      /^HORÁRIO DE ATENDIMENTO.*$/gim,
+      /^De segunda a.*$/gim,
+      /^\*\*Compre por telefone\*\*.*$/gim,
+      /^\*\*Fale no WhatsApp\*\*.*$/gim,
+      /^\[Frete grátis.*\].*$/gim,
+      /^\[Parcele em até.*\].*$/gim,
+      /^Ofertas com Frete Grátis.*$/gim,
+    ];
+    
+    for (const pattern of headerPatterns) {
+      cleanedMarkdown = cleanedMarkdown.replace(pattern, '');
+    }
+    
+    // Remove footer-like content (after "Newsletter", "Termos de uso", etc.)
+    const footerMarkers = [
+      /\n(?:Newsletter|Inscreva-se|Termos de uso|Política de|Trocas e devoluções)[\s\S]*$/i,
+      /\n(?:© |Copyright |Todos os direitos)[\s\S]*$/i,
+    ];
+    
+    for (const pattern of footerMarkers) {
+      cleanedMarkdown = cleanedMarkdown.replace(pattern, '');
+    }
+    
+    // Clean up extra whitespace
+    cleanedMarkdown = cleanedMarkdown
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    
+    // Convert cleaned markdown to HTML
+    const convertedHtml = convertMarkdownToHtml(cleanedMarkdown);
+    console.log(`[CLEAN] Markdown cleaned: ${cleanedMarkdown.length} chars, HTML: ${convertedHtml.length} chars`);
+    
+    // If we got substantial content, use it
+    if (convertedHtml.length > 500) {
+      return convertedHtml;
+    }
   }
 
+  // Fallback: Use HTML if markdown didn't work
+  console.log(`[CLEAN] Fallback to HTML cleaning (markdown: ${markdown?.length || 0} chars)`);
+  
   let cleaned = html;
 
-  // ===== PHASE 1: Remove dangerous elements first =====
+  // ===== PHASE 1: Remove dangerous elements =====
   cleaned = cleaned
     .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '');
+
+  // Keep styles for CustomBlock but remove from main content
+  cleaned = cleaned.replace(/<style[\s\S]*?<\/style>/gi, '');
 
   // Remove event handlers
   cleaned = cleaned.replace(/\s*on\w+="[^"]*"/gi, '');
   cleaned = cleaned.replace(/\s*on\w+='[^']*'/gi, '');
 
-  // ===== PHASE 2: Remove navigation/header/footer elements COMPLETELY =====
-  const removePatterns = [
-    // Remove nav elements
-    /<nav[\s\S]*?<\/nav>/gi,
-    // Remove header elements 
-    /<header[\s\S]*?<\/header>/gi,
-    // Remove footer elements
-    /<footer[\s\S]*?<\/footer>/gi,
-    // Remove aside elements
-    /<aside[\s\S]*?<\/aside>/gi,
-    // Remove Shopify announcement/topbar (common patterns)
-    /<div[^>]*class="[^"]*(?:announcement|topbar|top-bar|utility-bar|header-bar|ticker|marquee|promo-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove mobile menu overlays
-    /<div[^>]*class="[^"]*(?:mobile-menu|drawer|side-menu|nav-overlay)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove search overlays
-    /<div[^>]*class="[^"]*(?:search-modal|search-drawer|predictive-search)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove sticky headers
-    /<div[^>]*class="[^"]*(?:sticky-header|fixed-header)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove Shopify section headers specifically
-    /<section[^>]*class="[^"]*(?:shopify-section-header|shopify-section-announcement)[^"]*"[^>]*>[\s\S]*?<\/section>/gi,
-    // Remove common Shopify elements by ID
-    /<div[^>]*id="[^"]*(?:shopify-section-header|shopify-section-announcement|announcement-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // ===== NEW: Remove contact/support dropdowns (WhatsApp, phone, hours) =====
-    /<div[^>]*class="[^"]*(?:dropdown|popover|tooltip|support-menu|contact-menu|atendimento)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove WhatsApp/phone links that are clearly from header
-    /<a[^>]*href="[^"]*(?:wa\.me|whatsapp|tel:)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-    // Remove elements containing specific header-like text patterns
-    /<div[^>]*>[\s\S]*?(?:Fale no WhatsApp|HORÁRIO DE ATENDIMENTO|Compre por telefone)[\s\S]*?<\/div>/gi,
-  ];
+  // ===== PHASE 2: Simpler removal - only clear structural elements =====
+  // Use simpler patterns that don't break nested content
+  cleaned = cleaned
+    .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, '')
+    .replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, '')
+    .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, '');
 
-  for (const pattern of removePatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-
-  // ===== PHASE 3: Try to extract ONLY main content area =====
-  // FIXED: Collect ALL candidates and choose the LARGEST one
-  const contentCandidates: { content: string; source: string; length: number }[] = [];
-  
-  // Priority 1: Shopify MainContent div (most reliable for pages)
-  const mainContentPatterns = [
+  // ===== PHASE 3: Try to find main content container =====
+  // Look for common main content patterns
+  const mainPatterns = [
+    /<main[^>]*>([\s\S]*)<\/main>/i,
+    /<article[^>]*>([\s\S]*?)<\/article>/i,
     /<div[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i,
-    /<main[^>]*id="?MainContent"?[^>]*>([\s\S]*)/i,
   ];
   
-  for (const pattern of mainContentPatterns) {
+  for (const pattern of mainPatterns) {
     const match = pattern.exec(cleaned);
-    if (match && match[1].trim().length > 100) {
+    if (match && match[1].trim().length > 1000) {
       let content = match[1];
-      const footerIdx = content.search(/<footer|<div[^>]*class="[^"]*footer/i);
+      // Truncate at footer if found
+      const footerIdx = content.search(/<footer/i);
       if (footerIdx > 0) {
         content = content.substring(0, footerIdx);
       }
-      contentCandidates.push({ content: content.trim(), source: 'MainContent', length: content.trim().length });
+      console.log(`[CLEAN] Found main content container: ${content.length} chars`);
+      cleaned = content.trim();
+      break;
     }
   }
 
-  // Priority 2: Look for main element (greedy match)
-  const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(cleaned);
-  if (mainMatch && mainMatch[1].trim().length > 100) {
-    contentCandidates.push({ content: mainMatch[1].trim(), source: '<main>', length: mainMatch[1].trim().length });
-  }
-
-  // Priority 3: Look for article element
-  const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
-  if (articleMatch && articleMatch[1].trim().length > 100) {
-    contentCandidates.push({ content: articleMatch[1].trim(), source: '<article>', length: articleMatch[1].trim().length });
-  }
-
-  // Priority 4: Look for content containers - collect ALL matches
-  const contentPatterns = [
-    { pattern: /<div[^>]*class="[^"]*(?:page-content|main-content|content-wrapper|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, name: 'page-content' },
-    { pattern: /<div[^>]*class="[^"]*(?:page|content|wrapper)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, name: 'content-wrapper' },
-    { pattern: /<section[^>]*class="[^"]*(?:page|content|main)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi, name: 'section-content' },
-  ];
-  
-  for (const { pattern, name } of contentPatterns) {
-    let match;
-    while ((match = pattern.exec(cleaned)) !== null) {
-      if (match[1].trim().length > 100) {
-        contentCandidates.push({ content: match[1].trim(), source: name, length: match[1].trim().length });
-      }
-    }
-  }
-
-  // Log all candidates found
-  console.log(`[CLEAN] Found ${contentCandidates.length} content candidates:`);
-  contentCandidates.forEach((c, i) => {
-    console.log(`  [${i}] ${c.source}: ${c.length} chars`);
-  });
-
-  // Choose the LARGEST candidate (not the first one!)
-  let mainContent = '';
-  if (contentCandidates.length > 0) {
-    const best = contentCandidates.sort((a, b) => b.length - a.length)[0];
-    // Only use if it's substantial (more than 500 chars)
-    if (best.length > 500) {
-      mainContent = best.content;
-      console.log(`[CLEAN] Chose LARGEST candidate: ${best.source} with ${best.length} chars`);
-    } else {
-      console.log(`[CLEAN] All candidates too small (largest: ${best.length} chars), using full HTML`);
-    }
-  }
-
-  // Use main content if found AND substantial, otherwise use cleaned HTML
-  if (mainContent && mainContent.length > 1000) {
-    cleaned = mainContent;
-    console.log(`[CLEAN] Using extracted content: ${cleaned.length} chars`);
-  } else {
-    console.log(`[CLEAN] Fallback: using full cleaned HTML: ${cleaned.length} chars`);
-    // Don't change 'cleaned', use the full cleaned HTML
-  }
-
-  // ===== PHASE 4: AGGRESSIVE CLEANUP AFTER EXTRACTION =====
-  // Remove header/nav/search elements that might still be inside main
-  const postExtractRemovePatterns = [
-    // Remove any remaining nav elements
-    /<nav\b[^>]*>[\s\S]*?<\/nav>/gi,
-    // Remove any remaining header elements
-    /<header\b[^>]*>[\s\S]*?<\/header>/gi,
-    // Remove any remaining footer elements  
-    /<footer\b[^>]*>[\s\S]*?<\/footer>/gi,
-    // Remove search forms and inputs
-    /<form[^>]*(?:search|pesquisa|busca)[^>]*>[\s\S]*?<\/form>/gi,
-    /<input[^>]*(?:search|pesquisa|busca)[^>]*\/?>/gi,
-    // Remove search results/suggestions containers
-    /<div[^>]*class="[^"]*(?:search-results|search-suggestions|predictive-search|search-modal|search-overlay|search-dropdown|search-popover)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    /<ul[^>]*class="[^"]*(?:search-results|suggestions|predictive)[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
-    // Remove modal/popup containers
-    /<div[^>]*class="[^"]*(?:modal|popup|overlay|drawer|dropdown-menu|popover)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove announcement bars/tickers
-    /<div[^>]*class="[^"]*(?:announcement|ticker|marquee|promo-bar|top-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove cart/mini-cart elements
-    /<div[^>]*class="[^"]*(?:mini-cart|cart-drawer|cart-popup|cart-modal)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove Shopify section wrappers for header/announcement
-    /<div[^>]*id="[^"]*(?:shopify-section-header|shopify-section-announcement|header-section)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove elements with data-section-type header
-    /<[^>]*data-section-type="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi,
-    // Remove sticky/fixed elements (usually headers)
-    /<div[^>]*class="[^"]*(?:sticky|fixed|is-sticky)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
-    // Remove menu elements
-    /<ul[^>]*class="[^"]*(?:menu|nav-menu|main-menu|site-nav)[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
-    // Remove login/account links
-    /<a[^>]*href="[^"]*(?:\/account|\/login|\/cart)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-    // Remove logo links (usually in header)
-    /<a[^>]*class="[^"]*(?:logo|brand|site-header)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
-  ];
-
-  for (const pattern of postExtractRemovePatterns) {
-    cleaned = cleaned.replace(pattern, '');
-  }
-
-  // ===== PHASE 5: Content-specific cleanup =====
-  // Remove elements containing typical header text
-  const headerTextPatterns = [
-    /Mais pesquisados?:/gi,
-    /Buscar pedidos?, produtos?, clientes/gi,
-    /Minha Conta/gi,
-    /OFERTAS DE FIM DE ANO/gi,
-    /Frete Grátis/gi,
-  ];
-  
-  // Don't remove entire containers, just mark for later review
-  // (removing based on text is risky for false positives)
-
-  // ===== PHASE 6: Final cleanup =====
-  // Remove empty elements
+  // ===== PHASE 4: Final cleanup =====
   cleaned = cleaned
     .replace(/<(div|span|p|section)[^>]*>\s*<\/\1>/gi, '')
     .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '<br>')
     .replace(/\n\s*\n\s*\n/g, '\n\n');
 
-  // Remove any remaining onclick/onload handlers that might have survived
-  cleaned = cleaned.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '');
-
   console.log(`[CLEAN] Final cleaned HTML: ${cleaned.length} chars`);
   return cleaned.trim();
 }
 
-// Convert markdown to basic HTML
+// Convert markdown to HTML - preserve images, videos, and formatting
 function convertMarkdownToHtml(markdown: string): string {
   let html = markdown;
   
+  // Images - convert markdown images to HTML img tags
+  // ![alt](url) -> <img src="url" alt="alt">
+  html = html.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%;height:auto;">');
+  
+  // YouTube/Vimeo embeds - detect video URLs in links and convert to embeds
+  // [text](youtube.com/watch?v=XXX) -> iframe
+  html = html.replace(
+    /\[([^\]]*)\]\((https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+)[^)]*)\)/gi,
+    '<div class="video-container"><iframe width="560" height="315" src="https://www.youtube.com/embed/$3" frameborder="0" allowfullscreen></iframe></div>'
+  );
+  
+  html = html.replace(
+    /\[([^\]]*)\]\((https?:\/\/(?:www\.)?vimeo\.com\/(\d+)[^)]*)\)/gi,
+    '<div class="video-container"><iframe src="https://player.vimeo.com/video/$3" width="560" height="315" frameborder="0" allowfullscreen></iframe></div>'
+  );
+  
   // Headers
+  html = html.replace(/^#### (.*$)/gim, '<h4>$1</h4>');
   html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
   html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
   html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
@@ -1728,16 +1660,36 @@ function convertMarkdownToHtml(markdown: string): string {
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
   
-  // Links
+  // Links (not already converted)
   html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
   
-  // Lists
-  html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>\n)+/g, '<ul>$&</ul>');
+  // Horizontal rules
+  html = html.replace(/^---$/gim, '<hr>');
+  html = html.replace(/^\*\*\*$/gim, '<hr>');
   
-  // Paragraphs (lines separated by blank lines)
-  html = html.replace(/^(?!<[houl])(.*$)/gim, '<p>$1</p>');
-  html = html.replace(/<p><\/p>/g, '');
+  // Unordered lists
+  html = html.replace(/^\- (.*$)/gim, '<li>$1</li>');
+  
+  // Wrap consecutive <li> elements in <ul>
+  html = html.replace(/(<li>.*?<\/li>\s*)+/gs, (match) => `<ul>${match}</ul>`);
+  
+  // Paragraphs - wrap text lines that aren't already HTML elements
+  const lines = html.split('\n');
+  const processedLines = lines.map(line => {
+    const trimmed = line.trim();
+    // Skip if empty or already an HTML tag
+    if (!trimmed || trimmed.startsWith('<') || trimmed.endsWith('>')) {
+      return line;
+    }
+    return `<p>${trimmed}</p>`;
+  });
+  html = processedLines.join('\n');
+  
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+  
+  // Clean up nested paragraphs inside other elements
+  html = html.replace(/<(li|h[1-6])><p>(.*?)<\/p><\/\1>/g, '<$1>$2</$1>');
   
   return html;
 }
