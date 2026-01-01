@@ -360,15 +360,23 @@ export async function extractContentWithDOM(
 // =============================================
 
 /**
- * SHOPIFY DETERMINISTIC MODE (v2):
+ * SHOPIFY ROBUST DETERMINISTIC MODE (v3):
  * 
- * REGRA CENTRAL: Filtrar por ID da section, não por regex genérico.
- * - INCLUIR: sections cujo ID contém "template--" (conteúdo da página)
- * - EXCLUIR: sections cujo ID contém "sections--" (globais: header/footer)
- * - EXCLUIR: sufixos óbvios de layout (__header, __footer, etc.)
+ * REGRA CENTRAL: Não depender exclusivamente de template-- no ID.
+ * Muitos temas usam IDs como shopify-section-main-page, shopify-section-main, etc.
  * 
- * NÃO descartar section por "texto curto" - CTAs podem ter pouco texto.
- * Se extração falhar, retornar erro (não fallback para body/regex).
+ * CRITÉRIOS DE EXCLUSÃO (determinísticos):
+ * 1. ID contém "sections--" (globais do theme editor)
+ * 2. Classe contém "shopify-section-group-header" ou "shopify-section-group-footer"
+ * 3. ID contém sufixos de layout (__header, __footer, __announcement, etc.)
+ * 4. Elemento contém [role="dialog"] ou [aria-modal="true"]
+ * 5. Texto contém "mais pesquisados" / "trending"
+ * 
+ * CRITÉRIOS DE INCLUSÃO (limiar baixo - CTAs são curtos):
+ * - textLen >= 30 OU
+ * - Possui iframe youtube/vimeo OU
+ * - Possui button/CTA OU
+ * - Possui imagens
  */
 function shouldIncludeShopifySection(
   section: Element, 
@@ -377,76 +385,108 @@ function shouldIncludeShopifySection(
   const id = section.getAttribute('id') || '';
   const className = section.getAttribute('class') || '';
   const identifier = id || className.split(' ').slice(0, 2).join(' ') || 'unknown';
+  const textContent = (section.textContent || '').trim();
+  const textLower = textContent.toLowerCase();
+  const textLen = textContent.length;
+  const textPreview = textContent.substring(0, 80).replace(/\s+/g, ' ');
   
-  // REGRA 1: Excluir se ID contém "sections--" (são globais: header/footer/announcement)
+  // Check content indicators
+  const hasYouTube = section.querySelector('iframe[src*="youtube"], iframe[src*="youtu.be"], iframe[data-src*="youtube"]');
+  const hasVimeo = section.querySelector('iframe[src*="vimeo"]');
+  const hasVideo = section.querySelector('video');
+  const hasCTA = section.querySelector('a[href], button');
+  const hasHeading = section.querySelector('h1, h2, h3, h4, h5, h6');
+  const hasImages = section.querySelectorAll('img[src]').length;
+  const hasDialog = section.querySelector('[role="dialog"], [aria-modal="true"]');
+  
+  // ============ EXCLUSION RULES ============
+  
+  // RULE 1: ID contains "sections--" (global sections from theme editor)
   if (id.includes('sections--')) {
-    const reason = `sections-- prefix = global element`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
+    const reason = `sections-- prefix = global section`;
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
     return { include: false, reason };
   }
   
-  // REGRA 2: Excluir se ID contém sufixos de layout óbvios
+  // RULE 2: Class contains header/footer group markers
+  if (className.includes('shopify-section-group-header') || className.includes('shopify-section-group-footer')) {
+    const reason = `header/footer group class`;
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
+    return { include: false, reason };
+  }
+  
+  // RULE 3: ID contains layout suffixes
   const layoutSuffixes = [
-    '__header', '__footer', '__announcement', '__announcement-bar',
-    '__cookie', '__consent', '__drawer', '__cart-drawer',
-    '__modal', '__overlay', '__popup', '__backdrop',
-    '__newsletter', '__predictive-search'
+    '__header', '__footer', '__announcement', '__cookie', '__consent',
+    '__drawer', '__cart', '__popup', '__modal', '__overlay', '__predictive',
+    '__newsletter', '__search'
   ];
   const matchedSuffix = layoutSuffixes.find(suffix => id.toLowerCase().includes(suffix));
   if (matchedSuffix) {
     const reason = `layout suffix: ${matchedSuffix}`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
     return { include: false, reason };
   }
   
-  // REGRA 3: Excluir se está dentro de grupos de layout
+  // RULE 4: Contains dialog/modal role
+  if (hasDialog) {
+    const reason = `contains dialog/modal`;
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
+    return { include: false, reason };
+  }
+  
+  // RULE 5: Footer-like text patterns (defensive filtering)
+  const footerPatterns = [
+    'mais pesquisados', 'trending searches', 'trending products',
+    'cnpj', 'formas de pagamento', 'selos de segurança',
+    'receba nossas promoções', 'políticas da loja', 'inscreva-se'
+  ];
+  const hasFooterPattern = footerPatterns.some(pattern => textLower.includes(pattern));
+  // Only exclude if it ALSO has no meaningful content (video/heading)
+  if (hasFooterPattern && !hasYouTube && !hasVimeo && !hasVideo && !hasHeading) {
+    const reason = `footer-like text content`;
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
+    return { include: false, reason };
+  }
+  
+  // RULE 6: Inside header/footer groups (via closest ancestor)
   if (section.closest('.shopify-section-group-header-group')) {
     const reason = `inside header-group`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
     return { include: false, reason };
   }
   if (section.closest('.shopify-section-group-footer-group')) {
     const reason = `inside footer-group`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
-    return { include: false, reason };
-  }
-  if (section.closest('.shopify-section-group-overlay-group')) {
-    const reason = `inside overlay-group`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
+    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
     return { include: false, reason };
   }
   
-  // REGRA 4: Excluir "Mais pesquisados" / trending por texto interno
-  const textContent = section.textContent?.toLowerCase() || '';
-  if (textContent.includes('mais pesquisados') || textContent.includes('trending') || textContent.includes('popular products')) {
-    const reason = `trending/popular content detected`;
-    logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
-    return { include: false, reason };
-  }
+  // ============ INCLUSION RULES (low threshold) ============
   
-  // REGRA 5: INCLUIR se ID contém "template--" (conteúdo da página)
-  if (id.includes('template--')) {
-    const reason = `template-- prefix = page content`;
-    logs.push(`[SHOPIFY] INCLUIR: ${identifier} (reason: ${reason})`);
+  // INCLUDE if has meaningful content indicators
+  const hasContent = 
+    textLen >= 30 ||
+    hasYouTube || hasVimeo || hasVideo ||
+    hasCTA ||
+    hasHeading ||
+    hasImages > 0;
+  
+  if (hasContent) {
+    const contentIndicators = [];
+    if (textLen >= 30) contentIndicators.push(`text:${textLen}`);
+    if (hasYouTube || hasVimeo || hasVideo) contentIndicators.push('video');
+    if (hasHeading) contentIndicators.push('heading');
+    if (hasCTA) contentIndicators.push('cta');
+    if (hasImages > 0) contentIndicators.push(`imgs:${hasImages}`);
+    
+    const reason = `has content (${contentIndicators.join(', ')})`;
+    logs.push(`[SHOPIFY] INCLUIR: ${identifier} (${reason}) preview: "${textPreview}"`);
     return { include: true, reason };
   }
   
-  // REGRA 6: Para sections sem ID padrão, verificar se tem conteúdo útil
-  // (h1-h6, p, iframe, button) - se tiver, incluir
-  const hasHeading = section.querySelector('h1, h2, h3, h4, h5, h6');
-  const hasParagraph = section.querySelector('p');
-  const hasIframe = section.querySelector('iframe');
-  const hasButton = section.querySelector('button, a.btn, a.button, [role="button"]');
-  
-  if (hasHeading || hasParagraph || hasIframe || hasButton) {
-    const reason = `has content primitives (h/p/iframe/btn)`;
-    logs.push(`[SHOPIFY] INCLUIR: ${identifier} (reason: ${reason})`);
-    return { include: true, reason };
-  }
-  
-  // Por padrão, excluir sections sem ID de template e sem conteúdo claro
-  const reason = `no template-- ID and no clear content`;
-  logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (reason: ${reason})`);
+  // No content indicators - exclude
+  const reason = `no content indicators (textLen:${textLen})`;
+  logs.push(`[SHOPIFY] EXCLUIR: ${identifier} (${reason})`);
   return { include: false, reason };
 }
 
@@ -454,10 +494,10 @@ function extractShopifySectionsContent(
   doc: Document,
   logs: string[]
 ): { element: Element; extractedFrom: string; found: boolean } | null {
-  logs.push(`[SHOPIFY] ========== Starting Shopify DETERMINISTIC extraction (v2) ==========`);
+  logs.push(`[SHOPIFY] ========== Starting Shopify ROBUST DETERMINISTIC extraction (v3) ==========`);
   
-  // Step 1: Find the main container
-  const mainSelectors = ['#MainContent', 'main[role="main"]', 'main.main-content', 'main'];
+  // Step 1: Find the main container (tolerant order)
+  const mainSelectors = ['#MainContent', 'main[role="main"]', 'main', '[role="main"]'];
   let mainContainer: Element | null = null;
   let mainSelector = '';
   
@@ -466,60 +506,77 @@ function extractShopifySectionsContent(
     if (el) {
       mainContainer = el as Element;
       mainSelector = selector;
-      logs.push(`[SHOPIFY] mainFound: ${selector}`);
       break;
     }
   }
   
+  // Fallback to body (but log warning - we prefer to have main)
   if (!mainContainer) {
-    logs.push(`[SHOPIFY] ERROR: No main container found - cannot proceed`);
-    logs.push(`[SHOPIFY] Tried: ${mainSelectors.join(', ')}`);
-    return null; // Will trigger error, NOT fallback to body
+    mainContainer = doc.body as Element;
+    mainSelector = 'body (fallback)';
+    logs.push(`[SHOPIFY] WARNING: No main container found, using body as fallback`);
   }
   
-  // Step 2: Collect ALL shopify-section elements (inside main OR in the entire document for some themes)
-  // Some themes put sections outside of main, so we check both
-  let allSections = mainContainer.querySelectorAll('section[id^="shopify-section-"], [id^="shopify-section-"]');
+  logs.push(`[SHOPIFY] mainSelectorUsed: ${mainSelector}`);
   
-  if (allSections.length === 0) {
-    // Fallback: try document-wide search but filter by template-- ID
-    allSections = doc.querySelectorAll('section[id^="shopify-section-template--"], [id^="shopify-section-template--"]');
-    logs.push(`[SHOPIFY] No sections in main, found ${allSections.length} template-- sections in document`);
+  // Step 2: Collect ALL candidates: [id^="shopify-section-"] OR .shopify-section
+  // NOT restricted to <section> tag - some themes use div
+  const byId = mainContainer.querySelectorAll('[id^="shopify-section-"]');
+  const byClass = mainContainer.querySelectorAll('.shopify-section');
+  
+  // Deduplicate candidates
+  const candidateSet = new Set<Element>();
+  for (let i = 0; i < byId.length; i++) candidateSet.add(byId[i] as Element);
+  for (let i = 0; i < byClass.length; i++) candidateSet.add(byClass[i] as Element);
+  
+  // If no candidates in main, try document-wide
+  if (candidateSet.size === 0) {
+    const docById = doc.querySelectorAll('[id^="shopify-section-"]');
+    const docByClass = doc.querySelectorAll('.shopify-section');
+    for (let i = 0; i < docById.length; i++) candidateSet.add(docById[i] as Element);
+    for (let i = 0; i < docByClass.length; i++) candidateSet.add(docByClass[i] as Element);
+    if (candidateSet.size > 0) {
+      logs.push(`[SHOPIFY] No sections in main, found ${candidateSet.size} in document`);
+    }
   }
   
-  logs.push(`[SHOPIFY] sectionsFound: ${allSections.length}`);
+  const candidates = Array.from(candidateSet);
+  logs.push(`[SHOPIFY] candidatesFound: ${candidates.length} (byId: ${byId.length}, byClass: ${byClass.length})`);
   
-  // Step 3: Filter using deterministic rules by ID
+  if (candidates.length === 0) {
+    logs.push(`[SHOPIFY] ERROR: No shopify-section candidates found anywhere`);
+    return null;
+  }
+  
+  // Step 3: Filter using deterministic rules
   const contentSections: Element[] = [];
   const excludedSections: { id: string; reason: string }[] = [];
   
-  for (const section of allSections) {
-    const el = section as Element;
-    const result = shouldIncludeShopifySection(el, logs);
+  for (const section of candidates) {
+    const result = shouldIncludeShopifySection(section, logs);
     
     if (result.include) {
-      contentSections.push(el);
+      contentSections.push(section);
     } else {
-      const id = el.getAttribute('id') || el.getAttribute('class')?.split(' ')[0] || 'unknown';
+      const id = section.getAttribute('id') || section.getAttribute('class')?.split(' ')[0] || 'unknown';
       excludedSections.push({ id, reason: result.reason });
     }
   }
   
   // Log summary
-  const includedIds = contentSections.map(s => s.getAttribute('id') || 'no-id').slice(0, 10);
-  logs.push(`[SHOPIFY] included: [${includedIds.join(', ')}]`);
-  logs.push(`[SHOPIFY] excluded: ${excludedSections.length} sections`);
-  excludedSections.slice(0, 5).forEach(ex => {
-    logs.push(`[SHOPIFY]   - ${ex.id} -> ${ex.reason}`);
-  });
+  logs.push(`[SHOPIFY] Summary: included=${contentSections.length}, excluded=${excludedSections.length}`);
+  const includedIds = contentSections.map(s => s.getAttribute('id') || 'no-id');
+  logs.push(`[SHOPIFY] Included IDs: [${includedIds.join(', ')}]`);
   
   if (contentSections.length === 0) {
-    logs.push(`[SHOPIFY] ERROR: No content sections found after deterministic filtering`);
-    logs.push(`[SHOPIFY] This means the page has no template-- sections with content`);
-    return null; // Will trigger error, NOT fallback
+    logs.push(`[SHOPIFY] ERROR: No sections passed the filter. All ${candidates.length} candidates were excluded.`);
+    excludedSections.forEach(ex => {
+      logs.push(`[SHOPIFY] Excluded detail: ${ex.id} => ${ex.reason}`);
+    });
+    return null;
   }
   
-  // Step 4: Create a wrapper div and concatenate all content sections
+  // Step 4: Create wrapper and concatenate all content sections in DOM order
   const wrapper = doc.createElement('div');
   wrapper.setAttribute('data-import-root', 'shopify');
   wrapper.setAttribute('data-sections-count', String(contentSections.length));
@@ -536,27 +593,18 @@ function extractShopifySectionsContent(
   const buttons = wrapper.querySelectorAll('button, [role="button"], .btn, .button, a.btn, a.button').length;
   const iframes = wrapper.querySelectorAll('iframe').length;
   
-  logs.push(`[SHOPIFY] Primitives: h=${headings}, p=${paragraphs}, a=${links}, btn=${buttons}, iframe=${iframes}`);
+  logs.push(`[SHOPIFY] blocksCreated: h=${headings}, p=${paragraphs}, a=${links}, btn=${buttons}, iframe=${iframes}`);
   
   // Step 6: Log text preview (for verification)
   const textContent = wrapper.textContent || '';
   const cleanText = textContent.replace(/\s+/g, ' ').trim();
   const textPreview = cleanText.substring(0, 200);
-  logs.push(`[SHOPIFY] textPreview: "${textPreview}..."`);
-  
-  // Verify we got the expected content
-  const hasExpectedContent = cleanText.toLowerCase().includes('como funciona') || 
-                             cleanText.toLowerCase().includes('tratamento') ||
-                             headings > 0 || iframes > 0;
-  if (!hasExpectedContent && cleanText.length < 100) {
-    logs.push(`[SHOPIFY] WARNING: Extracted content seems too short or missing expected text`);
-  }
-  
+  logs.push(`[SHOPIFY] extractedTextPreview: "${textPreview}..."`);
   logs.push(`[SHOPIFY] ========== Extraction complete: ${contentSections.length} sections, ${cleanText.length} chars ==========`);
   
   return {
     element: wrapper,
-    extractedFrom: `shopify-deterministic: ${contentSections.length} sections from ${mainSelector}`,
+    extractedFrom: `shopify-deterministic-v3: ${contentSections.length} sections from ${mainSelector}`,
     found: true,
   };
 }
