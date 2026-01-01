@@ -548,6 +548,8 @@ const components: Record<string, React.ComponentType<any>> = {
     PageContent: PageContentBlock,
     // Custom block (imported HTML/CSS content)
     CustomBlock: CustomBlockWrapper,
+    // HTML Section (manual HTML/CSS editing)
+    HTMLSection: HTMLSectionWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -2230,6 +2232,26 @@ function CustomBlockWrapper({
       blockName={blockName}
       baseUrl={baseUrl}
       context={context}
+      isEditing={isEditing}
+    />
+  );
+}
+
+// ========== HTML SECTION WRAPPER ==========
+function HTMLSectionWrapper({
+  htmlContent,
+  cssContent,
+  blockName,
+  baseUrl,
+  isEditing,
+}: any) {
+  // HTMLSection uses the same IsolatedCustomBlock but without DB fetch
+  return (
+    <CustomBlockRendererComponent
+      htmlContent={htmlContent || ''}
+      cssContent={cssContent || ''}
+      blockName={blockName || 'Seção HTML'}
+      baseUrl={baseUrl}
       isEditing={isEditing}
     />
   );
