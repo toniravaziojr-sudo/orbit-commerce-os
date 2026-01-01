@@ -35,6 +35,15 @@ Deno.serve(async (req) => {
 
     console.log('Scraping URL:', formattedUrl);
 
+    // Determine formats - include screenshot if requested
+    const includeScreenshot = options?.includeScreenshot ?? false;
+    const baseFormats = options?.formats || ['markdown', 'html', 'links'];
+    const formats = includeScreenshot && !baseFormats.includes('screenshot') 
+      ? [...baseFormats, 'screenshot']
+      : baseFormats;
+
+    console.log('Formats requested:', formats);
+
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
@@ -43,10 +52,14 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         url: formattedUrl,
-        formats: options?.formats || ['markdown', 'html', 'links'],
+        formats,
         onlyMainContent: options?.onlyMainContent ?? false,
-        waitFor: options?.waitFor,
+        waitFor: options?.waitFor || (includeScreenshot ? 3000 : undefined), // Wait longer for screenshot
         location: options?.location,
+        // Screenshot options
+        screenshot: includeScreenshot ? {
+          fullPage: options?.fullPageScreenshot ?? true, // Full page by default
+        } : undefined,
       }),
     });
 
@@ -60,7 +73,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Scrape successful');
+    // Extract screenshot from response if present
+    const screenshot = data.data?.screenshot || data.screenshot;
+    if (screenshot) {
+      console.log(`Screenshot captured: ${typeof screenshot === 'string' ? screenshot.substring(0, 50) + '...' : 'present'}`);
+    }
+
+    console.log('Scrape successful', screenshot ? '(with screenshot)' : '(no screenshot)');
     return new Response(
       JSON.stringify(data),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
