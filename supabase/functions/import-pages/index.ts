@@ -1572,7 +1572,8 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   }
 
   // ===== PHASE 3: Try to extract ONLY main content area =====
-  let mainContent = '';
+  // FIXED: Collect ALL candidates and choose the LARGEST one
+  const contentCandidates: { content: string; source: string; length: number }[] = [];
   
   // Priority 1: Shopify MainContent div (most reliable for pages)
   const mainContentPatterns = [
@@ -1583,57 +1584,69 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   for (const pattern of mainContentPatterns) {
     const match = pattern.exec(cleaned);
     if (match && match[1].trim().length > 100) {
-      // Extract until footer
       let content = match[1];
       const footerIdx = content.search(/<footer|<div[^>]*class="[^"]*footer/i);
       if (footerIdx > 0) {
         content = content.substring(0, footerIdx);
       }
-      mainContent = content.trim();
-      console.log('[CLEAN] Extracted MainContent div');
-      break;
+      contentCandidates.push({ content: content.trim(), source: 'MainContent', length: content.trim().length });
     }
   }
 
   // Priority 2: Look for main element (greedy match)
-  if (!mainContent) {
-    // Use greedy match to get full main content
-    const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(cleaned);
-    if (mainMatch && mainMatch[1].trim().length > 100) {
-      mainContent = mainMatch[1].trim();
-      console.log('[CLEAN] Extracted <main> element');
-    }
+  const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(cleaned);
+  if (mainMatch && mainMatch[1].trim().length > 100) {
+    contentCandidates.push({ content: mainMatch[1].trim(), source: '<main>', length: mainMatch[1].trim().length });
   }
 
   // Priority 3: Look for article element
-  if (!mainContent) {
-    const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
-    if (articleMatch && articleMatch[1].trim().length > 100) {
-      mainContent = articleMatch[1].trim();
-      console.log('[CLEAN] Extracted <article> element');
-    }
+  const articleMatch = /<article[^>]*>([\s\S]*?)<\/article>/i.exec(cleaned);
+  if (articleMatch && articleMatch[1].trim().length > 100) {
+    contentCandidates.push({ content: articleMatch[1].trim(), source: '<article>', length: articleMatch[1].trim().length });
   }
 
-  // Priority 4: Look for content container
-  if (!mainContent) {
-    const contentPatterns = [
-      /<div[^>]*class="[^"]*(?:page-content|main-content|content-wrapper|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-      /<div[^>]*class="[^"]*(?:page|content|wrapper)[^"]*"[^>]*>([\s\S]*?)<\/div>/i,
-    ];
-    
-    for (const pattern of contentPatterns) {
-      const match = pattern.exec(cleaned);
-      if (match && match[1].trim().length > 100) {
-        mainContent = match[1].trim();
-        console.log('[CLEAN] Extracted content container');
-        break;
+  // Priority 4: Look for content containers - collect ALL matches
+  const contentPatterns = [
+    { pattern: /<div[^>]*class="[^"]*(?:page-content|main-content|content-wrapper|rte|shopify-policy)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, name: 'page-content' },
+    { pattern: /<div[^>]*class="[^"]*(?:page|content|wrapper)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi, name: 'content-wrapper' },
+    { pattern: /<section[^>]*class="[^"]*(?:page|content|main)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi, name: 'section-content' },
+  ];
+  
+  for (const { pattern, name } of contentPatterns) {
+    let match;
+    while ((match = pattern.exec(cleaned)) !== null) {
+      if (match[1].trim().length > 100) {
+        contentCandidates.push({ content: match[1].trim(), source: name, length: match[1].trim().length });
       }
     }
   }
 
-  // Use main content if found, otherwise use cleaned HTML
-  if (mainContent && mainContent.length > 50) {
+  // Log all candidates found
+  console.log(`[CLEAN] Found ${contentCandidates.length} content candidates:`);
+  contentCandidates.forEach((c, i) => {
+    console.log(`  [${i}] ${c.source}: ${c.length} chars`);
+  });
+
+  // Choose the LARGEST candidate (not the first one!)
+  let mainContent = '';
+  if (contentCandidates.length > 0) {
+    const best = contentCandidates.sort((a, b) => b.length - a.length)[0];
+    // Only use if it's substantial (more than 500 chars)
+    if (best.length > 500) {
+      mainContent = best.content;
+      console.log(`[CLEAN] Chose LARGEST candidate: ${best.source} with ${best.length} chars`);
+    } else {
+      console.log(`[CLEAN] All candidates too small (largest: ${best.length} chars), using full HTML`);
+    }
+  }
+
+  // Use main content if found AND substantial, otherwise use cleaned HTML
+  if (mainContent && mainContent.length > 1000) {
     cleaned = mainContent;
+    console.log(`[CLEAN] Using extracted content: ${cleaned.length} chars`);
+  } else {
+    console.log(`[CLEAN] Fallback: using full cleaned HTML: ${cleaned.length} chars`);
+    // Don't change 'cleaned', use the full cleaned HTML
   }
 
   // ===== PHASE 4: AGGRESSIVE CLEANUP AFTER EXTRACTION =====
