@@ -2140,6 +2140,72 @@ function isHighlyCustomPage(html: string): boolean {
 }
 
 // =============================================
+// HYBRID ELEMENT ANALYSIS - Check if native blocks can handle the content
+// Returns true if page has significant native-convertible elements
+// =============================================
+interface HybridAnalysisResult {
+  hasNativeContent: boolean;
+  videoCount: number;
+  buttonCount: number;
+  textLength: number;
+  reason: string;
+}
+
+function analyzeForHybridImport(html: string): HybridAnalysisResult {
+  if (!html) {
+    return { hasNativeContent: false, videoCount: 0, buttonCount: 0, textLength: 0, reason: 'empty' };
+  }
+  
+  // Extract video count using the improved extractVideoUrls
+  const videos = extractVideoUrls(html);
+  const videoCount = videos.length;
+  
+  // Count buttons/CTAs
+  const buttonPatterns = [
+    /<a[^>]*class="[^"]*(?:btn|button|cta|comprar|buy)[^"]*"[^>]*>/gi,
+    /<button[^>]*>/gi,
+    /<a[^>]*style="[^"]*(?:background|border-radius|padding)[^"]*"[^>]*>/gi,
+  ];
+  let buttonCount = 0;
+  for (const pattern of buttonPatterns) {
+    const matches = html.match(pattern) || [];
+    buttonCount += matches.length;
+  }
+  
+  // Get text content length (stripped of HTML)
+  const textContent = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const textLength = textContent.length;
+  
+  // Decision logic: use native blocks if we have clear, convertible content
+  // Priority: videos are MOST important for native conversion
+  let hasNativeContent = false;
+  let reason = '';
+  
+  if (videoCount >= 1) {
+    // ANY video should trigger native block extraction
+    hasNativeContent = true;
+    reason = `Found ${videoCount} video(s) - will use native YouTubeVideo block`;
+  } else if (buttonCount >= 1 && textLength > 200) {
+    // Button + text = likely a simple institutional page
+    hasNativeContent = true;
+    reason = `Found ${buttonCount} button(s) + ${textLength} chars text - simple page`;
+  } else if (textLength > 500 && buttonCount === 0 && videoCount === 0) {
+    // Pure text content (like policies, about pages)
+    hasNativeContent = true;
+    reason = `Pure text content (${textLength} chars) - using RichText`;
+  }
+  
+  console.log(`[HYBRID-ANALYSIS] videos=${videoCount}, buttons=${buttonCount}, text=${textLength}, hasNative=${hasNativeContent}, reason=${reason}`);
+  
+  return { hasNativeContent, videoCount, buttonCount, textLength, reason };
+}
+
+// =============================================
 // SMART DESKTOP/MOBILE IMAGE EXTRACTION
 // Extracts images from both desktop and mobile versions
 // Creates native Image blocks with imageDesktop + imageMobile
@@ -3011,58 +3077,88 @@ async function importPage(
     
     // STEP 2: Fallback to existing logic if no deterministic segmentation
     if (!pageContent!) {
-      const isCustomPage = isHighlyCustomPage(videoMaterializedHtml);
+      // =============================================
+      // NEW: HYBRID ANALYSIS - Check for native content FIRST
+      // =============================================
+      const hybridResult = analyzeForHybridImport(videoMaterializedHtml);
       
-      if (isCustomPage) {
-        console.log(`[IMPORT] CUSTOM PAGE detected - using pixel-perfect fallback`);
+      if (hybridResult.hasNativeContent) {
+        console.log(`[IMPORT] HYBRID IMPORT - Native content detected: ${hybridResult.reason}`);
         
-        // Extract desktop/mobile image pairs
-        const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
-        console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
-      
-        // STEP 2: Extract main content (which removes mobile duplicates)
-        const mainContent = extractMainContent(videoMaterializedHtml);
+        // Use the enhanced analyzeAndMapContent that extracts videos, buttons, text as native blocks
+        pageContent = await tryAIOrRegexAnalysis(
+          { 
+            html: videoMaterializedHtml, 
+            rawHtml: scraped.rawHtml, 
+            markdown: scraped.markdown, 
+            extractedCss: scraped.extractedCss 
+          }, 
+          finalTitle, 
+          page.url, 
+          false, // Don't use AI for simple pages - regex is enough
+          supabase, 
+          tenantId
+        );
         
-        if (mainContent.length > 500) {
-          // STEP 3: Create Image blocks from responsive pairs
-          const imageBlocks = createImageBlocksFromPairs(responsiveImages);
+        // Log what we created
+        const section = pageContent.children[0];
+        const blockTypes = section?.children?.map((b: BlockNode) => b.type) || [];
+        console.log(`[IMPORT] HYBRID RESULT: ${blockTypes.length} blocks - ${blockTypes.join(', ')}`);
+      } else {
+        // Check if it's a highly custom page
+        const isCustomPage = isHighlyCustomPage(videoMaterializedHtml);
+        
+        if (isCustomPage) {
+          console.log(`[IMPORT] CUSTOM PAGE detected - using pixel-perfect fallback`);
           
-          // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
-          const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
+          // Extract desktop/mobile image pairs
+          const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
+          console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
+        
+          // STEP 2: Extract main content (which removes mobile duplicates)
+          const mainContent = extractMainContent(videoMaterializedHtml);
           
-          // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
-          const allBlocks = [...imageBlocks, ...customBlocks];
-          
-          pageContent = {
-            id: generateBlockId('page'),
-            type: 'Page',
-            props: { backgroundColor: 'transparent', padding: 'none' },
-            children: [{
-              id: generateBlockId('section'),
-              type: 'Section',
-              props: { 
-                backgroundColor: 'transparent', 
-                paddingX: 0, 
-                paddingY: 0, 
-                marginTop: 0, 
-                marginBottom: 0, 
-                gap: 16, 
-                alignItems: 'stretch', 
-                fullWidth: true 
-              },
-              children: allBlocks,
-            }],
-          };
-          
-          console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
+          if (mainContent.length > 500) {
+            // STEP 3: Create Image blocks from responsive pairs
+            const imageBlocks = createImageBlocksFromPairs(responsiveImages);
+            
+            // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
+            const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
+            
+            // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
+            const allBlocks = [...imageBlocks, ...customBlocks];
+            
+            pageContent = {
+              id: generateBlockId('page'),
+              type: 'Page',
+              props: { backgroundColor: 'transparent', padding: 'none' },
+              children: [{
+                id: generateBlockId('section'),
+                type: 'Section',
+                props: { 
+                  backgroundColor: 'transparent', 
+                  paddingX: 0, 
+                  paddingY: 0, 
+                  marginTop: 0, 
+                  marginBottom: 0, 
+                  gap: 16, 
+                  alignItems: 'stretch', 
+                  fullWidth: true 
+                },
+                children: allBlocks,
+              }],
+            };
+            
+            console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
+          } else {
+            // Content too small, try AI
+            console.log(`[IMPORT] Custom page content too small, trying AI...`);
+            pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
+          }
         } else {
-          // Content too small, try AI
-          console.log(`[IMPORT] Custom page content too small, trying AI...`);
+          // For non-custom pages, use AI or regex
           pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
         }
-      } else {
-        // For non-custom pages, use AI or regex
-        pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
       }
     }
     
