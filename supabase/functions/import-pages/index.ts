@@ -1549,11 +1549,40 @@ function isHighlyCustomPage(html: string): boolean {
   return isCustom;
 }
 
+// Remove duplicate mobile/desktop elements - keep only desktop version
+// Many Shopify themes have duplicate sections with classes like "tablet", "mobile", "desktop"
+function removeDuplicateMobileDesktopElements(html: string): string {
+  let content = html;
+  
+  // Pattern 1: Remove sections with explicit "tablet" or "mobile" class (keeping desktop)
+  // This handles patterns like: <section class="section1 tablet"> vs <section class="section1">
+  content = content.replace(/<section[^>]*class="[^"]*\b(tablet|mobile)\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '<!-- mobile-version-removed -->');
+  
+  // Pattern 2: Remove divs with explicit mobile/tablet classes
+  content = content.replace(/<div[^>]*class="[^"]*\b(d-sm-block|d-md-none|show-mobile|hide-desktop|mobile-only|tablet-only)\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // Pattern 3: Remove elements with display:none style inline (often mobile-specific)
+  content = content.replace(/<[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
+  
+  // Pattern 4: Specifically handle Shopify's common mobile duplicate patterns
+  // Many themes have <!-- MOBILE --> ... <!-- /MOBILE --> comments
+  content = content.replace(/<!--\s*(?:MOBILE|TABLET|mobile|tablet)\s*-->[\s\S]*?<!--\s*\/(?:MOBILE|TABLET|mobile|tablet)\s*-->/gi, '');
+  
+  // Pattern 5: Remove elements with aria-hidden="true" that are often duplicate content for accessibility
+  // Be careful not to remove important content though
+  
+  console.log(`[DEDUPE] Removed mobile/tablet duplicates`);
+  return content;
+}
+
 // Extract main content from Shopify pages - IMPROVED to remove header/footer completely
 function extractMainContent(html: string): string {
   if (!html) return '';
   
   let content = html;
+  
+  // STEP 0: Remove duplicate mobile/desktop elements FIRST (before any other processing)
+  content = removeDuplicateMobileDesktopElements(content);
   
   // STEP 1: Remove Shopify section groups (these contain header/footer from the theme)
   // These are the main culprit for duplicate content
@@ -1599,6 +1628,9 @@ function extractMainContent(html: string): string {
   // STEP 9: Clean up empty elements and excessive whitespace
   content = content.replace(/<(div|span|section)[^>]*>\s*<\/\1>/gi, '');
   content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
+  
+  // STEP 10: Remove placeholder comments we added
+  content = content.replace(/<!--\s*mobile-version-removed\s*-->/gi, '');
   
   console.log(`[EXTRACT] Main content extracted: ${content.length} chars`);
   return content.trim();
