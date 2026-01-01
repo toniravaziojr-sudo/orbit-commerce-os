@@ -41,157 +41,65 @@ function sanitizeHtml(html: string): string {
   return sanitized;
 }
 
-// Prune CSS to only include rules that match selectors used in the HTML
-function pruneCss(css: string, html: string): string {
-  if (!css || !html) return '';
+// Process CSS for pixel-perfect rendering
+// IMPORTANT: For pixel-perfect, we should NOT aggressively prune CSS
+// because we need ALL styles including media queries for proper responsiveness
+function processPixelPerfectCss(css: string, html: string): string {
+  if (!css) return '';
   
-  // Extract all class names and IDs from HTML
-  const classMatches = html.match(/class="([^"]*)"/gi) || [];
-  const idMatches = html.match(/id="([^"]*)"/gi) || [];
-  
-  const usedClasses = new Set<string>();
-  const usedIds = new Set<string>();
-  
-  // Parse class names
-  classMatches.forEach(match => {
-    const classes = match.replace(/class="([^"]*)"/i, '$1').split(/\s+/);
-    classes.forEach(c => c && usedClasses.add(c.toLowerCase()));
-  });
-  
-  // Parse IDs
-  idMatches.forEach(match => {
-    const id = match.replace(/id="([^"]*)"/i, '$1');
-    if (id) usedIds.add(id.toLowerCase());
-  });
-  
-  // Get all HTML tag names used
-  const tagMatches = html.match(/<([a-z][a-z0-9]*)/gi) || [];
-  const usedTags = new Set<string>();
-  tagMatches.forEach(match => {
-    const tag = match.replace('<', '').toLowerCase();
-    if (tag) usedTags.add(tag);
-  });
-  
-  // Remove dangerous global rules
-  let cleanCss = css
-    // Remove @font-face (affects entire page)
-    .replace(/@font-face\s*\{[^}]*\}/gi, '')
-    // Remove @import (can load external CSS)
+  // For pixel-perfect, only remove truly dangerous rules that could affect the parent page
+  // We keep everything else to maintain visual fidelity
+  let safeCss = css
+    // Remove @import (could load external CSS we can't control)
     .replace(/@import[^;]*;/gi, '')
-    // Remove :root variables
-    .replace(/:root\s*\{[^}]*\}/gi, '')
-    // Remove html/body/* global rules
-    .replace(/(?:^|\})\s*(?:html|body|\*)\s*\{[^}]*\}/gi, '}');
+    // Remove :root from outside our scope
+    .replace(/^\s*:root\s*\{[^}]*\}/gm, '')
+    // Keep @font-face but they won't affect parent (we're in iframe)
+    // Keep @keyframes for animations
+    // Keep @media for responsiveness
+    // Keep display:none INSIDE @media for responsive hiding
+    ;
   
-  // Parse and filter CSS rules
-  const filteredRules: string[] = [];
+  // Only remove standalone display:none rules that aren't in @media queries
+  // These could hide important content permanently
+  const lines = safeCss.split('\n');
+  const resultLines: string[] = [];
+  let insideMedia = false;
+  let mediaDepth = 0;
   
-  // Handle @media queries separately
-  const mediaBlocks = cleanCss.match(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi) || [];
-  const cssWithoutMedia = cleanCss.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi, '');
-  
-  // Filter regular rules
-  const rules = cssWithoutMedia.match(/[^{}]+\{[^{}]*\}/g) || [];
-  
-  rules.forEach(rule => {
-    const braceIndex = rule.indexOf('{');
-    if (braceIndex === -1) return;
+  for (const line of lines) {
+    const lineLower = line.toLowerCase();
     
-    const selector = rule.substring(0, braceIndex).trim();
-    const declarations = rule.substring(braceIndex);
-    
-    // Skip @keyframes
-    if (selector.startsWith('@')) {
-      filteredRules.push(rule);
-      return;
+    // Track @media blocks
+    if (lineLower.includes('@media')) {
+      insideMedia = true;
+      mediaDepth = 1;
+      resultLines.push(line);
+      continue;
     }
     
-    // Skip global selectors
-    if (selector === '*' || selector === 'html' || selector === 'body' || selector === ':root') {
-      return;
-    }
-    
-    // Skip rules that hide content
-    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(declarations)) {
-      return;
-    }
-    
-    // Check if selector matches any used class, ID, or tag
-    const selectorLower = selector.toLowerCase();
-    let matches = false;
-    
-    // Check classes
-    usedClasses.forEach(cls => {
-      if (selectorLower.includes('.' + cls)) matches = true;
-    });
-    
-    // Check IDs
-    usedIds.forEach(id => {
-      if (selectorLower.includes('#' + id)) matches = true;
-    });
-    
-    // Check tags
-    usedTags.forEach(tag => {
-      // Match tag name at word boundary
-      const tagPattern = new RegExp(`\\b${tag}\\b`, 'i');
-      if (tagPattern.test(selector)) matches = true;
-    });
-    
-    if (matches) {
-      filteredRules.push(rule);
-    }
-  });
-  
-  // Process @media blocks - filter rules inside them
-  const filteredMedia: string[] = [];
-  mediaBlocks.forEach(mediaBlock => {
-    const mediaQuery = mediaBlock.substring(0, mediaBlock.indexOf('{'));
-    const innerContent = mediaBlock.substring(
-      mediaBlock.indexOf('{') + 1,
-      mediaBlock.lastIndexOf('}')
-    );
-    
-    const innerRules = innerContent.match(/[^{}]+\{[^{}]*\}/g) || [];
-    const filteredInner: string[] = [];
-    
-    innerRules.forEach(rule => {
-      const braceIndex = rule.indexOf('{');
-      if (braceIndex === -1) return;
-      
-      const selector = rule.substring(0, braceIndex).trim();
-      const declarations = rule.substring(braceIndex);
-      
-      // Skip global selectors
-      if (selector === '*' || selector === 'html' || selector === 'body') return;
-      
-      // Skip hide rules
-      if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(declarations)) return;
-      
-      const selectorLower = selector.toLowerCase();
-      let matches = false;
-      
-      usedClasses.forEach(cls => {
-        if (selectorLower.includes('.' + cls)) matches = true;
-      });
-      usedIds.forEach(id => {
-        if (selectorLower.includes('#' + id)) matches = true;
-      });
-      usedTags.forEach(tag => {
-        const tagPattern = new RegExp(`\\b${tag}\\b`, 'i');
-        if (tagPattern.test(selector)) matches = true;
-      });
-      
-      if (matches) {
-        filteredInner.push(rule);
+    if (insideMedia) {
+      if (line.includes('{')) mediaDepth++;
+      if (line.includes('}')) {
+        mediaDepth--;
+        if (mediaDepth <= 0) insideMedia = false;
       }
-    });
-    
-    if (filteredInner.length > 0) {
-      filteredMedia.push(`${mediaQuery}{${filteredInner.join('\n')}}`);
+      // Inside @media, keep everything including display:none (for responsiveness)
+      resultLines.push(line);
+      continue;
     }
-  });
+    
+    // Outside @media: check for problematic rules
+    // Only remove if the ENTIRE rule is just hiding something
+    if (/^\s*[^{]+\{\s*display\s*:\s*none\s*;?\s*\}\s*$/i.test(line)) {
+      // Skip entire single-line hiding rules
+      continue;
+    }
+    
+    resultLines.push(line);
+  }
   
-  return [...filteredRules, ...filteredMedia].join('\n');
+  return resultLines.join('\n');
 }
 
 // Build complete HTML document for iframe
@@ -257,14 +165,14 @@ export function IsolatedCustomBlock({
   const [iframeHeight, setIframeHeight] = useState(400);
   const [isExpanded, setIsExpanded] = useState(false);
   
-  // Sanitize HTML and prune CSS
+  // Sanitize HTML and process CSS (less aggressive for pixel-perfect)
   const sanitizedHtml = useMemo(() => sanitizeHtml(htmlContent), [htmlContent]);
-  const prunedCss = useMemo(() => pruneCss(cssContent, sanitizedHtml), [cssContent, sanitizedHtml]);
+  const processedCss = useMemo(() => processPixelPerfectCss(cssContent, sanitizedHtml), [cssContent, sanitizedHtml]);
   
   // Build iframe document
   const iframeDoc = useMemo(
-    () => buildIframeDocument(sanitizedHtml, prunedCss),
-    [sanitizedHtml, prunedCss]
+    () => buildIframeDocument(sanitizedHtml, processedCss),
+    [sanitizedHtml, processedCss]
   );
   
   // Handle messages from iframe
