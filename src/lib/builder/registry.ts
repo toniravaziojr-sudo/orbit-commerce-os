@@ -1737,6 +1737,47 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
   },
   {
+    type: 'VideoCarousel',
+    label: 'Carrossel de Vídeos',
+    category: 'media',
+    icon: 'PlayCircle',
+    defaultProps: {
+      title: '',
+      videosJson: '',
+      showControls: true,
+      aspectRatio: '16:9',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título (opcional)',
+        placeholder: 'Nossos Vídeos',
+      },
+      videosJson: {
+        type: 'textarea',
+        label: 'URLs dos Vídeos (uma por linha)',
+        placeholder: 'https://youtube.com/watch?v=abc123\nhttps://youtu.be/xyz456',
+        helpText: 'Cole as URLs do YouTube, uma por linha',
+      },
+      showControls: {
+        type: 'boolean',
+        label: 'Mostrar setas de navegação',
+        defaultValue: true,
+      },
+      aspectRatio: {
+        type: 'select',
+        label: 'Proporção',
+        defaultValue: '16:9',
+        options: [
+          { label: '16:9 (Horizontal)', value: '16:9' },
+          { label: '4:3 (Clássico)', value: '4:3' },
+          { label: '1:1 (Quadrado)', value: '1:1' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
     type: 'VideoUpload',
     label: 'Vídeo (Upload)',
     category: 'media',
