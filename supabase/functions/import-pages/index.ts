@@ -1219,9 +1219,9 @@ function generatePatternHash(html: string): string {
   return Math.abs(hash).toString(36);
 }
 
-// Create a placeholder block for complex pages + admin notification
-// IMPORTANT: We do NOT render raw HTML as it breaks the editor without original CSS
-async function createComplexPagePlaceholder(
+// Create CustomBlock for complex pages - renders the actual imported HTML
+// Uses CustomBlockRenderer which sanitizes and scopes CSS properly
+async function createComplexPageBlocks(
   supabase: any,
   tenantId: string,
   html: string,
@@ -1231,150 +1231,114 @@ async function createComplexPagePlaceholder(
   const blocks: BlockNode[] = [];
   
   try {
-    console.log(`[PLACEHOLDER] Creating placeholder for complex page: ${patternInfo.patternName}`);
+    console.log(`[IMPORT-BLOCK] Creating CustomBlock for: ${patternInfo.patternName}`);
 
-    // Extract useful metadata from HTML for the placeholder
-    const youtubeVideos = html.match(/youtube\.com\/embed\/([^"?]+)|youtu\.be\/([^"?]+)/gi) || [];
-    const vimeoVideos = html.match(/vimeo\.com\/(\d+)/gi) || [];
+    // Extract inline styles from the HTML for CSS isolation
+    const styleMatches = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
+    let extractedCss = '';
+    let cleanedHtml = html;
+    
+    for (const styleTag of styleMatches) {
+      const cssMatch = /<style[^>]*>([\s\S]*?)<\/style>/i.exec(styleTag);
+      if (cssMatch && cssMatch[1]) {
+        extractedCss += cssMatch[1] + '\n';
+      }
+      cleanedHtml = cleanedHtml.replace(styleTag, '');
+    }
+
+    // Count detected elements for metadata
+    const youtubeCount = (html.match(/youtube\.com|youtu\.be/gi) || []).length;
+    const vimeoCount = (html.match(/vimeo\.com/gi) || []).length;
     const imageCount = (html.match(/<img/gi) || []).length;
     const hasSlider = /swiper|slider|carousel|glide|slick/i.test(html);
 
-    // Build a summary of detected elements
     const detectedElements: string[] = [];
-    if (youtubeVideos.length > 0) detectedElements.push(`${youtubeVideos.length} vídeo(s) do YouTube`);
-    if (vimeoVideos.length > 0) detectedElements.push(`${vimeoVideos.length} vídeo(s) do Vimeo`);
+    if (youtubeCount > 0) detectedElements.push(`${youtubeCount} vídeo(s) YouTube`);
+    if (vimeoCount > 0) detectedElements.push(`${vimeoCount} vídeo(s) Vimeo`);
     if (imageCount > 0) detectedElements.push(`${imageCount} imagem(ns)`);
     if (hasSlider) detectedElements.push('Carrossel/Slider');
 
-    // Create a RichText placeholder with instructions
-    const placeholderContent = `
-<div style="padding: 24px; background: linear-gradient(135deg, hsl(220 14% 96%) 0%, hsl(220 14% 92%) 100%); border-radius: 12px; border: 2px dashed hsl(220 14% 80%); text-align: center;">
-  <h2 style="margin: 0 0 16px 0; color: hsl(220 9% 46%); font-size: 1.25rem;">📋 Página Importada - Requer Edição Manual</h2>
-  <p style="margin: 0 0 12px 0; color: hsl(220 9% 46%); font-size: 0.95rem;">
-    Esta página possui um layout complexo (<strong>${patternInfo.patternName}</strong>) que não pode ser importado automaticamente.
-  </p>
-  ${detectedElements.length > 0 ? `
-  <p style="margin: 0 0 12px 0; color: hsl(220 9% 46%); font-size: 0.875rem;">
-    <strong>Elementos detectados:</strong> ${detectedElements.join(', ')}
-  </p>
-  ` : ''}
-  <p style="margin: 0; color: hsl(220 9% 56%); font-size: 0.875rem;">
-    Use os blocos do editor para recriar o conteúdo desta página.
-    <br/><a href="${sourceUrl}" target="_blank" rel="noopener" style="color: hsl(220 70% 50%);">Ver página original ↗</a>
-  </p>
-</div>
-    `.trim();
-
+    // Create the CustomBlock with the actual content
     blocks.push({
-      id: generateBlockId('richtext-placeholder'),
-      type: 'RichText',
-      props: { 
-        content: placeholderContent,
-        fontFamily: 'inherit', 
-        fontSize: 'base', 
-        fontWeight: 'normal' 
+      id: generateBlockId('customblock'),
+      type: 'CustomBlock',
+      props: {
+        htmlContent: cleanedHtml.trim(),
+        cssContent: extractedCss.trim(),
+        blockName: patternInfo.patternName || 'Conteúdo Importado',
+        // Metadata for editor display
+        metadata: {
+          sourceUrl: sourceUrl,
+          patternType: patternInfo.patternType,
+          confidence: patternInfo.confidence,
+          detectedElements: detectedElements,
+          importedAt: new Date().toISOString(),
+        },
       },
       children: [],
     });
 
-    // Extract and add individual YouTube videos as proper blocks (if few enough to be useful)
-    const videoIds = new Set<string>();
-    const youtubePattern = /(?:youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/gi;
-    let match;
-    while ((match = youtubePattern.exec(html)) !== null) {
-      if (match[1] && !videoIds.has(match[1])) {
-        videoIds.add(match[1]);
-      }
-    }
+    console.log(`[IMPORT-BLOCK] Created CustomBlock with ${cleanedHtml.length} chars HTML, ${extractedCss.length} chars CSS`);
 
-    // Add up to 3 video blocks (more than that would be a gallery which needs custom treatment)
-    const videoIdsArray = Array.from(videoIds);
-    if (videoIdsArray.length > 0 && videoIdsArray.length <= 3) {
-      for (const videoId of videoIdsArray) {
-        blocks.push({
-          id: generateBlockId('youtube'),
-          type: 'YouTubeVideo',
-          props: {
-            videoId: videoId,
-            videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-            autoplay: false,
-            muted: false,
-            showControls: true,
-          },
-          children: [],
-        });
-        console.log(`[PLACEHOLDER] Added YouTubeVideo block: ${videoId}`);
-      }
-    }
-
-    // Create admin notification (without storing raw HTML in custom_blocks)
-    const patternHash = generatePatternHash(html);
-    
-    // Check if we already have a notification for this pattern
-    const { data: existingRequest } = await supabase
-      .from('block_implementation_requests')
-      .select('id, occurrences_count')
-      .eq('tenant_id', tenantId)
-      .eq('pattern_name', patternInfo.patternName)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingRequest) {
-      // Increment occurrence count
-      await supabase
+    // Log admin notification for future block implementation tracking
+    try {
+      const { data: existingRequest } = await supabase
         .from('block_implementation_requests')
-        .update({ 
-          occurrences_count: (existingRequest.occurrences_count || 1) + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', existingRequest.id);
-      console.log(`[PLACEHOLDER] Updated existing request: ${existingRequest.id}`);
-    } else {
-      // Create new implementation request (without full HTML - just a sample)
-      const htmlSample = html.substring(0, 2000) + (html.length > 2000 ? '...[truncated]' : '');
-      
-      const { error: requestError } = await supabase
-        .from('block_implementation_requests')
-        .insert({
-          tenant_id: tenantId,
-          pattern_name: patternInfo.patternName,
-          pattern_description: `Padrão detectado: ${patternInfo.patternType} (confiança: ${Math.round(patternInfo.confidence * 100)}%). Elementos: ${detectedElements.join(', ') || 'Layout complexo'}`,
-          html_sample: htmlSample,
-          source_url: sourceUrl,
-          source_platform: 'import',
-          suggested_props: {
-            patternType: patternInfo.patternType,
-            confidence: patternInfo.confidence,
-            detectedElements: detectedElements,
-            videoCount: videoIdsArray.length,
-            imageCount: imageCount,
-          },
-          occurrences_count: 1,
-          status: 'pending',
-        });
+        .select('id, occurrences_count')
+        .eq('tenant_id', tenantId)
+        .eq('pattern_name', patternInfo.patternName)
+        .eq('status', 'pending')
+        .maybeSingle();
 
-      if (requestError) {
-        console.warn('[PLACEHOLDER] Error creating implementation request:', requestError);
+      if (existingRequest) {
+        await supabase
+          .from('block_implementation_requests')
+          .update({ 
+            occurrences_count: (existingRequest.occurrences_count || 1) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingRequest.id);
+        console.log(`[IMPORT-BLOCK] Updated implementation request count`);
       } else {
-        console.log(`[PLACEHOLDER] Created implementation request for admin`);
+        const htmlSample = html.substring(0, 2000) + (html.length > 2000 ? '...[truncado]' : '');
+        
+        await supabase
+          .from('block_implementation_requests')
+          .insert({
+            tenant_id: tenantId,
+            pattern_name: patternInfo.patternName,
+            pattern_description: `Padrão: ${patternInfo.patternType} (${Math.round(patternInfo.confidence * 100)}% confiança). Elementos: ${detectedElements.join(', ') || 'Layout complexo'}`,
+            html_sample: htmlSample,
+            source_url: sourceUrl,
+            source_platform: 'import',
+            suggested_props: {
+              patternType: patternInfo.patternType,
+              confidence: patternInfo.confidence,
+              detectedElements: detectedElements,
+            },
+            occurrences_count: 1,
+            status: 'pending',
+          });
+        console.log(`[IMPORT-BLOCK] Created implementation request`);
       }
+    } catch (reqError) {
+      console.warn('[IMPORT-BLOCK] Failed to log implementation request:', reqError);
     }
 
-    console.log(`[PLACEHOLDER] Created ${blocks.length} blocks for complex page`);
     return blocks;
     
   } catch (error) {
-    console.error('[PLACEHOLDER] Exception:', error);
+    console.error('[IMPORT-BLOCK] Exception:', error);
     
-    // Fallback: return simple placeholder
+    // Fallback: return the HTML content as CustomBlock anyway
     return [{
-      id: generateBlockId('richtext-fallback'),
-      type: 'RichText',
-      props: { 
-        content: `<p>Página importada - requer edição manual. <a href="${sourceUrl}" target="_blank">Ver original</a></p>`,
-        fontFamily: 'inherit', 
-        fontSize: 'base', 
-        fontWeight: 'normal' 
+      id: generateBlockId('customblock-fallback'),
+      type: 'CustomBlock',
+      props: {
+        htmlContent: html,
+        cssContent: '',
+        blockName: 'Conteúdo Importado',
+        metadata: { sourceUrl, error: String(error) },
       },
       children: [],
     }];
@@ -1743,10 +1707,10 @@ async function importPage(
       
       for (const block of section.children) {
         if (block.type === '__CustomBlockPending__') {
-          console.log(`[IMPORT] Processing complex page placeholder...`);
+          console.log(`[IMPORT] Processing complex page block...`);
           
-          // Use the placeholder approach instead of raw HTML CustomBlock
-          const placeholderBlocks = await createComplexPagePlaceholder(
+          // Create actual CustomBlock with the imported content
+          const customBlocks = await createComplexPageBlocks(
             supabase,
             tenantId,
             block.props.htmlContent as string,
@@ -1758,9 +1722,9 @@ async function importPage(
             }
           );
           
-          // Add all placeholder blocks (may include videos extracted)
-          newChildren.push(...placeholderBlocks);
-          console.log(`[IMPORT] Created ${placeholderBlocks.length} placeholder blocks`);
+          // Add all created blocks
+          newChildren.push(...customBlocks);
+          console.log(`[IMPORT] Created ${customBlocks.length} CustomBlock(s)`);
         } else {
           newChildren.push(block);
         }
