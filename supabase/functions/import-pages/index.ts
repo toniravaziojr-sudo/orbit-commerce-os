@@ -42,7 +42,7 @@ interface AIAnalysisResult {
   fallback?: boolean;
 }
 
-// Call ai-analyze-page edge function
+// Call ai-analyze-page edge function with timeout
 async function analyzePageWithAI(
   html: string, 
   pageTitle: string, 
@@ -57,37 +57,59 @@ async function analyzePageWithAI(
       return { success: false, error: 'Missing config', fallback: true };
     }
 
-    console.log(`[AI] Calling ai-analyze-page for: ${pageTitle}`);
+    // Truncate HTML for faster AI processing (keep first 40k chars)
+    const maxHtmlForAI = 40000;
+    const truncatedHtml = html.length > maxHtmlForAI 
+      ? html.substring(0, maxHtmlForAI)
+      : html;
     
-    const response = await fetch(`${supabaseUrl}/functions/v1/ai-analyze-page`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${supabaseKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ html, pageTitle, pageUrl }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[AI] API error: ${response.status}`, errorText);
-      return { success: false, error: `API error ${response.status}`, fallback: true };
-    }
-
-    const data = await response.json();
+    console.log(`[AI] Calling ai-analyze-page for: ${pageTitle} (${truncatedHtml.length} chars)`);
     
-    if (data.fallback || data.error) {
-      console.warn(`[AI] Fallback needed: ${data.error}`);
-      return { success: false, error: data.error, fallback: true };
-    }
+    // Add 60 second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/ai-analyze-page`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ html: truncatedHtml, pageTitle, pageUrl }),
+        signal: controller.signal,
+      });
 
-    console.log(`[AI] Success: ${data.sections?.length || 0} sections, complexity: ${data.pageComplexity}`);
-    return {
-      success: true,
-      sections: data.sections,
-      pageComplexity: data.pageComplexity,
-      summary: data.summary,
-    };
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AI] API error: ${response.status}`, errorText);
+        return { success: false, error: `API error ${response.status}`, fallback: true };
+      }
+
+      const data = await response.json();
+      
+      if (data.fallback || data.error) {
+        console.warn(`[AI] Fallback needed: ${data.error}`);
+        return { success: false, error: data.error, fallback: true };
+      }
+
+      console.log(`[AI] Success: ${data.sections?.length || 0} sections, complexity: ${data.pageComplexity}`);
+      return {
+        success: true,
+        sections: data.sections,
+        pageComplexity: data.pageComplexity,
+        summary: data.summary,
+      };
+    } catch (fetchError: unknown) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.warn('[AI] Request timeout after 60s');
+        return { success: false, error: 'Timeout after 60s', fallback: true };
+      }
+      throw fetchError;
+    }
 
   } catch (error) {
     console.error('[AI] Exception:', error);
