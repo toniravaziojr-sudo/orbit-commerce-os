@@ -14,6 +14,7 @@ interface CustomBlockRendererProps {
   htmlContent?: string;
   cssContent?: string;
   blockName?: string;
+  baseUrl?: string; // Source URL for resolving relative paths
   context?: any;
   isEditing?: boolean;
 }
@@ -23,6 +24,7 @@ export function CustomBlockRenderer({
   htmlContent,
   cssContent,
   blockName = 'Conteúdo Importado',
+  baseUrl,
   context,
   isEditing = false,
 }: CustomBlockRendererProps) {
@@ -49,6 +51,8 @@ export function CustomBlockRenderer({
   const finalHtml = customBlock?.html_template || htmlContent || '';
   const finalCss = customBlock?.css_snapshot || cssContent || '';
   const finalName = customBlock?.name || blockName;
+  // Use source_url from custom_blocks table or prop
+  const finalBaseUrl = customBlock?.source_url || baseUrl;
 
   // Loading state
   if (customBlockId && isLoading) {
@@ -79,6 +83,7 @@ export function CustomBlockRenderer({
       htmlContent={finalHtml}
       cssContent={finalCss}
       blockName={finalName}
+      baseUrl={finalBaseUrl}
       isEditing={isEditing}
     />
   );

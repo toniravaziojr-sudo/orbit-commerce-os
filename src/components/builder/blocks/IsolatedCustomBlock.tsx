@@ -11,6 +11,7 @@ interface IsolatedCustomBlockProps {
   htmlContent: string;
   cssContent?: string;
   blockName?: string;
+  baseUrl?: string; // Source URL for resolving relative paths (images, fonts, etc.)
   isEditing?: boolean;
   className?: string;
 }
@@ -67,13 +68,29 @@ function processPixelPerfectCss(css: string, html: string): string {
 }
 
 // Build complete HTML document for iframe
-function buildIframeDocument(html: string, css: string): string {
+// CRITICAL: Include <base href> to resolve relative URLs (images, fonts, etc.)
+function buildIframeDocument(html: string, css: string, baseUrl?: string): string {
+  // Extract origin from baseUrl for <base href>
+  let baseHref = '';
+  if (baseUrl) {
+    try {
+      const url = new URL(baseUrl);
+      baseHref = `${url.origin}/`;
+    } catch {
+      // If URL parsing fails, try to use as-is
+      if (baseUrl.startsWith('http')) {
+        baseHref = baseUrl.split('/').slice(0, 3).join('/') + '/';
+      }
+    }
+  }
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  ${baseHref ? `<base href="${baseHref}" target="_blank">` : ''}
   <style>
     /* Reset */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -85,7 +102,7 @@ function buildIframeDocument(html: string, css: string): string {
     img { max-width: 100%; height: auto; display: block; }
     a { color: inherit; }
     
-    /* Imported CSS (pruned) */
+    /* Imported CSS */
     ${css}
   </style>
 </head>
@@ -122,6 +139,7 @@ export function IsolatedCustomBlock({
   htmlContent,
   cssContent = '',
   blockName = 'Conteúdo Importado',
+  baseUrl,
   isEditing = false,
   className,
 }: IsolatedCustomBlockProps) {
@@ -133,10 +151,10 @@ export function IsolatedCustomBlock({
   const sanitizedHtml = useMemo(() => sanitizeHtml(htmlContent), [htmlContent]);
   const processedCss = useMemo(() => processPixelPerfectCss(cssContent, sanitizedHtml), [cssContent, sanitizedHtml]);
   
-  // Build iframe document
+  // Build iframe document with base URL for resolving relative paths
   const iframeDoc = useMemo(
-    () => buildIframeDocument(sanitizedHtml, processedCss),
-    [sanitizedHtml, processedCss]
+    () => buildIframeDocument(sanitizedHtml, processedCss, baseUrl),
+    [sanitizedHtml, processedCss, baseUrl]
   );
   
   // Handle messages from iframe

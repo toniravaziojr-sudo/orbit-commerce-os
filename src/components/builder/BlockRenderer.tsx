@@ -2218,6 +2218,7 @@ function CustomBlockWrapper({
   htmlContent,
   cssContent,
   blockName,
+  baseUrl,
   context,
   isEditing,
 }: any) {
@@ -2227,6 +2228,7 @@ function CustomBlockWrapper({
       htmlContent={htmlContent}
       cssContent={cssContent}
       blockName={blockName}
+      baseUrl={baseUrl}
       context={context}
       isEditing={isEditing}
     />

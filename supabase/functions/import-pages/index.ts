@@ -323,7 +323,8 @@ function buildPageFromClassification(
   classification: PageClassification,
   rawHtml: string,
   extractedCss: string,
-  pageTitle: string
+  pageTitle: string,
+  sourceUrl: string // Add source URL for <base href> in iframe
 ): BlockNode {
   console.log(`[BUILD] Building page from classification: ${classification.pageType}, ${classification.sections.length} sections`);
   
@@ -382,6 +383,7 @@ function buildPageFromClassification(
     const safeCss = extractSafePixelPerfectCss(extractedCss, mainContent);
     
     // Create CustomBlock with safe CSS (preserving media queries for responsiveness)
+    // CRITICAL: Include sourceUrl for <base href> in iframe to resolve relative paths
     blocks.push({
       id: generateBlockId('customblock'),
       type: 'CustomBlock',
@@ -389,6 +391,7 @@ function buildPageFromClassification(
         htmlContent: mainContent,
         cssContent: safeCss,
         blockName: `Página: ${pageTitle}`,
+        baseUrl: sourceUrl, // For resolving relative URLs (images, fonts, etc.)
         isPixelPerfect: true, // Flag para o renderer saber que é pixel-perfect
       },
       children: [],
@@ -2591,7 +2594,8 @@ function extractButtonsFromHtml(html: string): { buttons: ExtractedButton[]; cle
 function createCustomPageBlocks(
   mainContent: string, 
   extractedCss: string, 
-  pageTitle: string
+  pageTitle: string,
+  sourceUrl?: string // Source URL for base href
 ): BlockNode[] {
   const blocks: BlockNode[] = [];
   
@@ -2599,6 +2603,7 @@ function createCustomPageBlocks(
   const { buttons, cleanedHtml } = extractButtonsFromHtml(mainContent);
   
   // Add the main CustomBlock with cleaned HTML
+  // CRITICAL: Include baseUrl for resolving relative paths in iframe
   blocks.push({
     id: generateBlockId('customblock'),
     type: 'CustomBlock',
@@ -2606,6 +2611,7 @@ function createCustomPageBlocks(
       htmlContent: cleanedHtml,
       cssContent: extractedCss,
       blockName: `Página: ${pageTitle}`,
+      baseUrl: sourceUrl, // For <base href> in iframe
     },
     children: [],
   });
@@ -2635,6 +2641,7 @@ function createCustomPageBlocks(
 async function tryAIOrRegexAnalysis(
   scraped: { html: string; rawHtml?: string; markdown?: string; extractedCss?: string },
   finalTitle: string,
+  sourceUrl: string, // Add source URL for base href
   useAI: boolean,
   supabase: any,
   tenantId: string
@@ -2642,7 +2649,7 @@ async function tryAIOrRegexAnalysis(
   if (useAI) {
     console.log(`[IMPORT] Using AI CLASSIFICATION for: ${finalTitle}`);
     
-    const classifyResult = await classifyPageWithAI(scraped.html, finalTitle, '');
+    const classifyResult = await classifyPageWithAI(scraped.html, finalTitle, sourceUrl);
     
     if (classifyResult.success && classifyResult.classification) {
       console.log(`[IMPORT] AI CLASSIFICATION SUCCESS:`);
@@ -2650,12 +2657,13 @@ async function tryAIOrRegexAnalysis(
       console.log(`  - Complexity: ${classifyResult.classification.complexity}`);
       console.log(`  - Sections: ${classifyResult.classification.sections.length}`);
       
-      // Use classification to build page
+      // Use classification to build page with sourceUrl for base href
       return buildPageFromClassification(
         classifyResult.classification,
         scraped.rawHtml || scraped.html,
         scraped.extractedCss || '',
-        finalTitle
+        finalTitle,
+        sourceUrl
       );
     } else {
       console.warn(`[IMPORT] AI Classification fallback: ${classifyResult.error || 'no classification'}`);
@@ -2734,7 +2742,7 @@ async function importPage(
         const imageBlocks = createImageBlocksFromPairs(responsiveImages);
         
         // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
-        const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle);
+        const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
         
         // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
         const allBlocks = [...imageBlocks, ...customBlocks];
@@ -2764,11 +2772,11 @@ async function importPage(
       } else {
         // Content too small, try AI
         console.log(`[IMPORT] Custom page content too small, trying AI...`);
-        pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, useAI, supabase, tenantId);
+        pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
       }
     } else {
       // For non-custom pages, use AI or regex
-      pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, useAI, supabase, tenantId);
+      pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
     }
     
     // Process any pending complex page placeholders (from regex path)
