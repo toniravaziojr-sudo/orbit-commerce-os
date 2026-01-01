@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { Code, AlertTriangle, Maximize2, Minimize2 } from 'lucide-react';
+import { Code, AlertTriangle } from 'lucide-react';
 
 interface IsolatedCustomBlockProps {
   htmlContent: string;
@@ -231,9 +231,6 @@ export function IsolatedCustomBlock({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<string | null>(null);
   const [iframeHeight, setIframeHeight] = useState<number | 'auto'>('auto');
-  const [minHeight, setMinHeight] = useState(200);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isExpandPending, setIsExpandPending] = useState(false); // Prevent rapid clicks
   
   // Sanitize HTML and process CSS (less aggressive for pixel-perfect)
   const sanitizedHtml = useMemo(() => sanitizeHtml(htmlContent), [htmlContent]);
@@ -256,7 +253,6 @@ export function IsolatedCustomBlock({
       if (event.data?.type === 'resize' && typeof event.data.height === 'number') {
         const newHeight = Math.max(100, event.data.height);
         setIframeHeight(newHeight);
-        setMinHeight(Math.max(minHeight, newHeight));
       }
       if (event.data?.type === 'link-click' && isEditing) {
         // In editing mode, just log - don't navigate
@@ -266,7 +262,7 @@ export function IsolatedCustomBlock({
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isEditing, minHeight]);
+  }, [isEditing]);
   
   // Write content to iframe
   useEffect(() => {
@@ -293,11 +289,8 @@ export function IsolatedCustomBlock({
     return null;
   }
   
-  // For auto-height: no max height restriction in public view, generous in editor
-  const maxHeight = isExpanded ? undefined : (isEditing ? 3000 : undefined);
-  const computedHeight = typeof iframeHeight === 'number' 
-    ? (maxHeight ? Math.min(iframeHeight, maxHeight) : iframeHeight)
-    : minHeight;
+  // For auto-height: NO max height restriction - show full content
+  const computedHeight = typeof iframeHeight === 'number' ? iframeHeight : 200;
   
   return (
     <div 
@@ -316,21 +309,6 @@ export function IsolatedCustomBlock({
         <div className="absolute -top-6 right-0 bg-indigo-500 text-white text-xs px-2 py-1 rounded-t z-10 flex items-center gap-2 opacity-80">
           <Code className="w-3 h-3" />
           <span>{blockName}</span>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (isExpandPending) return;
-              setIsExpandPending(true);
-              setIsExpanded(!isExpanded);
-              setTimeout(() => setIsExpandPending(false), 300);
-            }}
-            className="ml-2 hover:opacity-75 transition-opacity"
-            title={isExpanded ? 'Reduzir' : 'Expandir'}
-            disabled={isExpandPending}
-          >
-            {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-          </button>
         </div>
       )}
       
@@ -340,7 +318,7 @@ export function IsolatedCustomBlock({
         className="w-full border-0"
         style={{
           height: computedHeight,
-          minHeight: Math.max(100, minHeight),
+          minHeight: 100,
           display: 'block',
           // CRITICAL: No scrolling in iframe
           overflow: 'hidden',
@@ -352,27 +330,6 @@ export function IsolatedCustomBlock({
         loading="lazy"
         scrolling="no"
       />
-      
-      {/* Show more indicator (only in editor when content is truncated) */}
-      {isEditing && !isExpanded && maxHeight && typeof iframeHeight === 'number' && iframeHeight > maxHeight && (
-        <button 
-          type="button"
-          className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent flex items-end justify-center pb-2 cursor-pointer border-0 outline-none"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (isExpandPending) return;
-            setIsExpandPending(true);
-            setIsExpanded(true);
-            setTimeout(() => setIsExpandPending(false), 300);
-          }}
-          disabled={isExpandPending}
-        >
-          <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded pointer-events-none">
-            Clique para expandir ({Math.round(iframeHeight)}px)
-          </span>
-        </button>
-      )}
     </div>
   );
 }
