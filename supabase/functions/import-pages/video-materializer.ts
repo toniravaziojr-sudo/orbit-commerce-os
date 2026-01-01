@@ -173,33 +173,75 @@ export function materializeVideos(html: string): MaterializationResult {
   });
   
   // =============================================
+  // NEW PATTERN 10: YouTube URLs in HTML comments
+  // <!-- DEBUG: https://www.youtube.com/watch?v=VIDEO_ID -->
+  // =============================================
+  const commentYoutubePattern = /<!--[\s\S]*?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[\s\S]*?-->/gi;
+  const commentMatches: { match: string; videoId: string }[] = [];
+  let commentMatch;
+  while ((commentMatch = commentYoutubePattern.exec(content)) !== null) {
+    commentMatches.push({ match: commentMatch[0], videoId: commentMatch[1] });
+  }
+  // Replace comments with embeds
+  for (const cm of commentMatches) {
+    content = content.replace(cm.match, createYouTubeEmbed(cm.videoId));
+    videosFound++;
+    patternsUsed.push('html-comment');
+    console.log(`[VIDEO] Pattern 10 - HTML comment: ${cm.videoId}`);
+  }
+  
+  // =============================================
+  // NEW PATTERN 11: lite-youtube custom elements
+  // <lite-youtube videoid="VIDEO_ID">
+  // =============================================
+  const liteYoutubePattern = /<lite-youtube[^>]*videoid=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/lite-youtube>/gi;
+  content = content.replace(liteYoutubePattern, (match, videoId) => {
+    videosFound++;
+    patternsUsed.push('lite-youtube');
+    console.log(`[VIDEO] Pattern 11 - lite-youtube: ${videoId}`);
+    return createYouTubeEmbed(videoId);
+  });
+  
+  // =============================================
+  // NEW PATTERN 12: YouTube player wrappers/containers
+  // <div class="youtube-player" data-id="VIDEO_ID">
+  // =============================================
+  const playerWrapperPattern = /<([a-z]+)[^>]*class=["'][^"']*(?:youtube|yt)[-_]?(?:player|video|wrapper|embed)[^"]*["'][^>]*data-(?:id|video|youtube)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi;
+  content = content.replace(playerWrapperPattern, (match, tag, videoId) => {
+    videosFound++;
+    patternsUsed.push('player-wrapper');
+    console.log(`[VIDEO] Pattern 12 - player wrapper: ${videoId}`);
+    return createYouTubeEmbed(videoId);
+  });
+  
+  // =============================================
   // VIMEO PATTERNS
   // =============================================
   
-  // Pattern 10: data-src Vimeo (lazy load)
+  // Pattern 13: data-src Vimeo (lazy load)
   const vimeoDataSrcPattern = /<iframe([^>]*)data-src=["']([^"']*vimeo\.com[^"']*)["']([^>]*)>/gi;
   content = content.replace(vimeoDataSrcPattern, (match, before, dataSrc, after) => {
     videosFound++;
     patternsUsed.push('vimeo-data-src');
-    console.log(`[VIDEO] Pattern 10 - Vimeo data-src`);
+    console.log(`[VIDEO] Pattern 13 - Vimeo data-src`);
     return `<iframe${before}src="${dataSrc}"${after}>`;
   });
   
-  // Pattern 11: Vimeo links with video class
+  // Pattern 14: Vimeo links with video class
   const vimeoLinkPattern = /<a[^>]*href=["'](?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)[^"']*["'][^>]*class=["'][^"']*(?:video|play)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi;
   content = content.replace(vimeoLinkPattern, (match, videoId) => {
     videosFound++;
     patternsUsed.push('vimeo-link');
-    console.log(`[VIDEO] Pattern 11 - Vimeo link: ${videoId}`);
+    console.log(`[VIDEO] Pattern 14 - Vimeo link: ${videoId}`);
     return createVimeoEmbed(videoId);
   });
   
-  // Pattern 12: Data attributes with Vimeo
+  // Pattern 15: Data attributes with Vimeo
   const vimeoDataPattern = /<([a-z]+)[^>]*data-(?:vimeo|video-id)=["'](\d+)["'][^>]*>[\s\S]*?<\/\1>/gi;
   content = content.replace(vimeoDataPattern, (match, tag, videoId) => {
     videosFound++;
     patternsUsed.push('vimeo-data-attr');
-    console.log(`[VIDEO] Pattern 12 - Vimeo data-attr: ${videoId}`);
+    console.log(`[VIDEO] Pattern 15 - Vimeo data-attr: ${videoId}`);
     return createVimeoEmbed(videoId);
   });
   
@@ -237,8 +279,10 @@ export function extractVideoUrls(html: string): ExtractedVideoInfo[] {
   let match;
   
   // Helper to add unique video
-  const addVideo = (videoId: string, title?: string) => {
+  const addVideo = (videoId: string, title?: string, source?: string) => {
     if (!videoId || foundIds.has(videoId)) return;
+    // Validate video ID format (11 chars, alphanumeric + dash/underscore)
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) return;
     foundIds.add(videoId);
     videos.push({
       id: `yt-${videoId}`,
@@ -246,39 +290,94 @@ export function extractVideoUrls(html: string): ExtractedVideoInfo[] {
       title,
       thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
     });
-    console.log(`[VIDEO-EXTRACT] Found video: ${videoId}${title ? ` "${title}"` : ''}`);
+    console.log(`[VIDEO-EXTRACT] Found video (${source || 'unknown'}): ${videoId}${title ? ` "${title}"` : ''}`);
   };
   
-  // Pattern 1: data-youtube or data-video-id attributes
-  const dataAttrPattern = /data-(?:youtube|video-id|yt-id|youtube-id)=["']([a-zA-Z0-9_-]{11})["']/gi;
-  while ((match = dataAttrPattern.exec(html)) !== null) {
-    addVideo(match[1]);
+  // =============================================
+  // PATTERN 1: HTML comments containing YouTube URLs
+  // Shopify often has: <!-- DEBUG: https://www.youtube.com/watch?v=XXXXX -->
+  // =============================================
+  const commentPattern = /<!--[\s\S]*?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[\s\S]*?-->/gi;
+  while ((match = commentPattern.exec(html)) !== null) {
+    addVideo(match[1], undefined, 'html-comment');
   }
   
-  // Pattern 2: YouTube embed URLs
+  // Pattern 2: data-youtube or data-video-id attributes
+  const dataAttrPattern = /data-(?:youtube|video-id|yt-id|youtube-id|video-url)=["']([^"']*?)["']/gi;
+  while ((match = dataAttrPattern.exec(html)) !== null) {
+    const value = match[1];
+    // Check if it's a full URL or just an ID
+    const idFromUrl = /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/.exec(value);
+    if (idFromUrl) {
+      addVideo(idFromUrl[1], undefined, 'data-attr-url');
+    } else if (/^[a-zA-Z0-9_-]{11}$/.test(value)) {
+      addVideo(value, undefined, 'data-attr-id');
+    }
+  }
+  
+  // Pattern 3: YouTube embed URLs in iframes
   const embedPattern = /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/gi;
   while ((match = embedPattern.exec(html)) !== null) {
-    addVideo(match[1]);
+    addVideo(match[1], undefined, 'embed-url');
   }
   
-  // Pattern 3: YouTube watch URLs
+  // Pattern 4: YouTube watch URLs
   const watchPattern = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/gi;
   while ((match = watchPattern.exec(html)) !== null) {
-    addVideo(match[1]);
+    addVideo(match[1], undefined, 'watch-url');
   }
   
-  // Pattern 4: youtu.be short URLs
+  // Pattern 5: youtu.be short URLs
   const shortPattern = /youtu\.be\/([a-zA-Z0-9_-]{11})/gi;
   while ((match = shortPattern.exec(html)) !== null) {
-    addVideo(match[1]);
+    addVideo(match[1], undefined, 'short-url');
   }
   
-  // Pattern 5: YouTube thumbnail images (ytimg.com)
+  // Pattern 6: YouTube thumbnail images (ytimg.com)
   const thumbPattern = /ytimg\.com\/vi\/([a-zA-Z0-9_-]{11})/gi;
   while ((match = thumbPattern.exec(html)) !== null) {
-    addVideo(match[1]);
+    addVideo(match[1], undefined, 'thumbnail');
   }
   
+  // =============================================
+  // PATTERN 7: Shopify video sections with data-src or data-video
+  // <section class="shopify-section--video"> with internal video reference
+  // =============================================
+  const shopifyVideoSectionPattern = /<(?:section|div)[^>]*class="[^"]*(?:shopify-section--video|video-section|section-video)[^"]*"[^>]*>([\s\S]*?)<\/(?:section|div)>/gi;
+  while ((match = shopifyVideoSectionPattern.exec(html)) !== null) {
+    const sectionContent = match[1];
+    // Look for any YouTube reference inside this section
+    const innerPatterns = [
+      /youtube\.com\/(?:watch\?v=|embed\/)([a-zA-Z0-9_-]{11})/gi,
+      /youtu\.be\/([a-zA-Z0-9_-]{11})/gi,
+      /data-(?:youtube|video|yt)(?:-id)?=["']([a-zA-Z0-9_-]{11})["']/gi,
+    ];
+    for (const pattern of innerPatterns) {
+      let innerMatch;
+      while ((innerMatch = pattern.exec(sectionContent)) !== null) {
+        addVideo(innerMatch[1], undefined, 'shopify-video-section');
+      }
+    }
+  }
+  
+  // =============================================
+  // PATTERN 8: Lite-youtube custom elements
+  // <lite-youtube videoid="XXXXX">
+  // =============================================
+  const liteYoutubePattern = /<lite-youtube[^>]*videoid=["']([a-zA-Z0-9_-]{11})["'][^>]*>/gi;
+  while ((match = liteYoutubePattern.exec(html)) !== null) {
+    addVideo(match[1], undefined, 'lite-youtube');
+  }
+  
+  // =============================================
+  // PATTERN 9: YouTube player containers with data attributes
+  // <div class="youtube-player" data-id="XXXXX">
+  // =============================================
+  const playerContainerPattern = /<(?:div|span)[^>]*class="[^"]*(?:youtube|yt)[-_]?(?:player|video|wrapper|container)[^"]*"[^>]*data-(?:id|video|youtube)=["']([a-zA-Z0-9_-]{11})["'][^>]*>/gi;
+  while ((match = playerContainerPattern.exec(html)) !== null) {
+    addVideo(match[1], undefined, 'player-container');
+  }
+
   console.log(`[VIDEO-EXTRACT] Total unique videos found: ${videos.length}`);
   return videos;
 }
