@@ -71,7 +71,14 @@ const PLATFORM_MAIN_SELECTORS: Record<string, string[]> = {
     '#MainContent',
     'main#MainContent',
     'main[role="main"]',
-    '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group)',
+    'main.main-content',
+    // Specific content sections (video, text, page content)
+    '.shopify-section--video',
+    '.shopify-section--page-content',
+    '.shopify-section--rich-text',
+    '.shopify-section--custom-content',
+    // Generic content section (exclude header/footer groups)
+    '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group):not([class*="announcement"]):not([class*="header"]):not([class*="footer"])',
   ],
   woocommerce: [
     '.entry-content',
