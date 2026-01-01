@@ -29,6 +29,8 @@ export interface PlatformContentConfig {
     footerStart: RegExp;
     footerEnd: RegExp;
   };
+  // Padrões adicionais de comentários para remover (overlay, etc)
+  additionalCommentPatterns?: Array<{ start: RegExp; end: RegExp }>;
   // Atributos data-* específicos da plataforma
   dataAttributes?: {
     mainContent?: string[];
@@ -52,6 +54,7 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       'footer',
       '.shopify-section-group-header-group',
       '.shopify-section-group-footer-group',
+      '.shopify-section-group-overlay-group',
       '[data-section-type="header"]',
       '[data-section-type="footer"]',
       '.announcement-bar',
@@ -62,6 +65,14 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '.footer-wrapper',
       '#header',
       '#footer',
+      // Modais e overlays comuns do Shopify
+      '.modal-parcel',
+      '.backdrop-modal-parcel',
+      '.menu-flutuante',
+      '#MenuFlutuante',
+      '[class*="modal"]',
+      '[class*="overlay"]',
+      '[class*="popup"]',
     ],
     sectionComments: {
       headerStart: /<!-- BEGIN sections: header-group -->/i,
@@ -69,6 +80,10 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       footerStart: /<!-- BEGIN sections: footer-group -->/i,
       footerEnd: /<!-- END sections: footer-group -->/i,
     },
+    // Comentários adicionais para remover (overlay, etc)
+    additionalCommentPatterns: [
+      { start: /<!-- BEGIN sections: overlay-group -->/i, end: /<!-- END sections: overlay-group -->/i },
+    ],
   },
   
   nuvemshop: {
