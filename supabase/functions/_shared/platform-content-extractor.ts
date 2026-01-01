@@ -68,6 +68,25 @@ export function extractMainContentByPlatform(
       removedSections.push('footer-group (by comment)');
       console.log(`[PLATFORM-EXTRACT]   - Removed footer-group: ${footerMatches.length} matches, ${footerMatches[0]?.length || 0} chars`);
     }
+    
+    // Remover padrões adicionais de comentários (overlay-group, etc)
+    if (config.additionalCommentPatterns) {
+      for (const pattern of config.additionalCommentPatterns) {
+        const additionalPattern = new RegExp(
+          pattern.start.source + 
+          '[\\s\\S]*?' + 
+          pattern.end.source, 
+          'gi'
+        );
+        
+        const additionalMatches = content.match(additionalPattern);
+        if (additionalMatches) {
+          content = content.replace(additionalPattern, '<!-- SECTION REMOVED BY PLATFORM-EXTRACT -->');
+          removedSections.push(`additional-pattern (by comment)`);
+          console.log(`[PLATFORM-EXTRACT]   - Removed additional section: ${additionalMatches.length} matches, ${additionalMatches[0]?.length || 0} chars`);
+        }
+      }
+    }
   }
   
   // =============================================
