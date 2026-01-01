@@ -221,6 +221,15 @@ async function classifyPageWithAI(
   }
 }
 
+// =============================================
+// REGRA CRÍTICA: PIXEL-PERFECT É O FALLBACK DOMINANTE
+// =============================================
+// O objetivo principal é ficar 100% igual visualmente.
+// Editabilidade é secundária.
+// Só use blocos nativos com confidence >= 85%
+// =============================================
+const HIGH_CONFIDENCE_THRESHOLD = 85;
+
 // Apply classification to build page content
 function buildPageFromClassification(
   classification: PageClassification,
@@ -232,43 +241,72 @@ function buildPageFromClassification(
   
   const blocks: BlockNode[] = [];
   
-  // Count modes
+  // Count modes with high confidence
   const modeStats = {
-    'native-blocks': 0,
+    'native-blocks-high-conf': 0,
+    'native-blocks-low-conf': 0,
     'pixel-perfect': 0,
     'hybrid': 0
   };
   
   for (const section of classification.sections) {
-    modeStats[section.mode]++;
+    if (section.mode === 'native-blocks') {
+      if (section.confidence >= HIGH_CONFIDENCE_THRESHOLD) {
+        modeStats['native-blocks-high-conf']++;
+      } else {
+        modeStats['native-blocks-low-conf']++;
+      }
+    } else {
+      modeStats[section.mode]++;
+    }
   }
   
-  console.log(`[BUILD] Mode distribution: native=${modeStats['native-blocks']}, pixel-perfect=${modeStats['pixel-perfect']}, hybrid=${modeStats['hybrid']}`);
+  console.log(`[BUILD] Mode distribution: native-high=${modeStats['native-blocks-high-conf']}, native-low=${modeStats['native-blocks-low-conf']}, pixel-perfect=${modeStats['pixel-perfect']}, hybrid=${modeStats['hybrid']}`);
   
-  // If mostly pixel-perfect or high complexity, use single CustomBlock approach
-  if (classification.complexity === 'high' || 
-      classification.pageType === 'landing-custom' ||
-      modeStats['pixel-perfect'] > modeStats['native-blocks']) {
-    
-    console.log(`[BUILD] Using PIXEL-PERFECT strategy (CustomBlock)`);
+  // =============================================
+  // REGRA: PIXEL-PERFECT É O PADRÃO
+  // =============================================
+  // Só usar blocos se:
+  // 1. Maioria das seções são native-blocks com HIGH confidence
+  // 2. Página é simples/institucional
+  // 3. Não depende de CSS externo
+  // =============================================
+  
+  const totalSections = classification.sections.length || 1;
+  const highConfNativeRatio = modeStats['native-blocks-high-conf'] / totalSections;
+  
+  const shouldUsePixelPerfect = 
+    classification.complexity === 'high' ||
+    classification.pageType === 'landing-custom' ||
+    classification.dependsOnExternalCss ||
+    highConfNativeRatio < 0.5 || // Menos de 50% são blocos com alta confiança
+    modeStats['pixel-perfect'] > modeStats['native-blocks-high-conf'];
+  
+  if (shouldUsePixelPerfect) {
+    console.log(`[BUILD] Using PIXEL-PERFECT strategy (100% visual fidelity)`);
+    console.log(`[BUILD] Reason: complexity=${classification.complexity}, type=${classification.pageType}, externalCss=${classification.dependsOnExternalCss}, highConfRatio=${(highConfNativeRatio * 100).toFixed(0)}%`);
     
     // Extract main content and create CustomBlock
     const mainContent = extractMainContent(rawHtml);
-    const prunedCss = pruneCssForContent(extractedCss, mainContent);
     
-    // Create CustomBlock with pruned CSS
+    // IMPORTANTE: Para pixel-perfect, manter CSS mais completo (incluindo media queries)
+    // Apenas remover regras perigosas, não filtrar agressivamente
+    const safeCss = extractSafePixelPerfectCss(extractedCss, mainContent);
+    
+    // Create CustomBlock with safe CSS (preserving media queries for responsiveness)
     blocks.push({
       id: generateBlockId('customblock'),
       type: 'CustomBlock',
       props: {
         htmlContent: mainContent,
-        cssContent: prunedCss,
+        cssContent: safeCss,
         blockName: `Página: ${pageTitle}`,
+        isPixelPerfect: true, // Flag para o renderer saber que é pixel-perfect
       },
       children: [],
     });
     
-    // Extract editable buttons as native blocks
+    // Extract editable buttons as native blocks (para CTAs serem editáveis)
     const allEditables = [
       ...(classification.globalEditables || []),
       ...(classification.sections.flatMap(s => s.editableElements || []))
@@ -282,7 +320,7 @@ function buildPageFromClassification(
           type: 'Button',
           props: {
             text: editable.text,
-            url: '#', // Will be extracted from HTML if possible
+            url: '#',
             variant: 'primary',
             size: 'lg',
             fullWidth: false,
@@ -293,14 +331,18 @@ function buildPageFromClassification(
       }
     }
   } else {
-    console.log(`[BUILD] Using MIXED strategy (blocks + CustomBlock sections)`);
+    console.log(`[BUILD] Using BLOCKS strategy (high confidence native blocks)`);
     
-    // Try to map sections to blocks where possible
+    // Processar apenas seções com alta confiança como blocos
     for (const section of classification.sections) {
-      if (section.mode === 'native-blocks' && section.suggestedBlockTypes) {
-        // Create native blocks based on suggestions
+      const useNativeBlock = 
+        section.mode === 'native-blocks' && 
+        section.confidence >= HIGH_CONFIDENCE_THRESHOLD &&
+        section.suggestedBlockTypes?.length;
+      
+      if (useNativeBlock && section.suggestedBlockTypes) {
         for (const blockType of section.suggestedBlockTypes) {
-          console.log(`[BUILD] Section "${section.name}" -> ${blockType}`);
+          console.log(`[BUILD] Section "${section.name}" -> ${blockType} (confidence: ${section.confidence}%)`);
           
           switch (blockType) {
             case 'FAQ':
@@ -344,7 +386,6 @@ function buildPageFromClassification(
               break;
               
             default:
-              // For other block types, create RichText as placeholder
               blocks.push({
                 id: generateBlockId('richtext'),
                 type: 'RichText',
@@ -359,23 +400,25 @@ function buildPageFromClassification(
           }
         }
       } else {
-        // pixel-perfect or hybrid: use CustomBlock for this section
-        console.log(`[BUILD] Section "${section.name}" -> CustomBlock (${section.mode})`);
+        // Baixa confiança ou pixel-perfect: use CustomBlock para esta seção
+        console.log(`[BUILD] Section "${section.name}" -> CustomBlock (mode: ${section.mode}, confidence: ${section.confidence}%)`);
       }
     }
     
-    // If no blocks created, fall back to full CustomBlock
+    // Se nenhum bloco foi criado, fallback para pixel-perfect completo
     if (blocks.length === 0) {
+      console.log(`[BUILD] No high-confidence blocks, falling back to PIXEL-PERFECT`);
       const mainContent = extractMainContent(rawHtml);
-      const prunedCss = pruneCssForContent(extractedCss, mainContent);
+      const safeCss = extractSafePixelPerfectCss(extractedCss, mainContent);
       
       blocks.push({
         id: generateBlockId('customblock'),
         type: 'CustomBlock',
         props: {
           htmlContent: mainContent,
-          cssContent: prunedCss,
+          cssContent: safeCss,
           blockName: `Página: ${pageTitle}`,
+          isPixelPerfect: true,
         },
         children: [],
       });
@@ -404,6 +447,90 @@ function buildPageFromClassification(
       children: blocks,
     }],
   };
+}
+
+// =============================================
+// CSS para PIXEL-PERFECT: manter mais completo, apenas remover perigoso
+// =============================================
+function extractSafePixelPerfectCss(css: string, html: string): string {
+  if (!css || !html) return '';
+  
+  // Extrair classes/IDs do HTML para validação básica
+  const classMatches = html.match(/class="([^"]*)"/gi) || [];
+  const idMatches = html.match(/id="([^"]*)"/gi) || [];
+  
+  const usedClasses = new Set<string>();
+  const usedIds = new Set<string>();
+  
+  classMatches.forEach(match => {
+    const classes = match.replace(/class="([^"]*)"/i, '$1').split(/\s+/);
+    classes.forEach(c => c && usedClasses.add(c.toLowerCase()));
+  });
+  
+  idMatches.forEach(match => {
+    const id = match.replace(/id="([^"]*)"/i, '$1');
+    if (id) usedIds.add(id.toLowerCase());
+  });
+  
+  // Remover apenas regras PERIGOSAS (que vazam para o builder)
+  let safeCss = css
+    // Remover @import (pode puxar CSS externo incontrolável)
+    .replace(/@import[^;]*;/gi, '')
+    // Remover @font-face (pode quebrar fontes do builder)
+    .replace(/@font-face\s*\{[^}]*\}/gi, '')
+    // Remover :root (variáveis globais)
+    .replace(/:root\s*\{[^}]*\}/gi, '')
+    // Remover seletores universais perigosos
+    .replace(/(?:^|\})\s*\*\s*\{[^}]*\}/gi, '}')
+    .replace(/(?:^|\})\s*html\s*\{[^}]*\}/gi, '}')
+    .replace(/(?:^|\})\s*body\s*\{[^}]*\}/gi, '}');
+  
+  // MANTER @media queries (essencial para responsividade)
+  // MANTER @keyframes (para animações)
+  
+  // Filtrar regras que contêm display:none (podem esconder conteúdo)
+  // MAS manter se for dentro de @media (pode ser responsivo)
+  const lines = safeCss.split('\n');
+  const filteredLines: string[] = [];
+  let insideMedia = false;
+  let mediaDepth = 0;
+  
+  for (const line of lines) {
+    const lineLower = line.toLowerCase();
+    
+    // Track @media blocks
+    if (lineLower.includes('@media')) {
+      insideMedia = true;
+      mediaDepth++;
+    }
+    if (insideMedia && lineLower.includes('{')) mediaDepth++;
+    if (insideMedia && lineLower.includes('}')) {
+      mediaDepth--;
+      if (mediaDepth <= 0) insideMedia = false;
+    }
+    
+    // Dentro de @media, manter tudo (incluindo display:none para responsividade)
+    if (insideMedia) {
+      filteredLines.push(line);
+      continue;
+    }
+    
+    // Fora de @media, remover display:none e visibility:hidden
+    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(lineLower)) {
+      continue;
+    }
+    
+    filteredLines.push(line);
+  }
+  
+  const result = filteredLines.join('\n');
+  
+  // Limitar tamanho final (mas mais generoso que o pruning agressivo)
+  const maxSize = 100000; // 100KB para pixel-perfect
+  const finalCss = result.length > maxSize ? result.substring(0, maxSize) : result;
+  
+  console.log(`[CSS-PIXEL-PERFECT] ${css.length} -> ${finalCss.length} chars (preserved media queries and responsiveness)`);
+  return finalCss;
 }
 
 // Prune CSS for specific content

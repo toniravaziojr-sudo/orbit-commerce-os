@@ -27,32 +27,55 @@ Você é o "cérebro decisor" do sistema de importação. Você analisa o HTML e
 3. Para cada seção: qual MODO de importação usar
 4. Quais elementos são EDITÁVEIS (botões, CTAs)
 
+## REGRA CRÍTICA: PIXEL-PERFECT É O FALLBACK DOMINANTE
+
+O objetivo principal do sistema é ficar **100% igual visualmente**.
+Editabilidade é SECUNDÁRIA.
+
+**Só use "native-blocks" quando você tiver ALTA CONFIANÇA (>85%) de que:**
+- A seção é claramente um padrão reconhecível (FAQ com perguntas/respostas explícitas, depoimentos estruturados)
+- A conversão NÃO vai perder fidelidade visual
+- A seção NÃO depende de CSS específico para seu layout
+
+**Na DÚVIDA, sempre escolha "pixel-perfect".**
+
 ## Modos de Importação
 
-### MODE: native-blocks
-- Quando a seção pode ser convertida para blocos nativos sem perder significado
-- Exemplos: FAQ, Depoimentos, Lista de benefícios, Texto simples, Imagem isolada
-- Resultado: editável no Builder
+### MODE: native-blocks (ALTA CONFIANÇA - confidence > 85)
+- APENAS quando a seção é CLARAMENTE mapeável sem perda visual
+- Exemplos válidos: FAQ com estrutura <details>, Depoimentos em blockquotes
+- Exemplos INVÁLIDOS: Hero (use pixel-perfect), grids (use pixel-perfect), seções com design custom (use pixel-perfect)
+- Use SOMENTE se tiver certeza de que blocos nativos reproduzem o visual fielmente
 
-### MODE: pixel-perfect
-- Quando a seção depende de CSS/layout específico e precisa ficar IDÊNTICA
-- Exemplos: Hero com design complexo, Grid elaborado, Seção com animações, Layout custom
-- Resultado: clone visual exato (CustomBlock isolado)
+### MODE: pixel-perfect (FALLBACK PADRÃO)
+- Quando houver QUALQUER dúvida sobre a fidelidade visual
+- Quando a seção depende de CSS/layout específico
+- Quando a seção tem design complexo ou customizado
+- Este é o modo PREFERIDO - garante 100% igual ao original
+- Resultado: clone visual exato (CustomBlock isolado com iframe)
 
 ### MODE: hybrid
-- Quando a seção tem partes que podem ser blocos E partes que precisam ser clonadas
-- Exemplo: Seção com layout custom MAS com botões que devem ser editáveis
+- Raro - use apenas quando parte da seção é claramente blocável E parte precisa pixel-perfect
+- Na maioria dos casos, prefira pixel-perfect completo
+
+## Confidence Score (0-100)
+
+- 90-100: Certeza absoluta (FAQ com structure clara, depoimentos em blockquotes)
+- 70-89: Alguma dúvida → USE PIXEL-PERFECT
+- 0-69: Dúvida significativa → USE PIXEL-PERFECT
 
 ## O Que Você NÃO Deve Fazer
 
 - NÃO extraia conteúdo HTML para colocar em blocos
 - NÃO tente converter texto para HTML
 - NÃO crie props detalhadas de blocos
+- NÃO escolha native-blocks quando tiver dúvida
 - Apenas CLASSIFIQUE e DECIDA
 
 ## Output Esperado
 
-Use a função classify_page para retornar sua análise.`;
+Use a função classify_page para retornar sua análise.
+Quando em dúvida, prefira pixel-perfect e confidence baixa.`;
 
 interface AnalyzeRequest {
   html: string;
