@@ -538,86 +538,43 @@ function buildPageFromClassification(
 }
 
 // =============================================
-// CSS para PIXEL-PERFECT: manter mais completo, apenas remover perigoso
+// CSS para PIXEL-PERFECT: MANTER QUASE TUDO
+// =============================================
+// O objetivo é 100% fidelidade visual. Só removemos:
+// 1. @import (recursos externos incontroláveis)
+// 2. Seletores html/body/* (conflito com iframe)
+// 3. :root (variáveis podem conflitar)
+// 
+// MANTEMOS:
+// - Todas as @media queries
+// - Todas as regras display:none (essenciais para responsividade)
+// - @font-face (fontes carregam dentro do iframe)
+// - @keyframes (animações)
 // =============================================
 function extractSafePixelPerfectCss(css: string, html: string): string {
-  if (!css || !html) return '';
+  if (!css) return '';
   
-  // Extrair classes/IDs do HTML para validação básica
-  const classMatches = html.match(/class="([^"]*)"/gi) || [];
-  const idMatches = html.match(/id="([^"]*)"/gi) || [];
-  
-  const usedClasses = new Set<string>();
-  const usedIds = new Set<string>();
-  
-  classMatches.forEach(match => {
-    const classes = match.replace(/class="([^"]*)"/i, '$1').split(/\s+/);
-    classes.forEach(c => c && usedClasses.add(c.toLowerCase()));
-  });
-  
-  idMatches.forEach(match => {
-    const id = match.replace(/id="([^"]*)"/i, '$1');
-    if (id) usedIds.add(id.toLowerCase());
-  });
-  
-  // Remover apenas regras PERIGOSAS (que vazam para o builder)
+  // Remover APENAS regras que podem vazar/conflitar com o iframe host
   let safeCss = css
     // Remover @import (pode puxar CSS externo incontrolável)
     .replace(/@import[^;]*;/gi, '')
-    // Remover @font-face (pode quebrar fontes do builder)
-    .replace(/@font-face\s*\{[^}]*\}/gi, '')
-    // Remover :root (variáveis globais)
-    .replace(/:root\s*\{[^}]*\}/gi, '')
-    // Remover seletores universais perigosos
-    .replace(/(?:^|\})\s*\*\s*\{[^}]*\}/gi, '}')
-    .replace(/(?:^|\})\s*html\s*\{[^}]*\}/gi, '}')
-    .replace(/(?:^|\})\s*body\s*\{[^}]*\}/gi, '}');
+    // Remover :root que não está dentro de :host/:scope
+    .replace(/^\s*:root\s*\{[^}]*\}/gm, '')
+    // Remover html/body/* rules standalone (mas não compostos)
+    .replace(/^\s*html\s*\{[^}]*\}/gm, '')
+    .replace(/^\s*body\s*\{[^}]*\}/gm, '')
+    .replace(/^\s*\*\s*\{[^}]*\}/gm, '');
   
-  // MANTER @media queries (essencial para responsividade)
-  // MANTER @keyframes (para animações)
+  // NÃO remover display:none - é essencial para responsividade!
+  // NÃO remover @font-face - fontes funcionam dentro do iframe
+  // NÃO remover @keyframes - animações funcionam dentro do iframe
+  // NÃO remover @media - essencial para responsividade
   
-  // Filtrar regras que contêm display:none (podem esconder conteúdo)
-  // MAS manter se for dentro de @media (pode ser responsivo)
-  const lines = safeCss.split('\n');
-  const filteredLines: string[] = [];
-  let insideMedia = false;
-  let mediaDepth = 0;
+  // Limitar tamanho final (generoso para pixel-perfect)
+  const maxSize = 250000; // 250KB para pixel-perfect (era 100KB)
+  const finalCss = safeCss.length > maxSize ? safeCss.substring(0, maxSize) : safeCss;
   
-  for (const line of lines) {
-    const lineLower = line.toLowerCase();
-    
-    // Track @media blocks
-    if (lineLower.includes('@media')) {
-      insideMedia = true;
-      mediaDepth++;
-    }
-    if (insideMedia && lineLower.includes('{')) mediaDepth++;
-    if (insideMedia && lineLower.includes('}')) {
-      mediaDepth--;
-      if (mediaDepth <= 0) insideMedia = false;
-    }
-    
-    // Dentro de @media, manter tudo (incluindo display:none para responsividade)
-    if (insideMedia) {
-      filteredLines.push(line);
-      continue;
-    }
-    
-    // Fora de @media, remover display:none e visibility:hidden
-    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(lineLower)) {
-      continue;
-    }
-    
-    filteredLines.push(line);
-  }
-  
-  const result = filteredLines.join('\n');
-  
-  // Limitar tamanho final (mas mais generoso que o pruning agressivo)
-  const maxSize = 100000; // 100KB para pixel-perfect
-  const finalCss = result.length > maxSize ? result.substring(0, maxSize) : result;
-  
-  console.log(`[CSS-PIXEL-PERFECT] ${css.length} -> ${finalCss.length} chars (preserved media queries and responsiveness)`);
+  console.log(`[CSS-PIXEL-PERFECT] ${css.length} -> ${finalCss.length} chars (kept ALL rules for visual fidelity)`);
   return finalCss;
 }
 
@@ -2235,104 +2192,47 @@ function removeNestedElement(html: string, tagName: string, startPos: number): s
   return html; // Could not find matching closing tag
 }
 
-// ROBUST MOBILE DEDUPE - Uses proper nesting support
-// Mobile class patterns to detect
-const MOBILE_CLASS_PATTERNS = [
-  /\btablet\b/i, /\bmobile\b/i, /\bd-sm-block\b/i, /\bd-md-none\b/i,
-  /\bshow-mobile\b/i, /\bhide-desktop\b/i, /\bmobile-only\b/i, /\btablet-only\b/i,
-  /\bd-lg-none\b/i, /\bhidden-desktop\b/i, /\bvisible-mobile\b/i, /\bvisible-sm\b/i,
-];
+// =============================================
+// CRITICAL FIX: DO NOT REMOVE MOBILE/TABLET ELEMENTS
+// =============================================
+// Many landing pages use CSS classes like "section1 tablet" and "section1" 
+// where BOTH elements are needed - CSS media queries show/hide them.
+// Removing these elements breaks responsiveness completely!
+// =============================================
 
-function isMobileOnlyElement(classString: string): boolean {
-  return MOBILE_CLASS_PATTERNS.some(pattern => pattern.test(classString));
-}
-
-// Remove duplicate mobile elements with proper nesting support
+// We now KEEP all content and rely on the original CSS to handle responsiveness
 function removeDuplicateMobileElements(html: string): string {
-  let content = html;
-  let removedCount = 0;
-  
-  const elementPattern = /<(section|div)[^>]*class="([^"]*)"[^>]*/gi;
-  let searchStart = 0;
-  let match;
-  
-  while (searchStart < content.length) {
-    elementPattern.lastIndex = searchStart;
-    match = elementPattern.exec(content);
-    
-    if (!match) break;
-    
-    const tagName = match[1];
-    const classString = match[2];
-    
-    if (isMobileOnlyElement(classString)) {
-      const newContent = removeNestedElement(content, tagName, match.index);
-      
-      if (newContent.length < content.length) {
-        removedCount++;
-        content = newContent;
-      } else {
-        searchStart = match.index + match[0].length;
-      }
-    } else {
-      searchStart = match.index + match[0].length;
-    }
-  }
-  
-  // Remove mobile comment blocks
-  content = content.replace(/<!--\s*(?:MOBILE|TABLET|mobile|tablet)\s*-->[\s\S]*?<!--\s*\/(?:MOBILE|TABLET|mobile|tablet)\s*-->/gi, '');
-  
-  console.log(`[DEDUPE] Removed ${removedCount} mobile/tablet duplicate elements`);
-  return content;
+  // DO NOT REMOVE ANY ELEMENTS - the original CSS handles show/hide via media queries
+  // This was causing massive bugs by removing essential responsive content
+  console.log(`[DEDUPE] Keeping ALL elements (CSS handles responsiveness)`);
+  return html;
 }
 
-// CSS PRUNING - Only keep CSS that matches selectors used in HTML
+// =============================================
+// CSS PROCESSING FOR PIXEL-PERFECT - MINIMAL CHANGES
+// =============================================
+// For pixel-perfect mode, we must keep almost ALL CSS including:
+// - Media queries (for responsiveness)
+// - display:none rules (CSS uses them for mobile/desktop switching)
+// - All selectors (we can't know which are used without full DOM parsing)
+// Only remove truly dangerous rules that could affect parent page
+// =============================================
 function pruneCssForHtml(css: string, html: string): string {
-  if (!css || !html) return '';
+  if (!css) return '';
   
-  const classMatches = html.match(/class="([^"]*)"/gi) || [];
-  const idMatches = html.match(/id="([^"]*)"/gi) || [];
-  const tagMatches = html.match(/<([a-z][a-z0-9]*)/gi) || [];
-  
-  const usedClasses = new Set<string>();
-  const usedIds = new Set<string>();
-  const usedTags = new Set<string>();
-  
-  classMatches.forEach(m => m.replace(/class="([^"]*)"/i, '$1').split(/\s+/).forEach(c => c && usedClasses.add(c.toLowerCase())));
-  idMatches.forEach(m => { const id = m.replace(/id="([^"]*)"/i, '$1'); if (id) usedIds.add(id.toLowerCase()); });
-  tagMatches.forEach(m => usedTags.add(m.replace('<', '').toLowerCase()));
-  
-  let cleanCss = css
-    .replace(/@font-face\s*\{[^}]*\}/gi, '')
+  // For pixel-perfect: ONLY remove dangerous rules, keep everything else
+  let safeCss = css
+    // Remove @import (external resources we can't control)
     .replace(/@import[^;]*;/gi, '')
-    .replace(/:root\s*\{[^}]*\}/gi, '')
-    .replace(/(?:^|\})\s*(?:html|body|\*)\s*\{[^}]*\}/gi, '}');
+    // Remove :root definitions that could conflict
+    .replace(/^\s*:root\s*\{[^}]*\}/gm, '')
+    // Remove body/html global rules that could conflict
+    .replace(/(?:^|\s)(?:html|body)\s*\{[^}]*\}/gi, '')
+    // Keep @font-face, @keyframes, @media - all essential
+    ;
   
-  const filteredRules: string[] = [];
-  const rules = cleanCss.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi, '').match(/[^{}]+\{[^{}]*\}/g) || [];
-  
-  rules.forEach(rule => {
-    const braceIndex = rule.indexOf('{');
-    if (braceIndex === -1) return;
-    const selector = rule.substring(0, braceIndex).trim();
-    const declarations = rule.substring(braceIndex);
-    
-    if (selector.startsWith('@')) { filteredRules.push(rule); return; }
-    if (['*', 'html', 'body', ':root'].includes(selector)) return;
-    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(declarations)) return;
-    
-    const selectorLower = selector.toLowerCase();
-    let matches = false;
-    usedClasses.forEach(cls => { if (selectorLower.includes('.' + cls)) matches = true; });
-    usedIds.forEach(id => { if (selectorLower.includes('#' + id)) matches = true; });
-    usedTags.forEach(tag => { if (new RegExp(`\\b${tag}\\b`, 'i').test(selector)) matches = true; });
-    
-    if (matches) filteredRules.push(rule);
-  });
-  
-  const result = filteredRules.join('\n');
-  console.log(`[CSS-PRUNE] ${css.length} -> ${result.length} chars (${Math.round((1 - result.length/Math.max(1,css.length)) * 100)}% reduction)`);
-  return result;
+  console.log(`[CSS-SAFE] Kept ${safeCss.length} chars (only removed dangerous rules)`);
+  return safeCss;
 }
 
 // Create Image blocks from extracted desktop/mobile image pairs

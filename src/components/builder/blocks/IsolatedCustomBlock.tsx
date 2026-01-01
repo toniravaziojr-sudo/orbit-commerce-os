@@ -42,64 +42,28 @@ function sanitizeHtml(html: string): string {
 }
 
 // Process CSS for pixel-perfect rendering
-// IMPORTANT: For pixel-perfect, we should NOT aggressively prune CSS
-// because we need ALL styles including media queries for proper responsiveness
+// CRITICAL: For pixel-perfect, we keep EVERYTHING including display:none
+// because the page uses CSS to show/hide mobile vs desktop elements
 function processPixelPerfectCss(css: string, html: string): string {
   if (!css) return '';
   
-  // For pixel-perfect, only remove truly dangerous rules that could affect the parent page
-  // We keep everything else to maintain visual fidelity
+  // For pixel-perfect, only remove rules that could affect the PARENT page
+  // Since we're in an iframe, almost nothing can leak out
   let safeCss = css
     // Remove @import (could load external CSS we can't control)
     .replace(/@import[^;]*;/gi, '')
-    // Remove :root from outside our scope
+    // Remove :root from outside our scope (could conflict with parent)
     .replace(/^\s*:root\s*\{[^}]*\}/gm, '')
-    // Keep @font-face but they won't affect parent (we're in iframe)
-    // Keep @keyframes for animations
-    // Keep @media for responsiveness
-    // Keep display:none INSIDE @media for responsive hiding
     ;
   
-  // Only remove standalone display:none rules that aren't in @media queries
-  // These could hide important content permanently
-  const lines = safeCss.split('\n');
-  const resultLines: string[] = [];
-  let insideMedia = false;
-  let mediaDepth = 0;
+  // KEEP EVERYTHING ELSE:
+  // - @font-face (fonts load inside iframe)
+  // - @keyframes (animations work)
+  // - @media (ESSENTIAL for responsiveness)
+  // - display:none rules (ESSENTIAL - CSS uses them to toggle mobile/desktop elements)
+  // - visibility:hidden (same reason)
   
-  for (const line of lines) {
-    const lineLower = line.toLowerCase();
-    
-    // Track @media blocks
-    if (lineLower.includes('@media')) {
-      insideMedia = true;
-      mediaDepth = 1;
-      resultLines.push(line);
-      continue;
-    }
-    
-    if (insideMedia) {
-      if (line.includes('{')) mediaDepth++;
-      if (line.includes('}')) {
-        mediaDepth--;
-        if (mediaDepth <= 0) insideMedia = false;
-      }
-      // Inside @media, keep everything including display:none (for responsiveness)
-      resultLines.push(line);
-      continue;
-    }
-    
-    // Outside @media: check for problematic rules
-    // Only remove if the ENTIRE rule is just hiding something
-    if (/^\s*[^{]+\{\s*display\s*:\s*none\s*;?\s*\}\s*$/i.test(line)) {
-      // Skip entire single-line hiding rules
-      continue;
-    }
-    
-    resultLines.push(line);
-  }
-  
-  return resultLines.join('\n');
+  return safeCss;
 }
 
 // Build complete HTML document for iframe
