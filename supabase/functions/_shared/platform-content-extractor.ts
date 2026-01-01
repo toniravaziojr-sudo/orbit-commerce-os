@@ -1,6 +1,12 @@
 // =============================================
-// EXTRATOR DE CONTEÚDO BASEADO EM PLATAFORMA
-// Remove header/footer e extrai apenas conteúdo principal
+// @DEPRECATED - NÃO USAR MAIS
+// Este arquivo usa regex para parsear HTML, o que é frágil e causa bugs.
+// 
+// USE EM VEZ DISSO: dom-content-extractor.ts
+// O novo extrator usa parsing DOM real (deno-dom) e é muito mais confiável.
+// 
+// Este arquivo é mantido apenas para referência histórica.
+// Não importe nem chame estas funções no fluxo principal.
 // =============================================
 
 import { getPlatformConfig, type PlatformContentConfig } from './platform-content-selectors.ts';

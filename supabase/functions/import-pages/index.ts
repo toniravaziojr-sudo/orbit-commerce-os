@@ -5,7 +5,8 @@ import { extractAllElementsInOrder } from '../_shared/element-extractor.ts';
 import { classifyAllElements } from '../_shared/element-classifier.ts';
 import { buildPageFromElements, processElementsWithAutoBlockCreation, mergeConsecutiveElements } from '../_shared/block-builder.ts';
 import { analyzePageVisually, filterElementsByVisualAnalysis } from '../_shared/visual-content-analyzer.ts';
-import { extractMainContentByPlatform } from '../_shared/platform-content-extractor.ts';
+// DEPRECATED: extractMainContentByPlatform (regex-based) - usando DOM extractor
+import { extractContentWithDOM, type DOMExtractionResult } from '../_shared/dom-content-extractor.ts';
 import { detectPlatformFromHtml } from '../_shared/platform-detector.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -424,13 +425,13 @@ async function classifyPageWithAI(
 const HIGH_CONFIDENCE_THRESHOLD = 85;
 
 // Apply classification to build page content
-function buildPageFromClassification(
+async function buildPageFromClassification(
   classification: PageClassification,
   rawHtml: string,
   extractedCss: string,
   pageTitle: string,
   sourceUrl: string // Add source URL for <base href> in iframe
-): BlockNode {
+): Promise<BlockNode> {
   console.log(`[BUILD] Building page from classification: ${classification.pageType}, ${classification.sections.length} sections`);
   
   const blocks: BlockNode[] = [];
@@ -480,10 +481,11 @@ function buildPageFromClassification(
     console.log(`[BUILD] Using PIXEL-PERFECT strategy (100% visual fidelity)`);
     console.log(`[BUILD] Reason: complexity=${classification.complexity}, type=${classification.pageType}, externalCss=${classification.dependsOnExternalCss}, highConfRatio=${(highConfNativeRatio * 100).toFixed(0)}%`);
     
-    // Extract main content using platform-based extractor
+    // Extract main content using DOM-based extractor (replacing regex)
     const platformDetection = detectPlatformFromHtml(rawHtml, sourceUrl);
-    const extractionResult = extractMainContentByPlatform(rawHtml, platformDetection.platform);
-    const mainContent = extractionResult.content;
+    const extractionResult = await extractContentWithDOM(rawHtml, sourceUrl, platformDetection.platform);
+    const mainContent = extractionResult.contentHtml;
+    console.log(`[BUILD] DOM extraction: ${mainContent.length} chars, from: ${extractionResult.extractedFrom}`);
     
     // IMPORTANTE: Para pixel-perfect, manter CSS mais completo (incluindo media queries)
     // Apenas remover regras perigosas, não filtrar agressivamente
@@ -607,9 +609,10 @@ function buildPageFromClassification(
     if (blocks.length === 0) {
       console.log(`[BUILD] No high-confidence blocks, falling back to PIXEL-PERFECT`);
       const fallbackDetection = detectPlatformFromHtml(rawHtml, sourceUrl);
-      const fallbackExtraction = extractMainContentByPlatform(rawHtml, fallbackDetection.platform);
-      const mainContent = fallbackExtraction.content;
+      const fallbackExtraction = await extractContentWithDOM(rawHtml, sourceUrl, fallbackDetection.platform);
+      const mainContent = fallbackExtraction.contentHtml;
       const safeCss = extractSafePixelPerfectCss(extractedCss, mainContent);
+      console.log(`[BUILD] Fallback DOM extraction: ${mainContent.length} chars, from: ${fallbackExtraction.extractedFrom}`);
       
       blocks.push({
         id: generateBlockId('customblock'),
@@ -2560,85 +2563,32 @@ function materializeYouTubeVideos(html: string): string {
   return content;
 }
 
-// Extract main content from Shopify pages - IMPROVED with desktop/mobile image handling
-function extractMainContent(html: string): string {
-  if (!html) return '';
-  
-  let content = html;
-  
-  // STEP 0: MATERIALIZE YouTube videos before any processing
-  // This ensures lazy-load videos become real iframes
-  content = materializeYouTubeVideos(content);
-  
-  // STEP 0b: Remove duplicate mobile elements (keeping only desktop for HTML)
-  // Note: Images are extracted separately before this
-  content = removeDuplicateMobileElements(content);
-  
-  // STEP 1: Remove Shopify section groups (these contain header/footer from the theme)
-  content = content.replace(/<!-- BEGIN sections: header-group -->[\s\S]*?<!-- END sections: header-group -->/gi, '');
-  content = content.replace(/<!-- BEGIN sections: footer-group -->[\s\S]*?<!-- END sections: footer-group -->/gi, '');
-  
-  // STEP 2: Remove announcement bar sections
-  content = content.replace(/<section[^>]*id="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-  content = content.replace(/<div[^>]*class="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-  
-  // STEP 3: Remove header elements
-  content = content.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
-  content = content.replace(/<section[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-  content = content.replace(/<nav[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/nav>/gi, '');
-  content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*header[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-  
-  // STEP 4: Remove footer elements
-  content = content.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
-  content = content.replace(/<section[^>]*class="[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-  content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
-  
-  // STEP 5: Remove scripts, noscript, style, links
-  content = content.replace(/<script[\s\S]*?<\/script>/gi, '');
-  content = content.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
-  content = content.replace(/<style[\s\S]*?<\/style>/gi, '');
-  content = content.replace(/<link[^>]*>/gi, '');
-  
-  // STEP 6: Remove event handlers
-  content = content.replace(/\s*on\w+="[^"]*"/gi, '');
-  
-  // STEP 7: Try to find main content area
-  const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(content);
-  if (mainMatch && mainMatch[1].length > 500) {
-    content = mainMatch[1];
-  }
-  
-  // STEP 8: Try to find page-specific content section
-  const pageContentMatch = /<section[^>]*class="[^"]*(?:page-content|main-content|landing-page)[^"]*"[^>]*>([\s\S]*?)<\/section>/i.exec(content);
-  if (pageContentMatch && pageContentMatch[1].length > 500) {
-    content = pageContentMatch[1];
-  }
-  
-  // STEP 9: Clean up empty elements and excessive whitespace
-  content = content.replace(/<(div|span|section)[^>]*>\s*<\/\1>/gi, '');
-  content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
-  
-  console.log(`[EXTRACT] Main content extracted: ${content.length} chars`);
-  return content.trim();
-}
+// =============================================
+// DEPRECATED: extractMainContent (regex-based)
+// Use extractContentWithDOM instead - see dom-content-extractor.ts
+// This function is kept for backwards compatibility but should NOT be called
+// =============================================
+// NOTE: This function has been removed and replaced by extractContentWithDOM
+// which uses a real DOM parser instead of regex.
+// See: supabase/functions/_shared/dom-content-extractor.ts
+// =============================================
 
 // Clean HTML content for safe display - IMPROVED STRATEGY
 // For custom pages: preserve HTML for CustomBlock
 // For simple pages: use markdown for cleaner extraction
+// NOTE: This function now does basic cleanup only (extractMainContent was removed)
 function cleanHtmlContent(html: string, markdown?: string): string {
   if (!html && !markdown) return '';
 
-  // STEP 1: Check if this is a highly custom page
+  // For custom pages, return basic cleaned HTML (DOM extraction happens earlier in pipeline)
   if (isHighlyCustomPage(html)) {
-    console.log(`[CLEAN] CUSTOM PAGE detected - preserving HTML structure for CustomBlock`);
-    
-    // Extract just the main content area (without header/footer)
-    const mainContent = extractMainContent(html);
-    
-    if (mainContent.length > 1000) {
-      console.log(`[CLEAN] Extracted main content: ${mainContent.length} chars`);
-      return mainContent;
-    }
+    console.log(`[CLEAN] CUSTOM PAGE detected - returning basic cleaned HTML`);
+    // Basic cleanup - DOM extraction is now done separately via extractContentWithDOM
+    const basicClean = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '');
+    return basicClean;
   }
 
   // STEP 2: For non-custom pages, try markdown (cleaner for simple content)
@@ -2959,7 +2909,7 @@ async function tryAIOrRegexAnalysis(
       console.log(`  - Sections: ${classifyResult.classification.sections.length}`);
       
       // Use classification to build page with sourceUrl for base href
-      return buildPageFromClassification(
+      return await buildPageFromClassification(
         classifyResult.classification,
         scraped.rawHtml || scraped.html,
         scraped.extractedCss || '',
@@ -3135,11 +3085,14 @@ async function importPage(
       const platformDetection = detectPlatformFromHtml(videoMaterializedHtml, page.url);
       console.log(`[IMPORT] Platform detected: ${platformDetection.platform} (confidence: ${platformDetection.confidence}%)`);
       
-      // Usar extração baseada na plataforma detectada
-      const extractionResult = extractMainContentByPlatform(videoMaterializedHtml, platformDetection.platform);
-      const mainContentHtml = extractionResult.content;
-      console.log(`[IMPORT] Main content extracted via PLATFORM-BASED: ${mainContentHtml.length} chars (from ${videoMaterializedHtml.length})`);
-      console.log(`[IMPORT] Sections removed: [${extractionResult.removedSections.slice(0, 5).join(', ')}${extractionResult.removedSections.length > 5 ? '...' : ''}]`);
+      // Usar extração baseada em DOM real (substitui regex)
+      const extractionResult = await extractContentWithDOM(videoMaterializedHtml, page.url, platformDetection.platform);
+      const mainContentHtml = extractionResult.contentHtml;
+      console.log(`[IMPORT] Main content extracted via DOM-BASED: ${mainContentHtml.length} chars (from ${videoMaterializedHtml.length})`);
+      console.log(`[IMPORT] Extracted from: ${extractionResult.extractedFrom}`);
+      console.log(`[IMPORT] Main content found: ${extractionResult.mainContentFound}`);
+      console.log(`[IMPORT] Primitives: h=${extractionResult.primitivesCount.headings}, p=${extractionResult.primitivesCount.paragraphs}, img=${extractionResult.primitivesCount.images}`);
+      console.log(`[IMPORT] Removed: ${extractionResult.removedElements.length} element categories`);
       
       // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
       const extractedElements = extractAllElementsInOrder(mainContentHtml);
@@ -3227,10 +3180,11 @@ async function importPage(
         
         if (isCustomPage) {
           const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
-          // Use platform-based extraction for fallback too
+          // Use DOM-based extraction for fallback too
           const fallbackPlatformDetection = detectPlatformFromHtml(videoMaterializedHtml, page.url);
-          const fallbackExtractionResult = extractMainContentByPlatform(videoMaterializedHtml, fallbackPlatformDetection.platform);
-          const mainContent = fallbackExtractionResult.content;
+          const fallbackExtractionResult = await extractContentWithDOM(videoMaterializedHtml, page.url, fallbackPlatformDetection.platform);
+          const mainContent = fallbackExtractionResult.contentHtml;
+          console.log(`[IMPORT] Fallback DOM extraction: ${mainContent.length} chars, from: ${fallbackExtractionResult.extractedFrom}`);
           
           if (mainContent.length > 500) {
             const imageBlocks = createImageBlocksFromPairs(responsiveImages);
