@@ -1,6 +1,9 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { segmentPageBySections, hasExplicitSectionMarkers } from './section-segmenter.ts';
 import { materializeVideos, hasVideoContent, extractVideoUrls, isVideoCarouselSection } from './video-materializer.ts';
+import { extractAllElementsInOrder } from '../_shared/element-extractor.ts';
+import { classifyAllElements } from '../_shared/element-classifier.ts';
+import { buildPageFromElements, processElementsWithAutoBlockCreation, mergeConsecutiveElements } from '../_shared/block-builder.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
