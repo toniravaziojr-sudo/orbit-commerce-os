@@ -534,78 +534,78 @@ function extractVideos(html: string): { videos: ExtractedVideo[]; remainingHtml:
 // =====================================================
 function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   const blocks: BlockNode[] = [];
-  let remainingContent = html;
 
   console.log(`[MAPPER] ========================================`);
   console.log(`[MAPPER] Analyzing: "${pageTitle}", HTML: ${html.length} chars`);
 
-  const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
-  const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?/i.test(pageTitle);
+  // =====================================================
+  // NEW STRATEGY: Detect complex patterns FIRST
+  // If the page has complex visual structure, preserve it as CustomBlock
+  // instead of fragmenting into individual elements
+  // =====================================================
 
-  // 1. Extract Videos FIRST (they take priority for visibility)
-  const videoResult = extractVideos(remainingContent);
-  for (const video of videoResult.videos) {
-    if (video.type === 'youtube') {
-      console.log(`[MAPPER] ✓ Creating YouTubeVideo block: ${video.videoId}`);
-      blocks.push({
-        id: generateBlockId('youtube'),
-        type: 'YouTubeVideo', // Corrected: registry uses 'YouTubeVideo', not 'YouTubeEmbed'
-        props: { 
-          title: video.title || '',
-          youtubeUrl: video.url,
-        },
-        children: [],
-      });
-    } else if (video.type === 'vimeo') {
-      // Vimeo can be embedded as iframe in RichText or we could create a custom block
-      // For now, keep in remainingContent to be handled by RichText
-      console.log(`[MAPPER] ℹ Vimeo video found, will be in RichText: ${video.videoId}`);
-    } else if (video.type === 'upload') {
-      console.log(`[MAPPER] ✓ Creating VideoUpload block: ${video.url.substring(0, 50)}...`);
-      blocks.push({
-        id: generateBlockId('video'),
-        type: 'VideoUpload',
-        props: { 
-          videoDesktop: video.url,
-          videoMobile: '',
-          controls: true,
-          autoplay: false,
-          loop: false,
-          muted: false,
-          aspectRatio: 'auto',
-        },
-        children: [],
-      });
-    }
-  }
-  remainingContent = videoResult.remainingHtml;
+  const patternInfo = detectComplexPattern(html);
+  const hasMultipleVideos = (html.match(/youtube\.com|youtu\.be|vimeo\.com/gi) || []).length >= 2;
+  const hasMultipleImages = (html.match(/<img/gi) || []).length >= 4;
+  const hasSliderOrCarousel = /swiper|slider|carousel|glide|slick|splide|owl|flickity/i.test(html);
 
-  // 2. Extract Images and convert to Image blocks
-  const imageResult = extractImages(remainingContent);
-  for (const image of imageResult.images) {
-    console.log(`[MAPPER] ✓ Creating Image block: ${image.src.substring(0, 50)}...`);
+  // If the page has complex interactive elements OR multiple media in structured layout,
+  // create a single CustomBlock to preserve the visual structure
+  if (patternInfo.isComplex && patternInfo.confidence >= 0.7) {
+    console.log(`[MAPPER] ⚡ Complex pattern detected: ${patternInfo.patternName} (${Math.round(patternInfo.confidence * 100)}% confidence)`);
+    console.log(`[MAPPER] → Creating CustomBlock to preserve visual structure`);
+    
     blocks.push({
-      id: generateBlockId('image'),
-      type: 'Image',
+      id: generateBlockId('customblock-pending'),
+      type: '__CustomBlockPending__',
       props: { 
-        imageDesktop: image.src,
-        imageMobile: '', // Could try to detect mobile version
-        alt: image.alt || 'Imagem',
-        linkUrl: image.linkUrl || '',
-        width: 'full',
-        height: 'auto',
-        objectFit: 'cover',
-        objectPosition: 'center',
-        aspectRatio: 'auto',
-        rounded: 'none',
-        shadow: 'none',
+        htmlContent: html.trim(),
+        patternType: patternInfo.patternType,
+        patternName: patternInfo.patternName,
+        confidence: patternInfo.confidence,
       },
       children: [],
     });
-  }
-  remainingContent = imageResult.remainingHtml;
 
-  // 3. FAQ
+    console.log(`[MAPPER] Result: 1 CustomBlock (${patternInfo.patternName})`);
+    console.log(`[MAPPER] ========================================`);
+    return blocks;
+  }
+
+  // If multiple media elements detected in a complex layout, treat as custom block
+  if ((hasMultipleVideos || hasMultipleImages) && hasSliderOrCarousel) {
+    console.log(`[MAPPER] ⚡ Multiple media + slider detected - preserving as CustomBlock`);
+    
+    const blockName = hasMultipleVideos ? 'Galeria de Vídeos' : 'Galeria de Mídia';
+    blocks.push({
+      id: generateBlockId('customblock-pending'),
+      type: '__CustomBlockPending__',
+      props: { 
+        htmlContent: html.trim(),
+        patternType: hasMultipleVideos ? 'video_gallery' : 'media_gallery',
+        patternName: blockName,
+        confidence: 0.85,
+      },
+      children: [],
+    });
+
+    console.log(`[MAPPER] Result: 1 CustomBlock (${blockName})`);
+    console.log(`[MAPPER] ========================================`);
+    return blocks;
+  }
+
+  // =====================================================
+  // SIMPLE CONTENT PATH: Only for truly simple pages
+  // Extract individual elements only when page is not complex
+  // =====================================================
+
+  console.log(`[MAPPER] Simple content path - extracting individual elements`);
+
+  const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
+  const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?/i.test(pageTitle);
+  let remainingContent = html;
+
+  // 1. FAQ - high priority for FAQ pages
   const faqResult = extractFAQItems(remainingContent);
   if (faqResult.items.length >= 2 || (isFAQPage && faqResult.items.length >= 1)) {
     console.log(`[MAPPER] ✓ Creating FAQ block: ${faqResult.items.length} items`);
@@ -618,7 +618,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = faqResult.remainingHtml;
   }
 
-  // 4. Testimonials
+  // 2. Testimonials - high priority for testimonial pages
   const testimonialResult = extractTestimonials(remainingContent);
   if (testimonialResult.items.length >= 2 || (isTestimonialPage && testimonialResult.items.length >= 1)) {
     console.log(`[MAPPER] ✓ Creating Testimonials block: ${testimonialResult.items.length} items`);
@@ -631,7 +631,7 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = testimonialResult.remainingHtml;
   }
 
-  // 5. InfoHighlights
+  // 3. InfoHighlights
   const infoResult = extractInfoHighlights(remainingContent);
   if (infoResult.items.length >= 3) {
     console.log(`[MAPPER] ✓ Creating InfoHighlights block: ${infoResult.items.length} items`);
@@ -644,36 +644,92 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = infoResult.remainingHtml;
   }
 
-  // 6. Fallback: Check if remaining content is complex (candidate for CustomBlock)
-  const cleanedRemaining = stripHtml(remainingContent);
-  const patternInfo = detectComplexPattern(remainingContent);
-  
-  if (cleanedRemaining.length > 50) {
-    if (patternInfo.isComplex && patternInfo.confidence >= 0.6) {
-      // Complex pattern detected - mark for CustomBlock creation
-      // We'll use a placeholder that importPage will replace with actual CustomBlock
-      console.log(`[MAPPER] Detected complex pattern: ${patternInfo.patternName} (${Math.round(patternInfo.confidence * 100)}% confidence)`);
+  // 4. For simple pages with single video, create YouTube block
+  const videoResult = extractVideos(remainingContent);
+  if (videoResult.videos.length === 1) {
+    const video = videoResult.videos[0];
+    if (video.type === 'youtube') {
+      console.log(`[MAPPER] ✓ Creating single YouTubeVideo block`);
       blocks.push({
-        id: generateBlockId('customblock-pending'),
-        type: '__CustomBlockPending__', // Placeholder, will be replaced in importPage
-        props: { 
-          htmlContent: remainingContent.trim(),
-          patternType: patternInfo.patternType,
-          patternName: patternInfo.patternName,
-          confidence: patternInfo.confidence,
-        },
+        id: generateBlockId('youtube'),
+        type: 'YouTubeVideo',
+        props: { title: '', youtubeUrl: video.url },
         children: [],
       });
-    } else {
-      // Simple text content - use RichText
-      console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
-      blocks.push({
-        id: generateBlockId('richtext'),
-        type: 'RichText',
-        props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
-        children: [],
-      });
+      remainingContent = videoResult.remainingHtml;
     }
+  } else if (videoResult.videos.length > 1) {
+    // Multiple videos - better as CustomBlock
+    console.log(`[MAPPER] Multiple videos (${videoResult.videos.length}) - creating CustomBlock`);
+    blocks.push({
+      id: generateBlockId('customblock-pending'),
+      type: '__CustomBlockPending__',
+      props: { 
+        htmlContent: html.trim(), // Keep original HTML with all videos
+        patternType: 'video_gallery',
+        patternName: 'Galeria de Vídeos',
+        confidence: 0.8,
+      },
+      children: [],
+    });
+    console.log(`[MAPPER] Result: ${blocks.length} blocks`);
+    console.log(`[MAPPER] ========================================`);
+    return blocks; // Return early, don't fragment further
+  }
+
+  // 5. For simple pages with few images, create Image blocks
+  const imageResult = extractImages(remainingContent);
+  if (imageResult.images.length === 1) {
+    const image = imageResult.images[0];
+    console.log(`[MAPPER] ✓ Creating single Image block`);
+    blocks.push({
+      id: generateBlockId('image'),
+      type: 'Image',
+      props: { 
+        imageDesktop: image.src,
+        imageMobile: '',
+        alt: image.alt || 'Imagem',
+        linkUrl: image.linkUrl || '',
+        width: 'full',
+        height: 'auto',
+        objectFit: 'cover',
+        objectPosition: 'center',
+        aspectRatio: 'auto',
+        rounded: 'none',
+        shadow: 'none',
+      },
+      children: [],
+    });
+    remainingContent = imageResult.remainingHtml;
+  } else if (imageResult.images.length > 3) {
+    // Many images - better as CustomBlock
+    console.log(`[MAPPER] Multiple images (${imageResult.images.length}) - creating CustomBlock`);
+    blocks.push({
+      id: generateBlockId('customblock-pending'),
+      type: '__CustomBlockPending__',
+      props: { 
+        htmlContent: html.trim(),
+        patternType: 'image_gallery',
+        patternName: 'Galeria de Imagens',
+        confidence: 0.75,
+      },
+      children: [],
+    });
+    console.log(`[MAPPER] Result: ${blocks.length} blocks`);
+    console.log(`[MAPPER] ========================================`);
+    return blocks;
+  }
+
+  // 6. Remaining text content as RichText
+  const cleanedRemaining = stripHtml(remainingContent);
+  if (cleanedRemaining.length > 50) {
+    console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
+    blocks.push({
+      id: generateBlockId('richtext'),
+      type: 'RichText',
+      props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
+      children: [],
+    });
   }
 
   // If no blocks at all, add a RichText with original content
