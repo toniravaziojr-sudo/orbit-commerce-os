@@ -401,6 +401,13 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       if (text.length < 2 || text.length > 50) continue;
       const textLower = text.toLowerCase();
       if (foundTexts.has(textLower)) continue;
+      
+      // Skip footer buttons (will be defined above)
+      if (typeof isFooterButton === 'function' && isFooterButton(text, url)) {
+        console.log(`[EXTRACT-BUTTON] Skipping footer button: "${text}"`);
+        continue;
+      }
+      
       foundTexts.add(textLower);
       
       // Determine variant from classes
@@ -429,6 +436,87 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
 }
 
 // =====================================================
+// FOOTER/HEADER CONTENT DETECTION
+// =====================================================
+function isFooterContent(text: string): boolean {
+  const footerPatterns = [
+    /central\s+de\s+atendimento/i,
+    /horário\s+de\s+(?:funcionamento|atendimento)/i,
+    /segunda\s+(?:a|à)\s+(?:sexta|sábado)/i,
+    /cnpj[\s:]*\d/i,
+    /todos\s+os?\s+direitos?\s+reservados?/i,
+    /copyright|©/i,
+    /política\s+de\s+privacidade/i,
+    /termos?\s+(?:de\s+)?(?:uso|serviço)/i,
+    /formas?\s+de\s+(?:pagamento|envio)/i,
+    /selos?\s+de\s+segurança/i,
+    /receba\s+(?:nossas?\s+)?(?:promoções?|descontos?|ofertas?)/i,
+    /inscreva-se\s+(?:para|e)\s+receber/i,
+    /newsletter/i,
+    /\(\d{2}\)\s*\d{4,5}[-.]\d{4}/i, // Telefone (11) 9999-9999
+    /\d{2}[\s.]\d{3}[\s.]\d{3}\/\d{4}[-.]\d{2}/i, // CNPJ
+    /atendimento\s+(?:via|por|pelo)\s+(?:whatsapp|chat|email)/i,
+    /seg(?:\.|unda)?\s*(?:a|à|-)?\s*sex(?:\.|ta)?/i,
+    /sábados?\s+(?:das?|de)\s+\d/i,
+    /não\s+atendemos/i,
+    /feriados?/i,
+    /endereço\s*:/i,
+    /rua\s+[^,]+,\s*\d+/i, // Endereços
+    /cep[\s:]*\d{5}[-.]\d{3}/i, // CEP
+    /e-?mail[\s:]+[a-z0-9@.]+/i, // Email
+    /siga-?nos/i,
+    /redes?\s+sociais?/i,
+    /facebook|instagram|twitter|linkedin|youtube/i,
+    /desenvolvido\s+por/i,
+    /powered\s+by/i,
+    /todos\s+os\s+preços/i,
+    /sujeito\s+(?:a|à)\s+alteração/i,
+    /loja\s+(?:física|online|virtual)/i,
+    /entrega\s+(?:para|em)\s+todo/i,
+    /frete\s+(?:grátis|gratuito)/i,
+    /parcelamento/i,
+    /pague\s+com/i,
+    /bandeiras?\s+(?:de\s+)?(?:cartão|cartões)/i,
+    /visa|mastercard|elo|hipercard|amex|american\s+express|boleto|pix/i,
+  ];
+  
+  return footerPatterns.some(pattern => pattern.test(text));
+}
+
+function isFooterButton(text: string, url: string): boolean {
+  const footerButtonTextPatterns = [
+    /política/i,
+    /termos/i,
+    /privacidade/i,
+    /contato/i,
+    /fale\s+conosco/i,
+    /trabalhe\s+conosco/i,
+    /mapa\s+do\s+site/i,
+    /sobre\s+(?:nós|a\s+empresa)/i,
+    /quem\s+somos/i,
+    /atendimento/i,
+    /central\s+de\s+ajuda/i,
+    /trocas?\s+e?\s*devoluções?/i,
+  ];
+  
+  const footerUrlPatterns = [
+    /\/policies\//i,
+    /\/terms/i,
+    /\/privacy/i,
+    /\/contact/i,
+    /\/sitemap/i,
+    /\/about/i,
+    /\/faq$/i,
+    /\/help$/i,
+    /\/trocas/i,
+    /\/devolucao/i,
+  ];
+  
+  return footerButtonTextPatterns.some(p => p.test(text)) || 
+         footerUrlPatterns.some(p => p.test(url));
+}
+
+// =====================================================
 // TEXT/PARAGRAPH EXTRACTION - With Position
 // =====================================================
 export function extractTextBlocksWithPosition(html: string): ExtractedElement[] {
@@ -451,6 +539,12 @@ export function extractTextBlocksWithPosition(html: string): ExtractedElement[] 
       
       // Skip if looks like navigation/menu
       if (/<a[^>]*>/gi.test(content) && (content.match(/<a/gi) || []).length > 3) continue;
+      
+      // Skip footer content
+      if (isFooterContent(text)) {
+        console.log(`[EXTRACT-TEXT] Skipping footer content: "${text.substring(0, 50)}..."`);
+        continue;
+      }
       
       elements.push({
         id: generateId(),
