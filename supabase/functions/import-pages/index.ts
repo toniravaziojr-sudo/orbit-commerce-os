@@ -1519,9 +1519,10 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     }
   }
 
-  // Priority 2: Look for main element
+  // Priority 2: Look for main element (greedy match)
   if (!mainContent) {
-    const mainMatch = /<main[^>]*>([\s\S]*?)<\/main>/i.exec(cleaned);
+    // Use greedy match to get full main content
+    const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(cleaned);
     if (mainMatch && mainMatch[1].trim().length > 100) {
       mainContent = mainMatch[1].trim();
       console.log('[CLEAN] Extracted <main> element');
@@ -1559,13 +1560,69 @@ function cleanHtmlContent(html: string, markdown?: string): string {
     cleaned = mainContent;
   }
 
-  // ===== PHASE 4: Final cleanup =====
+  // ===== PHASE 4: AGGRESSIVE CLEANUP AFTER EXTRACTION =====
+  // Remove header/nav/search elements that might still be inside main
+  const postExtractRemovePatterns = [
+    // Remove any remaining nav elements
+    /<nav\b[^>]*>[\s\S]*?<\/nav>/gi,
+    // Remove any remaining header elements
+    /<header\b[^>]*>[\s\S]*?<\/header>/gi,
+    // Remove any remaining footer elements  
+    /<footer\b[^>]*>[\s\S]*?<\/footer>/gi,
+    // Remove search forms and inputs
+    /<form[^>]*(?:search|pesquisa|busca)[^>]*>[\s\S]*?<\/form>/gi,
+    /<input[^>]*(?:search|pesquisa|busca)[^>]*\/?>/gi,
+    // Remove search results/suggestions containers
+    /<div[^>]*class="[^"]*(?:search-results|search-suggestions|predictive-search|search-modal|search-overlay|search-dropdown|search-popover)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    /<ul[^>]*class="[^"]*(?:search-results|suggestions|predictive)[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
+    // Remove modal/popup containers
+    /<div[^>]*class="[^"]*(?:modal|popup|overlay|drawer|dropdown-menu|popover)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove announcement bars/tickers
+    /<div[^>]*class="[^"]*(?:announcement|ticker|marquee|promo-bar|top-bar)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove cart/mini-cart elements
+    /<div[^>]*class="[^"]*(?:mini-cart|cart-drawer|cart-popup|cart-modal)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove Shopify section wrappers for header/announcement
+    /<div[^>]*id="[^"]*(?:shopify-section-header|shopify-section-announcement|header-section)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove elements with data-section-type header
+    /<[^>]*data-section-type="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi,
+    // Remove sticky/fixed elements (usually headers)
+    /<div[^>]*class="[^"]*(?:sticky|fixed|is-sticky)[^"]*"[^>]*>[\s\S]*?<\/div>/gi,
+    // Remove menu elements
+    /<ul[^>]*class="[^"]*(?:menu|nav-menu|main-menu|site-nav)[^"]*"[^>]*>[\s\S]*?<\/ul>/gi,
+    // Remove login/account links
+    /<a[^>]*href="[^"]*(?:\/account|\/login|\/cart)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+    // Remove logo links (usually in header)
+    /<a[^>]*class="[^"]*(?:logo|brand|site-header)[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+  ];
+
+  for (const pattern of postExtractRemovePatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // ===== PHASE 5: Content-specific cleanup =====
+  // Remove elements containing typical header text
+  const headerTextPatterns = [
+    /Mais pesquisados?:/gi,
+    /Buscar pedidos?, produtos?, clientes/gi,
+    /Minha Conta/gi,
+    /OFERTAS DE FIM DE ANO/gi,
+    /Frete Grátis/gi,
+  ];
+  
+  // Don't remove entire containers, just mark for later review
+  // (removing based on text is risky for false positives)
+
+  // ===== PHASE 6: Final cleanup =====
   // Remove empty elements
   cleaned = cleaned
     .replace(/<(div|span|p|section)[^>]*>\s*<\/\1>/gi, '')
     .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '<br>')
     .replace(/\n\s*\n\s*\n/g, '\n\n');
 
+  // Remove any remaining onclick/onload handlers that might have survived
+  cleaned = cleaned.replace(/\s+on\w+\s*=\s*["'][^"']*["']/gi, '');
+
+  console.log(`[CLEAN] Final cleaned HTML: ${cleaned.length} chars`);
   return cleaned.trim();
 }
 
