@@ -378,26 +378,40 @@ function findLargestTextContainer(
   const candidates: MainContainerCandidate[] = [];
   
   // CRITICAL: Patterns to EXCLUDE from heuristic selection
-  // These are modals, drawers, overlays that should NEVER be selected as main content
-  // NOTE: Be specific - do NOT use broad patterns like /header/i or /footer/i 
-  // as these can match legitimate content containers
+  // These are modals, drawers, overlays, headers, footers that should NEVER be selected as main content
   const EXCLUDED_ID_PATTERNS = [
     /^modal/i, /^drawer/i, /^overlay/i, /^backdrop/i, /^popup/i, 
     /^lightbox/i, /^dialog/i, /^cart-drawer/i, /^menu-drawer/i,
     /^cookie/i, /^consent/i, /^gdpr/i, /-modal$/i, /-drawer$/i,
+    // CRITICAL: Exclude footer/header by ID
+    /^footer/i, /^header/i, /-footer$/i, /-header$/i,
+    /^site-footer/i, /^site-header/i, /^page-footer/i, /^page-header/i,
   ];
   
   const EXCLUDED_CLASS_PATTERNS = [
     /^modal$/i, /^drawer$/i, /^overlay$/i, /^backdrop$/i, /^popup$/i,
     /^lightbox$/i, /modal-parcel/i, /backdrop-modal/i, /cart-drawer/i,
     /menu-drawer/i, /cookie-banner/i, /consent-banner/i,
+    // CRITICAL: Exclude footer/header by class
+    /^footer$/i, /^header$/i, /site-footer/i, /site-header/i,
+    /page-footer/i, /page-header/i, /main-footer/i, /main-header/i,
   ];
   
-  // Check various container elements
+  // CRITICAL: Tag names that should NEVER be selected as main content
+  const EXCLUDED_TAGS = ['footer', 'header', 'nav', 'aside'];
+  
+  // Check various container elements (do NOT include footer/header/nav/aside)
   const containers = doc.querySelectorAll('div, section, article, main');
   
   for (const container of containers) {
     const element = container as Element;
+    const tagName = element.tagName.toLowerCase();
+    
+    // SKIP: Layout elements by tag name (should not happen with our selector, but just in case)
+    if (EXCLUDED_TAGS.includes(tagName)) {
+      logs.push(`[DOM-EXTRACT] Heuristic skipping <${tagName}> (excluded tag)`);
+      continue;
+    }
     
     // Get element identifiers
     const id = element.getAttribute('id') || '';
@@ -406,19 +420,30 @@ function findLargestTextContainer(
     const ariaModal = element.getAttribute('aria-modal');
     const ariaHidden = element.getAttribute('aria-hidden');
     
-    // SKIP: Elements with excluded patterns in ID
+    // SKIP: Elements with footer/header in ID
     if (id && EXCLUDED_ID_PATTERNS.some(pattern => pattern.test(id))) {
       logs.push(`[DOM-EXTRACT] Heuristic skipping #${id} (excluded pattern in ID)`);
       continue;
     }
     
-    // SKIP: Elements with excluded patterns in class
-    if (className && EXCLUDED_CLASS_PATTERNS.some(pattern => pattern.test(className))) {
-      continue; // Skip silently to avoid too many logs
+    // SKIP: Elements with footer/header in class (check each class individually)
+    if (className) {
+      const classList = className.split(/\s+/);
+      const hasExcludedClass = classList.some(cls => 
+        EXCLUDED_CLASS_PATTERNS.some(pattern => pattern.test(cls)) ||
+        cls.toLowerCase().includes('footer') ||
+        cls.toLowerCase().includes('header') ||
+        cls.toLowerCase().includes('nav-')
+      );
+      if (hasExcludedClass) {
+        logs.push(`[DOM-EXTRACT] Heuristic skipping .${classList[0]} (excluded class pattern)`);
+        continue;
+      }
     }
     
-    // SKIP: Elements with modal/dialog roles
-    if (role === 'dialog' || role === 'alertdialog' || role === 'menu' || role === 'navigation') {
+    // SKIP: Elements with modal/dialog/navigation roles
+    if (role === 'dialog' || role === 'alertdialog' || role === 'menu' || 
+        role === 'navigation' || role === 'banner' || role === 'contentinfo') {
       logs.push(`[DOM-EXTRACT] Heuristic skipping element with role="${role}"`);
       continue;
     }
@@ -432,7 +457,8 @@ function findLargestTextContainer(
     const hasLayoutChildren = 
       element.querySelector(':scope > header') !== null ||
       element.querySelector(':scope > nav') !== null ||
-      element.querySelector(':scope > aside') !== null;
+      element.querySelector(':scope > aside') !== null ||
+      element.querySelector(':scope > footer') !== null;
     
     if (hasLayoutChildren) continue;
     
@@ -450,8 +476,8 @@ function findLargestTextContainer(
     
     // Get a readable selector for logging
     const firstClass = className.split(' ')[0];
-    const tagName = element.tagName.toLowerCase();
-    const selector = id ? `#${id}` : firstClass ? `.${firstClass}` : tagName;
+    const elementTagName = element.tagName.toLowerCase();
+    const selector = id ? `#${id}` : firstClass ? `.${firstClass}` : elementTagName;
     
     candidates.push({
       element,

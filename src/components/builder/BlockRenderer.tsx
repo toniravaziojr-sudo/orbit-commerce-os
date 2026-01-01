@@ -912,6 +912,17 @@ function HeroBlock({
 }
 
 function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
+  // CRITICAL: Sanitize content to prevent CSS leakage
+  const sanitizeContent = (html: string): string => {
+    if (!html) return '<p>Texto de exemplo</p>';
+    return html
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<link[^>]*>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/\s*style=["'][^"']*["']/gi, '')
+      .replace(/\s*on\w+=["'][^"']*["']/gi, '');
+  };
+  
   return (
     <div 
       className="prose max-w-none"
@@ -921,7 +932,7 @@ function TextBlock({ content, align, fontSize, fontWeight, color }: any) {
         fontWeight: fontWeight || 'normal',
         color: color || 'inherit',
       }}
-      dangerouslySetInnerHTML={{ __html: content || '<p>Texto de exemplo</p>' }}
+      dangerouslySetInnerHTML={{ __html: sanitizeContent(content) }}
     />
   );
 }
@@ -965,12 +976,46 @@ function RichTextBlock({ content, align, fontFamily, fontSize, fontWeight, conte
     return result;
   };
   
+  // CRITICAL: Sanitize HTML to prevent CSS leakage from imported content
+  // This removes <style>, <link>, inline styles, scripts, and other dangerous elements
+  const sanitizeImportedHtml = (html: string): string => {
+    if (!html) return '';
+    
+    let sanitized = html
+      // Remove <style> tags completely
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      // Remove <link> tags (external CSS)
+      .replace(/<link[^>]*>/gi, '')
+      // Remove <script> tags
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      // Remove <noscript> tags
+      .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+      // Remove <meta> tags
+      .replace(/<meta[^>]*>/gi, '')
+      // Remove <base> tags
+      .replace(/<base[^>]*>/gi, '')
+      // Remove inline style attributes (they can override app styles)
+      .replace(/\s*style=["'][^"']*["']/gi, '')
+      // Remove onclick and other event handlers
+      .replace(/\s*on\w+=["'][^"']*["']/gi, '')
+      // Remove class attributes that might conflict (optional - be careful)
+      // We keep classes but they should be scoped by prose
+      // Remove data attributes that could cause issues
+      .replace(/\s*data-(?!editor)[^=]*=["'][^"']*["']/gi, '');
+    
+    return sanitized;
+  };
+  
   // Convert markdown-like content to HTML
   const processContent = (text: string): string => {
     if (!text) return '<p>Conteúdo de texto formatado...</p>';
     
     // First replace placeholders
     let processed = replacePlaceholders(text);
+    
+    // CRITICAL: Sanitize HTML content from imports before rendering
+    // This prevents CSS leakage that affects the Builder
+    processed = sanitizeImportedHtml(processed);
     
     // If already HTML, return as is
     if (processed.includes('<')) return processed;
