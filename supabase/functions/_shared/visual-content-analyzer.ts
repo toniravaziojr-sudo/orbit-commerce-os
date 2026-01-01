@@ -333,6 +333,7 @@ export async function analyzePageVisually(
 /**
  * Filters extracted elements based on visual analysis
  * Only keeps elements whose text appears in the approved list
+ * v2 - 2026-01-01: Melhorado para ser o GATE PRINCIPAL de filtragem
  */
 export function filterElementsByVisualAnalysis(
   elements: any[],
@@ -342,10 +343,15 @@ export function filterElementsByVisualAnalysis(
     minSimilarity?: number; // Minimum text similarity to consider a match (0-1)
   } = {}
 ): { approved: any[]; rejected: any[] } {
-  const { strictMode = false, minSimilarity = 0.6 } = options;
+  const { strictMode = false, minSimilarity = 0.4 } = options; // v2: lowered default minSimilarity
+  
+  console.log(`[VISUAL-FILTER-v2] Starting filter with ${elements.length} elements`);
+  console.log(`[VISUAL-FILTER-v2] Approved texts: ${visualAnalysis.approvedTexts.length}`);
+  console.log(`[VISUAL-FILTER-v2] Rejected texts: ${visualAnalysis.rejectedTexts.length}`);
+  console.log(`[VISUAL-FILTER-v2] strictMode=${strictMode}, minSimilarity=${minSimilarity}`);
   
   if (!visualAnalysis.success || visualAnalysis.approvedTexts.length === 0) {
-    console.log('[VISUAL-FILTER] No visual analysis available, keeping all elements');
+    console.log('[VISUAL-FILTER-v2] No visual analysis available, keeping all elements');
     return { approved: elements, rejected: [] };
   }
 
@@ -358,13 +364,21 @@ export function filterElementsByVisualAnalysis(
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-      .replace(/[^\\w\\s]/g, '') // Remove punctuation
+      .replace(/[^\w\s]/g, '') // Remove punctuation (fixed regex)
       .replace(/\s+/g, ' ')
       .trim();
   };
 
   const approvedNormalized = visualAnalysis.approvedTexts.map(normalizeText);
   const rejectedNormalized = visualAnalysis.rejectedTexts.map(normalizeText);
+  
+  // Log sample approved/rejected for debugging
+  if (approvedNormalized.length > 0) {
+    console.log(`[VISUAL-FILTER-v2] Sample approved: "${approvedNormalized[0].substring(0, 60)}..."`);
+  }
+  if (rejectedNormalized.length > 0) {
+    console.log(`[VISUAL-FILTER-v2] Sample rejected: "${rejectedNormalized[0].substring(0, 60)}..."`);
+  }
 
   // Simple text similarity (Jaccard-like)
   const calculateSimilarity = (text1: string, text2: string): number => {
@@ -378,54 +392,96 @@ export function filterElementsByVisualAnalysis(
     
     return intersection / union;
   };
+  
+  // v2: Check if text CONTAINS key phrases from rejected list
+  const containsRejectedPhrase = (text: string): boolean => {
+    const rejectedPhrases = [
+      'mais pesquisados',
+      'mais pesquisadas', 
+      'termos pesquisados',
+      'buscas populares',
+      'trending',
+      'top searches',
+      'formas de pagamento',
+      'selos de seguranca',
+      'newsletter',
+      'inscreva-se',
+    ];
+    const textLower = text.toLowerCase();
+    return rejectedPhrases.some(phrase => textLower.includes(phrase));
+  };
 
   for (const element of elements) {
     // Get text content from element
-    const elementText = normalizeText(
-      element.metadata?.text || 
-      element.metadata?.content || 
-      element.text || 
-      ''
-    );
-
-    if (!elementText || elementText.length < 3) {
-      // Very short or empty elements - keep them (could be images/videos)
+    const rawText = element.metadata?.text || element.metadata?.content || element.text || '';
+    const elementText = normalizeText(rawText);
+    
+    // v2: Tipos sem texto (vídeos, imagens) são SEMPRE aprovados
+    const isMediaType = ['video', 'video-carousel', 'image', 'image-carousel'].includes(element.type);
+    
+    if (isMediaType) {
+      console.log(`[VISUAL-FILTER-v2] AUTO-APPROVED (media): ${element.type}`);
       approved.push(element);
       continue;
     }
 
-    // Check if explicitly rejected
-    const isExplicitlyRejected = rejectedNormalized.some(rejected => 
-      elementText.includes(rejected) || rejected.includes(elementText) ||
-      calculateSimilarity(elementText, rejected) > 0.7
-    );
+    if (!elementText || elementText.length < 5) {
+      // Very short or empty text elements - check type
+      if (['button'].includes(element.type)) {
+        // Buttons with very short text might be OK
+        console.log(`[VISUAL-FILTER-v2] KEPT (short button): "${rawText}"`);
+        approved.push(element);
+      } else {
+        console.log(`[VISUAL-FILTER-v2] SKIPPED (too short): "${rawText}"`);
+        approved.push(element); // Keep anyway
+      }
+      continue;
+    }
+    
+    // v2: Check for obvious rejected phrases first
+    if (containsRejectedPhrase(elementText)) {
+      console.log(`[VISUAL-FILTER-v2] REJECTED (contains blocked phrase): "${elementText.substring(0, 50)}..."`);
+      rejected.push(element);
+      continue;
+    }
+
+    // Check if explicitly rejected by visual analysis
+    const isExplicitlyRejected = rejectedNormalized.some(rejectedText => {
+      if (rejectedText.length < 10) return false; // Skip very short rejected texts
+      return elementText.includes(rejectedText) || 
+             rejectedText.includes(elementText) ||
+             calculateSimilarity(elementText, rejectedText) > 0.6;
+    });
 
     if (isExplicitlyRejected) {
-      console.log(`[VISUAL-FILTER] REJECTED: "${elementText.substring(0, 50)}..." (matched rejected list)`);
+      console.log(`[VISUAL-FILTER-v2] REJECTED (visual analysis): "${elementText.substring(0, 50)}..."`);
       rejected.push(element);
       continue;
     }
 
     // Check if matches approved texts
-    const matchesApproved = approvedNormalized.some(approvedText => 
-      elementText.includes(approvedText) || approvedText.includes(elementText) ||
-      calculateSimilarity(elementText, approvedText) >= minSimilarity
-    );
+    const matchesApproved = approvedNormalized.some(approvedText => {
+      if (approvedText.length < 5) return false; // Skip very short approved texts
+      return elementText.includes(approvedText) || 
+             approvedText.includes(elementText) ||
+             calculateSimilarity(elementText, approvedText) >= minSimilarity;
+    });
 
     if (matchesApproved) {
-      console.log(`[VISUAL-FILTER] APPROVED: "${elementText.substring(0, 50)}..." (matched approved list)`);
+      console.log(`[VISUAL-FILTER-v2] APPROVED (visual match): "${elementText.substring(0, 50)}..."`);
       approved.push(element);
     } else if (strictMode) {
-      console.log(`[VISUAL-FILTER] REJECTED (strict): "${elementText.substring(0, 50)}..." (not in approved list)`);
+      console.log(`[VISUAL-FILTER-v2] REJECTED (strict mode): "${elementText.substring(0, 50)}..."`);
       rejected.push(element);
     } else {
-      // In non-strict mode, keep elements not explicitly rejected
-      console.log(`[VISUAL-FILTER] KEPT (non-strict): "${elementText.substring(0, 50)}..."`);
+      // v2: In non-strict mode, keep elements not explicitly rejected
+      // But log that we're being lenient
+      console.log(`[VISUAL-FILTER-v2] KEPT (lenient): "${elementText.substring(0, 50)}..."`);
       approved.push(element);
     }
   }
 
-  console.log(`[VISUAL-FILTER] Final: ${approved.length} approved, ${rejected.length} rejected out of ${elements.length} total`);
+  console.log(`[VISUAL-FILTER-v2] FINAL RESULT: ${approved.length} approved, ${rejected.length} rejected`);
   
   return { approved, rejected };
 }

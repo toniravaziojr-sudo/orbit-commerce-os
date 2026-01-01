@@ -606,128 +606,66 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
 // =====================================================
 // FOOTER/HEADER CONTENT DETECTION
 // =====================================================
+// v2 - 2026-01-01: DESATIVADO filtragem agressiva
+// Agora extraímos TUDO e deixamos a análise visual filtrar
+// Mantemos apenas patterns ÓBVIOS de footer (copyright, CNPJ, etc)
+// =====================================================
 function isFooterContent(text: string): boolean {
-  const footerPatterns = [
-    /central\s+de\s+atendimento/i,
-    /horário\s+de\s+(?:funcionamento|atendimento)/i,
-    /segunda\s+(?:a|à)\s+(?:sexta|sábado)/i,
-    /cnpj[\s:]*\d/i,
+  // v2: Retornar FALSE para a maioria dos casos
+  // Deixar a análise visual (Gemini) decidir o que é conteúdo principal
+  // Manter apenas patterns 100% seguros (dados legais/técnicos)
+  
+  const obviousFooterPatterns = [
+    /cnpj[\s:]*\d{2}[\s.]\d{3}[\s.]\d{3}\/\d{4}[-.]\d{2}/i, // CNPJ formatado
     /todos\s+os?\s+direitos?\s+reservados?/i,
-    /copyright|©/i,
-    /política\s+de\s+privacidade/i,
-    /termos?\s+(?:de\s+)?(?:uso|serviço)/i,
-    /formas?\s+de\s+(?:pagamento|envio)/i,
-    /selos?\s+de\s+segurança/i,
-    /receba\s+(?:nossas?\s+)?(?:promoções?|descontos?|ofertas?)/i,
-    /inscreva-se\s+(?:para|e)\s+receber/i,
-    /newsletter/i,
-    /\(\d{2}\)\s*\d{4,5}[-.]\d{4}/i, // Telefone (11) 9999-9999
+    /copyright|©\s*\d{4}/i,
     /\d{2}[\s.]\d{3}[\s.]\d{3}\/\d{4}[-.]\d{2}/i, // CNPJ
-    /atendimento\s+(?:via|por|pelo)\s+(?:whatsapp|chat|email)/i,
-    /seg(?:\.|unda)?\s*(?:a|à|-)?\s*sex(?:\.|ta)?/i,
-    /sábados?\s+(?:das?|de)\s+\d/i,
-    /não\s+atendemos/i,
-    /feriados?/i,
-    /endereço\s*:/i,
-    /rua\s+[^,]+,\s*\d+/i, // Endereços
-    /cep[\s:]*\d{5}[-.]\d{3}/i, // CEP
-    /e-?mail[\s:]+[a-z0-9@.]+/i, // Email
-    /siga-?nos/i,
-    /redes?\s+sociais?/i,
-    /facebook|instagram|twitter|linkedin|youtube/i,
     /desenvolvido\s+por/i,
     /powered\s+by/i,
-    /todos\s+os\s+preços/i,
-    /sujeito\s+(?:a|à)\s+alteração/i,
-    /loja\s+(?:física|online|virtual)/i,
-    /entrega\s+(?:para|em)\s+todo/i,
-    /frete\s+(?:grátis|gratuito)/i,
-    /parcelamento/i,
-    /pague\s+com/i,
-    /bandeiras?\s+(?:de\s+)?(?:cartão|cartões)/i,
-    /visa|mastercard|elo|hipercard|amex|american\s+express|boleto|pix/i,
-    // =====================================================
-    // Theme widgets (not real content)
-    // =====================================================
-    /^mais\s+pesquisad[oa]s?[\s:]/i,                    // "Mais pesquisados:"
-    /^termos?\s+(?:mais\s+)?pesquisad[oa]s?[\s:]/i,    // "Termos pesquisados:"
-    /^buscas?\s+(?:mais\s+)?populares?[\s:]/i,          // "Buscas populares:"
-    /^trending[\s:]/i,                                   // "Trending:"
-    /^top\s+searches?[\s:]/i,                           // "Top searches:"
-    /skin\s*care.*brinco.*pulseira/i,                   // Generic Shopify theme placeholder
-    /brinco.*pulseira.*perfume/i,                       // Another common placeholder pattern
-    /exemplo.*produto.*categoria/i,                      // Example product category
   ];
   
-  return footerPatterns.some(pattern => pattern.test(text));
+  const isObviousFooter = obviousFooterPatterns.some(pattern => pattern.test(text));
+  
+  if (isObviousFooter) {
+    console.log(`[EXTRACT-v2] OBVIOUS footer detected: "${text.substring(0, 40)}..."`);
+  }
+  
+  return isObviousFooter;
 }
 
+// v2 - 2026-01-01: DESATIVADO filtragem agressiva de botões
+// Deixar a análise visual decidir
 function isFooterButton(text: string, url: string): boolean {
-  const footerButtonTextPatterns = [
-    /política/i,
-    /termos/i,
-    /privacidade/i,
-    /contato/i,
-    /fale\s+conosco/i,
-    /trabalhe\s+conosco/i,
-    /mapa\s+do\s+site/i,
-    /sobre\s+(?:nós|a\s+empresa)/i,
-    /quem\s+somos/i,
-    /atendimento/i,
-    /central\s+de\s+ajuda/i,
-    /trocas?\s+e?\s*devoluções?/i,
-  ];
-  
-  const footerUrlPatterns = [
+  // v2: Retornar FALSE para quase tudo
+  // Apenas filtrar URLs de policies (legal)
+  const obviousLegalUrls = [
     /\/policies\//i,
     /\/terms/i,
     /\/privacy/i,
-    /\/contact/i,
-    /\/sitemap/i,
-    /\/about/i,
-    /\/faq$/i,
-    /\/help$/i,
-    /\/trocas/i,
-    /\/devolucao/i,
   ];
   
-  return footerButtonTextPatterns.some(p => p.test(text)) || 
-         footerUrlPatterns.some(p => p.test(url));
-}
-
-// Detect navigation/search links (menu items, not main content CTAs)
-function isNavigationLink(text: string, url: string): boolean {
-  // URLs that indicate navigation/search, not main content CTAs
-  const navigationUrlPatterns = [
-    /\/search\?/i,           // Search results
-    /\?type=product/i,       // Product search
-    /\?q=/i,                 // Query parameters
-    /\/collections?\//i,     // Collection pages (keep navigating)
-    /\/products?\//i,        // Individual products (keep navigating)
-    /\/categories?\//i,      // Category pages
-  ];
+  const isObviousLegal = obviousLegalUrls.some(p => p.test(url));
   
-  // Short text with navigation URLs = menu item
-  if (text.length <= 25 && navigationUrlPatterns.some(p => p.test(url))) {
-    return true;
+  if (isObviousLegal) {
+    console.log(`[EXTRACT-v2] Obvious legal button: "${text}" -> ${url}`);
   }
   
-  // Generic category names (not real CTAs)
-  const navigationTextPatterns = [
-    /^skin\s*care$/i,
-    /^cabelo$/i,
-    /^barba$/i,
-    /^saúde$/i,
-    /^corpo$/i,
-    /^rosto$/i,
-    /^cuidados?$/i,
-    /^produtos?$/i,
-    /^ver\s+tudo$/i,
-    /^ver\s+todos$/i,
-    /^mostrar\s+tudo$/i,
+  return isObviousLegal;
+}
+
+// v2 - 2026-01-01: DESATIVADO filtragem agressiva de navegação
+// Deixar a análise visual decidir
+function isNavigationLink(text: string, url: string): boolean {
+  // v2: Retornar FALSE para quase tudo
+  // Manter apenas filtro de links de busca (claramente navegação)
+  const obviousSearchUrls = [
+    /\/search\?/i,           // Search results
+    /\?type=product/i,       // Product search  
+    /\?q=/i,                 // Query parameters
   ];
   
-  if (navigationTextPatterns.some(p => p.test(text))) {
+  if (text.length <= 15 && obviousSearchUrls.some(p => p.test(url))) {
+    console.log(`[EXTRACT-v2] Obvious search link: "${text}" -> ${url}`);
     return true;
   }
   
