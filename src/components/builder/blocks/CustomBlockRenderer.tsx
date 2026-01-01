@@ -56,16 +56,28 @@ function sanitizeHtml(html: string): string {
 function scopeCss(css: string, scopeId: string): string {
   if (!css) return '';
   
+  // Add base styles to ensure visibility
+  const baseStyles = `
+    .${scopeId} { display: block !important; visibility: visible !important; opacity: 1 !important; }
+    .${scopeId} img { max-width: 100%; height: auto; display: block; }
+    .${scopeId} section, .${scopeId} div { display: block; }
+  `;
+  
   // Split CSS into rules and scope each one
   const rules = css.match(/[^{}]+\{[^{}]*\}/g) || [];
   
-  return rules.map(rule => {
+  const scopedRules = rules.map(rule => {
     const [selector, ...rest] = rule.split('{');
     const declarations = rest.join('{');
     
     // Skip @rules (media queries, keyframes, etc.)
     if (selector.trim().startsWith('@')) {
       return rule;
+    }
+    
+    // Skip rules that hide content
+    if (/display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0\b/.test(declarations)) {
+      return '';
     }
     
     // Scope each selector
@@ -79,7 +91,9 @@ function scopeCss(css: string, scopeId: string): string {
     }).join(', ');
     
     return `${scopedSelectors} {${declarations}`;
-  }).join('\n');
+  }).filter(Boolean).join('\n');
+
+  return baseStyles + '\n' + scopedRules;
 }
 
 export function CustomBlockRenderer({

@@ -45,35 +45,49 @@ interface AIAnalysisResult {
 // Global CSS extracted from the page (used by CustomBlocks)
 let globalExtractedCss = '';
 
-// Extract all CSS from HTML (style tags + inline styles)
+// Extract ESSENTIAL CSS from HTML - avoid massive stylesheets that hide content
 function extractCssFromHtml(html: string): string {
   if (!html) return '';
   
   const cssChunks: string[] = [];
   
-  // Extract <style> tags content
+  // Extract <style> tags content - but be selective
   const styleTagPattern = /<style[^>]*>([\s\S]*?)<\/style>/gi;
   let match;
   while ((match = styleTagPattern.exec(html)) !== null) {
     if (match[1]?.trim()) {
-      cssChunks.push(match[1].trim());
+      // Filter out problematic CSS rules
+      let css = match[1].trim();
+      
+      // Remove rules that commonly hide elements
+      css = css.replace(/[^{}]+\{[^{}]*display\s*:\s*none[^{}]*\}/gi, '');
+      css = css.replace(/[^{}]+\{[^{}]*visibility\s*:\s*hidden[^{}]*\}/gi, '');
+      css = css.replace(/[^{}]+\{[^{}]*opacity\s*:\s*0[^{}]*\}/gi, '');
+      css = css.replace(/[^{}]+\{[^{}]*height\s*:\s*0[^{}]*\}/gi, '');
+      css = css.replace(/[^{}]+\{[^{}]*max-height\s*:\s*0[^{}]*\}/gi, '');
+      
+      // Skip if too small after cleaning
+      if (css.trim().length > 50) {
+        cssChunks.push(css);
+      }
     }
   }
   
-  // Extract inline style attributes as CSS rules (for key elements)
-  // This creates pseudo-classes to match the inline styles
-  const inlineStylePattern = /class="([^"]+)"[^>]*style="([^"]+)"/gi;
-  while ((match = inlineStylePattern.exec(html)) !== null) {
-    const classes = match[1].split(/\s+/).filter(c => c && !c.includes(':'));
-    const styles = match[2];
-    if (classes.length > 0 && styles) {
-      // Use the first class as selector
-      cssChunks.push(`.${classes[0]} { ${styles} }`);
+  // Combine but limit to reasonable size (max 30KB)
+  let combined = cssChunks.join('\n\n');
+  const maxCssSize = 30000;
+  
+  if (combined.length > maxCssSize) {
+    console.log(`[CSS] CSS too large (${combined.length} chars), truncating to ${maxCssSize}`);
+    // Keep only the first portion, trying to end at a valid rule boundary
+    combined = combined.substring(0, maxCssSize);
+    const lastBrace = combined.lastIndexOf('}');
+    if (lastBrace > 0) {
+      combined = combined.substring(0, lastBrace + 1);
     }
   }
   
-  const combined = cssChunks.join('\n\n');
-  console.log(`[CSS] Extracted ${cssChunks.length} CSS chunks, total ${combined.length} chars`);
+  console.log(`[CSS] Extracted ${cssChunks.length} CSS chunks, final ${combined.length} chars`);
   return combined;
 }
 
