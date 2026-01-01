@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { segmentPageBySections, hasExplicitSectionMarkers } from './section-segmenter.ts';
+import { materializeVideos, hasVideoContent } from './video-materializer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -111,27 +113,37 @@ function extractExternalCssUrls(html: string): string[] {
   return urls;
 }
 
-// Fetch external CSS with timeout
-async function fetchExternalCss(urls: string[], maxTotal: number = 150000): Promise<string> {
+// Fetch external CSS with timeout - INCREASED LIMITS for pixel-perfect
+async function fetchExternalCss(urls: string[], maxTotal: number = 500000): Promise<string> {
   const cssChunks: string[] = [];
   let totalSize = 0;
   
   // Prioritize landing-pages.css and similar custom CSS over vendor/theme
   const prioritized = urls.sort((a, b) => {
+    // Highest priority: landing-pages, custom CSS
     if (a.includes('landing-page')) return -1;
     if (b.includes('landing-page')) return 1;
     if (a.includes('custom')) return -1;
     if (b.includes('custom')) return 1;
+    // Second priority: theme CSS
+    if (a.includes('theme')) return -1;
+    if (b.includes('theme')) return 1;
+    // Lowest priority: vendor/bootstrap
+    if (a.includes('vendor') || a.includes('bootstrap')) return 1;
+    if (b.includes('vendor') || b.includes('bootstrap')) return -1;
     return 0;
   });
   
   for (const url of prioritized) {
-    if (totalSize >= maxTotal) break;
+    if (totalSize >= maxTotal) {
+      console.warn(`[CSS] Reached max total size (${maxTotal}), skipping remaining files`);
+      break;
+    }
     
     try {
-      console.log(`[CSS] Fetching: ${url.substring(0, 80)}...`);
+      console.log(`[CSS] Fetching: ${url.substring(0, 100)}...`);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per CSS
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout per CSS
       
       const response = await fetch(url, { 
         signal: controller.signal,
@@ -142,15 +154,49 @@ async function fetchExternalCss(urls: string[], maxTotal: number = 150000): Prom
       if (response.ok) {
         let css = await response.text();
         
-        // Limit size per file
-        const maxPerFile = 80000; // 80KB per file
+        // INCREASED limit per file for pixel-perfect (150KB)
+        const maxPerFile = 150000;
         if (css.length > maxPerFile) {
+          console.warn(`[CSS] File truncated: ${url.split('/').pop()} (${css.length} -> ${maxPerFile})`);
           css = css.substring(0, maxPerFile);
           const lastBrace = css.lastIndexOf('}');
           if (lastBrace > maxPerFile * 0.8) css = css.substring(0, lastBrace + 1);
         }
         
-        cssChunks.push(`/* From: ${url} */\n${css}`);
+        // Resolve @import rules (1 level deep)
+        const importMatches = css.match(/@import\s+(?:url\()?["']?([^"')]+)["']?\)?[^;]*;/gi) || [];
+        for (const importMatch of importMatches.slice(0, 3)) { // Max 3 imports
+          const urlMatch = importMatch.match(/["']([^"']+)["']/);
+          if (urlMatch) {
+            let importUrl = urlMatch[1];
+            // Resolve relative URLs
+            if (!importUrl.startsWith('http')) {
+              try {
+                const baseUrl = new URL(url);
+                importUrl = new URL(importUrl, baseUrl.origin).href;
+              } catch { continue; }
+            }
+            
+            try {
+              console.log(`[CSS] Fetching @import: ${importUrl.substring(0, 80)}...`);
+              const importResponse = await fetch(importUrl, { 
+                signal: AbortSignal.timeout(8000),
+                headers: { 'Accept': 'text/css' }
+              });
+              if (importResponse.ok) {
+                const importCss = await importResponse.text();
+                if (importCss.length < 100000) {
+                  css = css.replace(importMatch, `/* @import resolved */\n${importCss}`);
+                  console.log(`[CSS] Resolved @import: ${importCss.length} chars`);
+                }
+              }
+            } catch (importErr) {
+              console.warn(`[CSS] Failed to resolve @import: ${importUrl}`);
+            }
+          }
+        }
+        
+        cssChunks.push(`/* From: ${url} (${css.length} chars) */\n${css}`);
         totalSize += css.length;
         console.log(`[CSS] Fetched ${css.length} chars from ${url.split('/').pop()}`);
       }
@@ -2822,34 +2868,44 @@ async function importPage(
     let pageContent: BlockNode;
     
     // =============================================
-    // STRATEGY: Detect highly custom pages and preserve as CustomBlock
+    // PRIORIDADE 1: SEGMENTAÇÃO DETERMINÍSTICA (antes de IA)
     // =============================================
-    globalExtractedCss = scraped.extractedCss || '';
-    console.log(`[IMPORT] Extracted CSS available: ${globalExtractedCss.length} chars`);
-    
-    // Check if this is a highly custom page (landing page, custom sections)
     const rawHtmlToCheck = scraped.rawHtml || scraped.html || '';
-    const isCustomPage = isHighlyCustomPage(rawHtmlToCheck);
+    globalExtractedCss = scraped.extractedCss || '';
+    console.log(`[IMPORT] CSS available: ${globalExtractedCss.length} chars`);
     
-    if (isCustomPage) {
-      console.log(`[IMPORT] CUSTOM PAGE detected - extracting desktop/mobile images first`);
+    // STEP 0: Materialize videos BEFORE any processing
+    const { html: videoMaterializedHtml, videosFound, patterns: videoPatterns } = materializeVideos(rawHtmlToCheck);
+    console.log(`[IMPORT] Videos materialized: ${videosFound} (patterns: ${videoPatterns.join(', ') || 'none'})`);
+    
+    // STEP 1: Try deterministic section segmentation FIRST
+    if (hasExplicitSectionMarkers(videoMaterializedHtml)) {
+      console.log(`[IMPORT] Section markers detected - using DETERMINISTIC segmentation`);
       
-      // STEP 1: Extract desktop/mobile image pairs BEFORE removing mobile elements
-      const responsiveImages = extractDesktopMobileImages(rawHtmlToCheck);
-      console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
+      const segmentResult = segmentPageBySections(videoMaterializedHtml);
+      console.log(`[IMPORT] Segmentation result: ${segmentResult.success ? segmentResult.totalSections + ' sections' : 'failed'}`);
+      console.log(`[IMPORT] Diagnostics: comments=${segmentResult.diagnostics.commentsFound}, sections=${segmentResult.diagnostics.sectionsFound}, pairs=${segmentResult.diagnostics.desktopMobilePairs}`);
       
-      // STEP 2: Extract main content (which removes mobile duplicates)
-      const mainContent = extractMainContent(rawHtmlToCheck);
-      
-      if (mainContent.length > 500) {
-        // STEP 3: Create Image blocks from responsive pairs
-        const imageBlocks = createImageBlocksFromPairs(responsiveImages);
+      if (segmentResult.success && segmentResult.sections.length >= 2) {
+        // Create one CustomBlock per section
+        const sectionBlocks: BlockNode[] = [];
         
-        // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
-        const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
-        
-        // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
-        const allBlocks = [...imageBlocks, ...customBlocks];
+        for (const section of segmentResult.sections) {
+          console.log(`[IMPORT] Creating block for ${section.name} (${section.htmlContent.length} chars, desktop+mobile: ${section.hasDesktopMobile})`);
+          
+          sectionBlocks.push({
+            id: generateBlockId('customblock'),
+            type: 'CustomBlock',
+            props: {
+              htmlContent: section.htmlContent,
+              cssContent: globalExtractedCss,
+              blockName: section.name,
+              baseUrl: page.url,
+              isPixelPerfect: true,
+            },
+            children: [],
+          });
+        }
         
         pageContent = {
           id: generateBlockId('page'),
@@ -2864,23 +2920,73 @@ async function importPage(
               paddingY: 0, 
               marginTop: 0, 
               marginBottom: 0, 
-              gap: 16, 
+              gap: 0, 
               alignItems: 'stretch', 
               fullWidth: true 
             },
-            children: allBlocks,
+            children: sectionBlocks,
           }],
         };
         
-        console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
+        console.log(`[IMPORT] Created ${sectionBlocks.length} section blocks via DETERMINISTIC segmentation`);
+      }
+    }
+    
+    // STEP 2: Fallback to existing logic if no deterministic segmentation
+    if (!pageContent!) {
+      const isCustomPage = isHighlyCustomPage(videoMaterializedHtml);
+      
+      if (isCustomPage) {
+        console.log(`[IMPORT] CUSTOM PAGE detected - using pixel-perfect fallback`);
+        
+        // Extract desktop/mobile image pairs
+        const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
+        console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
+      
+        // STEP 2: Extract main content (which removes mobile duplicates)
+        const mainContent = extractMainContent(videoMaterializedHtml);
+        
+        if (mainContent.length > 500) {
+          // STEP 3: Create Image blocks from responsive pairs
+          const imageBlocks = createImageBlocksFromPairs(responsiveImages);
+          
+          // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
+          const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle, page.url);
+          
+          // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
+          const allBlocks = [...imageBlocks, ...customBlocks];
+          
+          pageContent = {
+            id: generateBlockId('page'),
+            type: 'Page',
+            props: { backgroundColor: 'transparent', padding: 'none' },
+            children: [{
+              id: generateBlockId('section'),
+              type: 'Section',
+              props: { 
+                backgroundColor: 'transparent', 
+                paddingX: 0, 
+                paddingY: 0, 
+                marginTop: 0, 
+                marginBottom: 0, 
+                gap: 16, 
+                alignItems: 'stretch', 
+                fullWidth: true 
+              },
+              children: allBlocks,
+            }],
+          };
+          
+          console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
+        } else {
+          // Content too small, try AI
+          console.log(`[IMPORT] Custom page content too small, trying AI...`);
+          pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
+        }
       } else {
-        // Content too small, try AI
-        console.log(`[IMPORT] Custom page content too small, trying AI...`);
+        // For non-custom pages, use AI or regex
         pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
       }
-    } else {
-      // For non-custom pages, use AI or regex
-      pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, page.url, useAI, supabase, tenantId);
     }
     
     // Process any pending complex page placeholders (from regex path)
