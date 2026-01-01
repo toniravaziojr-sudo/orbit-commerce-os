@@ -378,14 +378,21 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
     console.log(`[EXTRACT-HEADING] Found ${level}: "${text.substring(0, 40)}..." @ position ${match.index}`);
   }
   
-  // Pattern 2: Spans/Divs with title/heading classes
+  // Pattern 2: Spans/Divs with title/heading classes (including BEM notation)
   const titleClassPatterns = [
+    // Standard class names
     /<(?:span|div)[^>]*class=["'][^"']*(?:title|heading|headline|titulo|subtitulo|section-title|page-title)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div)>/gi,
+    // BEM notation: block__heading, block__title, rich-text__heading, etc.
+    /<(?:span|div)[^>]*class=["'][^"']*(?:__heading|__title|__header)[^"']*["'][^>]*>([^<]{3,200})<\/(?:span|div)>/gi,
+    // Shopify themes: divs with class containing "h1", "h2", etc.
+    /<div[^>]*class=["'][^"']*\b(h[1-6])\b[^"']*["'][^>]*>([^<]{3,200})<\/div>/gi,
   ];
   
   for (const pattern of titleClassPatterns) {
+    pattern.lastIndex = 0; // Reset regex state
     while ((match = pattern.exec(html)) !== null) {
-      const content = match[1];
+      // Handle different match groups
+      const content = match[2] || match[1];
       const text = cleanText(stripHtml(content));
       
       if (text.length < 5 || text.length > 200) continue;
@@ -401,19 +408,23 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
       
       foundTexts.add(textLower);
       
+      // Determine level from class if present (e.g., "h2" class)
+      const levelMatch = match[0].match(/class=["'][^"']*\b(h[1-6])\b/i);
+      const level = levelMatch ? levelMatch[1].toLowerCase() as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6' : 'h2';
+      
       elements.push({
         id: generateId(),
         position: match.index,
         type: 'heading',
         rawHtml: match[0],
         metadata: {
-          level: 'h2',
+          level,
           text,
           content,
         }
       });
       
-      console.log(`[EXTRACT-HEADING] Found title-class: "${text.substring(0, 40)}..." @ position ${match.index}`);
+      console.log(`[EXTRACT-HEADING] Found BEM/title-class: "${text.substring(0, 40)}..." @ position ${match.index}`);
     }
   }
   
@@ -465,10 +476,16 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
   const foundTexts = new Set<string>();
   
   const patterns = [
-    // <a> with button classes (expanded)
+    // <a> with button classes (expanded) - class before href
     /<a[^>]*class=["'][^"']*(?:btn|button|cta|comprar|buy|action|submit|consult|consulte|agendar|saiba-mais|ver-mais)[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi,
     // <a> with href first, then button class
     /<a[^>]*href=["']([^"']*)["'][^>]*class=["'][^"']*(?:btn|button|cta|action|submit)[^"']*["'][^>]*>([^<]+)<\/a>/gi,
+    // <a> with just "btn" as word boundary (covers "btn btn-primary btn-md" etc.)
+    /<a[^>]*class=["'][^"']*\bbtn\b[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi,
+    // <a> with href first, then just "btn" 
+    /<a[^>]*href=["']([^"']*)["'][^>]*class=["'][^"']*\bbtn\b[^"']*["'][^>]*>([^<]+)<\/a>/gi,
+    // BEM notation: rich-text__button, section__button, block__cta
+    /<a[^>]*class=["'][^"']*(?:__button|__cta|__action)[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi,
     // <button> elements
     /<button[^>]*(?:onclick=["'][^"']*location[^"']*=["']([^"']*)|data-href=["']([^"']*))?["'][^>]*>([^<]+)<\/button>/gi,
   ];
@@ -629,6 +646,17 @@ function isFooterContent(text: string): boolean {
     /pague\s+com/i,
     /bandeiras?\s+(?:de\s+)?(?:cartão|cartões)/i,
     /visa|mastercard|elo|hipercard|amex|american\s+express|boleto|pix/i,
+    // =====================================================
+    // Theme widgets (not real content)
+    // =====================================================
+    /^mais\s+pesquisad[oa]s?[\s:]/i,                    // "Mais pesquisados:"
+    /^termos?\s+(?:mais\s+)?pesquisad[oa]s?[\s:]/i,    // "Termos pesquisados:"
+    /^buscas?\s+(?:mais\s+)?populares?[\s:]/i,          // "Buscas populares:"
+    /^trending[\s:]/i,                                   // "Trending:"
+    /^top\s+searches?[\s:]/i,                           // "Top searches:"
+    /skin\s*care.*brinco.*pulseira/i,                   // Generic Shopify theme placeholder
+    /brinco.*pulseira.*perfume/i,                       // Another common placeholder pattern
+    /exemplo.*produto.*categoria/i,                      // Example product category
   ];
   
   return footerPatterns.some(pattern => pattern.test(text));
