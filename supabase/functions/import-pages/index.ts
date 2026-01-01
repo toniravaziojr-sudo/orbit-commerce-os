@@ -21,9 +21,50 @@ interface ImportPagesRequest {
 }
 
 // =============================================
-// AI ANALYSIS INTEGRATION
+// AI CLASSIFICATION INTEGRATION (NEW)
+// =============================================
+// The AI now CLASSIFIES, not CONVERTS
+// It decides modes per section, identifies editables
 // =============================================
 
+interface SectionClassification {
+  id: string;
+  name: string;
+  startMarker: string;
+  endMarker?: string;
+  mode: 'native-blocks' | 'pixel-perfect' | 'hybrid';
+  confidence: number;
+  reasoning: string;
+  suggestedBlockTypes?: string[];
+  editableElements?: EditableElementClassification[];
+}
+
+interface EditableElementClassification {
+  type: 'button' | 'link' | 'cta';
+  text: string;
+  selector: string;
+  reasoning: string;
+}
+
+interface PageClassification {
+  pageType: 'landing-custom' | 'institutional' | 'hybrid' | 'simple';
+  complexity: 'low' | 'medium' | 'high';
+  hasDesktopMobileVariants: boolean;
+  dependsOnExternalCss: boolean;
+  sections: SectionClassification[];
+  globalEditables: EditableElementClassification[];
+  summary: string;
+  recommendedStrategy: string;
+}
+
+interface AIClassificationResult {
+  success: boolean;
+  classification?: PageClassification;
+  error?: string;
+  fallback?: boolean;
+}
+
+// Legacy interface for backwards compatibility
 interface AISection {
   order: number;
   blockType: string;
@@ -102,18 +143,18 @@ function extractCssFromHtml(html: string): string {
   return combined;
 }
 
-// Call ai-analyze-page edge function with timeout
-async function analyzePageWithAI(
+// Call ai-analyze-page edge function for CLASSIFICATION (not conversion)
+async function classifyPageWithAI(
   html: string, 
   pageTitle: string, 
   pageUrl: string
-): Promise<AIAnalysisResult> {
+): Promise<AIClassificationResult> {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
     if (!supabaseUrl || !supabaseKey) {
-      console.error('[AI] Missing Supabase config');
+      console.error('[AI-CLASSIFY] Missing Supabase config');
       return { success: false, error: 'Missing config', fallback: true };
     }
 
@@ -123,7 +164,7 @@ async function analyzePageWithAI(
       ? html.substring(0, maxHtmlForAI)
       : html;
     
-    console.log(`[AI] Calling ai-analyze-page for: ${pageTitle} (${truncatedHtml.length} chars)`);
+    console.log(`[AI-CLASSIFY] Calling ai-analyze-page for: ${pageTitle} (${truncatedHtml.length} chars)`);
     
     // Add 120 second timeout (AI analysis can take time for complex pages)
     const controller = new AbortController();
@@ -144,37 +185,310 @@ async function analyzePageWithAI(
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`[AI] API error: ${response.status}`, errorText);
+        console.error(`[AI-CLASSIFY] API error: ${response.status}`, errorText);
         return { success: false, error: `API error ${response.status}`, fallback: true };
       }
 
       const data = await response.json();
       
       if (data.fallback || data.error) {
-        console.warn(`[AI] Fallback needed: ${data.error}`);
+        console.warn(`[AI-CLASSIFY] Fallback needed: ${data.error}`);
         return { success: false, error: data.error, fallback: true };
       }
 
-      console.log(`[AI] Success: ${data.sections?.length || 0} sections, complexity: ${data.pageComplexity}`);
+      console.log(`[AI-CLASSIFY] Success:`);
+      console.log(`  - Type: ${data.classification?.pageType}`);
+      console.log(`  - Complexity: ${data.classification?.complexity}`);
+      console.log(`  - Sections: ${data.classification?.sections?.length || 0}`);
+      console.log(`  - Strategy: ${data.classification?.recommendedStrategy?.substring(0, 80)}...`);
+      
       return {
         success: true,
-        sections: data.sections,
-        pageComplexity: data.pageComplexity,
-        summary: data.summary,
+        classification: data.classification,
       };
     } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.warn('[AI] Request timeout after 120s');
+        console.warn('[AI-CLASSIFY] Request timeout after 120s');
         return { success: false, error: 'Timeout after 120s', fallback: true };
       }
       throw fetchError;
     }
 
   } catch (error) {
-    console.error('[AI] Exception:', error);
+    console.error('[AI-CLASSIFY] Exception:', error);
     return { success: false, error: String(error), fallback: true };
   }
+}
+
+// Apply classification to build page content
+function buildPageFromClassification(
+  classification: PageClassification,
+  rawHtml: string,
+  extractedCss: string,
+  pageTitle: string
+): BlockNode {
+  console.log(`[BUILD] Building page from classification: ${classification.pageType}, ${classification.sections.length} sections`);
+  
+  const blocks: BlockNode[] = [];
+  
+  // Count modes
+  const modeStats = {
+    'native-blocks': 0,
+    'pixel-perfect': 0,
+    'hybrid': 0
+  };
+  
+  for (const section of classification.sections) {
+    modeStats[section.mode]++;
+  }
+  
+  console.log(`[BUILD] Mode distribution: native=${modeStats['native-blocks']}, pixel-perfect=${modeStats['pixel-perfect']}, hybrid=${modeStats['hybrid']}`);
+  
+  // If mostly pixel-perfect or high complexity, use single CustomBlock approach
+  if (classification.complexity === 'high' || 
+      classification.pageType === 'landing-custom' ||
+      modeStats['pixel-perfect'] > modeStats['native-blocks']) {
+    
+    console.log(`[BUILD] Using PIXEL-PERFECT strategy (CustomBlock)`);
+    
+    // Extract main content and create CustomBlock
+    const mainContent = extractMainContent(rawHtml);
+    const prunedCss = pruneCssForContent(extractedCss, mainContent);
+    
+    // Create CustomBlock with pruned CSS
+    blocks.push({
+      id: generateBlockId('customblock'),
+      type: 'CustomBlock',
+      props: {
+        htmlContent: mainContent,
+        cssContent: prunedCss,
+        blockName: `Página: ${pageTitle}`,
+      },
+      children: [],
+    });
+    
+    // Extract editable buttons as native blocks
+    const allEditables = [
+      ...(classification.globalEditables || []),
+      ...(classification.sections.flatMap(s => s.editableElements || []))
+    ];
+    
+    for (const editable of allEditables) {
+      if (editable.type === 'button' || editable.type === 'cta') {
+        console.log(`[BUILD] Creating editable Button: "${editable.text}"`);
+        blocks.push({
+          id: generateBlockId('button'),
+          type: 'Button',
+          props: {
+            text: editable.text,
+            url: '#', // Will be extracted from HTML if possible
+            variant: 'primary',
+            size: 'lg',
+            fullWidth: false,
+            alignment: 'center',
+          },
+          children: [],
+        });
+      }
+    }
+  } else {
+    console.log(`[BUILD] Using MIXED strategy (blocks + CustomBlock sections)`);
+    
+    // Try to map sections to blocks where possible
+    for (const section of classification.sections) {
+      if (section.mode === 'native-blocks' && section.suggestedBlockTypes) {
+        // Create native blocks based on suggestions
+        for (const blockType of section.suggestedBlockTypes) {
+          console.log(`[BUILD] Section "${section.name}" -> ${blockType}`);
+          
+          switch (blockType) {
+            case 'FAQ':
+              blocks.push({
+                id: generateBlockId('faq'),
+                type: 'FAQ',
+                props: {
+                  title: section.name || 'Perguntas Frequentes',
+                  titleAlign: 'left',
+                  items: [], // Will be filled by regex extractor
+                  allowMultiple: false,
+                },
+                children: [],
+              });
+              break;
+              
+            case 'Testimonials':
+              blocks.push({
+                id: generateBlockId('testimonials'),
+                type: 'Testimonials',
+                props: {
+                  title: section.name || 'Depoimentos',
+                  items: [], // Will be filled by regex extractor
+                },
+                children: [],
+              });
+              break;
+              
+            case 'RichText':
+              blocks.push({
+                id: generateBlockId('richtext'),
+                type: 'RichText',
+                props: {
+                  content: `<h2>${section.name}</h2><p>Conteúdo extraído</p>`,
+                  fontFamily: 'inherit',
+                  fontSize: 'base',
+                  fontWeight: 'normal',
+                },
+                children: [],
+              });
+              break;
+              
+            default:
+              // For other block types, create RichText as placeholder
+              blocks.push({
+                id: generateBlockId('richtext'),
+                type: 'RichText',
+                props: {
+                  content: `<h2>${section.name}</h2>`,
+                  fontFamily: 'inherit',
+                  fontSize: 'base',
+                  fontWeight: 'normal',
+                },
+                children: [],
+              });
+          }
+        }
+      } else {
+        // pixel-perfect or hybrid: use CustomBlock for this section
+        console.log(`[BUILD] Section "${section.name}" -> CustomBlock (${section.mode})`);
+      }
+    }
+    
+    // If no blocks created, fall back to full CustomBlock
+    if (blocks.length === 0) {
+      const mainContent = extractMainContent(rawHtml);
+      const prunedCss = pruneCssForContent(extractedCss, mainContent);
+      
+      blocks.push({
+        id: generateBlockId('customblock'),
+        type: 'CustomBlock',
+        props: {
+          htmlContent: mainContent,
+          cssContent: prunedCss,
+          blockName: `Página: ${pageTitle}`,
+        },
+        children: [],
+      });
+    }
+  }
+  
+  console.log(`[BUILD] Created ${blocks.length} blocks`);
+  
+  return {
+    id: generateBlockId('page'),
+    type: 'Page',
+    props: { backgroundColor: 'transparent', padding: 'none' },
+    children: [{
+      id: generateBlockId('section'),
+      type: 'Section',
+      props: { 
+        backgroundColor: 'transparent', 
+        paddingX: 0, 
+        paddingY: 0, 
+        marginTop: 0, 
+        marginBottom: 0, 
+        gap: 16, 
+        alignItems: 'stretch', 
+        fullWidth: true 
+      },
+      children: blocks,
+    }],
+  };
+}
+
+// Prune CSS for specific content
+function pruneCssForContent(css: string, html: string): string {
+  if (!css || !html) return '';
+  
+  // Extract all class names and IDs from HTML
+  const classMatches = html.match(/class="([^"]*)"/gi) || [];
+  const idMatches = html.match(/id="([^"]*)"/gi) || [];
+  
+  const usedClasses = new Set<string>();
+  const usedIds = new Set<string>();
+  
+  classMatches.forEach(match => {
+    const classes = match.replace(/class="([^"]*)"/i, '$1').split(/\s+/);
+    classes.forEach(c => c && usedClasses.add(c.toLowerCase()));
+  });
+  
+  idMatches.forEach(match => {
+    const id = match.replace(/id="([^"]*)"/i, '$1');
+    if (id) usedIds.add(id.toLowerCase());
+  });
+  
+  // Get all HTML tag names used
+  const tagMatches = html.match(/<([a-z][a-z0-9]*)/gi) || [];
+  const usedTags = new Set<string>();
+  tagMatches.forEach(match => {
+    const tag = match.replace('<', '').toLowerCase();
+    if (tag) usedTags.add(tag);
+  });
+  
+  // Remove dangerous global rules
+  let cleanCss = css
+    .replace(/@font-face\s*\{[^}]*\}/gi, '')
+    .replace(/@import[^;]*;/gi, '')
+    .replace(/:root\s*\{[^}]*\}/gi, '')
+    .replace(/(?:^|\})\s*(?:html|body|\*)\s*\{[^}]*\}/gi, '}');
+  
+  const filteredRules: string[] = [];
+  const rules = cleanCss.match(/[^{}]+\{[^{}]*\}/g) || [];
+  
+  rules.forEach(rule => {
+    const braceIndex = rule.indexOf('{');
+    if (braceIndex === -1) return;
+    
+    const selector = rule.substring(0, braceIndex).trim();
+    const declarations = rule.substring(braceIndex);
+    
+    // Keep @keyframes
+    if (selector.startsWith('@')) {
+      filteredRules.push(rule);
+      return;
+    }
+    
+    // Skip global selectors
+    if (selector === '*' || selector === 'html' || selector === 'body' || selector === ':root') {
+      return;
+    }
+    
+    // Skip display:none rules
+    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(declarations)) {
+      return;
+    }
+    
+    // Check if selector matches any used class, ID, or tag
+    const selectorLower = selector.toLowerCase();
+    let matches = false;
+    
+    usedClasses.forEach(cls => {
+      if (selectorLower.includes('.' + cls)) matches = true;
+    });
+    usedIds.forEach(id => {
+      if (selectorLower.includes('#' + id)) matches = true;
+    });
+    usedTags.forEach(tag => {
+      const tagPattern = new RegExp(`\\b${tag}\\b`, 'i');
+      if (tagPattern.test(selector)) matches = true;
+    });
+    
+    if (matches) filteredRules.push(rule);
+  });
+  
+  const result = filteredRules.join('\n');
+  console.log(`[CSS-PRUNE] ${css.length} -> ${result.length} chars (${Math.round((1 - result.length/Math.max(1,css.length)) * 100)}% reduction)`);
+  return result;
 }
 
 // Convert AI sections to BlockNode structure
@@ -2201,7 +2515,7 @@ function createCustomPageBlocks(
   return blocks;
 }
 
-// Helper: Try AI analysis first, fallback to regex
+// Helper: Try AI CLASSIFICATION first, fallback to regex
 async function tryAIOrRegexAnalysis(
   scraped: { html: string; rawHtml?: string; markdown?: string; extractedCss?: string },
   finalTitle: string,
@@ -2210,15 +2524,25 @@ async function tryAIOrRegexAnalysis(
   tenantId: string
 ): Promise<BlockNode> {
   if (useAI) {
-    console.log(`[IMPORT] Using AI analysis for: ${finalTitle}`);
+    console.log(`[IMPORT] Using AI CLASSIFICATION for: ${finalTitle}`);
     
-    const aiResult = await analyzePageWithAI(scraped.html, finalTitle, '');
+    const classifyResult = await classifyPageWithAI(scraped.html, finalTitle, '');
     
-    if (aiResult.success && aiResult.sections && aiResult.sections.length > 0) {
-      console.log(`[IMPORT] AI SUCCESS: ${aiResult.sections.length} sections, complexity: ${aiResult.pageComplexity}`);
-      return createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId, scraped.extractedCss);
+    if (classifyResult.success && classifyResult.classification) {
+      console.log(`[IMPORT] AI CLASSIFICATION SUCCESS:`);
+      console.log(`  - Type: ${classifyResult.classification.pageType}`);
+      console.log(`  - Complexity: ${classifyResult.classification.complexity}`);
+      console.log(`  - Sections: ${classifyResult.classification.sections.length}`);
+      
+      // Use classification to build page
+      return buildPageFromClassification(
+        classifyResult.classification,
+        scraped.rawHtml || scraped.html,
+        scraped.extractedCss || '',
+        finalTitle
+      );
     } else {
-      console.warn(`[IMPORT] AI fallback: ${aiResult.error || 'no sections'}`);
+      console.warn(`[IMPORT] AI Classification fallback: ${classifyResult.error || 'no classification'}`);
     }
   }
   

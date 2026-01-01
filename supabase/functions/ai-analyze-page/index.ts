@@ -5,88 +5,54 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Available blocks in our Builder with their props
-const AVAILABLE_BLOCKS = `
-## Blocos Disponíveis no Builder
+// =============================================
+// AI CLASSIFIER/DECISOR - NOT A CONVERTER
+// =============================================
+// The AI's job is to THINK, not IMPLEMENT:
+// 1. Classify page type and complexity
+// 2. Segment into logical sections
+// 3. Decide mode per section
+// 4. Identify editable elements (CTAs/buttons)
+// =============================================
 
-### 1. YouTubeVideo
-- Para vídeos do YouTube incorporados
-- Props: { youtubeUrl: string, title?: string }
-- Usa: URL completa do YouTube (ex: https://www.youtube.com/watch?v=xxx)
+const SYSTEM_PROMPT = `Você é um especialista em análise de estrutura de páginas web.
 
-### 2. Image
-- Para imagens únicas
-- Props: { imageDesktop: string, imageMobile?: string, alt: string, linkUrl?: string }
-- Usa para: Imagens principais, banners, fotos de produto
+Sua tarefa é ANALISAR e CLASSIFICAR uma página, NÃO convertê-la.
 
-### 3. Button
-- Para botões de ação (CTA)
-- Props: { text: string, url: string, variant: 'primary'|'secondary'|'outline', size: 'sm'|'md'|'lg' }
-- Usa para: Botões "Comprar Agora", "Saiba Mais", etc.
+## Seu Papel
 
-### 4. Hero
-- Para seção hero com título, subtítulo e CTA
-- Props: { title: string, subtitle?: string, buttonText?: string, buttonUrl?: string, backgroundImage?: string, backgroundColor?: string }
+Você é o "cérebro decisor" do sistema de importação. Você analisa o HTML e decide:
+1. Qual é o TIPO desta página (landing page custom complexa? institucional simples?)
+2. Quais são as SEÇÕES lógicas desta página
+3. Para cada seção: qual MODO de importação usar
+4. Quais elementos são EDITÁVEIS (botões, CTAs)
 
-### 5. FAQ
-- Para perguntas frequentes (accordion)
-- Props: { title: string, items: [{ question: string, answer: string }] }
-- Usa quando: Conteúdo está em formato pergunta/resposta
+## Modos de Importação
 
-### 6. Testimonials
-- Para depoimentos/reviews
-- Props: { title: string, items: [{ name: string, text: string, rating?: number }] }
+### MODE: native-blocks
+- Quando a seção pode ser convertida para blocos nativos sem perder significado
+- Exemplos: FAQ, Depoimentos, Lista de benefícios, Texto simples, Imagem isolada
+- Resultado: editável no Builder
 
-### 7. RichText
-- Para conteúdo HTML/texto formatado
-- Props: { content: string } (HTML)
-- Usa para: Parágrafos de texto, listas, conteúdo misto
+### MODE: pixel-perfect
+- Quando a seção depende de CSS/layout específico e precisa ficar IDÊNTICA
+- Exemplos: Hero com design complexo, Grid elaborado, Seção com animações, Layout custom
+- Resultado: clone visual exato (CustomBlock isolado)
 
-### 8. Section (container)
-- Para agrupar outros blocos com background/padding
-- Props: { backgroundColor?: string, paddingY?: string }
+### MODE: hybrid
+- Quando a seção tem partes que podem ser blocos E partes que precisam ser clonadas
+- Exemplo: Seção com layout custom MAS com botões que devem ser editáveis
 
-### 9. CustomBlock
-- IMPORTANTE: Use quando o visual é complexo e não pode ser reproduzido com blocos nativos
-- Props: { htmlContent: string, cssContent?: string, blockName: string }
-- Usa para: Layouts com CSS específico, sliders complexos, animações, grids customizados
-- Benefício: Preserva 100% do visual original
-`;
+## O Que Você NÃO Deve Fazer
 
-const SYSTEM_PROMPT = `Você é um especialista em análise de páginas web e mapeamento para um sistema de Page Builder.
+- NÃO extraia conteúdo HTML para colocar em blocos
+- NÃO tente converter texto para HTML
+- NÃO crie props detalhadas de blocos
+- Apenas CLASSIFIQUE e DECIDA
 
-Sua tarefa é analisar o HTML de uma página e decidir como mapeá-lo para blocos do nosso Builder.
+## Output Esperado
 
-${AVAILABLE_BLOCKS}
-
-## Estratégia de Mapeamento
-
-### PRIORIDADE 1: Preservar Visual
-- Se uma seção tem layout complexo (grid, flexbox elaborado, animações), use CustomBlock
-- Se os elementos dependem de CSS específico, use CustomBlock
-- O objetivo é NÃO QUEBRAR o visual da página original
-
-### PRIORIDADE 2: Usar Blocos Nativos
-- Para elementos simples e reconhecíveis (um único vídeo, FAQ claro, lista de depoimentos), use blocos nativos
-- Isso permite edição fácil pelo usuário
-
-### Regras de Decisão:
-1. **Vídeo YouTube isolado** → YouTubeVideo
-2. **Botão de CTA visível** → Button (extraia texto e URL)
-3. **Perguntas e respostas** → FAQ (se houver 2+ perguntas)
-4. **Depoimentos/reviews** → Testimonials
-5. **Imagem única decorativa** → Image
-6. **Hero section clara** → Hero
-7. **Texto/parágrafos simples** → RichText
-8. **Qualquer layout visual complexo** → CustomBlock (preserve o HTML!)
-
-### IMPORTANTE sobre CustomBlock:
-- Quando usar CustomBlock, inclua TODO o HTML necessário para essa seção
-- Inclua também o CSS inline se existir (extraído de <style> ou atributos style=)
-- Isso garante que o visual seja preservado exatamente como no original
-
-## Output esperado
-Use a função map_page_to_blocks para retornar a estrutura identificada.`;
+Use a função classify_page para retornar sua análise.`;
 
 interface AnalyzeRequest {
   html: string;
@@ -94,13 +60,34 @@ interface AnalyzeRequest {
   pageUrl: string;
 }
 
-interface BlockSection {
-  order: number;
-  blockType: string;
-  props: Record<string, unknown>;
-  htmlContent?: string;
-  cssContent?: string;
+interface SectionAnalysis {
+  id: string;
+  name: string;
+  startMarker: string; // CSS selector or text marker to identify this section
+  endMarker?: string;
+  mode: 'native-blocks' | 'pixel-perfect' | 'hybrid';
+  confidence: number; // 0-100
   reasoning: string;
+  suggestedBlockTypes?: string[]; // For native-blocks mode
+  editableElements?: EditableElement[]; // CTAs/buttons to extract
+}
+
+interface EditableElement {
+  type: 'button' | 'link' | 'cta';
+  text: string;
+  selector: string; // CSS selector to find this element
+  reasoning: string;
+}
+
+interface PageClassification {
+  pageType: 'landing-custom' | 'institutional' | 'hybrid' | 'simple';
+  complexity: 'low' | 'medium' | 'high';
+  hasDesktopMobileVariants: boolean;
+  dependsOnExternalCss: boolean;
+  sections: SectionAnalysis[];
+  globalEditables: EditableElement[];
+  summary: string;
+  recommendedStrategy: string;
 }
 
 serve(async (req) => {
@@ -124,25 +111,31 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[AI-ANALYZE] Starting analysis for: ${pageTitle} (${html.length} chars)`);
+    console.log(`[AI-CLASSIFY] Starting classification for: ${pageTitle} (${html.length} chars)`);
 
-    // Truncate HTML if too long (keep first 35k chars for faster processing)
-    const maxHtmlLength = 35000;
+    // Truncate HTML if too long (keep first 40k chars for analysis)
+    const maxHtmlLength = 40000;
     const truncatedHtml = html.length > maxHtmlLength 
       ? html.substring(0, maxHtmlLength) + "\n<!-- [TRUNCADO] -->"
       : html;
     
-    console.log(`[AI-ANALYZE] Using ${truncatedHtml.length} chars for analysis`);
+    console.log(`[AI-CLASSIFY] Using ${truncatedHtml.length} chars for analysis`);
 
-    const userPrompt = `Analise esta página e mapeie para blocos do Builder.
+    const userPrompt = `Analise esta página e CLASSIFIQUE sua estrutura.
 
 Página: ${pageTitle}
 URL: ${pageUrl}
 
-HTML:
-${truncatedHtml}
+IMPORTANTE: Você deve APENAS analisar e classificar. NÃO tente extrair ou converter conteúdo.
 
-Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
+Identifique:
+1. Tipo da página (landing custom complexa? institucional simples?)
+2. Seções lógicas (onde cada uma começa/termina)
+3. Modo para cada seção (native-blocks, pixel-perfect, hybrid)
+4. Elementos editáveis (botões/CTAs que devem ser extraídos)
+
+HTML:
+${truncatedHtml}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -160,69 +153,143 @@ Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
           {
             type: "function",
             function: {
-              name: "map_page_to_blocks",
-              description: "Mapeia o conteúdo da página para blocos do Builder",
+              name: "classify_page",
+              description: "Classifica a estrutura da página para decidir como importar",
               parameters: {
                 type: "object",
                 properties: {
+                  pageType: {
+                    type: "string",
+                    enum: ["landing-custom", "institutional", "hybrid", "simple"],
+                    description: "Tipo geral da página"
+                  },
+                  complexity: {
+                    type: "string",
+                    enum: ["low", "medium", "high"],
+                    description: "Complexidade visual/estrutural"
+                  },
+                  hasDesktopMobileVariants: {
+                    type: "boolean",
+                    description: "Se a página tem elementos duplicados para desktop/mobile"
+                  },
+                  dependsOnExternalCss: {
+                    type: "boolean",
+                    description: "Se o layout depende fortemente de CSS externo/theme"
+                  },
                   sections: {
                     type: "array",
-                    description: "Lista de seções identificadas na página",
+                    description: "Seções identificadas na página",
                     items: {
                       type: "object",
                       properties: {
-                        order: { 
-                          type: "number", 
-                          description: "Ordem da seção na página (1, 2, 3...)" 
+                        id: {
+                          type: "string",
+                          description: "Identificador único da seção (ex: hero, benefits, faq)"
                         },
-                        blockType: { 
-                          type: "string", 
-                          description: "Tipo do bloco: YouTubeVideo, Image, Button, Hero, FAQ, Testimonials, RichText, Section, CustomBlock" 
+                        name: {
+                          type: "string",
+                          description: "Nome descritivo da seção"
                         },
-                        props: { 
-                          type: "object", 
-                          description: "Props específicas do bloco conforme sua definição" 
+                        startMarker: {
+                          type: "string",
+                          description: "Seletor CSS ou texto para identificar início da seção"
                         },
-                        htmlContent: { 
-                          type: "string", 
-                          description: "HTML completo da seção (OBRIGATÓRIO para CustomBlock)" 
+                        endMarker: {
+                          type: "string",
+                          description: "Seletor CSS ou texto para identificar fim da seção"
                         },
-                        cssContent: { 
-                          type: "string", 
-                          description: "CSS inline/específico da seção (para CustomBlock)" 
+                        mode: {
+                          type: "string",
+                          enum: ["native-blocks", "pixel-perfect", "hybrid"],
+                          description: "Modo de importação recomendado"
                         },
-                        reasoning: { 
-                          type: "string", 
-                          description: "Explicação de por que escolheu este bloco" 
+                        confidence: {
+                          type: "number",
+                          description: "Confiança na decisão (0-100)"
+                        },
+                        reasoning: {
+                          type: "string",
+                          description: "Por que escolheu este modo"
+                        },
+                        suggestedBlockTypes: {
+                          type: "array",
+                          items: { type: "string" },
+                          description: "Tipos de blocos sugeridos (para native-blocks)"
+                        },
+                        editableElements: {
+                          type: "array",
+                          description: "Elementos editáveis dentro desta seção",
+                          items: {
+                            type: "object",
+                            properties: {
+                              type: {
+                                type: "string",
+                                enum: ["button", "link", "cta"]
+                              },
+                              text: {
+                                type: "string",
+                                description: "Texto do elemento"
+                              },
+                              selector: {
+                                type: "string",
+                                description: "Seletor CSS para encontrar"
+                              },
+                              reasoning: {
+                                type: "string",
+                                description: "Por que este elemento deve ser editável"
+                              }
+                            },
+                            required: ["type", "text", "selector", "reasoning"]
+                          }
                         }
                       },
-                      required: ["order", "blockType", "props", "reasoning"],
-                      additionalProperties: false
+                      required: ["id", "name", "startMarker", "mode", "confidence", "reasoning"]
                     }
                   },
-                  pageComplexity: {
-                    type: "string",
-                    enum: ["simple", "moderate", "complex"],
-                    description: "Nível de complexidade visual da página"
+                  globalEditables: {
+                    type: "array",
+                    description: "Elementos editáveis globais (não em seção específica)",
+                    items: {
+                      type: "object",
+                      properties: {
+                        type: {
+                          type: "string",
+                          enum: ["button", "link", "cta"]
+                        },
+                        text: {
+                          type: "string"
+                        },
+                        selector: {
+                          type: "string"
+                        },
+                        reasoning: {
+                          type: "string"
+                        }
+                      },
+                      required: ["type", "text", "selector", "reasoning"]
+                    }
                   },
                   summary: {
                     type: "string",
-                    description: "Resumo da análise (1-2 frases)"
+                    description: "Resumo da análise em 1-2 frases"
+                  },
+                  recommendedStrategy: {
+                    type: "string",
+                    description: "Estratégia geral recomendada para importar esta página"
                   }
                 },
-                required: ["sections", "pageComplexity", "summary"],
-                additionalProperties: false
+                required: ["pageType", "complexity", "hasDesktopMobileVariants", "dependsOnExternalCss", "sections", "summary", "recommendedStrategy"]
               }
             }
           }
         ],
-        tool_choice: { type: "function", function: { name: "map_page_to_blocks" } }
+        tool_choice: { type: "function", function: { name: "classify_page" } }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[AI-ANALYZE] API error:', response.status, errorText);
+      console.error('[AI-CLASSIFY] API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
@@ -241,13 +308,13 @@ Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
     }
 
     const data = await response.json();
-    console.log('[AI-ANALYZE] Raw response:', JSON.stringify(data).substring(0, 500));
+    console.log('[AI-CLASSIFY] Raw response received');
 
     // Extract tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
-    if (!toolCall || toolCall.function?.name !== 'map_page_to_blocks') {
-      console.error('[AI-ANALYZE] No valid tool call in response');
+    if (!toolCall || toolCall.function?.name !== 'classify_page') {
+      console.error('[AI-CLASSIFY] No valid tool call in response');
       return new Response(
         JSON.stringify({ 
           error: 'AI did not return expected structure',
@@ -257,11 +324,11 @@ Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
       );
     }
 
-    let result;
+    let result: PageClassification;
     try {
       result = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
-      console.error('[AI-ANALYZE] Failed to parse tool arguments:', parseError);
+      console.error('[AI-CLASSIFY] Failed to parse tool arguments:', parseError);
       return new Response(
         JSON.stringify({ 
           error: 'Failed to parse AI response',
@@ -271,31 +338,39 @@ Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
       );
     }
 
-    console.log(`[AI-ANALYZE] Success: ${result.sections?.length || 0} sections, complexity: ${result.pageComplexity}`);
-    console.log(`[AI-ANALYZE] Summary: ${result.summary}`);
+    console.log(`[AI-CLASSIFY] Success:`);
+    console.log(`  - Type: ${result.pageType}`);
+    console.log(`  - Complexity: ${result.complexity}`);
+    console.log(`  - Sections: ${result.sections?.length || 0}`);
+    console.log(`  - Desktop/Mobile: ${result.hasDesktopMobileVariants}`);
+    console.log(`  - Strategy: ${result.recommendedStrategy?.substring(0, 100)}...`);
 
     // Validate sections
-    const validSections = (result.sections || []).filter((s: BlockSection) => {
-      if (!s.blockType || !s.props) return false;
-      if (s.blockType === 'CustomBlock' && !s.htmlContent) {
-        console.warn(`[AI-ANALYZE] CustomBlock without htmlContent, skipping`);
-        return false;
-      }
+    const validSections = (result.sections || []).filter(s => {
+      if (!s.id || !s.mode) return false;
+      if (!['native-blocks', 'pixel-perfect', 'hybrid'].includes(s.mode)) return false;
       return true;
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        sections: validSections,
-        pageComplexity: result.pageComplexity || 'moderate',
-        summary: result.summary || 'Análise concluída',
+        classification: {
+          pageType: result.pageType || 'hybrid',
+          complexity: result.complexity || 'medium',
+          hasDesktopMobileVariants: result.hasDesktopMobileVariants ?? false,
+          dependsOnExternalCss: result.dependsOnExternalCss ?? true,
+          sections: validSections,
+          globalEditables: result.globalEditables || [],
+          summary: result.summary || 'Análise concluída',
+          recommendedStrategy: result.recommendedStrategy || 'Usar modo híbrido',
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('[AI-ANALYZE] Error:', error);
+    console.error('[AI-CLASSIFY] Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     
     return new Response(
