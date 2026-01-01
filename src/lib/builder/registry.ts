@@ -2152,8 +2152,8 @@ const blockDefinitions: BlockDefinition[] = [
   // ========== HTML SECTION (Manual HTML/CSS) ==========
   {
     type: 'HTMLSection',
-    label: 'Seção HTML',
-    category: 'content',
+    label: 'Bloco Html',
+    category: 'layout',
     icon: 'FileCode',
     defaultProps: {
       htmlContent: '<div style="padding: 40px; text-align: center; background: #f0f0f0;">\n  <h2>Seção HTML Customizada</h2>\n  <p>Edite o HTML e CSS nas propriedades do bloco.</p>\n</div>',
@@ -2175,7 +2175,7 @@ const blockDefinitions: BlockDefinition[] = [
       blockName: {
         type: 'string',
         label: 'Nome do Bloco',
-        defaultValue: 'Seção HTML',
+        defaultValue: 'Bloco Html',
       },
       baseUrl: {
         type: 'string',
