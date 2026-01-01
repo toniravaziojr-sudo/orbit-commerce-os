@@ -296,24 +296,19 @@ export function IsolatedCustomBlock({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastHeightRef = useRef<number>(200);
-  const stableCountRef = useRef<number>(0);
-  const rafIdRef = useRef<number | null>(null);
+  const measurementCountRef = useRef<number>(0);
+  const isStableRef = useRef<boolean>(false);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   
-  // NOTE: We no longer need isMobile state - CSS media queries handle responsive hiding
-  // This eliminates the re-render loop that was causing infinite recalculation
-  
   // Process HTML - sanitize, materialize videos, AND add responsive variant hiding
-  // No longer depends on isMobile - uses CSS media queries instead
   const processedHtml = useMemo(() => {
     let html = sanitizeHtml(htmlContent);
     html = materializeVideos(html);
-    // Add CSS that hides desktop sections on mobile (only when tablet variant exists)
     html = addMobileHidingStyles(html);
     return html;
   }, [htmlContent]);
   
-  // Get responsive variant CSS (uses media queries, no JS-based switching)
+  // Get responsive variant CSS (uses media queries)
   const variantCss = useMemo(() => getResponsiveVariantCss(), []);
   
   // Combine CSS with variant hiding rules
@@ -325,39 +320,40 @@ export function IsolatedCustomBlock({
     [processedHtml, finalCss, baseUrl, isEditing]
   );
   
-  // Measure and update height imperatively (no setState = no re-render)
+  // Measure and update height - LIMITED iterations to prevent infinite loop
   const measureAndUpdateHeight = useCallback(() => {
-    if (!iframeRef.current?.contentDocument || !containerRef.current) return;
+    // CRITICAL: Hard limit to prevent infinite loops
+    if (measurementCountRef.current >= 10 || isStableRef.current) {
+      return;
+    }
+    
+    if (!iframeRef.current?.contentDocument) return;
+    
+    measurementCountRef.current++;
     
     const doc = iframeRef.current.contentDocument;
     const newHeight = measureContentHeight(doc);
     
     const delta = Math.abs(newHeight - lastHeightRef.current);
     
-    // Only update if significant change
-    if (delta > 5) {
+    // Update height if changed significantly
+    if (delta > 10) {
       lastHeightRef.current = newHeight;
-      // Direct DOM update - no React state
       if (iframeRef.current) {
         iframeRef.current.style.height = `${newHeight}px`;
       }
-      stableCountRef.current = 0;
     } else {
-      stableCountRef.current++;
-    }
-    
-    // Continue measuring until stable (5 consecutive stable readings)
-    if (stableCountRef.current < 5) {
-      const timeout = setTimeout(measureAndUpdateHeight, 150);
-      timeoutsRef.current.push(timeout);
+      // Height is stable
+      isStableRef.current = true;
     }
   }, []);
   
   // Handle iframe load
   const handleLoad = useCallback(() => {
-    // Reset
+    // Reset counters
     lastHeightRef.current = 200;
-    stableCountRef.current = 0;
+    measurementCountRef.current = 0;
+    isStableRef.current = false;
     
     // Clear pending timeouts
     timeoutsRef.current.forEach(clearTimeout);
@@ -368,15 +364,19 @@ export function IsolatedCustomBlock({
       iframeRef.current.style.height = '200px';
     }
     
-    // Start measurement sequence
+    // Start measurement sequence with LIMITED retries
     requestAnimationFrame(() => {
       measureAndUpdateHeight();
     });
     
-    // Additional measurements for late-loading content
-    const delays = [100, 300, 600, 1000, 2000];
+    // Only a few delayed measurements (not continuous)
+    const delays = [100, 300, 800, 1500];
     delays.forEach(delay => {
-      const timeout = setTimeout(measureAndUpdateHeight, delay);
+      const timeout = setTimeout(() => {
+        if (!isStableRef.current) {
+          measureAndUpdateHeight();
+        }
+      }, delay);
       timeoutsRef.current.push(timeout);
     });
   }, [measureAndUpdateHeight]);
@@ -406,22 +406,21 @@ export function IsolatedCustomBlock({
       // Cleanup
       timeoutsRef.current.forEach(clearTimeout);
       timeoutsRef.current = [];
-      if (rafIdRef.current) {
-        cancelAnimationFrame(rafIdRef.current);
-      }
     };
   }, [iframeDoc, handleLoad]);
   
-  // Re-measure on window resize
+  // Re-measure on window resize (with debounce and limit)
   useEffect(() => {
     let resizeTimeout: NodeJS.Timeout;
     
     const handleResize = () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
-        stableCountRef.current = 0;
+        // Reset measurement counter for resize, but limit it
+        measurementCountRef.current = 0;
+        isStableRef.current = false;
         measureAndUpdateHeight();
-      }, 100);
+      }, 150);
     };
     
     window.addEventListener('resize', handleResize);
