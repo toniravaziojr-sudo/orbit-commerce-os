@@ -1458,19 +1458,33 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
     }
 
     // Firecrawl v1 response structure
-    const fullRawHtml = data.data?.rawHtml || data.rawHtml || '';
-    const mainHtml = data.data?.html || data.html || '';
+    let fullRawHtml = data.data?.rawHtml || data.rawHtml || '';
+    let mainHtml = data.data?.html || data.html || '';
     const markdown = data.data?.markdown || data.markdown || '';
     const title = data.data?.metadata?.title || data.metadata?.title || '';
     const description = data.data?.metadata?.description || data.metadata?.description || '';
 
     console.log(`[SCRAPE] Success for ${normalizedUrl}: rawHtml=${fullRawHtml.length}chars, html=${mainHtml.length}chars, md=${markdown.length}chars`);
 
-    // Extract CSS from the raw HTML (styles in head and inline)
+    // CRITICAL: Limit HTML sizes to prevent CPU timeout
+    const maxRawHtmlSize = 200000; // 200KB max for CSS extraction
+    const maxMainHtmlSize = 100000; // 100KB max for content processing
+    
+    if (fullRawHtml.length > maxRawHtmlSize) {
+      console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), truncating to ${maxRawHtmlSize}`);
+      fullRawHtml = fullRawHtml.substring(0, maxRawHtmlSize);
+    }
+    
+    if (mainHtml.length > maxMainHtmlSize) {
+      console.log(`[SCRAPE] mainHtml too large (${mainHtml.length}), truncating to ${maxMainHtmlSize}`);
+      mainHtml = mainHtml.substring(0, maxMainHtmlSize);
+    }
+
+    // Extract CSS from the raw HTML (styles in head and inline) - quick operation now
     const extractedCss = extractCssFromHtml(fullRawHtml);
     console.log(`[SCRAPE] Extracted CSS: ${extractedCss.length}chars`);
 
-    // Use the main content HTML for processing but keep raw HTML for reference
+    // Use the main content HTML for processing - also limited now
     const cleanedHtml = cleanHtmlContent(mainHtml || fullRawHtml, markdown);
     console.log(`[SCRAPE] Cleaned HTML: ${cleanedHtml.length}chars`);
 
