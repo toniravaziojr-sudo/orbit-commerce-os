@@ -16,11 +16,298 @@ interface ImportPagesRequest {
   tenantId: string;
   pages: InstitutionalPage[];
   platform?: string;
-  storeUrl?: string; // Base URL of the store for relative URL resolution
+  storeUrl?: string;
+  useAI?: boolean; // New: opt-in for AI analysis
 }
 
 // =============================================
-// CONTENT-TO-BLOCK MAPPER v3 - Inline Copy
+// AI ANALYSIS INTEGRATION
+// =============================================
+
+interface AISection {
+  order: number;
+  blockType: string;
+  props: Record<string, unknown>;
+  htmlContent?: string;
+  cssContent?: string;
+  reasoning: string;
+}
+
+interface AIAnalysisResult {
+  success: boolean;
+  sections?: AISection[];
+  pageComplexity?: string;
+  summary?: string;
+  error?: string;
+  fallback?: boolean;
+}
+
+// Call ai-analyze-page edge function
+async function analyzePageWithAI(
+  html: string, 
+  pageTitle: string, 
+  pageUrl: string
+): Promise<AIAnalysisResult> {
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('[AI] Missing Supabase config');
+      return { success: false, error: 'Missing config', fallback: true };
+    }
+
+    console.log(`[AI] Calling ai-analyze-page for: ${pageTitle}`);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-analyze-page`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ html, pageTitle, pageUrl }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[AI] API error: ${response.status}`, errorText);
+      return { success: false, error: `API error ${response.status}`, fallback: true };
+    }
+
+    const data = await response.json();
+    
+    if (data.fallback || data.error) {
+      console.warn(`[AI] Fallback needed: ${data.error}`);
+      return { success: false, error: data.error, fallback: true };
+    }
+
+    console.log(`[AI] Success: ${data.sections?.length || 0} sections, complexity: ${data.pageComplexity}`);
+    return {
+      success: true,
+      sections: data.sections,
+      pageComplexity: data.pageComplexity,
+      summary: data.summary,
+    };
+
+  } catch (error) {
+    console.error('[AI] Exception:', error);
+    return { success: false, error: String(error), fallback: true };
+  }
+}
+
+// Convert AI sections to BlockNode structure
+function convertAISectionsToBlocks(sections: AISection[], supabase: any, tenantId: string): BlockNode[] {
+  const blocks: BlockNode[] = [];
+
+  // Sort by order
+  const sortedSections = [...sections].sort((a, b) => a.order - b.order);
+
+  for (const section of sortedSections) {
+    console.log(`[AI→BLOCK] Converting: ${section.blockType} - ${section.reasoning?.substring(0, 50)}`);
+
+    switch (section.blockType) {
+      case 'YouTubeVideo':
+        blocks.push({
+          id: generateBlockId('youtube'),
+          type: 'YouTubeVideo',
+          props: {
+            title: section.props.title || '',
+            youtubeUrl: section.props.youtubeUrl || section.props.url || '',
+          },
+          children: [],
+        });
+        break;
+
+      case 'Image':
+        blocks.push({
+          id: generateBlockId('image'),
+          type: 'Image',
+          props: {
+            imageDesktop: section.props.imageDesktop || section.props.src || '',
+            imageMobile: section.props.imageMobile || '',
+            alt: section.props.alt || 'Imagem',
+            linkUrl: section.props.linkUrl || '',
+            width: 'full',
+            height: 'auto',
+            objectFit: 'cover',
+            objectPosition: 'center',
+            aspectRatio: 'auto',
+            rounded: 'none',
+            shadow: 'none',
+          },
+          children: [],
+        });
+        break;
+
+      case 'Button':
+        blocks.push({
+          id: generateBlockId('button'),
+          type: 'Button',
+          props: {
+            text: section.props.text || 'Clique aqui',
+            url: section.props.url || '#',
+            variant: section.props.variant || 'primary',
+            size: section.props.size || 'md',
+          },
+          children: [],
+        });
+        break;
+
+      case 'Hero':
+        blocks.push({
+          id: generateBlockId('hero'),
+          type: 'Hero',
+          props: {
+            title: section.props.title || '',
+            subtitle: section.props.subtitle || '',
+            buttonText: section.props.buttonText || '',
+            buttonUrl: section.props.buttonUrl || '',
+            backgroundImage: section.props.backgroundImage || '',
+            backgroundColor: section.props.backgroundColor || '',
+          },
+          children: [],
+        });
+        break;
+
+      case 'FAQ':
+        blocks.push({
+          id: generateBlockId('faq'),
+          type: 'FAQ',
+          props: {
+            title: section.props.title || 'Perguntas Frequentes',
+            titleAlign: 'left',
+            items: Array.isArray(section.props.items) ? section.props.items : [],
+            allowMultiple: false,
+          },
+          children: [],
+        });
+        break;
+
+      case 'Testimonials':
+        blocks.push({
+          id: generateBlockId('testimonials'),
+          type: 'Testimonials',
+          props: {
+            title: section.props.title || 'Depoimentos',
+            items: Array.isArray(section.props.items) ? section.props.items : [],
+          },
+          children: [],
+        });
+        break;
+
+      case 'RichText':
+        blocks.push({
+          id: generateBlockId('richtext'),
+          type: 'RichText',
+          props: {
+            content: section.props.content || section.htmlContent || '<p>Conteúdo</p>',
+            fontFamily: 'inherit',
+            fontSize: 'base',
+            fontWeight: 'normal',
+          },
+          children: [],
+        });
+        break;
+
+      case 'CustomBlock':
+        // For CustomBlock, we create a special block that CustomBlockRenderer can handle
+        if (section.htmlContent) {
+          blocks.push({
+            id: generateBlockId('customblock'),
+            type: 'CustomBlock',
+            props: {
+              htmlContent: section.htmlContent,
+              cssContent: section.cssContent || '',
+              blockName: section.props.blockName || 'Conteúdo Personalizado',
+            },
+            children: [],
+          });
+        } else {
+          console.warn('[AI→BLOCK] CustomBlock without htmlContent, using RichText fallback');
+          blocks.push({
+            id: generateBlockId('richtext'),
+            type: 'RichText',
+            props: {
+              content: '<p>Seção importada</p>',
+              fontFamily: 'inherit',
+              fontSize: 'base',
+              fontWeight: 'normal',
+            },
+            children: [],
+          });
+        }
+        break;
+
+      case 'Section':
+        // Section is a container, create with children if any
+        blocks.push({
+          id: generateBlockId('section'),
+          type: 'Section',
+          props: {
+            backgroundColor: section.props.backgroundColor || 'transparent',
+            paddingX: 16,
+            paddingY: 32,
+            marginTop: 0,
+            marginBottom: 0,
+            gap: 24,
+            alignItems: 'stretch',
+            fullWidth: false,
+          },
+          children: [],
+        });
+        break;
+
+      default:
+        // Unknown block type - fallback to RichText with content
+        console.warn(`[AI→BLOCK] Unknown type: ${section.blockType}, using RichText`);
+        if (section.htmlContent) {
+          blocks.push({
+            id: generateBlockId('richtext'),
+            type: 'RichText',
+            props: {
+              content: section.htmlContent,
+              fontFamily: 'inherit',
+              fontSize: 'base',
+              fontWeight: 'normal',
+            },
+            children: [],
+          });
+        }
+        break;
+    }
+  }
+
+  return blocks;
+}
+
+// Create page structure from AI analysis
+function createPageFromAIAnalysis(sections: AISection[], pageTitle: string, supabase: any, tenantId: string): BlockNode {
+  const contentBlocks = convertAISectionsToBlocks(sections, supabase, tenantId);
+  
+  return {
+    id: generateBlockId('page'),
+    type: 'Page',
+    props: { backgroundColor: 'transparent', padding: 'none' },
+    children: [{
+      id: generateBlockId('section'),
+      type: 'Section',
+      props: { 
+        backgroundColor: 'transparent', 
+        paddingX: 16, 
+        paddingY: 32, 
+        marginTop: 0, 
+        marginBottom: 0, 
+        gap: 24, 
+        alignItems: 'stretch', 
+        fullWidth: false 
+      },
+      children: contentBlocks,
+    }],
+  };
+}
+
+// =============================================
+// CONTENT-TO-BLOCK MAPPER v3 - Fallback (Regex-based)
 // Enhanced extraction with 6 strategies for FAQ, 
 // improved Testimonials and InfoHighlights detection
 // =============================================
@@ -1356,15 +1643,16 @@ function isCorePageUrl(url: string, slug: string): boolean {
   return corePatterns.some(pattern => pattern.test(fullPath));
 }
 
-// Process a single page import
+// Process a single page import - NOW WITH AI SUPPORT
 async function importPage(
   supabase: any,
   tenantId: string,
   page: InstitutionalPage,
-  storeUrl?: string
+  storeUrl?: string,
+  useAI: boolean = true // AI is ON by default
 ): Promise<{ success: boolean; error?: string; pageId?: string }> {
   try {
-    console.log(`[IMPORT] Processing page: ${page.title} (${page.url})`);
+    console.log(`[IMPORT] Processing page: ${page.title} (${page.url}) - AI: ${useAI ? 'ON' : 'OFF'}`);
     
     // Check if this is a core page
     if (isCorePageUrl(page.url, page.slug)) {
@@ -1396,11 +1684,37 @@ async function importPage(
     // Use scraped title if available, otherwise use provided title
     const finalTitle = scraped.title || page.title || getTitleFromSlug(page.slug);
     
-    // Create page content using intelligent block mapping
-    console.log(`[IMPORT] Creating page structure for: ${finalTitle}`);
-    const pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+    let pageContent: BlockNode;
     
-    // Process any pending complex page placeholders
+    // =============================================
+    // NEW: Try AI analysis first, fallback to regex
+    // =============================================
+    if (useAI) {
+      console.log(`[IMPORT] Using AI analysis for: ${finalTitle}`);
+      
+      const aiResult = await analyzePageWithAI(scraped.html, finalTitle, page.url);
+      
+      if (aiResult.success && aiResult.sections && aiResult.sections.length > 0) {
+        console.log(`[IMPORT] AI SUCCESS: ${aiResult.sections.length} sections, complexity: ${aiResult.pageComplexity}`);
+        console.log(`[IMPORT] AI Summary: ${aiResult.summary}`);
+        
+        // Create page from AI analysis
+        pageContent = createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId);
+        
+        console.log(`[IMPORT] AI Page blocks: ${pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ')}`);
+      } else {
+        // AI failed or returned no sections - fallback to regex
+        console.warn(`[IMPORT] AI fallback: ${aiResult.error || 'no sections'}`);
+        console.log(`[IMPORT] Using regex analysis for: ${finalTitle}`);
+        pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+      }
+    } else {
+      // AI disabled - use original regex analysis
+      console.log(`[IMPORT] Creating page structure (regex) for: ${finalTitle}`);
+      pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+    }
+    
+    // Process any pending complex page placeholders (from regex path)
     const section = pageContent.children[0];
     if (section && section.children) {
       const newChildren: BlockNode[] = [];
@@ -1409,7 +1723,7 @@ async function importPage(
         if (block.type === '__CustomBlockPending__') {
           console.log(`[IMPORT] Processing complex page placeholder...`);
           
-          // Use the new placeholder approach instead of raw HTML CustomBlock
+          // Use the placeholder approach instead of raw HTML CustomBlock
           const placeholderBlocks = await createComplexPagePlaceholder(
             supabase,
             tenantId,
@@ -1431,8 +1745,10 @@ async function importPage(
       }
       
       section.children = newChildren;
-      console.log(`[IMPORT] Page blocks: ${section.children.map((b: BlockNode) => b.type).join(', ')}`);
     }
+    
+    const blockTypes = section?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
+    console.log(`[IMPORT] Final page blocks: ${blockTypes}`);
     
     // Prepare SEO metadata
     const seoTitle = scraped.title || finalTitle;
@@ -1488,7 +1804,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     
     const body: ImportPagesRequest = await req.json();
-    const { tenantId, pages, storeUrl } = body;
+    const { tenantId, pages, storeUrl, useAI = true } = body; // AI is ON by default
     
     if (!tenantId || !Array.isArray(pages)) {
       return new Response(
@@ -1497,13 +1813,13 @@ Deno.serve(async (req) => {
       );
     }
     
-    console.log(`[IMPORT-PAGES] Starting import of ${pages.length} pages for tenant ${tenantId}`);
+    console.log(`[IMPORT-PAGES] Starting import of ${pages.length} pages for tenant ${tenantId} (AI: ${useAI ? 'ON' : 'OFF'})`);
     
     // Process pages
     const results: { page: string; status: 'imported' | 'skipped' | 'failed'; reason?: string }[] = [];
     
     for (const page of pages) {
-      const result = await importPage(supabase, tenantId, page, storeUrl);
+      const result = await importPage(supabase, tenantId, page, storeUrl, useAI);
       
       if (result.success) {
         results.push({ page: page.slug, status: 'imported' });
