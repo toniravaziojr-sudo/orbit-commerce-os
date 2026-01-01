@@ -126,25 +126,23 @@ serve(async (req) => {
 
     console.log(`[AI-ANALYZE] Starting analysis for: ${pageTitle} (${html.length} chars)`);
 
-    // Truncate HTML if too long (keep first 80k chars for context)
-    const maxHtmlLength = 80000;
+    // Truncate HTML if too long (keep first 35k chars for faster processing)
+    const maxHtmlLength = 35000;
     const truncatedHtml = html.length > maxHtmlLength 
-      ? html.substring(0, maxHtmlLength) + "\n<!-- [CONTEÚDO TRUNCADO] -->"
+      ? html.substring(0, maxHtmlLength) + "\n<!-- [TRUNCADO] -->"
       : html;
+    
+    console.log(`[AI-ANALYZE] Using ${truncatedHtml.length} chars for analysis`);
 
-    const userPrompt = `Analise esta página e mapeie o conteúdo para blocos do Builder.
+    const userPrompt = `Analise esta página e mapeie para blocos do Builder.
 
-## Página
-- Título: ${pageTitle}
-- URL: ${pageUrl}
+Página: ${pageTitle}
+URL: ${pageUrl}
 
-## HTML da Página
-\`\`\`html
+HTML:
 ${truncatedHtml}
-\`\`\`
 
-Identifique todas as seções visuais da página e para cada uma decida qual bloco usar.
-Lembre-se: para layouts complexos ou com estilo visual específico, use CustomBlock para preservar 100% do visual.`;
+Identifique as seções e mapeie. Para layouts complexos, use CustomBlock.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
