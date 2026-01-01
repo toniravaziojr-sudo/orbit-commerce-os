@@ -2149,6 +2149,43 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: true,
   },
+  // ========== HTML SECTION (Manual HTML/CSS) ==========
+  {
+    type: 'HTMLSection',
+    label: 'Seção HTML',
+    category: 'content',
+    icon: 'FileCode',
+    defaultProps: {
+      htmlContent: '<div style="padding: 40px; text-align: center; background: #f0f0f0;">\n  <h2>Seção HTML Customizada</h2>\n  <p>Edite o HTML e CSS nas propriedades do bloco.</p>\n</div>',
+      cssContent: '',
+      blockName: 'Seção HTML',
+      baseUrl: '',
+    },
+    propsSchema: {
+      htmlContent: {
+        type: 'textarea',
+        label: 'Código HTML',
+        placeholder: '<div>Seu HTML aqui...</div>',
+      },
+      cssContent: {
+        type: 'textarea',
+        label: 'Código CSS',
+        placeholder: '.minha-classe { color: red; }',
+      },
+      blockName: {
+        type: 'string',
+        label: 'Nome do Bloco',
+        defaultValue: 'Seção HTML',
+      },
+      baseUrl: {
+        type: 'string',
+        label: 'URL Base (para imagens relativas)',
+        placeholder: 'https://exemplo.com/',
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: true,
+  },
 ];
 
 // Registry class

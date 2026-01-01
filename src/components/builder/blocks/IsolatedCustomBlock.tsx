@@ -258,6 +258,7 @@ export function IsolatedCustomBlock({
   const [iframeHeight, setIframeHeight] = useState<number | 'auto'>('auto');
   const [minHeight, setMinHeight] = useState(200);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpandPending, setIsExpandPending] = useState(false); // Prevent rapid clicks
   
   // Sanitize HTML and process CSS (less aggressive for pixel-perfect)
   const sanitizedHtml = useMemo(() => sanitizeHtml(htmlContent), [htmlContent]);
@@ -341,9 +342,17 @@ export function IsolatedCustomBlock({
           <Code className="w-3 h-3" />
           <span>{blockName}</span>
           <button
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (isExpandPending) return;
+              setIsExpandPending(true);
+              setIsExpanded(!isExpanded);
+              setTimeout(() => setIsExpandPending(false), 300);
+            }}
             className="ml-2 hover:opacity-75 transition-opacity"
             title={isExpanded ? 'Reduzir' : 'Expandir'}
+            disabled={isExpandPending}
           >
             {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
           </button>
@@ -371,14 +380,23 @@ export function IsolatedCustomBlock({
       
       {/* Show more indicator (only in editor when content is truncated) */}
       {isEditing && !isExpanded && maxHeight && typeof iframeHeight === 'number' && iframeHeight > maxHeight && (
-        <div 
-          className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent flex items-end justify-center pb-2 cursor-pointer"
-          onClick={() => setIsExpanded(true)}
+        <button 
+          type="button"
+          className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent flex items-end justify-center pb-2 cursor-pointer border-0 outline-none"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (isExpandPending) return;
+            setIsExpandPending(true);
+            setIsExpanded(true);
+            setTimeout(() => setIsExpandPending(false), 300);
+          }}
+          disabled={isExpandPending}
         >
-          <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+          <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded pointer-events-none">
             Clique para expandir ({Math.round(iframeHeight)}px)
           </span>
-        </div>
+        </button>
       )}
     </div>
   );
