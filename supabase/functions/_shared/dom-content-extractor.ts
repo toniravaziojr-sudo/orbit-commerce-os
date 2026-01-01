@@ -91,10 +91,11 @@ const REMOVAL_SELECTORS = {
   // Semantic layout elements
   layout: ['header', 'footer', 'nav', 'aside'],
   
-  // Modal/overlay elements
+  // Modal/overlay elements - CRITICAL: must remove ALL modals/drawers/overlays
   modals: [
     '[role="dialog"]',
     '[aria-modal="true"]',
+    '[aria-hidden="true"]',
     '.modal',
     '.drawer',
     '.overlay',
@@ -106,6 +107,17 @@ const REMOVAL_SELECTORS = {
     '.lightbox',
     '.modal-parcel',
     '.backdrop-modal-parcel',
+    '#backdrop-modal-parcel',
+    '[id*="modal"]',
+    '[id*="drawer"]',
+    '[id*="overlay"]',
+    '[id*="backdrop"]',
+    '[id*="popup"]',
+    '[class*="modal"]',
+    '[class*="drawer"]',
+    '[class*="overlay"]',
+    '[class*="backdrop"]',
+    '[class*="popup"]',
   ],
   
   // Cookie/consent banners
@@ -135,6 +147,17 @@ const REMOVAL_SELECTORS = {
     '#shopify-section-menu-drawer',
     '.announcement-bar',
     '.announcement-bar-section',
+    // Footer content specifically
+    '[class*="footer"]',
+    '[id*="footer"]',
+    // Header content specifically  
+    '[class*="header"]',
+    '[id*="header"]',
+    // Navigation
+    '[class*="nav-"]',
+    '[class*="-nav"]',
+    '.menu-mobile',
+    '.mobile-menu',
   ],
   
   // Navigation elements
@@ -150,18 +173,30 @@ const REMOVAL_SELECTORS = {
     '.footer-container',
     '#header',
     '#footer',
+    '.menu-flutuante',
+    '#MenuFlutuante',
   ],
   
-  // Non-content elements
+  // Non-content elements (footers, headers, banners)
   nonContent: [
     '.search-trending',
     '.trending-searches',
     '.popular-searches',
-    '.menu-flutuante',
-    '#MenuFlutuante',
     '.selos-footer',
     '.promo-bar',
     '.top-bar',
+    // Footer-like content
+    '[class*="atendimento"]',
+    '[class*="contato"]',
+    '[class*="selos"]',
+    '[class*="pagamento"]',
+    '[class*="certificado"]',
+    // Social links
+    '[class*="social"]',
+    '[class*="redes-sociais"]',
+    // Newsletter/subscriptions
+    '[class*="newsletter"]',
+    '[class*="subscribe"]',
   ],
 };
 
@@ -353,11 +388,56 @@ function findLargestTextContainer(
 ): MainContainerCandidate | null {
   const candidates: MainContainerCandidate[] = [];
   
+  // CRITICAL: Patterns to EXCLUDE from heuristic selection
+  // These are modals, drawers, overlays that should NEVER be selected as main content
+  const EXCLUDED_ID_PATTERNS = [
+    /modal/i, /drawer/i, /overlay/i, /backdrop/i, /popup/i, 
+    /lightbox/i, /dialog/i, /menu/i, /cart/i, /search/i,
+    /cookie/i, /consent/i, /gdpr/i, /banner/i, /announcement/i,
+    /header/i, /footer/i, /nav/i, /sidebar/i,
+  ];
+  
+  const EXCLUDED_CLASS_PATTERNS = [
+    /modal/i, /drawer/i, /overlay/i, /backdrop/i, /popup/i,
+    /lightbox/i, /dialog/i, /menu/i, /cart/i, /search/i,
+    /cookie/i, /consent/i, /gdpr/i, /banner/i, /announcement/i,
+    /header/i, /footer/i, /nav/i, /sidebar/i, /hidden/i,
+  ];
+  
   // Check various container elements
   const containers = doc.querySelectorAll('div, section, article, main');
   
   for (const container of containers) {
     const element = container as Element;
+    
+    // Get element identifiers
+    const id = element.getAttribute('id') || '';
+    const className = element.getAttribute('class') || '';
+    const role = element.getAttribute('role') || '';
+    const ariaModal = element.getAttribute('aria-modal');
+    const ariaHidden = element.getAttribute('aria-hidden');
+    
+    // SKIP: Elements with excluded patterns in ID
+    if (id && EXCLUDED_ID_PATTERNS.some(pattern => pattern.test(id))) {
+      logs.push(`[DOM-EXTRACT] Heuristic skipping #${id} (excluded pattern in ID)`);
+      continue;
+    }
+    
+    // SKIP: Elements with excluded patterns in class
+    if (className && EXCLUDED_CLASS_PATTERNS.some(pattern => pattern.test(className))) {
+      continue; // Skip silently to avoid too many logs
+    }
+    
+    // SKIP: Elements with modal/dialog roles
+    if (role === 'dialog' || role === 'alertdialog' || role === 'menu' || role === 'navigation') {
+      logs.push(`[DOM-EXTRACT] Heuristic skipping element with role="${role}"`);
+      continue;
+    }
+    
+    // SKIP: Elements marked as modal or hidden
+    if (ariaModal === 'true' || ariaHidden === 'true') {
+      continue;
+    }
     
     // Skip if this container has layout elements as direct children
     const hasLayoutChildren = 
@@ -380,10 +460,9 @@ function findLargestTextContainer(
     const score = textLength + (paragraphs * 100) + (headings * 200);
     
     // Get a readable selector for logging
-    const id = element.getAttribute('id');
-    const className = element.getAttribute('class')?.split(' ')[0];
+    const firstClass = className.split(' ')[0];
     const tagName = element.tagName.toLowerCase();
-    const selector = id ? `#${id}` : className ? `.${className}` : tagName;
+    const selector = id ? `#${id}` : firstClass ? `.${firstClass}` : tagName;
     
     candidates.push({
       element,
