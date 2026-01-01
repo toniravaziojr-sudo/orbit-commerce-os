@@ -103,27 +103,37 @@ RESPONDA APENAS em JSON válido:
 
 /**
  * Downloads an image from URL and converts to Base64
+ * Version: 2026-01-01-v2 - force redeploy
  */
 async function fetchImageAsBase64(url: string): Promise<string> {
-  console.log(`[VISUAL] Downloading screenshot from URL: ${url.substring(0, 100)}...`);
+  // FORCE REDEPLOY v2
+  console.log(`[VISUAL-v2] fetchImageAsBase64 CALLED`);
+  console.log(`[VISUAL-v2] Downloading from: ${url.substring(0, 80)}...`);
   
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    console.log(`[VISUAL-v2] Downloaded ${arrayBuffer.byteLength} bytes`);
+    
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // Convert to Base64
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binary);
+    
+    console.log(`[VISUAL-v2] Converted to Base64: ${Math.round(base64.length / 1024)}KB`);
+    return `data:image/png;base64,${base64}`;
+  } catch (error) {
+    console.error(`[VISUAL-v2] Download FAILED:`, error);
+    throw error;
   }
-  
-  const arrayBuffer = await response.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
-  
-  // Convert to Base64
-  let binary = '';
-  for (let i = 0; i < uint8Array.length; i++) {
-    binary += String.fromCharCode(uint8Array[i]);
-  }
-  const base64 = btoa(binary);
-  
-  console.log(`[VISUAL] Screenshot downloaded: ${Math.round(base64.length / 1024)}KB`);
-  return `data:image/png;base64,${base64}`;
 }
 
 /**
@@ -151,26 +161,29 @@ export async function analyzePageVisually(
       };
     }
 
-    console.log(`[VISUAL] Analyzing screenshot for: ${pageTitle} (${pageUrl})`);
+    // FORCE REDEPLOY v2 - 2026-01-01
+    console.log(`[VISUAL-v2] === VISUAL ANALYZER v2 ACTIVE ===`);
+    console.log(`[VISUAL-v2] Analyzing: ${pageTitle} (${pageUrl})`);
+    console.log(`[VISUAL-v2] Input type check: ${screenshotInput.substring(0, 30)}...`);
 
     // Detect if screenshot is URL or Base64 and process accordingly
     let imageDataUrl: string;
     
     if (screenshotInput.startsWith('http://') || screenshotInput.startsWith('https://')) {
       // It's a URL - need to download and convert to Base64
-      console.log('[VISUAL] Screenshot is URL, downloading...');
+      console.log('[VISUAL-v2] Screenshot is HTTP URL, will download...');
       imageDataUrl = await fetchImageAsBase64(screenshotInput);
     } else if (screenshotInput.startsWith('data:')) {
       // Already has data URI prefix
-      console.log('[VISUAL] Screenshot is data URI');
+      console.log('[VISUAL-v2] Screenshot is data URI');
       imageDataUrl = screenshotInput;
     } else {
       // Assume it's raw Base64
-      console.log('[VISUAL] Screenshot is raw Base64');
+      console.log('[VISUAL-v2] Screenshot is raw Base64');
       imageDataUrl = `data:image/png;base64,${screenshotInput}`;
     }
 
-    console.log(`[VISUAL] Image ready: ${Math.round(imageDataUrl.length / 1024)}KB`);
+    console.log(`[VISUAL-v2] Image ready for Gemini: ${Math.round(imageDataUrl.length / 1024)}KB`);
 
     // Prepare the message with image
     const messages = [
