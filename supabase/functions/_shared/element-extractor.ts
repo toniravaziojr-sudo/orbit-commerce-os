@@ -324,8 +324,9 @@ function findMobileVersion(html: string, desktopSrc: string, position: number): 
 // =====================================================
 export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
   const elements: ExtractedElement[] = [];
+  const foundTexts = new Set<string>();
   
-  // Pattern for h1-h6
+  // Pattern 1: Standard h1-h6 tags
   const headingPattern = /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>/gi;
   
   let match;
@@ -336,6 +337,11 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
     
     // Skip empty or very short headings
     if (text.length < 3) continue;
+    
+    // Skip duplicates
+    const textLower = text.toLowerCase();
+    if (foundTexts.has(textLower)) continue;
+    foundTexts.add(textLower);
     
     // Skip headings that are likely navigation/menu items
     if (text.length < 15 && /menu|nav|link|btn/i.test(match[0])) continue;
@@ -372,6 +378,68 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
     console.log(`[EXTRACT-HEADING] Found ${level}: "${text.substring(0, 40)}..." @ position ${match.index}`);
   }
   
+  // Pattern 2: Spans/Divs with title/heading classes
+  const titleClassPatterns = [
+    /<(?:span|div)[^>]*class=["'][^"']*(?:title|heading|headline|titulo|subtitulo|section-title|page-title)[^"']*["'][^>]*>([\s\S]*?)<\/(?:span|div)>/gi,
+  ];
+  
+  for (const pattern of titleClassPatterns) {
+    while ((match = pattern.exec(html)) !== null) {
+      const content = match[1];
+      const text = cleanText(stripHtml(content));
+      
+      if (text.length < 5 || text.length > 200) continue;
+      
+      const textLower = text.toLowerCase();
+      if (foundTexts.has(textLower)) continue;
+      foundTexts.add(textLower);
+      
+      elements.push({
+        id: generateId(),
+        position: match.index,
+        type: 'heading',
+        rawHtml: match[0],
+        metadata: {
+          level: 'h2',
+          text,
+          content,
+        }
+      });
+      
+      console.log(`[EXTRACT-HEADING] Found title-class: "${text.substring(0, 40)}..." @ position ${match.index}`);
+    }
+  }
+  
+  // Pattern 3: Strong/b tags with substantial text (likely styled headings)
+  const strongPattern = /<(?:strong|b)[^>]*>([^<]{10,100})<\/(?:strong|b)>/gi;
+  while ((match = strongPattern.exec(html)) !== null) {
+    const text = cleanText(match[1]);
+    
+    if (text.length < 10 || text.length > 100) continue;
+    
+    // Only if it looks like a heading (mostly uppercase or title-case)
+    const uppercaseRatio = (text.match(/[A-ZÀ-Ú]/g) || []).length / text.replace(/\s/g, '').length;
+    if (uppercaseRatio < 0.3) continue;
+    
+    const textLower = text.toLowerCase();
+    if (foundTexts.has(textLower)) continue;
+    foundTexts.add(textLower);
+    
+    elements.push({
+      id: generateId(),
+      position: match.index,
+      type: 'heading',
+      rawHtml: match[0],
+      metadata: {
+        level: 'h3',
+        text,
+        content: text,
+      }
+    });
+    
+    console.log(`[EXTRACT-HEADING] Found strong-heading: "${text.substring(0, 40)}..." @ position ${match.index}`);
+  }
+  
   return elements;
 }
 
@@ -383,10 +451,10 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
   const foundTexts = new Set<string>();
   
   const patterns = [
-    // <a> with button classes
-    /<a[^>]*class=["'][^"']*(?:btn|button|cta|comprar|buy)[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi,
+    // <a> with button classes (expanded)
+    /<a[^>]*class=["'][^"']*(?:btn|button|cta|comprar|buy|action|submit|consult|consulte|agendar|saiba-mais|ver-mais)[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi,
     // <a> with href first, then button class
-    /<a[^>]*href=["']([^"']*)["'][^>]*class=["'][^"']*(?:btn|button|cta)[^"']*["'][^>]*>([^<]+)<\/a>/gi,
+    /<a[^>]*href=["']([^"']*)["'][^>]*class=["'][^"']*(?:btn|button|cta|action|submit)[^"']*["'][^>]*>([^<]+)<\/a>/gi,
     // <button> elements
     /<button[^>]*(?:onclick=["'][^"']*location[^"']*=["']([^"']*)|data-href=["']([^"']*))?["'][^>]*>([^<]+)<\/button>/gi,
   ];
@@ -402,8 +470,8 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       const textLower = text.toLowerCase();
       if (foundTexts.has(textLower)) continue;
       
-      // Skip footer buttons (will be defined above)
-      if (typeof isFooterButton === 'function' && isFooterButton(text, url)) {
+      // Skip footer buttons
+      if (isFooterButton(text, url)) {
         console.log(`[EXTRACT-BUTTON] Skipping footer button: "${text}"`);
         continue;
       }
@@ -430,6 +498,69 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
       
       console.log(`[EXTRACT-BUTTON] Found button: "${text}" -> ${url} @ position ${match.index}`);
     }
+  }
+  
+  // Pattern 2: Links with short UPPERCASE text (CTAs)
+  const ctaPattern = /<a[^>]*href=["']([^"']*)["'][^>]*>([A-ZÀ-Ú][A-ZÀ-Ú\s]{3,30})<\/a>/gi;
+  let match;
+  while ((match = ctaPattern.exec(html)) !== null) {
+    const url = match[1] || '#';
+    const text = cleanText(match[2]);
+    
+    if (text.length < 4 || text.length > 40) continue;
+    const textLower = text.toLowerCase();
+    if (foundTexts.has(textLower)) continue;
+    
+    // Skip footer buttons
+    if (isFooterButton(text, url)) {
+      console.log(`[EXTRACT-BUTTON] Skipping footer CTA: "${text}"`);
+      continue;
+    }
+    
+    foundTexts.add(textLower);
+    
+    elements.push({
+      id: generateId(),
+      position: match.index,
+      type: 'button',
+      rawHtml: match[0],
+      metadata: {
+        buttonText: text,
+        buttonUrl: url,
+        buttonVariant: 'primary',
+      }
+    });
+    
+    console.log(`[EXTRACT-BUTTON] Found CTA link: "${text}" -> ${url} @ position ${match.index}`);
+  }
+  
+  // Pattern 3: Links with inline background-color styles (styled buttons)
+  const styledPattern = /<a[^>]*style=["'][^"']*background(?:-color)?[^"']*["'][^>]*href=["']([^"']*)["'][^>]*>([^<]+)<\/a>/gi;
+  while ((match = styledPattern.exec(html)) !== null) {
+    const url = match[1] || '#';
+    const text = cleanText(match[2]);
+    
+    if (text.length < 2 || text.length > 50) continue;
+    const textLower = text.toLowerCase();
+    if (foundTexts.has(textLower)) continue;
+    
+    if (isFooterButton(text, url)) continue;
+    
+    foundTexts.add(textLower);
+    
+    elements.push({
+      id: generateId(),
+      position: match.index,
+      type: 'button',
+      rawHtml: match[0],
+      metadata: {
+        buttonText: text,
+        buttonUrl: url,
+        buttonVariant: 'primary',
+      }
+    });
+    
+    console.log(`[EXTRACT-BUTTON] Found styled button: "${text}" -> ${url} @ position ${match.index}`);
   }
   
   return elements;
@@ -521,11 +652,14 @@ function isFooterButton(text: string, url: string): boolean {
 // =====================================================
 export function extractTextBlocksWithPosition(html: string): ExtractedElement[] {
   const elements: ExtractedElement[] = [];
+  const foundTexts = new Set<string>();
   
-  // Pattern for paragraphs and text divs
+  // Pattern for paragraphs and text divs (expanded)
   const textPatterns = [
     /<p[^>]*>([\s\S]*?)<\/p>/gi,
-    /<div[^>]*class=["'][^"']*(?:text|content|description|paragraph)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+    /<div[^>]*class=["'][^"']*(?:text|content|description|paragraph|body|copy|info)[^"']*["'][^>]*>([\s\S]*?)<\/div>/gi,
+    // Spans with longer text content
+    /<span[^>]*>([^<]{30,})<\/span>/gi,
   ];
   
   for (const pattern of textPatterns) {
@@ -534,8 +668,13 @@ export function extractTextBlocksWithPosition(html: string): ExtractedElement[] 
       const content = match[1] || match[0];
       const text = cleanText(stripHtml(content));
       
-      // Skip very short text (likely not content)
-      if (text.length < 50) continue;
+      // Reduced minimum from 50 to 30 chars
+      if (text.length < 30) continue;
+      
+      // Skip duplicates
+      const textLower = text.toLowerCase().substring(0, 100);
+      if (foundTexts.has(textLower)) continue;
+      foundTexts.add(textLower);
       
       // Skip if looks like navigation/menu
       if (/<a[^>]*>/gi.test(content) && (content.match(/<a/gi) || []).length > 3) continue;
@@ -717,6 +856,8 @@ function extractTestimonialItemsFromContent(html: string): Array<{ name: string;
 // =====================================================
 export function extractAllElementsInOrder(html: string): ExtractedElement[] {
   console.log(`[EXTRACT] Starting extraction from ${html.length} chars of HTML`);
+  console.log(`[EXTRACT] First 500 chars: ${html.substring(0, 500)}`);
+  console.log(`[EXTRACT] Last 500 chars: ${html.substring(Math.max(0, html.length - 500))}`);
   
   const allElements: ExtractedElement[] = [];
   
