@@ -113,6 +113,55 @@ function extractExternalCssUrls(html: string): string[] {
   return urls;
 }
 
+// =============================================
+// CRITICAL: Rewrite relative URLs in CSS to absolute
+// This fixes url(../fonts/...), url(../images/...), etc.
+// Without this, backgrounds/fonts break when CSS is inlined
+// =============================================
+function rewriteCssUrls(cssText: string, cssFileUrl: string): string {
+  if (!cssText || !cssFileUrl) return cssText;
+  
+  try {
+    const cssBaseUrl = new URL(cssFileUrl);
+    let rewriteCount = 0;
+    
+    // Match url() with various quote styles
+    const urlPattern = /url\(\s*(['"]?)([^'")\s]+)\1\s*\)/gi;
+    
+    const rewritten = cssText.replace(urlPattern, (match, quote, urlValue) => {
+      // Skip data URIs, absolute URLs, and blob URLs
+      if (
+        urlValue.startsWith('data:') || 
+        urlValue.startsWith('http://') || 
+        urlValue.startsWith('https://') || 
+        urlValue.startsWith('blob:') ||
+        urlValue.startsWith('//')
+      ) {
+        return match;
+      }
+      
+      try {
+        // Resolve relative URL against CSS file URL
+        const absoluteUrl = new URL(urlValue, cssFileUrl).href;
+        rewriteCount++;
+        return `url(${quote}${absoluteUrl}${quote})`;
+      } catch {
+        // If URL resolution fails, keep original
+        return match;
+      }
+    });
+    
+    if (rewriteCount > 0) {
+      console.log(`[CSS] Rewrote ${rewriteCount} relative URLs in ${cssFileUrl.split('/').pop()}`);
+    }
+    
+    return rewritten;
+  } catch (err) {
+    console.warn(`[CSS] Failed to rewrite URLs for ${cssFileUrl}: ${err}`);
+    return cssText;
+  }
+}
+
 // Fetch external CSS with timeout - INCREASED LIMITS for pixel-perfect
 async function fetchExternalCss(urls: string[], maxTotal: number = 500000): Promise<string> {
   const cssChunks: string[] = [];
@@ -163,6 +212,9 @@ async function fetchExternalCss(urls: string[], maxTotal: number = 500000): Prom
           if (lastBrace > maxPerFile * 0.8) css = css.substring(0, lastBrace + 1);
         }
         
+        // CRITICAL: Rewrite relative URLs to absolute BEFORE any other processing
+        css = rewriteCssUrls(css, url);
+        
         // Resolve @import rules (1 level deep)
         const importMatches = css.match(/@import\s+(?:url\()?["']?([^"')]+)["']?\)?[^;]*;/gi) || [];
         for (const importMatch of importMatches.slice(0, 3)) { // Max 3 imports
@@ -184,9 +236,11 @@ async function fetchExternalCss(urls: string[], maxTotal: number = 500000): Prom
                 headers: { 'Accept': 'text/css' }
               });
               if (importResponse.ok) {
-                const importCss = await importResponse.text();
+                let importCss = await importResponse.text();
                 if (importCss.length < 100000) {
-                  css = css.replace(importMatch, `/* @import resolved */\n${importCss}`);
+                  // Rewrite URLs in imported CSS too!
+                  importCss = rewriteCssUrls(importCss, importUrl);
+                  css = css.replace(importMatch, `/* @import resolved from ${importUrl} */\n${importCss}`);
                   console.log(`[CSS] Resolved @import: ${importCss.length} chars`);
                 }
               }
