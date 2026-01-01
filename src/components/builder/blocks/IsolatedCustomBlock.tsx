@@ -2,13 +2,13 @@
 // ISOLATED CUSTOM BLOCK RENDERER - Uses iframe for 100% CSS isolation
 // This prevents ANY CSS leakage to/from the builder or storefront
 // 
-// CRITICAL FIX v3: Stable auto-height without loops
+// CRITICAL FIX v4: Stable auto-height + proper desktop/mobile variant handling
 // - Uses refs for height (no setState causing re-render)
-// - Debounced measurement with stabilization detection
+// - Detects and removes the wrong variant based on container width
 // - Measures from parent via contentDocument (same-origin)
 // =============================================
 
-import React, { useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useEffect, useRef, useMemo, useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Code, AlertTriangle } from 'lucide-react';
 
@@ -45,6 +45,84 @@ function sanitizeHtml(html: string): string {
   );
   
   return sanitized;
+}
+
+// =============================================
+// CRITICAL: Remove duplicate desktop/mobile variants from HTML
+// Many landing pages have both .section1 (desktop) and .section1.tablet (mobile)
+// We need to REMOVE the wrong variant based on current viewport width
+// This cannot be done with media queries in iframes reliably
+// =============================================
+function removeWrongVariant(html: string, isMobile: boolean): string {
+  if (!html) return html;
+  
+  // Patterns for mobile/tablet variants that should be hidden on desktop
+  // On desktop (>=768px): hide .tablet, show regular
+  // On mobile (<768px): hide regular (without .tablet), show .tablet
+  
+  // Pattern 1: Our wrapper classes from import
+  if (html.includes('section-mobile-variant') || html.includes('section-desktop-variant')) {
+    if (isMobile) {
+      // Remove desktop variant wrapper
+      html = html.replace(/<div class="section-desktop-variant"[^>]*>[\s\S]*?<\/div>\s*(?=<style|<\/div|$)/gi, '');
+    } else {
+      // Remove mobile variant wrapper
+      html = html.replace(/<div class="section-mobile-variant"[^>]*>[\s\S]*?<\/div>\s*(?=<div class="section-desktop-variant"|<style|$)/gi, '');
+    }
+  }
+  
+  // Pattern 2: Original Shopify/Dooca patterns - .sectionN vs .sectionN.tablet
+  // Handle sections with both class="section1" and class="section1 tablet"
+  if (isMobile) {
+    // On mobile: remove sections that are DESKTOP ONLY (have sectionN but NOT tablet)
+    // Keep sections with class="sectionN tablet" or just "tablet" class
+    // This is tricky - we need to remove <section class="section1 ..."> when it doesn't have tablet
+    html = removeDesktopOnlySections(html);
+  } else {
+    // On desktop: remove sections with "tablet" in their class
+    html = html.replace(/<section[^>]*class="[^"]*\btablet\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+    // Also remove elements with class="... tablet"
+    html = html.replace(/<div[^>]*class="[^"]*\bproducts\s+tablet\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+    html = html.replace(/<ul[^>]*class="[^"]*\btablet\b[^"]*"[^>]*>[\s\S]*?<\/ul>/gi, '');
+  }
+  
+  // Remove inline media query styles (they won't work reliably in iframes)
+  // These are added by our import process
+  html = html.replace(/<style>\s*@media\s*\([^)]+\)\s*\{[^}]*\.section-(?:mobile|desktop)-variant[^}]*\}\s*<\/style>/gi, '');
+  
+  return html;
+}
+
+// Remove sections that are desktop-only (have sectionN class but NOT tablet)
+function removeDesktopOnlySections(html: string): string {
+  // Find all section tags with class containing "section" followed by number
+  // Remove if they DON'T have "tablet" in the class
+  
+  // Pattern: <section class="section1 ..."> where ... does NOT contain "tablet"
+  const sectionPattern = /<section([^>]*)class="([^"]*\bsection\d+\b[^"]*)"([^>]*)>([\s\S]*?)<\/section>/gi;
+  
+  return html.replace(sectionPattern, (match, before, classAttr, after, content) => {
+    // If this section has "tablet" class, KEEP it (it's for mobile)
+    if (/\btablet\b/i.test(classAttr)) {
+      return match;
+    }
+    
+    // Check if there's a corresponding tablet version nearby
+    // If the HTML has both section1 and section1 tablet, remove the non-tablet one on mobile
+    const sectionMatch = classAttr.match(/\bsection(\d+)\b/i);
+    if (sectionMatch) {
+      const sectionNum = sectionMatch[1];
+      // Check if there's a tablet version of this section
+      const tabletPattern = new RegExp(`class="[^"]*\\bsection${sectionNum}\\b[^"]*\\btablet\\b[^"]*"`, 'i');
+      if (tabletPattern.test(html)) {
+        // There IS a tablet version, so remove this desktop version on mobile
+        return '';
+      }
+    }
+    
+    // No tablet version exists, keep this section
+    return match;
+  });
 }
 
 // Materialize YouTube/Vimeo placeholders into real iframes
@@ -215,11 +293,37 @@ export function IsolatedCustomBlock({
   const rafIdRef = useRef<number | null>(null);
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
   
-  // Process HTML
+  // Track container width to determine mobile/desktop
+  const [isMobile, setIsMobile] = useState(false);
+  
+  // Detect if we're on mobile based on container/window width
+  useEffect(() => {
+    const checkMobile = () => {
+      // Use container width if available, otherwise window width
+      const width = containerRef.current?.offsetWidth || window.innerWidth;
+      const mobile = width < 768;
+      setIsMobile(mobile);
+    };
+    
+    checkMobile();
+    
+    // Recheck on resize
+    const handleResize = () => {
+      checkMobile();
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Process HTML - sanitize, materialize videos, AND remove wrong variant
   const processedHtml = useMemo(() => {
-    const sanitized = sanitizeHtml(htmlContent);
-    return materializeVideos(sanitized);
-  }, [htmlContent]);
+    let html = sanitizeHtml(htmlContent);
+    html = materializeVideos(html);
+    // CRITICAL: Remove the wrong desktop/mobile variant based on current viewport
+    html = removeWrongVariant(html, isMobile);
+    return html;
+  }, [htmlContent, isMobile]);
   
   // Build iframe document
   const iframeDoc = useMemo(
