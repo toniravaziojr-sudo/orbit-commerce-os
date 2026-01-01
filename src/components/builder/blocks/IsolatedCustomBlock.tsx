@@ -125,94 +125,105 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
   ${html}
   <script>
     // =============================================
-    // ROBUST AUTO-HEIGHT - Eliminates internal scroll
-    // With debounce to prevent infinite loops
+    // ROBUST AUTO-HEIGHT - Measure true content height
     // =============================================
     (function() {
       var lastHeight = 0;
-      var updateCount = 0;
       var debounceTimer = null;
-      var isUpdating = false;
       
       function getContentHeight() {
-        // Get maximum height from multiple sources
-        var heights = [
+        // Force layout recalculation
+        document.body.offsetHeight;
+        
+        // Method 1: Document scroll heights
+        var docHeight = Math.max(
           document.body.scrollHeight || 0,
           document.body.offsetHeight || 0,
           document.documentElement.scrollHeight || 0,
           document.documentElement.offsetHeight || 0
-        ];
+        );
         
-        // Also measure all direct children of body
-        var children = document.body.children;
-        for (var i = 0; i < children.length; i++) {
-          var child = children[i];
-          var rect = child.getBoundingClientRect();
-          heights.push(Math.ceil(rect.bottom));
+        // Method 2: Find the bottommost element
+        var maxBottom = 0;
+        var allElements = document.body.querySelectorAll('*');
+        for (var i = 0; i < allElements.length; i++) {
+          var el = allElements[i];
+          // Skip invisible elements
+          var style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden') continue;
+          
+          var rect = el.getBoundingClientRect();
+          if (rect.height > 0) {
+            maxBottom = Math.max(maxBottom, rect.bottom);
+          }
         }
         
-        return Math.ceil(Math.max.apply(null, heights));
+        // Use the maximum of both methods
+        var height = Math.max(docHeight, Math.ceil(maxBottom));
+        
+        // Add padding to ensure nothing is cut
+        return height + 20;
       }
       
       function updateHeight() {
-        if (isUpdating) return;
-        
         var height = getContentHeight();
-        // Add small padding
-        height = height + 10;
         
-        // Only send if height changed significantly (>5px difference)
-        var diff = Math.abs(height - lastHeight);
-        if (diff > 5 || updateCount < 3) {
+        // Only update if height changed (prevent loops)
+        if (Math.abs(height - lastHeight) > 2) {
           lastHeight = height;
-          updateCount++;
-          isUpdating = true;
           window.parent.postMessage({ type: 'resize', height: height }, '*');
-          // Reset flag after a short delay
-          setTimeout(function() { isUpdating = false; }, 100);
         }
       }
       
       function debouncedUpdate() {
         if (debounceTimer) clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(updateHeight, 50);
+        debounceTimer = setTimeout(updateHeight, 100);
       }
       
-      // Initial measurements with delays
-      setTimeout(updateHeight, 100);
+      // Multiple measurement passes
+      setTimeout(updateHeight, 50);
+      setTimeout(updateHeight, 200);
       setTimeout(updateHeight, 500);
-      setTimeout(updateHeight, 1500);
+      setTimeout(updateHeight, 1000);
+      setTimeout(updateHeight, 2000);
       
-      // ResizeObserver with debounce
+      // Watch for size changes
       if (typeof ResizeObserver !== 'undefined') {
-        var observer = new ResizeObserver(debouncedUpdate);
-        observer.observe(document.body);
+        new ResizeObserver(debouncedUpdate).observe(document.body);
+        new ResizeObserver(debouncedUpdate).observe(document.documentElement);
       }
       
-      // Image load handlers
+      // Image load
       document.querySelectorAll('img').forEach(function(img) {
         if (!img.complete) {
-          img.onload = debouncedUpdate;
+          img.addEventListener('load', debouncedUpdate);
+          img.addEventListener('error', debouncedUpdate);
         }
       });
       
-      // Iframe load handlers (for embedded videos)
+      // Iframe load (videos)
       document.querySelectorAll('iframe').forEach(function(iframe) {
-        iframe.onload = debouncedUpdate;
+        iframe.addEventListener('load', debouncedUpdate);
       });
       
       // Font loading
       if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(debouncedUpdate);
+        document.fonts.ready.then(function() {
+          setTimeout(updateHeight, 100);
+        });
       }
       
-      // Prevent link navigation in editing mode
+      // Mutation observer for dynamic content
+      new MutationObserver(debouncedUpdate).observe(document.body, {
+        childList: true, subtree: true, attributes: true
+      });
+      
+      // Block link navigation in editor
       document.addEventListener('click', function(e) {
         var link = e.target.closest('a');
         if (link && link.href) {
           e.preventDefault();
           e.stopPropagation();
-          window.parent.postMessage({ type: 'link-click', href: link.href }, '*');
         }
       }, true);
     })();
