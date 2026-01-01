@@ -392,6 +392,13 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
       
       const textLower = text.toLowerCase();
       if (foundTexts.has(textLower)) continue;
+      
+      // Skip footer content headings
+      if (isFooterContent(text)) {
+        console.log(`[EXTRACT-HEADING] Skipping footer heading: "${text.substring(0, 40)}..."`);
+        continue;
+      }
+      
       foundTexts.add(textLower);
       
       elements.push({
@@ -423,6 +430,13 @@ export function extractHeadingsWithPosition(html: string): ExtractedElement[] {
     
     const textLower = text.toLowerCase();
     if (foundTexts.has(textLower)) continue;
+    
+    // Skip footer content headings
+    if (isFooterContent(text)) {
+      console.log(`[EXTRACT-HEADING] Skipping footer strong-heading: "${text.substring(0, 40)}..."`);
+      continue;
+    }
+    
     foundTexts.add(textLower);
     
     elements.push({
@@ -514,6 +528,12 @@ export function extractButtonsWithPosition(html: string): ExtractedElement[] {
     // Skip footer buttons
     if (isFooterButton(text, url)) {
       console.log(`[EXTRACT-BUTTON] Skipping footer CTA: "${text}"`);
+      continue;
+    }
+    
+    // Skip navigation/menu links
+    if (isNavigationLink(text, url)) {
+      console.log(`[EXTRACT-BUTTON] Skipping navigation link: "${text}" -> ${url}`);
       continue;
     }
     
@@ -645,6 +665,45 @@ function isFooterButton(text: string, url: string): boolean {
   
   return footerButtonTextPatterns.some(p => p.test(text)) || 
          footerUrlPatterns.some(p => p.test(url));
+}
+
+// Detect navigation/search links (menu items, not main content CTAs)
+function isNavigationLink(text: string, url: string): boolean {
+  // URLs that indicate navigation/search, not main content CTAs
+  const navigationUrlPatterns = [
+    /\/search\?/i,           // Search results
+    /\?type=product/i,       // Product search
+    /\?q=/i,                 // Query parameters
+    /\/collections?\//i,     // Collection pages (keep navigating)
+    /\/products?\//i,        // Individual products (keep navigating)
+    /\/categories?\//i,      // Category pages
+  ];
+  
+  // Short text with navigation URLs = menu item
+  if (text.length <= 25 && navigationUrlPatterns.some(p => p.test(url))) {
+    return true;
+  }
+  
+  // Generic category names (not real CTAs)
+  const navigationTextPatterns = [
+    /^skin\s*care$/i,
+    /^cabelo$/i,
+    /^barba$/i,
+    /^saúde$/i,
+    /^corpo$/i,
+    /^rosto$/i,
+    /^cuidados?$/i,
+    /^produtos?$/i,
+    /^ver\s+tudo$/i,
+    /^ver\s+todos$/i,
+    /^mostrar\s+tudo$/i,
+  ];
+  
+  if (navigationTextPatterns.some(p => p.test(text))) {
+    return true;
+  }
+  
+  return false;
 }
 
 // =====================================================
