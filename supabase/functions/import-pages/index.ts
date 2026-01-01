@@ -1549,42 +1549,58 @@ function isHighlyCustomPage(html: string): boolean {
   return isCustom;
 }
 
-// Extract main content from Shopify pages
+// Extract main content from Shopify pages - IMPROVED to remove header/footer completely
 function extractMainContent(html: string): string {
   if (!html) return '';
   
-  // Find main content between header and footer
   let content = html;
   
-  // Remove header section group
+  // STEP 1: Remove Shopify section groups (these contain header/footer from the theme)
+  // These are the main culprit for duplicate content
   content = content.replace(/<!-- BEGIN sections: header-group -->[\s\S]*?<!-- END sections: header-group -->/gi, '');
-  content = content.replace(/<section[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
-  
-  // Remove footer section group  
   content = content.replace(/<!-- BEGIN sections: footer-group -->[\s\S]*?<!-- END sections: footer-group -->/gi, '');
+  
+  // STEP 2: Remove announcement bar sections (top bar with offers, frete grátis, etc.)
+  content = content.replace(/<section[^>]*id="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  content = content.replace(/<div[^>]*class="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // STEP 3: Remove header elements by class/id patterns
+  content = content.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
+  content = content.replace(/<section[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  content = content.replace(/<nav[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/nav>/gi, '');
+  content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*header[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // STEP 4: Remove footer elements by class/id patterns
+  content = content.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
   content = content.replace(/<section[^>]*class="[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
   
-  // Remove announcement bar
-  content = content.replace(/<section[^>]*announcement-bar[^>]*>[\s\S]*?<\/section>/gi, '');
-  content = content.replace(/<div[^>]*announcement-bar[^>]*>[\s\S]*?<\/div>/gi, '');
-  
-  // Remove scripts and styles from the extracted content (we get CSS separately)
+  // STEP 5: Remove scripts, noscript, style, links (we get CSS separately)
   content = content.replace(/<script[\s\S]*?<\/script>/gi, '');
   content = content.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+  content = content.replace(/<style[\s\S]*?<\/style>/gi, '');
+  content = content.replace(/<link[^>]*>/gi, '');
   
-  // Remove event handlers
+  // STEP 6: Remove event handlers (onclick, onload, etc.)
   content = content.replace(/\s*on\w+="[^"]*"/gi, '');
   
-  // Try to find main content area
+  // STEP 7: Try to find main content area
   const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(content);
   if (mainMatch && mainMatch[1].length > 500) {
     content = mainMatch[1];
   }
   
-  // Clean up empty elements
+  // STEP 8: Try to find page-specific content section
+  const pageContentMatch = /<section[^>]*class="[^"]*(?:page-content|main-content|landing-page)[^"]*"[^>]*>([\s\S]*?)<\/section>/i.exec(content);
+  if (pageContentMatch && pageContentMatch[1].length > 500) {
+    content = pageContentMatch[1];
+  }
+  
+  // STEP 9: Clean up empty elements and excessive whitespace
   content = content.replace(/<(div|span|section)[^>]*>\s*<\/\1>/gi, '');
   content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
   
+  console.log(`[EXTRACT] Main content extracted: ${content.length} chars`);
   return content.trim();
 }
 
@@ -1786,6 +1802,121 @@ function isCorePageUrl(url: string, slug: string): boolean {
   return corePatterns.some(pattern => pattern.test(fullPath));
 }
 
+// =============================================
+// EXTRACT INTERACTIVE ELEMENTS (Buttons, CTAs)
+// Convert detected buttons to native blocks
+// =============================================
+
+interface ExtractedButton {
+  text: string;
+  url: string;
+  variant: 'primary' | 'secondary' | 'outline';
+}
+
+// Extract buttons from HTML content
+function extractButtonsFromHtml(html: string): { buttons: ExtractedButton[]; cleanedHtml: string } {
+  if (!html) return { buttons: [], cleanedHtml: html };
+  
+  const buttons: ExtractedButton[] = [];
+  let cleanedHtml = html;
+  
+  // Pattern 1: <a> with button-like classes
+  const buttonLinkPatterns = [
+    // Shopify button patterns
+    /<a[^>]*class="[^"]*(?:btn|button|cta|comprar|buy-now|add-to-cart)[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/gi,
+    // Links with button styling
+    /<a[^>]*style="[^"]*(?:background|border-radius|padding)[^"]*"[^>]*href="([^"]*)"[^>]*>([^<]+)<\/a>/gi,
+  ];
+  
+  // Pattern 2: <button> elements with text
+  const buttonPatterns = [
+    /<button[^>]*>([^<]+)<\/button>/gi,
+  ];
+  
+  // Extract buttons from <a> tags
+  for (const pattern of buttonLinkPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const url = match[1];
+      const text = match[2].trim();
+      
+      // Only include meaningful buttons (not just icons or empty)
+      if (text && text.length > 2 && text.length < 50 && !/^[<>]+$/.test(text)) {
+        // Determine variant based on styling
+        const fullMatch = match[0].toLowerCase();
+        let variant: 'primary' | 'secondary' | 'outline' = 'primary';
+        
+        if (fullMatch.includes('outline') || fullMatch.includes('secondary') || fullMatch.includes('ghost')) {
+          variant = 'outline';
+        } else if (fullMatch.includes('secondary') || fullMatch.includes('alt')) {
+          variant = 'secondary';
+        }
+        
+        buttons.push({ text, url: url || '#', variant });
+        
+        // Remove this button from HTML (it will be a separate block)
+        cleanedHtml = cleanedHtml.replace(match[0], '');
+      }
+    }
+  }
+  
+  // Deduplicate buttons by text
+  const uniqueButtons = buttons.reduce((acc, btn) => {
+    if (!acc.some(b => b.text.toLowerCase() === btn.text.toLowerCase())) {
+      acc.push(btn);
+    }
+    return acc;
+  }, [] as ExtractedButton[]);
+  
+  console.log(`[EXTRACT-BUTTONS] Found ${uniqueButtons.length} unique buttons`);
+  
+  return { buttons: uniqueButtons.slice(0, 5), cleanedHtml }; // Max 5 buttons
+}
+
+// Create blocks from custom page: CustomBlock + extracted buttons
+function createCustomPageBlocks(
+  mainContent: string, 
+  extractedCss: string, 
+  pageTitle: string
+): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  
+  // Extract buttons from the content
+  const { buttons, cleanedHtml } = extractButtonsFromHtml(mainContent);
+  
+  // Add the main CustomBlock with cleaned HTML
+  blocks.push({
+    id: generateBlockId('customblock'),
+    type: 'CustomBlock',
+    props: {
+      htmlContent: cleanedHtml,
+      cssContent: extractedCss,
+      blockName: `Página: ${pageTitle}`,
+    },
+    children: [],
+  });
+  
+  // Add extracted buttons as native blocks
+  for (const btn of buttons) {
+    console.log(`[EXTRACT-BUTTONS] Creating Button block: "${btn.text}" -> ${btn.url}`);
+    blocks.push({
+      id: generateBlockId('button'),
+      type: 'Button',
+      props: {
+        text: btn.text,
+        url: btn.url,
+        variant: btn.variant,
+        size: 'lg',
+        fullWidth: false,
+        alignment: 'center',
+      },
+      children: [],
+    });
+  }
+  
+  return blocks;
+}
+
 // Helper: Try AI analysis first, fallback to regex
 async function tryAIOrRegexAnalysis(
   scraped: { html: string; rawHtml?: string; markdown?: string; extractedCss?: string },
@@ -1871,7 +2002,9 @@ async function importPage(
       const mainContent = extractMainContent(rawHtmlToCheck);
       
       if (mainContent.length > 500) {
-        // Create a single CustomBlock with the entire page content + CSS
+        // Create CustomBlock + extracted interactive elements (buttons)
+        const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle);
+        
         pageContent = {
           id: generateBlockId('page'),
           type: 'Page',
@@ -1885,24 +2018,15 @@ async function importPage(
               paddingY: 0, 
               marginTop: 0, 
               marginBottom: 0, 
-              gap: 0, 
+              gap: 16, 
               alignItems: 'stretch', 
               fullWidth: true 
             },
-            children: [{
-              id: generateBlockId('customblock'),
-              type: 'CustomBlock',
-              props: {
-                htmlContent: mainContent,
-                cssContent: globalExtractedCss,
-                blockName: `Página: ${finalTitle}`,
-              },
-              children: [],
-            }],
+            children: customBlocks,
           }],
         };
         
-        console.log(`[IMPORT] CustomBlock created: ${mainContent.length} chars HTML, ${globalExtractedCss.length} chars CSS`);
+        console.log(`[IMPORT] Created ${customBlocks.length} blocks (CustomBlock + ${customBlocks.length - 1} buttons)`);
       } else {
         // Content too small, try AI
         console.log(`[IMPORT] Custom page content too small, trying AI...`);
