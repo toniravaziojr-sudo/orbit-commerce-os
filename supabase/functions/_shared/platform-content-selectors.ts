@@ -50,21 +50,26 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group)',
     ],
     excludeSelectors: [
+      // Tags semânticas
       'header',
       'footer',
+      'nav',
+      // Shopify section groups
       '.shopify-section-group-header-group',
       '.shopify-section-group-footer-group',
       '.shopify-section-group-overlay-group',
       '[data-section-type="header"]',
       '[data-section-type="footer"]',
+      // Announcement bar
       '.announcement-bar',
       '.announcement-bar-section',
       '#shopify-section-announcement-bar',
       'nav[role="navigation"]',
-      '.header-wrapper',
-      '.footer-wrapper',
-      '#header',
-      '#footer',
+      // PADRÕES GENÉRICOS - qualquer elemento com header/footer no nome
+      '[class*="header"]',
+      '[class*="footer"]',
+      '[id*="header"]',
+      '[id*="footer"]',
       // Modais e overlays comuns do Shopify
       '.modal-parcel',
       '.backdrop-modal-parcel',
@@ -73,6 +78,10 @@ export const PLATFORM_SELECTORS: Record<SupportedPlatform, PlatformContentConfig
       '[class*="modal"]',
       '[class*="overlay"]',
       '[class*="popup"]',
+      // Outros elementos comuns de navegação
+      '[class*="nav-"]',
+      '[class*="menu-"]',
+      '[class*="selos-"]',
     ],
     sectionComments: {
       headerStart: /<!-- BEGIN sections: header-group -->/i,
