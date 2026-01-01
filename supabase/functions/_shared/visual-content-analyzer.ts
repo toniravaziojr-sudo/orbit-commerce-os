@@ -102,10 +102,35 @@ RESPONDA APENAS em JSON válido:
 }`;
 
 /**
+ * Downloads an image from URL and converts to Base64
+ */
+async function fetchImageAsBase64(url: string): Promise<string> {
+  console.log(`[VISUAL] Downloading screenshot from URL: ${url.substring(0, 100)}...`);
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+  }
+  
+  const arrayBuffer = await response.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  
+  // Convert to Base64
+  let binary = '';
+  for (let i = 0; i < uint8Array.length; i++) {
+    binary += String.fromCharCode(uint8Array[i]);
+  }
+  const base64 = btoa(binary);
+  
+  console.log(`[VISUAL] Screenshot downloaded: ${Math.round(base64.length / 1024)}KB`);
+  return `data:image/png;base64,${base64}`;
+}
+
+/**
  * Analyzes a page screenshot using Gemini Vision to identify main content vs widgets
  */
 export async function analyzePageVisually(
-  screenshotBase64: string,
+  screenshotInput: string,
   pageUrl: string,
   pageTitle: string
 ): Promise<VisualAnalysisResult> {
@@ -127,7 +152,25 @@ export async function analyzePageVisually(
     }
 
     console.log(`[VISUAL] Analyzing screenshot for: ${pageTitle} (${pageUrl})`);
-    console.log(`[VISUAL] Screenshot size: ${Math.round(screenshotBase64.length / 1024)}KB`);
+
+    // Detect if screenshot is URL or Base64 and process accordingly
+    let imageDataUrl: string;
+    
+    if (screenshotInput.startsWith('http://') || screenshotInput.startsWith('https://')) {
+      // It's a URL - need to download and convert to Base64
+      console.log('[VISUAL] Screenshot is URL, downloading...');
+      imageDataUrl = await fetchImageAsBase64(screenshotInput);
+    } else if (screenshotInput.startsWith('data:')) {
+      // Already has data URI prefix
+      console.log('[VISUAL] Screenshot is data URI');
+      imageDataUrl = screenshotInput;
+    } else {
+      // Assume it's raw Base64
+      console.log('[VISUAL] Screenshot is raw Base64');
+      imageDataUrl = `data:image/png;base64,${screenshotInput}`;
+    }
+
+    console.log(`[VISUAL] Image ready: ${Math.round(imageDataUrl.length / 1024)}KB`);
 
     // Prepare the message with image
     const messages = [
@@ -141,9 +184,7 @@ export async function analyzePageVisually(
           {
             type: 'image_url',
             image_url: {
-              url: screenshotBase64.startsWith('data:') 
-                ? screenshotBase64 
-                : `data:image/png;base64,${screenshotBase64}`
+              url: imageDataUrl
             }
           }
         ]
