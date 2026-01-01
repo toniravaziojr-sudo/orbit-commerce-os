@@ -69,6 +69,7 @@ function processPixelPerfectCss(css: string, html: string): string {
 
 // Build complete HTML document for iframe
 // CRITICAL: Include <base href> to resolve relative URLs (images, fonts, etc.)
+// CRITICAL: Robust auto-height to eliminate internal scroll
 function buildIframeDocument(html: string, css: string, baseUrl?: string): string {
   // Extract origin from baseUrl for <base href>
   let baseHref = '';
@@ -94,19 +95,25 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
   <style>
     /* Reset - minimal to not conflict with imported styles */
     *, *::before, *::after { box-sizing: border-box; }
-    body { 
+    html, body { 
       margin: 0;
       padding: 0;
+      /* CRITICAL: No overflow restrictions - let content define height */
+      overflow: visible !important;
+      overflow-x: hidden;
+    }
+    body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
+      /* CRITICAL: Body takes full height of content */
+      min-height: fit-content;
     }
     img { max-width: 100%; height: auto; display: block; }
     a { color: inherit; }
     
-    /* YouTube iframe responsive */
-    iframe[src*="youtube.com"], iframe[src*="youtu.be"] {
+    /* YouTube/Vimeo iframe responsive */
+    iframe[src*="youtube.com"], iframe[src*="youtu.be"], iframe[src*="vimeo.com"] {
       max-width: 100%;
     }
     
@@ -117,51 +124,122 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
 <body>
   ${html}
   <script>
-    // CRITICAL: Auto-height for iframe - removes internal scroll
-    function updateHeight() {
-      // Wait for images and iframes to load
-      const height = Math.max(
-        document.body.scrollHeight,
-        document.body.offsetHeight,
-        document.documentElement.scrollHeight,
-        document.documentElement.offsetHeight
-      );
-      window.parent.postMessage({ type: 'resize', height: height }, '*');
-    }
-    
-    // Initial size after short delay for content render
-    setTimeout(updateHeight, 100);
-    setTimeout(updateHeight, 500); // Second check for lazy content
-    setTimeout(updateHeight, 1500); // Third check for images
-    
-    // Watch for size changes (images loading, content changes)
-    if (typeof ResizeObserver !== 'undefined') {
-      const observer = new ResizeObserver(() => {
-        setTimeout(updateHeight, 50);
-      });
-      observer.observe(document.body);
-      observer.observe(document.documentElement);
-    }
-    
-    // Also trigger on images loaded
-    document.querySelectorAll('img').forEach(img => {
-      img.onload = updateHeight;
-      img.onerror = updateHeight;
-    });
-    
-    // Watch for YouTube iframes loading
-    document.querySelectorAll('iframe').forEach(iframe => {
-      iframe.onload = () => setTimeout(updateHeight, 100);
-    });
-    
-    // Prevent navigation in editing mode
-    document.addEventListener('click', function(e) {
-      const link = e.target.closest('a');
-      if (link && link.href) {
-        e.preventDefault();
-        window.parent.postMessage({ type: 'link-click', href: link.href }, '*');
+    // =============================================
+    // ROBUST AUTO-HEIGHT - Eliminates internal scroll
+    // =============================================
+    (function() {
+      var lastHeight = 0;
+      var updateCount = 0;
+      
+      function getContentHeight() {
+        // Get maximum height from multiple sources
+        var heights = [
+          document.body.scrollHeight || 0,
+          document.body.offsetHeight || 0,
+          document.documentElement.scrollHeight || 0,
+          document.documentElement.offsetHeight || 0,
+          document.body.clientHeight || 0,
+          document.documentElement.clientHeight || 0
+        ];
+        
+        // Also measure all direct children of body
+        var children = document.body.children;
+        for (var i = 0; i < children.length; i++) {
+          var child = children[i];
+          var rect = child.getBoundingClientRect();
+          heights.push(rect.bottom + window.scrollY);
+        }
+        
+        return Math.ceil(Math.max.apply(null, heights));
       }
-    });
+      
+      function updateHeight() {
+        var height = getContentHeight();
+        // Add small padding to avoid edge cases
+        height = height + 10;
+        
+        // Only send if height changed (or first few times)
+        if (height !== lastHeight || updateCount < 5) {
+          lastHeight = height;
+          updateCount++;
+          window.parent.postMessage({ type: 'resize', height: height }, '*');
+        }
+      }
+      
+      // Initial measurements with progressive delays
+      setTimeout(updateHeight, 50);
+      setTimeout(updateHeight, 150);
+      setTimeout(updateHeight, 300);
+      setTimeout(updateHeight, 600);
+      setTimeout(updateHeight, 1200);
+      setTimeout(updateHeight, 2500);
+      
+      // ResizeObserver for dynamic content
+      if (typeof ResizeObserver !== 'undefined') {
+        var observer = new ResizeObserver(function() {
+          setTimeout(updateHeight, 30);
+        });
+        observer.observe(document.body);
+        observer.observe(document.documentElement);
+        
+        // Also observe all sections
+        document.querySelectorAll('section, div, article').forEach(function(el) {
+          if (el.offsetHeight > 50) {
+            observer.observe(el);
+          }
+        });
+      }
+      
+      // MutationObserver as fallback
+      if (typeof MutationObserver !== 'undefined') {
+        var mutationObserver = new MutationObserver(function() {
+          setTimeout(updateHeight, 50);
+        });
+        mutationObserver.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['style', 'class']
+        });
+      }
+      
+      // Image load handlers - CRITICAL for images that load after initial render
+      document.querySelectorAll('img').forEach(function(img) {
+        if (img.complete) {
+          setTimeout(updateHeight, 10);
+        } else {
+          img.onload = function() { setTimeout(updateHeight, 50); };
+          img.onerror = function() { setTimeout(updateHeight, 50); };
+        }
+      });
+      
+      // Iframe load handlers (for embedded videos)
+      document.querySelectorAll('iframe').forEach(function(iframe) {
+        iframe.onload = function() { setTimeout(updateHeight, 200); };
+      });
+      
+      // Window resize
+      window.addEventListener('resize', function() {
+        setTimeout(updateHeight, 100);
+      });
+      
+      // Font loading
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function() {
+          setTimeout(updateHeight, 100);
+        });
+      }
+      
+      // Prevent link navigation in editing mode
+      document.addEventListener('click', function(e) {
+        var link = e.target.closest('a');
+        if (link && link.href) {
+          e.preventDefault();
+          e.stopPropagation();
+          window.parent.postMessage({ type: 'link-click', href: link.href }, '*');
+        }
+      }, true);
+    })();
   </script>
 </body>
 </html>`;
@@ -239,8 +317,8 @@ export function IsolatedCustomBlock({
     return null;
   }
   
-  // For auto-height: no max height restriction, iframe grows with content
-  const maxHeight = isExpanded ? undefined : 2000; // Increased max for big pages
+  // For auto-height: no max height restriction in public view, generous in editor
+  const maxHeight = isExpanded ? undefined : (isEditing ? 3000 : undefined);
   const computedHeight = typeof iframeHeight === 'number' 
     ? (maxHeight ? Math.min(iframeHeight, maxHeight) : iframeHeight)
     : minHeight;
@@ -249,9 +327,13 @@ export function IsolatedCustomBlock({
     <div 
       className={cn(
         'isolated-custom-block relative w-full',
-        isEditing && 'ring-1 ring-indigo-500/30 rounded-lg overflow-hidden',
+        isEditing && 'ring-1 ring-indigo-500/30 rounded-lg',
         className
       )}
+      style={{
+        // CRITICAL: Container must not restrict height
+        overflow: 'visible',
+      }}
     >
       {/* Editor indicator */}
       {isEditing && (
@@ -274,18 +356,29 @@ export function IsolatedCustomBlock({
         className="w-full border-0"
         style={{
           height: computedHeight,
-          minHeight: minHeight,
+          minHeight: Math.max(100, minHeight),
           display: 'block',
+          // CRITICAL: No scrolling in iframe
           overflow: 'hidden',
+          // Pointer events in editor mode
+          pointerEvents: isEditing ? 'none' : 'auto',
         }}
         title={blockName}
-        sandbox="allow-same-origin allow-scripts"
+        sandbox="allow-same-origin allow-scripts allow-popups"
         loading="lazy"
+        scrolling="no"
       />
       
-      {/* Show more indicator (only when maxHeight is active and content is bigger) */}
-      {!isExpanded && maxHeight && typeof iframeHeight === 'number' && iframeHeight > maxHeight && (
-        <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent pointer-events-none" />
+      {/* Show more indicator (only in editor when content is truncated) */}
+      {isEditing && !isExpanded && maxHeight && typeof iframeHeight === 'number' && iframeHeight > maxHeight && (
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-background to-transparent flex items-end justify-center pb-2 cursor-pointer"
+          onClick={() => setIsExpanded(true)}
+        >
+          <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+            Clique para expandir ({Math.round(iframeHeight)}px)
+          </span>
+        </div>
       )}
     </div>
   );
