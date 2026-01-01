@@ -235,7 +235,58 @@ export async function extractContentWithDOM(
     
     logs.push(`[DOM-EXTRACT] Removed initial elements: scripts=${scriptsRemoved}, noscript=${noscriptRemoved}, style=${styleRemoved}`);
     
-    // STEP 2: Select main container
+    // STEP 1.5: CRITICAL - Remove header/footer sections from ENTIRE document BEFORE selecting main
+    // Some Shopify themes have header-group INSIDE the main element
+    logs.push(`[DOM-EXTRACT] STEP 1.5: Pre-cleaning header/footer from entire document`);
+    const preCleanSelectors = [
+      // Shopify section groups (header/footer inside main)
+      '.shopify-section-group-header-group',
+      '.shopify-section-group-footer-group', 
+      '.shopify-section-group-overlay-group',
+      '[data-section-type="header"]',
+      '[data-section-type="footer"]',
+      '[data-section-type="announcement-bar"]',
+      '#shopify-section-header',
+      '#shopify-section-footer',
+      '#shopify-section-cart-drawer',
+      '#shopify-section-menu-drawer',
+      // Announcement bars
+      '.announcement-bar',
+      '.announcement-bar-section',
+      // Standard header/footer
+      'header',
+      'footer',
+      'nav',
+      // Modal/overlays
+      '[role="dialog"]',
+      '[aria-modal="true"]',
+      '.modal',
+      '.drawer',
+      '.overlay',
+      '.backdrop',
+      '#backdrop-modal-parcel',
+      '.modal-parcel',
+    ];
+    
+    let preCleanCount = 0;
+    for (const selector of preCleanSelectors) {
+      try {
+        const elements = doc.querySelectorAll(selector);
+        if (elements.length > 0) {
+          for (const el of elements) {
+            (el as Element).remove();
+          }
+          preCleanCount += elements.length;
+          removedElements.push({ selector: `pre-clean:${selector}`, count: elements.length });
+          logs.push(`[DOM-EXTRACT] Pre-cleaned ${elements.length} elements: ${selector}`);
+        }
+      } catch (e) {
+        // Invalid selector, skip
+      }
+    }
+    logs.push(`[DOM-EXTRACT] Total pre-cleaned elements: ${preCleanCount}`);
+    
+    // STEP 2: Select main container (now cleaner)
     logs.push(`[DOM-EXTRACT] STEP 2: Selecting main content container`);
     const mainResult = selectMainContainer(doc, platformHint, logs);
     
