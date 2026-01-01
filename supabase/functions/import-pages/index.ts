@@ -4,6 +4,7 @@ import { materializeVideos, hasVideoContent, extractVideoUrls, isVideoCarouselSe
 import { extractAllElementsInOrder } from '../_shared/element-extractor.ts';
 import { classifyAllElements } from '../_shared/element-classifier.ts';
 import { buildPageFromElements, processElementsWithAutoBlockCreation, mergeConsecutiveElements } from '../_shared/block-builder.ts';
+import { analyzePageVisually, filterElementsByVisualAnalysis } from '../_shared/visual-content-analyzer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -2002,7 +2003,16 @@ async function createComplexPageBlocks(
 
 // Scrape page content using Firecrawl with retry logic
 // Returns both cleaned HTML and raw HTML (with styles) for CustomBlocks
-async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: string; rawHtml: string; markdown: string; title: string; description: string; extractedCss: string } | null> {
+// NOW ALSO CAPTURES SCREENSHOT for visual AI analysis
+async function scrapePageContent(url: string, retryCount = 0): Promise<{ 
+  html: string; 
+  rawHtml: string; 
+  markdown: string; 
+  title: string; 
+  description: string; 
+  extractedCss: string;
+  screenshot?: string; // NEW: Base64 screenshot for visual analysis
+} | null> {
   const MAX_RETRIES = 2;
   
   try {
@@ -2021,9 +2031,9 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
     console.log(`[SCRAPE] Starting scrape for: ${normalizedUrl} (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout (increased for screenshot)
     
-    // Request BOTH rawHtml (full page with styles) and html (main content only)
+    // Request rawHtml, html, markdown AND screenshot for visual analysis
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
@@ -2032,9 +2042,9 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
       },
       body: JSON.stringify({
         url: normalizedUrl,
-        formats: ['rawHtml', 'html', 'markdown'],
+        formats: ['rawHtml', 'html', 'markdown', 'screenshot'], // Added screenshot
         onlyMainContent: false, // Get FULL page to extract styles
-        waitFor: 3000, // Wait for dynamic content
+        waitFor: 4000, // Wait longer for dynamic content + screenshot
       }),
       signal: controller.signal,
     });
@@ -2066,8 +2076,13 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
     const markdown = data.data?.markdown || data.markdown || '';
     const title = data.data?.metadata?.title || data.metadata?.title || '';
     const description = data.data?.metadata?.description || data.metadata?.description || '';
+    
+    // NEW: Extract screenshot (base64 or URL)
+    const screenshot = data.data?.screenshot || data.screenshot || '';
 
-    console.log(`[SCRAPE] Success for ${normalizedUrl}: rawHtml=${fullRawHtml.length}chars, html=${mainHtml.length}chars, md=${markdown.length}chars`);
+    console.log(`[SCRAPE] Success for ${normalizedUrl}:`);
+    console.log(`[SCRAPE]   rawHtml=${fullRawHtml.length}chars, html=${mainHtml.length}chars, md=${markdown.length}chars`);
+    console.log(`[SCRAPE]   screenshot=${screenshot ? (screenshot.length > 100 ? `${screenshot.substring(0, 50)}... (${Math.round(screenshot.length/1024)}KB)` : 'present') : 'NONE'}`);
 
     // HTML size limits - increased now that CSS extraction is optimized
     const maxRawHtmlSize = 500000; // 500KB for CSS extraction (optimized algorithm handles this)
@@ -2092,7 +2107,15 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
     const cleanedHtml = cleanHtmlContent(mainHtml || fullRawHtml, markdown);
     console.log(`[SCRAPE] Cleaned HTML: ${cleanedHtml.length}chars`);
 
-    return { html: cleanedHtml, rawHtml: fullRawHtml, markdown, title, description, extractedCss };
+    return { 
+      html: cleanedHtml, 
+      rawHtml: fullRawHtml, 
+      markdown, 
+      title, 
+      description, 
+      extractedCss,
+      screenshot // NEW: Include screenshot
+    };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[SCRAPE] Exception for ${url}: ${errorMsg}`);
@@ -3064,10 +3087,44 @@ async function importPage(
     }
     
     // =============================================
-    // PRIORIDADE 2: PIPELINE DE EXTRAÇÃO POR ELEMENTOS (NOVO)
+    // PRIORIDADE 2: PIPELINE DE EXTRAÇÃO POR ELEMENTOS COM VALIDAÇÃO VISUAL
     // =============================================
     if (!pageContent!) {
-      console.log(`[IMPORT] Using ELEMENT-BASED PIPELINE for: ${finalTitle}`);
+      console.log(`[IMPORT] Using ELEMENT-BASED PIPELINE with VISUAL VALIDATION for: ${finalTitle}`);
+      
+      // =============================================
+      // FASE 0 (NOVA): ANÁLISE VISUAL COM IA
+      // =============================================
+      let visualAnalysis = null;
+      
+      if (scraped.screenshot) {
+        console.log(`[IMPORT] Phase 0 - Visual AI Analysis (screenshot available)`);
+        try {
+          visualAnalysis = await analyzePageVisually(scraped.screenshot, page.url, finalTitle);
+          
+          if (visualAnalysis.success) {
+            console.log(`[IMPORT] Visual Analysis SUCCESS:`);
+            console.log(`[IMPORT]   - Sections: ${visualAnalysis.sections.length}`);
+            console.log(`[IMPORT]   - Approved texts: ${visualAnalysis.approvedTexts.length}`);
+            console.log(`[IMPORT]   - Rejected texts: ${visualAnalysis.rejectedTexts.length}`);
+            console.log(`[IMPORT]   - Summary: ${visualAnalysis.summary.substring(0, 100)}...`);
+            
+            // Log approved/rejected for debugging
+            if (visualAnalysis.approvedTexts.length > 0) {
+              console.log(`[IMPORT]   - Sample approved: "${visualAnalysis.approvedTexts[0].substring(0, 50)}..."`);
+            }
+            if (visualAnalysis.rejectedTexts.length > 0) {
+              console.log(`[IMPORT]   - Sample rejected: "${visualAnalysis.rejectedTexts[0].substring(0, 50)}..."`);
+            }
+          } else {
+            console.warn(`[IMPORT] Visual Analysis failed: ${visualAnalysis.error}`);
+          }
+        } catch (visualError) {
+          console.warn(`[IMPORT] Visual Analysis exception:`, visualError);
+        }
+      } else {
+        console.log(`[IMPORT] Phase 0 - No screenshot available, skipping visual analysis`);
+      }
       
       // IMPORTANTE: Remover header/footer ANTES de extrair elementos
       const mainContentHtml = extractMainContent(videoMaterializedHtml);
@@ -3078,8 +3135,33 @@ async function importPage(
       console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
       
       if (extractedElements.length > 0) {
+        // =============================================
+        // FASE 1.5 (NOVA): FILTRAR ELEMENTOS PELA ANÁLISE VISUAL
+        // =============================================
+        let elementsToProcess = extractedElements;
+        
+        if (visualAnalysis && visualAnalysis.success) {
+          console.log(`[IMPORT] Phase 1.5 - Filtering elements by visual analysis`);
+          
+          const { approved, rejected } = filterElementsByVisualAnalysis(
+            extractedElements,
+            visualAnalysis,
+            { strictMode: false, minSimilarity: 0.5 }
+          );
+          
+          console.log(`[IMPORT] Visual filter result: ${approved.length} approved, ${rejected.length} rejected`);
+          
+          // Log what was rejected
+          for (const el of rejected.slice(0, 5)) {
+            const text = el.metadata?.text || el.metadata?.content || '';
+            console.log(`[IMPORT]   FILTERED OUT: [${el.type}] "${text.substring(0, 40)}..."`);
+          }
+          
+          elementsToProcess = approved;
+        }
+        
         // FASE 2: Classificar cada elemento
-        const classifiedElements = classifyAllElements(extractedElements);
+        const classifiedElements = classifyAllElements(elementsToProcess);
         console.log(`[IMPORT] Phase 2 - Classified ${classifiedElements.length} elements`);
         
         // Log classified elements
