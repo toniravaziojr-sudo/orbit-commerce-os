@@ -3069,8 +3069,12 @@ async function importPage(
     if (!pageContent!) {
       console.log(`[IMPORT] Using ELEMENT-BASED PIPELINE for: ${finalTitle}`);
       
-      // FASE 1: Extrair TODOS os elementos com posição
-      const extractedElements = extractAllElementsInOrder(videoMaterializedHtml);
+      // IMPORTANTE: Remover header/footer ANTES de extrair elementos
+      const mainContentHtml = extractMainContent(videoMaterializedHtml);
+      console.log(`[IMPORT] Main content extracted: ${mainContentHtml.length} chars (from ${videoMaterializedHtml.length})`);
+      
+      // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
+      const extractedElements = extractAllElementsInOrder(mainContentHtml);
       console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
       
       if (extractedElements.length > 0) {
