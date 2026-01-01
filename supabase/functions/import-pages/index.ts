@@ -1549,68 +1549,197 @@ function isHighlyCustomPage(html: string): boolean {
   return isCustom;
 }
 
-// Remove duplicate mobile/desktop elements - keep only desktop version
-// Many Shopify themes have duplicate sections with classes like "tablet", "mobile", "desktop"
-function removeDuplicateMobileDesktopElements(html: string): string {
+// =============================================
+// SMART DESKTOP/MOBILE IMAGE EXTRACTION
+// Extracts images from both desktop and mobile versions
+// Creates native Image blocks with imageDesktop + imageMobile
+// =============================================
+
+interface ResponsiveImagePair {
+  desktopSrc: string;
+  mobileSrc: string;
+  alt: string;
+  sectionId: string; // To help match desktop/mobile pairs
+}
+
+interface SectionImage {
+  src: string;
+  alt: string;
+}
+
+// Extract images from desktop and mobile sections separately
+function extractDesktopMobileImages(html: string): ResponsiveImagePair[] {
+  const images: ResponsiveImagePair[] = [];
+  
+  // Find all sections that have both desktop and mobile versions
+  // Common patterns: class="section1" (desktop) vs class="section1 tablet" (mobile)
+  
+  // Pattern: sections with numbered classes (section1, section2, etc)
+  const sectionPattern = /<section[^>]*class="([^"]*\bsection(\d+)\b[^"]*)"[^>]*>([\s\S]*?)<\/section>/gi;
+  
+  interface SectionContent {
+    desktop?: string;
+    mobile?: string;
+  }
+  
+  const sectionsByNumber: Record<string, SectionContent> = {};
+  
+  let match;
+  while ((match = sectionPattern.exec(html)) !== null) {
+    const fullClass = match[1];
+    const sectionNum = match[2];
+    const content = match[3];
+    
+    // Check if this is mobile/tablet version
+    const isMobile = /\b(tablet|mobile)\b/i.test(fullClass);
+    
+    if (!sectionsByNumber[sectionNum]) {
+      sectionsByNumber[sectionNum] = {};
+    }
+    
+    if (isMobile) {
+      sectionsByNumber[sectionNum].mobile = content;
+    } else {
+      sectionsByNumber[sectionNum].desktop = content;
+    }
+  }
+  
+  // For each section that has BOTH versions, extract images
+  for (const [sectionNum, contents] of Object.entries(sectionsByNumber)) {
+    if (contents.desktop && contents.mobile) {
+      // Extract images from desktop version
+      const desktopImages = extractImagesFromSection(contents.desktop);
+      const mobileImages = extractImagesFromSection(contents.mobile);
+      
+      console.log(`[EXTRACT-IMG] Section ${sectionNum}: ${desktopImages.length} desktop, ${mobileImages.length} mobile images`);
+      
+      // Match desktop and mobile images by position (assume same order)
+      const maxLen = Math.max(desktopImages.length, mobileImages.length);
+      for (let i = 0; i < maxLen; i++) {
+        const desktopImg = desktopImages[i];
+        const mobileImg = mobileImages[i];
+        
+        if (desktopImg || mobileImg) {
+          images.push({
+            desktopSrc: desktopImg?.src || mobileImg?.src || '',
+            mobileSrc: mobileImg?.src || desktopImg?.src || '',
+            alt: desktopImg?.alt || mobileImg?.alt || `Imagem ${sectionNum}-${i + 1}`,
+            sectionId: `section${sectionNum}`,
+          });
+        }
+      }
+    }
+  }
+  
+  console.log(`[EXTRACT-IMG] Total paired images found: ${images.length}`);
+  return images;
+}
+
+// Extract image src and alt from HTML section
+function extractImagesFromSection(html: string): Array<{ src: string; alt: string }> {
+  const images: Array<{ src: string; alt: string }> = [];
+  
+  // Match img tags
+  const imgPattern = /<img[^>]*src="([^"]+)"[^>]*(?:alt="([^"]*)")?[^>]*>/gi;
+  let match;
+  
+  while ((match = imgPattern.exec(html)) !== null) {
+    const src = match[1];
+    const alt = match[2] || '';
+    
+    // Skip tiny images, icons, tracking pixels
+    if (src && !src.includes('tracking') && !src.includes('pixel') && !src.includes('1x1')) {
+      images.push({ src, alt });
+    }
+  }
+  
+  // Also match background-image in style
+  const bgPattern = /background-image:\s*url\(['"]?([^'")\s]+)['"]?\)/gi;
+  while ((match = bgPattern.exec(html)) !== null) {
+    images.push({ src: match[1], alt: '' });
+  }
+  
+  return images;
+}
+
+// Remove duplicate mobile elements BUT keep track of what we removed for image extraction
+function removeDuplicateMobileElements(html: string): string {
   let content = html;
   
-  // Pattern 1: Remove sections with explicit "tablet" or "mobile" class (keeping desktop)
-  // This handles patterns like: <section class="section1 tablet"> vs <section class="section1">
-  content = content.replace(/<section[^>]*class="[^"]*\b(tablet|mobile)\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '<!-- mobile-version-removed -->');
+  // Remove mobile/tablet sections (but we already extracted images above)
+  content = content.replace(/<section[^>]*class="[^"]*\b(tablet|mobile)\b[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
   
-  // Pattern 2: Remove divs with explicit mobile/tablet classes
+  // Remove other mobile-specific elements
   content = content.replace(/<div[^>]*class="[^"]*\b(d-sm-block|d-md-none|show-mobile|hide-desktop|mobile-only|tablet-only)\b[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
   
-  // Pattern 3: Remove elements with display:none style inline (often mobile-specific)
-  content = content.replace(/<[^>]*style="[^"]*display:\s*none[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
-  
-  // Pattern 4: Specifically handle Shopify's common mobile duplicate patterns
-  // Many themes have <!-- MOBILE --> ... <!-- /MOBILE --> comments
+  // Remove mobile comment blocks
   content = content.replace(/<!--\s*(?:MOBILE|TABLET|mobile|tablet)\s*-->[\s\S]*?<!--\s*\/(?:MOBILE|TABLET|mobile|tablet)\s*-->/gi, '');
   
-  // Pattern 5: Remove elements with aria-hidden="true" that are often duplicate content for accessibility
-  // Be careful not to remove important content though
-  
-  console.log(`[DEDUPE] Removed mobile/tablet duplicates`);
+  console.log(`[DEDUPE] Removed mobile/tablet duplicate elements`);
   return content;
 }
 
-// Extract main content from Shopify pages - IMPROVED to remove header/footer completely
+// Create Image blocks from extracted desktop/mobile image pairs
+function createImageBlocksFromPairs(images: ResponsiveImagePair[]): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  
+  for (const img of images) {
+    blocks.push({
+      id: generateBlockId('image'),
+      type: 'Image',
+      props: {
+        imageDesktop: img.desktopSrc,
+        imageMobile: img.mobileSrc,
+        alt: img.alt,
+        aspectRatio: 'auto',
+        objectFit: 'cover',
+        fullWidth: true,
+      },
+      children: [],
+    });
+    
+    console.log(`[CREATE-IMG] Image block: desktop=${img.desktopSrc.substring(0, 50)}... mobile=${img.mobileSrc.substring(0, 50)}...`);
+  }
+  
+  return blocks;
+}
+
+// Extract main content from Shopify pages - IMPROVED with desktop/mobile image handling
 function extractMainContent(html: string): string {
   if (!html) return '';
   
   let content = html;
   
-  // STEP 0: Remove duplicate mobile/desktop elements FIRST (before any other processing)
-  content = removeDuplicateMobileDesktopElements(content);
+  // STEP 0: Remove duplicate mobile elements (keeping only desktop for HTML)
+  // Note: Images are extracted separately before this
+  content = removeDuplicateMobileElements(content);
   
   // STEP 1: Remove Shopify section groups (these contain header/footer from the theme)
-  // These are the main culprit for duplicate content
   content = content.replace(/<!-- BEGIN sections: header-group -->[\s\S]*?<!-- END sections: header-group -->/gi, '');
   content = content.replace(/<!-- BEGIN sections: footer-group -->[\s\S]*?<!-- END sections: footer-group -->/gi, '');
   
-  // STEP 2: Remove announcement bar sections (top bar with offers, frete grátis, etc.)
+  // STEP 2: Remove announcement bar sections
   content = content.replace(/<section[^>]*id="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
   content = content.replace(/<div[^>]*class="[^"]*announcement[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
   
-  // STEP 3: Remove header elements by class/id patterns
+  // STEP 3: Remove header elements
   content = content.replace(/<header[^>]*>[\s\S]*?<\/header>/gi, '');
   content = content.replace(/<section[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
   content = content.replace(/<nav[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/nav>/gi, '');
   content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*header[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
   
-  // STEP 4: Remove footer elements by class/id patterns
+  // STEP 4: Remove footer elements
   content = content.replace(/<footer[^>]*>[\s\S]*?<\/footer>/gi, '');
   content = content.replace(/<section[^>]*class="[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
   content = content.replace(/<div[^>]*id="[^"]*shopify-section[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
   
-  // STEP 5: Remove scripts, noscript, style, links (we get CSS separately)
+  // STEP 5: Remove scripts, noscript, style, links
   content = content.replace(/<script[\s\S]*?<\/script>/gi, '');
   content = content.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
   content = content.replace(/<style[\s\S]*?<\/style>/gi, '');
   content = content.replace(/<link[^>]*>/gi, '');
   
-  // STEP 6: Remove event handlers (onclick, onload, etc.)
+  // STEP 6: Remove event handlers
   content = content.replace(/\s*on\w+="[^"]*"/gi, '');
   
   // STEP 7: Try to find main content area
@@ -1628,9 +1757,6 @@ function extractMainContent(html: string): string {
   // STEP 9: Clean up empty elements and excessive whitespace
   content = content.replace(/<(div|span|section)[^>]*>\s*<\/\1>/gi, '');
   content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
-  
-  // STEP 10: Remove placeholder comments we added
-  content = content.replace(/<!--\s*mobile-version-removed\s*-->/gi, '');
   
   console.log(`[EXTRACT] Main content extracted: ${content.length} chars`);
   return content.trim();
@@ -2028,14 +2154,24 @@ async function importPage(
     const isCustomPage = isHighlyCustomPage(rawHtmlToCheck);
     
     if (isCustomPage) {
-      console.log(`[IMPORT] CUSTOM PAGE detected - creating single CustomBlock to preserve visual`);
+      console.log(`[IMPORT] CUSTOM PAGE detected - extracting desktop/mobile images first`);
       
-      // Extract main content from the raw HTML
+      // STEP 1: Extract desktop/mobile image pairs BEFORE removing mobile elements
+      const responsiveImages = extractDesktopMobileImages(rawHtmlToCheck);
+      console.log(`[IMPORT] Found ${responsiveImages.length} responsive image pairs`);
+      
+      // STEP 2: Extract main content (which removes mobile duplicates)
       const mainContent = extractMainContent(rawHtmlToCheck);
       
       if (mainContent.length > 500) {
-        // Create CustomBlock + extracted interactive elements (buttons)
+        // STEP 3: Create Image blocks from responsive pairs
+        const imageBlocks = createImageBlocksFromPairs(responsiveImages);
+        
+        // STEP 4: Create CustomBlock + extracted interactive elements (buttons)
         const customBlocks = createCustomPageBlocks(mainContent, globalExtractedCss, finalTitle);
+        
+        // STEP 5: Combine: Image blocks FIRST (for proper responsive rendering), then CustomBlock content
+        const allBlocks = [...imageBlocks, ...customBlocks];
         
         pageContent = {
           id: generateBlockId('page'),
@@ -2054,11 +2190,11 @@ async function importPage(
               alignItems: 'stretch', 
               fullWidth: true 
             },
-            children: customBlocks,
+            children: allBlocks,
           }],
         };
         
-        console.log(`[IMPORT] Created ${customBlocks.length} blocks (CustomBlock + ${customBlocks.length - 1} buttons)`);
+        console.log(`[IMPORT] Created ${allBlocks.length} blocks (${imageBlocks.length} Image + CustomBlock + buttons)`);
       } else {
         // Content too small, try AI
         console.log(`[IMPORT] Custom page content too small, trying AI...`);
