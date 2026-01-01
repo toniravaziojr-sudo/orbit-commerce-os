@@ -86,13 +86,90 @@ interface AIAnalysisResult {
 // Global CSS extracted from the page (used by CustomBlocks)
 let globalExtractedCss = '';
 
+// Extract external CSS URLs from HTML
+function extractExternalCssUrls(html: string): string[] {
+  const urls: string[] = [];
+  const linkRegex = /<link[^>]+rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
+  const hrefFirstRegex = /<link[^>]+href=["']([^"']+)["'][^>]*rel=["']stylesheet["'][^>]*>/gi;
+  
+  let match;
+  while ((match = linkRegex.exec(html)) !== null) {
+    const url = match[1];
+    // Filter: only get relevant CSS files (landing-pages, theme, etc.), skip checkout/polyfills
+    if (url && !url.includes('checkout-web') && !url.includes('polyfill')) {
+      urls.push(url);
+    }
+  }
+  while ((match = hrefFirstRegex.exec(html)) !== null) {
+    const url = match[1];
+    if (url && !urls.includes(url) && !url.includes('checkout-web') && !url.includes('polyfill')) {
+      urls.push(url);
+    }
+  }
+  
+  console.log(`[CSS] Found ${urls.length} external CSS URLs`);
+  return urls;
+}
+
+// Fetch external CSS with timeout
+async function fetchExternalCss(urls: string[], maxTotal: number = 150000): Promise<string> {
+  const cssChunks: string[] = [];
+  let totalSize = 0;
+  
+  // Prioritize landing-pages.css and similar custom CSS over vendor/theme
+  const prioritized = urls.sort((a, b) => {
+    if (a.includes('landing-page')) return -1;
+    if (b.includes('landing-page')) return 1;
+    if (a.includes('custom')) return -1;
+    if (b.includes('custom')) return 1;
+    return 0;
+  });
+  
+  for (const url of prioritized) {
+    if (totalSize >= maxTotal) break;
+    
+    try {
+      console.log(`[CSS] Fetching: ${url.substring(0, 80)}...`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per CSS
+      
+      const response = await fetch(url, { 
+        signal: controller.signal,
+        headers: { 'Accept': 'text/css' }
+      });
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        let css = await response.text();
+        
+        // Limit size per file
+        const maxPerFile = 80000; // 80KB per file
+        if (css.length > maxPerFile) {
+          css = css.substring(0, maxPerFile);
+          const lastBrace = css.lastIndexOf('}');
+          if (lastBrace > maxPerFile * 0.8) css = css.substring(0, lastBrace + 1);
+        }
+        
+        cssChunks.push(`/* From: ${url} */\n${css}`);
+        totalSize += css.length;
+        console.log(`[CSS] Fetched ${css.length} chars from ${url.split('/').pop()}`);
+      }
+    } catch (err) {
+      console.warn(`[CSS] Failed to fetch ${url}: ${err}`);
+    }
+  }
+  
+  console.log(`[CSS] Total external CSS: ${totalSize} chars from ${cssChunks.length} files`);
+  return cssChunks.join('\n\n');
+}
+
 // Extract ESSENTIAL CSS from HTML - OPTIMIZED for speed
 // Uses simple string parsing instead of heavy regex to avoid CPU timeout
 function extractCssFromHtml(html: string): string {
   if (!html) return '';
   
   const cssChunks: string[] = [];
-  const maxCssSize = 20000; // 20KB max total
+  const maxCssSize = 50000; // 50KB max from inline (increased)
   let totalSize = 0;
   
   // Simple string-based extraction of <style> tags (much faster than regex on large HTML)
@@ -114,14 +191,10 @@ function extractCssFromHtml(html: string): string {
     
     // Skip empty or very small
     if (cssContent.length > 20 && cssContent.length < 50000) {
-      // Quick filter: skip if contains common hiding patterns
-      const cssLower = cssContent.toLowerCase();
-      if (!cssLower.includes('display:none') && !cssLower.includes('display: none')) {
-        // Limit individual chunk size
-        const chunk = cssContent.length > 10000 ? cssContent.substring(0, 10000) : cssContent;
-        cssChunks.push(chunk);
-        totalSize += chunk.length;
-      }
+      // Limit individual chunk size
+      const chunk = cssContent.length > 20000 ? cssContent.substring(0, 20000) : cssContent;
+      cssChunks.push(chunk);
+      totalSize += chunk.length;
     }
     
     pos = styleEnd + 8;
@@ -132,14 +205,29 @@ function extractCssFromHtml(html: string): string {
   
   if (combined.length > maxCssSize) {
     combined = combined.substring(0, maxCssSize);
-    // Try to end at a valid boundary
     const lastBrace = combined.lastIndexOf('}');
     if (lastBrace > maxCssSize * 0.8) {
       combined = combined.substring(0, lastBrace + 1);
     }
   }
   
-  console.log(`[CSS] Fast extracted ${cssChunks.length} chunks, ${combined.length} chars total`);
+  console.log(`[CSS] Fast extracted ${cssChunks.length} inline chunks, ${combined.length} chars total`);
+  return combined;
+}
+
+// COMBINED: Extract inline + fetch external CSS
+async function extractAllCssFromHtml(html: string): Promise<string> {
+  // 1. Extract inline <style> tags
+  const inlineCss = extractCssFromHtml(html);
+  
+  // 2. Extract external CSS URLs and fetch them
+  const externalUrls = extractExternalCssUrls(html);
+  const externalCss = await fetchExternalCss(externalUrls);
+  
+  // Combine: external CSS first (has base styles), then inline (has overrides)
+  const combined = `${externalCss}\n\n/* INLINE STYLES */\n${inlineCss}`;
+  
+  console.log(`[CSS] Combined: ${inlineCss.length} inline + ${externalCss.length} external = ${combined.length} total`);
   return combined;
 }
 
@@ -1932,9 +2020,10 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
       mainHtml = mainHtml.substring(0, maxMainHtmlSize);
     }
 
-    // Extract CSS from the raw HTML (styles in head and inline) - quick operation now
-    const extractedCss = extractCssFromHtml(fullRawHtml);
-    console.log(`[SCRAPE] Extracted CSS: ${extractedCss.length}chars`);
+    // Extract CSS from the raw HTML (inline styles) + fetch external CSS files
+    // This is CRITICAL for pixel-perfect: external CSS like landing-pages.css contains all the styling
+    const extractedCss = await extractAllCssFromHtml(fullRawHtml);
+    console.log(`[SCRAPE] Extracted CSS (inline + external): ${extractedCss.length} chars`);
 
     // Use the main content HTML for processing - also limited now
     const cleanedHtml = cleanHtmlContent(mainHtml || fullRawHtml, markdown);
