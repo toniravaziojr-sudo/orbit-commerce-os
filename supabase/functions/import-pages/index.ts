@@ -3164,9 +3164,26 @@ async function importPage(
     
     // =============================================
     // FALLBACK: Análise híbrida/AI se pipeline falhou
+    // REGRA CRÍTICA: Para Shopify, NÃO usar fallback que gera RichText gigante
     // =============================================
     if (!pageContent!) {
-      console.log(`[IMPORT] FALLBACK - Using hybrid analysis`);
+      // Re-detectar plataforma para verificação
+      const fallbackPlatform = detectPlatformFromHtml(videoMaterializedHtml, page.url);
+      
+      // SHOPIFY: Se extração determinística falhou, retornar erro - NÃO fazer fallback
+      if (fallbackPlatform.platform === 'shopify') {
+        console.log(`[IMPORT] SHOPIFY ERROR: Deterministic extraction failed - NOT falling back to regex/AI`);
+        console.log(`[IMPORT] This prevents importing footer/header content incorrectly`);
+        
+        // Retornar erro estruturado em vez de página quebrada
+        return {
+          success: false,
+          error: 'Não foi possível extrair o conteúdo da página Shopify. O tema pode ter estrutura não suportada ou a página não tem seções de conteúdo template--.'
+        };
+      }
+      
+      // Para outras plataformas, manter fallback normal
+      console.log(`[IMPORT] FALLBACK - Using hybrid analysis (non-Shopify: ${fallbackPlatform.platform})`);
       
       const hybridResult = analyzeForHybridImport(videoMaterializedHtml);
       
@@ -3180,9 +3197,7 @@ async function importPage(
         
         if (isCustomPage) {
           const responsiveImages = extractDesktopMobileImages(videoMaterializedHtml);
-          // Use DOM-based extraction for fallback too
-          const fallbackPlatformDetection = detectPlatformFromHtml(videoMaterializedHtml, page.url);
-          const fallbackExtractionResult = await extractContentWithDOM(videoMaterializedHtml, page.url, fallbackPlatformDetection.platform);
+          const fallbackExtractionResult = await extractContentWithDOM(videoMaterializedHtml, page.url, fallbackPlatform.platform);
           const mainContent = fallbackExtractionResult.contentHtml;
           console.log(`[IMPORT] Fallback DOM extraction: ${mainContent.length} chars, from: ${fallbackExtractionResult.extractedFrom}`);
           
