@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { segmentPageBySections, hasExplicitSectionMarkers } from './section-segmenter.ts';
-import { materializeVideos, hasVideoContent } from './video-materializer.ts';
+import { materializeVideos, hasVideoContent, extractVideoUrls, isVideoCarouselSection } from './video-materializer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

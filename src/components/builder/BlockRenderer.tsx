@@ -33,6 +33,7 @@ import { TrackingLookupBlock as TrackingLookupBlockComponent } from './blocks/Tr
 import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogListingBlock';
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
+import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -550,6 +551,8 @@ const components: Record<string, React.ComponentType<any>> = {
     CustomBlock: CustomBlockWrapper,
     // HTML Section (manual HTML/CSS editing)
     HTMLSection: HTMLSectionWrapper,
+    // Video Carousel (YouTube slider)
+    VideoCarousel: VideoCarouselBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -1981,6 +1984,10 @@ function TextBannersBlockWrapper({ context, ...props }: any) {
 
 function VideoUploadBlockWrapper({ context, ...props }: any) {
   return <VideoUploadBlockComponent {...props} context={context} />;
+}
+
+function VideoCarouselBlockWrapper({ context, ...props }: any) {
+  return <VideoCarouselBlockComponent {...props} context={context} />;
 }
 
 function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {

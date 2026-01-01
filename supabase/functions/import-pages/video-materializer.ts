@@ -215,6 +215,106 @@ export function materializeVideos(html: string): MaterializationResult {
   };
 }
 
+// =============================================
+// EXTRACT VIDEO URLS FROM HTML (for VideoCarousel block)
+// =============================================
+// Instead of materializing inline, extract all video URLs
+// to be passed to a native VideoCarousel block
+// =============================================
+
+export interface ExtractedVideoInfo {
+  id: string;
+  url: string;
+  title?: string;
+  thumbnail?: string;
+}
+
+export function extractVideoUrls(html: string): ExtractedVideoInfo[] {
+  if (!html) return [];
+  
+  const videos: ExtractedVideoInfo[] = [];
+  const foundIds = new Set<string>();
+  let match;
+  
+  // Helper to add unique video
+  const addVideo = (videoId: string, title?: string) => {
+    if (!videoId || foundIds.has(videoId)) return;
+    foundIds.add(videoId);
+    videos.push({
+      id: `yt-${videoId}`,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      title,
+      thumbnail: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`,
+    });
+    console.log(`[VIDEO-EXTRACT] Found video: ${videoId}${title ? ` "${title}"` : ''}`);
+  };
+  
+  // Pattern 1: data-youtube or data-video-id attributes
+  const dataAttrPattern = /data-(?:youtube|video-id|yt-id|youtube-id)=["']([a-zA-Z0-9_-]{11})["']/gi;
+  while ((match = dataAttrPattern.exec(html)) !== null) {
+    addVideo(match[1]);
+  }
+  
+  // Pattern 2: YouTube embed URLs
+  const embedPattern = /youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/gi;
+  while ((match = embedPattern.exec(html)) !== null) {
+    addVideo(match[1]);
+  }
+  
+  // Pattern 3: YouTube watch URLs
+  const watchPattern = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/gi;
+  while ((match = watchPattern.exec(html)) !== null) {
+    addVideo(match[1]);
+  }
+  
+  // Pattern 4: youtu.be short URLs
+  const shortPattern = /youtu\.be\/([a-zA-Z0-9_-]{11})/gi;
+  while ((match = shortPattern.exec(html)) !== null) {
+    addVideo(match[1]);
+  }
+  
+  // Pattern 5: YouTube thumbnail images (ytimg.com)
+  const thumbPattern = /ytimg\.com\/vi\/([a-zA-Z0-9_-]{11})/gi;
+  while ((match = thumbPattern.exec(html)) !== null) {
+    addVideo(match[1]);
+  }
+  
+  console.log(`[VIDEO-EXTRACT] Total unique videos found: ${videos.length}`);
+  return videos;
+}
+
+// Detect if a section contains a video carousel/slider
+export function isVideoCarouselSection(html: string): boolean {
+  // Check for multiple video references
+  const videoCount = extractVideoUrls(html).length;
+  if (videoCount < 2) return false;
+  
+  // Check for carousel/slider indicators
+  const carouselIndicators = [
+    /class=["'][^"']*(?:swiper|slick|carousel|slider|owl)[^"']*["']/i,
+    /<div[^>]*data-(?:swiper|slick|carousel)/i,
+    /video.*slider/i,
+    /slider.*video/i,
+    /carousel.*video/i,
+  ];
+  
+  const hasCarouselClasses = carouselIndicators.some(p => p.test(html));
+  
+  // If has carousel classes and multiple videos, it's a carousel
+  if (hasCarouselClasses && videoCount >= 2) {
+    console.log(`[VIDEO-EXTRACT] Detected video carousel with ${videoCount} videos`);
+    return true;
+  }
+  
+  // If has 3+ videos in close proximity, treat as carousel
+  if (videoCount >= 3) {
+    console.log(`[VIDEO-EXTRACT] Detected ${videoCount} videos, treating as carousel`);
+    return true;
+  }
+  
+  return false;
+}
+
 // Quick check if HTML contains video content that needs materialization
 export function hasVideoContent(html: string): boolean {
   const videoIndicators = [

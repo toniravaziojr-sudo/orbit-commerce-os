@@ -191,6 +191,7 @@ function materializeVideos(html: string): string {
 }
 
 // Build complete HTML document for iframe
+// CRITICAL: Minimal CSS reset to avoid distorting original layout
 function buildIframeDocument(html: string, css: string, baseUrl?: string, disableLinks: boolean = false): string {
   let baseHref = '';
   if (baseUrl) {
@@ -211,27 +212,19 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string, disabl
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   ${baseHref ? `<base href="${baseHref}" target="_blank">` : ''}
   <style>
-    /* CSS Reset - Anti-interference for height measurement */
+    /* MINIMAL CSS Reset - preserve original layout as much as possible */
     html, body {
       margin: 0 !important;
       padding: 0 !important;
-      height: auto !important;
-      min-height: 0 !important;
-      max-height: none !important;
       overflow: visible !important;
       overflow-x: hidden !important;
-    }
-    *, *::before, *::after {
-      box-sizing: border-box !important;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
-      display: block !important;
-      position: relative !important;
     }
-    img { max-width: 100%; height: auto; display: block; }
+    img { max-width: 100%; height: auto; }
     ${disableLinks ? 'a { pointer-events: none; cursor: default; }' : 'a { color: inherit; }'}
     
     iframe[src*="youtube.com"], iframe[src*="youtu.be"], iframe[src*="vimeo.com"] {
@@ -240,17 +233,8 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string, disabl
     .video-embed { margin: 1rem 0; }
   </style>
   <style>
-    /* Imported CSS */
+    /* Imported CSS - preserved as-is for pixel-perfect */
     ${css}
-  </style>
-  <style>
-    /* Override to ensure measurement works */
-    html, body {
-      height: auto !important;
-      min-height: 0 !important;
-      max-height: none !important;
-      overflow: visible !important;
-    }
   </style>
 </head>
 <body>
@@ -260,30 +244,55 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string, disabl
 }
 
 // Measure content height from contentDocument
+// IMPROVED: Measure from section elements directly when available
 function measureContentHeight(doc: Document): number {
   if (!doc || !doc.body) return 200;
   
-  // Force layout
-  doc.body.offsetHeight;
+  // Force layout reflow
+  void doc.body.offsetHeight;
   
-  // Get heights from multiple sources
-  const heights = [
-    doc.body.scrollHeight || 0,
-    doc.body.offsetHeight || 0,
-    doc.documentElement?.scrollHeight || 0,
-    doc.documentElement?.offsetHeight || 0,
-  ];
+  const heights: number[] = [];
   
-  // Also try bounding rect
+  // Strategy 1: Look for section elements (most accurate for segmented content)
+  const sections = doc.querySelectorAll('section, [class*="section"], .section-variant-mobile, .section-variant-desktop');
+  if (sections.length > 0) {
+    let totalSectionHeight = 0;
+    sections.forEach(section => {
+      const rect = section.getBoundingClientRect();
+      totalSectionHeight += rect.height;
+    });
+    if (totalSectionHeight > 50) heights.push(totalSectionHeight);
+  }
+  
+  // Strategy 2: Direct body children measurement
+  let childrenHeight = 0;
+  Array.from(doc.body.children).forEach(child => {
+    if (child instanceof HTMLElement) {
+      const rect = child.getBoundingClientRect();
+      // Only count visible elements
+      if (rect.height > 0 && getComputedStyle(child).display !== 'none') {
+        childrenHeight = Math.max(childrenHeight, rect.bottom);
+      }
+    }
+  });
+  if (childrenHeight > 50) heights.push(childrenHeight);
+  
+  // Strategy 3: Standard scroll/offset heights
+  heights.push(doc.body.scrollHeight || 0);
+  heights.push(doc.body.offsetHeight || 0);
+  heights.push(doc.documentElement?.scrollHeight || 0);
+  heights.push(doc.documentElement?.offsetHeight || 0);
+  
+  // Strategy 4: Body bounding rect
   try {
     const bodyRect = doc.body.getBoundingClientRect();
     if (bodyRect.height > 0) heights.push(Math.ceil(bodyRect.height));
   } catch {}
   
-  const maxHeight = Math.max(...heights);
+  const maxHeight = Math.max(...heights.filter(h => h > 0));
   
-  // Add small padding and clamp
-  return Math.max(50, Math.min(maxHeight + 10, 25000));
+  // Add small buffer and clamp to reasonable limits
+  return Math.max(100, Math.min(maxHeight + 20, 25000));
 }
 
 export function IsolatedCustomBlock({
