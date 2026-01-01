@@ -126,10 +126,13 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
   <script>
     // =============================================
     // ROBUST AUTO-HEIGHT - Eliminates internal scroll
+    // With debounce to prevent infinite loops
     // =============================================
     (function() {
       var lastHeight = 0;
       var updateCount = 0;
+      var debounceTimer = null;
+      var isUpdating = false;
       
       function getContentHeight() {
         // Get maximum height from multiple sources
@@ -137,9 +140,7 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
           document.body.scrollHeight || 0,
           document.body.offsetHeight || 0,
           document.documentElement.scrollHeight || 0,
-          document.documentElement.offsetHeight || 0,
-          document.body.clientHeight || 0,
-          document.documentElement.clientHeight || 0
+          document.documentElement.offsetHeight || 0
         ];
         
         // Also measure all direct children of body
@@ -147,87 +148,62 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
         for (var i = 0; i < children.length; i++) {
           var child = children[i];
           var rect = child.getBoundingClientRect();
-          heights.push(rect.bottom + window.scrollY);
+          heights.push(Math.ceil(rect.bottom));
         }
         
         return Math.ceil(Math.max.apply(null, heights));
       }
       
       function updateHeight() {
+        if (isUpdating) return;
+        
         var height = getContentHeight();
-        // Add small padding to avoid edge cases
+        // Add small padding
         height = height + 10;
         
-        // Only send if height changed (or first few times)
-        if (height !== lastHeight || updateCount < 5) {
+        // Only send if height changed significantly (>5px difference)
+        var diff = Math.abs(height - lastHeight);
+        if (diff > 5 || updateCount < 3) {
           lastHeight = height;
           updateCount++;
+          isUpdating = true;
           window.parent.postMessage({ type: 'resize', height: height }, '*');
+          // Reset flag after a short delay
+          setTimeout(function() { isUpdating = false; }, 100);
         }
       }
       
-      // Initial measurements with progressive delays
-      setTimeout(updateHeight, 50);
-      setTimeout(updateHeight, 150);
-      setTimeout(updateHeight, 300);
-      setTimeout(updateHeight, 600);
-      setTimeout(updateHeight, 1200);
-      setTimeout(updateHeight, 2500);
+      function debouncedUpdate() {
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(updateHeight, 50);
+      }
       
-      // ResizeObserver for dynamic content
+      // Initial measurements with delays
+      setTimeout(updateHeight, 100);
+      setTimeout(updateHeight, 500);
+      setTimeout(updateHeight, 1500);
+      
+      // ResizeObserver with debounce
       if (typeof ResizeObserver !== 'undefined') {
-        var observer = new ResizeObserver(function() {
-          setTimeout(updateHeight, 30);
-        });
+        var observer = new ResizeObserver(debouncedUpdate);
         observer.observe(document.body);
-        observer.observe(document.documentElement);
-        
-        // Also observe all sections
-        document.querySelectorAll('section, div, article').forEach(function(el) {
-          if (el.offsetHeight > 50) {
-            observer.observe(el);
-          }
-        });
       }
       
-      // MutationObserver as fallback
-      if (typeof MutationObserver !== 'undefined') {
-        var mutationObserver = new MutationObserver(function() {
-          setTimeout(updateHeight, 50);
-        });
-        mutationObserver.observe(document.body, {
-          childList: true,
-          subtree: true,
-          attributes: true,
-          attributeFilter: ['style', 'class']
-        });
-      }
-      
-      // Image load handlers - CRITICAL for images that load after initial render
+      // Image load handlers
       document.querySelectorAll('img').forEach(function(img) {
-        if (img.complete) {
-          setTimeout(updateHeight, 10);
-        } else {
-          img.onload = function() { setTimeout(updateHeight, 50); };
-          img.onerror = function() { setTimeout(updateHeight, 50); };
+        if (!img.complete) {
+          img.onload = debouncedUpdate;
         }
       });
       
       // Iframe load handlers (for embedded videos)
       document.querySelectorAll('iframe').forEach(function(iframe) {
-        iframe.onload = function() { setTimeout(updateHeight, 200); };
-      });
-      
-      // Window resize
-      window.addEventListener('resize', function() {
-        setTimeout(updateHeight, 100);
+        iframe.onload = debouncedUpdate;
       });
       
       // Font loading
       if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(function() {
-          setTimeout(updateHeight, 100);
-        });
+        document.fonts.ready.then(debouncedUpdate);
       }
       
       // Prevent link navigation in editing mode
@@ -240,7 +216,6 @@ function buildIframeDocument(html: string, css: string, baseUrl?: string): strin
         }
       }, true);
     })();
-  </script>
 </body>
 </html>`;
 }
