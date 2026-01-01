@@ -52,48 +52,88 @@ function sanitizeHtml(html: string): string {
   return sanitized;
 }
 
-// Scope CSS rules to a specific container
+// Scope CSS rules to a specific container - STRICT ISOLATION
 function scopeCss(css: string, scopeId: string): string {
   if (!css) return '';
   
-  // Add base styles to ensure visibility
+  // CRITICAL: Wrap everything in a scoped container to prevent leakage
   const baseStyles = `
-    .${scopeId} { display: block !important; visibility: visible !important; opacity: 1 !important; }
+    .${scopeId} { display: block !important; visibility: visible !important; opacity: 1 !important; contain: style layout; }
     .${scopeId} img { max-width: 100%; height: auto; display: block; }
-    .${scopeId} section, .${scopeId} div { display: block; }
   `;
   
-  // Split CSS into rules and scope each one
+  // Remove @font-face completely (can affect entire page)
+  let cleanedCss = css.replace(/@font-face\s*\{[^}]*\}/gi, '');
+  
+  // Remove @import (can load external CSS that affects global styles)
+  cleanedCss = cleanedCss.replace(/@import[^;]*;/gi, '');
+  
+  // Remove CSS variables at :root level (global effect)
+  cleanedCss = cleanedCss.replace(/:root\s*\{[^}]*\}/gi, '');
+  
+  // Remove any rules targeting html, body, * globally
+  cleanedCss = cleanedCss.replace(/(?:^|\})\s*(?:html|body|\*)\s*\{[^}]*\}/gi, '}');
+  
+  // Process @media queries - scope the selectors inside them
+  const processedCss = cleanedCss.replace(
+    /@media[^{]*\{((?:[^{}]|\{[^{}]*\})*)\}/gi,
+    (match, inner) => {
+      const mediaQuery = match.substring(0, match.indexOf('{'));
+      const scopedInner = scopeInnerRules(inner, scopeId);
+      return `${mediaQuery}{${scopedInner}}`;
+    }
+  );
+  
+  // Scope remaining rules (outside @media)
+  const finalCss = scopeInnerRules(processedCss.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi, ''), scopeId);
+  
+  // Extract scoped @media blocks
+  const mediaBlocks = processedCss.match(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi) || [];
+  
+  return baseStyles + '\n' + finalCss + '\n' + mediaBlocks.join('\n');
+}
+
+// Helper: Scope individual CSS rules within a block
+function scopeInnerRules(css: string, scopeId: string): string {
+  if (!css.trim()) return '';
+  
+  // Match CSS rules (selector { declarations })
   const rules = css.match(/[^{}]+\{[^{}]*\}/g) || [];
   
-  const scopedRules = rules.map(rule => {
-    const [selector, ...rest] = rule.split('{');
-    const declarations = rest.join('{');
+  return rules.map(rule => {
+    const braceIndex = rule.indexOf('{');
+    if (braceIndex === -1) return '';
     
-    // Skip @rules (media queries, keyframes, etc.)
-    if (selector.trim().startsWith('@')) {
-      return rule;
-    }
+    const selector = rule.substring(0, braceIndex);
+    const declarations = rule.substring(braceIndex);
+    
+    // Skip if selector starts with @ (keyframes, etc.)
+    if (selector.trim().startsWith('@')) return rule;
     
     // Skip rules that hide content
     if (/display\s*:\s*none|visibility\s*:\s*hidden|opacity\s*:\s*0\b/.test(declarations)) {
       return '';
     }
     
+    // Skip dangerous global selectors
+    const trimmedSelector = selector.trim().toLowerCase();
+    if (trimmedSelector === '*' || trimmedSelector === 'html' || trimmedSelector === 'body') {
+      return ''; // Don't include these at all
+    }
+    
     // Scope each selector
     const scopedSelectors = selector.split(',').map(s => {
       const trimmed = s.trim();
-      // Don't scope html, body, or :root
-      if (trimmed === 'html' || trimmed === 'body' || trimmed === ':root') {
-        return `.${scopeId}`;
+      if (!trimmed || trimmed === '*' || trimmed === 'html' || trimmed === 'body' || trimmed === ':root') {
+        return ''; // Exclude global selectors
       }
+      // Prepend the scope class
       return `.${scopeId} ${trimmed}`;
-    }).join(', ');
+    }).filter(Boolean).join(', ');
     
-    return `${scopedSelectors} {${declarations}`;
+    if (!scopedSelectors) return '';
+    return `${scopedSelectors} ${declarations}`;
   }).filter(Boolean).join('\n');
-
-  return baseStyles + '\n' + scopedRules;
 }
 
 export function CustomBlockRenderer({
