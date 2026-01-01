@@ -1705,48 +1705,47 @@ function removeNestedElement(html: string, tagName: string, startPos: number): s
   return html; // Could not find matching closing tag
 }
 
-// Remove duplicate mobile elements BUT keep track of what we removed for image extraction
+// ROBUST MOBILE DEDUPE - Uses proper nesting support
+// Mobile class patterns to detect
+const MOBILE_CLASS_PATTERNS = [
+  /\btablet\b/i, /\bmobile\b/i, /\bd-sm-block\b/i, /\bd-md-none\b/i,
+  /\bshow-mobile\b/i, /\bhide-desktop\b/i, /\bmobile-only\b/i, /\btablet-only\b/i,
+  /\bd-lg-none\b/i, /\bhidden-desktop\b/i, /\bvisible-mobile\b/i, /\bvisible-sm\b/i,
+];
+
+function isMobileOnlyElement(classString: string): boolean {
+  return MOBILE_CLASS_PATTERNS.some(pattern => pattern.test(classString));
+}
+
+// Remove duplicate mobile elements with proper nesting support
 function removeDuplicateMobileElements(html: string): string {
   let content = html;
   let removedCount = 0;
   
-  // Pattern to find elements with "tablet" or "mobile" class (word boundary)
-  const mobileClassPatterns = [
-    /<(section|div)[^>]*class="[^"]*\btablet\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bmobile\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bd-sm-block\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bd-md-none\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bshow-mobile\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bhide-desktop\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\bmobile-only\b[^"]*"[^>]*/gi,
-    /<(section|div)[^>]*class="[^"]*\btablet-only\b[^"]*"[^>]*/gi,
-  ];
+  const elementPattern = /<(section|div)[^>]*class="([^"]*)"[^>]*/gi;
+  let searchStart = 0;
+  let match;
   
-  // Process each pattern
-  for (const pattern of mobileClassPatterns) {
-    let match;
-    // Reset lastIndex for each iteration
-    pattern.lastIndex = 0;
+  while (searchStart < content.length) {
+    elementPattern.lastIndex = searchStart;
+    match = elementPattern.exec(content);
     
-    // Find and remove all matches - we need to loop because removing changes indices
-    let searchStart = 0;
-    while (searchStart < content.length) {
-      pattern.lastIndex = searchStart;
-      match = pattern.exec(content);
-      
-      if (!match) break;
-      
-      const tagName = match[1]; // "section" or "div"
+    if (!match) break;
+    
+    const tagName = match[1];
+    const classString = match[2];
+    
+    if (isMobileOnlyElement(classString)) {
       const newContent = removeNestedElement(content, tagName, match.index);
       
       if (newContent.length < content.length) {
         removedCount++;
         content = newContent;
-        // Don't advance searchStart - we removed content so positions shifted
       } else {
-        // Could not remove, advance past this match
         searchStart = match.index + match[0].length;
       }
+    } else {
+      searchStart = match.index + match[0].length;
     }
   }
   
@@ -1755,6 +1754,55 @@ function removeDuplicateMobileElements(html: string): string {
   
   console.log(`[DEDUPE] Removed ${removedCount} mobile/tablet duplicate elements`);
   return content;
+}
+
+// CSS PRUNING - Only keep CSS that matches selectors used in HTML
+function pruneCssForHtml(css: string, html: string): string {
+  if (!css || !html) return '';
+  
+  const classMatches = html.match(/class="([^"]*)"/gi) || [];
+  const idMatches = html.match(/id="([^"]*)"/gi) || [];
+  const tagMatches = html.match(/<([a-z][a-z0-9]*)/gi) || [];
+  
+  const usedClasses = new Set<string>();
+  const usedIds = new Set<string>();
+  const usedTags = new Set<string>();
+  
+  classMatches.forEach(m => m.replace(/class="([^"]*)"/i, '$1').split(/\s+/).forEach(c => c && usedClasses.add(c.toLowerCase())));
+  idMatches.forEach(m => { const id = m.replace(/id="([^"]*)"/i, '$1'); if (id) usedIds.add(id.toLowerCase()); });
+  tagMatches.forEach(m => usedTags.add(m.replace('<', '').toLowerCase()));
+  
+  let cleanCss = css
+    .replace(/@font-face\s*\{[^}]*\}/gi, '')
+    .replace(/@import[^;]*;/gi, '')
+    .replace(/:root\s*\{[^}]*\}/gi, '')
+    .replace(/(?:^|\})\s*(?:html|body|\*)\s*\{[^}]*\}/gi, '}');
+  
+  const filteredRules: string[] = [];
+  const rules = cleanCss.replace(/@media[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/gi, '').match(/[^{}]+\{[^{}]*\}/g) || [];
+  
+  rules.forEach(rule => {
+    const braceIndex = rule.indexOf('{');
+    if (braceIndex === -1) return;
+    const selector = rule.substring(0, braceIndex).trim();
+    const declarations = rule.substring(braceIndex);
+    
+    if (selector.startsWith('@')) { filteredRules.push(rule); return; }
+    if (['*', 'html', 'body', ':root'].includes(selector)) return;
+    if (/display\s*:\s*none|visibility\s*:\s*hidden/.test(declarations)) return;
+    
+    const selectorLower = selector.toLowerCase();
+    let matches = false;
+    usedClasses.forEach(cls => { if (selectorLower.includes('.' + cls)) matches = true; });
+    usedIds.forEach(id => { if (selectorLower.includes('#' + id)) matches = true; });
+    usedTags.forEach(tag => { if (new RegExp(`\\b${tag}\\b`, 'i').test(selector)) matches = true; });
+    
+    if (matches) filteredRules.push(rule);
+  });
+  
+  const result = filteredRules.join('\n');
+  console.log(`[CSS-PRUNE] ${css.length} -> ${result.length} chars (${Math.round((1 - result.length/Math.max(1,css.length)) * 100)}% reduction)`);
+  return result;
 }
 
 // Create Image blocks from extracted desktop/mobile image pairs
