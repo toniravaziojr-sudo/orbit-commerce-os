@@ -42,6 +42,41 @@ interface AIAnalysisResult {
   fallback?: boolean;
 }
 
+// Global CSS extracted from the page (used by CustomBlocks)
+let globalExtractedCss = '';
+
+// Extract all CSS from HTML (style tags + inline styles)
+function extractCssFromHtml(html: string): string {
+  if (!html) return '';
+  
+  const cssChunks: string[] = [];
+  
+  // Extract <style> tags content
+  const styleTagPattern = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let match;
+  while ((match = styleTagPattern.exec(html)) !== null) {
+    if (match[1]?.trim()) {
+      cssChunks.push(match[1].trim());
+    }
+  }
+  
+  // Extract inline style attributes as CSS rules (for key elements)
+  // This creates pseudo-classes to match the inline styles
+  const inlineStylePattern = /class="([^"]+)"[^>]*style="([^"]+)"/gi;
+  while ((match = inlineStylePattern.exec(html)) !== null) {
+    const classes = match[1].split(/\s+/).filter(c => c && !c.includes(':'));
+    const styles = match[2];
+    if (classes.length > 0 && styles) {
+      // Use the first class as selector
+      cssChunks.push(`.${classes[0]} { ${styles} }`);
+    }
+  }
+  
+  const combined = cssChunks.join('\n\n');
+  console.log(`[CSS] Extracted ${cssChunks.length} CSS chunks, total ${combined.length} chars`);
+  return combined;
+}
+
 // Call ai-analyze-page edge function with timeout
 async function analyzePageWithAI(
   html: string, 
@@ -65,9 +100,9 @@ async function analyzePageWithAI(
     
     console.log(`[AI] Calling ai-analyze-page for: ${pageTitle} (${truncatedHtml.length} chars)`);
     
-    // Add 60 second timeout
+    // Add 120 second timeout (AI analysis can take time for complex pages)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
     
     try {
       const response = await fetch(`${supabaseUrl}/functions/v1/ai-analyze-page`, {
@@ -105,8 +140,8 @@ async function analyzePageWithAI(
     } catch (fetchError: unknown) {
       clearTimeout(timeoutId);
       if (fetchError instanceof Error && fetchError.name === 'AbortError') {
-        console.warn('[AI] Request timeout after 60s');
-        return { success: false, error: 'Timeout after 60s', fallback: true };
+        console.warn('[AI] Request timeout after 120s');
+        return { success: false, error: 'Timeout after 120s', fallback: true };
       }
       throw fetchError;
     }
@@ -118,7 +153,8 @@ async function analyzePageWithAI(
 }
 
 // Convert AI sections to BlockNode structure
-function convertAISectionsToBlocks(sections: AISection[], supabase: any, tenantId: string): BlockNode[] {
+// Uses globalExtractedCss for CustomBlocks that need styling
+function convertAISectionsToBlocks(sections: AISection[], supabase: any, tenantId: string, pageExtractedCss: string = ''): BlockNode[] {
   const blocks: BlockNode[] = [];
 
   // Sort by order
@@ -233,13 +269,17 @@ function convertAISectionsToBlocks(sections: AISection[], supabase: any, tenantI
 
       case 'CustomBlock':
         // For CustomBlock, we create a special block that CustomBlockRenderer can handle
+        // Use section-specific CSS if available, otherwise use the global page CSS
         if (section.htmlContent) {
+          const cssToUse = section.cssContent?.trim() || pageExtractedCss || globalExtractedCss;
+          console.log(`[AI→BLOCK] CustomBlock with ${section.htmlContent.length} chars HTML, ${cssToUse.length} chars CSS`);
+          
           blocks.push({
             id: generateBlockId('customblock'),
             type: 'CustomBlock',
             props: {
               htmlContent: section.htmlContent,
-              cssContent: section.cssContent || '',
+              cssContent: cssToUse,
               blockName: section.props.blockName || 'Conteúdo Personalizado',
             },
             children: [],
@@ -303,8 +343,8 @@ function convertAISectionsToBlocks(sections: AISection[], supabase: any, tenantI
 }
 
 // Create page structure from AI analysis
-function createPageFromAIAnalysis(sections: AISection[], pageTitle: string, supabase: any, tenantId: string): BlockNode {
-  const contentBlocks = convertAISectionsToBlocks(sections, supabase, tenantId);
+function createPageFromAIAnalysis(sections: AISection[], pageTitle: string, supabase: any, tenantId: string, extractedCss: string = ''): BlockNode {
+  const contentBlocks = convertAISectionsToBlocks(sections, supabase, tenantId, extractedCss);
   
   return {
     id: generateBlockId('page'),
@@ -1344,7 +1384,8 @@ async function createComplexPageBlocks(
 // =============================================
 
 // Scrape page content using Firecrawl with retry logic
-async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: string; markdown: string; title: string; description: string } | null> {
+// Returns both cleaned HTML and raw HTML (with styles) for CustomBlocks
+async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: string; rawHtml: string; markdown: string; title: string; description: string; extractedCss: string } | null> {
   const MAX_RETRIES = 2;
   
   try {
@@ -1365,6 +1406,7 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
     
+    // Request BOTH rawHtml (full page with styles) and html (main content only)
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
@@ -1373,8 +1415,8 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
       },
       body: JSON.stringify({
         url: normalizedUrl,
-        formats: ['html', 'markdown'],
-        onlyMainContent: true,
+        formats: ['rawHtml', 'html', 'markdown'],
+        onlyMainContent: false, // Get FULL page to extract styles
         waitFor: 3000, // Wait for dynamic content
       }),
       signal: controller.signal,
@@ -1401,19 +1443,24 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
       return null;
     }
 
-    // Firecrawl v1 response structure: data.data.html, data.data.markdown, etc.
-    const rawHtml = data.data?.html || data.html || '';
+    // Firecrawl v1 response structure
+    const fullRawHtml = data.data?.rawHtml || data.rawHtml || '';
+    const mainHtml = data.data?.html || data.html || '';
     const markdown = data.data?.markdown || data.markdown || '';
     const title = data.data?.metadata?.title || data.metadata?.title || '';
     const description = data.data?.metadata?.description || data.metadata?.description || '';
 
-    console.log(`[SCRAPE] Success for ${normalizedUrl}: html=${rawHtml.length}chars, md=${markdown.length}chars`);
+    console.log(`[SCRAPE] Success for ${normalizedUrl}: rawHtml=${fullRawHtml.length}chars, html=${mainHtml.length}chars, md=${markdown.length}chars`);
 
-    // Clean the HTML content while preserving important elements
-    const cleanedHtml = cleanHtmlContent(rawHtml, markdown);
+    // Extract CSS from the raw HTML (styles in head and inline)
+    const extractedCss = extractCssFromHtml(fullRawHtml);
+    console.log(`[SCRAPE] Extracted CSS: ${extractedCss.length}chars`);
+
+    // Use the main content HTML for processing but keep raw HTML for reference
+    const cleanedHtml = cleanHtmlContent(mainHtml || fullRawHtml, markdown);
     console.log(`[SCRAPE] Cleaned HTML: ${cleanedHtml.length}chars`);
 
-    return { html: cleanedHtml, markdown, title, description };
+    return { html: cleanedHtml, rawHtml: fullRawHtml, markdown, title, description, extractedCss };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error(`[SCRAPE] Exception for ${url}: ${errorMsg}`);
@@ -1721,7 +1768,11 @@ async function importPage(
     
     // =============================================
     // NEW: Try AI analysis first, fallback to regex
+    // Store extracted CSS globally for CustomBlocks
     // =============================================
+    globalExtractedCss = scraped.extractedCss || '';
+    console.log(`[IMPORT] Extracted CSS available: ${globalExtractedCss.length} chars`);
+    
     if (useAI) {
       console.log(`[IMPORT] Using AI analysis for: ${finalTitle}`);
       
@@ -1731,8 +1782,8 @@ async function importPage(
         console.log(`[IMPORT] AI SUCCESS: ${aiResult.sections.length} sections, complexity: ${aiResult.pageComplexity}`);
         console.log(`[IMPORT] AI Summary: ${aiResult.summary}`);
         
-        // Create page from AI analysis
-        pageContent = createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId);
+        // Create page from AI analysis - pass extracted CSS for CustomBlocks
+        pageContent = createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId, scraped.extractedCss);
         
         console.log(`[IMPORT] AI Page blocks: ${pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ')}`);
       } else {
