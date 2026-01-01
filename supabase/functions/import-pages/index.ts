@@ -1514,21 +1514,106 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
   }
 }
 
-// Clean HTML content for safe display - extract ONLY main page content
-// NEW APPROACH: Use markdown as primary source when available (it's cleaner and has real content)
+// Detect if page is a highly custom/landing page that should be preserved as-is
+function isHighlyCustomPage(html: string): boolean {
+  if (!html) return false;
+  
+  const customIndicators = [
+    // Shopify custom liquid sections
+    /shopify-section--custom-liquid/i,
+    /custom_liquid/i,
+    // Landing page builders
+    /landing-page/i,
+    /lp-section/i,
+    // Heavy CSS-dependent layouts
+    /section\d+\s/i, // section1, section2, etc.
+    // Multiple inline style sections with CSS variables
+    /--bg:|--accent:|--text:/i,
+    // Complex grid/flex layouts
+    /grid-template-/i,
+    /display:\s*grid/i,
+  ];
+  
+  let score = 0;
+  for (const pattern of customIndicators) {
+    if (pattern.test(html)) score++;
+  }
+  
+  // Also check for multiple custom sections (strong indicator)
+  const customSectionCount = (html.match(/shopify-section/gi) || []).length;
+  if (customSectionCount > 5) score += 2;
+  
+  const isCustom = score >= 2;
+  console.log(`[CUSTOM-DETECT] Score: ${score}, customSections: ${customSectionCount}, isCustom: ${isCustom}`);
+  
+  return isCustom;
+}
+
+// Extract main content from Shopify pages
+function extractMainContent(html: string): string {
+  if (!html) return '';
+  
+  // Find main content between header and footer
+  let content = html;
+  
+  // Remove header section group
+  content = content.replace(/<!-- BEGIN sections: header-group -->[\s\S]*?<!-- END sections: header-group -->/gi, '');
+  content = content.replace(/<section[^>]*class="[^"]*header[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  
+  // Remove footer section group  
+  content = content.replace(/<!-- BEGIN sections: footer-group -->[\s\S]*?<!-- END sections: footer-group -->/gi, '');
+  content = content.replace(/<section[^>]*class="[^"]*footer[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '');
+  
+  // Remove announcement bar
+  content = content.replace(/<section[^>]*announcement-bar[^>]*>[\s\S]*?<\/section>/gi, '');
+  content = content.replace(/<div[^>]*announcement-bar[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // Remove scripts and styles from the extracted content (we get CSS separately)
+  content = content.replace(/<script[\s\S]*?<\/script>/gi, '');
+  content = content.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+  
+  // Remove event handlers
+  content = content.replace(/\s*on\w+="[^"]*"/gi, '');
+  
+  // Try to find main content area
+  const mainMatch = /<main[^>]*>([\s\S]*)<\/main>/i.exec(content);
+  if (mainMatch && mainMatch[1].length > 500) {
+    content = mainMatch[1];
+  }
+  
+  // Clean up empty elements
+  content = content.replace(/<(div|span|section)[^>]*>\s*<\/\1>/gi, '');
+  content = content.replace(/\n\s*\n\s*\n/g, '\n\n');
+  
+  return content.trim();
+}
+
+// Clean HTML content for safe display - IMPROVED STRATEGY
+// For custom pages: preserve HTML for CustomBlock
+// For simple pages: use markdown for cleaner extraction
 function cleanHtmlContent(html: string, markdown?: string): string {
   if (!html && !markdown) return '';
 
-  // STRATEGY CHANGE: Markdown from Firecrawl is already cleaned!
-  // If markdown is substantial, convert it to HTML for AI analysis
-  // This avoids the regex cleanup issues that remove too much content
-  if (markdown && markdown.length > 500) {
-    console.log(`[CLEAN] Using MARKDOWN as source (${markdown.length} chars) - cleaner than regex`);
+  // STEP 1: Check if this is a highly custom page
+  if (isHighlyCustomPage(html)) {
+    console.log(`[CLEAN] CUSTOM PAGE detected - preserving HTML structure for CustomBlock`);
     
-    // Remove obvious header/footer content from markdown first
+    // Extract just the main content area (without header/footer)
+    const mainContent = extractMainContent(html);
+    
+    if (mainContent.length > 1000) {
+      console.log(`[CLEAN] Extracted main content: ${mainContent.length} chars`);
+      return mainContent;
+    }
+  }
+
+  // STEP 2: For non-custom pages, try markdown (cleaner for simple content)
+  if (markdown && markdown.length > 500) {
+    console.log(`[CLEAN] Using MARKDOWN as source (${markdown.length} chars)`);
+    
+    // Clean header/footer content from markdown
     let cleanedMarkdown = markdown;
     
-    // Remove lines that look like header elements (navigation, top bar, etc.)
     const headerPatterns = [
       /^Frete grátis.*$/gim,
       /^Parcele em até.*$/gim,
@@ -1540,14 +1625,13 @@ function cleanHtmlContent(html: string, markdown?: string): string {
       /^\*\*Fale no WhatsApp\*\*.*$/gim,
       /^\[Frete grátis.*\].*$/gim,
       /^\[Parcele em até.*\].*$/gim,
-      /^Ofertas com Frete Grátis.*$/gim,
     ];
     
     for (const pattern of headerPatterns) {
       cleanedMarkdown = cleanedMarkdown.replace(pattern, '');
     }
     
-    // Remove footer-like content (after "Newsletter", "Termos de uso", etc.)
+    // Remove footer content
     const footerMarkers = [
       /\n(?:Newsletter|Inscreva-se|Termos de uso|Política de|Trocas e devoluções)[\s\S]*$/i,
       /\n(?:© |Copyright |Todos os direitos)[\s\S]*$/i,
@@ -1557,48 +1641,32 @@ function cleanHtmlContent(html: string, markdown?: string): string {
       cleanedMarkdown = cleanedMarkdown.replace(pattern, '');
     }
     
-    // Clean up extra whitespace
-    cleanedMarkdown = cleanedMarkdown
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
+    cleanedMarkdown = cleanedMarkdown.replace(/\n{3,}/g, '\n\n').trim();
     
-    // Convert cleaned markdown to HTML
     const convertedHtml = convertMarkdownToHtml(cleanedMarkdown);
-    console.log(`[CLEAN] Markdown cleaned: ${cleanedMarkdown.length} chars, HTML: ${convertedHtml.length} chars`);
+    console.log(`[CLEAN] Markdown converted: ${convertedHtml.length} chars`);
     
-    // If we got substantial content, use it
     if (convertedHtml.length > 500) {
       return convertedHtml;
     }
   }
 
-  // Fallback: Use HTML if markdown didn't work
-  console.log(`[CLEAN] Fallback to HTML cleaning (markdown: ${markdown?.length || 0} chars)`);
+  // STEP 3: Fallback - basic HTML cleanup
+  console.log(`[CLEAN] Fallback to basic HTML cleaning`);
   
   let cleaned = html;
-
-  // ===== PHASE 1: Remove dangerous elements =====
+  
   cleaned = cleaned
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
-    .replace(/<!--[\s\S]*?-->/g, '');
-
-  // Keep styles for CustomBlock but remove from main content
-  cleaned = cleaned.replace(/<style[\s\S]*?<\/style>/gi, '');
-
-  // Remove event handlers
-  cleaned = cleaned.replace(/\s*on\w+="[^"]*"/gi, '');
-  cleaned = cleaned.replace(/\s*on\w+='[^']*'/gi, '');
-
-  // ===== PHASE 2: Simpler removal - only clear structural elements =====
-  // Use simpler patterns that don't break nested content
-  cleaned = cleaned
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/\s*on\w+="[^"]*"/gi, '')
     .replace(/<nav\b[^>]*>[\s\S]*?<\/nav>/gi, '')
     .replace(/<header\b[^>]*>[\s\S]*?<\/header>/gi, '')
     .replace(/<footer\b[^>]*>[\s\S]*?<\/footer>/gi, '');
 
-  // ===== PHASE 3: Try to find main content container =====
-  // Look for common main content patterns
+  // Try to find main content
   const mainPatterns = [
     /<main[^>]*>([\s\S]*)<\/main>/i,
     /<article[^>]*>([\s\S]*?)<\/article>/i,
@@ -1608,22 +1676,13 @@ function cleanHtmlContent(html: string, markdown?: string): string {
   for (const pattern of mainPatterns) {
     const match = pattern.exec(cleaned);
     if (match && match[1].trim().length > 1000) {
-      let content = match[1];
-      // Truncate at footer if found
-      const footerIdx = content.search(/<footer/i);
-      if (footerIdx > 0) {
-        content = content.substring(0, footerIdx);
-      }
-      console.log(`[CLEAN] Found main content container: ${content.length} chars`);
-      cleaned = content.trim();
+      cleaned = match[1].trim();
       break;
     }
   }
 
-  // ===== PHASE 4: Final cleanup =====
   cleaned = cleaned
     .replace(/<(div|span|p|section)[^>]*>\s*<\/\1>/gi, '')
-    .replace(/<br\s*\/?>\s*<br\s*\/?>/gi, '<br>')
     .replace(/\n\s*\n\s*\n/g, '\n\n');
 
   console.log(`[CLEAN] Final cleaned HTML: ${cleaned.length} chars`);
@@ -1727,6 +1786,31 @@ function isCorePageUrl(url: string, slug: string): boolean {
   return corePatterns.some(pattern => pattern.test(fullPath));
 }
 
+// Helper: Try AI analysis first, fallback to regex
+async function tryAIOrRegexAnalysis(
+  scraped: { html: string; rawHtml?: string; markdown?: string; extractedCss?: string },
+  finalTitle: string,
+  useAI: boolean,
+  supabase: any,
+  tenantId: string
+): Promise<BlockNode> {
+  if (useAI) {
+    console.log(`[IMPORT] Using AI analysis for: ${finalTitle}`);
+    
+    const aiResult = await analyzePageWithAI(scraped.html, finalTitle, '');
+    
+    if (aiResult.success && aiResult.sections && aiResult.sections.length > 0) {
+      console.log(`[IMPORT] AI SUCCESS: ${aiResult.sections.length} sections, complexity: ${aiResult.pageComplexity}`);
+      return createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId, scraped.extractedCss);
+    } else {
+      console.warn(`[IMPORT] AI fallback: ${aiResult.error || 'no sections'}`);
+    }
+  }
+  
+  console.log(`[IMPORT] Using regex analysis for: ${finalTitle}`);
+  return createPageWithMappedBlocks(scraped.html, finalTitle);
+}
+
 // Process a single page import - NOW WITH AI SUPPORT
 async function importPage(
   supabase: any,
@@ -1771,35 +1855,62 @@ async function importPage(
     let pageContent: BlockNode;
     
     // =============================================
-    // NEW: Try AI analysis first, fallback to regex
-    // Store extracted CSS globally for CustomBlocks
+    // STRATEGY: Detect highly custom pages and preserve as CustomBlock
     // =============================================
     globalExtractedCss = scraped.extractedCss || '';
     console.log(`[IMPORT] Extracted CSS available: ${globalExtractedCss.length} chars`);
     
-    if (useAI) {
-      console.log(`[IMPORT] Using AI analysis for: ${finalTitle}`);
+    // Check if this is a highly custom page (landing page, custom sections)
+    const rawHtmlToCheck = scraped.rawHtml || scraped.html || '';
+    const isCustomPage = isHighlyCustomPage(rawHtmlToCheck);
+    
+    if (isCustomPage) {
+      console.log(`[IMPORT] CUSTOM PAGE detected - creating single CustomBlock to preserve visual`);
       
-      const aiResult = await analyzePageWithAI(scraped.html, finalTitle, page.url);
+      // Extract main content from the raw HTML
+      const mainContent = extractMainContent(rawHtmlToCheck);
       
-      if (aiResult.success && aiResult.sections && aiResult.sections.length > 0) {
-        console.log(`[IMPORT] AI SUCCESS: ${aiResult.sections.length} sections, complexity: ${aiResult.pageComplexity}`);
-        console.log(`[IMPORT] AI Summary: ${aiResult.summary}`);
+      if (mainContent.length > 500) {
+        // Create a single CustomBlock with the entire page content + CSS
+        pageContent = {
+          id: generateBlockId('page'),
+          type: 'Page',
+          props: { backgroundColor: 'transparent', padding: 'none' },
+          children: [{
+            id: generateBlockId('section'),
+            type: 'Section',
+            props: { 
+              backgroundColor: 'transparent', 
+              paddingX: 0, 
+              paddingY: 0, 
+              marginTop: 0, 
+              marginBottom: 0, 
+              gap: 0, 
+              alignItems: 'stretch', 
+              fullWidth: true 
+            },
+            children: [{
+              id: generateBlockId('customblock'),
+              type: 'CustomBlock',
+              props: {
+                htmlContent: mainContent,
+                cssContent: globalExtractedCss,
+                blockName: `Página: ${finalTitle}`,
+              },
+              children: [],
+            }],
+          }],
+        };
         
-        // Create page from AI analysis - pass extracted CSS for CustomBlocks
-        pageContent = createPageFromAIAnalysis(aiResult.sections, finalTitle, supabase, tenantId, scraped.extractedCss);
-        
-        console.log(`[IMPORT] AI Page blocks: ${pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ')}`);
+        console.log(`[IMPORT] CustomBlock created: ${mainContent.length} chars HTML, ${globalExtractedCss.length} chars CSS`);
       } else {
-        // AI failed or returned no sections - fallback to regex
-        console.warn(`[IMPORT] AI fallback: ${aiResult.error || 'no sections'}`);
-        console.log(`[IMPORT] Using regex analysis for: ${finalTitle}`);
-        pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+        // Content too small, try AI
+        console.log(`[IMPORT] Custom page content too small, trying AI...`);
+        pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, useAI, supabase, tenantId);
       }
     } else {
-      // AI disabled - use original regex analysis
-      console.log(`[IMPORT] Creating page structure (regex) for: ${finalTitle}`);
-      pageContent = createPageWithMappedBlocks(scraped.html, finalTitle);
+      // For non-custom pages, use AI or regex
+      pageContent = await tryAIOrRegexAnalysis(scraped, finalTitle, useAI, supabase, tenantId);
     }
     
     // Process any pending complex page placeholders (from regex path)
