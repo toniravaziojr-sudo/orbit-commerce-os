@@ -848,67 +848,10 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
   console.log(`[MAPPER] Analyzing: "${pageTitle}", HTML: ${html.length} chars`);
 
   // =====================================================
-  // NEW STRATEGY: Detect complex patterns FIRST
-  // If the page has complex visual structure, preserve it as CustomBlock
-  // instead of fragmenting into individual elements
+  // NEW STRATEGY: Always extract individual elements as native blocks
+  // Raw HTML CustomBlocks don't work without original CSS
+  // Native blocks are editable and render correctly
   // =====================================================
-
-  const patternInfo = detectComplexPattern(html);
-  const hasMultipleVideos = (html.match(/youtube\.com|youtu\.be|vimeo\.com/gi) || []).length >= 2;
-  const hasMultipleImages = (html.match(/<img/gi) || []).length >= 4;
-  const hasSliderOrCarousel = /swiper|slider|carousel|glide|slick|splide|owl|flickity/i.test(html);
-
-  // If the page has complex interactive elements OR multiple media in structured layout,
-  // create a single CustomBlock to preserve the visual structure
-  if (patternInfo.isComplex && patternInfo.confidence >= 0.7) {
-    console.log(`[MAPPER] ⚡ Complex pattern detected: ${patternInfo.patternName} (${Math.round(patternInfo.confidence * 100)}% confidence)`);
-    console.log(`[MAPPER] → Creating CustomBlock to preserve visual structure`);
-    
-    blocks.push({
-      id: generateBlockId('customblock-pending'),
-      type: '__CustomBlockPending__',
-      props: { 
-        htmlContent: html.trim(),
-        patternType: patternInfo.patternType,
-        patternName: patternInfo.patternName,
-        confidence: patternInfo.confidence,
-      },
-      children: [],
-    });
-
-    console.log(`[MAPPER] Result: 1 CustomBlock (${patternInfo.patternName})`);
-    console.log(`[MAPPER] ========================================`);
-    return blocks;
-  }
-
-  // If multiple media elements detected in a complex layout, treat as custom block
-  if ((hasMultipleVideos || hasMultipleImages) && hasSliderOrCarousel) {
-    console.log(`[MAPPER] ⚡ Multiple media + slider detected - preserving as CustomBlock`);
-    
-    const blockName = hasMultipleVideos ? 'Galeria de Vídeos' : 'Galeria de Mídia';
-    blocks.push({
-      id: generateBlockId('customblock-pending'),
-      type: '__CustomBlockPending__',
-      props: { 
-        htmlContent: html.trim(),
-        patternType: hasMultipleVideos ? 'video_gallery' : 'media_gallery',
-        patternName: blockName,
-        confidence: 0.85,
-      },
-      children: [],
-    });
-
-    console.log(`[MAPPER] Result: 1 CustomBlock (${blockName})`);
-    console.log(`[MAPPER] ========================================`);
-    return blocks;
-  }
-
-  // =====================================================
-  // SIMPLE CONTENT PATH: Only for truly simple pages
-  // Extract individual elements only when page is not complex
-  // =====================================================
-
-  console.log(`[MAPPER] Simple content path - extracting individual elements`);
 
   const isFAQPage = /perguntas?\s*frequentes?|faq|dúvidas?/i.test(pageTitle);
   const isTestimonialPage = /depoimentos?|avalia[çc][õo]es?/i.test(pageTitle);
@@ -953,100 +896,147 @@ function analyzeAndMapContent(html: string, pageTitle: string): BlockNode[] {
     remainingContent = infoResult.remainingHtml;
   }
 
-  // 4. For simple pages with single video, create YouTube block
+  // 4. Extract ALL YouTube videos as native blocks
   const videoResult = extractVideos(remainingContent);
-  if (videoResult.videos.length === 1) {
-    const video = videoResult.videos[0];
-    if (video.type === 'youtube') {
-      console.log(`[MAPPER] ✓ Creating single YouTubeVideo block`);
+  if (videoResult.videos.length > 0) {
+    console.log(`[MAPPER] ✓ Found ${videoResult.videos.length} videos - creating native blocks`);
+    
+    for (const video of videoResult.videos) {
+      if (video.type === 'youtube') {
+        blocks.push({
+          id: generateBlockId('youtube'),
+          type: 'YouTubeVideo',
+          props: { 
+            title: '', 
+            youtubeUrl: video.url,
+            videoId: video.videoId,
+          },
+          children: [],
+        });
+        console.log(`[MAPPER] ✓ Created YouTubeVideo block: ${video.videoId}`);
+      } else if (video.type === 'vimeo') {
+        blocks.push({
+          id: generateBlockId('vimeo'),
+          type: 'YouTubeVideo', // Use same component, it handles Vimeo
+          props: { 
+            title: '', 
+            youtubeUrl: video.url,
+          },
+          children: [],
+        });
+        console.log(`[MAPPER] ✓ Created Vimeo block`);
+      }
+    }
+    remainingContent = videoResult.remainingHtml;
+  }
+
+  // 5. Extract significant images as native blocks (skip small/icon images)
+  const imageResult = extractImages(remainingContent);
+  const significantImages = imageResult.images.filter(img => {
+    // Filter out likely icons, spacers, logos in header/footer
+    const isLikelyIcon = /icon|logo|sprite|pixel|spacer|arrow|chevron|social/i.test(img.src || '');
+    const isSmallDataUrl = img.src?.startsWith('data:') && (img.src?.length || 0) < 500;
+    return !isLikelyIcon && !isSmallDataUrl;
+  });
+
+  if (significantImages.length > 0 && significantImages.length <= 10) {
+    console.log(`[MAPPER] ✓ Found ${significantImages.length} significant images - creating native blocks`);
+    
+    for (const image of significantImages) {
       blocks.push({
-        id: generateBlockId('youtube'),
-        type: 'YouTubeVideo',
-        props: { title: '', youtubeUrl: video.url },
+        id: generateBlockId('image'),
+        type: 'Image',
+        props: { 
+          imageDesktop: image.src,
+          imageMobile: '',
+          alt: image.alt || 'Imagem',
+          linkUrl: image.linkUrl || '',
+          width: 'full',
+          height: 'auto',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          aspectRatio: 'auto',
+          rounded: 'none',
+          shadow: 'none',
+        },
         children: [],
       });
-      remainingContent = videoResult.remainingHtml;
     }
-  } else if (videoResult.videos.length > 1) {
-    // Multiple videos - better as CustomBlock
-    console.log(`[MAPPER] Multiple videos (${videoResult.videos.length}) - creating CustomBlock`);
-    blocks.push({
-      id: generateBlockId('customblock-pending'),
-      type: '__CustomBlockPending__',
-      props: { 
-        htmlContent: html.trim(), // Keep original HTML with all videos
-        patternType: 'video_gallery',
-        patternName: 'Galeria de Vídeos',
-        confidence: 0.8,
-      },
-      children: [],
-    });
-    console.log(`[MAPPER] Result: ${blocks.length} blocks`);
-    console.log(`[MAPPER] ========================================`);
-    return blocks; // Return early, don't fragment further
-  }
-
-  // 5. For simple pages with few images, create Image blocks
-  const imageResult = extractImages(remainingContent);
-  if (imageResult.images.length === 1) {
-    const image = imageResult.images[0];
-    console.log(`[MAPPER] ✓ Creating single Image block`);
-    blocks.push({
-      id: generateBlockId('image'),
-      type: 'Image',
-      props: { 
-        imageDesktop: image.src,
-        imageMobile: '',
-        alt: image.alt || 'Imagem',
-        linkUrl: image.linkUrl || '',
-        width: 'full',
-        height: 'auto',
-        objectFit: 'cover',
-        objectPosition: 'center',
-        aspectRatio: 'auto',
-        rounded: 'none',
-        shadow: 'none',
-      },
-      children: [],
-    });
     remainingContent = imageResult.remainingHtml;
-  } else if (imageResult.images.length > 3) {
-    // Many images - better as CustomBlock
-    console.log(`[MAPPER] Multiple images (${imageResult.images.length}) - creating CustomBlock`);
-    blocks.push({
-      id: generateBlockId('customblock-pending'),
-      type: '__CustomBlockPending__',
-      props: { 
-        htmlContent: html.trim(),
-        patternType: 'image_gallery',
-        patternName: 'Galeria de Imagens',
-        confidence: 0.75,
-      },
-      children: [],
-    });
-    console.log(`[MAPPER] Result: ${blocks.length} blocks`);
-    console.log(`[MAPPER] ========================================`);
-    return blocks;
+  } else if (significantImages.length > 10) {
+    // Too many images - just add first 5 to avoid clutter
+    console.log(`[MAPPER] ✓ Found ${significantImages.length} images - adding first 5`);
+    for (const image of significantImages.slice(0, 5)) {
+      blocks.push({
+        id: generateBlockId('image'),
+        type: 'Image',
+        props: { 
+          imageDesktop: image.src,
+          imageMobile: '',
+          alt: image.alt || 'Imagem',
+          linkUrl: '',
+          width: 'full',
+          height: 'auto',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          aspectRatio: 'auto',
+          rounded: 'none',
+          shadow: 'none',
+        },
+        children: [],
+      });
+    }
+    remainingContent = imageResult.remainingHtml;
   }
 
-  // 6. Remaining text content as RichText
-  const cleanedRemaining = stripHtml(remainingContent);
-  if (cleanedRemaining.length > 50) {
-    console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars`);
-    blocks.push({
-      id: generateBlockId('richtext'),
-      type: 'RichText',
-      props: { content: remainingContent.trim() || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
-      children: [],
-    });
+  // 6. Remaining text content as RichText (cleaned)
+  // Strip out remaining media elements and keep only text
+  let textContent = remainingContent
+    .replace(/<img[^>]*>/gi, '') // Remove any remaining images
+    .replace(/<video[^>]*>[\s\S]*?<\/video>/gi, '') // Remove video tags
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, '') // Remove iframes
+    .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '') // Remove SVGs
+    .replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '') // Remove buttons
+    .replace(/<input[^>]*>/gi, '') // Remove inputs
+    .replace(/<form[^>]*>[\s\S]*?<\/form>/gi, ''); // Remove forms
+  
+  const cleanedRemaining = stripHtml(textContent);
+  if (cleanedRemaining.length > 100) { // Only add if there's substantial text
+    console.log(`[MAPPER] Adding RichText: ${cleanedRemaining.length} chars of text`);
+    
+    // Further clean the HTML for RichText
+    const safeHtml = textContent
+      .replace(/<div[^>]*class="[^"]*"[^>]*>/gi, '<div>') // Remove classes
+      .replace(/\s+style="[^"]*"/gi, '') // Remove inline styles
+      .replace(/<(div|span)[^>]*>\s*<\/\1>/gi, '') // Remove empty elements
+      .trim();
+    
+    if (safeHtml.length > 50) {
+      blocks.push({
+        id: generateBlockId('richtext'),
+        type: 'RichText',
+        props: { 
+          content: safeHtml, 
+          fontFamily: 'inherit', 
+          fontSize: 'base', 
+          fontWeight: 'normal' 
+        },
+        children: [],
+      });
+    }
   }
 
-  // If no blocks at all, add a RichText with original content
+  // If no blocks at all, add a simple message
   if (blocks.length === 0) {
     blocks.push({
       id: generateBlockId('richtext'),
       type: 'RichText',
-      props: { content: html || '<p>Conteúdo da página...</p>', fontFamily: 'inherit', fontSize: 'base', fontWeight: 'normal' },
+      props: { 
+        content: '<p>Página importada. Use os blocos do editor para adicionar conteúdo.</p>', 
+        fontFamily: 'inherit', 
+        fontSize: 'base', 
+        fontWeight: 'normal' 
+      },
       children: [],
     });
   }
