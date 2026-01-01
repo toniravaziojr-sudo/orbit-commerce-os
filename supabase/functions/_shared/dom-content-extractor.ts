@@ -238,6 +238,8 @@ export async function extractContentWithDOM(
     // STEP 1.5: CRITICAL - Remove header/footer sections from ENTIRE document BEFORE selecting main
     // Some Shopify themes have header-group INSIDE the main element
     logs.push(`[DOM-EXTRACT] STEP 1.5: Pre-cleaning header/footer from entire document`);
+    // CRITICAL: Do NOT remove <main> here - only remove elements INSIDE it later
+    // We only pre-clean elements that are clearly NOT content containers
     const preCleanSelectors = [
       // Shopify section groups (header/footer inside main)
       '.shopify-section-group-header-group',
@@ -253,10 +255,10 @@ export async function extractContentWithDOM(
       // Announcement bars
       '.announcement-bar',
       '.announcement-bar-section',
-      // Standard header/footer
-      'header',
-      'footer',
-      'nav',
+      // Standard header/footer - but NOT <main>!
+      'header:not(main header)', // Only remove header if not inside main
+      'footer:not(main footer)', // Only remove footer if not inside main  
+      'nav:not(main nav)',       // Only remove nav if not inside main
       // Modal/overlays
       '[role="dialog"]',
       '[aria-modal="true"]',
