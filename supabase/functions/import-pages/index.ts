@@ -45,49 +45,60 @@ interface AIAnalysisResult {
 // Global CSS extracted from the page (used by CustomBlocks)
 let globalExtractedCss = '';
 
-// Extract ESSENTIAL CSS from HTML - avoid massive stylesheets that hide content
+// Extract ESSENTIAL CSS from HTML - OPTIMIZED for speed
+// Uses simple string parsing instead of heavy regex to avoid CPU timeout
 function extractCssFromHtml(html: string): string {
   if (!html) return '';
   
   const cssChunks: string[] = [];
+  const maxCssSize = 20000; // 20KB max total
+  let totalSize = 0;
   
-  // Extract <style> tags content - but be selective
-  const styleTagPattern = /<style[^>]*>([\s\S]*?)<\/style>/gi;
-  let match;
-  while ((match = styleTagPattern.exec(html)) !== null) {
-    if (match[1]?.trim()) {
-      // Filter out problematic CSS rules
-      let css = match[1].trim();
-      
-      // Remove rules that commonly hide elements
-      css = css.replace(/[^{}]+\{[^{}]*display\s*:\s*none[^{}]*\}/gi, '');
-      css = css.replace(/[^{}]+\{[^{}]*visibility\s*:\s*hidden[^{}]*\}/gi, '');
-      css = css.replace(/[^{}]+\{[^{}]*opacity\s*:\s*0[^{}]*\}/gi, '');
-      css = css.replace(/[^{}]+\{[^{}]*height\s*:\s*0[^{}]*\}/gi, '');
-      css = css.replace(/[^{}]+\{[^{}]*max-height\s*:\s*0[^{}]*\}/gi, '');
-      
-      // Skip if too small after cleaning
-      if (css.trim().length > 50) {
-        cssChunks.push(css);
+  // Simple string-based extraction of <style> tags (much faster than regex on large HTML)
+  let pos = 0;
+  const htmlLower = html.toLowerCase();
+  
+  while (pos < html.length && totalSize < maxCssSize) {
+    const styleStart = htmlLower.indexOf('<style', pos);
+    if (styleStart === -1) break;
+    
+    const contentStart = html.indexOf('>', styleStart);
+    if (contentStart === -1) break;
+    
+    const styleEnd = htmlLower.indexOf('</style>', contentStart);
+    if (styleEnd === -1) break;
+    
+    // Extract the CSS content
+    const cssContent = html.substring(contentStart + 1, styleEnd).trim();
+    
+    // Skip empty or very small
+    if (cssContent.length > 20 && cssContent.length < 50000) {
+      // Quick filter: skip if contains common hiding patterns
+      const cssLower = cssContent.toLowerCase();
+      if (!cssLower.includes('display:none') && !cssLower.includes('display: none')) {
+        // Limit individual chunk size
+        const chunk = cssContent.length > 10000 ? cssContent.substring(0, 10000) : cssContent;
+        cssChunks.push(chunk);
+        totalSize += chunk.length;
       }
     }
+    
+    pos = styleEnd + 8;
   }
   
-  // Combine but limit to reasonable size (max 30KB)
-  let combined = cssChunks.join('\n\n');
-  const maxCssSize = 30000;
+  // Combine chunks with size limit
+  let combined = cssChunks.join('\n');
   
   if (combined.length > maxCssSize) {
-    console.log(`[CSS] CSS too large (${combined.length} chars), truncating to ${maxCssSize}`);
-    // Keep only the first portion, trying to end at a valid rule boundary
     combined = combined.substring(0, maxCssSize);
+    // Try to end at a valid boundary
     const lastBrace = combined.lastIndexOf('}');
-    if (lastBrace > 0) {
+    if (lastBrace > maxCssSize * 0.8) {
       combined = combined.substring(0, lastBrace + 1);
     }
   }
   
-  console.log(`[CSS] Extracted ${cssChunks.length} CSS chunks, final ${combined.length} chars`);
+  console.log(`[CSS] Fast extracted ${cssChunks.length} chunks, ${combined.length} chars total`);
   return combined;
 }
 
@@ -1466,9 +1477,9 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{ html: s
 
     console.log(`[SCRAPE] Success for ${normalizedUrl}: rawHtml=${fullRawHtml.length}chars, html=${mainHtml.length}chars, md=${markdown.length}chars`);
 
-    // CRITICAL: Limit HTML sizes to prevent CPU timeout
-    const maxRawHtmlSize = 200000; // 200KB max for CSS extraction
-    const maxMainHtmlSize = 100000; // 100KB max for content processing
+    // HTML size limits - increased now that CSS extraction is optimized
+    const maxRawHtmlSize = 500000; // 500KB for CSS extraction (optimized algorithm handles this)
+    const maxMainHtmlSize = 200000; // 200KB for content processing
     
     if (fullRawHtml.length > maxRawHtmlSize) {
       console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), truncating to ${maxRawHtmlSize}`);
