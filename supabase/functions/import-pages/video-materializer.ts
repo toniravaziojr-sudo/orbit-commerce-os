@@ -144,20 +144,11 @@ export function materializeVideos(html: string): MaterializationResult {
     return createYouTubeEmbed(videoId);
   });
   
-  // Pattern 7: Shopify video sections
-  // <div class="shopify-section--video" data-youtube-id="VIDEO_ID">
-  const shopifyVideoPattern = /<([a-z]+)[^>]*class=["'][^"']*shopify-section[^"']*video[^"']*["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(shopifyVideoPattern, (match, tag) => {
-    // Extract video ID from within the section
-    const idMatch = match.match(/data-(?:youtube-id|video-id|yt-id)=["']([a-zA-Z0-9_-]{11})["']/i);
-    if (idMatch) {
-      videosFound++;
-      patternsUsed.push('shopify-video-section');
-      console.log(`[VIDEO] Pattern 7 - Shopify section: ${idMatch[1]}`);
-      return createYouTubeEmbed(idMatch[1]);
-    }
-    return match;
-  });
+  // Pattern 7: Shopify video sections - FIXED: Only extract video ID, don't replace whole section
+  // We just need to ensure the video iframe is present, not remove the section
+  // This pattern was too greedy and was removing entire <main> elements
+  // DISABLED - Let Pattern 2 (data-src-iframe) or existing iframes handle Shopify videos
+  // const shopifyVideoPattern = ... (removed - was causing content loss)
   
   // Pattern 8: Protocol-relative YouTube/Vimeo URLs (//www.youtube.com)
   content = content.replace(/src=["']\/\/(?:www\.)?youtube\.com/gi, 'src="https://www.youtube.com');
