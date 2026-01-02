@@ -347,6 +347,16 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
       throw new Error('Erro ao processar resposta da IA');
     }
 
+    // LOG DETALHADO para debug
+    console.log('[Content Creator] Blocos recebidos da IA:', JSON.stringify(creationArgs.blocks?.slice(0, 2), null, 2));
+    
+    // Verificar se blocos têm conteúdo
+    const firstBlock = creationArgs.blocks?.[0];
+    if (firstBlock) {
+      console.log('[Content Creator] Primeiro bloco - tipo:', firstBlock.type);
+      console.log('[Content Creator] Primeiro bloco - props:', JSON.stringify(firstBlock.props, null, 2));
+    }
+
     // Validar blocos (apenas tipos, não preencher com fallbacks)
     const validatedBlocks = validateBlocks(creationArgs.blocks || [], youtubeUrls);
 
