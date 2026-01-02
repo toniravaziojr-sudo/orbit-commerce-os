@@ -742,99 +742,74 @@ function preCleanContainer(container: Element, logs: string[]): void {
 }
 
 /**
- * V6: Extract scope based on seeds
- * Returns the section(s) containing the seeds
+ * V6: Extract scope based on seeds - SIMPLIFIED for pre-processed HTML
+ * When HTML has been pre-cleaned, we can't rely on shopify-section IDs
+ * Instead, we use the video/title seeds directly and find nearby content
  */
 function extractScopeFromSeeds(
   mainContainer: Element,
   seeds: { title: SeedResult | null; video: SeedResult | null; cta: SeedResult | null },
   logs: string[]
 ): Element | null {
-  // Need at least title OR video to proceed
-  if (!seeds.title && !seeds.video) {
-    logs.push(`[SHOPIFY-V6] SCOPE: no title or video seed, cannot determine scope`);
-    return null;
+  // SIMPLIFIED STRATEGY: 
+  // If we have a video, that's the strongest signal - just use the entire mainContainer
+  // The video presence already proves this is content, not footer/menu
+  
+  if (seeds.video?.element) {
+    logs.push(`[SHOPIFY-V6] SCOPE: Video found - using mainContainer as scope (video is strong content signal)`);
+    return mainContainer;
   }
   
-  // Find the shopify-section containing each seed
-  const findSection = (el: Element | null): Element | null => {
-    if (!el) return null;
+  // If we have a title but no video, find container with most content around title
+  if (seeds.title?.element) {
+    logs.push(`[SHOPIFY-V6] SCOPE: Using title as primary anchor`);
     
-    // Look for shopify-section ancestor
-    const section = el.closest('[id^="shopify-section-"]');
-    if (section) return section as Element;
+    let titleContainer = seeds.title.element.parentElement;
+    let bestContainer: Element | null = null;
+    let bestScore = 0;
+    let iterations = 0;
+    const maxIterations = 10;
     
-    // Fallback: look for section or article
-    const container = el.closest('section, article, [class*="section"]');
-    return container as Element | null;
-  };
-  
-  const titleSection = findSection(seeds.title?.element || null);
-  const videoSection = findSection(seeds.video?.element || null);
-  const ctaSection = findSection(seeds.cta?.element || null);
-  
-  logs.push(`[SHOPIFY-V6] SCOPE: titleSection=${titleSection?.getAttribute('id') || 'none'}`);
-  logs.push(`[SHOPIFY-V6] SCOPE: videoSection=${videoSection?.getAttribute('id') || 'none'}`);
-  logs.push(`[SHOPIFY-V6] SCOPE: ctaSection=${ctaSection?.getAttribute('id') || 'none'}`);
-  
-  // Collect unique sections
-  const sectionsMap = new Map<string, Element>();
-  
-  if (titleSection) {
-    sectionsMap.set(titleSection.getAttribute('id') || 'title', titleSection);
-  }
-  if (videoSection) {
-    sectionsMap.set(videoSection.getAttribute('id') || 'video', videoSection);
-  }
-  if (ctaSection) {
-    // Only include CTA section if it's the same as title/video OR adjacent
-    const ctaId = ctaSection.getAttribute('id') || 'cta';
-    const existingIds = Array.from(sectionsMap.keys());
-    
-    if (existingIds.includes(ctaId) || sectionsMap.size === 0) {
-      sectionsMap.set(ctaId, ctaSection);
-    }
-  }
-  
-  if (sectionsMap.size === 0) {
-    logs.push(`[SHOPIFY-V6] SCOPE: no valid sections found`);
-    return null;
-  }
-  
-  // If we have multiple sections, find their LCA or combine them
-  const sections = Array.from(sectionsMap.values());
-  
-  if (sections.length === 1) {
-    logs.push(`[SHOPIFY-V6] SCOPE: single section scope`);
-    return sections[0];
-  }
-  
-  // Find LCA of all sections
-  let lca = sections[0];
-  for (let i = 1; i < sections.length; i++) {
-    const newLca = findLCA(lca, sections[i]);
-    if (newLca) {
-      lca = newLca;
-    }
-  }
-  
-  // If LCA is too broad (is the main container), create a wrapper with just the sections
-  if (lca === mainContainer || lca.tagName.toLowerCase() === 'main') {
-    logs.push(`[SHOPIFY-V6] SCOPE: LCA is too broad, using individual sections`);
-    
-    const wrapper = mainContainer.ownerDocument!.createElement('div');
-    wrapper.setAttribute('data-import-scope', 'v6-combined');
-    
-    for (const section of sections) {
-      const clone = section.cloneNode(true) as Element;
-      wrapper.appendChild(clone);
+    while (titleContainer && titleContainer !== mainContainer && iterations < maxIterations) {
+      iterations++;
+      
+      const paragraphs = titleContainer.querySelectorAll('p').length;
+      const buttons = titleContainer.querySelectorAll('a, button').length;
+      const textLen = (titleContainer.textContent || '').trim().length;
+      const score = paragraphs * 100 + buttons * 50 + textLen;
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestContainer = titleContainer;
+      }
+      
+      // Good enough container
+      if (paragraphs >= 2 || textLen >= 300) {
+        logs.push(`[SHOPIFY-V6] SCOPE: found title container at level ${iterations} (score: ${score})`);
+        return titleContainer;
+      }
+      
+      titleContainer = titleContainer.parentElement;
     }
     
-    return wrapper;
+    if (bestContainer) {
+      logs.push(`[SHOPIFY-V6] SCOPE: using best container for title (score: ${bestScore})`);
+      return bestContainer;
+    }
+    
+    // Last resort - use mainContainer
+    logs.push(`[SHOPIFY-V6] SCOPE: title found but no good container, using mainContainer`);
+    return mainContainer;
   }
   
-  logs.push(`[SHOPIFY-V6] SCOPE: LCA determined at ${getElementPath(lca)}`);
-  return lca;
+  // If we only have CTA, also use mainContainer
+  if (seeds.cta?.element) {
+    logs.push(`[SHOPIFY-V6] SCOPE: Only CTA found - using mainContainer as scope`);
+    return mainContainer;
+  }
+  
+  logs.push(`[SHOPIFY-V6] SCOPE: no seeds available to determine scope`);
+  return null;
 }
 
 /**
