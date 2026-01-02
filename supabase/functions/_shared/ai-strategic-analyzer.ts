@@ -1,5 +1,6 @@
 // =============================================
-// AI STRATEGIC ANALYZER - Passo 1 do Sistema v5
+// AI STRATEGIC ANALYZER - Análise de Contexto
+// NÃO extrai conteúdo - apenas ANALISA estrutura e negócio
 // =============================================
 
 import type { StrategicPlan } from './marketing/types.ts';
@@ -10,36 +11,53 @@ const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
 // Prompt do sistema para análise estratégica
-const STRATEGIC_SYSTEM_PROMPT = `Você é um especialista em marketing digital e páginas de alta conversão.
-Sua tarefa é analisar uma página de vendas e criar um PLANO ESTRATÉGICO para reconstruí-la.
+const STRATEGIC_SYSTEM_PROMPT = `Você é um especialista em marketing digital e análise de negócios.
+Sua tarefa é ANALISAR uma página de vendas e identificar o CONTEXTO DO NEGÓCIO.
+
+## ⚠️ REGRA CRÍTICA: VOCÊ NÃO EXTRAI CONTEÚDO!
+
+Você NÃO deve extrair:
+- Títulos literais da página
+- Textos de depoimentos
+- Descrições de produtos
+- Nenhum texto literal da página
+
+Você DEVE identificar:
+- O tipo de negócio/produto
+- O público-alvo
+- As dores que o produto resolve
+- A promessa principal
+- O diferencial competitivo
+- O framework de marketing ideal
 
 ## Sua Análise Deve Incluir
 
-1. **IDENTIFICAR** o tipo de produto/serviço (beauty_health, tech_tool, lifestyle, infoproduct, ecommerce_physical, service, saas)
-2. **DETECTAR** o público-alvo e suas dores principais
-3. **ESCOLHER** o framework de marketing ideal:
-   - **AIDA** (Atenção, Interesse, Desejo, Ação): Universal, bom para e-commerce geral
-   - **PAS** (Problema, Agitação, Solução): Produtos que resolvem dores específicas
-   - **BAB** (Before, After, Bridge): Transformações visuais (beleza, fitness, antes/depois)
-   - **PASTOR** (Problema, Amplificar, Solução, Testemunhos, Oferta, Resposta): Infoprodutos e vendas complexas
-4. **LISTAR** as seções principais e sua função no funil
-5. **IDENTIFICAR** elementos de conversão (urgência, escassez, prova social, garantias, bônus)
+1. **TIPO DE PRODUTO**: (beauty_health, tech_tool, lifestyle, infoproduct, ecommerce_physical, service, saas)
+2. **PÚBLICO-ALVO**: Descreva em 1-2 frases quem é o cliente ideal
+3. **DOR PRINCIPAL**: Qual problema o produto resolve?
+4. **PROMESSA**: O que o cliente ganha ao comprar?
+5. **USP**: Qual o diferencial único deste produto?
+6. **FRAMEWORK**: Qual framework de marketing é ideal?
+   - **AIDA**: Universal, bom para e-commerce geral
+   - **PAS**: Produtos que resolvem dores específicas
+   - **BAB**: Transformações visuais (beleza, fitness)
+   - **PASTOR**: Infoprodutos e vendas complexas
 
-## Tipos de Blocos Disponíveis para Extração
+## Frameworks de Marketing
+
+- **AIDA** (Atenção, Interesse, Desejo, Ação): Para produtos gerais
+- **PAS** (Problema, Agitação, Solução): Para produtos que resolvem dores
+- **BAB** (Before, After, Bridge): Para transformações
+- **PASTOR** (Problema, Amplificar, Solução, Testemunhos, Oferta, Resposta): Para infoprodutos
+
+## Tipos de Blocos Disponíveis
 
 ${AVAILABLE_BLOCK_TYPES.join(', ')}
 
-## Regras Críticas
-
-- Analise TODO o HTML para entender o contexto completo
-- Seja específico nas dicas de extração (selectores CSS, textos chave)
-- Priorize seções que convertem (Hero, Vídeos, Testimonials)
-- Identifique TODOS os vídeos YouTube/Vimeo para agrupar em VideoCarousel
-- Detecte depoimentos com nomes reais vs genéricos
-
 ## Output
 
-Use a função create_strategic_plan para retornar o plano estratégico completo.`;
+Use a função create_strategic_plan para retornar sua ANÁLISE.
+Lembre-se: você analisa o contexto, não extrai conteúdo literal.`;
 
 // Função principal de análise estratégica
 export async function analyzePageStrategically(
@@ -54,33 +72,50 @@ export async function analyzePageStrategically(
     throw new Error('LOVABLE_API_KEY não configurada');
   }
 
-  const maxLength = options?.maxHtmlLength || 100000;
+  // HTML mínimo apenas para contexto - não para extração
+  const maxLength = options?.maxHtmlLength || 30000;
   const truncatedHtml = html.length > maxLength 
-    ? html.slice(0, maxLength) + '\n\n[HTML TRUNCADO - Original: ' + html.length + ' chars]'
+    ? html.slice(0, maxLength) + '\n\n[TRUNCADO]'
     : html;
 
+  // Extrair apenas metadados básicos para contexto
+  const youtubeCount = (html.match(/youtube\.com|youtu\.be/gi) || []).length;
+  const hasTestimonials = /depoimento|testimonial|review|cliente/i.test(html);
+  const hasFaq = /faq|perguntas?\s*frequentes|dúvidas/i.test(html);
+
   // Construir o prompt do usuário
-  let userPrompt = `## URL da Página
+  const userPrompt = `## URL da Página
 ${url}
 
-## HTML da Página
-${truncatedHtml}`;
+## Contexto Estrutural (NÃO extraia textos!)
+- Vídeos YouTube detectados: ${youtubeCount}
+- Seção de depoimentos detectada: ${hasTestimonials ? 'Sim' : 'Não'}
+- Seção de FAQ detectada: ${hasFaq ? 'Sim' : 'Não'}
 
-  // Adicionar screenshot se disponível
-  if (options?.screenshotBase64) {
-    userPrompt += `\n\n## Screenshot
-[Imagem da página anexada para referência visual]`;
-  }
+## HTML (apenas para entender o TIPO de negócio)
+${truncatedHtml}
 
-  userPrompt += `\n\n## Sua Tarefa
-Analise esta página de vendas e crie um plano estratégico completo para importá-la.
+## Sua Tarefa
+
+ANALISE esta página e identifique:
+1. Que tipo de produto/serviço é vendido?
+2. Quem é o público-alvo?
+3. Qual dor o produto resolve?
+4. Qual é a promessa principal?
+5. Qual o diferencial único?
+6. Qual framework de marketing é ideal?
+
+⚠️ NÃO EXTRAIA TEXTOS LITERAIS DA PÁGINA!
+Você deve COMPREENDER o negócio e descrever em suas próprias palavras.
+
 Use a função create_strategic_plan para retornar sua análise.`;
 
-  console.log('[Strategic Analyzer] Iniciando análise...', { 
-    urlLength: url.length,
+  console.log('[Strategic Analyzer] Iniciando análise de contexto...', { 
+    url,
     htmlLength: html.length,
-    truncatedLength: truncatedHtml.length,
-    hasScreenshot: !!options?.screenshotBase64
+    youtubeCount,
+    hasTestimonials,
+    hasFaq
   });
 
   const startTime = Date.now();
@@ -100,7 +135,7 @@ Use a função create_strategic_plan para retornar sua análise.`;
         ],
         tools: [createStrategicPlanSchema],
         tool_choice: { type: 'function', function: { name: 'create_strategic_plan' } },
-        temperature: 0.3, // Baixa temperatura para consistência
+        temperature: 0.3,
       }),
     });
 
@@ -143,11 +178,10 @@ Use a função create_strategic_plan para retornar sua análise.`;
       throw new Error('Plano estratégico incompleto');
     }
 
-    console.log('[Strategic Analyzer] Plano criado:', {
+    console.log('[Strategic Analyzer] Análise concluída:', {
       productType: planArgs.productType,
       framework: planArgs.framework,
       sectionsCount: planArgs.sections.length,
-      conversionElementsCount: planArgs.conversionElements?.length || 0,
       confidence: planArgs.confidence
     });
 
@@ -165,7 +199,7 @@ export function createFallbackPlan(url: string, html: string): StrategicPlan {
   const lowerHtml = html.toLowerCase();
   let productType: StrategicPlan['productType'] = 'ecommerce_physical';
   
-  if (lowerHtml.includes('skincare') || lowerHtml.includes('beleza') || lowerHtml.includes('anti-idade')) {
+  if (lowerHtml.includes('skincare') || lowerHtml.includes('beleza') || lowerHtml.includes('anti-idade') || lowerHtml.includes('cabelo')) {
     productType = 'beauty_health';
   } else if (lowerHtml.includes('curso') || lowerHtml.includes('ebook') || lowerHtml.includes('mentoria')) {
     productType = 'infoproduct';
@@ -178,18 +212,18 @@ export function createFallbackPlan(url: string, html: string): StrategicPlan {
   return {
     productType,
     productName: 'Produto',
-    targetAudience: 'Público geral',
+    targetAudience: 'Clientes interessados em soluções de qualidade',
     framework,
     frameworkReason: 'Framework padrão para o tipo de produto detectado',
-    mainPainPoint: 'Necessidade do cliente',
-    mainPromise: 'Solução oferecida pelo produto',
-    uniqueSellingProposition: 'Diferencial do produto',
+    mainPainPoint: 'Busca por uma solução eficaz',
+    mainPromise: 'Resultados comprovados e satisfação garantida',
+    uniqueSellingProposition: 'Qualidade e eficácia comprovadas',
     sections: [
-      { type: 'Hero', function: 'attention', priority: 1, extractionHints: ['h1', 'hero', 'banner'] },
-      { type: 'VideoCarousel', function: 'interest', priority: 2, extractionHints: ['youtube', 'video', 'iframe'] },
-      { type: 'InfoHighlights', function: 'benefits', priority: 3, extractionHints: ['benefícios', 'vantagens', 'features'] },
-      { type: 'Testimonials', function: 'testimonial', priority: 4, extractionHints: ['depoimentos', 'reviews', 'clientes'] },
-      { type: 'FAQ', function: 'faq', priority: 5, extractionHints: ['faq', 'perguntas', 'dúvidas'] },
+      { type: 'Hero', function: 'attention', priority: 1, extractionHints: [] },
+      { type: 'ContentColumns', function: 'interest', priority: 2, extractionHints: [] },
+      { type: 'InfoHighlights', function: 'benefits', priority: 3, extractionHints: [] },
+      { type: 'Testimonials', function: 'testimonial', priority: 4, extractionHints: [] },
+      { type: 'FAQ', function: 'faq', priority: 5, extractionHints: [] },
     ],
     conversionElements: [],
     confidence: 0.3,
