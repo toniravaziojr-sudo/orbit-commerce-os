@@ -3489,12 +3489,16 @@ async function importPage(
     const seoDescription = scraped.description || `${finalTitle} - Informações importantes`;
     
     // Insert the page
+    const normalizedSlug = page.slug.replace(/^\/+/, ''); // Remove leading slashes
+    console.log(`[IMPORT] Attempting INSERT: tenant=${tenantId}, slug=${normalizedSlug}, title=${finalTitle}`);
+    console.log(`[IMPORT] Content structure: type=${pageContent.type}, children=${pageContent.children?.length || 0}`);
+    
     const { data: newPage, error: insertError } = await supabase
       .from('store_pages')
       .insert({
         tenant_id: tenantId,
         title: finalTitle,
-        slug: page.slug.replace(/^\/+/, ''), // Remove leading slashes
+        slug: normalizedSlug,
         type: 'institutional',
         content: pageContent,
         seo_title: seoTitle.substring(0, 60),
@@ -3507,10 +3511,30 @@ async function importPage(
       .single();
     
     if (insertError) {
-      console.error(`[IMPORT] Insert error for ${page.slug}:`, insertError);
-      return { success: false, error: insertError.message };
+      console.error(`[IMPORT] INSERT ERROR for ${page.slug}:`, JSON.stringify(insertError, null, 2));
+      console.error(`[IMPORT] Error code: ${insertError.code}, message: ${insertError.message}, details: ${insertError.details}`);
+      return { success: false, error: `INSERT_FAILED: ${insertError.message}` };
     }
     
+    if (!newPage || !newPage.id) {
+      console.error(`[IMPORT] INSERT returned no data for ${page.slug}`);
+      return { success: false, error: 'INSERT_RETURNED_NO_DATA' };
+    }
+    
+    // VERIFY: Check if page was actually persisted
+    const { data: verifyPage, error: verifyError } = await supabase
+      .from('store_pages')
+      .select('id, slug, tenant_id')
+      .eq('id', newPage.id)
+      .single();
+    
+    if (verifyError || !verifyPage) {
+      console.error(`[IMPORT] VERIFY FAILED: page ${newPage.id} was inserted but cannot be read back!`);
+      console.error(`[IMPORT] Verify error:`, verifyError);
+      return { success: false, error: 'PAGE_NOT_PERSISTED_CHECK_RLS' };
+    }
+    
+    console.log(`[IMPORT] VERIFIED: page exists in DB - id=${verifyPage.id}, slug=${verifyPage.slug}, tenant=${verifyPage.tenant_id}`);
     console.log(`[IMPORT] Successfully imported: ${finalTitle} (${newPage.id})`);
     return { success: true, pageId: newPage.id };
     
