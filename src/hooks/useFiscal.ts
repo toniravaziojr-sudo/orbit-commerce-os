@@ -453,3 +453,109 @@ export function useOrderInvoice(orderId?: string) {
     enabled: !!orderId && !!tenantId,
   });
 }
+
+// Hook: Orders pending invoice emission
+export function useOrdersPendingInvoice() {
+  const { profile } = useAuth();
+  const tenantId = profile?.current_tenant_id;
+
+  return useQuery({
+    queryKey: ['orders-pending-invoice', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+
+      // Get orders with status 'paid' that don't have an associated invoice
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          created_at,
+          total,
+          customer_name,
+          customer_email,
+          status
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'paid')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get order IDs that already have invoices
+      const { data: existingInvoices, error: invoiceError } = await supabase
+        .from('fiscal_invoices')
+        .select('order_id')
+        .eq('tenant_id', tenantId)
+        .neq('status', 'canceled')
+        .not('order_id', 'is', null);
+
+      if (invoiceError) throw invoiceError;
+
+      const invoicedOrderIds = new Set(existingInvoices?.map(i => i.order_id) || []);
+      
+      // Filter out orders that already have invoices
+      return orders?.filter(o => !invoicedOrderIds.has(o.id)) || [];
+    },
+    enabled: !!tenantId,
+  });
+}
+
+// Hook: Fiscal Alerts (orders cancelled/returned with authorized invoices)
+export function useFiscalAlerts() {
+  const { profile } = useAuth();
+  const tenantId = profile?.current_tenant_id;
+  const queryClient = useQueryClient();
+
+  const alertsQuery = useQuery({
+    queryKey: ['fiscal-alerts', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+
+      const { data, error } = await supabase
+        .from('fiscal_invoices')
+        .select(`
+          id,
+          numero,
+          serie,
+          order_id,
+          dest_nome,
+          valor_total,
+          action_reason,
+          created_at,
+          orders!inner(order_number, status)
+        `)
+        .eq('tenant_id', tenantId)
+        .eq('status', 'authorized')
+        .eq('requires_action', true)
+        .is('action_dismissed_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
+
+  const dismissAlert = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { error } = await supabase
+        .from('fiscal_invoices')
+        .update({ action_dismissed_at: new Date().toISOString() })
+        .eq('id', invoiceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fiscal-alerts'] });
+      toast.success('Alerta dispensado');
+    },
+  });
+
+  return {
+    alerts: alertsQuery.data || [],
+    isLoading: alertsQuery.isLoading,
+    dismissAlert,
+    refetch: alertsQuery.refetch,
+  };
+}

@@ -2187,6 +2187,8 @@ export type Database = {
       }
       fiscal_invoices: {
         Row: {
+          action_dismissed_at: string | null
+          action_reason: string | null
           cfop: string | null
           chave_acesso: string | null
           created_at: string | null
@@ -2209,6 +2211,7 @@ export type Database = {
           observacoes: string | null
           order_id: string | null
           protocolo: string | null
+          requires_action: boolean | null
           serie: number
           status: string
           status_motivo: string | null
@@ -2221,6 +2224,8 @@ export type Database = {
           xml_autorizado: string | null
         }
         Insert: {
+          action_dismissed_at?: string | null
+          action_reason?: string | null
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
@@ -2243,6 +2248,7 @@ export type Database = {
           observacoes?: string | null
           order_id?: string | null
           protocolo?: string | null
+          requires_action?: boolean | null
           serie: number
           status?: string
           status_motivo?: string | null
@@ -2255,6 +2261,8 @@ export type Database = {
           xml_autorizado?: string | null
         }
         Update: {
+          action_dismissed_at?: string | null
+          action_reason?: string | null
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
@@ -2277,6 +2285,7 @@ export type Database = {
           observacoes?: string | null
           order_id?: string | null
           protocolo?: string | null
+          requires_action?: boolean | null
           serie?: number
           status?: string
           status_motivo?: string | null
