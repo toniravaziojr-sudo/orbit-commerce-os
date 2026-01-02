@@ -11,6 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, type FiscalInvoice } from '@/hooks/useFiscal';
+import { PendingOrdersSection } from '@/components/fiscal/PendingOrdersSection';
+import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
+import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -42,6 +45,7 @@ export default function Fiscal() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -77,6 +81,10 @@ export default function Fiscal() {
         description="Emissão de notas fiscais e integrações fiscais"
         actions={
           <div className="flex gap-2">
+            <Button onClick={() => setManualDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova NF-e
+            </Button>
             <Button variant="outline" onClick={() => navigate('/settings/fiscal')}>
               <Settings className="h-4 w-4 mr-2" />
               Configurações
@@ -84,6 +92,9 @@ export default function Fiscal() {
           </div>
         }
       />
+
+      {/* Fiscal Alerts */}
+      <FiscalAlertsCard />
 
       {/* Alert if not configured */}
       {!isConfigured && !settingsLoading && (
@@ -106,6 +117,9 @@ export default function Fiscal() {
           </CardContent>
         </Card>
       )}
+
+      {/* Pending Orders for NF-e */}
+      {isConfigured && <PendingOrdersSection />}
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -295,6 +309,9 @@ export default function Fiscal() {
           </CardContent>
         </Card>
       )}
+
+      {/* Manual Invoice Dialog */}
+      <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} />
     </div>
   );
 }

@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
 import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
+import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -123,6 +124,9 @@ export default function Dashboard() {
 
       {/* Communications Widget - Destaque para comunicações */}
       <CommunicationsWidget />
+
+      {/* Fiscal Alerts Widget */}
+      <FiscalAlertsWidget />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Orders */}
