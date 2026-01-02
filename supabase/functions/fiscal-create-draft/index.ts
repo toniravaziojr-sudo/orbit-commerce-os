@@ -219,10 +219,11 @@ serve(async (req) => {
     // Check for missing NCM
     const missingNcm = invoiceItems.filter(item => !item.ncm);
     if (missingNcm.length > 0) {
+      console.error('[fiscal-create-draft] Products missing NCM:', missingNcm.map(i => i.descricao));
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Produtos sem NCM: ${missingNcm.map(i => i.descricao).join(', ')}` 
+          error: `Produtos sem NCM cadastrado: ${missingNcm.map(i => i.descricao).join(', ')}. Configure o NCM em Configurações Fiscais > Produtos.` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -256,7 +257,7 @@ serve(async (req) => {
       valor_frete: order.shipping_total || 0,
       valor_desconto: order.discount_total || 0,
       dest_nome: customer?.full_name || order.customer_name || 'Cliente',
-      dest_cpf_cnpj: customer?.cpf || order.customer_cpf || '',
+      dest_cpf_cnpj: customer?.cpf || '',
       dest_inscricao_estadual: null,
       dest_endereco_logradouro: order.shipping_street,
       dest_endereco_numero: order.shipping_number || 'S/N',
