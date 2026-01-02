@@ -2096,30 +2096,106 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{
     const maxRawHtmlSize = 500000; // 500KB for CSS extraction (optimized algorithm handles this)
     const maxMainHtmlSize = 200000; // 200KB for content processing
     
+    // DEBUG: Log initial sizes
+    console.log(`[SCRAPE] Initial sizes: rawHtml=${fullRawHtml.length}, mainHtml=${mainHtml.length}`);
+    
     if (fullRawHtml.length > maxRawHtmlSize) {
-      console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), smart truncating to preserve <main>`);
+      console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), smart truncating`);
       
-      // Smart truncation: try to preserve the <main> content area
-      const mainStart = fullRawHtml.indexOf('<main');
-      const mainEnd = fullRawHtml.lastIndexOf('</main>');
+      // SMART TRUNCATION V3: Preserve <head> + ALL shopify-section content
       
-      if (mainStart !== -1 && mainEnd !== -1 && mainEnd > mainStart) {
-        // Extract the main content plus some context before and after
-        const mainContent = fullRawHtml.substring(mainStart, mainEnd + 7); // +7 for </main>
-        
-        if (mainContent.length <= maxRawHtmlSize) {
-          // Add wrapper to make it valid HTML
-          fullRawHtml = `<!DOCTYPE html><html><head><title>Imported</title></head><body>${mainContent}</body></html>`;
-          console.log(`[SCRAPE] Preserved <main> content: ${fullRawHtml.length} chars`);
-        } else {
-          // Main is still too big, truncate it
-          console.log(`[SCRAPE] <main> content too large (${mainContent.length}), truncating`);
-          fullRawHtml = `<!DOCTYPE html><html><head><title>Imported</title></head><body>${mainContent.substring(0, maxRawHtmlSize - 100)}</body></html>`;
-        }
-      } else {
-        // No main found, do simple truncation
-        fullRawHtml = fullRawHtml.substring(0, maxRawHtmlSize);
+      // Extract <head> (needed for og:title in V6)
+      const headStart = fullRawHtml.indexOf('<head');
+      const headEnd = fullRawHtml.indexOf('</head>');
+      let headContent = '';
+      if (headStart !== -1 && headEnd !== -1 && headEnd > headStart) {
+        headContent = fullRawHtml.substring(headStart, headEnd + 7);
+        // Minimize head - remove scripts and large inline styles, keep meta tags
+        headContent = headContent.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+        headContent = headContent.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+        headContent = headContent.replace(/<link[^>]*stylesheet[^>]*>/gi, '');
+        console.log(`[SCRAPE] Preserved <head>: ${headContent.length} chars`);
       }
+      
+      // Get body content
+      const bodyStart = fullRawHtml.indexOf('<body');
+      const bodyEnd = fullRawHtml.lastIndexOf('</body>');
+      
+      if (bodyStart !== -1 && bodyEnd !== -1) {
+        let bodyContent = fullRawHtml.substring(bodyStart, bodyEnd + 7);
+        const maxBodySize = maxRawHtmlSize - headContent.length - 200;
+        
+        console.log(`[SCRAPE] Body size: ${bodyContent.length}, maxBodySize: ${maxBodySize}`);
+        
+        if (bodyContent.length > maxBodySize) {
+          // V3: Find <main> and preserve content BEFORE and AFTER it
+          const mainStart = bodyContent.indexOf('<main');
+          const mainEnd = bodyContent.lastIndexOf('</main>');
+          
+          if (mainStart !== -1 && mainEnd !== -1 && mainEnd > mainStart) {
+            const mainContent = bodyContent.substring(mainStart, mainEnd + 7);
+            const beforeMain = bodyContent.substring(0, mainStart);
+            const afterMain = bodyContent.substring(mainEnd + 7);
+            
+            console.log(`[SCRAPE] main: ${mainContent.length}, before: ${beforeMain.length}, after: ${afterMain.length}`);
+            
+            // Extract shopify-section content (both before and after main)
+            // These often contain the actual page content in Shopify themes
+            const extractSections = (html: string, excludePatterns: string[]): string => {
+              // Match shopify-section divs with their content
+              const sectionRegex = /<div[^>]*(?:class="[^"]*shopify-section[^"]*"|id="shopify-section-[^"]*")[^>]*>[\s\S]*?<\/div>(?=\s*<(?:div|section|footer|header|main|$))/gi;
+              const matches = html.match(sectionRegex) || [];
+              
+              let result = '';
+              for (const section of matches) {
+                // Skip header/footer groups
+                if (excludePatterns.some(p => section.toLowerCase().includes(p))) continue;
+                if (result.length + section.length < 150000) { // Max 150KB for sections
+                  result += section;
+                }
+              }
+              return result;
+            };
+            
+            const excludePatterns = ['header-group', 'footer-group', 'overlay-group', 'announcement', 'cart-drawer', 'menu-drawer'];
+            const beforeSections = extractSections(beforeMain, excludePatterns);
+            const afterSections = extractSections(afterMain, excludePatterns);
+            
+            console.log(`[SCRAPE] Extracted sections: before=${beforeSections.length}, after=${afterSections.length}`);
+            
+            // Combine: main + before sections + after sections (prioritize what fits)
+            const totalSections = beforeSections.length + mainContent.length + afterSections.length;
+            
+            if (totalSections <= maxBodySize) {
+              bodyContent = `<body>${beforeSections}${mainContent}${afterSections}</body>`;
+              console.log(`[SCRAPE] Preserved all: main + ${beforeSections.length + afterSections.length} chars of sections`);
+            } else if (mainContent.length + afterSections.length <= maxBodySize) {
+              // After sections often have the real content in Shopify
+              bodyContent = `<body>${mainContent}${afterSections}</body>`;
+              console.log(`[SCRAPE] Preserved main + after sections: ${mainContent.length + afterSections.length} chars`);
+            } else if (mainContent.length <= maxBodySize) {
+              bodyContent = `<body>${mainContent}</body>`;
+              console.log(`[SCRAPE] Preserved main only: ${mainContent.length} chars`);
+            } else {
+              bodyContent = `<body>${mainContent.substring(0, maxBodySize - 50)}</body>`;
+              console.log(`[SCRAPE] Truncated main to ${maxBodySize - 50} chars`);
+            }
+          } else {
+            console.log(`[SCRAPE] No <main> found, truncating body`);
+            bodyContent = bodyContent.substring(0, maxBodySize);
+          }
+        } else {
+          console.log(`[SCRAPE] Body within limits, no truncation needed`);
+        }
+        
+        fullRawHtml = `<!DOCTYPE html><html>${headContent}${bodyContent}</html>`;
+        console.log(`[SCRAPE] Smart truncation complete: ${fullRawHtml.length} chars`);
+      } else {
+        fullRawHtml = fullRawHtml.substring(0, maxRawHtmlSize);
+        console.log(`[SCRAPE] Fallback truncation to ${maxRawHtmlSize} chars`);
+      }
+    } else {
+      console.log(`[SCRAPE] rawHtml within limits (${fullRawHtml.length} < ${maxRawHtmlSize}), no truncation`);
     }
     
     if (mainHtml.length > maxMainHtmlSize) {

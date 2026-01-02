@@ -814,14 +814,15 @@ function extractScopeFromSeeds(
 
 /**
  * V6: Main Shopify extraction with seed-based scoping
+ * V6.1: Also search in full body for content sections, not just inside main
  */
 function extractShopifySectionsContent(
   doc: Document,
   logs: string[]
 ): { element: Element; extractedFrom: string; found: boolean } | null {
-  logs.push(`[SHOPIFY-V6] ========== Starting Shopify SEED-BASED extraction (V6) ==========`);
+  logs.push(`[SHOPIFY-V6] ========== Starting Shopify SEED-BASED extraction (V6.1) ==========`);
   
-  // Step 1: Find the main container - try multiple selectors, use body as last resort
+  // Step 1: Find the main container - try multiple selectors
   const mainSelectors = [
     '#MainContent',
     'main#MainContent',
@@ -846,11 +847,50 @@ function extractShopifySectionsContent(
     }
   }
   
-  // Fallback to body if no main found (but still apply seed-based filtering)
+  // V6.1: ALSO check for content sections OUTSIDE main
+  // In some Shopify themes, content is in shopify-section elements outside main
+  let allContentSections: Element[] = [];
+  
+  const contentSectionSelectors = [
+    '.shopify-section:not(.shopify-section-group-header-group):not(.shopify-section-group-footer-group):not(.shopify-section-group-overlay-group):not([class*="header"]):not([class*="footer"]):not([class*="announcement"])',
+    '[id^="shopify-section-"]:not([id*="header"]):not([id*="footer"]):not([id*="cart"]):not([id*="menu"]):not([id*="drawer"])'
+  ];
+  
+  for (const selector of contentSectionSelectors) {
+    try {
+      const sections = doc.body?.querySelectorAll(selector);
+      if (sections) {
+        for (let i = 0; i < sections.length; i++) {
+          const section = sections[i] as Element;
+          // Check if section has meaningful content (not empty)
+          const text = (section.textContent || '').trim();
+          if (text.length > 50) {
+            allContentSections.push(section);
+          }
+        }
+      }
+    } catch { /* invalid selector */ }
+  }
+  
+  logs.push(`[SHOPIFY-V6] Found ${allContentSections.length} content sections outside main`);
+  
+  // Fallback to body if no main found
   if (!mainContainer) {
-    logs.push(`[SHOPIFY-V6] WARNING: No main container found, using body with seed-based filtering`);
-    mainContainer = doc.body as Element;
-    mainSelector = 'body (fallback)';
+    if (allContentSections.length > 0) {
+      logs.push(`[SHOPIFY-V6] No main container, using ${allContentSections.length} content sections`);
+      // Create a wrapper for all content sections
+      const wrapper = doc.createElement('div');
+      wrapper.setAttribute('data-import-container', 'content-sections');
+      for (const section of allContentSections) {
+        wrapper.appendChild(section.cloneNode(true));
+      }
+      mainContainer = wrapper;
+      mainSelector = `combined-sections (${allContentSections.length})`;
+    } else {
+      logs.push(`[SHOPIFY-V6] WARNING: No main container found, using body`);
+      mainContainer = doc.body as Element;
+      mainSelector = 'body (fallback)';
+    }
   }
   
   if (!mainContainer) {
@@ -860,11 +900,48 @@ function extractShopifySectionsContent(
   
   logs.push(`[SHOPIFY-V6] mainSelectorUsed: ${mainSelector}`);
   
+  // V6.1: Merge content sections into main if they're not already there
+  if (allContentSections.length > 0 && mainContainer !== doc.body) {
+    const mainHtml = mainContainer.innerHTML;
+    for (const section of allContentSections) {
+      const sectionId = section.getAttribute('id') || '';
+      // Check if this section is already in main
+      if (!mainHtml.includes(sectionId) && sectionId) {
+        // Clone section into a temp container for merging
+        const sectionText = (section.textContent || '').trim();
+        if (sectionText.length > 100) {
+          logs.push(`[SHOPIFY-V6] Adding external section: ${sectionId.substring(0, 50)} (${sectionText.length} chars)`);
+          // We'll add to scope later after pre-clean
+        }
+      }
+    }
+  }
+  
   // Step 2: Pre-clean the container
   const cleanedMain = mainContainer.cloneNode(true) as Element;
   preCleanContainer(cleanedMain, logs);
   
-  // Step 3: Find seeds
+  // V6.1: Add external content sections to cleanedMain if they contain useful content
+  for (const section of allContentSections) {
+    const sectionId = section.getAttribute('id') || '';
+    const sectionClass = section.getAttribute('class') || '';
+    
+    // Skip if already in main (check by id or class)
+    if (sectionId && cleanedMain.querySelector(`#${sectionId.replace(/[^\w-]/g, '')}`)) continue;
+    
+    // Clone and add
+    const sectionClone = section.cloneNode(true) as Element;
+    preCleanContainer(sectionClone, logs);
+    
+    // Only add if section has real content after cleaning
+    const text = (sectionClone.textContent || '').trim();
+    if (text.length > 50) {
+      logs.push(`[SHOPIFY-V6] Merged external section: ${sectionId || sectionClass.substring(0, 30)} (${text.length} chars)`);
+      cleanedMain.appendChild(sectionClone);
+    }
+  }
+  
+  // Step 3: Find seeds in the MERGED content
   const titleSeed = findTitleSeed(cleanedMain, doc, logs);
   const videoSeed = findVideoSeed(cleanedMain, logs);
   const ctaSeed = findCTASeed(cleanedMain, logs);
