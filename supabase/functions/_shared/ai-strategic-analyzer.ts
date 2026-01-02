@@ -1,63 +1,118 @@
 // =============================================
-// AI STRATEGIC ANALYZER - Análise de Contexto
-// NÃO extrai conteúdo - apenas ANALISA estrutura e negócio
+// AI STRATEGIC ANALYZER - Análise de Contexto SIMPLIFICADA
+// Retorna APENAS categorias/tipos - NUNCA textos prontos
 // =============================================
 
 import type { StrategicPlan } from './marketing/types.ts';
-import { createStrategicPlanSchema } from './marketing/types.ts';
 import { getIdealFramework, AVAILABLE_BLOCK_TYPES } from './marketing/frameworks.ts';
 
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
-// Prompt do sistema para análise estratégica
-const STRATEGIC_SYSTEM_PROMPT = `Você é um especialista em marketing digital e análise de negócios.
-Sua tarefa é ANALISAR uma página de vendas e identificar o CONTEXTO DO NEGÓCIO.
+// Schema simplificado - apenas categorias, não textos
+const createStrategicPlanSchema = {
+  type: 'function' as const,
+  function: {
+    name: 'create_strategic_plan',
+    description: 'Cria um plano estratégico identificando APENAS categorias e tipos - NUNCA textos literais',
+    parameters: {
+      type: 'object',
+      properties: {
+        productType: {
+          type: 'string',
+          enum: ['beauty_health', 'tech_tool', 'lifestyle', 'infoproduct', 'ecommerce_physical', 'service', 'saas'],
+          description: 'Categoria do produto/serviço'
+        },
+        productCategory: {
+          type: 'string',
+          description: 'Categoria genérica do produto (ex: "shampoo anti-calvície", "curso de marketing", "software de gestão")'
+        },
+        audienceType: {
+          type: 'string',
+          description: 'Tipo de público em poucas palavras (ex: "homens 25-50 preocupados com aparência")'
+        },
+        framework: {
+          type: 'string',
+          enum: ['AIDA', 'PAS', 'BAB', 'PASTOR'],
+          description: 'Framework de marketing ideal'
+        },
+        frameworkReason: {
+          type: 'string',
+          description: 'Justificativa curta para escolha do framework'
+        },
+        problemCategory: {
+          type: 'string',
+          description: 'Categoria do problema (ex: "autoestima", "produtividade", "saúde")'
+        },
+        solutionCategory: {
+          type: 'string',
+          description: 'Categoria da solução (ex: "tratamento capilar", "ferramenta digital", "suplementação")'
+        },
+        sections: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: { type: 'string' },
+              function: { 
+                type: 'string', 
+                enum: ['attention', 'interest', 'desire', 'action', 'problem', 'agitation', 'solution', 'testimonial', 'offer', 'guarantee', 'urgency', 'benefits', 'features', 'faq']
+              },
+              priority: { type: 'number' }
+            },
+            required: ['type', 'function', 'priority']
+          }
+        },
+        confidence: {
+          type: 'number',
+          description: 'Confiança na análise de 0 a 1'
+        },
+        languageDetected: {
+          type: 'string',
+          description: 'Idioma detectado'
+        }
+      },
+      required: ['productType', 'productCategory', 'audienceType', 'framework', 'frameworkReason', 'problemCategory', 'solutionCategory', 'sections', 'confidence', 'languageDetected']
+    }
+  }
+};
 
-## ⚠️ REGRA CRÍTICA: VOCÊ NÃO EXTRAI CONTEÚDO!
+// Prompt do sistema - APENAS categorização
+const STRATEGIC_SYSTEM_PROMPT = `Você é um analista de marketing que CATEGORIZA páginas de vendas.
 
-Você NÃO deve extrair:
-- Títulos literais da página
-- Textos de depoimentos
-- Descrições de produtos
-- Nenhum texto literal da página
+## SUA ÚNICA TAREFA
+Identificar CATEGORIAS e TIPOS - NUNCA extrair textos literais.
 
-Você DEVE identificar:
-- O tipo de negócio/produto
-- O público-alvo
-- As dores que o produto resolve
-- A promessa principal
-- O diferencial competitivo
-- O framework de marketing ideal
+## O QUE VOCÊ DEVE RETORNAR
+- productType: categoria geral (beauty_health, tech_tool, etc.)
+- productCategory: categoria específica ("shampoo anti-calvície", não "Shampoo Calvície Zero")
+- audienceType: tipo de público ("homens 25-50", não descrição longa)
+- problemCategory: categoria do problema ("autoestima", "queda de cabelo")
+- solutionCategory: categoria da solução ("tratamento capilar")
+- framework: AIDA, PAS, BAB ou PASTOR
+- sections: blocos sugeridos
 
-## Sua Análise Deve Incluir
+## O QUE VOCÊ NÃO DEVE FAZER
+- NÃO extrair títulos, slogans ou textos da página
+- NÃO copiar nomes de produtos
+- NÃO extrair depoimentos
+- NÃO incluir preços ou ofertas específicas
 
-1. **TIPO DE PRODUTO**: (beauty_health, tech_tool, lifestyle, infoproduct, ecommerce_physical, service, saas)
-2. **PÚBLICO-ALVO**: Descreva em 1-2 frases quem é o cliente ideal
-3. **DOR PRINCIPAL**: Qual problema o produto resolve?
-4. **PROMESSA**: O que o cliente ganha ao comprar?
-5. **USP**: Qual o diferencial único deste produto?
-6. **FRAMEWORK**: Qual framework de marketing é ideal?
-   - **AIDA**: Universal, bom para e-commerce geral
-   - **PAS**: Produtos que resolvem dores específicas
-   - **BAB**: Transformações visuais (beleza, fitness)
-   - **PASTOR**: Infoprodutos e vendas complexas
+## EXEMPLOS DE CATEGORIZAÇÃO CORRETA
 
-## Frameworks de Marketing
+Página de shampoo anti-queda:
+- productType: "beauty_health"
+- productCategory: "shampoo para tratamento capilar masculino"
+- audienceType: "homens adultos preocupados com calvície"
+- problemCategory: "queda de cabelo e autoestima"
+- solutionCategory: "tratamento capilar"
 
-- **AIDA** (Atenção, Interesse, Desejo, Ação): Para produtos gerais
-- **PAS** (Problema, Agitação, Solução): Para produtos que resolvem dores
-- **BAB** (Before, After, Bridge): Para transformações
-- **PASTOR** (Problema, Amplificar, Solução, Testemunhos, Oferta, Resposta): Para infoprodutos
-
-## Tipos de Blocos Disponíveis
-
-${AVAILABLE_BLOCK_TYPES.join(', ')}
-
-## Output
-
-Use a função create_strategic_plan para retornar sua ANÁLISE.
-Lembre-se: você analisa o contexto, não extrai conteúdo literal.`;
+Página de curso de marketing:
+- productType: "infoproduct"
+- productCategory: "curso online de marketing digital"
+- audienceType: "empreendedores iniciantes"
+- problemCategory: "falta de vendas online"
+- solutionCategory: "educação em marketing"`;
 
 // Função principal de análise estratégica
 export async function analyzePageStrategically(
@@ -72,45 +127,39 @@ export async function analyzePageStrategically(
     throw new Error('LOVABLE_API_KEY não configurada');
   }
 
-  // HTML mínimo apenas para contexto - não para extração
-  const maxLength = options?.maxHtmlLength || 30000;
+  // HTML mínimo apenas para identificar categoria
+  const maxLength = options?.maxHtmlLength || 15000;
   const truncatedHtml = html.length > maxLength 
     ? html.slice(0, maxLength) + '\n\n[TRUNCADO]'
     : html;
 
-  // Extrair apenas metadados básicos para contexto
+  // Extrair apenas metadados estruturais
   const youtubeCount = (html.match(/youtube\.com|youtu\.be/gi) || []).length;
   const hasTestimonials = /depoimento|testimonial|review|cliente/i.test(html);
   const hasFaq = /faq|perguntas?\s*frequentes|dúvidas/i.test(html);
 
-  // Construir o prompt do usuário
-  const userPrompt = `## URL da Página
+  const userPrompt = `## URL
 ${url}
 
-## Contexto Estrutural (NÃO extraia textos!)
-- Vídeos YouTube detectados: ${youtubeCount}
-- Seção de depoimentos detectada: ${hasTestimonials ? 'Sim' : 'Não'}
-- Seção de FAQ detectada: ${hasFaq ? 'Sim' : 'Não'}
+## CONTEXTO ESTRUTURAL
+- Vídeos: ${youtubeCount}
+- Depoimentos: ${hasTestimonials ? 'Sim' : 'Não'}
+- FAQ: ${hasFaq ? 'Sim' : 'Não'}
 
-## HTML (apenas para entender o TIPO de negócio)
+## HTML (apenas para CATEGORIZAR - NÃO extrair textos)
 ${truncatedHtml}
 
-## Sua Tarefa
+## SUA TAREFA
+Identifique as CATEGORIAS:
+1. Que TIPO de produto é? (categoria genérica, não nome específico)
+2. Que TIPO de público é? (perfil demográfico)
+3. Que TIPO de problema resolve? (categoria)
+4. Que TIPO de solução oferece? (categoria)
+5. Qual framework de marketing é ideal?
 
-ANALISE esta página e identifique:
-1. Que tipo de produto/serviço é vendido?
-2. Quem é o público-alvo?
-3. Qual dor o produto resolve?
-4. Qual é a promessa principal?
-5. Qual o diferencial único?
-6. Qual framework de marketing é ideal?
+⚠️ RETORNE APENAS CATEGORIAS - NUNCA TEXTOS LITERAIS DA PÁGINA`;
 
-⚠️ NÃO EXTRAIA TEXTOS LITERAIS DA PÁGINA!
-Você deve COMPREENDER o negócio e descrever em suas próprias palavras.
-
-Use a função create_strategic_plan para retornar sua análise.`;
-
-  console.log('[Strategic Analyzer] Iniciando análise de contexto...', { 
+  console.log('[Strategic Analyzer] Categorizando página...', { 
     url,
     htmlLength: html.length,
     youtubeCount,
@@ -155,16 +204,15 @@ Use a função create_strategic_plan para retornar sua análise.`;
     const data = await response.json();
     const elapsedMs = Date.now() - startTime;
     
-    console.log('[Strategic Analyzer] Resposta recebida em', elapsedMs, 'ms');
+    console.log('[Strategic Analyzer] Categorização concluída em', elapsedMs, 'ms');
 
-    // Extrair argumentos da função
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== 'create_strategic_plan') {
       console.error('[Strategic Analyzer] Resposta inválida:', JSON.stringify(data).slice(0, 500));
       throw new Error('IA não retornou um plano estratégico válido');
     }
 
-    let planArgs: StrategicPlan;
+    let planArgs: Record<string, unknown>;
     try {
       planArgs = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
@@ -172,20 +220,37 @@ Use a função create_strategic_plan para retornar sua análise.`;
       throw new Error('Erro ao processar resposta da IA');
     }
 
-    // Validar campos obrigatórios
-    if (!planArgs.productType || !planArgs.framework || !planArgs.sections) {
-      console.error('[Strategic Analyzer] Plano incompleto:', planArgs);
-      throw new Error('Plano estratégico incompleto');
-    }
+    // Converter para o formato StrategicPlan esperado
+    const plan: StrategicPlan = {
+      productType: planArgs.productType as StrategicPlan['productType'],
+      productName: planArgs.productCategory as string || 'Produto',
+      targetAudience: planArgs.audienceType as string || 'Clientes',
+      framework: planArgs.framework as StrategicPlan['framework'],
+      frameworkReason: planArgs.frameworkReason as string || '',
+      // CATEGORIAS - não textos prontos
+      mainPainPoint: planArgs.problemCategory as string || 'problema do cliente',
+      mainPromise: planArgs.solutionCategory as string || 'solução eficaz',
+      uniqueSellingProposition: planArgs.solutionCategory as string || 'diferencial único',
+      sections: (planArgs.sections as StrategicPlan['sections']) || [
+        { type: 'Hero', function: 'attention', priority: 1, extractionHints: [] },
+        { type: 'ContentColumns', function: 'interest', priority: 2, extractionHints: [] },
+        { type: 'Testimonials', function: 'testimonial', priority: 3, extractionHints: [] },
+        { type: 'FAQ', function: 'faq', priority: 4, extractionHints: [] },
+      ],
+      conversionElements: [],
+      confidence: planArgs.confidence as number || 0.7,
+      languageDetected: planArgs.languageDetected as string || 'pt-BR',
+    };
 
-    console.log('[Strategic Analyzer] Análise concluída:', {
-      productType: planArgs.productType,
-      framework: planArgs.framework,
-      sectionsCount: planArgs.sections.length,
-      confidence: planArgs.confidence
+    console.log('[Strategic Analyzer] Plano criado:', {
+      productType: plan.productType,
+      productCategory: planArgs.productCategory,
+      audienceType: planArgs.audienceType,
+      framework: plan.framework,
+      confidence: plan.confidence
     });
 
-    return { plan: planArgs, rawResponse: data };
+    return { plan, rawResponse: data };
 
   } catch (error) {
     console.error('[Strategic Analyzer] Erro:', error);
@@ -195,29 +260,40 @@ Use a função create_strategic_plan para retornar sua análise.`;
 
 // Função auxiliar para criar um plano de fallback
 export function createFallbackPlan(url: string, html: string): StrategicPlan {
-  // Detectar tipo de produto por keywords simples
   const lowerHtml = html.toLowerCase();
   let productType: StrategicPlan['productType'] = 'ecommerce_physical';
+  let productCategory = 'produto físico';
+  let problemCategory = 'necessidade do cliente';
+  let solutionCategory = 'solução prática';
   
-  if (lowerHtml.includes('skincare') || lowerHtml.includes('beleza') || lowerHtml.includes('anti-idade') || lowerHtml.includes('cabelo')) {
+  if (lowerHtml.includes('skincare') || lowerHtml.includes('beleza') || lowerHtml.includes('anti-idade') || lowerHtml.includes('cabelo') || lowerHtml.includes('calvic')) {
     productType = 'beauty_health';
+    productCategory = 'produto de cuidados pessoais';
+    problemCategory = 'autoestima e aparência';
+    solutionCategory = 'tratamento especializado';
   } else if (lowerHtml.includes('curso') || lowerHtml.includes('ebook') || lowerHtml.includes('mentoria')) {
     productType = 'infoproduct';
+    productCategory = 'curso ou mentoria online';
+    problemCategory = 'falta de conhecimento';
+    solutionCategory = 'educação especializada';
   } else if (lowerHtml.includes('software') || lowerHtml.includes('app') || lowerHtml.includes('ferramenta')) {
     productType = 'tech_tool';
+    productCategory = 'ferramenta digital';
+    problemCategory = 'ineficiência de processos';
+    solutionCategory = 'automação e produtividade';
   }
 
   const framework = getIdealFramework(productType);
 
   return {
     productType,
-    productName: 'Produto',
-    targetAudience: 'Clientes interessados em soluções de qualidade',
+    productName: productCategory,
+    targetAudience: 'clientes interessados',
     framework,
     frameworkReason: 'Framework padrão para o tipo de produto detectado',
-    mainPainPoint: 'Busca por uma solução eficaz',
-    mainPromise: 'Resultados comprovados e satisfação garantida',
-    uniqueSellingProposition: 'Qualidade e eficácia comprovadas',
+    mainPainPoint: problemCategory,
+    mainPromise: solutionCategory,
+    uniqueSellingProposition: solutionCategory,
     sections: [
       { type: 'Hero', function: 'attention', priority: 1, extractionHints: [] },
       { type: 'ContentColumns', function: 'interest', priority: 2, extractionHints: [] },

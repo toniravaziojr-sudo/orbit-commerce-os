@@ -1,7 +1,7 @@
 // =============================================
-// AI CONTENT CREATOR - Sistema de Criação ORIGINAL
-// Gera páginas de vendas completas e persuasivas
-// NENHUM conteúdo é extraído - TUDO é criado
+// AI CONTENT CREATOR - Sistema de Criação 100% ORIGINAL
+// Gera páginas ÚNICAS a cada chamada - como a Lovable faz
+// ZERO cópia - TUDO inventado pela IA
 // =============================================
 
 import type { StrategicPlan, MarketingFunction } from './marketing/types.ts';
@@ -52,220 +52,106 @@ export interface CreationResult {
 }
 
 // =============================================
-// PROMPT DO SISTEMA - CRIAÇÃO 100% ORIGINAL
+// PROMPT DO SISTEMA - CRIADOR CRIATIVO
 // =============================================
-const CREATION_SYSTEM_PROMPT = `Você é um copywriter expert em páginas de vendas de alta conversão.
+const CREATION_SYSTEM_PROMPT = `Você é um COPYWRITER PREMIADO criando uma página de vendas ÚNICA.
 
-## SUA MISSÃO ÚNICA
+## SUA MISSÃO
+Criar uma página de vendas COMPLETA, ORIGINAL e DIFERENTE a cada vez.
+Você é um artista da persuasão - cada página é uma obra de arte única.
 
-Criar uma página de vendas COMPLETA, PERSUASIVA e ORIGINAL baseada APENAS em:
-- Tipo de produto
-- Público-alvo  
-- Dor principal
-- Promessa principal
-- USP (diferencial único)
+## REGRAS DE CRIATIVIDADE
 
-## ⚠️ REGRAS ABSOLUTAS
+1. **INVENTE TUDO** - Cada texto deve ser criado por você
+2. **SEJA ÚNICO** - Use metáforas, ângulos e abordagens diferentes a cada vez
+3. **VARIE O TOM** - Às vezes urgente, às vezes empático, às vezes desafiador
+4. **CRIE HISTÓRIAS** - Depoimentos com detalhes específicos e emocionais
+5. **SURPREENDA** - Headlines que capturam atenção de formas inesperadas
 
-1. TODO conteúdo deve ser INVENTADO por você - textos ricos e persuasivos
-2. NUNCA use placeholders ou textos genéricos
-3. NUNCA copie nomes, depoimentos ou textos de qualquer fonte
-4. CRIE headlines impactantes, descrições detalhadas, benefícios específicos
+## FÓRMULAS DE HEADLINE (use uma diferente cada vez)
 
-## ESTRUTURA OBRIGATÓRIA (EXATAMENTE ESTA ORDEM)
+- Pergunta provocativa: "Você Ainda Acredita Que [Mito]?"
+- Promessa direta: "[Resultado] Em [Prazo] Ou Seu Dinheiro De Volta"
+- Curiosidade: "O Segredo Que [Grupo] Não Quer Que Você Saiba"
+- Identificação: "Para Quem Já Tentou De Tudo E Ainda Não Conseguiu [Objetivo]"
+- Desafio: "Descubra Por Que [Quantidade] Pessoas Já Mudaram [Aspecto]"
+- Transformação: "De [Estado Antes] Para [Estado Depois]"
 
-### BLOCO 1: Hero
-{
-  "type": "Hero",
-  "props": {
-    "title": "HEADLINE IMPACTANTE COM BENEFÍCIO PRINCIPAL (máx 8 palavras)",
-    "subtitle": "Subheadline que expande a promessa e gera desejo (20-30 palavras)",
-    "ctaText": "VERBO + BENEFÍCIO (ex: QUERO RESULTADOS AGORA)",
-    "ctaUrl": "#comprar",
-    "imageDesktop": "PLACEHOLDER_IMAGE",
-    "imageMobile": "PLACEHOLDER_IMAGE",
-    "alignment": "center"
-  },
-  "marketingFunction": "attention",
-  "order": 1
-}
+## ESTRUTURA OBRIGATÓRIA (9 BLOCOS)
 
-### BLOCO 2: ContentColumns (Problema + Solução)
-{
-  "type": "ContentColumns",
-  "props": {
-    "title": "Título que conecta com a dor",
-    "content": "<p>Parágrafo 1: Descreva a DOR em detalhes - faça o leitor se identificar</p><p>Parágrafo 2: Apresente a SOLUÇÃO - como o produto resolve</p><p>Parágrafo 3: Diferencial único - por que este é melhor</p>",
-    "imageDesktop": "PLACEHOLDER_IMAGE",
-    "imageMobile": "PLACEHOLDER_IMAGE",
-    "imagePosition": "right",
-    "features": [
-      { "icon": "Check", "text": "Benefício específico 1 com resultado" },
-      { "icon": "Check", "text": "Benefício específico 2 com resultado" },
-      { "icon": "Check", "text": "Benefício específico 3 com resultado" },
-      { "icon": "Check", "text": "Benefício específico 4 com resultado" },
-      { "icon": "Check", "text": "Benefício específico 5 com resultado" }
-    ]
-  },
-  "marketingFunction": "interest",
-  "order": 2
-}
+### Bloco 1: Hero (Atenção)
+- title: Headline IMPACTANTE (6-10 palavras) - use uma fórmula diferente cada vez
+- subtitle: Expanda a promessa (20-35 palavras) - crie desejo
+- ctaText: VERBO + BENEFÍCIO (ex: "QUERO TRANSFORMAR MINHA VIDA AGORA")
+- ctaUrl: "#comprar"
+- imageDesktop/imageMobile: "PLACEHOLDER_IMAGE"
+- alignment: "center"
 
-### BLOCO 3: FeatureList (Ação Múltipla)
-{
-  "type": "FeatureList",
-  "props": {
-    "title": "Ação X em 1 (ou título de múltiplos benefícios)",
-    "subtitle": "Explicação curta do conceito",
-    "items": [
-      { "icon": "Zap", "title": "Ação 1", "text": "Descrição do benefício" },
-      { "icon": "Shield", "title": "Ação 2", "text": "Descrição do benefício" },
-      { "icon": "Droplets", "title": "Ação 3", "text": "Descrição do benefício" },
-      { "icon": "Clock", "title": "Ação 4", "text": "Descrição do benefício" },
-      { "icon": "Leaf", "title": "Ação 5", "text": "Descrição do benefício" }
-    ],
-    "layout": "grid",
-    "columns": 5
-  },
-  "marketingFunction": "benefits",
-  "order": 3
-}
+### Bloco 2: ContentColumns (Problema + Solução)
+- title: Conecte com a dor de forma empática
+- content: 3 parágrafos HTML - dor → agitação → solução
+- features: 5 benefícios específicos com resultados
+- imagePosition: "right" ou "left"
 
-### BLOCO 4: InfoHighlights (Diferenciais)
-{
-  "type": "InfoHighlights",
-  "props": {
-    "title": "Por que escolher [Produto]?",
-    "items": [
-      { "icon": "Zap", "title": "Super Prático", "description": "Descrição do diferencial" },
-      { "icon": "Target", "title": "Resultados Rápidos", "description": "Descrição do diferencial" },
-      { "icon": "Leaf", "title": "100% Natural", "description": "Descrição do diferencial" },
-      { "icon": "BadgeDollarSign", "title": "Custo-Benefício", "description": "Descrição do diferencial" },
-      { "icon": "Beaker", "title": "Comprovado", "description": "Descrição do diferencial" },
-      { "icon": "Package", "title": "Entrega Discreta", "description": "Descrição do diferencial" }
-    ],
-    "layout": "grid",
-    "columns": 3
-  },
-  "marketingFunction": "desire",
-  "order": 4
-}
+### Bloco 3: FeatureList (Benefícios)
+- title: Conceito único (ex: "Ação 5 em 1", "Sistema Triplo", "Método 3D")
+- subtitle: Explicação do conceito
+- items: 5 ações/benefícios com ícones e descrições criativas
+- layout: "grid", columns: 5
 
-### BLOCO 5: ContentColumns (Segmentação/Níveis)
-{
-  "type": "ContentColumns",
-  "props": {
-    "title": "Identifique seu [NÍVEL/PERFIL]",
-    "content": "<p>Explicação sobre os diferentes perfis/níveis de clientes</p><p>Por que o produto serve para todos</p>",
-    "imageDesktop": "PLACEHOLDER_IMAGE",
-    "imageMobile": "PLACEHOLDER_IMAGE",
-    "imagePosition": "left",
-    "features": [
-      { "icon": "Check", "text": "Perfil 1: Benefício específico" },
-      { "icon": "Check", "text": "Perfil 2: Benefício específico" },
-      { "icon": "Check", "text": "Perfil 3: Benefício específico" }
-    ]
-  },
-  "marketingFunction": "interest",
-  "order": 5
-}
+### Bloco 4: InfoHighlights (Diferenciais)
+- title: "Por Que [Este Produto] É Diferente?"
+- items: 6 diferenciais únicos com descrições persuasivas
+- layout: "grid", columns: 3
 
-### BLOCO 6: Testimonials
-{
-  "type": "Testimonials",
-  "props": {
-    "title": "O Que Nossos Clientes Dizem",
-    "items": [
-      {
-        "name": "Nome Completo Brasileiro Real",
-        "text": "Depoimento DETALHADO com situação antes, ação tomada e resultado específico (mínimo 30 palavras)",
-        "rating": 5,
-        "location": "Cidade, Estado"
-      },
-      {
-        "name": "Outro Nome Brasileiro Real",
-        "text": "Outro depoimento detalhado e convincente (mínimo 30 palavras)",
-        "rating": 5,
-        "location": "Cidade, Estado"
-      },
-      {
-        "name": "Terceiro Nome Brasileiro",
-        "text": "Terceiro depoimento com história pessoal (mínimo 30 palavras)",
-        "rating": 5,
-        "location": "Cidade, Estado"
-      }
-    ]
-  },
-  "marketingFunction": "testimonial",
-  "order": 6
-}
+### Bloco 5: ContentColumns (Segmentação)
+- title: "Identifique Seu Momento" ou similar
+- content: Descreva diferentes perfis de clientes
+- features: 3 perfis com benefício específico para cada
 
-### BLOCO 7: FAQ
-{
-  "type": "FAQ",
-  "props": {
-    "title": "Perguntas Frequentes",
-    "items": [
-      { "question": "Pergunta que elimina objeção de compra?", "answer": "Resposta completa e convincente" },
-      { "question": "Pergunta sobre prazo/entrega?", "answer": "Resposta que tranquiliza" },
-      { "question": "Pergunta sobre garantia?", "answer": "Resposta que gera confiança" },
-      { "question": "Pergunta sobre resultados?", "answer": "Resposta com expectativa realista" }
-    ]
-  },
-  "marketingFunction": "faq",
-  "order": 7
-}
+### Bloco 6: Testimonials (Prova Social)
+CRÍTICO: Crie 3 depoimentos COMPLETAMENTE DIFERENTES com:
+- name: Nomes brasileiros REALISTAS e VARIADOS (ex: "Marcelo Andrade Souza", "Fernanda Costa Lima")
+- text: História DETALHADA (40-60 palavras) com: situação antes → descoberta → transformação → resultado específico
+- rating: 5
+- location: Cidades brasileiras variadas
 
-### BLOCO 8: Hero (CTA Final)
-{
-  "type": "Hero",
-  "props": {
-    "title": "Headline de fechamento com urgência/escassez",
-    "subtitle": "Recapitulação da promessa e chamada final",
-    "ctaText": "CTA FORTE COM BENEFÍCIO",
-    "ctaUrl": "#comprar",
-    "imageDesktop": "PLACEHOLDER_IMAGE",
-    "imageMobile": "PLACEHOLDER_IMAGE",
-    "alignment": "center"
-  },
-  "marketingFunction": "action",
-  "order": 8
-}
+### Bloco 7: FAQ
+- title: "Dúvidas Frequentes" ou variação
+- items: 4-5 perguntas que eliminam objeções de compra
+  - Como funciona?
+  - Quanto tempo para resultados?
+  - Tem garantia?
+  - É seguro?
+  - Como recebo?
 
-### BLOCO 9: InfoHighlights (Garantias)
-{
-  "type": "InfoHighlights",
-  "props": {
-    "items": [
-      { "icon": "Truck", "title": "Frete Grátis", "description": "Entrega para todo Brasil" },
-      { "icon": "Shield", "title": "Garantia 30 Dias", "description": "Ou seu dinheiro de volta" },
-      { "icon": "CreditCard", "title": "Pagamento Seguro", "description": "Dados 100% protegidos" }
-    ],
-    "layout": "horizontal"
-  },
-  "marketingFunction": "guarantee",
-  "order": 9
-}
+### Bloco 8: Hero (CTA Final)
+- title: Headline de FECHAMENTO com urgência/escassez
+- subtitle: Recapitulação + chamada final
+- ctaText: CTA FORTE diferente do primeiro
 
-## DIRETRIZES DE COPY
+### Bloco 9: InfoHighlights (Garantias)
+- items: 3 garantias (frete, devolução, segurança)
+- layout: "horizontal"
 
-1. **Headlines**: Curtas, impactantes, focadas em benefício
-2. **Subtítulos**: Expandem a promessa, geram curiosidade
-3. **Corpo**: Empático, específico, orientado a resultados
-4. **CTAs**: Verbos de ação + benefício (nunca "clique aqui")
-5. **Depoimentos**: Histórias pessoais, resultados específicos, emoção
-6. **FAQ**: Objeções reais respondidas de forma convincente
+## DIRETRIZES DE QUALIDADE
+
+- Headlines: 6-10 palavras, impactantes, focadas em transformação
+- Parágrafos: Curtos, empáticos, orientados a resultados
+- Depoimentos: Histórias pessoais com detalhes específicos
+- CTAs: Verbos de ação + benefício (nunca "clique aqui")
+- Benefícios: Específicos e mensuráveis quando possível
 
 ## OUTPUT
-
-Use a função create_page_blocks para retornar EXATAMENTE 9 blocos na ordem especificada.`;
+Use a função create_page_blocks para retornar EXATAMENTE 9 blocos na ordem especificada.
+Cada bloco deve ter conteúdo RICO, ORIGINAL e PERSUASIVO.`;
 
 // Schema para tool calling
 const createPageBlocksSchema = {
   type: 'function' as const,
   function: {
     name: 'create_page_blocks',
-    description: 'Cria os 9 blocos da página com conteúdo 100% original e persuasivo',
+    description: 'Cria 9 blocos com conteúdo 100% original, criativo e persuasivo',
     parameters: {
       type: 'object',
       properties: {
@@ -281,7 +167,7 @@ const createPageBlocksSchema = {
               },
               props: {
                 type: 'object',
-                description: 'Propriedades do bloco com conteúdo ORIGINAL e PERSUASIVO'
+                description: 'Propriedades do bloco com conteúdo ORIGINAL e CRIATIVO'
               },
               marketingFunction: {
                 type: 'string',
@@ -300,7 +186,7 @@ const createPageBlocksSchema = {
         },
         copyStyle: {
           type: 'string',
-          description: 'Estilo de copy usado (ex: persuasivo, emocional, direto)'
+          description: 'Estilo de copy usado (ex: urgente-emocional, empático-transformador, direto-desafiador)'
         },
         warnings: {
           type: 'array',
@@ -321,6 +207,7 @@ export async function createPageFromInspiration(
   strategicPlan: StrategicPlan,
   options?: {
     maxHtmlLength?: number;
+    forceUnique?: boolean;
   }
 ): Promise<{ result: CreationResult; rawResponse?: unknown }> {
   if (!LOVABLE_API_KEY) {
@@ -332,62 +219,55 @@ export async function createPageFromInspiration(
   // Extrair APENAS URLs de vídeo do HTML (estrutural, não conteúdo)
   const youtubeUrls = extractYouTubeUrls(html);
   
-  // Prompt APENAS com dados estratégicos - ZERO HTML
-  const userPrompt = `## BRIEFING DO PRODUTO
+  // Seed aleatório para garantir unicidade
+  const creativeSeed = Math.random().toString(36).substring(2, 10);
+  const styleVariation = ['urgente', 'empático', 'desafiador', 'inspirador', 'direto'][Math.floor(Math.random() * 5)];
+  
+  // Prompt APENAS com categorias - ZERO textos prontos
+  const userPrompt = `[SEED CRIATIVO: ${creativeSeed}]
+[ESTILO SUGERIDO: ${styleVariation}]
 
-**Nome do Produto:** ${strategicPlan.productName || 'Produto'}
+## BRIEFING CRIATIVO (NÃO COPIE - USE COMO INSPIRAÇÃO)
+
+**Categoria do Produto:** ${strategicPlan.productName}
 **Tipo:** ${strategicPlan.productType}
 **Público-Alvo:** ${strategicPlan.targetAudience}
+**Categoria do Problema:** ${strategicPlan.mainPainPoint}
+**Categoria da Solução:** ${strategicPlan.mainPromise}
 
-### DOR PRINCIPAL DO CLIENTE:
-"${strategicPlan.mainPainPoint}"
-
-### PROMESSA PRINCIPAL:
-"${strategicPlan.mainPromise}"
-
-### DIFERENCIAL ÚNICO (USP):
-"${strategicPlan.uniqueSellingProposition}"
-
-### FRAMEWORK DE MARKETING: ${strategicPlan.framework}
+### FRAMEWORK: ${strategicPlan.framework}
 Etapas: ${frameworkDef.stages.join(' → ')}
 
 ---
 
-## RECURSOS EXTRAS
-
+## RECURSOS DISPONÍVEIS
 ${youtubeUrls.length > 0 
-  ? `Vídeo YouTube disponível: ${youtubeUrls[0]} (pode adicionar bloco YouTubeVideo após o Hero se apropriado)`
+  ? `Vídeo YouTube: ${youtubeUrls[0]}`
   : 'Nenhum vídeo disponível'}
 
 ---
 
-## SUA TAREFA
+## SUA MISSÃO CRIATIVA
 
-Crie uma página de vendas COMPLETA com 9 blocos obrigatórios:
+Crie uma página de vendas COMPLETA e ÚNICA para um produto de "${strategicPlan.productName}".
 
-1. **Hero** - Headline impactante baseada na PROMESSA
-2. **ContentColumns** - Problema detalhado + Solução
-3. **FeatureList** - 5 benefícios/ações do produto
-4. **InfoHighlights** - 6 diferenciais competitivos
-5. **ContentColumns** - Segmentação por perfil de cliente
-6. **Testimonials** - 3 depoimentos FICTÍCIOS mas REALISTAS
-7. **FAQ** - 4 perguntas que eliminam objeções
-8. **Hero** - CTA final com urgência
-9. **InfoHighlights** - Garantias (frete, devolução, segurança)
+REGRAS ABSOLUTAS:
+1. INVENTE todas as headlines - use sua criatividade
+2. CRIE depoimentos com histórias REAIS e EMOCIONAIS
+3. Use nomes brasileiros VARIADOS e REALISTAS
+4. Cada texto deve ser ORIGINAL - nada genérico
+5. Esta página deve ser DIFERENTE de qualquer outra
 
-⚠️ REGRAS CRÍTICAS:
-- TODO texto deve ser ORIGINAL - crie você mesmo
-- Depoimentos com nomes brasileiros reais e histórias detalhadas
-- Headlines curtas e impactantes (máx 8 palavras)
-- Sem textos genéricos como "Título Principal" ou "Cliente Satisfeito"
-- Foco total em CONVERSÃO
+LEMBRE-SE: Você é um copywriter premiado. Surpreenda-me com sua criatividade!
 
 Use a função create_page_blocks para retornar os 9 blocos.`;
 
   console.log('[Content Creator] Criando página original...', { 
     framework: strategicPlan.framework,
-    productName: strategicPlan.productName,
+    productCategory: strategicPlan.productName,
     productType: strategicPlan.productType,
+    creativeSeed,
+    styleVariation,
     youtubeUrlsFound: youtubeUrls.length
   });
 
@@ -401,14 +281,15 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro', // Usando Pro para melhor qualidade
+        model: 'google/gemini-2.5-flash', // Flash é mais criativo
         messages: [
           { role: 'system', content: CREATION_SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
         tools: [createPageBlocksSchema],
         tool_choice: { type: 'function', function: { name: 'create_page_blocks' } },
-        temperature: 0.9, // Alta criatividade
+        temperature: 1.0, // MÁXIMA criatividade
+        top_p: 0.95,
       }),
     });
 
@@ -444,13 +325,13 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
       throw new Error('Erro ao processar resposta da IA');
     }
 
-    // Validar e corrigir blocos
-    const validatedBlocks = validateAndFixBlocks(creationArgs.blocks || [], strategicPlan, youtubeUrls);
+    // Validar blocos (apenas tipos, não preencher com fallbacks)
+    const validatedBlocks = validateBlocks(creationArgs.blocks || [], youtubeUrls);
 
     const result: CreationResult = {
       blocks: validatedBlocks,
       creationQuality: creationArgs.creationQuality || 85,
-      copyStyle: creationArgs.copyStyle || 'persuasivo',
+      copyStyle: creationArgs.copyStyle || styleVariation,
       warnings: creationArgs.warnings || [],
     };
 
@@ -459,11 +340,18 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
       result.warnings.push(`${removedCount} bloco(s) com tipo inválido foram removidos`);
     }
 
+    // Verificar qualidade do conteúdo
+    const qualityCheck = checkContentQuality(validatedBlocks);
+    if (!qualityCheck.isGood) {
+      result.warnings.push(...qualityCheck.issues);
+    }
+
     console.log('[Content Creator] Criação concluída:', {
       blocksCreated: result.blocks.length,
       quality: result.creationQuality,
       copyStyle: result.copyStyle,
-      blockTypes: result.blocks.map(b => b.type)
+      blockTypes: result.blocks.map(b => b.type),
+      creativeSeed
     });
 
     return { result, rawResponse: data };
@@ -475,11 +363,10 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
 }
 
 // =============================================
-// VALIDAÇÃO DE BLOCOS
+// VALIDAÇÃO DE BLOCOS (SEM FALLBACKS LITERAIS)
 // =============================================
-function validateAndFixBlocks(
+function validateBlocks(
   blocks: CreatedBlock[], 
-  strategicPlan: StrategicPlan,
   youtubeUrls: string[]
 ): CreatedBlock[] {
   const validBlocks: CreatedBlock[] = [];
@@ -490,19 +377,12 @@ function validateAndFixBlocks(
       continue;
     }
 
-    // Limpar qualquer HTML/content extraído acidentalmente
-    const cleanedProps = cleanProps(block.props);
-
-    const fixedProps = fillRequiredProps(
-      block.type as ValidBlockType, 
-      cleanedProps,
-      strategicPlan,
-      youtubeUrls
-    );
+    // Apenas limpar props problemáticas, não preencher com fallbacks
+    const cleanedProps = cleanProps(block.props, youtubeUrls);
     
     validBlocks.push({
       type: block.type,
-      props: fixedProps,
+      props: cleanedProps,
       marketingFunction: block.marketingFunction || 'interest',
       order: block.order || validBlocks.length + 1,
     });
@@ -511,211 +391,83 @@ function validateAndFixBlocks(
   return validBlocks.sort((a, b) => a.order - b.order);
 }
 
-// Limpar props de conteúdo extraído
-function cleanProps(props: Record<string, unknown>): Record<string, unknown> {
+// Limpar props problemáticas
+function cleanProps(props: Record<string, unknown>, youtubeUrls: string[]): Record<string, unknown> {
   const cleaned = { ...props };
   
-  // Se content tem tags HTML quebradas (sinal de extração), limpar
-  if (typeof cleaned.content === 'string') {
-    const content = cleaned.content as string;
-    // Detectar HTML extraído (múltiplos </div> consecutivos)
-    if (content.includes('</div> </div>') || content.includes('</div></div></div>')) {
-      cleaned.content = null; // Forçar fallback
-    }
+  // Garantir placeholders de imagem
+  if (cleaned.imageDesktop === undefined) cleaned.imageDesktop = 'PLACEHOLDER_IMAGE';
+  if (cleaned.imageMobile === undefined) cleaned.imageMobile = 'PLACEHOLDER_IMAGE';
+  
+  // Garantir URLs de CTA
+  if (cleaned.ctaUrl === undefined || cleaned.ctaUrl === '') cleaned.ctaUrl = '#comprar';
+  if (cleaned.url === undefined || cleaned.url === '') cleaned.url = '#comprar';
+  
+  // Preencher YouTube URL se disponível
+  if (cleaned.youtubeUrl === 'URL_DO_VIDEO' || cleaned.youtubeUrl === 'PLACEHOLDER_VIDEO') {
+    cleaned.youtubeUrl = youtubeUrls.length > 0 ? youtubeUrls[0] : 'PLACEHOLDER_VIDEO';
   }
   
   return cleaned;
 }
 
-// Preenche props obrigatórias
-function fillRequiredProps(
-  type: ValidBlockType, 
-  props: Record<string, unknown>,
-  strategicPlan: StrategicPlan,
-  youtubeUrls: string[]
-): Record<string, unknown> {
-  const filled = { ...props };
+// Verificar qualidade do conteúdo gerado
+function checkContentQuality(blocks: CreatedBlock[]): { isGood: boolean; issues: string[] } {
+  const issues: string[] = [];
+  const allTexts: string[] = [];
   
-  const productName = strategicPlan.productName || 'nosso produto';
-  const mainPromise = strategicPlan.mainPromise || 'Transforme sua vida hoje';
-  const painPoint = strategicPlan.mainPainPoint || 'seus desafios';
-  const usp = strategicPlan.uniqueSellingProposition || 'A solução que você procurava';
-
-  switch (type) {
-    case 'Hero':
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = mainPromise.length > 50 ? mainPromise.slice(0, 50) : mainPromise;
+  for (const block of blocks) {
+    // Coletar todos os textos para verificar duplicação
+    const texts = extractTextsFromProps(block.props);
+    for (const text of texts) {
+      if (allTexts.includes(text) && text.length > 20) {
+        issues.push(`Texto duplicado detectado: "${text.slice(0, 30)}..."`);
       }
-      if (!filled.subtitle || isGenericOrEmpty(filled.subtitle as string)) {
-        filled.subtitle = usp;
+      allTexts.push(text);
+    }
+    
+    // Verificar textos genéricos
+    for (const text of texts) {
+      if (isGenericText(text)) {
+        issues.push(`Texto genérico detectado: "${text.slice(0, 30)}..."`);
       }
-      if (!filled.ctaText || isGenericOrEmpty(filled.ctaText as string)) {
-        filled.ctaText = `QUERO ${productName.toUpperCase()} AGORA`;
-      }
-      filled.ctaUrl = filled.ctaUrl || '#comprar';
-      filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.imageMobile = filled.imageMobile || 'PLACEHOLDER_IMAGE';
-      filled.alignment = filled.alignment || 'center';
-      break;
-
-    case 'ContentColumns':
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = `Por Que Escolher ${productName}?`;
-      }
-      if (!filled.content || isGenericOrEmpty(filled.content as string)) {
-        filled.content = `<p>Se você enfrenta ${painPoint}, sabe exatamente como isso afeta sua qualidade de vida. A frustração, a insegurança, a busca por uma solução que realmente funcione.</p><p>${usp}. Nossa fórmula foi desenvolvida para resolver exatamente esse problema, de forma eficaz e segura.</p><p>Milhares de clientes já transformaram suas vidas com ${productName}. Agora é sua vez de experimentar essa mudança.</p>`;
-      }
-      filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.imageMobile = filled.imageMobile || 'PLACEHOLDER_IMAGE';
-      filled.imagePosition = filled.imagePosition || 'right';
-      if (!Array.isArray(filled.features) || filled.features.length === 0) {
-        filled.features = [
-          { icon: 'Check', text: 'Resultados visíveis desde as primeiras semanas' },
-          { icon: 'Check', text: 'Fórmula segura e testada' },
-          { icon: 'Check', text: 'Prático de usar no dia a dia' },
-          { icon: 'Check', text: 'Garantia de satisfação' },
-          { icon: 'Check', text: 'Milhares de clientes satisfeitos' },
-        ];
-      }
-      break;
-
-    case 'FeatureList':
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = 'Ação Completa';
-      }
-      if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [
-          { icon: 'Zap', title: 'Energiza', text: 'Ativa e potencializa' },
-          { icon: 'Shield', title: 'Protege', text: 'Contra danos e agressões' },
-          { icon: 'Droplets', title: 'Hidrata', text: 'Nutrição profunda' },
-          { icon: 'Clock', title: 'Acelera', text: 'Resultados mais rápidos' },
-          { icon: 'Leaf', title: 'Fortalece', text: 'Resistência duradoura' },
-        ];
-      }
-      filled.layout = filled.layout || 'grid';
-      filled.columns = filled.columns || 5;
-      break;
-
-    case 'InfoHighlights':
-      if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [
-          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba no conforto da sua casa' },
-          { icon: 'Shield', title: 'Garantia Total', description: '30 dias ou seu dinheiro de volta' },
-          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Seus dados 100% protegidos' },
-        ];
-      }
-      filled.layout = filled.layout || 'horizontal';
-      break;
-
-    case 'Testimonials':
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = 'O Que Nossos Clientes Dizem';
-      }
-      if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [
-          { 
-            name: 'Carlos Eduardo Mendes', 
-            text: `Depois de anos tentando várias soluções sem sucesso, finalmente encontrei ${productName}. Em poucas semanas já comecei a notar diferença. Minha confiança voltou e não pretendo mais parar de usar. Recomendo demais!`, 
-            rating: 5,
-            location: 'São Paulo, SP'
-          },
-          { 
-            name: 'Roberto Silva Junior', 
-            text: `Confesso que estava cético no início, mas resolvi dar uma chance. E que surpresa! Os resultados são reais e vieram mais rápido do que eu esperava. Minha esposa também notou a diferença. Vale cada centavo investido.`, 
-            rating: 5,
-            location: 'Rio de Janeiro, RJ'
-          },
-          { 
-            name: 'Fernando Oliveira', 
-            text: `Já tinha perdido a esperança de encontrar algo que funcionasse. ${productName} mudou minha perspectiva completamente. Produto de altíssima qualidade, entrega rápida e resultados comprovados. Muito satisfeito!`, 
-            rating: 5,
-            location: 'Belo Horizonte, MG'
-          },
-        ];
-      } else {
-        // Corrigir nomes genéricos nos depoimentos existentes
-        const nomesBrasileiros = [
-          'Carlos Eduardo Mendes', 'Roberto Silva Junior', 'Fernando Oliveira', 
-          'Paulo Henrique Santos', 'Marcos Vinícius Costa', 'André Luiz Pereira'
-        ];
-        filled.items = (filled.items as Array<{name: string; text: string; rating: number; location?: string}>).map((item, i) => {
-          const fixed = { ...item };
-          if (isGenericOrEmpty(item.name)) {
-            fixed.name = nomesBrasileiros[i % nomesBrasileiros.length];
-          }
-          if (isGenericOrEmpty(item.text)) {
-            fixed.text = `${productName} superou todas as minhas expectativas! Resultados incríveis em poucas semanas de uso. Recomendo para todos que buscam qualidade.`;
-          }
-          if (!item.location) {
-            fixed.location = ['São Paulo, SP', 'Rio de Janeiro, RJ', 'Belo Horizonte, MG'][i % 3];
-          }
-          return fixed;
-        });
-      }
-      break;
-
-    case 'FAQ':
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = 'Perguntas Frequentes';
-      }
-      if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [
-          { 
-            question: `Como funciona ${productName}?`, 
-            answer: `${productName} foi desenvolvido com tecnologia avançada para oferecer resultados eficazes. ${usp}. O uso é simples e prático, podendo ser incorporado facilmente na sua rotina.`
-          },
-          { 
-            question: 'Qual é o prazo de entrega?', 
-            answer: 'Trabalhamos com as melhores transportadoras do Brasil. O prazo varia de 5 a 15 dias úteis dependendo da sua região. Você recebe o código de rastreio assim que o pedido é despachado.'
-          },
-          { 
-            question: 'Tem garantia de satisfação?', 
-            answer: 'Sim! Oferecemos 30 dias de garantia incondicional. Se por qualquer motivo você não ficar satisfeito, devolvemos 100% do seu dinheiro. Sem burocracia.'
-          },
-          { 
-            question: 'Em quanto tempo verei resultados?', 
-            answer: 'Os resultados variam de pessoa para pessoa, mas a maioria dos clientes começa a notar diferença nas primeiras semanas de uso contínuo. Para melhores resultados, recomendamos uso regular conforme as instruções.'
-          },
-        ];
-      }
-      break;
-
-    case 'YouTubeVideo':
-      if (!filled.youtubeUrl || filled.youtubeUrl === 'URL_DO_VIDEO') {
-        if (youtubeUrls.length > 0) {
-          filled.youtubeUrl = youtubeUrls[0];
-        } else {
-          filled.youtubeUrl = 'PLACEHOLDER_VIDEO';
-        }
-      }
-      if (!filled.title || isGenericOrEmpty(filled.title as string)) {
-        filled.title = `Conheça ${productName}`;
-      }
-      break;
-
-    case 'Button':
-      if (!filled.text || isGenericOrEmpty(filled.text as string)) {
-        filled.text = `QUERO ${productName.toUpperCase()} AGORA`;
-      }
-      filled.url = filled.url || '#comprar';
-      filled.variant = filled.variant || 'default';
-      filled.size = filled.size || 'lg';
-      break;
+    }
   }
-
-  return filled;
+  
+  return {
+    isGood: issues.length === 0,
+    issues
+  };
 }
 
-// Verifica se texto é genérico ou vazio
-function isGenericOrEmpty(text: string): boolean {
-  if (!text || text.trim().length < 3) return true;
+// Extrair todos os textos de um objeto de props
+function extractTextsFromProps(props: Record<string, unknown>): string[] {
+  const texts: string[] = [];
+  
+  function extract(obj: unknown): void {
+    if (typeof obj === 'string' && obj.length > 10) {
+      texts.push(obj);
+    } else if (Array.isArray(obj)) {
+      obj.forEach(extract);
+    } else if (obj && typeof obj === 'object') {
+      Object.values(obj).forEach(extract);
+    }
+  }
+  
+  extract(props);
+  return texts;
+}
+
+// Verificar se texto é genérico
+function isGenericText(text: string): boolean {
+  if (!text || text.trim().length < 5) return false;
   const lower = text.toLowerCase().trim();
   const generics = [
     'título principal', 'headline aqui', 'cliente satisfeito', 
-    'nome do cliente', 'depoimento do cliente', 'descrição',
-    'texto aqui', 'clique aqui', 'saiba mais', 'cliente 1',
-    'cliente 2', 'joão s.', 'maria s.', 'título', 'subtítulo',
-    'placeholder', 'lorem ipsum', 'texto de exemplo'
+    'nome do cliente', 'depoimento do cliente', 'descrição aqui',
+    'texto aqui', 'clique aqui', 'cliente 1', 'cliente 2',
+    'joão s.', 'maria s.', 'placeholder', 'lorem ipsum',
+    'texto de exemplo', 'benefício 1', 'benefício 2'
   ];
   return generics.some(g => lower.includes(g));
 }
@@ -743,22 +495,20 @@ function extractYouTubeUrls(html: string): string[] {
 }
 
 // =============================================
-// FALLBACK - Página completa de qualidade
+// FALLBACK - Apenas estrutura básica (sem textos fixos)
+// Usado apenas em caso de erro total da IA
 // =============================================
 export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult {
-  const productName = strategicPlan.productName || 'nosso produto';
-  const mainPromise = strategicPlan.mainPromise || 'Transforme sua vida hoje';
-  const painPoint = strategicPlan.mainPainPoint || 'seus desafios';
-  const usp = strategicPlan.uniqueSellingProposition || 'A solução que você procurava';
+  // Em vez de textos fixos, criar estrutura mínima que obriga edição
+  const productCategory = strategicPlan.productName || 'produto';
 
   const blocks: CreatedBlock[] = [
-    // BLOCO 1: Hero Principal
     {
       type: 'Hero',
       props: {
-        title: mainPromise,
-        subtitle: usp,
-        ctaText: `QUERO ${productName.toUpperCase()} AGORA`,
+        title: `Descubra ${productCategory}`,
+        subtitle: `Uma solução completa para suas necessidades`,
+        ctaText: 'QUERO SABER MAIS',
         ctaUrl: '#comprar',
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
@@ -767,143 +517,65 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
       marketingFunction: 'attention',
       order: 1,
     },
-    // BLOCO 2: Problema + Solução
     {
       type: 'ContentColumns',
       props: {
-        title: `Por Que Escolher ${productName}?`,
-        content: `<p>Se você enfrenta ${painPoint}, sabe exatamente como isso afeta sua qualidade de vida. A frustração, a insegurança, a busca constante por uma solução que realmente funcione.</p><p>${usp}. Nossa fórmula exclusiva foi desenvolvida para resolver exatamente esse problema, de forma eficaz, segura e comprovada.</p><p>Milhares de clientes já transformaram suas vidas com ${productName}. Agora chegou a sua vez.</p>`,
+        title: 'Por Que Escolher Esta Solução?',
+        content: '<p>Conteúdo a ser personalizado pelo lojista.</p><p>Descreva os benefícios e diferenciais aqui.</p>',
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
         imagePosition: 'right',
         features: [
-          { icon: 'Check', text: 'Resultados visíveis desde as primeiras semanas' },
-          { icon: 'Check', text: 'Fórmula segura e clinicamente testada' },
-          { icon: 'Check', text: 'Super prático de usar no dia a dia' },
-          { icon: 'Check', text: 'Garantia incondicional de satisfação' },
-          { icon: 'Check', text: 'Mais de 10.000 clientes satisfeitos' },
+          { icon: 'Check', text: 'Benefício a personalizar' },
+          { icon: 'Check', text: 'Benefício a personalizar' },
+          { icon: 'Check', text: 'Benefício a personalizar' },
         ],
       },
       marketingFunction: 'interest',
       order: 2,
     },
-    // BLOCO 3: Ação Múltipla
-    {
-      type: 'FeatureList',
-      props: {
-        title: 'Ação 5 em 1',
-        subtitle: 'Uma fórmula completa que atua em múltiplas frentes',
-        items: [
-          { icon: 'Zap', title: 'Energiza', text: 'Ativa e potencializa' },
-          { icon: 'Shield', title: 'Protege', text: 'Contra danos externos' },
-          { icon: 'Droplets', title: 'Hidrata', text: 'Nutrição profunda' },
-          { icon: 'Clock', title: 'Acelera', text: 'Resultados rápidos' },
-          { icon: 'Leaf', title: 'Fortalece', text: 'Resistência duradoura' },
-        ],
-        layout: 'grid',
-        columns: 5,
-      },
-      marketingFunction: 'benefits',
-      order: 3,
-    },
-    // BLOCO 4: Diferenciais
-    {
-      type: 'InfoHighlights',
-      props: {
-        title: `Por que escolher ${productName}?`,
-        items: [
-          { icon: 'Zap', title: 'Super Prático', description: 'Use como parte da sua rotina. Sem complicações.' },
-          { icon: 'Target', title: 'Resultados Rápidos', description: 'Veja a diferença em poucas semanas.' },
-          { icon: 'Leaf', title: '100% Seguro', description: 'Ingredientes de qualidade sem efeitos colaterais.' },
-          { icon: 'BadgeDollarSign', title: 'Custo-Benefício', description: 'Muito mais acessível que alternativas.' },
-          { icon: 'Beaker', title: 'Comprovado', description: 'Testado e aprovado por especialistas.' },
-          { icon: 'Package', title: 'Entrega Discreta', description: 'Embalagem sem identificação do conteúdo.' },
-        ],
-        layout: 'grid',
-        columns: 3,
-      },
-      marketingFunction: 'desire',
-      order: 4,
-    },
-    // BLOCO 5: Depoimentos
     {
       type: 'Testimonials',
       props: {
-        title: 'O Que Nossos Clientes Dizem',
+        title: 'Depoimentos',
         items: [
-          { 
-            name: 'Carlos Eduardo Mendes', 
-            text: `Depois de anos tentando várias soluções sem sucesso, finalmente encontrei ${productName}. Em poucas semanas já comecei a notar diferença. Minha confiança voltou!`, 
-            rating: 5,
-            location: 'São Paulo, SP'
-          },
-          { 
-            name: 'Roberto Silva Junior', 
-            text: `Confesso que estava cético, mas resolvi dar uma chance. E que surpresa! Os resultados são reais e vieram mais rápido do que esperava. Vale cada centavo!`, 
-            rating: 5,
-            location: 'Rio de Janeiro, RJ'
-          },
-          { 
-            name: 'Fernando Oliveira', 
-            text: `Já tinha perdido a esperança de encontrar algo que funcionasse. ${productName} mudou minha perspectiva. Produto de altíssima qualidade!`, 
-            rating: 5,
-            location: 'Belo Horizonte, MG'
-          },
+          { name: 'Cliente', text: 'Adicione depoimentos reais aqui.', rating: 5, location: 'Brasil' },
         ],
       },
       marketingFunction: 'testimonial',
-      order: 5,
+      order: 3,
     },
-    // BLOCO 6: FAQ
     {
       type: 'FAQ',
       props: {
         title: 'Perguntas Frequentes',
         items: [
-          { question: `Como funciona ${productName}?`, answer: usp },
-          { question: 'Qual é o prazo de entrega?', answer: 'Enviamos em até 24h úteis. Prazo de 5 a 15 dias dependendo da região.' },
-          { question: 'Tem garantia?', answer: 'Sim! 30 dias de garantia incondicional ou seu dinheiro de volta.' },
-          { question: 'Em quanto tempo vejo resultados?', answer: 'A maioria dos clientes nota diferença nas primeiras semanas de uso contínuo.' },
+          { question: 'Pergunta comum?', answer: 'Resposta a personalizar.' },
         ],
       },
       marketingFunction: 'faq',
-      order: 6,
+      order: 4,
     },
-    // BLOCO 7: CTA Final
     {
       type: 'Hero',
       props: {
-        title: 'Pronto Para Transformar Sua Vida?',
-        subtitle: `${mainPromise}. Milhares já escolheram ${productName}. Faça parte desse grupo.`,
-        ctaText: `QUERO ${productName.toUpperCase()} AGORA`,
+        title: 'Pronto Para Começar?',
+        subtitle: 'Não perca esta oportunidade.',
+        ctaText: 'COMPRAR AGORA',
         ctaUrl: '#comprar',
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
         alignment: 'center',
       },
       marketingFunction: 'action',
-      order: 7,
-    },
-    // BLOCO 8: Garantias
-    {
-      type: 'InfoHighlights',
-      props: {
-        items: [
-          { icon: 'Truck', title: 'Frete Grátis', description: 'Entrega para todo Brasil' },
-          { icon: 'Shield', title: 'Garantia 30 Dias', description: 'Ou seu dinheiro de volta' },
-          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Dados 100% protegidos' },
-        ],
-        layout: 'horizontal',
-      },
-      marketingFunction: 'guarantee',
-      order: 8,
+      order: 5,
     },
   ];
 
   return {
     blocks,
-    creationQuality: 70,
-    copyStyle: 'persuasivo-contextual',
-    warnings: ['Página de fallback criada - edite para personalizar ainda mais'],
+    creationQuality: 30, // Qualidade baixa indica que precisa edição
+    copyStyle: 'template-basico',
+    warnings: ['Página de fallback criada - edição manual necessária para conteúdo persuasivo'],
   };
 }

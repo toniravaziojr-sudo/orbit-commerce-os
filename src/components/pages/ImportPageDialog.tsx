@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Download, Loader2, Globe, CheckCircle, AlertCircle, Sparkles, Target, BarChart3 } from 'lucide-react';
+import { Download, Loader2, Globe, CheckCircle, AlertCircle, Sparkles, Target, BarChart3, Wand2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Progress } from '@/components/ui/progress';
@@ -20,12 +20,11 @@ interface ImportResult {
     productType: string;
     framework: string;
     confidence: number;
-    mainPromise: string;
   };
-  optimization?: {
-    qualityScore: number;
-    frameworkCompliance: number;
-    suggestions: string[];
+  creation?: {
+    creationQuality: number;
+    copyStyle: string;
+    warnings: string[];
   };
   stats?: {
     blocksCreated: number;
@@ -35,26 +34,24 @@ interface ImportResult {
   error?: string;
 }
 
-type ImportStep = 'idle' | 'fetching' | 'analyzing' | 'extracting' | 'optimizing' | 'saving' | 'done' | 'error';
+type ImportStep = 'idle' | 'fetching' | 'analyzing' | 'creating' | 'saving' | 'done' | 'error';
 
 const STEP_LABELS: Record<ImportStep, string> = {
   idle: 'Aguardando',
   fetching: 'Buscando página...',
-  analyzing: 'Analisando estratégia...',
-  extracting: 'Extraindo conteúdo...',
-  optimizing: 'Otimizando para conversão...',
+  analyzing: 'Categorizando produto...',
+  creating: 'Criando página original com IA...',
   saving: 'Salvando página...',
   done: 'Concluído!',
-  error: 'Erro na importação',
+  error: 'Erro na criação',
 };
 
 const STEP_PROGRESS: Record<ImportStep, number> = {
   idle: 0,
   fetching: 15,
-  analyzing: 35,
-  extracting: 60,
-  optimizing: 80,
-  saving: 95,
+  analyzing: 30,
+  creating: 65,
+  saving: 90,
   done: 100,
   error: 0,
 };
@@ -102,9 +99,8 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     // Simular progresso dos passos
     const stepTimers: NodeJS.Timeout[] = [];
     stepTimers.push(setTimeout(() => setCurrentStep('analyzing'), 2000));
-    stepTimers.push(setTimeout(() => setCurrentStep('extracting'), 5000));
-    stepTimers.push(setTimeout(() => setCurrentStep('optimizing'), 10000));
-    stepTimers.push(setTimeout(() => setCurrentStep('saving'), 15000));
+    stepTimers.push(setTimeout(() => setCurrentStep('creating'), 5000));
+    stepTimers.push(setTimeout(() => setCurrentStep('saving'), 18000));
 
     try {
       const cleanedUrl = cleanUrl(url);
@@ -123,20 +119,20 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
       if (data?.success) {
         setCurrentStep('done');
         setResult(data);
-        toast.success('Página importada com sucesso!');
+        toast.success('Página criada com sucesso!');
         onSuccess();
       } else {
         throw new Error(data?.error || 'Erro desconhecido');
       }
     } catch (error) {
       stepTimers.forEach(t => clearTimeout(t));
-      console.error('Error importing page:', error);
+      console.error('Error creating page:', error);
       setCurrentStep('error');
       setResult({
         success: false,
-        error: error instanceof Error ? error.message : 'Erro ao importar página',
+        error: error instanceof Error ? error.message : 'Erro ao criar página',
       });
-      toast.error('Erro ao importar página');
+      toast.error('Erro ao criar página');
     } finally {
       setIsImporting(false);
     }
@@ -149,13 +145,6 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     setCurrentStep('idle');
   };
 
-  const frameworkLabels: Record<string, string> = {
-    AIDA: 'AIDA (Atenção, Interesse, Desejo, Ação)',
-    PAS: 'PAS (Problema, Agitação, Solução)',
-    BAB: 'BAB (Antes, Depois, Ponte)',
-    PASTOR: 'PASTOR (Problema, Amplificar, Solução, Testemunhos, Oferta, Resposta)',
-  };
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => {
       if (!open) handleClose();
@@ -164,24 +153,24 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
       <DialogTrigger asChild>
         <Button variant="outline">
           <Download className="mr-2 h-4 w-4" />
-          Importar Página
+          Criar Página com IA
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Importar Página com IA
+            <Wand2 className="h-5 w-5 text-primary" />
+            Criar Página Original com IA
           </DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
           <p className="text-sm text-muted-foreground">
-            Nossa IA analisa a página, identifica a melhor estratégia de marketing e extrai o conteúdo otimizado para conversão.
+            Nossa IA analisa a referência e <strong>cria uma página completamente original</strong> - cada importação gera conteúdo único e persuasivo.
           </p>
 
           <div className="space-y-2">
-            <Label htmlFor="page-url">URL da Página</Label>
+            <Label htmlFor="page-url">URL de Referência</Label>
             <Input
               id="page-url"
               type="url"
@@ -198,7 +187,7 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
             )}
           </div>
 
-          {/* Progress durante importação */}
+          {/* Progress durante criação */}
           {isImporting && (
             <div className="space-y-3 p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
@@ -207,21 +196,21 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
               </div>
               <Progress value={STEP_PROGRESS[currentStep]} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {currentStep === 'analyzing' && 'Identificando tipo de produto e framework de marketing...'}
-                {currentStep === 'extracting' && 'Extraindo blocos nativos com conteúdo real...'}
-                {currentStep === 'optimizing' && 'Aplicando otimizações para máxima conversão...'}
+                {currentStep === 'analyzing' && 'Identificando categoria do produto e público-alvo...'}
+                {currentStep === 'creating' && 'Gerando headlines, textos e depoimentos originais...'}
+                {currentStep === 'saving' && 'Finalizando página...'}
               </p>
             </div>
           )}
 
-          {/* Resultado da importação */}
+          {/* Resultado da criação */}
           {result && result.success && (
             <div className="space-y-4">
               {/* Sucesso */}
               <div className="p-3 rounded-lg bg-green-500/10 text-green-700 dark:text-green-400 flex items-start gap-2">
                 <CheckCircle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium">Página importada com sucesso!</p>
+                  <p className="text-sm font-medium">Página criada com sucesso!</p>
                   <p className="text-xs mt-1 opacity-80">{result.page?.title}</p>
                 </div>
               </div>
@@ -231,7 +220,7 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
                 <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <Target className="h-4 w-4 text-primary" />
-                    Análise Estratégica
+                    Análise de Contexto
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
@@ -239,29 +228,29 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
                       <p className="font-medium">{result.strategicPlan.framework}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Confiança:</span>
-                      <p className="font-medium">{Math.round(result.strategicPlan.confidence * 100)}%</p>
+                      <span className="text-muted-foreground">Tipo:</span>
+                      <p className="font-medium">{result.strategicPlan.productType}</p>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Score de Qualidade */}
-              {result.optimization && (
+              {/* Qualidade da Criação */}
+              {result.creation && (
                 <div className="p-3 rounded-lg bg-muted/50 space-y-2">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <BarChart3 className="h-4 w-4" />
-                    Score de Qualidade: {result.optimization.qualityScore}/100
+                    Qualidade: {result.creation.creationQuality}/100
                   </div>
-                  <Progress value={result.optimization.qualityScore} className="h-2" />
-                  {result.optimization.suggestions?.length > 0 && (
-                    <div className="text-xs text-muted-foreground mt-2">
-                      <p className="font-medium mb-1">Sugestões de melhoria:</p>
-                      <ul className="list-disc list-inside space-y-0.5">
-                        {result.optimization.suggestions.slice(0, 3).map((s, i) => (
-                          <li key={i}>{s}</li>
-                        ))}
-                      </ul>
+                  <Progress value={result.creation.creationQuality} className="h-2" />
+                  <p className="text-xs text-muted-foreground">
+                    Estilo: {result.creation.copyStyle}
+                  </p>
+                  {result.creation.warnings?.length > 0 && (
+                    <div className="text-xs text-amber-600 mt-2">
+                      {result.creation.warnings.slice(0, 2).map((w, i) => (
+                        <p key={i}>• {w}</p>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -281,7 +270,7 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
             <div className="p-3 rounded-lg bg-destructive/10 text-destructive flex items-start gap-2">
               <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
               <div>
-                <p className="text-sm font-medium">Erro na importação</p>
+                <p className="text-sm font-medium">Erro na criação</p>
                 <p className="text-xs mt-1 opacity-80">{result.error}</p>
               </div>
             </div>
@@ -305,12 +294,12 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
                 {isImporting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Importando...
+                    Criando...
                   </>
                 ) : (
                   <>
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Importar com IA
+                    Criar com IA
                   </>
                 )}
               </Button>
