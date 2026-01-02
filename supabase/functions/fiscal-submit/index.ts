@@ -1,103 +1,154 @@
 // =============================================
-// FISCAL SUBMIT - Envia NF-e para SEFAZ via provedor
-// Usa Focus NFe como provedor principal
+// FISCAL SUBMIT - Envia NF-e diretamente para SEFAZ
+// Usa certificado A1 do tenant para assinatura e autenticação
 // =============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+import { getSefazEndpoint, getUfCode } from "../_shared/sefaz-endpoints.ts";
+import { formatAccessKey } from "../_shared/access-key.ts";
+import { buildNFeXml, buildEnviNFeXml, type NFeData, type NFeEmitente, type NFeDestinatario, type NFeItem } from "../_shared/nfe-builder.ts";
+import { loadCertificate, signNFeXml } from "../_shared/xml-signer.ts";
+import { 
+  buildSoapEnvelope, 
+  sendSoapRequest, 
+  parseAutorizacaoResponse 
+} from "../_shared/soap-client.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Format CNPJ/CPF (remove non-numeric)
+/**
+ * Descriptografa o certificado do tenant
+ */
+async function decryptCertificate(
+  encryptedData: string, 
+  iv: string, 
+  encryptionKey: string
+): Promise<string> {
+  const keyBytes = new TextEncoder().encode(encryptionKey.padEnd(32, '0').slice(0, 32));
+  const ivBytes = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
+  const encryptedBytes = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-CBC' },
+    false,
+    ['decrypt']
+  );
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-CBC', iv: ivBytes },
+    cryptoKey,
+    encryptedBytes
+  );
+  
+  return new TextDecoder().decode(decrypted);
+}
+
+/**
+ * Formata CNPJ/CPF removendo caracteres não numéricos
+ */
 function formatDocument(doc: string): string {
   return (doc || '').replace(/\D/g, '');
 }
 
-// Format CEP
-function formatCep(cep: string): string {
-  return (cep || '').replace(/\D/g, '');
+/**
+ * Monta dados do emitente a partir das configurações fiscais
+ */
+function buildEmitente(settings: any): NFeEmitente {
+  return {
+    CNPJ: formatDocument(settings.cnpj),
+    xNome: settings.razao_social,
+    xFant: settings.nome_fantasia || settings.razao_social,
+    IE: formatDocument(settings.inscricao_estadual || ''),
+    CRT: settings.crt || 3,
+    enderEmit: {
+      xLgr: settings.endereco_logradouro,
+      nro: settings.endereco_numero || 'S/N',
+      xCpl: settings.endereco_complemento || '',
+      xBairro: settings.endereco_bairro,
+      cMun: settings.endereco_municipio_codigo,
+      xMun: settings.endereco_municipio,
+      UF: settings.endereco_uf,
+      CEP: formatDocument(settings.endereco_cep || ''),
+      cPais: '1058',
+      xPais: 'BRASIL',
+      fone: formatDocument(settings.telefone || ''),
+    },
+  };
 }
 
-// Build Focus NFe payload
-function buildFocusNfePayload(invoice: any, items: any[], settings: any) {
-  const isCpf = formatDocument(invoice.dest_cpf_cnpj).length <= 11;
+/**
+ * Monta dados do destinatário a partir da invoice
+ */
+function buildDestinatario(invoice: any): NFeDestinatario {
+  const docNum = formatDocument(invoice.dest_cpf_cnpj);
+  const isCpf = docNum.length <= 11;
   
-  const payload: any = {
-    // Natureza da operação
-    natureza_operacao: invoice.natureza_operacao || 'VENDA DE MERCADORIA',
-    
-    // Forma de pagamento (0=À vista, 1=A prazo, 2=Outros)
-    forma_pagamento: '0',
-    
-    // Tipo de documento (0=Entrada, 1=Saída)
-    tipo_documento: '1',
-    
-    // Finalidade (1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução)
-    finalidade_emissao: '1',
-    
-    // Consumidor final (0=Normal, 1=Consumidor Final)
-    consumidor_final: '1',
-    
-    // Presença do comprador (1=Presencial, 2=Internet, 9=Outros)
-    presenca_comprador: '2', // Internet
-    
-    // Dados do destinatário
-    nome_destinatario: invoice.dest_nome,
-    cpf_destinatario: isCpf ? formatDocument(invoice.dest_cpf_cnpj) : undefined,
-    cnpj_destinatario: !isCpf ? formatDocument(invoice.dest_cpf_cnpj) : undefined,
-    
-    // Endereço do destinatário
-    logradouro_destinatario: invoice.dest_endereco_logradouro,
-    numero_destinatario: invoice.dest_endereco_numero || 'S/N',
-    complemento_destinatario: invoice.dest_endereco_complemento || '',
-    bairro_destinatario: invoice.dest_endereco_bairro,
-    municipio_destinatario: invoice.dest_endereco_municipio,
-    uf_destinatario: invoice.dest_endereco_uf,
-    cep_destinatario: formatCep(invoice.dest_endereco_cep),
-    
-    // Indicador de IE (1=Contribuinte, 2=Isento, 9=Não contribuinte)
-    indicador_inscricao_estadual_destinatario: '9',
-    
-    // Itens
-    items: items.map((item, idx) => ({
-      numero_item: idx + 1,
-      codigo_produto: item.codigo_produto,
-      descricao: item.descricao,
-      cfop: item.cfop,
-      ncm: item.ncm,
-      unidade_comercial: item.unidade || 'UN',
-      quantidade_comercial: item.quantidade,
-      valor_unitario_comercial: item.valor_unitario,
-      valor_bruto: item.valor_total,
-      unidade_tributavel: item.unidade || 'UN',
-      quantidade_tributavel: item.quantidade,
-      valor_unitario_tributavel: item.valor_unitario,
-      origem: String(item.origem || 0),
-      // Simples Nacional
-      icms_situacao_tributaria: settings.crt === 1 ? item.csosn || '102' : item.cst || '00',
-    })),
-    
-    // Totais
-    valor_produtos: invoice.valor_produtos,
-    valor_desconto: invoice.valor_desconto || 0,
-    valor_frete: invoice.valor_frete || 0,
-    valor_total: invoice.valor_total,
-    
-    // Informações adicionais
-    informacoes_adicionais_contribuinte: invoice.observacoes || '',
+  return {
+    CPF: isCpf ? docNum : undefined,
+    CNPJ: !isCpf ? docNum : undefined,
+    xNome: invoice.dest_nome,
+    indIEDest: 9, // Não contribuinte
+    enderDest: invoice.dest_endereco_logradouro ? {
+      xLgr: invoice.dest_endereco_logradouro || '',
+      nro: invoice.dest_endereco_numero || 'S/N',
+      xCpl: invoice.dest_endereco_complemento || '',
+      xBairro: invoice.dest_endereco_bairro || '',
+      cMun: invoice.dest_endereco_municipio_codigo || '',
+      xMun: invoice.dest_endereco_municipio || '',
+      UF: invoice.dest_endereco_uf || '',
+      CEP: formatDocument(invoice.dest_endereco_cep || ''),
+      cPais: '1058',
+      xPais: 'BRASIL',
+    } : undefined,
   };
+}
 
-  // Se tiver frete, adicionar modalidade
-  if (invoice.valor_frete > 0) {
-    payload.modalidade_frete = '0'; // Por conta do emitente
-  } else {
-    payload.modalidade_frete = '9'; // Sem frete
-  }
-
-  return payload;
+/**
+ * Monta lista de produtos a partir dos itens da invoice
+ */
+function buildProdutos(items: any[], settings: any): NFeItem[] {
+  return items.map((item, idx) => ({
+    nItem: idx + 1,
+    cProd: item.codigo_produto,
+    cEAN: 'SEM GTIN',
+    xProd: item.descricao,
+    NCM: item.ncm,
+    CFOP: item.cfop,
+    uCom: item.unidade || 'UN',
+    qCom: item.quantidade,
+    vUnCom: item.valor_unitario,
+    vProd: item.valor_total,
+    cEANTrib: 'SEM GTIN',
+    uTrib: item.unidade || 'UN',
+    qTrib: item.quantidade,
+    vUnTrib: item.valor_unitario,
+    indTot: 1,
+    // Tributação
+    ICMS: {
+      orig: item.origem || 0,
+      CSOSN: settings.crt === 1 ? (item.csosn || '102') : undefined,
+      CST: settings.crt !== 1 ? (item.cst || '00') : undefined,
+    },
+    PIS: {
+      CST: '99', // Outras operações
+      vBC: 0,
+      pPIS: 0,
+      vPIS: 0,
+    },
+    COFINS: {
+      CST: '99', // Outras operações
+      vBC: 0,
+      pCOFINS: 0,
+      vCOFINS: 0,
+    },
+  }));
 }
 
 serve(async (req) => {
@@ -108,6 +159,14 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const encryptionKey = Deno.env.get('FISCAL_ENCRYPTION_KEY');
+    
+    if (!encryptionKey) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Chave de criptografia não configurada' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -155,9 +214,13 @@ serve(async (req) => {
       );
     }
 
-    console.log('[fiscal-submit] Submitting invoice:', invoice_id);
+    console.log('[fiscal-submit] Processing invoice:', invoice_id);
 
-    // Get invoice
+    // ============================================
+    // 1. Buscar dados necessários
+    // ============================================
+    
+    // Invoice
     const { data: invoice, error: invoiceError } = await supabase
       .from('fiscal_invoices')
       .select('*')
@@ -172,7 +235,6 @@ serve(async (req) => {
       );
     }
 
-    // Check status
     if (invoice.status !== 'draft') {
       return new Response(
         JSON.stringify({ success: false, error: `NF-e não pode ser emitida. Status atual: ${invoice.status}` }),
@@ -180,7 +242,7 @@ serve(async (req) => {
       );
     }
 
-    // Get invoice items
+    // Itens
     const { data: items } = await supabase
       .from('fiscal_invoice_items')
       .select('*')
@@ -194,186 +256,357 @@ serve(async (req) => {
       );
     }
 
-    // Get fiscal settings (with token)
+    // Configurações fiscais
     const { data: settings, error: settingsError } = await supabase
       .from('fiscal_settings')
       .select('*')
       .eq('tenant_id', tenantId)
       .single();
 
-    if (settingsError || !settings || !settings.provider_token) {
+    if (settingsError || !settings) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Configurações fiscais ou token não encontrados.' }),
+        JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas.' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Update status to pending
+    // Verificar se tem certificado
+    if (!settings.certificate_data || !settings.certificate_iv) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Certificado digital não configurado.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============================================
+    // 2. Descriptografar e carregar certificado
+    // ============================================
+    
+    console.log('[fiscal-submit] Decrypting certificate...');
+    
+    let pfxBase64: string;
+    let certificate: ReturnType<typeof loadCertificate>;
+    
+    try {
+      pfxBase64 = await decryptCertificate(
+        settings.certificate_data,
+        settings.certificate_iv,
+        encryptionKey
+      );
+      
+      certificate = loadCertificate(pfxBase64, settings.certificate_password);
+      console.log('[fiscal-submit] Certificate loaded successfully');
+    } catch (certError: any) {
+      console.error('[fiscal-submit] Certificate error:', certError);
+      return new Response(
+        JSON.stringify({ success: false, error: `Erro ao carregar certificado: ${certError.message}` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============================================
+    // 3. Montar dados da NF-e
+    // ============================================
+    
+    const ufEmitente = settings.endereco_uf;
+    const ambiente = settings.ambiente === 'producao' ? 1 : 2;
+    
+    const emitente = buildEmitente(settings);
+    const destinatario = buildDestinatario(invoice);
+    const produtos = buildProdutos(items, settings);
+    
+    const nfeData: NFeData = {
+      cUF: ufEmitente,
+      natOp: invoice.natureza_operacao || 'VENDA DE MERCADORIA',
+      serie: invoice.serie,
+      nNF: invoice.numero,
+      dhEmi: new Date(),
+      tpNF: 1, // Saída
+      idDest: 1, // Operação interna
+      cMunFG: settings.endereco_municipio_codigo,
+      tpImp: 1, // DANFE normal
+      tpEmis: 1, // Normal
+      tpAmb: ambiente,
+      finNFe: 1, // Normal
+      indFinal: 1, // Consumidor final
+      indPres: 2, // Internet
+      emit: emitente,
+      dest: destinatario,
+      det: produtos,
+      transp: {
+        modFrete: invoice.valor_frete > 0 ? 0 : 9, // 0=Emitente, 9=Sem frete
+      },
+      pag: [{
+        tPag: '99', // Outros (o pagamento já foi processado no e-commerce)
+        vPag: invoice.valor_total,
+      }],
+      total: {
+        vProd: invoice.valor_produtos,
+        vDesc: invoice.valor_desconto || 0,
+        vFrete: invoice.valor_frete || 0,
+        vNF: invoice.valor_total,
+      },
+      infAdic: invoice.observacoes ? {
+        infCpl: invoice.observacoes,
+      } : undefined,
+    };
+
+    // ============================================
+    // 4. Construir XML da NF-e
+    // ============================================
+    
+    console.log('[fiscal-submit] Building NF-e XML...');
+    const nfeResult = buildNFeXml(nfeData);
+    console.log('[fiscal-submit] NF-e XML built, chave:', formatAccessKey(nfeResult.chaveAcesso));
+
+    // ============================================
+    // 5. Assinar XML
+    // ============================================
+    
+    console.log('[fiscal-submit] Signing XML...');
+    
+    let signedNFeXml: string;
+    try {
+      signedNFeXml = signNFeXml(nfeResult.xml, certificate);
+      console.log('[fiscal-submit] XML signed successfully');
+    } catch (signError: any) {
+      console.error('[fiscal-submit] Sign error:', signError);
+      return new Response(
+        JSON.stringify({ success: false, error: `Erro ao assinar XML: ${signError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============================================
+    // 6. Montar lote de envio
+    // ============================================
+    
+    const idLote = Date.now().toString().slice(-15);
+    const enviNFeXml = buildEnviNFeXml(signedNFeXml, idLote);
+    
+    console.log('[fiscal-submit] Batch XML built, idLote:', idLote);
+
+    // ============================================
+    // 7. Atualizar status para pending
+    // ============================================
+    
     await supabase
       .from('fiscal_invoices')
-      .update({ status: 'pending' })
+      .update({ 
+        status: 'pending',
+        chave_acesso: nfeResult.chaveAcesso,
+      })
       .eq('id', invoice_id);
 
-    // Build payload for Focus NFe
-    const focusPayload = buildFocusNfePayload(invoice, items, settings);
-    
-    // Determine API URL based on environment
-    const baseUrl = settings.ambiente === 'producao' 
-      ? 'https://api.focusnfe.com.br'
-      : 'https://homologacao.focusnfe.com.br';
-
-    // Generate reference ID (unique per request)
-    const refId = `${tenantId.substring(0, 8)}-${invoice.serie}-${invoice.numero}`;
-
-    console.log('[fiscal-submit] Sending to Focus NFe:', baseUrl, 'ref:', refId);
-
-    // Log request payload (sanitized)
+    // Log do envio
     await supabase
       .from('fiscal_invoice_events')
       .insert({
         invoice_id: invoice_id,
         tenant_id: tenantId,
         event_type: 'submitted',
-        event_data: { ref_id: refId, ambiente: settings.ambiente },
-        request_payload: { ...focusPayload, items_count: items.length },
+        event_data: { 
+          chave_acesso: nfeResult.chaveAcesso,
+          id_lote: idLote,
+          ambiente: settings.ambiente,
+          uf: ufEmitente,
+        },
         user_id: user.id,
       });
 
+    // ============================================
+    // 8. Enviar para SEFAZ
+    // ============================================
+    
+    const webServiceUrl = getSefazEndpoint(
+      ufEmitente, 
+      'NFeAutorizacao', 
+      settings.ambiente === 'producao' ? 'producao' : 'homologacao'
+    );
+    
+    console.log('[fiscal-submit] SEFAZ URL:', webServiceUrl);
+    
+    const soapEnvelope = buildSoapEnvelope('NFeAutorizacao4', enviNFeXml);
+    
     try {
-      // Send to Focus NFe
-      const response = await fetch(`${baseUrl}/v2/nfe?ref=${refId}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${btoa(settings.provider_token + ':')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(focusPayload),
-      });
-
-      const responseData = await response.json();
-      console.log('[fiscal-submit] Focus NFe response:', response.status, responseData);
-
-      // Log response
+      const soapResponse = await sendSoapRequest({
+        url: webServiceUrl,
+        action: 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote',
+        pfxBase64,
+        pfxPassword: settings.certificate_password,
+      }, soapEnvelope);
+      
+      console.log('[fiscal-submit] SEFAZ response status:', soapResponse.statusCode);
+      
+      // Log da resposta
       await supabase
         .from('fiscal_invoice_events')
         .insert({
           invoice_id: invoice_id,
           tenant_id: tenantId,
-          event_type: response.ok ? 'provider_response_success' : 'provider_response_error',
-          response_payload: responseData,
+          event_type: soapResponse.success ? 'sefaz_response' : 'sefaz_error',
+          response_payload: { 
+            statusCode: soapResponse.statusCode,
+            body: soapResponse.body.substring(0, 5000), // Limitar tamanho
+            error: soapResponse.error,
+          },
           user_id: user.id,
         });
-
-      if (response.ok && responseData.status === 'autorizado') {
-        // Authorized!
-        const updateData = {
-          status: 'authorized',
-          chave_acesso: responseData.chave_nfe,
-          protocolo: responseData.protocolo,
-          xml_autorizado: responseData.caminho_xml_nota_fiscal,
-          danfe_url: responseData.caminho_danfe,
-        };
-
+      
+      if (!soapResponse.success) {
+        // Reverter status
         await supabase
           .from('fiscal_invoices')
-          .update(updateData)
+          .update({ status: 'draft' })
           .eq('id', invoice_id);
-
-        // Increment numero_nfe_atual
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: soapResponse.error || `Erro na comunicação com SEFAZ (HTTP ${soapResponse.statusCode})`,
+          }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // ============================================
+      // 9. Processar resposta da SEFAZ
+      // ============================================
+      
+      const autResult = parseAutorizacaoResponse(soapResponse.body);
+      
+      if (!autResult) {
+        console.log('[fiscal-submit] Could not parse SEFAZ response');
+        
+        // Manter como pending para consulta posterior
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            status: 'pending',
+            message: 'Resposta da SEFAZ não pôde ser interpretada. Consulte o status.',
+            chave_acesso: nfeResult.chaveAcesso,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      console.log('[fiscal-submit] SEFAZ cStat:', autResult.cStat, 'xMotivo:', autResult.xMotivo);
+      
+      // Códigos de sucesso
+      if (autResult.cStat === '100' || autResult.cStat === '150') {
+        // Autorizado!
+        const xmlAutorizado = signedNFeXml + (autResult.xmlProt || '');
+        
+        await supabase
+          .from('fiscal_invoices')
+          .update({
+            status: 'authorized',
+            protocolo: autResult.nProt,
+            xml_autorizado: xmlAutorizado,
+          })
+          .eq('id', invoice_id);
+        
+        // Incrementar número da NF-e
         await supabase
           .from('fiscal_settings')
           .update({ numero_nfe_atual: settings.numero_nfe_atual + 1 })
           .eq('id', settings.id);
-
-        // Log success
+        
         await supabase
           .from('fiscal_invoice_events')
           .insert({
             invoice_id: invoice_id,
             tenant_id: tenantId,
             event_type: 'authorized',
-            event_data: { 
-              chave_acesso: responseData.chave_nfe,
-              protocolo: responseData.protocolo 
+            event_data: {
+              cStat: autResult.cStat,
+              xMotivo: autResult.xMotivo,
+              nProt: autResult.nProt,
+              dhRecbto: autResult.dhRecbto,
             },
             user_id: user.id,
           });
-
+        
         return new Response(
           JSON.stringify({ 
             success: true, 
             status: 'authorized',
-            chave_acesso: responseData.chave_nfe,
-            protocolo: responseData.protocolo,
-            danfe_url: responseData.caminho_danfe,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else if (responseData.status === 'processando_autorizacao') {
-        // Still processing
-        return new Response(
-          JSON.stringify({ 
-            success: true, 
-            status: 'pending',
-            message: 'NF-e em processamento. Consulte o status em alguns segundos.',
-            ref_id: refId,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        // Rejected or error
-        const errorMessage = responseData.mensagem_sefaz || responseData.mensagem || responseData.erros?.[0]?.mensagem || 'Erro desconhecido';
-        
-        await supabase
-          .from('fiscal_invoices')
-          .update({ 
-            status: 'rejected',
-            status_motivo: errorMessage,
-          })
-          .eq('id', invoice_id);
-
-        await supabase
-          .from('fiscal_invoice_events')
-          .insert({
-            invoice_id: invoice_id,
-            tenant_id: tenantId,
-            event_type: 'rejected',
-            event_data: { motivo: errorMessage },
-            user_id: user.id,
-          });
-
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            status: 'rejected',
-            error: errorMessage,
+            chave_acesso: nfeResult.chaveAcesso,
+            protocolo: autResult.nProt,
+            message: autResult.xMotivo,
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    } catch (providerError: any) {
-      console.error('[fiscal-submit] Provider error:', providerError);
       
-      // Revert to draft on network error
+      // Códigos de processamento (lote recebido, aguardando)
+      if (['103', '104', '105'].includes(autResult.cStat)) {
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            status: 'pending',
+            chave_acesso: nfeResult.chaveAcesso,
+            message: autResult.xMotivo || 'Lote em processamento. Consulte o status.',
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Qualquer outro código é rejeição
       await supabase
         .from('fiscal_invoices')
-        .update({ status: 'draft' })
+        .update({
+          status: 'rejected',
+          status_motivo: `[${autResult.cStat}] ${autResult.xMotivo}`,
+        })
         .eq('id', invoice_id);
-
+      
       await supabase
         .from('fiscal_invoice_events')
         .insert({
           invoice_id: invoice_id,
           tenant_id: tenantId,
-          event_type: 'provider_error',
-          event_data: { error: providerError.message },
+          event_type: 'rejected',
+          event_data: {
+            cStat: autResult.cStat,
+            xMotivo: autResult.xMotivo,
+          },
           user_id: user.id,
         });
-
+      
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Erro de conexão com o provedor fiscal: ${providerError.message}` 
+          status: 'rejected',
+          error: `[${autResult.cStat}] ${autResult.xMotivo}`,
+          chave_acesso: nfeResult.chaveAcesso,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+      
+    } catch (sefazError: any) {
+      console.error('[fiscal-submit] SEFAZ error:', sefazError);
+      
+      // Reverter status
+      await supabase
+        .from('fiscal_invoices')
+        .update({ status: 'draft' })
+        .eq('id', invoice_id);
+      
+      await supabase
+        .from('fiscal_invoice_events')
+        .insert({
+          invoice_id: invoice_id,
+          tenant_id: tenantId,
+          event_type: 'sefaz_error',
+          event_data: { error: sefazError.message },
+          user_id: user.id,
+        });
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Erro na comunicação com SEFAZ: ${sefazError.message}`,
         }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
