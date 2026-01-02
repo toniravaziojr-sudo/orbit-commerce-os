@@ -6,30 +6,36 @@ const corsHeaders = {
 };
 
 // ============================================================
-// AI-POWERED CONTENT CLASSIFIER
+// AI-POWERED UNIFIED EXTRACTOR + CLASSIFIER
 // ============================================================
-// Uses Lovable AI (gemini-2.5-flash) to semantically classify
-// HTML sections into appropriate block types and layouts.
+// Uses Lovable AI (gemini-2.5-flash) to:
+// 1. EXTRACT content (title, items, images, videos, buttons)
+// 2. CLASSIFY section type and layout
 // 
-// This enables the structural importer to create intelligent
-// page layouts similar to manual design work.
+// This is the SINGLE source of truth for content extraction.
+// No regex, no DOM parsing - the AI does everything.
 // ============================================================
 
-interface ClassificationResult {
+export interface ExtractedContent {
+  title: string | null;
+  subtitle: string | null;
+  items: Array<{
+    title: string;
+    description: string;
+    suggestedIcon: 'check' | 'shield' | 'zap' | 'star' | 'heart' | 'award' | 'truck' | 'clock' | 'gift' | 'percent' | null;
+  }>;
+  images: Array<{ src: string; alt: string }>;
+  videos: Array<{ url: string; type: 'youtube' | 'vimeo' | 'mp4' }>;
+  buttons: Array<{ text: string; url: string }>;
+  paragraphs: string[];
+}
+
+export interface ClassificationResult {
   sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'generic';
   layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split';
-  elements: {
-    hasHeading: boolean;
-    hasSubheading: boolean;
-    hasImage: boolean;
-    hasVideo: boolean;
-    hasList: boolean;
-    hasButton: boolean;
-    hasIcons: boolean;
-    itemCount: number;
-  };
   confidence: number;
   reasoning: string;
+  extractedContent: ExtractedContent;
 }
 
 interface ClassifyRequest {
@@ -37,92 +43,183 @@ interface ClassifyRequest {
   pageContext?: {
     title?: string;
     url?: string;
-    pageType?: string;
     sectionIndex?: number;
     totalSections?: number;
   };
 }
 
-const SYSTEM_PROMPT = `You are an expert web designer and content classifier. Your job is to analyze HTML fragments and classify them into semantic section types with appropriate layouts.
+const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo. Sua tarefa é analisar fragmentos HTML e:
 
-IMPORTANT RULES:
-1. You MUST respond with valid JSON matching the specified schema
-2. Be conservative - only classify as specific types when confident
-3. Consider visual hierarchy and content grouping
-4. Layout should match content: images + text = columns, multiple similar items = grid
+1. EXTRAIR o conteúdo relevante de forma estruturada
+2. CLASSIFICAR o tipo de seção e layout apropriado
 
-SECTION TYPES:
-- hero: Main banner/introduction with prominent heading, usually first section. Often has background image/video, CTA button
-- benefits: List of advantages/benefits with icons or checkmarks. "Why choose us", "Vantagens", "Benefícios"
-- features: Product/service features with descriptions. Similar to benefits but more detailed
-- testimonials: Customer reviews, quotes, ratings, feedback
-- faq: Questions and answers, accordion content
-- cta: Call-to-action section with button(s), conversion focused
-- about: Company info, "Quem somos", team, history, mission
-- contact: Contact information, forms, addresses, WhatsApp links
-- generic: Default when content doesn't fit other categories
+## REGRAS DE EXTRAÇÃO
 
-LAYOUT OPTIONS:
-- hero-centered: Hero with centered text, optional background
-- hero-split: Hero with image on one side, text on other
-- columns-image-left: Two columns, image on left, text on right
-- columns-image-right: Two columns, text on left, image on right
-- grid-2: 2-column grid for items
-- grid-3: 3-column grid for items (common for benefits/features)
-- grid-4: 4-column grid for items
-- stacked: Vertical stack, default for text-heavy content
+### Título e Subtítulo
+- Título: O heading mais importante (h1, h2) da seção
+- Subtítulo: Texto complementar logo após o título
 
-CLASSIFICATION TIPS:
-- Benefits/Features usually have 3-6 items with icons/emoji/checkmarks
-- Hero is usually the first section with large heading
-- CTA sections are short with prominent buttons
-- Testimonials have quotes, names, ratings
-- Consider Portuguese content patterns (common in e-commerce)`;
+### Items (para benefícios, features, etc.)
+- SEPARE título e descrição de cada item
+- Título: Texto curto e destacado (geralmente em negrito ou heading menor)
+- Descrição: Texto explicativo do item
+- Sugira um ícone baseado no conteúdo:
+  - check: confirmação, verificação, aprovação
+  - shield: proteção, segurança, garantia
+  - zap: rapidez, energia, velocidade
+  - star: qualidade, destaque, premium
+  - heart: amor, cuidado, saúde
+  - award: prêmio, reconhecimento, certificação
+  - truck: entrega, frete, logística
+  - clock: tempo, prazo, horário
+  - gift: presente, bônus, oferta
+  - percent: desconto, economia, promoção
 
-const CLASSIFICATION_FUNCTION = {
+### Imagens
+- Extraia src e alt de imagens significativas
+- IGNORE: ícones pequenos, logos de pagamento, decorações
+
+### Vídeos
+- YouTube: extraia URL do embed ou watch
+- Vimeo: extraia URL do embed
+- MP4: extraia src de <video>
+
+### Botões
+- Extraia texto e URL de links/botões de ação
+- Foque em CTAs principais
+
+### Parágrafos
+- Texto corrido importante que não se encaixa em items
+
+## O QUE IGNORAR
+- Menus de navegação
+- Footers e rodapés
+- Banners de cookies
+- Scripts e estilos
+- Breadcrumbs
+- Widgets de chat
+- Ícones decorativos
+
+## TIPOS DE SEÇÃO
+- hero: Banner principal, introdução, geralmente primeira seção
+- benefits: Lista de vantagens/benefícios com íconos
+- features: Características do produto/serviço
+- testimonials: Depoimentos, avaliações de clientes
+- faq: Perguntas e respostas
+- cta: Chamada para ação, conversão
+- about: Sobre a empresa, quem somos
+- contact: Informações de contato
+- generic: Quando não se encaixa em outra categoria
+
+## LAYOUTS
+- hero-centered: Hero centralizado
+- hero-split: Hero com imagem de um lado e texto do outro
+- columns-image-left: Duas colunas, imagem à esquerda
+- columns-image-right: Duas colunas, imagem à direita
+- grid-2: Grade de 2 colunas
+- grid-3: Grade de 3 colunas (comum para benefícios)
+- grid-4: Grade de 4 colunas
+- stacked: Empilhado verticalmente
+
+## DICAS
+- Benefícios geralmente têm 3-6 items com padrão visual repetido
+- Hero é geralmente a primeira seção com heading grande
+- CTA sections são curtas com botões proeminentes
+- Considere padrões de e-commerce brasileiro`;
+
+const EXTRACTION_FUNCTION = {
   type: "function",
   function: {
-    name: "classify_section",
-    description: "Classify an HTML section into a semantic type with layout recommendation",
+    name: "extract_and_classify",
+    description: "Extrair conteúdo e classificar uma seção HTML",
     parameters: {
       type: "object",
       properties: {
         sectionType: {
           type: "string",
           enum: ["hero", "benefits", "features", "testimonials", "faq", "cta", "about", "contact", "generic"],
-          description: "The semantic type of this section"
+          description: "Tipo semântico da seção"
         },
         layout: {
           type: "string",
           enum: ["columns-image-left", "columns-image-right", "grid-2", "grid-3", "grid-4", "stacked", "hero-centered", "hero-split"],
-          description: "Recommended layout for this section"
-        },
-        elements: {
-          type: "object",
-          properties: {
-            hasHeading: { type: "boolean", description: "Has a main heading (h1-h3)" },
-            hasSubheading: { type: "boolean", description: "Has a subtitle or secondary heading" },
-            hasImage: { type: "boolean", description: "Contains significant image(s)" },
-            hasVideo: { type: "boolean", description: "Contains video (YouTube, Vimeo, mp4)" },
-            hasList: { type: "boolean", description: "Has list of items (ul/ol or repeated patterns)" },
-            hasButton: { type: "boolean", description: "Has CTA button(s)" },
-            hasIcons: { type: "boolean", description: "Has icons or emoji as visual markers" },
-            itemCount: { type: "number", description: "Number of similar repeated items (for grids)" }
-          },
-          required: ["hasHeading", "hasSubheading", "hasImage", "hasVideo", "hasList", "hasButton", "hasIcons", "itemCount"]
+          description: "Layout recomendado"
         },
         confidence: {
           type: "number",
           minimum: 0,
           maximum: 1,
-          description: "Confidence in classification (0-1)"
+          description: "Confiança na classificação (0-1)"
         },
         reasoning: {
           type: "string",
-          description: "Brief explanation of classification reasoning"
+          description: "Breve explicação do raciocínio"
+        },
+        extractedContent: {
+          type: "object",
+          properties: {
+            title: { type: ["string", "null"], description: "Título principal da seção" },
+            subtitle: { type: ["string", "null"], description: "Subtítulo ou texto complementar" },
+            items: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  title: { type: "string", description: "Título do item (texto curto e destacado)" },
+                  description: { type: "string", description: "Descrição do item (texto explicativo)" },
+                  suggestedIcon: { 
+                    type: ["string", "null"], 
+                    enum: ["check", "shield", "zap", "star", "heart", "award", "truck", "clock", "gift", "percent", null],
+                    description: "Ícone sugerido baseado no conteúdo"
+                  }
+                },
+                required: ["title", "description"]
+              },
+              description: "Lista de items (benefícios, features, etc.)"
+            },
+            images: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  src: { type: "string" },
+                  alt: { type: "string" }
+                },
+                required: ["src", "alt"]
+              }
+            },
+            videos: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  url: { type: "string" },
+                  type: { type: "string", enum: ["youtube", "vimeo", "mp4"] }
+                },
+                required: ["url", "type"]
+              }
+            },
+            buttons: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  text: { type: "string" },
+                  url: { type: "string" }
+                },
+                required: ["text", "url"]
+              }
+            },
+            paragraphs: {
+              type: "array",
+              items: { type: "string" },
+              description: "Parágrafos de texto corrido"
+            }
+          },
+          required: ["title", "subtitle", "items", "images", "videos", "buttons", "paragraphs"]
         }
       },
-      required: ["sectionType", "layout", "elements", "confidence", "reasoning"],
+      required: ["sectionType", "layout", "confidence", "reasoning", "extractedContent"],
       additionalProperties: false
     }
   }
@@ -136,32 +233,50 @@ function stripHtmlForAnalysis(html: string): string {
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
   
-  // Truncate if too long (keep first ~8000 chars)
-  if (cleaned.length > 8000) {
-    cleaned = cleaned.substring(0, 8000) + '... [truncated]';
+  // Truncate if too long (keep first ~12000 chars for better extraction)
+  if (cleaned.length > 12000) {
+    cleaned = cleaned.substring(0, 12000) + '... [truncado]';
   }
   
   return cleaned;
 }
 
 function createUserPrompt(html: string, context?: ClassifyRequest['pageContext']): string {
-  let prompt = 'Analyze this HTML section and classify it:\n\n';
+  let prompt = 'Analise este HTML e extraia o conteúdo + classifique:\n\n';
   
   if (context) {
-    if (context.title) prompt += `Page Title: ${context.title}\n`;
+    if (context.title) prompt += `Título da Página: ${context.title}\n`;
     if (context.sectionIndex !== undefined && context.totalSections) {
-      prompt += `Section: ${context.sectionIndex + 1} of ${context.totalSections}\n`;
+      prompt += `Seção: ${context.sectionIndex + 1} de ${context.totalSections}\n`;
       if (context.sectionIndex === 0) {
-        prompt += `(This is the FIRST section - likely hero or main intro)\n`;
+        prompt += `(Esta é a PRIMEIRA seção - provavelmente hero ou intro principal)\n`;
       }
     }
     prompt += '\n';
   }
   
   prompt += '```html\n' + html + '\n```\n\n';
-  prompt += 'Classify this section using the classify_section function.';
+  prompt += 'Use a função extract_and_classify para extrair o conteúdo e classificar esta seção.';
   
   return prompt;
+}
+
+function createFallbackResult(): ClassificationResult {
+  return {
+    sectionType: 'generic',
+    layout: 'stacked',
+    confidence: 0.1,
+    reasoning: 'Fallback - IA não disponível ou erro',
+    extractedContent: {
+      title: null,
+      subtitle: null,
+      items: [],
+      images: [],
+      videos: [],
+      buttons: [],
+      paragraphs: [],
+    },
+  };
 }
 
 serve(async (req) => {
@@ -176,7 +291,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'HTML content is required and must be at least 50 characters' 
+          error: 'HTML é obrigatório e deve ter pelo menos 50 caracteres' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       );
@@ -184,34 +299,18 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      console.error('[CLASSIFY] LOVABLE_API_KEY not configured');
-      // Return fallback classification
+      console.error('[CLASSIFY] LOVABLE_API_KEY não configurada');
       return new Response(
         JSON.stringify({
           success: true,
-          classification: {
-            sectionType: 'generic',
-            layout: 'stacked',
-            elements: {
-              hasHeading: html.includes('<h1') || html.includes('<h2'),
-              hasSubheading: html.includes('<h3') || html.includes('<h4'),
-              hasImage: html.includes('<img'),
-              hasVideo: html.includes('youtube') || html.includes('vimeo'),
-              hasList: html.includes('<ul') || html.includes('<ol'),
-              hasButton: html.includes('button') || html.includes('btn'),
-              hasIcons: false,
-              itemCount: 0,
-            },
-            confidence: 0.3,
-            reasoning: 'Fallback classification - AI not available',
-          },
+          classification: createFallbackResult(),
           fallback: true,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[CLASSIFY] Classifying section: ${html.length} chars`);
+    console.log(`[CLASSIFY] Processando seção: ${html.length} chars`);
     
     const cleanedHtml = stripHtmlForAnalysis(html);
     const userPrompt = createUserPrompt(cleanedHtml, pageContext);
@@ -228,49 +327,52 @@ serve(async (req) => {
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        tools: [CLASSIFICATION_FUNCTION],
-        tool_choice: { type: 'function', function: { name: 'classify_section' } },
+        tools: [EXTRACTION_FUNCTION],
+        tool_choice: { type: 'function', function: { name: 'extract_and_classify' } },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[CLASSIFY] AI API error:', response.status, errorText);
+      console.error('[CLASSIFY] Erro da API:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ success: false, error: 'Rate limit exceeded, try again later' }),
+          JSON.stringify({ success: false, error: 'Rate limit excedido, tente novamente mais tarde' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ success: false, error: 'AI credits exhausted' }),
+          JSON.stringify({ success: false, error: 'Créditos de IA esgotados' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 402 }
         );
       }
       
-      throw new Error(`AI API error: ${response.status}`);
+      throw new Error(`Erro da API: ${response.status}`);
     }
 
     const aiResponse = await response.json();
     
     // Extract function call result
     const toolCall = aiResponse.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== 'classify_section') {
-      console.error('[CLASSIFY] Unexpected AI response format:', JSON.stringify(aiResponse));
-      throw new Error('AI did not return expected function call');
+    if (!toolCall || toolCall.function.name !== 'extract_and_classify') {
+      console.error('[CLASSIFY] Formato de resposta inesperado:', JSON.stringify(aiResponse));
+      throw new Error('IA não retornou a função esperada');
     }
 
     let classification: ClassificationResult;
     try {
       classification = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
-      console.error('[CLASSIFY] Failed to parse AI response:', toolCall.function.arguments);
-      throw new Error('Failed to parse AI classification');
+      console.error('[CLASSIFY] Falha ao parsear resposta:', toolCall.function.arguments);
+      throw new Error('Falha ao parsear classificação da IA');
     }
 
-    console.log(`[CLASSIFY] Result: type=${classification.sectionType}, layout=${classification.layout}, confidence=${classification.confidence}`);
+    // Log summary
+    const content = classification.extractedContent;
+    console.log(`[CLASSIFY] Resultado: tipo=${classification.sectionType}, layout=${classification.layout}, conf=${classification.confidence}`);
+    console.log(`[CLASSIFY] Conteúdo: título="${content.title?.substring(0, 50) || 'null'}", items=${content.items.length}, imgs=${content.images.length}, vids=${content.videos.length}, btns=${content.buttons.length}`);
 
     return new Response(
       JSON.stringify({
@@ -281,29 +383,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[CLASSIFY] Error:', error);
+    console.error('[CLASSIFY] Erro:', error);
     
-    // Return fallback on any error
     return new Response(
       JSON.stringify({
         success: true,
-        classification: {
-          sectionType: 'generic',
-          layout: 'stacked',
-          elements: {
-            hasHeading: false,
-            hasSubheading: false,
-            hasImage: false,
-            hasVideo: false,
-            hasList: false,
-            hasButton: false,
-            hasIcons: false,
-            itemCount: 0,
-          },
-          confidence: 0.1,
-          reasoning: `Error classification fallback: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        },
+        classification: createFallbackResult(),
         fallback: true,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
