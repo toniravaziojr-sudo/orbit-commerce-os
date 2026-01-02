@@ -231,3 +231,18 @@ verify_jwt = false
 
 [functions.import-page-v5]
 verify_jwt = false
+
+[functions.fiscal-settings]
+verify_jwt = true
+
+[functions.fiscal-validate-order]
+verify_jwt = true
+
+[functions.fiscal-create-draft]
+verify_jwt = true
+
+[functions.fiscal-submit]
+verify_jwt = true
+
+[functions.fiscal-get-status]
+verify_jwt = true
