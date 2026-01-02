@@ -6,7 +6,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { getSefazEndpoint, getUfCode } from "../_shared/sefaz-endpoints.ts";
+import { getSefazEndpoint } from "../_shared/sefaz-endpoints.ts";
 import { formatAccessKey } from "../_shared/access-key.ts";
 import { buildNFeXml, buildEnviNFeXml, type NFeData, type NFeEmitente, type NFeDestinatario, type NFeItem } from "../_shared/nfe-builder.ts";
 import { loadCertificate, signNFeXml } from "../_shared/xml-signer.ts";
@@ -15,40 +15,12 @@ import {
   sendSoapRequest, 
   parseAutorizacaoResponse 
 } from "../_shared/soap-client.ts";
+import { loadTenantCertificate } from "../_shared/certificate-utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-/**
- * Descriptografa o certificado do tenant
- */
-async function decryptCertificate(
-  encryptedData: string, 
-  iv: string, 
-  encryptionKey: string
-): Promise<string> {
-  const keyBytes = new TextEncoder().encode(encryptionKey.padEnd(32, '0').slice(0, 32));
-  const ivBytes = Uint8Array.from(atob(iv), c => c.charCodeAt(0));
-  const encryptedBytes = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    keyBytes,
-    { name: 'AES-CBC' },
-    false,
-    ['decrypt']
-  );
-  
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-CBC', iv: ivBytes },
-    cryptoKey,
-    encryptedBytes
-  );
-  
-  return new TextDecoder().decode(decrypted);
-}
 
 /**
  * Formata CNPJ/CPF removendo caracteres não numéricos
@@ -270,36 +242,27 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se tem certificado
-    if (!settings.certificate_data || !settings.certificate_iv) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Certificado digital não configurado.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // ============================================
-    // 2. Descriptografar e carregar certificado
+    // 2. Carregar e validar certificado
     // ============================================
     
-    console.log('[fiscal-submit] Decrypting certificate...');
+    console.log('[fiscal-submit] Loading certificate...');
     
     let pfxBase64: string;
+    let certPassword: string;
     let certificate: ReturnType<typeof loadCertificate>;
     
     try {
-      pfxBase64 = await decryptCertificate(
-        settings.certificate_data,
-        settings.certificate_iv,
-        encryptionKey
-      );
+      const certData = await loadTenantCertificate(settings, encryptionKey);
+      pfxBase64 = certData.pfxBase64;
+      certPassword = certData.password;
       
-      certificate = loadCertificate(pfxBase64, settings.certificate_password);
+      certificate = loadCertificate(pfxBase64, certPassword);
       console.log('[fiscal-submit] Certificate loaded successfully');
     } catch (certError: any) {
       console.error('[fiscal-submit] Certificate error:', certError);
       return new Response(
-        JSON.stringify({ success: false, error: `Erro ao carregar certificado: ${certError.message}` }),
+        JSON.stringify({ success: false, error: certError.message || 'Erro ao carregar certificado' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -433,7 +396,7 @@ serve(async (req) => {
         url: webServiceUrl,
         action: 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote',
         pfxBase64,
-        pfxPassword: settings.certificate_password,
+        pfxPassword: certPassword,
       }, soapEnvelope);
       
       console.log('[fiscal-submit] SEFAZ response status:', soapResponse.statusCode);
@@ -506,10 +469,10 @@ serve(async (req) => {
           })
           .eq('id', invoice_id);
         
-        // Incrementar número da NF-e
+        // Incrementar número da NF-e atomicamente
         await supabase
           .from('fiscal_settings')
-          .update({ numero_nfe_atual: settings.numero_nfe_atual + 1 })
+          .update({ numero_nfe_atual: (settings.numero_nfe_atual || 1) + 1 })
           .eq('id', settings.id);
         
         await supabase
