@@ -3277,7 +3277,7 @@ async function importPage(
         }
         
         // Check if normalization produced meaningful output
-        const hasNormalizedContent = normalizedOutput.title || normalizedOutput.videoId || 
+        const hasNormalizedContent = normalizedOutput.title || normalizedOutput.videoUrl || 
           normalizedOutput.bodyHtml.length > 50 || normalizedOutput.ctaButton;
         
         if (hasNormalizedContent) {
@@ -3293,7 +3293,7 @@ async function importPage(
               : block.type === 'Button' 
                 ? block.props.text
                 : block.type === 'YouTubeVideo'
-                  ? block.props.videoId
+                  ? block.props.url
                   : '';
             console.log(`[IMPORT]   - ${block.type}: ${preview}`);
           }

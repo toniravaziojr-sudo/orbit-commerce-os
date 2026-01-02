@@ -1,5 +1,5 @@
 // =====================================================
-// SHOPIFY OUTPUT NORMALIZER v1
+// SHOPIFY OUTPUT NORMALIZER v2
 // =====================================================
 // Normaliza ordem e formatação dos elementos extraídos
 // após seed-based extraction (V6)
@@ -8,224 +8,318 @@
 // 1. Ordem canônica: Heading → Video → Body text → CTA
 // 2. Remover ruídos: "Share", títulos duplicados do YouTube
 // 3. Converter formatação: headings em vez de texto plano
+// 4. NUNCA colapsar tudo em 1 RichText - cada seção = bloco separado
+// 5. YouTubeVideo DEVE ter url preenchida (não apenas videoId)
 // =====================================================
 
 interface NormalizedOutput {
   title: string | null;
-  videoId: string | null;
+  videoUrl: string | null; // CHANGED: URL completa, não apenas ID
   bodyHtml: string;
   ctaButton: { text: string; href: string } | null;
   logs: string[];
 }
 
-// Patterns for noise removal
-const NOISE_PATTERNS = [
-  /^Share$/im,
-  /^Compartilhar$/im,
-  /^Compartilhe$/im,
-  /- YouTube$/im,
-  /^Watch on YouTube$/im,
-  /^Assistir no YouTube$/im,
-  /^Assista no YouTube$/im,
-];
-
 // Noise phrases that should be removed from text
 const NOISE_PHRASES = [
-  'Share',
-  'Compartilhar',
-  'Compartilhe',
-  '- YouTube',
-  'Watch on YouTube',
-  'Assistir no YouTube',
-  'Assista no YouTube',
+  'share',
+  'compartilhar',
+  'compartilhe',
+  'watch on youtube',
+  'assistir no youtube',
+  'assista no youtube',
+  'skin care',
+  'brinco',
+  'pulseira',
+  'mais pesquisados',
+  'cnpj',
+  'termos de uso',
+  'política de privacidade',
+  'política de troca',
+  'política de reembolso',
+  'fale conosco',
+  'central de ajuda',
+  'sobre nós',
+  'quem somos',
+];
+
+// Footer/trending blacklist patterns
+const BLACKLIST_PATTERNS = [
+  /skin\s*care/i,
+  /brinco/i,
+  /pulseira/i,
+  /acessório/i,
+  /colares?/i,
+  /anéis?/i,
+  /mais\s+pesquisados?/i,
+  /mais\s+vendidos?/i,
+  /cnpj/i,
+  /termos?\s+de\s+uso/i,
+  /polític/i,
+  /fale\s+conosco/i,
+  /central\s+de\s+ajuda/i,
+  /sobre\s+nós/i,
+  /quem\s+somos/i,
+  /todos\s+os\s+direitos/i,
+  /copyright/i,
 ];
 
 /**
  * Normaliza o HTML extraído para formato estruturado
- * Aplica ordem canônica e remove ruídos
+ * V2: NÃO colapsa conteúdo, preserva estrutura
  */
 export function normalizeShopifyOutput(
   extractedHtml: string,
   pageTitle: string,
   logs: string[]
 ): NormalizedOutput {
-  logs.push(`[NORMALIZER] Starting normalization for: "${pageTitle.substring(0, 50)}..."`);
-  logs.push(`[NORMALIZER] Input HTML: ${extractedHtml.length} chars`);
+  logs.push(`[NORMALIZER V2] Starting normalization for: "${pageTitle.substring(0, 50)}..."`);
+  logs.push(`[NORMALIZER V2] Input HTML: ${extractedHtml.length} chars`);
   
   const result: NormalizedOutput = {
     title: null,
-    videoId: null,
+    videoUrl: null,
     bodyHtml: '',
     ctaButton: null,
     logs,
   };
   
-  // Step 1: Extract video ID if present
-  const videoMatch = extractedHtml.match(/<iframe[^>]+src=["'][^"']*(?:youtube\.com\/embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*["'][^>]*>/i);
+  // Step 1: Extract video URL (full URL, not just ID)
+  const videoMatch = extractedHtml.match(/<iframe[^>]+src=["']([^"']*(?:youtube\.com\/embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*)["'][^>]*>/i);
   if (videoMatch) {
-    result.videoId = videoMatch[1];
-    logs.push(`[NORMALIZER] Extracted video ID: ${result.videoId}`);
+    const videoId = videoMatch[2];
+    result.videoUrl = `https://www.youtube.com/embed/${videoId}`;
+    logs.push(`[NORMALIZER V2] Extracted video URL: ${result.videoUrl}`);
   }
   
   // Step 2: Extract CTA button
   const ctaPatterns = [
     /<a[^>]+href=["']([^"']+)["'][^>]*class=["'][^"']*(?:btn|button|cta)[^"']*["'][^>]*>([^<]+)<\/a>/gi,
     /<a[^>]+class=["'][^"']*(?:btn|button|cta)[^"']*["'][^>]*href=["']([^"']+)["'][^>]*>([^<]+)<\/a>/gi,
-    /<button[^>]*>([^<]+)<\/button>/gi,
   ];
   
   for (const pattern of ctaPatterns) {
     const match = pattern.exec(extractedHtml);
-    if (match) {
-      if (match.length === 3) {
-        result.ctaButton = { href: match[1], text: cleanText(match[2]) };
-      } else if (match.length === 2) {
-        result.ctaButton = { href: '#', text: cleanText(match[1]) };
-      }
-      logs.push(`[NORMALIZER] Extracted CTA: "${result.ctaButton?.text}" -> ${result.ctaButton?.href}`);
-      break;
-    }
-  }
-  
-  // Step 3: Extract text content and clean it
-  let textContent = extractedHtml;
-  
-  // Remove iframes (videos) from text processing
-  textContent = textContent.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
-  
-  // Remove script/style
-  textContent = textContent.replace(/<script[\s\S]*?<\/script>/gi, '');
-  textContent = textContent.replace(/<style[\s\S]*?<\/style>/gi, '');
-  
-  // Get plain text for analysis
-  const plainText = textContent.replace(/<[^>]+>/g, '\n').replace(/\s+/g, ' ').trim();
-  logs.push(`[NORMALIZER] Plain text: ${plainText.length} chars`);
-  
-  // Split into lines for processing
-  const lines = plainText.split(/\n/).map(l => l.trim()).filter(l => l.length > 0);
-  logs.push(`[NORMALIZER] Lines before cleaning: ${lines.length}`);
-  
-  // Step 4: Remove noise and duplicates
-  const cleanedLines: string[] = [];
-  const seenNormalized = new Set<string>();
-  let removedNoise = 0;
-  let removedDupes = 0;
-  
-  for (const line of lines) {
-    // Check for noise patterns
-    let isNoise = false;
-    for (const phrase of NOISE_PHRASES) {
-      if (line.toLowerCase() === phrase.toLowerCase() || 
-          line.toLowerCase().trim() === phrase.toLowerCase().trim()) {
-        isNoise = true;
-        removedNoise++;
-        logs.push(`[NORMALIZER] Removed noise: "${line.substring(0, 50)}"`);
+    if (match && match.length === 3) {
+      const ctaText = cleanText(match[2]);
+      const ctaHref = cleanText(match[1]);
+      
+      // Validate CTA is not noise
+      if (ctaText.length > 2 && !isNoise(ctaText)) {
+        result.ctaButton = { href: ctaHref, text: ctaText };
+        logs.push(`[NORMALIZER V2] Extracted CTA: "${result.ctaButton.text}" -> ${result.ctaButton.href}`);
         break;
       }
     }
-    if (isNoise) continue;
-    
-    // Check for YouTube title duplicates (if we have a video)
-    if (result.videoId) {
-      // Remove lines that look like video titles (repeated or with "- YouTube")
-      if (line.includes('- YouTube') || 
-          line.toLowerCase().includes('youtube') ||
-          line.toLowerCase().includes('entenda como funciona')) {
-        // Check if this is a duplicate of the page title
-        const normalizedLine = normalizeForComparison(line.replace(/- YouTube$/i, '').trim());
-        const normalizedTitle = normalizeForComparison(pageTitle);
-        
-        if (normalizedLine === normalizedTitle || 
-            levenshteinSimilarity(normalizedLine, normalizedTitle) > 0.8) {
-          removedDupes++;
-          logs.push(`[NORMALIZER] Removed video title dupe: "${line.substring(0, 50)}"`);
-          continue;
+  }
+  
+  // Step 3: Extract structured content (not collapsed)
+  // Remove scripts, styles, iframes, buttons/CTAs
+  let contentHtml = extractedHtml;
+  contentHtml = contentHtml.replace(/<script[\s\S]*?<\/script>/gi, '');
+  contentHtml = contentHtml.replace(/<style[\s\S]*?<\/style>/gi, '');
+  contentHtml = contentHtml.replace(/<iframe[\s\S]*?<\/iframe>/gi, '');
+  contentHtml = contentHtml.replace(/<a[^>]+class=["'][^"']*(?:btn|button|cta)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi, '');
+  
+  // Step 4: Parse HTML structure to find meaningful sections
+  // Look for H1/H2/H3 headings and paragraphs
+  const titleH1 = extractFirstHeading(contentHtml, 'h1');
+  const titleH2 = extractFirstHeading(contentHtml, 'h2');
+  
+  // Determine the main title (prefer page title match)
+  const normalizedPageTitle = normalizeForComparison(pageTitle);
+  
+  if (titleH1) {
+    const normalizedH1 = normalizeForComparison(titleH1);
+    if (normalizedH1.includes(normalizedPageTitle.substring(0, 20)) || 
+        normalizedPageTitle.includes(normalizedH1.substring(0, 20))) {
+      result.title = titleH1;
+      logs.push(`[NORMALIZER V2] Title from H1: "${result.title}"`);
+    }
+  }
+  
+  if (!result.title && titleH2) {
+    const normalizedH2 = normalizeForComparison(titleH2);
+    if (normalizedH2.includes(normalizedPageTitle.substring(0, 20)) || 
+        normalizedPageTitle.includes(normalizedH2.substring(0, 20))) {
+      result.title = titleH2;
+      logs.push(`[NORMALIZER V2] Title from H2: "${result.title}"`);
+    }
+  }
+  
+  // If no heading matches, use page title
+  if (!result.title) {
+    // Clean up page title (remove " – Loja" suffix etc)
+    let cleanTitle = pageTitle.replace(/\s*[–-]\s*.+$/, '').trim();
+    if (cleanTitle.length > 3) {
+      result.title = cleanTitle;
+      logs.push(`[NORMALIZER V2] Title from page title: "${result.title}"`);
+    }
+  }
+  
+  // Step 5: Extract body sections
+  // Look for specific patterns like "GRAU DE CALVÍCIE"
+  const bodyParts: string[] = [];
+  
+  // Find all headings in content (h2, h3, h4)
+  const headingMatches = contentHtml.matchAll(/<(h[2-4])[^>]*>([\s\S]*?)<\/\1>/gi);
+  for (const match of headingMatches) {
+    const headingText = cleanTextFromHtml(match[2]);
+    if (headingText.length > 3 && !isNoise(headingText) && headingText !== result.title) {
+      bodyParts.push(`<h3>${headingText}</h3>`);
+      logs.push(`[NORMALIZER V2] Found body heading: "${headingText.substring(0, 40)}"`);
+    }
+  }
+  
+  // Find paragraphs with meaningful content
+  const paragraphMatches = contentHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+  for (const match of paragraphMatches) {
+    const paraText = cleanTextFromHtml(match[1]);
+    if (paraText.length > 20 && !isNoise(paraText)) {
+      // Check against blacklist
+      let isBlacklisted = false;
+      for (const pattern of BLACKLIST_PATTERNS) {
+        if (pattern.test(paraText)) {
+          isBlacklisted = true;
+          logs.push(`[NORMALIZER V2] Blacklisted paragraph: "${paraText.substring(0, 30)}..."`);
+          break;
         }
       }
-    }
-    
-    // Check for exact duplicates (normalized)
-    const normalizedLine = normalizeForComparison(line);
-    if (seenNormalized.has(normalizedLine)) {
-      removedDupes++;
-      logs.push(`[NORMALIZER] Removed duplicate: "${line.substring(0, 40)}"`);
-      continue;
-    }
-    
-    seenNormalized.add(normalizedLine);
-    cleanedLines.push(line);
-  }
-  
-  logs.push(`[NORMALIZER] Cleaned lines: ${cleanedLines.length} (removed ${removedNoise} noise, ${removedDupes} dupes)`);
-  
-  // Step 5: Identify title (first significant heading or first line)
-  if (cleanedLines.length > 0) {
-    // Check if first line matches page title
-    const firstLine = cleanedLines[0];
-    const normalizedFirst = normalizeForComparison(firstLine);
-    const normalizedPageTitle = normalizeForComparison(pageTitle);
-    
-    if (normalizedFirst === normalizedPageTitle || 
-        levenshteinSimilarity(normalizedFirst, normalizedPageTitle) > 0.7) {
-      result.title = firstLine;
-      cleanedLines.shift(); // Remove from body
-      logs.push(`[NORMALIZER] Title extracted: "${result.title}"`);
+      if (!isBlacklisted) {
+        bodyParts.push(`<p>${paraText}</p>`);
+        logs.push(`[NORMALIZER V2] Found body paragraph: "${paraText.substring(0, 40)}..."`);
+      }
     }
   }
   
-  // Step 6: Build structured body HTML
-  if (cleanedLines.length > 0) {
-    const bodyParts: string[] = [];
-    let currentParagraph: string[] = [];
+  // If no structured content found, try to extract from plain text
+  if (bodyParts.length === 0) {
+    logs.push(`[NORMALIZER V2] No structured content found, trying plain text extraction`);
     
-    for (const line of cleanedLines) {
-      // Check if line looks like a heading (ALL CAPS, short, no punctuation)
+    // Get plain text, preserving some structure
+    let plainText = contentHtml
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    // Split into lines
+    const lines = plainText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 3);
+    
+    let cleanedCount = 0;
+    let noiseCount = 0;
+    
+    for (const line of lines) {
+      if (isNoise(line)) {
+        noiseCount++;
+        continue;
+      }
+      
+      // Check blacklist
+      let isBlacklisted = false;
+      for (const pattern of BLACKLIST_PATTERNS) {
+        if (pattern.test(line)) {
+          isBlacklisted = true;
+          break;
+        }
+      }
+      if (isBlacklisted) {
+        noiseCount++;
+        continue;
+      }
+      
+      // Skip if it's the title or video title
+      if (result.title && normalizeForComparison(line) === normalizeForComparison(result.title)) {
+        continue;
+      }
+      
+      // Check if it's a heading (ALL CAPS, short)
       if (isLikelyHeading(line)) {
-        // Flush current paragraph
-        if (currentParagraph.length > 0) {
-          bodyParts.push(`<p>${currentParagraph.join(' ')}</p>`);
-          currentParagraph = [];
-        }
-        // Add as heading
         bodyParts.push(`<h3>${line}</h3>`);
-        logs.push(`[NORMALIZER] Formatted as heading: "${line.substring(0, 30)}"`);
-      } else {
-        currentParagraph.push(line);
+      } else if (line.length > 20) {
+        bodyParts.push(`<p>${line}</p>`);
       }
+      cleanedCount++;
+      
+      // Limit to reasonable amount
+      if (cleanedCount >= 10) break;
     }
     
-    // Flush remaining paragraph
-    if (currentParagraph.length > 0) {
-      bodyParts.push(`<p>${currentParagraph.join(' ')}</p>`);
-    }
-    
-    result.bodyHtml = bodyParts.join('\n');
+    logs.push(`[NORMALIZER V2] Plain text extraction: ${cleanedCount} lines kept, ${noiseCount} noise removed`);
   }
   
-  logs.push(`[NORMALIZER] Final body HTML: ${result.bodyHtml.length} chars`);
-  logs.push(`[NORMALIZER] Result: title=${!!result.title}, video=${!!result.videoId}, body=${result.bodyHtml.length}chars, cta=${!!result.ctaButton}`);
+  // Deduplicate body parts
+  const uniqueBodyParts: string[] = [];
+  const seenContent = new Set<string>();
+  
+  for (const part of bodyParts) {
+    const normalized = normalizeForComparison(part.replace(/<[^>]+>/g, ''));
+    if (!seenContent.has(normalized) && normalized.length > 3) {
+      seenContent.add(normalized);
+      uniqueBodyParts.push(part);
+    }
+  }
+  
+  result.bodyHtml = uniqueBodyParts.join('\n');
+  
+  logs.push(`[NORMALIZER V2] Final body HTML: ${result.bodyHtml.length} chars, ${uniqueBodyParts.length} parts`);
+  logs.push(`[NORMALIZER V2] Result: title=${!!result.title}, video=${!!result.videoUrl}, body=${result.bodyHtml.length}chars, cta=${!!result.ctaButton}`);
   
   return result;
 }
 
 /**
+ * Extract first heading of given type
+ */
+function extractFirstHeading(html: string, tag: string): string | null {
+  const regex = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i');
+  const match = html.match(regex);
+  if (match) {
+    return cleanTextFromHtml(match[1]);
+  }
+  return null;
+}
+
+/**
+ * Check if text is noise
+ */
+function isNoise(text: string): boolean {
+  const normalized = text.toLowerCase().trim();
+  
+  // Check against noise phrases
+  for (const phrase of NOISE_PHRASES) {
+    if (normalized === phrase || normalized.includes(phrase)) {
+      return true;
+    }
+  }
+  
+  // Check for YouTube title duplicates
+  if (normalized.includes('- youtube') || normalized.endsWith('youtube')) {
+    return true;
+  }
+  
+  // Very short text is likely noise
+  if (normalized.length < 3) return true;
+  
+  // Single word that looks like a menu item
+  if (!normalized.includes(' ') && normalized.length < 15) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * Verifica se uma linha parece ser um heading
- * (ALL CAPS, curta, sem pontuação final)
  */
 function isLikelyHeading(line: string): boolean {
-  // All caps check
   const isAllCaps = line === line.toUpperCase() && /[A-ZÀ-Ú]/.test(line);
-  
-  // Length check (headings are typically short)
-  const isShort = line.length <= 50;
-  
-  // No ending punctuation (except : or ?)
+  const isShort = line.length <= 60;
   const noEndPunctuation = !/[.!,]$/.test(line);
-  
-  // Has at least one letter
   const hasLetters = /[a-zA-ZÀ-ú]/.test(line);
   
-  // Common heading patterns in Portuguese
   const headingPatterns = [
     /^grau\s+de/i,
     /^como\s+funciona/i,
@@ -233,10 +327,6 @@ function isLikelyHeading(line: string): boolean {
     /^etapa\s+\d/i,
     /^benefícios?$/i,
     /^vantagens?$/i,
-    /^perguntas?\s+frequentes?/i,
-    /^faq$/i,
-    /^sobre\s+/i,
-    /^o\s+que\s+é/i,
   ];
   
   const matchesPattern = headingPatterns.some(p => p.test(line));
@@ -245,48 +335,32 @@ function isLikelyHeading(line: string): boolean {
 }
 
 /**
- * Normaliza texto para comparação (remove acentos, lowercase, trim)
+ * Normaliza texto para comparação
  */
 function normalizeForComparison(text: string): string {
   return text
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 /**
- * Calcula similaridade entre duas strings (0-1)
+ * Clean text from HTML tags
  */
-function levenshteinSimilarity(a: string, b: string): number {
-  if (a === b) return 1;
-  if (a.length === 0 || b.length === 0) return 0;
-  
-  const matrix: number[][] = [];
-  
-  for (let i = 0; i <= a.length; i++) {
-    matrix[i] = [i];
-  }
-  for (let j = 0; j <= b.length; j++) {
-    matrix[0][j] = j;
-  }
-  
-  for (let i = 1; i <= a.length; i++) {
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      matrix[i][j] = Math.min(
-        matrix[i - 1][j] + 1,
-        matrix[i][j - 1] + 1,
-        matrix[i - 1][j - 1] + cost
-      );
-    }
-  }
-  
-  const distance = matrix[a.length][b.length];
-  const maxLength = Math.max(a.length, b.length);
-  return 1 - distance / maxLength;
+function cleanTextFromHtml(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
@@ -306,7 +380,7 @@ function cleanText(text: string): string {
 
 /**
  * Converte output normalizado em blocos do Builder
- * Retorna blocos compatíveis com BlockNode do import-pages
+ * V2: Usa url em vez de videoId, garante blocos separados
  */
 // deno-lint-ignore no-explicit-any
 export function createBlocksFromNormalizedOutput(
@@ -316,7 +390,7 @@ export function createBlocksFromNormalizedOutput(
   // deno-lint-ignore no-explicit-any
   const blocks: any[] = [];
   
-  // 1. Title as RichText heading (if exists and different from page title in parent)
+  // 1. Title as RichText heading
   if (normalized.title) {
     blocks.push({
       id: generateBlockId('heading'),
@@ -329,15 +403,16 @@ export function createBlocksFromNormalizedOutput(
       },
       children: [],
     });
+    console.log(`[NORMALIZER V2] Created Title block: "${normalized.title.substring(0, 40)}..."`);
   }
   
-  // 2. Video (if exists)
-  if (normalized.videoId) {
+  // 2. Video (MUST have url, not just videoId)
+  if (normalized.videoUrl) {
     blocks.push({
       id: generateBlockId('video'),
       type: 'YouTubeVideo',
       props: {
-        videoId: normalized.videoId,
+        url: normalized.videoUrl, // CHANGED: url instead of videoId
         aspectRatio: '16:9',
         autoplay: false,
         muted: false,
@@ -345,11 +420,11 @@ export function createBlocksFromNormalizedOutput(
       },
       children: [],
     });
+    console.log(`[NORMALIZER V2] Created Video block with URL: ${normalized.videoUrl}`);
   }
   
-  // 3. Body text (if exists)
+  // 3. Body text (as separate block)
   if (normalized.bodyHtml && normalized.bodyHtml.length > 0) {
-    // Style the body HTML for centering
     const styledBody = `<div style="text-align: center; max-width: 600px; margin: 0 auto;">${normalized.bodyHtml}</div>`;
     
     blocks.push({
@@ -363,9 +438,10 @@ export function createBlocksFromNormalizedOutput(
       },
       children: [],
     });
+    console.log(`[NORMALIZER V2] Created Body block: ${normalized.bodyHtml.length} chars`);
   }
   
-  // 4. CTA Button (if exists)
+  // 4. CTA Button
   if (normalized.ctaButton) {
     blocks.push({
       id: generateBlockId('cta'),
@@ -380,7 +456,10 @@ export function createBlocksFromNormalizedOutput(
       },
       children: [],
     });
+    console.log(`[NORMALIZER V2] Created CTA block: "${normalized.ctaButton.text}" -> ${normalized.ctaButton.href}`);
   }
+  
+  console.log(`[NORMALIZER V2] Total blocks created: ${blocks.length}`);
   
   return blocks;
 }
