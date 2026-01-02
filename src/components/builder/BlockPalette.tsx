@@ -74,7 +74,7 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'LogosCarousel': 'content',
   'StatsNumbers': 'content',
   'AccordionBlock': 'content',
-  'ImageGallery': 'media',
+  'ImageGallery': 'content',
   
   // Social Proof
   'Testimonials': 'social-proof',

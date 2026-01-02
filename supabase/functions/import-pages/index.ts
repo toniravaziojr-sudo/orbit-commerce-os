@@ -153,49 +153,142 @@ interface Section {
 function segmentHtml(html: string): Section[] {
   const sections: Section[] = [];
   
-  // Look for common section dividers
-  // Try <section> tags first
+  // =====================================================
+  // MULTI-PLATFORM SEGMENTATION
+  // Supports: Shopify, Dooca, VTEX, Nuvemshop, WooCommerce, Generic
+  // =====================================================
+  
+  // 1. Try Shopify sections first
+  const shopifyRegex = /(<div[^>]*(?:class="[^"]*shopify-section[^"]*"|id="shopify-section-[^"]*")[^>]*>[\s\S]*?)(?=<div[^>]*(?:class="[^"]*shopify-section|id="shopify-section-)|$)/gi;
+  let matches = [...html.matchAll(shopifyRegex)];
+  if (matches.length >= 2) {
+    for (const match of matches) {
+      if (match[1].trim().length > 100) {
+        sections.push({ html: match[1], index: sections.length });
+      }
+    }
+    if (sections.length >= 2) {
+      console.log(`[SEGMENT] Shopify: ${sections.length} sections`);
+      return subdivideIfNeeded(sections);
+    }
+  }
+  
+  // 2. Try Dooca/Tray sections
+  const doocaRegex = /<(?:section|div)[^>]*(?:class="[^"]*(?:section-|dooca-|tray-)[^"]*")[^>]*>[\s\S]*?<\/(?:section|div)>/gi;
+  matches = [...html.matchAll(doocaRegex)];
+  if (matches.length >= 2) {
+    for (const match of matches) {
+      if (match[0].trim().length > 100) {
+        sections.push({ html: match[0], index: sections.length });
+      }
+    }
+    if (sections.length >= 2) {
+      console.log(`[SEGMENT] Dooca/Tray: ${sections.length} sections`);
+      return subdivideIfNeeded(sections);
+    }
+  }
+  sections.length = 0;
+  
+  // 3. Try VTEX sections
+  const vtexRegex = /<(?:section|div)[^>]*(?:class="[^"]*vtex[^"]*"|data-vtex[^>]*)[^>]*>[\s\S]*?<\/(?:section|div)>/gi;
+  matches = [...html.matchAll(vtexRegex)];
+  if (matches.length >= 2) {
+    for (const match of matches) {
+      if (match[0].trim().length > 100) {
+        sections.push({ html: match[0], index: sections.length });
+      }
+    }
+    if (sections.length >= 2) {
+      console.log(`[SEGMENT] VTEX: ${sections.length} sections`);
+      return subdivideIfNeeded(sections);
+    }
+  }
+  sections.length = 0;
+  
+  // 4. Try Nuvemshop sections
+  const nuvemRegex = /<(?:section|div)[^>]*(?:class="[^"]*(?:js-|nuvem-|section)[^"]*"|id="section-[^"]*")[^>]*>[\s\S]*?<\/(?:section|div)>/gi;
+  matches = [...html.matchAll(nuvemRegex)];
+  if (matches.length >= 2) {
+    for (const match of matches) {
+      if (match[0].trim().length > 100) {
+        sections.push({ html: match[0], index: sections.length });
+      }
+    }
+    if (sections.length >= 2) {
+      console.log(`[SEGMENT] Nuvemshop: ${sections.length} sections`);
+      return subdivideIfNeeded(sections);
+    }
+  }
+  sections.length = 0;
+  
+  // 5. Try WooCommerce/WordPress sections
+  const wooRegex = /<(?:section|div)[^>]*class="[^"]*(?:wp-block-|woocommerce-|elementor-)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi;
+  matches = [...html.matchAll(wooRegex)];
+  if (matches.length >= 2) {
+    for (const match of matches) {
+      if (match[0].trim().length > 100) {
+        sections.push({ html: match[0], index: sections.length });
+      }
+    }
+    if (sections.length >= 2) {
+      console.log(`[SEGMENT] WooCommerce/WordPress: ${sections.length} sections`);
+      return subdivideIfNeeded(sections);
+    }
+  }
+  sections.length = 0;
+  
+  // 6. Try generic <section> tags
   const sectionMatches = html.matchAll(/<section[^>]*>([\s\S]*?)<\/section>/gi);
   for (const match of sectionMatches) {
-    if (match[1].trim().length > 100) {
+    if (match[0].trim().length > 100) {
       sections.push({ html: match[0], index: sections.length });
     }
   }
-  
   if (sections.length >= 2) {
-    console.log(`[SEGMENT] Found ${sections.length} <section> tags`);
-    return sections;
+    console.log(`[SEGMENT] Generic <section>: ${sections.length} sections`);
+    return subdivideIfNeeded(sections);
   }
+  sections.length = 0;
   
-  // Try Shopify sections
-  const shopifySections = html.matchAll(/(<div[^>]*class="[^"]*shopify-section[^"]*"[^>]*>[\s\S]*?)(?=<div[^>]*class="[^"]*shopify-section|$)/gi);
-  for (const match of shopifySections) {
-    if (match[1].trim().length > 100) {
-      sections.push({ html: match[1], index: sections.length });
-    }
-  }
-  
-  if (sections.length >= 2) {
-    console.log(`[SEGMENT] Found ${sections.length} Shopify sections`);
-    return sections;
-  }
-  
-  // Fallback: split by <hr> or large divs
-  const parts = html.split(/<hr[^>]*>|<div[^>]*class="[^"]*(?:section|block|row)[^"]*"[^>]*>/gi);
-  for (const part of parts) {
+  // 7. Try splitting by semantic dividers (h2, h3, hr, large row divs)
+  const semanticParts = html.split(/(?=<h[23][^>]*>)|<hr[^>]*>|(?=<div[^>]*class="[^"]*(?:row|container|wrapper)[^"]*"[^>]*>)/gi);
+  for (const part of semanticParts) {
     if (part.trim().length > 200) {
-      sections.push({ html: part, index: sections.length });
+      sections.push({ html: part.trim(), index: sections.length });
     }
   }
-  
   if (sections.length >= 2) {
-    console.log(`[SEGMENT] Split into ${sections.length} parts by dividers`);
-    return sections;
+    console.log(`[SEGMENT] Semantic split: ${sections.length} sections`);
+    return subdivideIfNeeded(sections);
   }
   
-  // Last resort: treat entire content as one section
-  console.log('[SEGMENT] Using entire content as single section');
-  return [{ html, index: 0 }];
+  // 8. Last resort: treat entire content as one section but try to subdivide
+  console.log('[SEGMENT] Using entire content, attempting subdivision');
+  return subdivideIfNeeded([{ html, index: 0 }]);
+}
+
+// Subdivide large sections (>10000 chars) by headings
+function subdivideIfNeeded(sections: Section[]): Section[] {
+  const result: Section[] = [];
+  
+  for (const section of sections) {
+    if (section.html.length > 10000) {
+      // Try to split by h2/h3
+      const parts = section.html.split(/(?=<h[23][^>]*>)/gi);
+      if (parts.length > 1) {
+        for (const part of parts) {
+          if (part.trim().length > 200) {
+            result.push({ html: part.trim(), index: result.length });
+          }
+        }
+        console.log(`[SEGMENT] Subdivided large section into ${parts.length} parts`);
+        continue;
+      }
+    }
+    result.push({ ...section, index: result.length });
+  }
+  
+  return result;
 }
 
 // =====================================================
