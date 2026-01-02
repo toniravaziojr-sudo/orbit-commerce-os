@@ -1107,6 +1107,166 @@ const blockDefinitions: BlockDefinition[] = [
     },
     canHaveChildren: false,
   },
+  {
+    type: 'FeatureList',
+    label: 'Lista de Features',
+    category: 'content',
+    icon: 'ListChecks',
+    defaultProps: {
+      title: '',
+      subtitle: '',
+      items: [
+        { id: '1', icon: 'Check', text: 'Feature principal do produto' },
+        { id: '2', icon: 'Check', text: 'Outro benefício importante' },
+        { id: '3', icon: 'Check', text: 'Mais uma característica' },
+      ],
+      iconColor: '#22c55e',
+      textColor: '',
+      showButton: false,
+      buttonText: 'Saiba mais',
+      buttonUrl: '#',
+      backgroundColor: 'transparent',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: '',
+      },
+      subtitle: {
+        type: 'string',
+        label: 'Subtítulo',
+        defaultValue: '',
+      },
+      items: {
+        type: 'array',
+        label: 'Features',
+        defaultValue: [],
+      },
+      iconColor: {
+        type: 'color',
+        label: 'Cor dos Ícones',
+        defaultValue: '#22c55e',
+      },
+      textColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        placeholder: 'Padrão do tema',
+      },
+      backgroundColor: {
+        type: 'color',
+        label: 'Cor de Fundo',
+        defaultValue: 'transparent',
+      },
+      showButton: {
+        type: 'boolean',
+        label: 'Mostrar Botão',
+        defaultValue: false,
+      },
+      buttonText: {
+        type: 'string',
+        label: 'Texto do Botão',
+        defaultValue: 'Saiba mais',
+      },
+      buttonUrl: {
+        type: 'string',
+        label: 'Link do Botão',
+        defaultValue: '#',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'ContentColumns',
+    label: 'Conteúdo em Colunas',
+    category: 'content',
+    icon: 'Columns',
+    defaultProps: {
+      title: 'Título da Seção',
+      subtitle: '',
+      content: '',
+      imageDesktop: '',
+      imageMobile: '',
+      imagePosition: 'left',
+      features: [],
+      iconColor: '#22c55e',
+      showButton: false,
+      buttonText: 'Saiba mais',
+      buttonUrl: '#',
+      backgroundColor: 'transparent',
+      textColor: '',
+    },
+    propsSchema: {
+      title: {
+        type: 'string',
+        label: 'Título',
+        defaultValue: 'Título da Seção',
+      },
+      subtitle: {
+        type: 'string',
+        label: 'Subtítulo',
+        defaultValue: '',
+      },
+      content: {
+        type: 'richtext',
+        label: 'Conteúdo',
+        defaultValue: '',
+      },
+      imageDesktop: {
+        type: 'image',
+        label: 'Imagem Desktop',
+      },
+      imageMobile: {
+        type: 'image',
+        label: 'Imagem Mobile',
+      },
+      imagePosition: {
+        type: 'select',
+        label: 'Posição da Imagem',
+        defaultValue: 'left',
+        options: [
+          { label: 'Esquerda', value: 'left' },
+          { label: 'Direita', value: 'right' },
+        ],
+      },
+      features: {
+        type: 'array',
+        label: 'Features',
+        defaultValue: [],
+      },
+      iconColor: {
+        type: 'color',
+        label: 'Cor dos Ícones',
+        defaultValue: '#22c55e',
+      },
+      showButton: {
+        type: 'boolean',
+        label: 'Mostrar Botão',
+        defaultValue: false,
+      },
+      buttonText: {
+        type: 'string',
+        label: 'Texto do Botão',
+        defaultValue: 'Saiba mais',
+      },
+      buttonUrl: {
+        type: 'string',
+        label: 'Link do Botão',
+        defaultValue: '#',
+      },
+      backgroundColor: {
+        type: 'color',
+        label: 'Cor de Fundo',
+        defaultValue: 'transparent',
+      },
+      textColor: {
+        type: 'color',
+        label: 'Cor do Texto',
+        placeholder: 'Padrão do tema',
+      },
+    },
+    canHaveChildren: false,
+  },
 
   // ========== ECOMMERCE BLOCKS ==========
   {

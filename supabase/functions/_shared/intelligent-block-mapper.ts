@@ -107,28 +107,11 @@ export function createHeroBlock(classification: ClassificationResult): BlockNode
 }
 
 // =====================================================
-// BENEFITS/FEATURES BLOCK - Uses native InfoHighlights
+// BENEFITS/FEATURES BLOCK - Uses InfoHighlights or FeatureList
 // =====================================================
 export function createBenefitsBlock(classification: ClassificationResult): BlockNode[] {
-  const { extractedContent } = classification;
+  const { extractedContent, layout } = classification;
   const { title, items } = extractedContent;
-  
-  // Map items to InfoHighlights format
-  const highlightItems = items.slice(0, 6).map((item, index) => ({
-    id: generateBlockId(`highlight-${index}`),
-    icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
-    title: item.title,
-    description: item.description || '',
-  }));
-  
-  // If no items, create default ones
-  if (highlightItems.length === 0) {
-    highlightItems.push(
-      { id: generateBlockId('highlight-0'), icon: 'CheckCircle', title: 'Benefício 1', description: '' },
-      { id: generateBlockId('highlight-1'), icon: 'Shield', title: 'Benefício 2', description: '' },
-      { id: generateBlockId('highlight-2'), icon: 'Zap', title: 'Benefício 3', description: '' },
-    );
-  }
   
   const blocks: BlockNode[] = [];
   
@@ -146,19 +129,98 @@ export function createBenefitsBlock(classification: ClassificationResult): Block
     });
   }
   
-  // InfoHighlights block
-  blocks.push({
-    id: generateBlockId('info-highlights'),
-    type: 'InfoHighlights',
-    props: {
-      items: highlightItems,
-      layout: 'horizontal',
-      iconColor: '#6366f1',
-      textColor: '#1f2937',
-    },
-  });
+  // Decide: FeatureList (vertical, 5+ items) vs InfoHighlights (horizontal grid, ≤4 items)
+  if (items.length > 4) {
+    // Use FeatureList for longer lists
+    const featureItems = items.map((item, index) => ({
+      id: generateBlockId(`feature-${index}`),
+      icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
+      text: item.title + (item.description ? `: ${item.description}` : ''),
+    }));
+    
+    blocks.push({
+      id: generateBlockId('feature-list'),
+      type: 'FeatureList',
+      props: {
+        title: '',
+        items: featureItems,
+        iconColor: '#22c55e',
+        showButton: false,
+      },
+    });
+  } else {
+    // Use InfoHighlights for shorter lists (grid layout)
+    const highlightItems = items.slice(0, 6).map((item, index) => ({
+      id: generateBlockId(`highlight-${index}`),
+      icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
+      title: item.title,
+      description: item.description || '',
+    }));
+    
+    // If no items, create default ones
+    if (highlightItems.length === 0) {
+      highlightItems.push(
+        { id: generateBlockId('highlight-0'), icon: 'CheckCircle', title: 'Benefício 1', description: '' },
+        { id: generateBlockId('highlight-1'), icon: 'Shield', title: 'Benefício 2', description: '' },
+        { id: generateBlockId('highlight-2'), icon: 'Zap', title: 'Benefício 3', description: '' },
+      );
+    }
+    
+    blocks.push({
+      id: generateBlockId('info-highlights'),
+      type: 'InfoHighlights',
+      props: {
+        items: highlightItems,
+        layout: 'horizontal',
+        iconColor: '#6366f1',
+        textColor: '#1f2937',
+      },
+    });
+  }
   
   return blocks;
+}
+
+// =====================================================
+// CONTENT COLUMNS BLOCK - Image + Text side by side
+// =====================================================
+export function createContentColumnsBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent, layout } = classification;
+  const { title, subtitle, paragraphs, images, items, buttons } = extractedContent;
+  
+  // Determine image position from layout hint
+  const imagePosition = layout === 'columns-image-right' ? 'right' : 'left';
+  
+  // Build features list from items
+  const features = items.slice(0, 6).map((item, index) => ({
+    id: generateBlockId(`content-feature-${index}`),
+    icon: ICON_MAP[item.suggestedIcon || 'check'] || 'Check',
+    text: item.title,
+  }));
+  
+  // Combine paragraphs into content HTML
+  const content = paragraphs.length > 0
+    ? paragraphs.slice(0, 3).map(p => `<p>${p}</p>`).join('')
+    : '';
+  
+  return [{
+    id: generateBlockId('content-columns'),
+    type: 'ContentColumns',
+    props: {
+      title: title || '',
+      subtitle: subtitle || '',
+      content: content,
+      imageDesktop: images[0]?.src || '',
+      imageMobile: images[0]?.src || '',
+      imagePosition: imagePosition,
+      features: features,
+      iconColor: '#22c55e',
+      showButton: buttons.length > 0,
+      buttonText: buttons[0]?.text || 'Saiba mais',
+      buttonUrl: buttons[0]?.url || '#',
+      backgroundColor: 'transparent',
+    },
+  }];
 }
 
 // =====================================================
@@ -386,15 +448,20 @@ export function createGenericBlock(classification: ClassificationResult): BlockN
 // MAIN MAPPER FUNCTION
 // =====================================================
 export function mapClassificationToBlocks(classification: ClassificationResult): BlockNode[] {
-  const { sectionType, confidence } = classification;
+  const { sectionType, confidence, layout, extractedContent } = classification;
   
-  console.log(`[mapper] Mapping section: ${sectionType} (confidence: ${confidence})`);
+  console.log(`[mapper] Mapping section: ${sectionType} (confidence: ${confidence}, layout: ${layout})`);
   
   // Low confidence -> generic fallback
   if (confidence < 0.4) {
     console.log('[mapper] Low confidence, using generic block');
     return createGenericBlock(classification);
   }
+  
+  // Check if this looks like a columns layout (image + text)
+  const hasImage = extractedContent.images.length > 0;
+  const hasTextContent = extractedContent.paragraphs.length > 0 || extractedContent.items.length > 0;
+  const isColumnsLayout = layout?.includes('columns-image');
   
   // Map by section type to NATIVE blocks
   switch (sectionType) {
@@ -404,7 +471,12 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       
     case 'benefits':
     case 'features':
-      console.log('[mapper] Creating native InfoHighlights block');
+      // If it looks like image+text layout, use ContentColumns
+      if (isColumnsLayout && hasImage && hasTextContent) {
+        console.log('[mapper] Creating ContentColumns for benefits with image');
+        return createContentColumnsBlock(classification);
+      }
+      console.log('[mapper] Creating native Benefits block (InfoHighlights or FeatureList)');
       return createBenefitsBlock(classification);
       
     case 'testimonials':
@@ -420,9 +492,22 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       return createCTABlock(classification);
       
     case 'about':
+      // About sections often have image + text layout
+      if (hasImage && hasTextContent) {
+        console.log('[mapper] Creating ContentColumns for about section');
+        return createContentColumnsBlock(classification);
+      }
+      console.log('[mapper] Creating generic blocks for about');
+      return createGenericBlock(classification);
+      
     case 'contact':
     case 'generic':
     default:
+      // Check for image+text pattern even in generic sections
+      if (isColumnsLayout && hasImage && hasTextContent) {
+        console.log('[mapper] Creating ContentColumns for generic section with image+text');
+        return createContentColumnsBlock(classification);
+      }
       console.log('[mapper] Creating generic blocks');
       return createGenericBlock(classification);
   }
