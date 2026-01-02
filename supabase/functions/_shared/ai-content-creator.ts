@@ -1,6 +1,6 @@
 // =============================================
-// AI CONTENT CREATOR - Sistema de Criação por Inspiração
-// Cria conteúdo ORIGINAL usando blocos nativos do Builder
+// AI CONTENT CREATOR - Sistema de Criação ORIGINAL
+// NÃO extrai conteúdo - CRIA conteúdo novo baseado em análise
 // =============================================
 
 import type { StrategicPlan, MarketingFunction } from './marketing/types.ts';
@@ -11,30 +11,24 @@ const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
 // =============================================
 // WHITELIST ESTRITA DE BLOCOS VÁLIDOS
-// Apenas estes tipos são aceitos - todos são 100% editáveis no Builder
 // =============================================
 export const VALID_BLOCK_TYPES = [
-  // Conteúdo Principal
-  'Hero',              // Seção principal com headline, subtitle, CTA, imagem
-  'ContentColumns',    // Texto + Imagem lado a lado, features com ícones
-  'FeatureList',       // Lista de benefícios com ícones
-  'InfoHighlights',    // Destaques horizontais (frete, garantia, etc)
-  'Testimonials',      // Depoimentos de clientes
-  'FAQ',               // Perguntas frequentes
-  'RichText',          // Texto livre formatado (fallback)
-  'Button',            // Botão CTA isolado
-  'Image',             // Imagem única
-  
-  // Mídia
-  'YouTubeVideo',      // Embed de vídeo YouTube
-  'VideoCarousel',     // Carrossel de múltiplos vídeos
-  'VideoUpload',       // Vídeo local (mp4/webm)
-  'HeroBanner',        // Banner com slides
-  'ImageCarousel',     // Carrossel de imagens
-  
-  // Layout
-  'Section',           // Container de seção com background
-  'Spacer',            // Espaçamento entre seções
+  'Hero',
+  'ContentColumns',
+  'FeatureList',
+  'InfoHighlights',
+  'Testimonials',
+  'FAQ',
+  'RichText',
+  'Button',
+  'Image',
+  'YouTubeVideo',
+  'VideoCarousel',
+  'VideoUpload',
+  'HeroBanner',
+  'ImageCarousel',
+  'Section',
+  'Spacer',
 ] as const;
 
 export type ValidBlockType = typeof VALID_BLOCK_TYPES[number];
@@ -57,77 +51,80 @@ export interface CreationResult {
 }
 
 // =============================================
-// PROMPT DO SISTEMA - FOCADO EM CRIAÇÃO COM EXEMPLO
+// PROMPT DO SISTEMA - CRIAÇÃO 100% ORIGINAL
 // =============================================
 const CREATION_SYSTEM_PROMPT = `Você é um copywriter especialista em páginas de vendas de alta conversão.
 
 ## SUA MISSÃO
-Dado a análise estratégica de uma página, você deve CRIAR conteúdo ORIGINAL e PERSUASIVO.
-Você NÃO está extraindo conteúdo - você está CRIANDO baseado na inspiração e dados fornecidos.
+Você recebe uma ANÁLISE ESTRATÉGICA de um negócio e deve CRIAR uma página de vendas completa.
+Você NÃO está copiando ou extraindo nada - você está CRIANDO conteúdo 100% ORIGINAL.
 
-## REGRA CRÍTICA: NUNCA USE TEXTOS GENÉRICOS
+## ⚠️ REGRA CRÍTICA: TUDO DEVE SER ORIGINAL
 
-❌ PROIBIDO usar textos como:
-- "Título Principal" / "Headline Aqui"
-- "Cliente Satisfeito" / "Nome do Cliente"  
+Você deve criar textos NOVOS baseados apenas em:
+- Tipo de produto
+- Público-alvo
+- Dor principal
+- Promessa principal
+- USP (diferencial único)
+- Framework de marketing
+
+## PROIBIÇÕES ABSOLUTAS
+
+❌ NUNCA use textos genéricos como:
+- "Título Principal", "Headline Aqui"
+- "Cliente Satisfeito", "Nome do Cliente"
 - "Depoimento do cliente..."
-- "Benefício principal"
-- "Descrição..."
-- Qualquer placeholder óbvio
+- "Descrição...", "Texto aqui"
 
-✅ SEMPRE crie textos ESPECÍFICOS baseados no:
-- Nome do produto
-- Benefícios identificados
-- Dor/problema do público
-- USP (proposta única de valor)
+## TIPOS DE BLOCOS (APENAS ESTES)
 
-## TIPOS DE BLOCOS PERMITIDOS (WHITELIST ESTRITA)
 ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
 
-❌ NUNCA invente tipos de blocos como: ProductShowcase, PricingTable, BeforeAfter, StatsNumbers, Features, CountdownTimer, Bonus, etc.
+## PROPS POR BLOCO
 
-## PROPS OBRIGATÓRIAS POR BLOCO
-
-**Hero** (OBRIGATÓRIO no início):
+**Hero**:
 {
-  "title": "Headline IMPACTANTE focada em benefício (máx 10 palavras)",
-  "subtitle": "Subheadline que expande a promessa (15-25 palavras)",
-  "ctaText": "VERBO + Benefício (ex: Quero Meu Desconto, Recuperar Meus Cabelos)",
+  "title": "Headline persuasiva focada em benefício (máx 10 palavras)",
+  "subtitle": "Subheadline expandindo a promessa (15-25 palavras)",
+  "ctaText": "VERBO + Benefício (ex: Quero Meu Desconto)",
   "ctaUrl": "#comprar",
   "imageDesktop": "PLACEHOLDER_IMAGE",
-  "imageMobile": "PLACEHOLDER_IMAGE"
+  "imageMobile": "PLACEHOLDER_IMAGE",
+  "alignment": "center"
 }
 
 **ContentColumns**:
 {
-  "title": "Título persuasivo da seção",
-  "content": "<p>Texto persuasivo em HTML com benefícios específicos</p>",
+  "title": "Título da seção",
+  "content": "<p>Texto persuasivo em HTML</p>",
   "imageDesktop": "PLACEHOLDER_IMAGE",
   "imageMobile": "PLACEHOLDER_IMAGE",
   "imagePosition": "left" | "right",
-  "features": [{ "icon": "Check", "text": "Benefício ESPECÍFICO com resultado concreto" }]
+  "features": [{ "icon": "Check", "text": "Benefício específico" }]
 }
 
 **FeatureList**:
 {
-  "title": "Título da lista de benefícios",
-  "items": [{ "icon": "Check", "text": "Benefício específico com prova ou número" }]
+  "title": "Título da lista",
+  "items": [{ "icon": "Check", "text": "Benefício com resultado concreto" }]
 }
 
 **InfoHighlights**:
 {
   "items": [
-    { "icon": "Truck" | "Shield" | "Clock" | "CreditCard", "title": "Título Curto", "description": "Descrição específica do benefício" }
-  ]
+    { "icon": "Truck" | "Shield" | "Clock" | "CreditCard", "title": "Título Curto", "description": "Descrição do benefício" }
+  ],
+  "layout": "horizontal"
 }
 
 **Testimonials**:
 {
-  "title": "O Que Nossos Clientes Dizem",
+  "title": "Título da seção",
   "items": [
     {
-      "name": "Nome Completo Brasileiro (ex: Carlos Eduardo, Maria Fernanda)",
-      "text": "Depoimento DETALHADO com resultado específico, tempo e benefício mensurável",
+      "name": "Nome Completo Brasileiro",
+      "text": "Depoimento DETALHADO com resultado específico",
       "rating": 5
     }
   ]
@@ -137,17 +134,17 @@ ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
 {
   "title": "Perguntas Frequentes",
   "items": [
-    { "question": "Pergunta real que o cliente faria?", "answer": "Resposta que elimina objeção de compra" }
+    { "question": "Pergunta real?", "answer": "Resposta que elimina objeção" }
   ]
 }
 
 **YouTubeVideo**:
 {
-  "youtubeUrl": "URL_REAL_DO_VIDEO",
-  "title": "Título descritivo do vídeo"
+  "youtubeUrl": "URL_DO_VIDEO",
+  "title": "Título do vídeo"
 }
 
-**Button** (para CTAs):
+**Button**:
 {
   "text": "VERBO + Benefício",
   "url": "#comprar",
@@ -155,100 +152,26 @@ ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
   "size": "lg"
 }
 
-## EXEMPLO CONCRETO DE OUTPUT ESPERADO
-
-Para um shampoo anti-calvície com framework PAS:
-
-{
-  "blocks": [
-    {
-      "type": "Hero",
-      "props": {
-        "title": "Recupere Sua Autoconfiança em 30 Dias",
-        "subtitle": "O único shampoo 5 em 1 que combate a queda capilar na raiz - sem efeitos colaterais, com resultados visíveis ou seu dinheiro de volta",
-        "ctaText": "Quero Meus Cabelos de Volta",
-        "ctaUrl": "#comprar",
-        "imageDesktop": "PLACEHOLDER_IMAGE",
-        "imageMobile": "PLACEHOLDER_IMAGE"
-      },
-      "marketingFunction": "attention",
-      "order": 1
-    },
-    {
-      "type": "ContentColumns",
-      "props": {
-        "title": "Por Que a Calvície Afeta Sua Vida?",
-        "content": "<p>Você já perdeu a conta de quantos tratamentos caros tentou sem resultado? Olhar no espelho e ver os fios cada vez mais ralos afeta sua autoestima todos os dias.</p><p>Nosso shampoo foi desenvolvido por especialistas para atacar as 3 principais causas da queda: DHT, inflamação e falta de nutrientes no folículo.</p>",
-        "imageDesktop": "PLACEHOLDER_IMAGE",
-        "imageMobile": "PLACEHOLDER_IMAGE",
-        "imagePosition": "right",
-        "features": [
-          { "icon": "Check", "text": "Bloqueia 89% do DHT em 15 dias" },
-          { "icon": "Check", "text": "Fórmula sem sulfatos e parabenos" },
-          { "icon": "Check", "text": "Resultados comprovados em estudo clínico" }
-        ]
-      },
-      "marketingFunction": "problem",
-      "order": 2
-    },
-    {
-      "type": "Testimonials",
-      "props": {
-        "title": "Homens Que Recuperaram a Confiança",
-        "items": [
-          {
-            "name": "Roberto Mendes",
-            "text": "Depois de 2 meses usando, minha esposa notou a diferença antes de mim. As entradas diminuíram visivelmente e os fios estão mais grossos. Finalmente um produto que funciona!",
-            "rating": 5
-          },
-          {
-            "name": "Paulo Henrique Silva",
-            "text": "Tinha vergonha de tirar o boné. Hoje saio sem ele tranquilamente. Em 45 dias já vi resultado nas fotos antes/depois. Recomendo demais!",
-            "rating": 5
-          }
-        ]
-      },
-      "marketingFunction": "testimonial",
-      "order": 3
-    },
-    {
-      "type": "Button",
-      "props": {
-        "text": "Quero Acabar Com a Calvície Agora",
-        "url": "#comprar",
-        "variant": "default",
-        "size": "lg"
-      },
-      "marketingFunction": "action",
-      "order": 4
-    }
-  ],
-  "creationQuality": 85,
-  "copyStyle": "emocional-aspiracional",
-  "warnings": []
-}
-
 ## ESTRUTURA RECOMENDADA
 
-1. **Hero** - Headline principal + CTA (SEMPRE PRIMEIRO)
-2. **ContentColumns** ou **FeatureList** - Problema e solução
-3. **InfoHighlights** - Diferenciais (frete, garantia, segurança)
-4. **YouTubeVideo** - Se houver URLs de vídeo disponíveis (USE A URL REAL!)
-5. **Testimonials** - Prova social com nomes brasileiros e resultados específicos
-6. **FAQ** - Elimina objeções de compra
+1. **Hero** - SEMPRE PRIMEIRO
+2. **ContentColumns** - Problema e solução
+3. **InfoHighlights** - Diferenciais (frete, garantia)
+4. **YouTubeVideo** - SE houver URL real disponível
+5. **Testimonials** - Prova social (nomes brasileiros)
+6. **FAQ** - Elimina objeções
 7. **Button** - CTA final (SEMPRE TERMINAR COM CTA)
 
 ## OUTPUT
 
-Use a função create_page_blocks para retornar os blocos criados.
-Lembre-se: TODOS os textos devem ser ESPECÍFICOS para o produto/serviço analisado.`;
+Use a função create_page_blocks para retornar os blocos criados.`;
 
 // Schema para tool calling
 const createPageBlocksSchema = {
   type: 'function' as const,
   function: {
     name: 'create_page_blocks',
-    description: 'Cria os blocos da página com conteúdo original e persuasivo',
+    description: 'Cria os blocos da página com conteúdo 100% original',
     parameters: {
       type: 'object',
       properties: {
@@ -260,38 +183,31 @@ const createPageBlocksSchema = {
               type: { 
                 type: 'string',
                 enum: VALID_BLOCK_TYPES,
-                description: 'Tipo do bloco (apenas os tipos listados são válidos)'
               },
               props: {
                 type: 'object',
-                description: 'Propriedades do bloco com conteúdo ORIGINAL criado - NUNCA use placeholders genéricos'
+                description: 'Propriedades do bloco com conteúdo ORIGINAL criado'
               },
               marketingFunction: {
                 type: 'string',
                 enum: ['attention', 'interest', 'desire', 'action', 'problem', 'agitation', 'solution', 'testimonial', 'offer', 'guarantee', 'urgency', 'benefits', 'features', 'faq'],
-                description: 'Função deste bloco no funil de marketing'
               },
               order: {
                 type: 'number',
-                description: 'Ordem do bloco na página (1 = primeiro)'
               }
             },
             required: ['type', 'props', 'marketingFunction', 'order']
           },
-          description: 'Blocos criados em ordem estratégica com conteúdo persuasivo ESPECÍFICO'
         },
         creationQuality: {
           type: 'number',
-          description: 'Qualidade da criação de 0 a 100'
         },
         copyStyle: {
           type: 'string',
-          description: 'Estilo do copy utilizado (ex: "urgente", "aspiracional", "técnico")'
         },
         warnings: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Avisos sobre limitações ou sugestões'
         }
       },
       required: ['blocks', 'creationQuality', 'copyStyle', 'warnings']
@@ -313,77 +229,60 @@ export async function createPageFromInspiration(
     throw new Error('LOVABLE_API_KEY não configurada');
   }
 
-  // REDUZIR HTML - focar nos dados estratégicos
-  const maxLength = options?.maxHtmlLength || 15000;
-  const truncatedHtml = html.length > maxLength 
-    ? html.slice(0, maxLength) + '\n\n[HTML TRUNCADO - USE OS DADOS ESTRATÉGICOS ACIMA]'
-    : html;
-
   const frameworkDef = FRAMEWORKS[strategicPlan.framework];
 
-  // Extrair vídeos YouTube do HTML para reuso
+  // Extrair APENAS URLs de vídeo do HTML (não conteúdo textual)
   const youtubeUrls = extractYouTubeUrls(html);
   
-  // Construir prompt do usuário com ÊNFASE nos dados estratégicos
-  const userPrompt = `## ⚠️ DADOS OBRIGATÓRIOS DO PRODUTO (USE ESTES DADOS!)
+  // Prompt APENAS com dados estratégicos - SEM HTML
+  const userPrompt = `## DADOS DO NEGÓCIO (CRIE CONTEÚDO BASEADO NISTO)
 
 **Produto:** ${strategicPlan.productName || 'Produto'}
 **Tipo:** ${strategicPlan.productType}
 **Público-Alvo:** ${strategicPlan.targetAudience}
 
-### PROBLEMA PRINCIPAL QUE RESOLVE:
+### DOR PRINCIPAL:
 "${strategicPlan.mainPainPoint}"
 
-### PROMESSA PRINCIPAL (USE NO HERO!):
+### PROMESSA PRINCIPAL:
 "${strategicPlan.mainPromise}"
 
 ### DIFERENCIAL ÚNICO (USP):
 "${strategicPlan.uniqueSellingProposition}"
 
-### FRAMEWORK DE PERSUASÃO: ${strategicPlan.framework}
+### FRAMEWORK: ${strategicPlan.framework}
 Etapas: ${frameworkDef.stages.join(' → ')}
 
 ---
 
-## 🎥 VÍDEOS YOUTUBE ENCONTRADOS (OBRIGATÓRIO INCLUIR SE HOUVER!)
+## RECURSOS DISPONÍVEIS
+
+### Vídeos YouTube (use se houver):
 ${youtubeUrls.length > 0 
-  ? youtubeUrls.map(url => `✅ ${url} ← USE ESTA URL REAL em um bloco YouTubeVideo`).join('\n')
-  : '❌ Nenhum vídeo encontrado - não crie bloco de vídeo'}
+  ? youtubeUrls.map(url => `- ${url}`).join('\n')
+  : '❌ Nenhum vídeo disponível - não crie bloco YouTubeVideo'}
 
 ---
 
-## ELEMENTOS DE CONVERSÃO IDENTIFICADOS
-${strategicPlan.conversionElements?.map(e => `- ${e.type}: "${e.content}" (força: ${e.strength})`).join('\n') || 'Nenhum elemento específico identificado'}
+## SUA TAREFA
 
----
+Crie uma página de vendas ORIGINAL e PERSUASIVA:
 
-## HTML DA PÁGINA ORIGINAL (apenas para contexto/inspiração)
-
-${truncatedHtml}
-
----
-
-## 📝 SUA TAREFA
-
-Crie uma página de vendas PERSUASIVA seguindo estas regras:
-
-1. **HERO OBRIGATÓRIO**: Use a "Promessa Principal" como base para o título
-2. **FRAMEWORK ${strategicPlan.framework}**: Siga as etapas ${frameworkDef.stages.join(' → ')}
-3. **VÍDEOS**: Se houver URLs acima, INCLUA em blocos YouTubeVideo com URL REAL
-4. **DEPOIMENTOS**: Crie 2-3 depoimentos com nomes brasileiros e resultados específicos
+1. **Hero**: Headline impactante baseada na PROMESSA PRINCIPAL
+2. **ContentColumns**: Desenvolva o PROBLEMA e a SOLUÇÃO
+3. **InfoHighlights**: Diferenciais (frete grátis, garantia, segurança)
+4. **Testimonials**: Crie 2-3 depoimentos FICTÍCIOS mas REALISTAS com nomes brasileiros
 5. **FAQ**: Crie 3-4 perguntas que eliminam objeções de compra
-6. **CTA FINAL**: Termine com botão usando verbo + benefício
+6. **Button**: CTA final com verbo + benefício
 
-⚠️ LEMBRE-SE: Nenhum texto genérico como "Título Principal" ou "Cliente Satisfeito"!
+⚠️ TODO O CONTEÚDO DEVE SER CRIADO POR VOCÊ - NÃO COPIE NADA!
 
-Use a função create_page_blocks para retornar os blocos.`;
+Use a função create_page_blocks.`;
 
-  console.log('[Content Creator] Iniciando criação...', { 
+  console.log('[Content Creator] Criando página original...', { 
     framework: strategicPlan.framework,
     productName: strategicPlan.productName,
     productType: strategicPlan.productType,
-    mainPromise: strategicPlan.mainPromise?.slice(0, 50),
-    htmlLength: truncatedHtml.length,
     youtubeUrlsFound: youtubeUrls.length
   });
 
@@ -404,7 +303,7 @@ Use a função create_page_blocks para retornar os blocos.`;
         ],
         tools: [createPageBlocksSchema],
         tool_choice: { type: 'function', function: { name: 'create_page_blocks' } },
-        temperature: 0.7, // Mais criativo para gerar copy original
+        temperature: 0.8, // Alta temperatura para criatividade
       }),
     });
 
@@ -426,7 +325,6 @@ Use a função create_page_blocks para retornar os blocos.`;
     
     console.log('[Content Creator] Resposta recebida em', elapsedMs, 'ms');
 
-    // Extrair argumentos da função
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== 'create_page_blocks') {
       console.error('[Content Creator] Resposta inválida:', JSON.stringify(data).slice(0, 500));
@@ -437,11 +335,11 @@ Use a função create_page_blocks para retornar os blocos.`;
     try {
       creationArgs = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
-      console.error('[Content Creator] Erro ao parsear argumentos:', toolCall.function.arguments);
+      console.error('[Content Creator] Erro ao parsear:', toolCall.function.arguments);
       throw new Error('Erro ao processar resposta da IA');
     }
 
-    // Validar e corrigir blocos usando strategicPlan como fallback
+    // Validar e corrigir blocos
     const validatedBlocks = validateAndFixBlocks(creationArgs.blocks || [], strategicPlan, youtubeUrls);
 
     const result: CreationResult = {
@@ -451,7 +349,6 @@ Use a função create_page_blocks para retornar os blocos.`;
       warnings: creationArgs.warnings || [],
     };
 
-    // Adicionar warnings se blocos foram removidos
     const removedCount = (creationArgs.blocks?.length || 0) - validatedBlocks.length;
     if (removedCount > 0) {
       result.warnings.push(`${removedCount} bloco(s) com tipo inválido foram removidos`);
@@ -459,10 +356,8 @@ Use a função create_page_blocks para retornar os blocos.`;
 
     console.log('[Content Creator] Criação concluída:', {
       blocksCreated: result.blocks.length,
-      blocksRemoved: removedCount,
       quality: result.creationQuality,
       copyStyle: result.copyStyle,
-      warningsCount: result.warnings.length,
       blockTypes: result.blocks.map(b => b.type)
     });
 
@@ -475,7 +370,7 @@ Use a função create_page_blocks para retornar os blocos.`;
 }
 
 // =============================================
-// VALIDAÇÃO E CORREÇÃO DE BLOCOS
+// VALIDAÇÃO DE BLOCOS
 // =============================================
 function validateAndFixBlocks(
   blocks: CreatedBlock[], 
@@ -485,13 +380,11 @@ function validateAndFixBlocks(
   const validBlocks: CreatedBlock[] = [];
   
   for (const block of blocks) {
-    // Verificar se o tipo é válido
     if (!VALID_BLOCK_TYPES.includes(block.type as ValidBlockType)) {
-      console.warn(`[Content Creator] Bloco com tipo inválido removido: ${block.type}`);
+      console.warn(`[Content Creator] Bloco inválido removido: ${block.type}`);
       continue;
     }
 
-    // Corrigir props obrigatórias usando strategicPlan como fallback
     const fixedProps = fillRequiredProps(
       block.type as ValidBlockType, 
       block.props || {},
@@ -507,11 +400,10 @@ function validateAndFixBlocks(
     });
   }
 
-  // Ordenar por order
   return validBlocks.sort((a, b) => a.order - b.order);
 }
 
-// Preenche props obrigatórias com valores do strategicPlan (não genéricos)
+// Preenche props obrigatórias
 function fillRequiredProps(
   type: ValidBlockType, 
   props: Record<string, unknown>,
@@ -520,7 +412,6 @@ function fillRequiredProps(
 ): Record<string, unknown> {
   const filled = { ...props };
   
-  // Helpers para fallback contextual
   const productName = strategicPlan.productName || 'nosso produto';
   const mainPromise = strategicPlan.mainPromise || 'Transforme sua vida hoje';
   const painPoint = strategicPlan.mainPainPoint || 'seus desafios';
@@ -528,19 +419,18 @@ function fillRequiredProps(
 
   switch (type) {
     case 'Hero':
-      // Se título é genérico, usar promessa principal
-      if (!filled.title || filled.title === 'Título Principal' || filled.title === 'Headline Aqui') {
+      if (!filled.title || isGenericText(filled.title as string)) {
         filled.title = mainPromise;
       }
       if (!filled.subtitle) {
         filled.subtitle = usp;
       }
-      if (!filled.ctaText || filled.ctaText === 'Saiba Mais' || filled.ctaText === 'Clique Aqui') {
+      if (!filled.ctaText || isGenericText(filled.ctaText as string)) {
         filled.ctaText = `Quero ${productName}`;
       }
       filled.ctaUrl = filled.ctaUrl || '#comprar';
       filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
+      filled.imageMobile = filled.imageMobile || 'PLACEHOLDER_IMAGE';
       filled.alignment = filled.alignment || 'center';
       break;
 
@@ -549,28 +439,15 @@ function fillRequiredProps(
         filled.title = `Por Que Escolher ${productName}?`;
       }
       if (!filled.content) {
-        filled.content = `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua qualidade de vida.</p><p>${usp}</p>`;
+        filled.content = `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua vida.</p><p>${usp}</p>`;
       }
       filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
+      filled.imageMobile = filled.imageMobile || 'PLACEHOLDER_IMAGE';
       filled.imagePosition = filled.imagePosition || 'right';
       if (!Array.isArray(filled.features) || filled.features.length === 0) {
         filled.features = [
           { icon: 'Check', text: `Resultados comprovados com ${productName}` },
           { icon: 'Check', text: 'Garantia de satisfação' },
-          { icon: 'Check', text: 'Atendimento especializado' },
-        ];
-      }
-      break;
-
-    case 'FeatureList':
-      if (!filled.title) {
-        filled.title = `Benefícios de ${productName}`;
-      }
-      if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [
-          { icon: 'Check', text: mainPromise },
-          { icon: 'Star', text: usp },
         ];
       }
       break;
@@ -579,8 +456,8 @@ function fillRequiredProps(
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
         filled.items = [
           { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba no conforto da sua casa' },
-          { icon: 'Shield', title: 'Garantia Total', description: 'Satisfação garantida ou dinheiro de volta' },
-          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Seus dados 100% protegidos' },
+          { icon: 'Shield', title: 'Garantia Total', description: 'Satisfação garantida' },
+          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Dados protegidos' },
         ];
       }
       filled.layout = filled.layout || 'horizontal';
@@ -594,12 +471,12 @@ function fillRequiredProps(
         filled.items = [
           { 
             name: 'Carlos Eduardo', 
-            text: `Depois de experimentar ${productName}, minha vida mudou completamente. Os resultados apareceram em poucas semanas!`, 
+            text: `Depois de experimentar ${productName}, minha vida mudou. Resultados em poucas semanas!`, 
             rating: 5 
           },
           { 
             name: 'Maria Fernanda', 
-            text: `Finalmente encontrei uma solução que realmente funciona. Recomendo para todos que sofrem com ${painPoint}.`, 
+            text: `Finalmente encontrei uma solução que funciona. Recomendo para todos!`, 
             rating: 5 
           },
         ];
@@ -607,11 +484,11 @@ function fillRequiredProps(
         // Corrigir nomes genéricos
         const nomesBrasileiros = ['Roberto Mendes', 'Ana Paula', 'Carlos Eduardo', 'Maria Fernanda', 'Paulo Henrique', 'Juliana Santos'];
         filled.items = (filled.items as Array<{name: string; text: string; rating: number}>).map((item, i) => {
-          if (item.name === 'Cliente Satisfeito' || item.name === 'Nome do Cliente' || !item.name) {
+          if (isGenericText(item.name)) {
             return { ...item, name: nomesBrasileiros[i % nomesBrasileiros.length] };
           }
-          if (item.text === 'Depoimento do cliente...' || !item.text) {
-            return { ...item, text: `${productName} superou todas as minhas expectativas. Resultados incríveis!` };
+          if (isGenericText(item.text)) {
+            return { ...item, text: `${productName} superou todas as minhas expectativas!` };
           }
           return item;
         });
@@ -625,15 +502,14 @@ function fillRequiredProps(
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
         filled.items = [
           { question: `Como funciona ${productName}?`, answer: usp },
-          { question: 'Qual é o prazo de entrega?', answer: 'Enviamos em até 24h úteis após confirmação do pagamento.' },
-          { question: 'Tem garantia?', answer: 'Sim! Garantia de 30 dias ou seu dinheiro de volta.' },
+          { question: 'Qual é o prazo de entrega?', answer: 'Enviamos em até 24h úteis.' },
+          { question: 'Tem garantia?', answer: 'Sim! 30 dias ou seu dinheiro de volta.' },
         ];
       }
       break;
 
     case 'YouTubeVideo':
-      // Usar URL real se disponível e não for placeholder
-      if (!filled.youtubeUrl || filled.youtubeUrl === 'PLACEHOLDER_VIDEO' || filled.youtubeUrl === 'URL_REAL_DO_VIDEO') {
+      if (!filled.youtubeUrl || filled.youtubeUrl === 'URL_DO_VIDEO') {
         if (youtubeUrls.length > 0) {
           filled.youtubeUrl = youtubeUrls[0];
         } else {
@@ -643,81 +519,35 @@ function fillRequiredProps(
       if (!filled.title) {
         filled.title = `Conheça ${productName}`;
       }
-      filled.widthPreset = filled.widthPreset || 'large';
-      filled.aspectRatio = filled.aspectRatio || '16:9';
-      break;
-
-    case 'VideoCarousel':
-      if (!filled.title) {
-        filled.title = 'Vídeos';
-      }
-      if (!Array.isArray(filled.videos) || filled.videos.length === 0) {
-        if (youtubeUrls.length > 0) {
-          filled.videos = youtubeUrls.map((url, i) => ({ url, title: `Vídeo ${i + 1}` }));
-        } else {
-          filled.videos = [{ url: 'PLACEHOLDER_VIDEO', title: '' }];
-        }
-      }
-      break;
-
-    case 'HeroBanner':
-      if (!Array.isArray(filled.slides) || filled.slides.length === 0) {
-        filled.slides = [{ 
-          imageDesktop: 'PLACEHOLDER_IMAGE', 
-          imageMobile: 'PLACEHOLDER_IMAGE', 
-          linkUrl: '#', 
-          altText: productName 
-        }];
-      }
-      filled.autoplaySeconds = filled.autoplaySeconds || 5;
       break;
 
     case 'Button':
-      if (!filled.text || filled.text === 'Clique Aqui' || filled.text === 'Saiba Mais') {
+      if (!filled.text || isGenericText(filled.text as string)) {
         filled.text = `Quero ${productName} Agora`;
       }
       filled.url = filled.url || '#comprar';
       filled.variant = filled.variant || 'default';
       filled.size = filled.size || 'lg';
       break;
-
-    case 'RichText':
-      filled.content = filled.content || `<p>${usp}</p>`;
-      break;
-
-    case 'Image':
-      filled.imageDesktop = filled.imageDesktop || filled.src || 'PLACEHOLDER_IMAGE';
-      filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.alt = filled.alt || productName;
-      break;
-
-    case 'ImageCarousel':
-      if (!filled.title) {
-        filled.title = '';
-      }
-      if (!Array.isArray(filled.images) || filled.images.length === 0) {
-        filled.images = [{ src: 'PLACEHOLDER_IMAGE', alt: productName }];
-      }
-      break;
-
-    case 'VideoUpload':
-      filled.videoDesktop = filled.videoDesktop || 'PLACEHOLDER_VIDEO';
-      filled.videoMobile = filled.videoMobile || filled.videoDesktop || 'PLACEHOLDER_VIDEO';
-      break;
-
-    case 'Spacer':
-      filled.height = filled.height || 'md';
-      break;
-
-    case 'Section':
-      filled.backgroundColor = filled.backgroundColor || 'transparent';
-      break;
   }
 
   return filled;
 }
 
-// Extrai URLs do YouTube do HTML
+// Verifica se texto é genérico
+function isGenericText(text: string): boolean {
+  if (!text) return true;
+  const lower = text.toLowerCase();
+  const generics = [
+    'título principal', 'headline aqui', 'cliente satisfeito', 
+    'nome do cliente', 'depoimento do cliente', 'descrição',
+    'texto aqui', 'clique aqui', 'saiba mais', 'cliente 1',
+    'cliente 2', 'joão s.', 'maria s.'
+  ];
+  return generics.some(g => lower.includes(g));
+}
+
+// Extrai URLs do YouTube
 function extractYouTubeUrls(html: string): string[] {
   const urls: string[] = [];
   const patterns = [
@@ -740,7 +570,7 @@ function extractYouTubeUrls(html: string): string[] {
 }
 
 // =============================================
-// FALLBACK DE CRIAÇÃO
+// FALLBACK
 // =============================================
 export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult {
   const productName = strategicPlan.productName || 'nosso produto';
@@ -767,14 +597,13 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
       type: 'ContentColumns',
       props: {
         title: `Por Que Escolher ${productName}?`,
-        content: `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua qualidade de vida.</p><p>${usp}</p>`,
+        content: `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua vida.</p><p>${usp}</p>`,
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
         imagePosition: 'right',
         features: [
           { icon: 'Check', text: 'Resultados comprovados' },
           { icon: 'Check', text: 'Garantia de satisfação' },
-          { icon: 'Check', text: 'Atendimento especializado' },
         ],
       },
       marketingFunction: 'interest',
@@ -784,9 +613,9 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
       type: 'InfoHighlights',
       props: {
         items: [
-          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba no conforto da sua casa' },
-          { icon: 'Shield', title: 'Garantia Total', description: 'Satisfação garantida' },
-          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Dados protegidos' },
+          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba em casa' },
+          { icon: 'Shield', title: 'Garantia', description: '30 dias' },
+          { icon: 'CreditCard', title: 'Seguro', description: 'Dados protegidos' },
         ],
         layout: 'horizontal',
       },
