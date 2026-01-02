@@ -1721,6 +1721,8 @@ const blockDefinitions: BlockDefinition[] = [
     defaultProps: {
       title: '',
       youtubeUrl: '',
+      widthPreset: 'lg',
+      aspectRatio: '16:9',
     },
     propsSchema: {
       title: {
@@ -1732,6 +1734,28 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'string',
         label: 'URL do YouTube',
         placeholder: 'https://www.youtube.com/watch?v=...',
+      },
+      widthPreset: {
+        type: 'select',
+        label: 'Largura do vídeo',
+        defaultValue: 'lg',
+        options: [
+          { label: 'Pequeno (sm)', value: 'sm' },
+          { label: 'Médio (md)', value: 'md' },
+          { label: 'Grande (lg)', value: 'lg' },
+          { label: 'Extra grande (xl)', value: 'xl' },
+          { label: 'Largura total', value: 'full' },
+        ],
+      },
+      aspectRatio: {
+        type: 'select',
+        label: 'Proporção',
+        defaultValue: '16:9',
+        options: [
+          { label: '16:9 (Horizontal)', value: '16:9' },
+          { label: '4:3 (Clássico)', value: '4:3' },
+          { label: '1:1 (Quadrado)', value: '1:1' },
+        ],
       },
     },
     canHaveChildren: false,
