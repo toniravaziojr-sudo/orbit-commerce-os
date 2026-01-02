@@ -494,10 +494,10 @@ function extractShopifySectionsContent(
   doc: Document,
   logs: string[]
 ): { element: Element; extractedFrom: string; found: boolean } | null {
-  logs.push(`[SHOPIFY] ========== Starting Shopify ROBUST DETERMINISTIC extraction (v3) ==========`);
+  logs.push(`[SHOPIFY] ========== Starting Shopify ROBUST DETERMINISTIC extraction (v4) ==========`);
   
   // Step 1: Find the main container (tolerant order)
-  const mainSelectors = ['#MainContent', 'main[role="main"]', 'main', '[role="main"]'];
+  const mainSelectors = ['#MainContent', 'main[role="main"]', 'main.main-content', 'main', '[role="main"]'];
   let mainContainer: Element | null = null;
   let mainSelector = '';
   
@@ -510,42 +510,45 @@ function extractShopifySectionsContent(
     }
   }
   
-  // Fallback to body (but log warning - we prefer to have main)
+  // If no main found, DO NOT fallback to body for Shopify - this is critical
   if (!mainContainer) {
+    logs.push(`[SHOPIFY] ERROR: No main container found with selectors: ${mainSelectors.join(', ')}`);
+    logs.push(`[SHOPIFY] Trying document-wide search as fallback...`);
+    // Try to find content-rich sections in the entire document
     mainContainer = doc.body as Element;
-    mainSelector = 'body (fallback)';
-    logs.push(`[SHOPIFY] WARNING: No main container found, using body as fallback`);
+    mainSelector = 'body (document-wide)';
   }
   
   logs.push(`[SHOPIFY] mainSelectorUsed: ${mainSelector}`);
+  logs.push(`[SHOPIFY] mainFound: ${mainSelector !== 'body (document-wide)'}`);
   
-  // Step 2: Collect ALL candidates: [id^="shopify-section-"] OR .shopify-section
-  // NOT restricted to <section> tag - some themes use div
+  // Step 2: Collect ALL candidates within main (tolerant - not restricted to <section> tag)
+  // Also try variants: .shopify-section, [id^="shopify-section-"]
   const byId = mainContainer.querySelectorAll('[id^="shopify-section-"]');
   const byClass = mainContainer.querySelectorAll('.shopify-section');
   
-  // Deduplicate candidates
-  const candidateSet = new Set<Element>();
-  for (let i = 0; i < byId.length; i++) candidateSet.add(byId[i] as Element);
-  for (let i = 0; i < byClass.length; i++) candidateSet.add(byClass[i] as Element);
-  
-  // If no candidates in main, try document-wide
-  if (candidateSet.size === 0) {
-    const docById = doc.querySelectorAll('[id^="shopify-section-"]');
-    const docByClass = doc.querySelectorAll('.shopify-section');
-    for (let i = 0; i < docById.length; i++) candidateSet.add(docById[i] as Element);
-    for (let i = 0; i < docByClass.length; i++) candidateSet.add(docByClass[i] as Element);
-    if (candidateSet.size > 0) {
-      logs.push(`[SHOPIFY] No sections in main, found ${candidateSet.size} in document`);
+  // Deduplicate candidates (Set doesn't work well with Elements, use Map)
+  const candidateMap = new Map<string, Element>();
+  for (let i = 0; i < byId.length; i++) {
+    const el = byId[i] as Element;
+    const key = el.getAttribute('id') || `idx-${i}`;
+    candidateMap.set(key, el);
+  }
+  for (let i = 0; i < byClass.length; i++) {
+    const el = byClass[i] as Element;
+    const key = el.getAttribute('id') || el.getAttribute('class') || `class-idx-${i}`;
+    if (!candidateMap.has(key)) {
+      candidateMap.set(key, el);
     }
   }
   
-  const candidates = Array.from(candidateSet);
+  const candidates = Array.from(candidateMap.values());
   logs.push(`[SHOPIFY] candidatesFound: ${candidates.length} (byId: ${byId.length}, byClass: ${byClass.length})`);
   
+  // If NO shopify-section candidates found, try direct content extraction from main
   if (candidates.length === 0) {
-    logs.push(`[SHOPIFY] ERROR: No shopify-section candidates found anywhere`);
-    return null;
+    logs.push(`[SHOPIFY] No shopify-section candidates found, trying direct main content extraction`);
+    return extractDirectMainContent(mainContainer, mainSelector, logs);
   }
   
   // Step 3: Filter using deterministic rules
@@ -568,12 +571,13 @@ function extractShopifySectionsContent(
   const includedIds = contentSections.map(s => s.getAttribute('id') || 'no-id');
   logs.push(`[SHOPIFY] Included IDs: [${includedIds.join(', ')}]`);
   
+  // If no sections passed, try direct content extraction
   if (contentSections.length === 0) {
-    logs.push(`[SHOPIFY] ERROR: No sections passed the filter. All ${candidates.length} candidates were excluded.`);
+    logs.push(`[SHOPIFY] WARNING: All ${candidates.length} candidates were excluded. Trying direct content extraction.`);
     excludedSections.forEach(ex => {
       logs.push(`[SHOPIFY] Excluded detail: ${ex.id} => ${ex.reason}`);
     });
-    return null;
+    return extractDirectMainContent(mainContainer, mainSelector, logs);
   }
   
   // Step 4: Create wrapper and concatenate all content sections in DOM order
@@ -604,7 +608,135 @@ function extractShopifySectionsContent(
   
   return {
     element: wrapper,
-    extractedFrom: `shopify-deterministic-v3: ${contentSections.length} sections from ${mainSelector}`,
+    extractedFrom: `shopify-deterministic-v4: ${contentSections.length} sections from ${mainSelector}`,
+    found: true,
+  };
+}
+
+/**
+ * FALLBACK: Direct content extraction when no shopify-sections are found.
+ * This handles non-standard Shopify themes that don't use shopify-section classes/IDs.
+ * 
+ * Strategy:
+ * 1. Take the main container content
+ * 2. Remove footer-like content (by position: anything after a <footer> or with footer patterns)
+ * 3. Remove header-like content (by position: before first meaningful content)
+ * 4. Clean up and return
+ */
+function extractDirectMainContent(
+  mainContainer: Element,
+  mainSelector: string,
+  logs: string[]
+): { element: Element; extractedFrom: string; found: boolean } | null {
+  logs.push(`[SHOPIFY-DIRECT] Starting direct content extraction from ${mainSelector}`);
+  
+  const doc = mainContainer.ownerDocument;
+  if (!doc) {
+    logs.push(`[SHOPIFY-DIRECT] ERROR: No owner document found`);
+    return null;
+  }
+  
+  // Clone to avoid modifying original
+  const clone = mainContainer.cloneNode(true) as Element;
+  
+  // Step 1: Remove obvious non-content elements
+  const removeSelectors = [
+    // Footer elements
+    'footer', '[role="contentinfo"]',
+    // Header elements (that might be inside main)
+    'header:not(.article-header):not(.page-header)', '[role="banner"]',
+    // Navigation
+    'nav', '[role="navigation"]',
+    // Modals/Overlays
+    '[role="dialog"]', '[aria-modal="true"]', '.modal', '.drawer', '.overlay',
+    // Shopify specific (if they're here despite not being sectioned)
+    '.shopify-section-group-header-group', '.shopify-section-group-footer-group',
+    // Announcement bars
+    '.announcement-bar', '.announcement',
+    // Search/predictive
+    '[data-predictive-search]', '.predictive-search'
+  ];
+  
+  let removedCount = 0;
+  for (const selector of removeSelectors) {
+    try {
+      const elements = clone.querySelectorAll(selector);
+      for (const el of elements) {
+        (el as Element).remove();
+        removedCount++;
+      }
+    } catch (e) {
+      // Invalid selector, skip
+    }
+  }
+  logs.push(`[SHOPIFY-DIRECT] Removed ${removedCount} non-content elements`);
+  
+  // Step 2: Remove footer-like text sections (heuristic - by content)
+  const footerPatterns = [
+    'mais pesquisados', 'trending searches', 'cnpj', 'formas de pagamento',
+    'políticas da loja', 'política de', 'termos de', 'sobre nós', 'fale conosco',
+    'receba nossas promoções', 'inscreva-se', 'newsletter'
+  ];
+  
+  // Find all divs/sections and check if they're footer-like
+  const allContainers = clone.querySelectorAll('div, section');
+  let footerLikeRemoved = 0;
+  for (const container of allContainers) {
+    const text = ((container as Element).textContent || '').toLowerCase();
+    const textLen = text.length;
+    
+    // Skip if it has meaningful content indicators
+    const hasVideo = (container as Element).querySelector('iframe[src*="youtube"], iframe[src*="vimeo"], video');
+    const hasHeading = (container as Element).querySelector('h1, h2, h3');
+    
+    if (hasVideo || hasHeading) continue;
+    
+    // Check for footer patterns - only if the container is mostly footer-like
+    let patternMatches = 0;
+    for (const pattern of footerPatterns) {
+      if (text.includes(pattern)) patternMatches++;
+    }
+    
+    // If multiple footer patterns and relatively short (likely a footer section, not main content)
+    if (patternMatches >= 2 && textLen < 2000) {
+      (container as Element).remove();
+      footerLikeRemoved++;
+    }
+  }
+  logs.push(`[SHOPIFY-DIRECT] Removed ${footerLikeRemoved} footer-like containers`);
+  
+  // Step 3: Check if we have meaningful content left
+  const textContent = clone.textContent || '';
+  const cleanText = textContent.replace(/\s+/g, ' ').trim();
+  
+  const headings = clone.querySelectorAll('h1, h2, h3, h4, h5, h6').length;
+  const paragraphs = clone.querySelectorAll('p').length;
+  const iframes = clone.querySelectorAll('iframe').length;
+  const buttons = clone.querySelectorAll('button, a.btn, a.button, [role="button"]').length;
+  
+  logs.push(`[SHOPIFY-DIRECT] Content check: h=${headings}, p=${paragraphs}, iframe=${iframes}, btn=${buttons}, textLen=${cleanText.length}`);
+  
+  // Must have some content to be valid
+  const hasContent = cleanText.length >= 50 || headings > 0 || iframes > 0;
+  
+  if (!hasContent) {
+    logs.push(`[SHOPIFY-DIRECT] ERROR: No meaningful content found after cleaning`);
+    return null;
+  }
+  
+  // Create wrapper
+  const wrapper = doc.createElement('div');
+  wrapper.setAttribute('data-import-root', 'shopify-direct');
+  wrapper.innerHTML = clone.innerHTML;
+  
+  // Log preview
+  const textPreview = cleanText.substring(0, 200);
+  logs.push(`[SHOPIFY-DIRECT] extractedTextPreview: "${textPreview}..."`);
+  logs.push(`[SHOPIFY-DIRECT] ========== Direct extraction complete: ${cleanText.length} chars ==========`);
+  
+  return {
+    element: wrapper,
+    extractedFrom: `shopify-direct: content from ${mainSelector}`,
     found: true,
   };
 }
