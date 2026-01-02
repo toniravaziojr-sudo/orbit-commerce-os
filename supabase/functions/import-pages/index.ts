@@ -2097,8 +2097,29 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{
     const maxMainHtmlSize = 200000; // 200KB for content processing
     
     if (fullRawHtml.length > maxRawHtmlSize) {
-      console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), truncating to ${maxRawHtmlSize}`);
-      fullRawHtml = fullRawHtml.substring(0, maxRawHtmlSize);
+      console.log(`[SCRAPE] rawHtml too large (${fullRawHtml.length}), smart truncating to preserve <main>`);
+      
+      // Smart truncation: try to preserve the <main> content area
+      const mainStart = fullRawHtml.indexOf('<main');
+      const mainEnd = fullRawHtml.lastIndexOf('</main>');
+      
+      if (mainStart !== -1 && mainEnd !== -1 && mainEnd > mainStart) {
+        // Extract the main content plus some context before and after
+        const mainContent = fullRawHtml.substring(mainStart, mainEnd + 7); // +7 for </main>
+        
+        if (mainContent.length <= maxRawHtmlSize) {
+          // Add wrapper to make it valid HTML
+          fullRawHtml = `<!DOCTYPE html><html><head><title>Imported</title></head><body>${mainContent}</body></html>`;
+          console.log(`[SCRAPE] Preserved <main> content: ${fullRawHtml.length} chars`);
+        } else {
+          // Main is still too big, truncate it
+          console.log(`[SCRAPE] <main> content too large (${mainContent.length}), truncating`);
+          fullRawHtml = `<!DOCTYPE html><html><head><title>Imported</title></head><body>${mainContent.substring(0, maxRawHtmlSize - 100)}</body></html>`;
+        }
+      } else {
+        // No main found, do simple truncation
+        fullRawHtml = fullRawHtml.substring(0, maxRawHtmlSize);
+      }
     }
     
     if (mainHtml.length > maxMainHtmlSize) {
@@ -2973,10 +2994,18 @@ async function importPage(
     globalExtractedCss = scraped.extractedCss || '';
     console.log(`[IMPORT] CSS available: ${globalExtractedCss.length} chars`);
     
+    // DEBUG: Check if rawHtml has main element
+    const hasMainTag = rawHtmlToCheck.includes('<main');
+    const hasMainContent = rawHtmlToCheck.includes('MainContent');
+    console.log(`[IMPORT] rawHtml length: ${rawHtmlToCheck.length}, hasMain: ${hasMainTag}, hasMainContent: ${hasMainContent}`);
+    
     // STEP 0: Materialize videos BEFORE any processing
     const { html: videoMaterializedHtml, videosFound, patterns: videoPatterns } = materializeVideos(rawHtmlToCheck);
     console.log(`[IMPORT] Videos materialized: ${videosFound} (patterns: ${videoPatterns.join(', ') || 'none'})`);
     
+    // DEBUG: Check if video materialization preserved main
+    const afterVideoHasMain = videoMaterializedHtml.includes('<main');
+    console.log(`[IMPORT] afterVideoMat length: ${videoMaterializedHtml.length}, hasMain: ${afterVideoHasMain}`);
     // =============================================
     // PRIORIDADE 1: SEGMENTAÇÃO DETERMINÍSTICA (section markers)
     // =============================================
