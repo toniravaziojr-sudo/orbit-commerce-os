@@ -57,70 +57,68 @@ export interface CreationResult {
 }
 
 // =============================================
-// PROMPT DO SISTEMA - FOCADO EM CRIAÇÃO
+// PROMPT DO SISTEMA - FOCADO EM CRIAÇÃO COM EXEMPLO
 // =============================================
 const CREATION_SYSTEM_PROMPT = `Você é um copywriter especialista em páginas de vendas de alta conversão.
 
 ## SUA MISSÃO
 Dado a análise estratégica de uma página, você deve CRIAR conteúdo ORIGINAL e PERSUASIVO.
-Você NÃO está extraindo conteúdo - você está CRIANDO baseado na inspiração.
+Você NÃO está extraindo conteúdo - você está CRIANDO baseado na inspiração e dados fornecidos.
 
-## REGRAS CRÍTICAS
+## REGRA CRÍTICA: NUNCA USE TEXTOS GENÉRICOS
 
-### 1. TIPOS DE BLOCOS PERMITIDOS (WHITELIST ESTRITA)
-Você pode usar APENAS estes tipos de blocos:
+❌ PROIBIDO usar textos como:
+- "Título Principal" / "Headline Aqui"
+- "Cliente Satisfeito" / "Nome do Cliente"  
+- "Depoimento do cliente..."
+- "Benefício principal"
+- "Descrição..."
+- Qualquer placeholder óbvio
+
+✅ SEMPRE crie textos ESPECÍFICOS baseados no:
+- Nome do produto
+- Benefícios identificados
+- Dor/problema do público
+- USP (proposta única de valor)
+
+## TIPOS DE BLOCOS PERMITIDOS (WHITELIST ESTRITA)
 ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
 
 ❌ NUNCA invente tipos de blocos como: ProductShowcase, PricingTable, BeforeAfter, StatsNumbers, Features, CountdownTimer, Bonus, etc.
-❌ Se usar um tipo não listado, o bloco será REJEITADO.
 
-### 2. PROPS OBRIGATÓRIAS POR BLOCO
+## PROPS OBRIGATÓRIAS POR BLOCO
 
 **Hero** (OBRIGATÓRIO no início):
 {
-  "title": "Headline impactante focada em benefício",
-  "subtitle": "Subheadline que expande a promessa",
-  "ctaText": "Texto do botão (verbo de ação + benefício)",
+  "title": "Headline IMPACTANTE focada em benefício (máx 10 palavras)",
+  "subtitle": "Subheadline que expande a promessa (15-25 palavras)",
+  "ctaText": "VERBO + Benefício (ex: Quero Meu Desconto, Recuperar Meus Cabelos)",
   "ctaUrl": "#comprar",
   "imageDesktop": "PLACEHOLDER_IMAGE",
-  "imageMobile": "PLACEHOLDER_IMAGE",
-  "alignment": "center" | "left" | "right",
-  "overlayOpacity": 0.3
+  "imageMobile": "PLACEHOLDER_IMAGE"
 }
 
 **ContentColumns**:
 {
-  "title": "Título da seção",
-  "subtitle": "Subtítulo opcional",
-  "content": "<p>Texto persuasivo em HTML</p>",
+  "title": "Título persuasivo da seção",
+  "content": "<p>Texto persuasivo em HTML com benefícios específicos</p>",
   "imageDesktop": "PLACEHOLDER_IMAGE",
   "imageMobile": "PLACEHOLDER_IMAGE",
   "imagePosition": "left" | "right",
-  "features": [{ "icon": "Check", "text": "Benefício específico" }],
-  "buttonText": "Texto do CTA",
-  "buttonUrl": "#acao"
+  "features": [{ "icon": "Check", "text": "Benefício ESPECÍFICO com resultado concreto" }]
 }
 
 **FeatureList**:
 {
-  "title": "Título da lista",
-  "subtitle": "Subtítulo opcional",
-  "items": [
-    { "icon": "Check" | "Star" | "Shield" | "Zap" | "Heart", "text": "Benefício específico" }
-  ],
-  "iconColor": "",
-  "showButton": true,
-  "buttonText": "CTA",
-  "buttonUrl": "#"
+  "title": "Título da lista de benefícios",
+  "items": [{ "icon": "Check", "text": "Benefício específico com prova ou número" }]
 }
 
 **InfoHighlights**:
 {
   "items": [
-    { "icon": "Truck" | "Shield" | "Clock" | "CreditCard", "title": "Título curto", "description": "Descrição breve" }
-  ],
-  "layout": "horizontal" | "grid",
-  "iconColor": ""
+    { "icon": "Truck" | "Shield" | "Clock" | "CreditCard", "title": "Título Curto", "description": "Descrição específica do benefício" }
+  ]
 }
 
 **Testimonials**:
@@ -128,10 +126,9 @@ ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
   "title": "O Que Nossos Clientes Dizem",
   "items": [
     {
-      "name": "Nome Completo Real",
-      "text": "Depoimento persuasivo e específico com resultados concretos",
-      "rating": 5,
-      "avatar": "PLACEHOLDER_IMAGE"
+      "name": "Nome Completo Brasileiro (ex: Carlos Eduardo, Maria Fernanda)",
+      "text": "Depoimento DETALHADO com resultado específico, tempo e benefício mensurável",
+      "rating": 5
     }
   ]
 }
@@ -140,90 +137,111 @@ ${VALID_BLOCK_TYPES.map(t => `- ${t}`).join('\n')}
 {
   "title": "Perguntas Frequentes",
   "items": [
-    { "question": "Pergunta comum?", "answer": "Resposta que elimina objeção" }
+    { "question": "Pergunta real que o cliente faria?", "answer": "Resposta que elimina objeção de compra" }
   ]
 }
 
 **YouTubeVideo**:
 {
-  "youtubeUrl": "URL_REAL_DO_VIDEO ou PLACEHOLDER_VIDEO",
-  "title": "Título do vídeo",
-  "widthPreset": "full" | "large" | "medium",
-  "aspectRatio": "16:9"
+  "youtubeUrl": "URL_REAL_DO_VIDEO",
+  "title": "Título descritivo do vídeo"
 }
 
-**VideoCarousel**:
+**Button** (para CTAs):
 {
-  "title": "Título da seção",
-  "videos": [
-    { "url": "URL_YOUTUBE", "title": "Título" }
-  ],
-  "aspectRatio": "16:9"
-}
-
-**HeroBanner**:
-{
-  "slides": [
-    { "imageDesktop": "PLACEHOLDER_IMAGE", "imageMobile": "PLACEHOLDER_IMAGE", "linkUrl": "#", "altText": "Descrição" }
-  ],
-  "autoplaySeconds": 5,
-  "showArrows": true,
-  "showDots": true
-}
-
-**Button** (para CTAs isolados):
-{
-  "text": "Texto do botão",
+  "text": "VERBO + Benefício",
   "url": "#comprar",
-  "variant": "default" | "outline" | "secondary",
-  "size": "lg" | "default"
+  "variant": "default",
+  "size": "lg"
 }
 
-**RichText** (apenas como fallback para texto que não se encaixa em outros blocos):
+## EXEMPLO CONCRETO DE OUTPUT ESPERADO
+
+Para um shampoo anti-calvície com framework PAS:
+
 {
-  "content": "<h2>Título</h2><p>Texto em HTML...</p>"
+  "blocks": [
+    {
+      "type": "Hero",
+      "props": {
+        "title": "Recupere Sua Autoconfiança em 30 Dias",
+        "subtitle": "O único shampoo 5 em 1 que combate a queda capilar na raiz - sem efeitos colaterais, com resultados visíveis ou seu dinheiro de volta",
+        "ctaText": "Quero Meus Cabelos de Volta",
+        "ctaUrl": "#comprar",
+        "imageDesktop": "PLACEHOLDER_IMAGE",
+        "imageMobile": "PLACEHOLDER_IMAGE"
+      },
+      "marketingFunction": "attention",
+      "order": 1
+    },
+    {
+      "type": "ContentColumns",
+      "props": {
+        "title": "Por Que a Calvície Afeta Sua Vida?",
+        "content": "<p>Você já perdeu a conta de quantos tratamentos caros tentou sem resultado? Olhar no espelho e ver os fios cada vez mais ralos afeta sua autoestima todos os dias.</p><p>Nosso shampoo foi desenvolvido por especialistas para atacar as 3 principais causas da queda: DHT, inflamação e falta de nutrientes no folículo.</p>",
+        "imageDesktop": "PLACEHOLDER_IMAGE",
+        "imageMobile": "PLACEHOLDER_IMAGE",
+        "imagePosition": "right",
+        "features": [
+          { "icon": "Check", "text": "Bloqueia 89% do DHT em 15 dias" },
+          { "icon": "Check", "text": "Fórmula sem sulfatos e parabenos" },
+          { "icon": "Check", "text": "Resultados comprovados em estudo clínico" }
+        ]
+      },
+      "marketingFunction": "problem",
+      "order": 2
+    },
+    {
+      "type": "Testimonials",
+      "props": {
+        "title": "Homens Que Recuperaram a Confiança",
+        "items": [
+          {
+            "name": "Roberto Mendes",
+            "text": "Depois de 2 meses usando, minha esposa notou a diferença antes de mim. As entradas diminuíram visivelmente e os fios estão mais grossos. Finalmente um produto que funciona!",
+            "rating": 5
+          },
+          {
+            "name": "Paulo Henrique Silva",
+            "text": "Tinha vergonha de tirar o boné. Hoje saio sem ele tranquilamente. Em 45 dias já vi resultado nas fotos antes/depois. Recomendo demais!",
+            "rating": 5
+          }
+        ]
+      },
+      "marketingFunction": "testimonial",
+      "order": 3
+    },
+    {
+      "type": "Button",
+      "props": {
+        "text": "Quero Acabar Com a Calvície Agora",
+        "url": "#comprar",
+        "variant": "default",
+        "size": "lg"
+      },
+      "marketingFunction": "action",
+      "order": 4
+    }
+  ],
+  "creationQuality": 85,
+  "copyStyle": "emocional-aspiracional",
+  "warnings": []
 }
 
-**Image**:
-{
-  "imageDesktop": "PLACEHOLDER_IMAGE",
-  "imageMobile": "PLACEHOLDER_IMAGE",
-  "alt": "Descrição da imagem",
-  "linkUrl": ""
-}
-
-**Spacer**:
-{
-  "height": "md" | "lg" | "xl"
-}
-
-### 3. REGRAS DE COPY
-
-- Headlines: IMPACTANTES, focadas em benefício principal, máximo 10 palavras
-- Subtítulos: Expandem a promessa, 15-25 palavras
-- Bullets: Benefícios ESPECÍFICOS, não genéricos (ex: "Resultados em 30 dias" não "Resultados rápidos")
-- CTAs: Verbo de ação + benefício (ex: "Quero Meu Desconto" não "Clique aqui")
-- Depoimentos: Nomes completos, resultados específicos, linguagem natural
-
-### 4. ESTRUTURA RECOMENDADA
+## ESTRUTURA RECOMENDADA
 
 1. **Hero** - Headline principal + CTA (SEMPRE PRIMEIRO)
-2. **ContentColumns** ou **FeatureList** - Benefícios principais
+2. **ContentColumns** ou **FeatureList** - Problema e solução
 3. **InfoHighlights** - Diferenciais (frete, garantia, segurança)
-4. **YouTubeVideo** ou **VideoCarousel** - Se houver vídeos
-5. **Testimonials** - Prova social
-6. **FAQ** - Elimina objeções
-7. **Hero** ou **Button** - CTA final (SEMPRE TERMINAR COM CTA)
-
-### 5. PLACEHOLDERS
-
-- Para imagens: use exatamente "PLACEHOLDER_IMAGE" (usuário substituirá no editor)
-- Para vídeos sem URL real: use exatamente "PLACEHOLDER_VIDEO"
-- Para URLs de ação: use "#comprar", "#contato", etc.
+4. **YouTubeVideo** - Se houver URLs de vídeo disponíveis (USE A URL REAL!)
+5. **Testimonials** - Prova social com nomes brasileiros e resultados específicos
+6. **FAQ** - Elimina objeções de compra
+7. **Button** - CTA final (SEMPRE TERMINAR COM CTA)
 
 ## OUTPUT
 
-Use a função create_page_blocks para retornar os blocos criados.`;
+Use a função create_page_blocks para retornar os blocos criados.
+Lembre-se: TODOS os textos devem ser ESPECÍFICOS para o produto/serviço analisado.`;
 
 // Schema para tool calling
 const createPageBlocksSchema = {
@@ -246,7 +264,7 @@ const createPageBlocksSchema = {
               },
               props: {
                 type: 'object',
-                description: 'Propriedades do bloco com conteúdo ORIGINAL criado'
+                description: 'Propriedades do bloco com conteúdo ORIGINAL criado - NUNCA use placeholders genéricos'
               },
               marketingFunction: {
                 type: 'string',
@@ -260,7 +278,7 @@ const createPageBlocksSchema = {
             },
             required: ['type', 'props', 'marketingFunction', 'order']
           },
-          description: 'Blocos criados em ordem estratégica'
+          description: 'Blocos criados em ordem estratégica com conteúdo persuasivo ESPECÍFICO'
         },
         creationQuality: {
           type: 'number',
@@ -295,9 +313,10 @@ export async function createPageFromInspiration(
     throw new Error('LOVABLE_API_KEY não configurada');
   }
 
-  const maxLength = options?.maxHtmlLength || 80000;
+  // REDUZIR HTML - focar nos dados estratégicos
+  const maxLength = options?.maxHtmlLength || 15000;
   const truncatedHtml = html.length > maxLength 
-    ? html.slice(0, maxLength) + '\n\n[HTML TRUNCADO]'
+    ? html.slice(0, maxLength) + '\n\n[HTML TRUNCADO - USE OS DADOS ESTRATÉGICOS ACIMA]'
     : html;
 
   const frameworkDef = FRAMEWORKS[strategicPlan.framework];
@@ -305,48 +324,65 @@ export async function createPageFromInspiration(
   // Extrair vídeos YouTube do HTML para reuso
   const youtubeUrls = extractYouTubeUrls(html);
   
-  // Construir prompt do usuário com contexto estratégico completo
-  const userPrompt = `## CONTEXTO DO PRODUTO (ANÁLISE ESTRATÉGICA)
+  // Construir prompt do usuário com ÊNFASE nos dados estratégicos
+  const userPrompt = `## ⚠️ DADOS OBRIGATÓRIOS DO PRODUTO (USE ESTES DADOS!)
 
-**Tipo de Produto:** ${strategicPlan.productType}
-**Nome do Produto:** ${strategicPlan.productName}
+**Produto:** ${strategicPlan.productName || 'Produto'}
+**Tipo:** ${strategicPlan.productType}
 **Público-Alvo:** ${strategicPlan.targetAudience}
-**Framework de Marketing:** ${strategicPlan.framework} - ${frameworkDef.fullName}
-**Dor Principal:** ${strategicPlan.mainPainPoint}
-**Promessa Principal:** ${strategicPlan.mainPromise}
-**Diferencial (USP):** ${strategicPlan.uniqueSellingProposition}
 
-### Elementos de Conversão Identificados
-${strategicPlan.conversionElements?.map(e => `- ${e.type}: ${e.content} (${e.strength})`).join('\n') || 'Nenhum identificado'}
+### PROBLEMA PRINCIPAL QUE RESOLVE:
+"${strategicPlan.mainPainPoint}"
 
-### Vídeos YouTube Encontrados na Página Original
-${youtubeUrls.length > 0 ? youtubeUrls.map(url => `- ${url}`).join('\n') : 'Nenhum vídeo encontrado'}
+### PROMESSA PRINCIPAL (USE NO HERO!):
+"${strategicPlan.mainPromise}"
+
+### DIFERENCIAL ÚNICO (USP):
+"${strategicPlan.uniqueSellingProposition}"
+
+### FRAMEWORK DE PERSUASÃO: ${strategicPlan.framework}
+Etapas: ${frameworkDef.stages.join(' → ')}
 
 ---
 
-## HTML DA PÁGINA ORIGINAL (PARA INSPIRAÇÃO)
+## 🎥 VÍDEOS YOUTUBE ENCONTRADOS (OBRIGATÓRIO INCLUIR SE HOUVER!)
+${youtubeUrls.length > 0 
+  ? youtubeUrls.map(url => `✅ ${url} ← USE ESTA URL REAL em um bloco YouTubeVideo`).join('\n')
+  : '❌ Nenhum vídeo encontrado - não crie bloco de vídeo'}
+
+---
+
+## ELEMENTOS DE CONVERSÃO IDENTIFICADOS
+${strategicPlan.conversionElements?.map(e => `- ${e.type}: "${e.content}" (força: ${e.strength})`).join('\n') || 'Nenhum elemento específico identificado'}
+
+---
+
+## HTML DA PÁGINA ORIGINAL (apenas para contexto/inspiração)
 
 ${truncatedHtml}
 
 ---
 
-## SUA TAREFA
+## 📝 SUA TAREFA
 
-Baseado na análise estratégica acima, CRIE uma página de vendas persuasiva:
+Crie uma página de vendas PERSUASIVA seguindo estas regras:
 
-1. Use o framework ${strategicPlan.framework}: ${frameworkDef.stages.join(' → ')}
-2. Crie copy ORIGINAL e PERSUASIVO (não copie o texto literal do HTML)
-3. Use APENAS blocos da whitelist
-4. Preencha TODAS as props obrigatórias de cada bloco
-5. Para imagens use "PLACEHOLDER_IMAGE"
-6. Para vídeos YouTube, use as URLs reais encontradas ou "PLACEHOLDER_VIDEO"
-7. Comece com Hero e termine com CTA
+1. **HERO OBRIGATÓRIO**: Use a "Promessa Principal" como base para o título
+2. **FRAMEWORK ${strategicPlan.framework}**: Siga as etapas ${frameworkDef.stages.join(' → ')}
+3. **VÍDEOS**: Se houver URLs acima, INCLUA em blocos YouTubeVideo com URL REAL
+4. **DEPOIMENTOS**: Crie 2-3 depoimentos com nomes brasileiros e resultados específicos
+5. **FAQ**: Crie 3-4 perguntas que eliminam objeções de compra
+6. **CTA FINAL**: Termine com botão usando verbo + benefício
+
+⚠️ LEMBRE-SE: Nenhum texto genérico como "Título Principal" ou "Cliente Satisfeito"!
 
 Use a função create_page_blocks para retornar os blocos.`;
 
   console.log('[Content Creator] Iniciando criação...', { 
     framework: strategicPlan.framework,
+    productName: strategicPlan.productName,
     productType: strategicPlan.productType,
+    mainPromise: strategicPlan.mainPromise?.slice(0, 50),
     htmlLength: truncatedHtml.length,
     youtubeUrlsFound: youtubeUrls.length
   });
@@ -368,7 +404,7 @@ Use a função create_page_blocks para retornar os blocos.`;
         ],
         tools: [createPageBlocksSchema],
         tool_choice: { type: 'function', function: { name: 'create_page_blocks' } },
-        temperature: 0.4, // Um pouco mais criativo que extração
+        temperature: 0.7, // Mais criativo para gerar copy original
       }),
     });
 
@@ -405,8 +441,8 @@ Use a função create_page_blocks para retornar os blocos.`;
       throw new Error('Erro ao processar resposta da IA');
     }
 
-    // Validar e corrigir blocos
-    const validatedBlocks = validateAndFixBlocks(creationArgs.blocks || []);
+    // Validar e corrigir blocos usando strategicPlan como fallback
+    const validatedBlocks = validateAndFixBlocks(creationArgs.blocks || [], strategicPlan, youtubeUrls);
 
     const result: CreationResult = {
       blocks: validatedBlocks,
@@ -426,7 +462,8 @@ Use a função create_page_blocks para retornar os blocos.`;
       blocksRemoved: removedCount,
       quality: result.creationQuality,
       copyStyle: result.copyStyle,
-      warningsCount: result.warnings.length
+      warningsCount: result.warnings.length,
+      blockTypes: result.blocks.map(b => b.type)
     });
 
     return { result, rawResponse: data };
@@ -440,7 +477,11 @@ Use a função create_page_blocks para retornar os blocos.`;
 // =============================================
 // VALIDAÇÃO E CORREÇÃO DE BLOCOS
 // =============================================
-function validateAndFixBlocks(blocks: CreatedBlock[]): CreatedBlock[] {
+function validateAndFixBlocks(
+  blocks: CreatedBlock[], 
+  strategicPlan: StrategicPlan,
+  youtubeUrls: string[]
+): CreatedBlock[] {
   const validBlocks: CreatedBlock[] = [];
   
   for (const block of blocks) {
@@ -450,8 +491,13 @@ function validateAndFixBlocks(blocks: CreatedBlock[]): CreatedBlock[] {
       continue;
     }
 
-    // Corrigir props obrigatórias
-    const fixedProps = fillRequiredProps(block.type as ValidBlockType, block.props || {});
+    // Corrigir props obrigatórias usando strategicPlan como fallback
+    const fixedProps = fillRequiredProps(
+      block.type as ValidBlockType, 
+      block.props || {},
+      strategicPlan,
+      youtubeUrls
+    );
     
     validBlocks.push({
       type: block.type,
@@ -465,71 +511,152 @@ function validateAndFixBlocks(blocks: CreatedBlock[]): CreatedBlock[] {
   return validBlocks.sort((a, b) => a.order - b.order);
 }
 
-// Preenche props obrigatórias com valores padrão se faltantes
-function fillRequiredProps(type: ValidBlockType, props: Record<string, unknown>): Record<string, unknown> {
+// Preenche props obrigatórias com valores do strategicPlan (não genéricos)
+function fillRequiredProps(
+  type: ValidBlockType, 
+  props: Record<string, unknown>,
+  strategicPlan: StrategicPlan,
+  youtubeUrls: string[]
+): Record<string, unknown> {
   const filled = { ...props };
+  
+  // Helpers para fallback contextual
+  const productName = strategicPlan.productName || 'nosso produto';
+  const mainPromise = strategicPlan.mainPromise || 'Transforme sua vida hoje';
+  const painPoint = strategicPlan.mainPainPoint || 'seus desafios';
+  const usp = strategicPlan.uniqueSellingProposition || 'solução única';
 
   switch (type) {
     case 'Hero':
-      filled.title = filled.title || 'Título Principal';
-      filled.subtitle = filled.subtitle || '';
-      filled.ctaText = filled.ctaText || 'Saiba Mais';
-      filled.ctaUrl = filled.ctaUrl || '#';
+      // Se título é genérico, usar promessa principal
+      if (!filled.title || filled.title === 'Título Principal' || filled.title === 'Headline Aqui') {
+        filled.title = mainPromise;
+      }
+      if (!filled.subtitle) {
+        filled.subtitle = usp;
+      }
+      if (!filled.ctaText || filled.ctaText === 'Saiba Mais' || filled.ctaText === 'Clique Aqui') {
+        filled.ctaText = `Quero ${productName}`;
+      }
+      filled.ctaUrl = filled.ctaUrl || '#comprar';
       filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
       filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
       filled.alignment = filled.alignment || 'center';
       break;
 
     case 'ContentColumns':
-      filled.title = filled.title || '';
-      filled.content = filled.content || '';
+      if (!filled.title) {
+        filled.title = `Por Que Escolher ${productName}?`;
+      }
+      if (!filled.content) {
+        filled.content = `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua qualidade de vida.</p><p>${usp}</p>`;
+      }
       filled.imageDesktop = filled.imageDesktop || 'PLACEHOLDER_IMAGE';
       filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
       filled.imagePosition = filled.imagePosition || 'right';
-      if (!Array.isArray(filled.features)) {
-        filled.features = [];
+      if (!Array.isArray(filled.features) || filled.features.length === 0) {
+        filled.features = [
+          { icon: 'Check', text: `Resultados comprovados com ${productName}` },
+          { icon: 'Check', text: 'Garantia de satisfação' },
+          { icon: 'Check', text: 'Atendimento especializado' },
+        ];
       }
       break;
 
     case 'FeatureList':
-      filled.title = filled.title || '';
+      if (!filled.title) {
+        filled.title = `Benefícios de ${productName}`;
+      }
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [{ icon: 'Check', text: 'Benefício principal' }];
+        filled.items = [
+          { icon: 'Check', text: mainPromise },
+          { icon: 'Star', text: usp },
+        ];
       }
       break;
 
     case 'InfoHighlights':
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [{ icon: 'Shield', title: 'Garantia', description: 'Satisfação garantida' }];
+        filled.items = [
+          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba no conforto da sua casa' },
+          { icon: 'Shield', title: 'Garantia Total', description: 'Satisfação garantida ou dinheiro de volta' },
+          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Seus dados 100% protegidos' },
+        ];
       }
       filled.layout = filled.layout || 'horizontal';
       break;
 
     case 'Testimonials':
-      filled.title = filled.title || 'O Que Nossos Clientes Dizem';
+      if (!filled.title) {
+        filled.title = 'O Que Nossos Clientes Dizem';
+      }
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [{ name: 'Cliente Satisfeito', text: 'Depoimento do cliente...', rating: 5 }];
+        filled.items = [
+          { 
+            name: 'Carlos Eduardo', 
+            text: `Depois de experimentar ${productName}, minha vida mudou completamente. Os resultados apareceram em poucas semanas!`, 
+            rating: 5 
+          },
+          { 
+            name: 'Maria Fernanda', 
+            text: `Finalmente encontrei uma solução que realmente funciona. Recomendo para todos que sofrem com ${painPoint}.`, 
+            rating: 5 
+          },
+        ];
+      } else {
+        // Corrigir nomes genéricos
+        const nomesBrasileiros = ['Roberto Mendes', 'Ana Paula', 'Carlos Eduardo', 'Maria Fernanda', 'Paulo Henrique', 'Juliana Santos'];
+        filled.items = (filled.items as Array<{name: string; text: string; rating: number}>).map((item, i) => {
+          if (item.name === 'Cliente Satisfeito' || item.name === 'Nome do Cliente' || !item.name) {
+            return { ...item, name: nomesBrasileiros[i % nomesBrasileiros.length] };
+          }
+          if (item.text === 'Depoimento do cliente...' || !item.text) {
+            return { ...item, text: `${productName} superou todas as minhas expectativas. Resultados incríveis!` };
+          }
+          return item;
+        });
       }
       break;
 
     case 'FAQ':
-      filled.title = filled.title || 'Perguntas Frequentes';
+      if (!filled.title) {
+        filled.title = 'Perguntas Frequentes';
+      }
       if (!Array.isArray(filled.items) || filled.items.length === 0) {
-        filled.items = [{ question: 'Pergunta comum?', answer: 'Resposta...' }];
+        filled.items = [
+          { question: `Como funciona ${productName}?`, answer: usp },
+          { question: 'Qual é o prazo de entrega?', answer: 'Enviamos em até 24h úteis após confirmação do pagamento.' },
+          { question: 'Tem garantia?', answer: 'Sim! Garantia de 30 dias ou seu dinheiro de volta.' },
+        ];
       }
       break;
 
     case 'YouTubeVideo':
-      filled.youtubeUrl = filled.youtubeUrl || filled.url || 'PLACEHOLDER_VIDEO';
-      filled.title = filled.title || '';
+      // Usar URL real se disponível e não for placeholder
+      if (!filled.youtubeUrl || filled.youtubeUrl === 'PLACEHOLDER_VIDEO' || filled.youtubeUrl === 'URL_REAL_DO_VIDEO') {
+        if (youtubeUrls.length > 0) {
+          filled.youtubeUrl = youtubeUrls[0];
+        } else {
+          filled.youtubeUrl = 'PLACEHOLDER_VIDEO';
+        }
+      }
+      if (!filled.title) {
+        filled.title = `Conheça ${productName}`;
+      }
       filled.widthPreset = filled.widthPreset || 'large';
       filled.aspectRatio = filled.aspectRatio || '16:9';
       break;
 
     case 'VideoCarousel':
-      filled.title = filled.title || '';
+      if (!filled.title) {
+        filled.title = 'Vídeos';
+      }
       if (!Array.isArray(filled.videos) || filled.videos.length === 0) {
-        filled.videos = [{ url: 'PLACEHOLDER_VIDEO', title: '' }];
+        if (youtubeUrls.length > 0) {
+          filled.videos = youtubeUrls.map((url, i) => ({ url, title: `Vídeo ${i + 1}` }));
+        } else {
+          filled.videos = [{ url: 'PLACEHOLDER_VIDEO', title: '' }];
+        }
       }
       break;
 
@@ -539,33 +666,37 @@ function fillRequiredProps(type: ValidBlockType, props: Record<string, unknown>)
           imageDesktop: 'PLACEHOLDER_IMAGE', 
           imageMobile: 'PLACEHOLDER_IMAGE', 
           linkUrl: '#', 
-          altText: 'Banner' 
+          altText: productName 
         }];
       }
       filled.autoplaySeconds = filled.autoplaySeconds || 5;
       break;
 
     case 'Button':
-      filled.text = filled.text || 'Clique Aqui';
-      filled.url = filled.url || '#';
+      if (!filled.text || filled.text === 'Clique Aqui' || filled.text === 'Saiba Mais') {
+        filled.text = `Quero ${productName} Agora`;
+      }
+      filled.url = filled.url || '#comprar';
       filled.variant = filled.variant || 'default';
       filled.size = filled.size || 'lg';
       break;
 
     case 'RichText':
-      filled.content = filled.content || '<p></p>';
+      filled.content = filled.content || `<p>${usp}</p>`;
       break;
 
     case 'Image':
       filled.imageDesktop = filled.imageDesktop || filled.src || 'PLACEHOLDER_IMAGE';
       filled.imageMobile = filled.imageMobile || filled.imageDesktop || 'PLACEHOLDER_IMAGE';
-      filled.alt = filled.alt || '';
+      filled.alt = filled.alt || productName;
       break;
 
     case 'ImageCarousel':
-      filled.title = filled.title || '';
+      if (!filled.title) {
+        filled.title = '';
+      }
       if (!Array.isArray(filled.images) || filled.images.length === 0) {
-        filled.images = [{ src: 'PLACEHOLDER_IMAGE', alt: '' }];
+        filled.images = [{ src: 'PLACEHOLDER_IMAGE', alt: productName }];
       }
       break;
 
@@ -612,14 +743,19 @@ function extractYouTubeUrls(html: string): string[] {
 // FALLBACK DE CRIAÇÃO
 // =============================================
 export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult {
+  const productName = strategicPlan.productName || 'nosso produto';
+  const mainPromise = strategicPlan.mainPromise || 'Transforme sua vida hoje';
+  const painPoint = strategicPlan.mainPainPoint || 'seus desafios';
+  const usp = strategicPlan.uniqueSellingProposition || 'A solução que você procurava';
+
   const blocks: CreatedBlock[] = [
     {
       type: 'Hero',
       props: {
-        title: strategicPlan.mainPromise || 'Bem-vindo',
-        subtitle: strategicPlan.uniqueSellingProposition || 'Descubra o que temos para você',
-        ctaText: 'Saiba Mais',
-        ctaUrl: '#',
+        title: mainPromise,
+        subtitle: usp,
+        ctaText: `Quero ${productName}`,
+        ctaUrl: '#comprar',
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
         alignment: 'center',
@@ -630,15 +766,15 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
     {
       type: 'ContentColumns',
       props: {
-        title: 'Por Que Escolher-nos?',
-        content: `<p>${strategicPlan.mainPainPoint ? `Sabemos que ${strategicPlan.mainPainPoint}.` : ''} Nossa solução foi criada pensando em você.</p>`,
+        title: `Por Que Escolher ${productName}?`,
+        content: `<p>Se você sofre com ${painPoint}, sabe o quanto isso afeta sua qualidade de vida.</p><p>${usp}</p>`,
         imageDesktop: 'PLACEHOLDER_IMAGE',
         imageMobile: 'PLACEHOLDER_IMAGE',
         imagePosition: 'right',
         features: [
-          { icon: 'Check', text: 'Qualidade garantida' },
-          { icon: 'Check', text: 'Atendimento personalizado' },
           { icon: 'Check', text: 'Resultados comprovados' },
+          { icon: 'Check', text: 'Garantia de satisfação' },
+          { icon: 'Check', text: 'Atendimento especializado' },
         ],
       },
       marketingFunction: 'interest',
@@ -648,9 +784,9 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
       type: 'InfoHighlights',
       props: {
         items: [
-          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba em poucos dias' },
-          { icon: 'Shield', title: 'Garantia', description: 'Satisfação garantida' },
-          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Seus dados protegidos' },
+          { icon: 'Truck', title: 'Entrega Rápida', description: 'Receba no conforto da sua casa' },
+          { icon: 'Shield', title: 'Garantia Total', description: 'Satisfação garantida' },
+          { icon: 'CreditCard', title: 'Pagamento Seguro', description: 'Dados protegidos' },
         ],
         layout: 'horizontal',
       },
@@ -660,8 +796,8 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
     {
       type: 'Button',
       props: {
-        text: 'Quero Saber Mais',
-        url: '#',
+        text: `Quero ${productName} Agora`,
+        url: '#comprar',
         variant: 'default',
         size: 'lg',
       },
@@ -672,8 +808,8 @@ export function createFallbackPage(strategicPlan: StrategicPlan): CreationResult
 
   return {
     blocks,
-    creationQuality: 40,
-    copyStyle: 'genérico',
-    warnings: ['Página de fallback criada - conteúdo genérico'],
+    creationQuality: 50,
+    copyStyle: 'contextual',
+    warnings: ['Página de fallback criada - edite para melhorar'],
   };
 }
