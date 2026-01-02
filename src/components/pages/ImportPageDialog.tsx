@@ -47,32 +47,6 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     }
   };
 
-  const extractPageInfo = (urlString: string) => {
-    try {
-      const url = new URL(urlString);
-      const pathParts = url.pathname.split('/').filter(Boolean);
-      const lastPart = pathParts[pathParts.length - 1] || 'pagina-importada';
-      
-      // Clean the slug
-      const slug = lastPart
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-      
-      // Generate a title from slug
-      const title = slug
-        .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-
-      return { slug, title };
-    } catch {
-      return { slug: 'pagina-importada', title: 'Página Importada' };
-    }
-  };
-
   const handleImport = async () => {
     if (!isValidUrl(url)) {
       toast.error('URL inválida. Insira uma URL válida começando com http:// ou https://');
@@ -85,18 +59,12 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
     try {
       // Clean the URL first (remove UTM params)
       const cleanedUrl = cleanUrl(url);
-      const pageInfo = extractPageInfo(cleanedUrl);
 
-      // Call the import-pages edge function with a single page
+      // Call the new simplified import-pages edge function
       const { data, error } = await supabase.functions.invoke('import-pages', {
         body: {
           tenantId,
-          pages: [{
-            title: pageInfo.title,
-            slug: pageInfo.slug,
-            url: cleanedUrl,
-            source: 'global',
-          }],
+          url: cleanedUrl,
         },
       });
 
@@ -104,34 +72,14 @@ export function ImportPageDialog({ tenantId, onSuccess }: ImportPageDialogProps)
         throw new Error(error.message);
       }
 
-      if (data?.success && data?.results) {
-        const { imported, skipped, failed, pages } = data.results;
-        
-        if (imported > 0) {
-          const importedPage = pages?.[0];
-          setResult({
-            success: true,
-            message: importedPage?.hasContent 
-              ? 'Página importada com sucesso!' 
-              : 'Página criada como rascunho (conteúdo não pôde ser extraído automaticamente).',
-            pageTitle: importedPage?.title || pageInfo.title,
-          });
-          toast.success('Página importada com sucesso!');
-          onSuccess();
-        } else if (skipped > 0) {
-          setResult({
-            success: false,
-            message: 'Esta página já existe na sua loja.',
-          });
-          toast.warning('Página já existe');
-        } else if (failed > 0) {
-          const errorMsg = data.results.errors?.[0] || 'Erro ao importar página';
-          setResult({
-            success: false,
-            message: errorMsg,
-          });
-          toast.error('Erro ao importar página');
-        }
+      if (data?.success) {
+        setResult({
+          success: true,
+          message: `Página importada com sucesso! (${data.stats?.blocksCreated || 0} blocos criados)`,
+          pageTitle: data.page?.title,
+        });
+        toast.success('Página importada com sucesso!');
+        onSuccess();
       } else {
         throw new Error(data?.error || 'Erro desconhecido');
       }
