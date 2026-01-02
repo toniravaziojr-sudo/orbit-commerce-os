@@ -2596,6 +2596,102 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: true,
   },
+  // ========== MEDIA CAROUSEL BLOCKS ==========
+  {
+    type: 'VideoCarousel',
+    label: 'Carrossel de Vídeos',
+    category: 'media',
+    icon: 'Film',
+    defaultProps: {
+      title: '',
+      videos: [],
+      autoplay: false,
+      showControls: true,
+      aspectRatio: '16:9',
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      videos: { type: 'array', label: 'Vídeos', helpText: 'YouTube URLs ou vídeos via upload' },
+      autoplay: { type: 'boolean', label: 'Autoplay' },
+      showControls: { type: 'boolean', label: 'Mostrar Controles' },
+      aspectRatio: { 
+        type: 'select', 
+        label: 'Proporção', 
+        options: [
+          { label: '16:9', value: '16:9' }, 
+          { label: '4:3', value: '4:3' }, 
+          { label: '1:1', value: '1:1' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: true,
+  },
+  {
+    type: 'ImageCarousel',
+    label: 'Carrossel de Imagens',
+    category: 'media',
+    icon: 'Images',
+    defaultProps: {
+      title: '',
+      images: [],
+      autoplay: false,
+      autoplayInterval: 5,
+      showArrows: true,
+      showDots: true,
+      enableLightbox: false,
+      aspectRatio: '16:9',
+      slidesPerView: 1,
+      gap: 'md',
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      images: { type: 'array', label: 'Imagens', helpText: 'Adicione imagens para Desktop e Mobile' },
+      autoplay: { type: 'boolean', label: 'Autoplay' },
+      autoplayInterval: { 
+        type: 'number', 
+        label: 'Intervalo de Autoplay (segundos)', 
+        defaultValue: 5, 
+        min: 1, 
+        max: 30,
+      },
+      showArrows: { type: 'boolean', label: 'Mostrar Setas' },
+      showDots: { type: 'boolean', label: 'Mostrar Indicadores' },
+      enableLightbox: { type: 'boolean', label: 'Habilitar Lightbox' },
+      aspectRatio: { 
+        type: 'select', 
+        label: 'Proporção', 
+        options: [
+          { label: '16:9', value: '16:9' }, 
+          { label: '4:3', value: '4:3' }, 
+          { label: '1:1', value: '1:1' },
+          { label: '21:9', value: '21:9' },
+          { label: 'Auto', value: 'auto' },
+        ],
+      },
+      slidesPerView: { 
+        type: 'select', 
+        label: 'Slides por Visualização', 
+        options: [
+          { label: '1', value: '1' }, 
+          { label: '2', value: '2' }, 
+          { label: '3', value: '3' },
+          { label: '4', value: '4' },
+        ],
+      },
+      gap: { 
+        type: 'select', 
+        label: 'Espaçamento', 
+        options: [
+          { label: 'Pequeno', value: 'sm' }, 
+          { label: 'Médio', value: 'md' }, 
+          { label: 'Grande', value: 'lg' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+    isRemovable: true,
+  },
 ];
 
 // Registry class

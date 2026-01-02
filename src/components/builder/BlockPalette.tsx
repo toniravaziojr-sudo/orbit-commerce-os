@@ -27,6 +27,7 @@ type EssentialCategory =
   | 'banners'
   | 'products'
   | 'categories'
+  | 'media'
   | 'content'
   | 'social-proof'
   | 'info'
@@ -36,6 +37,7 @@ const essentialCategoryLabels: Record<EssentialCategory, string> = {
   banners: 'Banners',
   products: 'Produtos / Coleções',
   categories: 'Categorias',
+  media: 'Mídia',
   content: 'Conteúdo',
   'social-proof': 'Prova Social',
   info: 'Informações',
@@ -62,11 +64,16 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'CategoryList': 'categories',
   'FeaturedCategories': 'categories',
   
+  // Media
+  'VideoCarousel': 'media',
+  'ImageCarousel': 'media',
+  'ImageGallery': 'media',
+  'YouTubeVideo': 'media',
+  'VideoUpload': 'media',
+  
   // Content
   'RichText': 'content',
   'Button': 'content',
-  'YouTubeVideo': 'content',
-  'VideoUpload': 'content',
   'ContentColumns': 'content',
   'FeatureList': 'content',
   'StepsTimeline': 'content',
@@ -74,7 +81,6 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'LogosCarousel': 'content',
   'StatsNumbers': 'content',
   'AccordionBlock': 'content',
-  'ImageGallery': 'content',
   
   // Social Proof
   'Testimonials': 'social-proof',
@@ -108,11 +114,15 @@ const visibleBlockTypes = new Set([
   // Categories
   'CategoryList',
   'FeaturedCategories',
+  // Media
+  'VideoCarousel',
+  'ImageCarousel',
+  'ImageGallery',
+  'YouTubeVideo',
+  'VideoUpload',
   // Content
   'RichText',
   'Button',
-  'YouTubeVideo',
-  'VideoUpload',
   'ContentColumns',
   'FeatureList',
   'StepsTimeline',
@@ -120,7 +130,6 @@ const visibleBlockTypes = new Set([
   'LogosCarousel',
   'StatsNumbers',
   'AccordionBlock',
-  'ImageGallery',
   // Social Proof
   'Testimonials',
   // Info
@@ -188,6 +197,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
       banners: [],
       products: [],
       categories: [],
+      media: [],
       content: [],
       'social-proof': [],
       info: [],
@@ -237,6 +247,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     'banners',
     'products',
     'categories',
+    'media',
     'content',
     'social-proof',
     'info',
