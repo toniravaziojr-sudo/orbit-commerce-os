@@ -19,6 +19,62 @@ function determineCfop(originUf: string, destUf: string, defaultIntra: string, d
   return defaultInter || '6102'; // Interestadual
 }
 
+/**
+ * Busca código IBGE do município
+ */
+async function getIbgeCodigo(supabase: any, cidade: string, uf: string): Promise<string | null> {
+  if (!cidade || !uf) return null;
+  
+  // Normalizar cidade (uppercase, remover acentos básicos)
+  const cidadeNorm = cidade
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+  
+  // Busca exata
+  const { data: exact } = await supabase
+    .from('ibge_municipios')
+    .select('codigo')
+    .eq('uf', uf.toUpperCase())
+    .eq('nome', cidadeNorm)
+    .maybeSingle();
+  
+  if (exact?.codigo) return exact.codigo;
+  
+  // Busca com a cidade original em uppercase
+  const { data: original } = await supabase
+    .from('ibge_municipios')
+    .select('codigo')
+    .eq('uf', uf.toUpperCase())
+    .eq('nome', cidade.toUpperCase().trim())
+    .maybeSingle();
+  
+  if (original?.codigo) return original.codigo;
+  
+  // Busca por prefixo
+  const { data: prefix } = await supabase
+    .from('ibge_municipios')
+    .select('codigo')
+    .eq('uf', uf.toUpperCase())
+    .ilike('nome', cidadeNorm + '%')
+    .limit(1)
+    .maybeSingle();
+  
+  if (prefix?.codigo) return prefix.codigo;
+  
+  // Busca por conteúdo
+  const { data: contains } = await supabase
+    .from('ibge_municipios')
+    .select('codigo')
+    .eq('uf', uf.toUpperCase())
+    .ilike('nome', '%' + cidadeNorm + '%')
+    .limit(1)
+    .maybeSingle();
+  
+  return contains?.codigo || null;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -175,6 +231,16 @@ serve(async (req) => {
     // Get next number
     const nextNumero = fiscalSettings.numero_nfe_atual || 1;
 
+    // Buscar código IBGE do município de destino
+    console.log('[fiscal-create-draft] Looking up IBGE code for:', order.shipping_city, order.shipping_state);
+    const destMunicipioCodigo = await getIbgeCodigo(supabase, order.shipping_city, order.shipping_state);
+    
+    if (!destMunicipioCodigo) {
+      console.warn('[fiscal-create-draft] IBGE code not found for:', order.shipping_city, order.shipping_state);
+    } else {
+      console.log('[fiscal-create-draft] IBGE code found:', destMunicipioCodigo);
+    }
+
     // Build draft
     const customer = order.customer;
     const draftData = {
@@ -197,7 +263,7 @@ serve(async (req) => {
       dest_endereco_complemento: order.shipping_complement,
       dest_endereco_bairro: order.shipping_neighborhood,
       dest_endereco_municipio: order.shipping_city,
-      dest_endereco_municipio_codigo: null, // Would need IBGE lookup
+      dest_endereco_municipio_codigo: destMunicipioCodigo, // Código IBGE lookup
       dest_endereco_uf: order.shipping_state,
       dest_endereco_cep: order.shipping_postal_code,
       observacoes: observacoes || null,
@@ -265,7 +331,7 @@ serve(async (req) => {
         invoice_id: invoice.id,
         tenant_id: tenantId,
         event_type: existingDraft ? 'draft_updated' : 'draft_created',
-        event_data: { order_id, items_count: invoiceItems.length },
+        event_data: { order_id, items_count: invoiceItems.length, ibge_code: destMunicipioCodigo },
         user_id: user.id,
       });
 
@@ -283,7 +349,8 @@ serve(async (req) => {
           razao_social: fiscalSettings.razao_social,
           cnpj: fiscalSettings.cnpj,
           endereco_uf: fiscalSettings.endereco_uf,
-        }
+        },
+        warnings: !destMunicipioCodigo ? ['Código IBGE do município de destino não encontrado. Verifique o nome da cidade.'] : [],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
