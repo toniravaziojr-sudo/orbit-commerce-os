@@ -195,6 +195,11 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Garantir que creation existe
+    if (!creation) {
+      creation = createFallbackPage(strategicPlan);
+    }
+    
     console.log('[Import v5] Blocos criados:', creation.blocks.length);
     console.log('[Import v5] Qualidade da criação:', creation.creationQuality);
     console.log('[Import v5] Estilo de copy:', creation.copyStyle);
