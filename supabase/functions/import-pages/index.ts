@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { mapClassificationToBlocks, type BlockNode, type ClassificationResult } from '../_shared/intelligent-block-mapper.ts';
+import { composePageStructure, validatePageQuality } from '../_shared/page-composer.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,19 +8,18 @@ const corsHeaders = {
 };
 
 // =====================================================
-// SIMPLIFIED PAGE IMPORTER
+// INTELLIGENT PAGE IMPORTER v2
 // =====================================================
-// This is a completely rewritten importer that uses AI for everything.
-// 
 // Flow:
 // 1. Fetch HTML from URL
-// 2. Segment HTML into sections (simple dividers)
-// 3. For each section: call classify-content (AI extracts + classifies)
-// 4. Use intelligent-block-mapper to create blocks
-// 5. Save to database
-// 
-// NO regex extraction, NO DOM parsing, NO platform-specific code.
-// The AI does ALL the content interpretation.
+// 2. Extract main content (remove header/footer/nav)
+// 3. Segment HTML into smaller sections (improved multi-platform)
+// 4. Preprocess each section (remove noise)
+// 5. Classify each section with AI
+// 6. Map classifications to native blocks
+// 7. Compose page structure (order, deduplicate)
+// 8. Validate quality
+// 9. Save to database
 // =====================================================
 
 interface ImportRequest {
@@ -267,21 +267,31 @@ function segmentHtml(html: string): Section[] {
   return subdivideIfNeeded([{ html, index: 0 }]);
 }
 
-// Subdivide large sections (>10000 chars) by headings
+// Subdivide large sections (>4000 chars) by headings - REDUCED threshold
 function subdivideIfNeeded(sections: Section[]): Section[] {
   const result: Section[] = [];
+  const MAX_SECTION_SIZE = 4000; // Reduced from 10000
   
   for (const section of sections) {
-    if (section.html.length > 10000) {
-      // Try to split by h2/h3
-      const parts = section.html.split(/(?=<h[23][^>]*>)/gi);
+    if (section.html.length > MAX_SECTION_SIZE) {
+      // Try to split by h2/h3/h4
+      const parts = section.html.split(/(?=<h[2-4][^>]*>)/gi);
       if (parts.length > 1) {
         for (const part of parts) {
-          if (part.trim().length > 200) {
-            result.push({ html: part.trim(), index: result.length });
+          const trimmed = part.trim();
+          if (trimmed.length > 100 && trimmed.length <= MAX_SECTION_SIZE * 2) {
+            result.push({ html: trimmed, index: result.length });
+          } else if (trimmed.length > MAX_SECTION_SIZE * 2) {
+            // Still too large, split by divs with common classes
+            const subParts = trimmed.split(/(?=<div[^>]*class="[^"]*(?:row|container|wrapper|section|block)[^"]*"[^>]*>)/gi);
+            for (const subPart of subParts) {
+              if (subPart.trim().length > 100) {
+                result.push({ html: subPart.trim(), index: result.length });
+              }
+            }
           }
         }
-        console.log(`[SEGMENT] Subdivided large section into ${parts.length} parts`);
+        console.log(`[SEGMENT] Subdivided large section (${section.html.length} chars) into ${result.length - result.length + parts.length} parts`);
         continue;
       }
     }
@@ -289,6 +299,28 @@ function subdivideIfNeeded(sections: Section[]): Section[] {
   }
   
   return result;
+}
+
+// Preprocess section HTML to remove noise before AI analysis
+function preprocessSection(html: string): string {
+  return html
+    // Remove scripts, styles, noscript
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    // Remove SVGs (often decorative)
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    // Remove HTML comments
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Remove empty tags
+    .replace(/<(\w+)[^>]*>\s*<\/\1>/gi, '')
+    // Remove inline styles (reduce noise)
+    .replace(/\s*style="[^"]*"/gi, '')
+    // Remove data attributes (reduce noise)
+    .replace(/\s*data-[a-z-]+="[^"]*"/gi, '')
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // =====================================================
@@ -425,8 +457,17 @@ Deno.serve(async (req) => {
     const allBlocks: BlockNode[] = [];
     
     for (const section of sections) {
+      // Preprocess section to remove noise
+      const cleanedHtml = preprocessSection(section.html);
+      
+      // Skip sections that are too small after cleaning
+      if (cleanedHtml.length < 100) {
+        console.log(`[IMPORT] Section ${section.index + 1}: skipped (too small after preprocessing)`);
+        continue;
+      }
+      
       const classification = await classifySection(
-        section.html,
+        cleanedHtml,
         pageTitle,
         section.index,
         sections.length
@@ -441,8 +482,19 @@ Deno.serve(async (req) => {
       }
     }
     
-    // 5. Build page content
-    if (allBlocks.length === 0) {
+    // 5. Compose page structure (order + deduplicate)
+    const composedBlocks = composePageStructure(allBlocks);
+    console.log(`[IMPORT] Composed: ${allBlocks.length} raw blocks -> ${composedBlocks.length} ordered blocks`);
+    
+    // 6. Validate quality
+    const quality = validatePageQuality(composedBlocks);
+    console.log(`[IMPORT] Quality: score=${quality.score}, valid=${quality.valid}`);
+    if (quality.issues.length > 0) {
+      console.log(`[IMPORT] Quality issues: ${quality.issues.join(', ')}`);
+    }
+    
+    // 7. Build page content
+    if (composedBlocks.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -452,10 +504,10 @@ Deno.serve(async (req) => {
       );
     }
     
-    const pageContent = buildPageContent(allBlocks);
+    const pageContent = buildPageContent(composedBlocks);
     const slug = customSlug || generateSlug(url, pageTitle);
     
-    // 6. Save to database
+    // 8. Save to database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -516,7 +568,10 @@ Deno.serve(async (req) => {
         },
         stats: {
           sectionsFound: sections.length,
-          blocksCreated: allBlocks.length,
+          blocksCreated: composedBlocks.length,
+          rawBlocks: allBlocks.length,
+          qualityScore: quality.score,
+          qualityIssues: quality.issues,
         },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
