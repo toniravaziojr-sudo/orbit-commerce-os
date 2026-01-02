@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  mapSectionToBlocks, 
+  type ClassificationResult, 
+  type ContentPrimitive as IntelligentPrimitive,
+  type BlockNode as IntelligentBlockNode 
+} from "../_shared/intelligent-block-mapper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -25,6 +31,7 @@ interface Section {
   titleHint: string;
   htmlFragment: string;
   primitives: ContentPrimitive[];
+  classification?: ClassificationResult;
   stats: {
     textLen: number;
     headings: number;
@@ -469,10 +476,84 @@ function extractPrimitivesFromSection(html: string): ContentPrimitive[] {
 }
 
 // ============================================================
-// SECTION TO BLOCKS MAPPER
+// AI CLASSIFICATION
+// ============================================================
+
+async function classifySectionWithAI(
+  htmlFragment: string, 
+  pageContext: { title?: string; sectionIndex: number; totalSections: number }
+): Promise<ClassificationResult | null> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.log('[STRUCT-V2] Missing Supabase config for AI classification');
+    return null;
+  }
+  
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/classify-content`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${supabaseServiceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        html: htmlFragment,
+        pageContext,
+      }),
+    });
+    
+    if (!response.ok) {
+      console.log(`[STRUCT-V2] AI classification failed: ${response.status}`);
+      return null;
+    }
+    
+    const result = await response.json();
+    if (result.success && result.classification) {
+      return result.classification as ClassificationResult;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('[STRUCT-V2] AI classification error:', error);
+    return null;
+  }
+}
+
+// ============================================================
+// SECTION TO BLOCKS MAPPER (with AI classification support)
 // ============================================================
 
 function sectionToBlocks(section: Section): BlockNode[] {
+  // If we have AI classification with good confidence, use intelligent mapper
+  if (section.classification && section.classification.confidence >= 0.5) {
+    console.log(`[STRUCT-V2] Using intelligent mapper for section ${section.index}: type=${section.classification.sectionType}`);
+    
+    // Convert primitives to intelligent mapper format
+    const intelligentPrimitives: IntelligentPrimitive[] = section.primitives.map(p => ({
+      type: p.type,
+      content: p.content,
+      level: p.level,
+      src: p.src,
+      alt: p.alt,
+      href: p.href,
+      items: p.items,
+    }));
+    
+    const intelligentBlocks = mapSectionToBlocks(intelligentPrimitives, section.classification);
+    
+    // Convert back to our BlockNode format (they're compatible)
+    return intelligentBlocks as BlockNode[];
+  }
+  
+  // Fallback to original deterministic mapper
+  console.log(`[STRUCT-V2] Using deterministic mapper for section ${section.index}`);
+  return sectionToBlocksDeterministic(section);
+}
+
+// Original deterministic mapper (renamed)
+function sectionToBlocksDeterministic(section: Section): BlockNode[] {
   const blocks: BlockNode[] = [];
   const primitives = section.primitives;
   
@@ -760,9 +841,23 @@ serve(async (req) => {
       }];
     }
     
-    // Extract primitives for each section
+    // Extract primitives for each section and classify with AI
+    const pageTitleHint = sections[0]?.titleHint || 'Página';
+    
     for (const section of sections) {
       section.primitives = extractPrimitivesFromSection(section.htmlFragment);
+      
+      // Classify with AI (parallel-safe, runs for each section)
+      const classification = await classifySectionWithAI(
+        section.htmlFragment,
+        { title: pageTitleHint, sectionIndex: section.index, totalSections: sections.length }
+      );
+      
+      if (classification) {
+        section.classification = classification;
+        console.log(`[STRUCT-V2] section[${section.index}] AI: type=${classification.sectionType}, layout=${classification.layout}, conf=${classification.confidence.toFixed(2)}`);
+      }
+      
       console.log(`[STRUCT-V2] section[${section.index}] title="${section.titleHint.substring(0, 40)}" ` +
                   `textLen=${section.stats.textLen} h=${section.stats.headings} ` +
                   `img=${section.stats.images} video=${section.stats.videos} cta=${section.stats.ctas} ` +
