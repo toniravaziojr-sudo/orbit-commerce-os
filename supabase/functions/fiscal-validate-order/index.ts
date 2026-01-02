@@ -95,13 +95,48 @@ serve(async (req) => {
         result.valid = false;
         result.errors.push('Configurações fiscais incompletas. Verifique todos os campos obrigatórios.');
       }
-      if (!fiscalSettings.provider_token) {
+      
+      // Verificar certificado digital (substituído provider_token)
+      if (!fiscalSettings.certificado_pfx) {
         result.valid = false;
-        result.errors.push('Token do provedor fiscal não configurado.');
+        result.errors.push('Certificado digital A1 não configurado. Faça o upload em Configurações → Fiscal.');
+      } else if (!fiscalSettings.certificado_senha) {
+        result.valid = false;
+        result.errors.push('Senha do certificado digital não configurada.');
+      } else if (fiscalSettings.certificado_valido_ate) {
+        // Verificar validade do certificado
+        const validUntil = new Date(fiscalSettings.certificado_valido_ate);
+        const now = new Date();
+        const daysUntilExpiry = Math.ceil((validUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (validUntil < now) {
+          result.valid = false;
+          result.errors.push(`Certificado digital expirado em ${validUntil.toLocaleDateString('pt-BR')}.`);
+        } else if (daysUntilExpiry <= 30) {
+          result.warnings.push(`Certificado digital expira em ${daysUntilExpiry} dias (${validUntil.toLocaleDateString('pt-BR')}).`);
+        }
       }
+      
       if (!fiscalSettings.serie_nfe) {
         result.valid = false;
         result.errors.push('Série da NF-e não definida.');
+      }
+      
+      // Verificar dados do emitente
+      if (!fiscalSettings.cnpj) {
+        result.valid = false;
+        result.errors.push('CNPJ do emitente não configurado.');
+      }
+      if (!fiscalSettings.razao_social) {
+        result.valid = false;
+        result.errors.push('Razão social do emitente não configurada.');
+      }
+      if (!fiscalSettings.inscricao_estadual) {
+        result.warnings.push('Inscrição estadual não configurada.');
+      }
+      if (!fiscalSettings.endereco_municipio_codigo) {
+        result.valid = false;
+        result.errors.push('Código IBGE do município do emitente não configurado.');
       }
     }
 
