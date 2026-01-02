@@ -53,6 +53,7 @@ interface ClassifyRequest {
     sectionIndex?: number;
     totalSections?: number;
   };
+  platformContext?: string; // Platform-specific AI context
 }
 
 const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo de e-commerce brasileiro. Sua tarefa é analisar fragmentos HTML e:
@@ -397,8 +398,13 @@ function stripHtmlForAnalysis(html: string): string {
   return cleaned;
 }
 
-function createUserPrompt(html: string, context?: ClassifyRequest['pageContext']): string {
+function createUserPrompt(html: string, context?: ClassifyRequest['pageContext'], platformContext?: string): string {
   let prompt = 'Analise este HTML e extraia o conteúdo + classifique:\n\n';
+  
+  // Add platform context if available
+  if (platformContext) {
+    prompt += `## CONTEXTO DA PLATAFORMA\n${platformContext}\n\n`;
+  }
   
   if (context) {
     if (context.title) prompt += `Título da Página: ${context.title}\n`;
@@ -447,7 +453,7 @@ serve(async (req) => {
   }
 
   try {
-    const { html, pageContext } = await req.json() as ClassifyRequest;
+    const { html, pageContext, platformContext } = await req.json() as ClassifyRequest;
     
     if (!html || html.length < 50) {
       return new Response(
@@ -481,7 +487,7 @@ serve(async (req) => {
     }
     
     const cleanedHtml = stripHtmlForAnalysis(html);
-    const userPrompt = createUserPrompt(cleanedHtml, pageContext);
+    const userPrompt = createUserPrompt(cleanedHtml, pageContext, platformContext);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
