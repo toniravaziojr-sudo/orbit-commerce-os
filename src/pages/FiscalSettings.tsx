@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, TestTube, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useFiscalSettings, type FiscalSettings } from '@/hooks/useFiscal';
 import { toast } from 'sonner';
 
@@ -50,7 +51,8 @@ function formatCEP(value: string) {
 
 export default function FiscalSettings() {
   const navigate = useNavigate();
-  const { settings, isLoading, saveSettings } = useFiscalSettings();
+  const { settings, isLoading, saveSettings, uploadCertificate } = useFiscalSettings();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Partial<FiscalSettings>>({
     razao_social: '',
@@ -74,12 +76,13 @@ export default function FiscalSettings() {
     cst_padrao: '',
     serie_nfe: 1,
     numero_nfe_atual: 1,
-    provider: 'focusnfe',
-    provider_token: '',
     ambiente: 'homologacao',
     emissao_automatica: false,
     emitir_apos_status: 'paid',
   });
+
+  const [certPassword, setCertPassword] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Load existing settings
   useEffect(() => {
@@ -120,6 +123,52 @@ export default function FiscalSettings() {
     
     saveSettings.mutate(formData);
   };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.pfx')) {
+        toast.error('Selecione um arquivo .pfx');
+        return;
+      }
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadCertificate = async () => {
+    if (!selectedFile) {
+      toast.error('Selecione um arquivo de certificado');
+      return;
+    }
+    if (!certPassword) {
+      toast.error('Digite a senha do certificado');
+      return;
+    }
+
+    // Read file as base64
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      uploadCertificate.mutate({ pfxBase64: base64, password: certPassword }, {
+        onSuccess: () => {
+          setSelectedFile(null);
+          setCertPassword('');
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        }
+      });
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  // Certificate status helpers
+  const hasCertificate = !!settings?.certificado_cn;
+  const certValidUntil = settings?.certificado_valido_ate ? new Date(settings.certificado_valido_ate) : null;
+  const now = new Date();
+  const daysUntilExpiry = certValidUntil ? Math.floor((certValidUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+  const isExpired = certValidUntil ? certValidUntil < now : false;
+  const isExpiringSoon = !isExpired && daysUntilExpiry <= 30;
 
   const isConfigured = settings?.is_configured;
 
@@ -455,45 +504,121 @@ export default function FiscalSettings() {
           </CardContent>
         </Card>
 
-        {/* Provedor e Automação */}
+        {/* Certificado Digital A1 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Settings2 className="h-5 w-5" />
-              Provedor Fiscal
+              <Key className="h-5 w-5" />
+              Certificado Digital A1
             </CardTitle>
-            <CardDescription>Integração com o emissor de NF-e</CardDescription>
+            <CardDescription>Certificado ICP-Brasil para emissão de NF-e</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="provider">Provedor</Label>
-              <Select
-                value={formData.provider || 'focusnfe'}
-                onValueChange={(v) => handleChange('provider', v)}
+            {/* Certificate Status */}
+            {hasCertificate ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
+                  {isExpired ? (
+                    <ShieldX className="h-8 w-8 text-destructive flex-shrink-0" />
+                  ) : isExpiringSoon ? (
+                    <ShieldAlert className="h-8 w-8 text-amber-500 flex-shrink-0" />
+                  ) : (
+                    <ShieldCheck className="h-8 w-8 text-green-500 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium truncate">{settings?.certificado_cn}</span>
+                      {isExpired ? (
+                        <Badge variant="destructive">Expirado</Badge>
+                      ) : isExpiringSoon ? (
+                        <Badge variant="outline" className="border-amber-500 text-amber-600">
+                          Expira em {daysUntilExpiry} dias
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-green-500 text-green-600">Válido</Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
+                      {settings?.certificado_cnpj && (
+                        <p>CNPJ: {settings.certificado_cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')}</p>
+                      )}
+                      <p>Serial: {settings?.certificado_serial}</p>
+                      <p>Válido até: {certValidUntil?.toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {(isExpired || isExpiringSoon) && (
+                  <Alert variant={isExpired ? "destructive" : "default"} className={!isExpired ? "border-amber-500" : undefined}>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {isExpired 
+                        ? 'Seu certificado expirou. Faça o upload de um novo certificado para continuar emitindo NF-e.'
+                        : `Seu certificado expira em ${daysUntilExpiry} dias. Providencie a renovação.`
+                      }
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                <Separator />
+                <p className="text-sm text-muted-foreground">Substituir certificado:</p>
+              </div>
+            ) : (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Nenhum certificado configurado. Faça o upload do seu certificado A1 (.pfx) para emitir NF-e.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Upload Form */}
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="certificate_file">Arquivo do Certificado (.pfx)</Label>
+                <Input
+                  ref={fileInputRef}
+                  id="certificate_file"
+                  type="file"
+                  accept=".pfx"
+                  onChange={handleFileSelect}
+                  className="cursor-pointer"
+                />
+                {selectedFile && (
+                  <p className="text-sm text-muted-foreground">
+                    Arquivo selecionado: {selectedFile.name}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="cert_password">Senha do Certificado</Label>
+                <Input
+                  id="cert_password"
+                  type="password"
+                  value={certPassword}
+                  onChange={(e) => setCertPassword(e.target.value)}
+                  placeholder="Digite a senha do certificado"
+                />
+              </div>
+
+              <Button 
+                onClick={handleUploadCertificate} 
+                disabled={!selectedFile || !certPassword || uploadCertificate.isPending}
+                className="w-full"
               >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="focusnfe">Focus NFe</SelectItem>
-                </SelectContent>
-              </Select>
+                {uploadCertificate.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {hasCertificate ? 'Substituir Certificado' : 'Enviar Certificado'}
+              </Button>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="provider_token">Token de API *</Label>
-              <Input
-                id="provider_token"
-                type="password"
-                value={formData.provider_token || ''}
-                onChange={(e) => handleChange('provider_token', e.target.value)}
-                placeholder="Token do provedor fiscal"
-              />
-              <p className="text-xs text-muted-foreground">
-                Obtenha em <a href="https://focusnfe.com.br" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">focusnfe.com.br</a>
-              </p>
-            </div>
+            <Separator />
 
+            {/* Ambiente */}
             <div className="space-y-2">
               <Label htmlFor="ambiente">Ambiente *</Label>
               <Select
@@ -518,6 +643,7 @@ export default function FiscalSettings() {
 
             <Separator />
 
+            {/* Automação */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
