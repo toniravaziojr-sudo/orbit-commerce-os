@@ -1,14 +1,13 @@
 // =============================================
-// IMPORT PAGE V5 - Sistema de Importação Enterprise
-// Arquitetura de 3 Passos com IA Contextual
+// IMPORT PAGE V5 - Sistema de Criação por Inspiração
+// Cria páginas ORIGINAIS baseadas em análise estratégica
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { analyzePageStrategically, createFallbackPlan } from '../_shared/ai-strategic-analyzer.ts';
-import { extractPageContent, createFallbackExtraction } from '../_shared/ai-content-extractor.ts';
-import { optimizePage, applyOptimizations } from '../_shared/ai-marketing-optimizer.ts';
-import type { ImportV5Result, ExtractedBlock } from '../_shared/marketing/types.ts';
-
+import { createPageFromInspiration, createFallbackPage } from '../_shared/ai-content-creator.ts';
+import type { ImportV5Result } from '../_shared/marketing/types.ts';
+import type { CreatedBlock } from '../_shared/ai-content-creator.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -74,11 +73,11 @@ async function fetchPageContent(url: string): Promise<{ html: string; title: str
   };
 }
 
-// Converte blocos extraídos para estrutura do Builder
-function convertToBuilderBlocks(blocks: ExtractedBlock[]): { type: string; id: string; props: Record<string, unknown>; children: unknown[] }[] {
+// Converte blocos criados para estrutura do Builder
+function convertToBuilderBlocks(blocks: CreatedBlock[]): { type: string; id: string; props: Record<string, unknown>; children: unknown[] }[] {
   return blocks.map((block, index) => ({
     type: block.type,
-    id: `imported-${block.type.toLowerCase()}-${index}-${Date.now()}`,
+    id: `created-${block.type.toLowerCase()}-${index}-${Date.now()}`,
     props: block.props,
     children: [],
   }));
@@ -147,40 +146,22 @@ Deno.serve(async (req) => {
     }
     console.log('[Import v5] Framework escolhido:', strategicPlan.framework);
 
-    // ========== PASSO 2: EXTRAÇÃO DE CONTEÚDO ==========
-    console.log('[Import v5] Passo 2: Extração de conteúdo...');
-    let extraction;
+    // ========== PASSO 2: CRIAÇÃO DE CONTEÚDO ==========
+    console.log('[Import v5] Passo 2: Criação de conteúdo por inspiração...');
+    let creation;
     try {
-      const extractionResult = await extractPageContent(html, strategicPlan);
-      extraction = extractionResult.result;
+      const creationResult = await createPageFromInspiration(html, strategicPlan);
+      creation = creationResult.result;
       aiCallsCount++;
     } catch (e) {
-      console.error('[Import v5] Erro na extração, usando fallback:', e);
-      extraction = createFallbackExtraction(html);
+      console.error('[Import v5] Erro na criação, usando fallback:', e);
+      creation = createFallbackPage(strategicPlan);
     }
-    console.log('[Import v5] Blocos extraídos:', extraction.blocks.length);
+    console.log('[Import v5] Blocos criados:', creation.blocks.length);
+    console.log('[Import v5] Qualidade da criação:', creation.creationQuality);
 
-    // ========== PASSO 3: OTIMIZAÇÃO ==========
-    console.log('[Import v5] Passo 3: Otimização...');
-    let optimization;
-    try {
-      const optimizationResult = await optimizePage(strategicPlan, extraction, { skipIfHighQuality: true });
-      optimization = optimizationResult.result;
-      if (optimizationResult.rawResponse) aiCallsCount++;
-    } catch (e) {
-      console.error('[Import v5] Erro na otimização:', e);
-      optimization = {
-        qualityScore: extraction.extractionQuality,
-        frameworkCompliance: 70,
-        issues: [],
-        suggestions: [],
-        missingElements: [],
-      };
-    }
-    console.log('[Import v5] Score de qualidade:', optimization.qualityScore);
-
-    // Aplicar otimizações se houver
-    const finalBlocks = applyOptimizations(extraction.blocks, optimization);
+    // Usar blocos criados diretamente (já validados)
+    const finalBlocks = creation.blocks;
 
     // ========== SALVAR NO BANCO ==========
     console.log('[Import v5] Salvando página no banco...');
@@ -230,15 +211,16 @@ Deno.serve(async (req) => {
         builder_enabled: true,
         page_overrides: {
           importedFrom: url,
-          importVersion: 'v5',
+          importVersion: 'v5-creator',
           strategicPlan: {
             productType: strategicPlan.productType,
             framework: strategicPlan.framework,
             confidence: strategicPlan.confidence,
           },
-          optimization: {
-            qualityScore: optimization.qualityScore,
-            frameworkCompliance: optimization.frameworkCompliance,
+          creation: {
+            quality: creation.creationQuality,
+            copyStyle: creation.copyStyle,
+            warnings: creation.warnings,
           },
         },
       })
@@ -261,8 +243,12 @@ Deno.serve(async (req) => {
         slug: page.slug,
       },
       strategicPlan,
-      extraction,
-      optimization,
+      creation: {
+        blocks: creation.blocks,
+        creationQuality: creation.creationQuality,
+        copyStyle: creation.copyStyle,
+        warnings: creation.warnings,
+      },
       stats: {
         blocksCreated: finalBlocks.length,
         aiCallsCount,

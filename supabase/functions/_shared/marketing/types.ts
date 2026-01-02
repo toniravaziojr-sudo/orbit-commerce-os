@@ -350,6 +350,19 @@ export const optimizePageSchema = {
 // RESULTADO FINAL DA IMPORTAÇÃO
 // =============================================
 
+// Resultado da criação de conteúdo
+export interface CreationResultSummary {
+  blocks: Array<{
+    type: string;
+    props: Record<string, unknown>;
+    marketingFunction: MarketingFunction;
+    order: number;
+  }>;
+  creationQuality: number;
+  copyStyle: string;
+  warnings: string[];
+}
+
 export interface ImportV5Result {
   success: boolean;
   page?: {
@@ -358,6 +371,9 @@ export interface ImportV5Result {
     slug: string;
   };
   strategicPlan?: StrategicPlan;
+  // Novo campo para o sistema de criação
+  creation?: CreationResultSummary;
+  // Campos legados (mantidos para compatibilidade)
   extraction?: ExtractionResult;
   optimization?: OptimizationResult;
   stats?: {
