@@ -36,6 +36,12 @@ import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/Cu
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
 import { FeatureListBlock as FeatureListBlockComponent } from './blocks/FeatureListBlock';
 import { ContentColumnsBlock as ContentColumnsBlockComponent } from './blocks/ContentColumnsBlock';
+import { StepsTimelineBlock as StepsTimelineBlockComponent } from './blocks/StepsTimelineBlock';
+import { CountdownTimerBlock as CountdownTimerBlockComponent } from './blocks/CountdownTimerBlock';
+import { LogosCarouselBlock as LogosCarouselBlockComponent } from './blocks/LogosCarouselBlock';
+import { StatsNumbersBlock as StatsNumbersBlockComponent } from './blocks/StatsNumbersBlock';
+import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/ImageGalleryBlock';
+import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -558,6 +564,13 @@ const components: Record<string, React.ComponentType<any>> = {
     // New blocks for import quality
     FeatureList: FeatureListBlockWrapper,
     ContentColumns: ContentColumnsBlockWrapper,
+    // 6 new blocks
+    StepsTimeline: StepsTimelineBlockWrapper,
+    CountdownTimer: CountdownTimerBlockWrapper,
+    LogosCarousel: LogosCarouselBlockWrapper,
+    StatsNumbers: StatsNumbersBlockWrapper,
+    ImageGallery: ImageGalleryBlockWrapper,
+    AccordionBlock: AccordionBlockBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -2325,4 +2338,34 @@ function HTMLSectionWrapper({
       context={context}
     />
   );
+}
+
+// ========== STEPS TIMELINE BLOCK WRAPPER ==========
+function StepsTimelineBlockWrapper(props: any) {
+  return <StepsTimelineBlockComponent {...props} />;
+}
+
+// ========== COUNTDOWN TIMER BLOCK WRAPPER ==========
+function CountdownTimerBlockWrapper(props: any) {
+  return <CountdownTimerBlockComponent {...props} />;
+}
+
+// ========== LOGOS CAROUSEL BLOCK WRAPPER ==========
+function LogosCarouselBlockWrapper(props: any) {
+  return <LogosCarouselBlockComponent {...props} />;
+}
+
+// ========== STATS NUMBERS BLOCK WRAPPER ==========
+function StatsNumbersBlockWrapper(props: any) {
+  return <StatsNumbersBlockComponent {...props} />;
+}
+
+// ========== IMAGE GALLERY BLOCK WRAPPER ==========
+function ImageGalleryBlockWrapper(props: any) {
+  return <ImageGalleryBlockComponent {...props} />;
+}
+
+// ========== ACCORDION BLOCK WRAPPER ==========
+function AccordionBlockBlockWrapper(props: any) {
+  return <AccordionBlockComponent {...props} />;
 }
