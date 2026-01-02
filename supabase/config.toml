@@ -222,3 +222,6 @@ verify_jwt = false
 
 [functions.ai-analyze-page]
 verify_jwt = false
+
+[functions.import-pages-structure]
+verify_jwt = false
