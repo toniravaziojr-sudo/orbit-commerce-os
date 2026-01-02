@@ -69,6 +69,12 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'VideoUpload': 'content',
   'ContentColumns': 'content',
   'FeatureList': 'content',
+  'StepsTimeline': 'content',
+  'CountdownTimer': 'content',
+  'LogosCarousel': 'content',
+  'StatsNumbers': 'content',
+  'AccordionBlock': 'content',
+  'ImageGallery': 'media',
   
   // Social Proof
   'Testimonials': 'social-proof',
@@ -109,6 +115,12 @@ const visibleBlockTypes = new Set([
   'VideoUpload',
   'ContentColumns',
   'FeatureList',
+  'StepsTimeline',
+  'CountdownTimer',
+  'LogosCarousel',
+  'StatsNumbers',
+  'AccordionBlock',
+  'ImageGallery',
   // Social Proof
   'Testimonials',
   // Info
