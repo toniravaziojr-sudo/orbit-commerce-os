@@ -130,6 +130,7 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/aguardando-confirmacao" element={<AwaitingConfirmation />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
+              <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
 
               {/* 
                 Storefront routes - When on tenant host (custom domain / platform subdomain),
@@ -249,7 +250,6 @@ const App = () => {
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
                   <Route path="/platform/health-monitor" element={<HealthMonitor />} />
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
-                  <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />
