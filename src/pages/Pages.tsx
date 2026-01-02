@@ -18,7 +18,6 @@ import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrima
 import { validateSlug } from '@/lib/slugValidation';
 import { toast } from 'sonner';
 import { ImportPageDialog } from '@/components/pages/ImportPageDialog';
-import { ImportPageStructureDialog } from '@/components/pages/ImportPageStructureDialog';
 
 export default function Pages() {
   const navigate = useNavigate();
@@ -145,16 +144,10 @@ export default function Pages() {
         actions={
           <div className="flex gap-2">
             {currentTenant?.id && (
-              <>
-                <ImportPageDialog 
-                  tenantId={currentTenant.id} 
-                  onSuccess={() => refetch()} 
-                />
-                <ImportPageStructureDialog 
-                  tenantId={currentTenant.id} 
-                  onSuccess={() => refetch()} 
-                />
-              </>
+              <ImportPageDialog 
+                tenantId={currentTenant.id} 
+                onSuccess={() => refetch()} 
+              />
             )}
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>

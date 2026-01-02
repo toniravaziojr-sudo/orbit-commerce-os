@@ -2,44 +2,38 @@
 // INTELLIGENT BLOCK MAPPER
 // =====================================================
 // 
-// This module creates Builder blocks based on AI classification results.
-// It works in conjunction with the classify-content edge function
-// to transform HTML sections into appropriate native blocks.
+// Creates Builder blocks from AI classification results.
+// Works with the classify-content edge function that provides
+// both classification AND extracted content.
 //
 // BLOCK TYPES CREATED:
-// - Hero: Hero section with title, subtitle, CTA, background
+// - Hero: Hero section with title, subtitle, CTA
 // - BenefitsGrid: Grid of benefits/features with icons
 // - Columns: Two-column layout with image + text
-// - Features: Feature list with descriptions
 // - CTA: Call-to-action section
 // - Generic: Fallback to RichText
 // =====================================================
 
+export interface ExtractedContent {
+  title: string | null;
+  subtitle: string | null;
+  items: Array<{
+    title: string;
+    description: string;
+    suggestedIcon: 'check' | 'shield' | 'zap' | 'star' | 'heart' | 'award' | 'truck' | 'clock' | 'gift' | 'percent' | null;
+  }>;
+  images: Array<{ src: string; alt: string }>;
+  videos: Array<{ url: string; type: 'youtube' | 'vimeo' | 'mp4' }>;
+  buttons: Array<{ text: string; url: string }>;
+  paragraphs: string[];
+}
+
 export interface ClassificationResult {
   sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'generic';
   layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split';
-  elements: {
-    hasHeading: boolean;
-    hasSubheading: boolean;
-    hasImage: boolean;
-    hasVideo: boolean;
-    hasList: boolean;
-    hasButton: boolean;
-    hasIcons: boolean;
-    itemCount: number;
-  };
   confidence: number;
   reasoning: string;
-}
-
-export interface ContentPrimitive {
-  type: 'heading' | 'paragraph' | 'image' | 'video' | 'button' | 'list';
-  content: string;
-  level?: number;
-  src?: string;
-  alt?: string;
-  href?: string;
-  items?: string[];
+  extractedContent: ExtractedContent;
 }
 
 export interface BlockNode {
@@ -54,32 +48,34 @@ function generateBlockId(prefix: string = 'block'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
 }
 
+// Icon mapping
+const ICON_MAP: Record<string, string> = {
+  check: '✓',
+  shield: '🛡️',
+  zap: '⚡',
+  star: '⭐',
+  heart: '❤️',
+  award: '🏆',
+  truck: '🚚',
+  clock: '⏰',
+  gift: '🎁',
+  percent: '💰',
+};
+
 // =====================================================
 // HERO BLOCK CREATOR
 // =====================================================
-export function createHeroBlock(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  const blocks: BlockNode[] = [];
+export function createHeroBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent, layout } = classification;
+  const { title, subtitle, images, videos, buttons } = extractedContent;
   
-  const heading = primitives.find(p => p.type === 'heading');
-  const paragraphs = primitives.filter(p => p.type === 'paragraph');
-  const images = primitives.filter(p => p.type === 'image');
-  const videos = primitives.filter(p => p.type === 'video');
-  const buttons = primitives.filter(p => p.type === 'button');
+  const isSplit = layout === 'hero-split' || layout === 'columns-image-left' || layout === 'columns-image-right';
+  const hasImage = images.length > 0;
+  const hasVideo = videos.length > 0;
   
-  // Get subtitle from paragraphs (first short one)
-  const subtitle = paragraphs.find(p => p.content.length < 200)?.content || '';
-  const description = paragraphs.find(p => p.content.length >= 50 && p.content.length < 500)?.content || '';
-  
-  // Determine layout type
-  const isSplit = classification.layout === 'hero-split' || 
-                  (images.length > 0 && heading);
-  
-  if (isSplit && images.length > 0) {
-    // Split hero: Image + Text side by side using Columns
-    const imageOnLeft = classification.layout !== 'columns-image-right';
+  if (isSplit && hasImage) {
+    // Split hero: Image + Text side by side
+    const imageOnLeft = layout !== 'columns-image-right';
     
     const textColumn: BlockNode = {
       id: generateBlockId('hero-text-col'),
@@ -90,7 +86,7 @@ export function createHeroBlock(
           id: generateBlockId('hero-heading'),
           type: 'RichText',
           props: {
-            content: `<h1 style="font-size: 2.5rem; font-weight: 700; line-height: 1.2;">${heading?.content || 'Título Principal'}</h1>`,
+            content: `<h1 style="font-size: 2.5rem; font-weight: 700; line-height: 1.2;">${title || 'Título Principal'}</h1>`,
             textAlign: 'left',
           },
         },
@@ -106,8 +102,8 @@ export function createHeroBlock(
           id: generateBlockId('hero-cta'),
           type: 'Button',
           props: {
-            text: buttons[0].content,
-            url: buttons[0].href || '#',
+            text: buttons[0].text,
+            url: buttons[0].url || '#',
             variant: 'primary',
             size: 'lg',
           },
@@ -134,7 +130,7 @@ export function createHeroBlock(
       ],
     };
     
-    blocks.push({
+    return [{
       id: generateBlockId('hero-section'),
       type: 'Section',
       props: {
@@ -146,203 +142,157 @@ export function createHeroBlock(
         {
           id: generateBlockId('hero-columns'),
           type: 'Columns',
-          props: {
-            gap: 48,
-            verticalAlign: 'center',
-          },
-          children: imageOnLeft 
-            ? [imageColumn, textColumn] 
-            : [textColumn, imageColumn],
+          props: { gap: 48, verticalAlign: 'center' },
+          children: imageOnLeft ? [imageColumn, textColumn] : [textColumn, imageColumn],
         },
       ],
-    });
-  } else {
-    // Centered hero
-    const heroSection: BlockNode = {
-      id: generateBlockId('hero-section'),
-      type: 'Section',
-      props: {
-        backgroundColor: 'transparent',
-        paddingY: 80,
-        paddingX: 16,
-        ...(images.length > 0 && {
-          backgroundImage: images[0].src,
-          backgroundOverlay: 0.5,
-        }),
-      },
-      children: [
-        {
-          id: generateBlockId('hero-container'),
-          type: 'Container',
-          props: {
-            maxWidth: 'lg',
-            textAlign: 'center',
-          },
-          children: [
-            {
-              id: generateBlockId('hero-heading'),
-              type: 'RichText',
-              props: {
-                content: `<h1 style="font-size: 3rem; font-weight: 700; line-height: 1.1;">${heading?.content || 'Título Principal'}</h1>`,
-                textAlign: 'center',
-              },
-            },
-            ...(subtitle ? [{
-              id: generateBlockId('hero-subtitle'),
-              type: 'RichText',
-              props: {
-                content: `<p style="font-size: 1.25rem; max-width: 600px; margin: 0 auto;">${subtitle}</p>`,
-                textAlign: 'center',
-              },
-            }] : []),
-            ...(videos.length > 0 ? [{
-              id: generateBlockId('hero-video'),
-              type: 'YouTubeVideo',
-              props: {
-                youtubeUrl: videos[0].content,
-                widthPreset: 'xl',
-                aspectRatio: '16:9',
-              },
-            }] : []),
-            ...(buttons.length > 0 ? [{
-              id: generateBlockId('hero-cta'),
-              type: 'Button',
-              props: {
-                text: buttons[0].content,
-                url: buttons[0].href || '#',
-                variant: 'primary',
-                size: 'lg',
-              },
-            }] : []),
-          ],
-        },
-      ],
-    };
-    
-    blocks.push(heroSection);
+    }];
   }
   
-  return blocks;
-}
-
-// =====================================================
-// BENEFITS/FEATURES GRID CREATOR
-// =====================================================
-export function createBenefitsGridBlock(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  const blocks: BlockNode[] = [];
-  
-  const heading = primitives.find(p => p.type === 'heading');
-  const paragraphs = primitives.filter(p => p.type === 'paragraph');
-  const lists = primitives.filter(p => p.type === 'list');
-  
-  // Determine grid columns based on layout
-  let gridCols = 3;
-  if (classification.layout === 'grid-2') gridCols = 2;
-  if (classification.layout === 'grid-4') gridCols = 4;
-  
-  // Extract benefit items from lists or paragraphs
-  const benefitItems: Array<{ title: string; description: string; icon: string }> = [];
-  
-  // Try to extract from lists first
-  for (const list of lists) {
-    if (list.items) {
-      for (const item of list.items) {
-        // Try to split item into title and description
-        const parts = item.split(/[:\-–—]/);
-        if (parts.length >= 2) {
-          benefitItems.push({
-            title: parts[0].trim(),
-            description: parts.slice(1).join(' ').trim(),
-            icon: detectIcon(parts[0]),
-          });
-        } else if (item.length < 100) {
-          benefitItems.push({
-            title: item,
-            description: '',
-            icon: 'CheckCircle',
-          });
-        }
-      }
-    }
-  }
-  
-  // If no list items, try to extract from short paragraphs
-  if (benefitItems.length < 2) {
-    const shortParagraphs = paragraphs.filter(p => p.content.length < 150);
-    for (const p of shortParagraphs) {
-      if (benefitItems.length < 6) {
-        benefitItems.push({
-          title: p.content.split(/[.!?]/)[0].trim(),
-          description: p.content,
-          icon: detectIcon(p.content),
-        });
-      }
-    }
-  }
-  
-  // Create section with title and grid
-  const sectionChildren: BlockNode[] = [];
-  
-  if (heading) {
-    sectionChildren.push({
-      id: generateBlockId('benefits-title'),
+  // Centered hero
+  const heroChildren: BlockNode[] = [
+    {
+      id: generateBlockId('hero-heading'),
       type: 'RichText',
       props: {
-        content: `<h2 style="font-size: 2rem; font-weight: 600; text-align: center; margin-bottom: 2rem;">${heading.content}</h2>`,
+        content: `<h1 style="font-size: 3rem; font-weight: 700; line-height: 1.1;">${title || 'Título Principal'}</h1>`,
+        textAlign: 'center',
+      },
+    },
+  ];
+  
+  if (subtitle) {
+    heroChildren.push({
+      id: generateBlockId('hero-subtitle'),
+      type: 'RichText',
+      props: {
+        content: `<p style="font-size: 1.25rem; max-width: 600px; margin: 0 auto;">${subtitle}</p>`,
         textAlign: 'center',
       },
     });
   }
   
-  // Create grid of benefit cards
-  if (benefitItems.length > 0) {
-    const gridItems: BlockNode[] = benefitItems.slice(0, 6).map((item, index) => ({
-      id: generateBlockId(`benefit-item-${index}`),
-      type: 'Column',
-      props: { width: `${100 / gridCols}%` },
-      children: [
-        {
-          id: generateBlockId(`benefit-icon-${index}`),
-          type: 'RichText',
-          props: {
-            content: `<div style="font-size: 2rem; margin-bottom: 0.5rem;">✓</div>`,
-            textAlign: 'center',
+  if (hasVideo) {
+    heroChildren.push({
+      id: generateBlockId('hero-video'),
+      type: 'YouTubeVideo',
+      props: {
+        youtubeUrl: videos[0].url,
+        widthPreset: 'xl',
+        aspectRatio: '16:9',
+      },
+    });
+  }
+  
+  if (buttons.length > 0) {
+    heroChildren.push({
+      id: generateBlockId('hero-cta'),
+      type: 'Button',
+      props: {
+        text: buttons[0].text,
+        url: buttons[0].url || '#',
+        variant: 'primary',
+        size: 'lg',
+      },
+    });
+  }
+  
+  return [{
+    id: generateBlockId('hero-section'),
+    type: 'Section',
+    props: {
+      backgroundColor: 'transparent',
+      paddingY: 80,
+      paddingX: 16,
+      ...(hasImage && !hasVideo && {
+        backgroundImage: images[0].src,
+        backgroundOverlay: 0.5,
+      }),
+    },
+    children: [
+      {
+        id: generateBlockId('hero-container'),
+        type: 'Container',
+        props: { maxWidth: 'lg', textAlign: 'center' },
+        children: heroChildren,
+      },
+    ],
+  }];
+}
+
+// =====================================================
+// BENEFITS/FEATURES GRID CREATOR
+// =====================================================
+export function createBenefitsGridBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent, layout } = classification;
+  const { title, items } = extractedContent;
+  
+  // Determine grid columns
+  let gridCols = 3;
+  if (layout === 'grid-2') gridCols = 2;
+  if (layout === 'grid-4') gridCols = 4;
+  
+  const sectionChildren: BlockNode[] = [];
+  
+  // Section title
+  if (title) {
+    sectionChildren.push({
+      id: generateBlockId('benefits-title'),
+      type: 'RichText',
+      props: {
+        content: `<h2 style="font-size: 2rem; font-weight: 600; text-align: center; margin-bottom: 2rem;">${title}</h2>`,
+        textAlign: 'center',
+      },
+    });
+  }
+  
+  // Grid of items
+  if (items.length > 0) {
+    const gridItems: BlockNode[] = items.slice(0, 6).map((item, index) => {
+      const icon = item.suggestedIcon ? ICON_MAP[item.suggestedIcon] || '✓' : '✓';
+      
+      return {
+        id: generateBlockId(`benefit-item-${index}`),
+        type: 'Column',
+        props: { width: `${100 / gridCols}%` },
+        children: [
+          {
+            id: generateBlockId(`benefit-icon-${index}`),
+            type: 'RichText',
+            props: {
+              content: `<div style="font-size: 2rem; margin-bottom: 0.5rem;">${icon}</div>`,
+              textAlign: 'center',
+            },
           },
-        },
-        {
-          id: generateBlockId(`benefit-title-${index}`),
-          type: 'RichText',
-          props: {
-            content: `<h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">${item.title}</h3>`,
-            textAlign: 'center',
+          {
+            id: generateBlockId(`benefit-title-${index}`),
+            type: 'RichText',
+            props: {
+              content: `<h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">${item.title}</h3>`,
+              textAlign: 'center',
+            },
           },
-        },
-        ...(item.description ? [{
-          id: generateBlockId(`benefit-desc-${index}`),
-          type: 'RichText',
-          props: {
-            content: `<p style="font-size: 0.875rem; opacity: 0.8;">${item.description}</p>`,
-            textAlign: 'center',
-          },
-        }] : []),
-      ],
-    }));
+          ...(item.description ? [{
+            id: generateBlockId(`benefit-desc-${index}`),
+            type: 'RichText',
+            props: {
+              content: `<p style="font-size: 0.875rem; opacity: 0.8;">${item.description}</p>`,
+              textAlign: 'center',
+            },
+          }] : []),
+        ],
+      };
+    });
     
     sectionChildren.push({
       id: generateBlockId('benefits-grid'),
       type: 'Columns',
-      props: {
-        gap: 32,
-        verticalAlign: 'top',
-      },
+      props: { gap: 32, verticalAlign: 'top' },
       children: gridItems,
     });
   }
   
-  blocks.push({
+  return [{
     id: generateBlockId('benefits-section'),
     type: 'Section',
     props: {
@@ -358,36 +308,27 @@ export function createBenefitsGridBlock(
         children: sectionChildren,
       },
     ],
-  });
-  
-  return blocks;
+  }];
 }
 
 // =====================================================
 // COLUMNS LAYOUT CREATOR (Image + Text)
 // =====================================================
-export function createColumnsBlock(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  const blocks: BlockNode[] = [];
+export function createColumnsBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent, layout } = classification;
+  const { title, paragraphs, images, buttons } = extractedContent;
   
-  const heading = primitives.find(p => p.type === 'heading');
-  const paragraphs = primitives.filter(p => p.type === 'paragraph');
-  const images = primitives.filter(p => p.type === 'image');
-  const buttons = primitives.filter(p => p.type === 'button');
-  
-  const imageOnLeft = classification.layout !== 'columns-image-right';
+  const imageOnLeft = layout !== 'columns-image-right';
   
   // Text column
   const textChildren: BlockNode[] = [];
   
-  if (heading) {
+  if (title) {
     textChildren.push({
       id: generateBlockId('col-heading'),
       type: 'RichText',
       props: {
-        content: `<h2 style="font-size: 1.75rem; font-weight: 600;">${heading.content}</h2>`,
+        content: `<h2 style="font-size: 1.75rem; font-weight: 600;">${title}</h2>`,
         textAlign: 'left',
       },
     });
@@ -398,7 +339,7 @@ export function createColumnsBlock(
       id: generateBlockId('col-text'),
       type: 'RichText',
       props: {
-        content: `<p>${p.content}</p>`,
+        content: `<p>${p}</p>`,
         textAlign: 'left',
       },
     });
@@ -409,8 +350,8 @@ export function createColumnsBlock(
       id: generateBlockId('col-button'),
       type: 'Button',
       props: {
-        text: buttons[0].content,
-        url: buttons[0].href || '#',
+        text: buttons[0].text,
+        url: buttons[0].url || '#',
         variant: 'primary',
         size: 'md',
       },
@@ -421,7 +362,11 @@ export function createColumnsBlock(
     id: generateBlockId('text-column'),
     type: 'Column',
     props: { width: '50%' },
-    children: textChildren,
+    children: textChildren.length > 0 ? textChildren : [{
+      id: generateBlockId('col-placeholder-text'),
+      type: 'RichText',
+      props: { content: '<p>Conteúdo da seção</p>' },
+    }],
   };
   
   // Image column
@@ -452,13 +397,10 @@ export function createColumnsBlock(
     ],
   };
   
-  blocks.push({
+  return [{
     id: generateBlockId('columns-section'),
     type: 'Section',
-    props: {
-      paddingY: 64,
-      paddingX: 16,
-    },
+    props: { paddingY: 64, paddingX: 16 },
     children: [
       {
         id: generateBlockId('columns-container'),
@@ -468,32 +410,21 @@ export function createColumnsBlock(
           {
             id: generateBlockId('columns-layout'),
             type: 'Columns',
-            props: {
-              gap: 48,
-              verticalAlign: 'center',
-            },
+            props: { gap: 48, verticalAlign: 'center' },
             children: imageOnLeft ? [imageColumn, textColumn] : [textColumn, imageColumn],
           },
         ],
       },
     ],
-  });
-  
-  return blocks;
+  }];
 }
 
 // =====================================================
 // CTA BLOCK CREATOR
 // =====================================================
-export function createCTABlock(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  const heading = primitives.find(p => p.type === 'heading');
-  const paragraphs = primitives.filter(p => p.type === 'paragraph');
-  const buttons = primitives.filter(p => p.type === 'button');
-  
-  const subtitle = paragraphs.find(p => p.content.length < 200)?.content || '';
+export function createCTABlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, subtitle, buttons } = extractedContent;
   
   return [{
     id: generateBlockId('cta-section'),
@@ -513,28 +444,28 @@ export function createCTABlock(
             id: generateBlockId('cta-heading'),
             type: 'RichText',
             props: {
-              content: `<h2 style="font-size: 2rem; font-weight: 700; color: white;">${heading?.content || 'Pronto para começar?'}</h2>`,
+              content: `<h2 style="font-size: 2rem; font-weight: 700; color: white;">${title || 'Pronto para começar?'}</h2>`,
               textAlign: 'center',
             },
           },
           ...(subtitle ? [{
-            id: generateBlockId('cta-subtitle'),
+            id: generateBlockId('cta-text'),
             type: 'RichText',
             props: {
-              content: `<p style="font-size: 1.125rem; color: rgba(255,255,255,0.9);">${subtitle}</p>`,
+              content: `<p style="color: white; opacity: 0.9;">${subtitle}</p>`,
               textAlign: 'center',
             },
           }] : []),
-          {
+          ...(buttons.length > 0 ? [{
             id: generateBlockId('cta-button'),
             type: 'Button',
             props: {
-              text: buttons[0]?.content || 'Saiba Mais',
-              url: buttons[0]?.href || '#',
+              text: buttons[0].text,
+              url: buttons[0].url || '#',
               variant: 'secondary',
               size: 'lg',
             },
-          },
+          }] : []),
         ],
       },
     ],
@@ -542,171 +473,117 @@ export function createCTABlock(
 }
 
 // =====================================================
-// GENERIC STACKED BLOCK CREATOR
+// GENERIC/FALLBACK BLOCK CREATOR
 // =====================================================
-export function createStackedBlock(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  const blocks: BlockNode[] = [];
+export function createGenericBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, paragraphs, images, buttons } = extractedContent;
   
   const children: BlockNode[] = [];
   
-  for (const p of primitives) {
-    switch (p.type) {
-      case 'heading':
-        const tag = p.level === 1 ? 'h1' : p.level === 2 ? 'h2' : 'h3';
-        children.push({
-          id: generateBlockId('heading'),
-          type: 'RichText',
-          props: {
-            content: `<${tag}>${p.content}</${tag}>`,
-            textAlign: 'center',
-          },
-        });
-        break;
-        
-      case 'paragraph':
-        children.push({
-          id: generateBlockId('text'),
-          type: 'RichText',
-          props: {
-            content: `<p>${p.content}</p>`,
-            textAlign: 'left',
-          },
-        });
-        break;
-        
-      case 'image':
-        children.push({
-          id: generateBlockId('image'),
-          type: 'Image',
-          props: {
-            imageDesktop: p.src,
-            imageMobile: p.src,
-            alt: p.alt || p.content,
-            aspectRatio: 'auto',
-          },
-        });
-        break;
-        
-      case 'video':
-        children.push({
-          id: generateBlockId('video'),
-          type: 'YouTubeVideo',
-          props: {
-            youtubeUrl: p.content,
-            widthPreset: 'xl',
-            aspectRatio: '16:9',
-          },
-        });
-        break;
-        
-      case 'button':
-        children.push({
-          id: generateBlockId('button'),
-          type: 'Button',
-          props: {
-            text: p.content,
-            url: p.href || '#',
-            variant: 'primary',
-            size: 'md',
-          },
-        });
-        break;
-    }
-  }
-  
-  if (children.length > 0) {
-    blocks.push({
-      id: generateBlockId('stacked-section'),
-      type: 'Section',
+  if (title) {
+    children.push({
+      id: generateBlockId('generic-heading'),
+      type: 'RichText',
       props: {
-        paddingY: 48,
-        paddingX: 16,
-        gap: 24,
+        content: `<h2 style="font-size: 1.75rem; font-weight: 600;">${title}</h2>`,
       },
-      children: [
-        {
-          id: generateBlockId('stacked-container'),
-          type: 'Container',
-          props: { maxWidth: 'lg' },
-          children,
-        },
-      ],
     });
   }
   
-  return blocks;
+  for (const p of paragraphs.slice(0, 5)) {
+    children.push({
+      id: generateBlockId('generic-text'),
+      type: 'RichText',
+      props: { content: `<p>${p}</p>` },
+    });
+  }
+  
+  for (const img of images.slice(0, 2)) {
+    children.push({
+      id: generateBlockId('generic-image'),
+      type: 'Image',
+      props: {
+        imageDesktop: img.src,
+        imageMobile: img.src,
+        alt: img.alt,
+        aspectRatio: '16:9',
+        borderRadius: 8,
+      },
+    });
+  }
+  
+  if (buttons.length > 0) {
+    children.push({
+      id: generateBlockId('generic-button'),
+      type: 'Button',
+      props: {
+        text: buttons[0].text,
+        url: buttons[0].url || '#',
+        variant: 'primary',
+        size: 'md',
+      },
+    });
+  }
+  
+  // Fallback if no content
+  if (children.length === 0) {
+    children.push({
+      id: generateBlockId('generic-empty'),
+      type: 'RichText',
+      props: { content: '<p>Conteúdo da seção</p>' },
+    });
+  }
+  
+  return [{
+    id: generateBlockId('generic-section'),
+    type: 'Section',
+    props: { paddingY: 48, paddingX: 16 },
+    children: [
+      {
+        id: generateBlockId('generic-container'),
+        type: 'Container',
+        props: { maxWidth: 'lg' },
+        children,
+      },
+    ],
+  }];
 }
 
 // =====================================================
 // MAIN MAPPER FUNCTION
 // =====================================================
-export function mapSectionToBlocks(
-  primitives: ContentPrimitive[],
-  classification: ClassificationResult
-): BlockNode[] {
-  console.log(`[INTELLIGENT-MAPPER] Mapping section: type=${classification.sectionType}, layout=${classification.layout}, confidence=${classification.confidence}`);
+export function mapClassificationToBlocks(classification: ClassificationResult): BlockNode[] {
+  const { sectionType, confidence } = classification;
   
-  // Use confidence threshold - if low confidence, fall back to stacked
-  if (classification.confidence < 0.4 && classification.sectionType === 'generic') {
-    console.log('[INTELLIGENT-MAPPER] Low confidence, using stacked layout');
-    return createStackedBlock(primitives, classification);
+  console.log(`[MAPPER] Mapeando seção: tipo=${sectionType}, conf=${confidence}`);
+  
+  // Use generic for low confidence
+  if (confidence < 0.5) {
+    console.log(`[MAPPER] Confiança baixa (${confidence}), usando bloco genérico`);
+    return createGenericBlock(classification);
   }
   
-  switch (classification.sectionType) {
+  switch (sectionType) {
     case 'hero':
-      console.log('[INTELLIGENT-MAPPER] Creating Hero block');
-      return createHeroBlock(primitives, classification);
-      
+      return createHeroBlock(classification);
+    
     case 'benefits':
     case 'features':
-      console.log('[INTELLIGENT-MAPPER] Creating Benefits/Features grid');
-      return createBenefitsGridBlock(primitives, classification);
-      
+      return createBenefitsGridBlock(classification);
+    
     case 'cta':
-      console.log('[INTELLIGENT-MAPPER] Creating CTA block');
-      return createCTABlock(primitives, classification);
-      
+      return createCTABlock(classification);
+    
     case 'about':
     case 'contact':
-      // For about/contact, use columns if there's an image
-      if (classification.elements.hasImage) {
-        console.log('[INTELLIGENT-MAPPER] Creating Columns layout for about/contact');
-        return createColumnsBlock(primitives, classification);
-      }
-      // Fall through to stacked
-      
+    case 'testimonials':
+    case 'faq':
+      // These could have specific implementations later
+      return createColumnsBlock(classification);
+    
+    case 'generic':
     default:
-      // For generic, testimonials, faq - let the original mapper handle specialized blocks
-      // or use columns if image + text detected
-      if (classification.elements.hasImage && classification.elements.hasHeading) {
-        if (classification.layout.startsWith('columns-')) {
-          console.log('[INTELLIGENT-MAPPER] Creating Columns layout');
-          return createColumnsBlock(primitives, classification);
-        }
-      }
-      
-      console.log('[INTELLIGENT-MAPPER] Using stacked layout');
-      return createStackedBlock(primitives, classification);
+      return createGenericBlock(classification);
   }
-}
-
-// =====================================================
-// HELPER FUNCTIONS
-// =====================================================
-
-function detectIcon(text: string): string {
-  const textLower = text.toLowerCase();
-  
-  if (/entrega|frete|envio|shipping/i.test(textLower)) return 'Truck';
-  if (/seguro|segurança|proteção|ssl/i.test(textLower)) return 'Shield';
-  if (/pagamento|cartão|pix|parcel/i.test(textLower)) return 'CreditCard';
-  if (/suporte|atendimento|ajuda|whatsapp/i.test(textLower)) return 'Headphones';
-  if (/garantia|troca|devolução/i.test(textLower)) return 'Award';
-  if (/qualidade|original|premium/i.test(textLower)) return 'Star';
-  if (/rápido|veloz|express/i.test(textLower)) return 'Zap';
-  
-  return 'CheckCircle';
 }
