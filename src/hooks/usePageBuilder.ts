@@ -112,11 +112,18 @@ export function usePageBuilder(pageId: string | undefined) {
         
         let initialContent = defaultInstitutionalTemplate;
         
-        // Migrate legacy content if exists
+        // Check if page has content to migrate (either legacy text or new block format)
         if (pageData.data?.content && typeof pageData.data.content === 'object') {
-          const legacyContent = pageData.data.content as { text?: string };
-          if (legacyContent.text) {
-            // Convert text content to RichText block
+          const content = pageData.data.content as Record<string, unknown>;
+          
+          // New block format: has type 'Page' with children
+          if (content.type === 'Page' && Array.isArray(content.children)) {
+            // Use imported content directly - it's already in the correct format
+            initialContent = content as unknown as BlockNode;
+          } 
+          // Legacy text format
+          else if ((content as { text?: string }).text) {
+            const legacyContent = content as { text: string };
             initialContent = {
               ...defaultInstitutionalTemplate,
               children: [
