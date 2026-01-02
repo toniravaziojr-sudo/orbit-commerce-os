@@ -3094,6 +3094,15 @@ async function importPage(
       console.log(`[IMPORT] Primitives: h=${extractionResult.primitivesCount.headings}, p=${extractionResult.primitivesCount.paragraphs}, img=${extractionResult.primitivesCount.images}`);
       console.log(`[IMPORT] Removed: ${extractionResult.removedElements.length} element categories`);
       
+      // Log detailed extraction logs for debugging
+      if (extractionResult.logs && extractionResult.logs.length > 0) {
+        console.log(`[IMPORT] --- DOM Extraction Logs (${extractionResult.logs.length} entries) ---`);
+        for (const log of extractionResult.logs) {
+          console.log(log);
+        }
+        console.log(`[IMPORT] --- End DOM Extraction Logs ---`);
+      }
+      
       // V5: CHECK FOR SHOPIFY EXTRACTION FAILURE - Return error immediately
       if (platformDetection.platform === 'shopify' && (!extractionResult.mainContentFound || extractionResult.extractedFrom.includes('error'))) {
         console.log(`[IMPORT] SHOPIFY V5 ERROR: Extraction failed (mainContentFound=${extractionResult.mainContentFound}, extractedFrom=${extractionResult.extractedFrom})`);
