@@ -157,12 +157,12 @@ export function normalizeShopifyOutput(
     }
   }
   
-  // Step 5: Extract body sections
-  // Look for specific patterns like "GRAU DE CALVÍCIE"
+  // Step 5: Extract body sections - V2 FIX
+  // Shopify uses divs, not semantic HTML - extract text content more aggressively
   const bodyParts: string[] = [];
   
-  // Find all headings in content (h2, h3, h4)
-  const headingMatches = contentHtml.matchAll(/<(h[2-4])[^>]*>([\s\S]*?)<\/\1>/gi);
+  // Find all headings in content (h1, h2, h3, h4)
+  const headingMatches = contentHtml.matchAll(/<(h[1-4])[^>]*>([\s\S]*?)<\/\1>/gi);
   for (const match of headingMatches) {
     const headingText = cleanTextFromHtml(match[2]);
     if (headingText.length > 3 && !isNoise(headingText) && headingText !== result.title) {
@@ -175,79 +175,97 @@ export function normalizeShopifyOutput(
   const paragraphMatches = contentHtml.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
   for (const match of paragraphMatches) {
     const paraText = cleanTextFromHtml(match[1]);
-    if (paraText.length > 20 && !isNoise(paraText)) {
-      // Check against blacklist
-      let isBlacklisted = false;
-      for (const pattern of BLACKLIST_PATTERNS) {
-        if (pattern.test(paraText)) {
-          isBlacklisted = true;
-          logs.push(`[NORMALIZER V2] Blacklisted paragraph: "${paraText.substring(0, 30)}..."`);
-          break;
-        }
-      }
-      if (!isBlacklisted) {
-        bodyParts.push(`<p>${paraText}</p>`);
-        logs.push(`[NORMALIZER V2] Found body paragraph: "${paraText.substring(0, 40)}..."`);
-      }
+    if (paraText.length > 15 && !isNoise(paraText) && !isBlacklistedContent(paraText, logs)) {
+      bodyParts.push(`<p>${paraText}</p>`);
+      logs.push(`[NORMALIZER V2] Found body paragraph: "${paraText.substring(0, 40)}..."`);
     }
   }
   
-  // If no structured content found, try to extract from plain text
+  // V2 FIX: Shopify uses divs with text - extract text content from remaining HTML
   if (bodyParts.length === 0) {
-    logs.push(`[NORMALIZER V2] No structured content found, trying plain text extraction`);
+    logs.push(`[NORMALIZER V2] No structured p/h tags found, extracting from divs/text`);
     
-    // Get plain text, preserving some structure
-    let plainText = contentHtml
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/p>/gi, '\n\n')
-      .replace(/<\/div>/gi, '\n')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Split into lines
-    const lines = plainText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 3);
-    
-    let cleanedCount = 0;
-    let noiseCount = 0;
-    
-    for (const line of lines) {
-      if (isNoise(line)) {
-        noiseCount++;
-        continue;
-      }
-      
-      // Check blacklist
-      let isBlacklisted = false;
-      for (const pattern of BLACKLIST_PATTERNS) {
-        if (pattern.test(line)) {
-          isBlacklisted = true;
-          break;
-        }
-      }
-      if (isBlacklisted) {
-        noiseCount++;
-        continue;
-      }
-      
-      // Skip if it's the title or video title
-      if (result.title && normalizeForComparison(line) === normalizeForComparison(result.title)) {
-        continue;
-      }
-      
-      // Check if it's a heading (ALL CAPS, short)
-      if (isLikelyHeading(line)) {
-        bodyParts.push(`<h3>${line}</h3>`);
-      } else if (line.length > 20) {
-        bodyParts.push(`<p>${line}</p>`);
-      }
-      cleanedCount++;
-      
-      // Limit to reasonable amount
-      if (cleanedCount >= 10) break;
+    // Remove already extracted content (title, iframes, scripts)
+    let remainingHtml = contentHtml;
+    if (result.title) {
+      const escapedTitle = result.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      remainingHtml = remainingHtml.replace(new RegExp(`<h[1-6][^>]*>${escapedTitle}</h[1-6]>`, 'gi'), '');
     }
     
-    logs.push(`[NORMALIZER V2] Plain text extraction: ${cleanedCount} lines kept, ${noiseCount} noise removed`);
+    // Extract text from divs that might contain body content
+    // Look for specific known patterns first (GRAU DE CALVÍCIE, etc.)
+    const grauMatch = remainingHtml.match(/grau\s+de\s+calv[íi]cie[^<]*/i);
+    if (grauMatch) {
+      const grauText = cleanTextFromHtml(grauMatch[0]);
+      if (grauText.length > 5) {
+        bodyParts.push(`<h3>${grauText.toUpperCase()}</h3>`);
+        logs.push(`[NORMALIZER V2] Found GRAU pattern: "${grauText}"`);
+      }
+    }
+    
+    // Look for "Consulte aqui" pattern (common body text)
+    const consulteMatch = remainingHtml.match(/consulte\s+aqui[^<.]*/i);
+    if (consulteMatch) {
+      const consulteText = cleanTextFromHtml(consulteMatch[0]);
+      if (consulteText.length > 10) {
+        // Try to get the full sentence
+        const fullSentenceMatch = remainingHtml.match(/consulte\s+aqui[^<]*[^.]*\./i);
+        const fullText = fullSentenceMatch ? cleanTextFromHtml(fullSentenceMatch[0]) : consulteText;
+        bodyParts.push(`<p>${fullText}</p>`);
+        logs.push(`[NORMALIZER V2] Found Consulte pattern: "${fullText.substring(0, 40)}..."`);
+      }
+    }
+    
+    // Generic text extraction from remaining HTML
+    if (bodyParts.length === 0) {
+      // Get plain text, preserving some structure
+      let plainText = remainingHtml
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/p>/gi, '\n\n')
+        .replace(/<\/div>/gi, '\n')
+        .replace(/<\/h[1-6]>/gi, '\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      // Split into lines
+      const lines = plainText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 10);
+      
+      let cleanedCount = 0;
+      let noiseCount = 0;
+      
+      for (const line of lines) {
+        if (isNoise(line)) {
+          noiseCount++;
+          continue;
+        }
+        
+        if (isBlacklistedContent(line, logs)) {
+          noiseCount++;
+          continue;
+        }
+        
+        // Skip if it's the title
+        if (result.title && normalizeForComparison(line) === normalizeForComparison(result.title)) {
+          continue;
+        }
+        
+        // Check if it's a heading (ALL CAPS, short)
+        if (isLikelyHeading(line)) {
+          bodyParts.push(`<h3>${line}</h3>`);
+          logs.push(`[NORMALIZER V2] Plain text heading: "${line}"`);
+        } else if (line.length > 20) {
+          bodyParts.push(`<p>${line}</p>`);
+          logs.push(`[NORMALIZER V2] Plain text paragraph: "${line.substring(0, 40)}..."`);
+        }
+        cleanedCount++;
+        
+        // Limit to reasonable amount
+        if (cleanedCount >= 10) break;
+      }
+      
+      logs.push(`[NORMALIZER V2] Plain text extraction: ${cleanedCount} lines kept, ${noiseCount} noise removed`);
+    }
   }
   
   // Deduplicate body parts
@@ -308,6 +326,19 @@ function isNoise(text: string): boolean {
     return true;
   }
   
+  return false;
+}
+
+/**
+ * Check if content matches blacklist patterns
+ */
+function isBlacklistedContent(text: string, logs: string[]): boolean {
+  for (const pattern of BLACKLIST_PATTERNS) {
+    if (pattern.test(text)) {
+      logs.push(`[NORMALIZER V2] Blacklisted: "${text.substring(0, 30)}..."`);
+      return true;
+    }
+  }
   return false;
 }
 
@@ -406,13 +437,13 @@ export function createBlocksFromNormalizedOutput(
     console.log(`[NORMALIZER V2] Created Title block: "${normalized.title.substring(0, 40)}..."`);
   }
   
-  // 2. Video (MUST have url, not just videoId)
+  // 2. Video (MUST have youtubeUrl - prop name used by YouTubeVideoBlock component)
   if (normalized.videoUrl) {
     blocks.push({
       id: generateBlockId('video'),
       type: 'YouTubeVideo',
       props: {
-        url: normalized.videoUrl, // CHANGED: url instead of videoId
+        youtubeUrl: normalized.videoUrl, // FIX: prop name is youtubeUrl, not url
         aspectRatio: '16:9',
         autoplay: false,
         muted: false,
@@ -420,7 +451,7 @@ export function createBlocksFromNormalizedOutput(
       },
       children: [],
     });
-    console.log(`[NORMALIZER V2] Created Video block with URL: ${normalized.videoUrl}`);
+    console.log(`[NORMALIZER V2] Created Video block with youtubeUrl: ${normalized.videoUrl}`);
   }
   
   // 3. Body text (as separate block)
