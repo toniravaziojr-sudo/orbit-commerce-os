@@ -2140,18 +2140,50 @@ async function scrapePageContent(url: string, retryCount = 0): Promise<{
             console.log(`[SCRAPE] main: ${mainContent.length}, before: ${beforeMain.length}, after: ${afterMain.length}`);
             
             // Extract shopify-section content (both before and after main)
-            // These often contain the actual page content in Shopify themes
+            // V3: Use a simpler approach - find section boundaries by id="shopify-section-*"
             const extractSections = (html: string, excludePatterns: string[]): string => {
-              // Match shopify-section divs with their content
-              const sectionRegex = /<div[^>]*(?:class="[^"]*shopify-section[^"]*"|id="shopify-section-[^"]*")[^>]*>[\s\S]*?<\/div>(?=\s*<(?:div|section|footer|header|main|$))/gi;
-              const matches = html.match(sectionRegex) || [];
+              // Find all shopify-section start positions by ID
+              const sectionStarts: { pos: number; id: string }[] = [];
+              const idRegex = /id="(shopify-section-[^"]+)"/gi;
+              let match;
+              while ((match = idRegex.exec(html)) !== null) {
+                // Find the actual <div that contains this id
+                const searchStart = Math.max(0, match.index - 100);
+                const searchArea = html.substring(searchStart, match.index + match[0].length);
+                const divStart = searchArea.lastIndexOf('<div');
+                if (divStart !== -1) {
+                  sectionStarts.push({ pos: searchStart + divStart, id: match[1] });
+                }
+              }
+              
+              console.log(`[SCRAPE] Found ${sectionStarts.length} shopify-section IDs`);
               
               let result = '';
-              for (const section of matches) {
-                // Skip header/footer groups
-                if (excludePatterns.some(p => section.toLowerCase().includes(p))) continue;
-                if (result.length + section.length < 150000) { // Max 150KB for sections
-                  result += section;
+              for (let i = 0; i < sectionStarts.length; i++) {
+                const start = sectionStarts[i];
+                const nextStart = sectionStarts[i + 1]?.pos || html.length;
+                const sectionHtml = html.substring(start.pos, nextStart);
+                
+                // Skip excluded patterns
+                const sectionLower = sectionHtml.toLowerCase();
+                if (excludePatterns.some(p => sectionLower.includes(p))) {
+                  console.log(`[SCRAPE] Skipping section: ${start.id} (excluded pattern)`);
+                  continue;
+                }
+                
+                // Skip empty sections (less than 100 chars of text)
+                const textContent = sectionHtml.replace(/<[^>]+>/g, '').trim();
+                if (textContent.length < 100) {
+                  console.log(`[SCRAPE] Skipping section: ${start.id} (too short: ${textContent.length} chars)`);
+                  continue;
+                }
+                
+                if (result.length + sectionHtml.length < 200000) { // Max 200KB for sections
+                  result += sectionHtml;
+                  console.log(`[SCRAPE] Added section: ${start.id} (${sectionHtml.length} chars, text: ${textContent.length})`);
+                } else {
+                  console.log(`[SCRAPE] Section limit reached, skipping: ${start.id}`);
+                  break;
                 }
               }
               return result;
@@ -3070,18 +3102,24 @@ async function importPage(
     globalExtractedCss = scraped.extractedCss || '';
     console.log(`[IMPORT] CSS available: ${globalExtractedCss.length} chars`);
     
-    // DEBUG: Check if rawHtml has main element
+    // DEBUG: Check rawHtml size and main element presence
     const hasMainTag = rawHtmlToCheck.includes('<main');
     const hasMainContent = rawHtmlToCheck.includes('MainContent');
-    console.log(`[IMPORT] rawHtml length: ${rawHtmlToCheck.length}, hasMain: ${hasMainTag}, hasMainContent: ${hasMainContent}`);
+    const hasHead = rawHtmlToCheck.includes('<head');
+    const hasOgTitle = rawHtmlToCheck.includes('og:title');
+    console.log(`[IMPORT] RAW HTML: ${rawHtmlToCheck.length} chars, hasMain=${hasMainTag}, hasMainContent=${hasMainContent}, hasHead=${hasHead}, hasOgTitle=${hasOgTitle}`);
+    
+    // DEBUG: Log first 500 chars of body to see structure
+    const bodyStart = rawHtmlToCheck.indexOf('<body');
+    if (bodyStart !== -1) {
+      const bodyPreview = rawHtmlToCheck.substring(bodyStart, bodyStart + 500);
+      console.log(`[IMPORT] BODY_PREVIEW: ${bodyPreview.substring(0, 300)}...`);
+    }
     
     // STEP 0: Materialize videos BEFORE any processing
     const { html: videoMaterializedHtml, videosFound, patterns: videoPatterns } = materializeVideos(rawHtmlToCheck);
     console.log(`[IMPORT] Videos materialized: ${videosFound} (patterns: ${videoPatterns.join(', ') || 'none'})`);
-    
-    // DEBUG: Check if video materialization preserved main
-    const afterVideoHasMain = videoMaterializedHtml.includes('<main');
-    console.log(`[IMPORT] afterVideoMat length: ${videoMaterializedHtml.length}, hasMain: ${afterVideoHasMain}`);
+    console.log(`[IMPORT] Post-materialize: ${videoMaterializedHtml.length} chars, hasMain=${videoMaterializedHtml.includes('<main')}`);
     // =============================================
     // PRIORIDADE 1: SEGMENTAÇÃO DETERMINÍSTICA (section markers)
     // =============================================
