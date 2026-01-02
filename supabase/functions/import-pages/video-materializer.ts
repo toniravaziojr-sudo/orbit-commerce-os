@@ -63,9 +63,32 @@ function extractVimeoId(url: string): string | null {
 export function materializeVideos(html: string): MaterializationResult {
   if (!html) return { html, videosFound: 0, patterns: [] };
   
+  const inputLength = html.length;
+  const hasMainBefore = html.includes('<main');
+  console.log(`[VIDEO] INPUT: ${inputLength} chars, hasMain=${hasMainBefore}`);
+  
   let content = html;
   let videosFound = 0;
   const patternsUsed: string[] = [];
+  
+  // MAX_MATCH_LENGTH: Prevent greedy patterns from capturing entire page sections
+  // Video containers should be small (< 5KB). If a match is larger, skip it.
+  const MAX_MATCH_LENGTH = 5000;
+  
+  // Helper to safely replace only small matches
+  const safeReplace = (
+    pattern: RegExp, 
+    replacer: (match: string, ...args: any[]) => string
+  ): void => {
+    content = content.replace(pattern, (match: string, ...args: any[]) => {
+      // SAFETY: Skip if match is too large (likely captured too much)
+      if (match.length > MAX_MATCH_LENGTH) {
+        console.log(`[VIDEO] SKIP: match too large (${match.length} chars), likely captured container`);
+        return match;
+      }
+      return replacer(match, ...args);
+    });
+  };
   
   // =============================================
   // YOUTUBE PATTERNS
@@ -74,14 +97,14 @@ export function materializeVideos(html: string): MaterializationResult {
   // Pattern 1: data-youtube or data-video-id or data-youtube-id attributes
   // <div data-youtube="VIDEO_ID"> or <div data-video-id="VIDEO_ID">
   const dataYoutubeAttrPattern = /<([a-z]+)[^>]*(?:data-youtube|data-video-id|data-youtube-id|data-yt-id)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(dataYoutubeAttrPattern, (match, tag, videoId) => {
+  safeReplace(dataYoutubeAttrPattern, (match, tag, videoId) => {
     videosFound++;
     patternsUsed.push('data-youtube-attr');
     console.log(`[VIDEO] Pattern 1 - data-attr: ${videoId}`);
     return createYouTubeEmbed(videoId);
   });
   
-  // Pattern 2: data-src with YouTube URL (lazy loading iframes)
+  // Pattern 2: data-src with YouTube URL (lazy loading iframes) - SAFE, doesn't use [\s\S]*
   // <iframe data-src="https://www.youtube.com/embed/VIDEO_ID">
   const dataSrcYoutubePattern = /<iframe([^>]*)data-src=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["']([^>]*)>/gi;
   content = content.replace(dataSrcYoutubePattern, (match, before, dataSrc, after) => {
@@ -99,7 +122,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // Pattern 3: YouTube links with play button/video class
   // <a href="https://www.youtube.com/watch?v=VIDEO_ID" class="video-play">
   const youtubeLinkPattern = /<a[^>]*href=["'](?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[^"']*["'][^>]*>[\s\S]*?<\/a>/gi;
-  content = content.replace(youtubeLinkPattern, (match, videoId) => {
+  safeReplace(youtubeLinkPattern, (match, videoId) => {
     // Only replace if it looks like a video trigger (has video/play class or image)
     if (/class=["'][^"']*(?:video|play|youtube|modal)[^"']*["']/i.test(match) || 
         /<img/i.test(match)) {
@@ -114,7 +137,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // Pattern 4: YouTube thumbnail images (ytimg.com)
   // <img src="...ytimg.com/vi/VIDEO_ID/...">
   const ytThumbnailPattern = /<(?:div|figure|span)[^>]*>[\s\S]*?<img[^>]*src=["'][^"']*(?:ytimg\.com|i\.ytimg\.com)\/vi\/([a-zA-Z0-9_-]{11})[^"']*["'][^>]*>[\s\S]*?<\/(?:div|figure|span)>/gi;
-  content = content.replace(ytThumbnailPattern, (match, videoId) => {
+  safeReplace(ytThumbnailPattern, (match, videoId) => {
     videosFound++;
     patternsUsed.push('yt-thumbnail');
     console.log(`[VIDEO] Pattern 4 - YT thumbnail: ${videoId}`);
@@ -123,7 +146,7 @@ export function materializeVideos(html: string): MaterializationResult {
   
   // Pattern 5: Generic data-url/data-video/data-embed with YouTube URL
   const anyDataYoutubePattern = /<([a-z]+)[^>]*(?:data-url|data-video|data-embed|data-video-url)=["']([^"']*(?:youtube\.com|youtu\.be)[^"']*)["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(anyDataYoutubePattern, (match, tag, fullUrl) => {
+  safeReplace(anyDataYoutubePattern, (match, tag, fullUrl) => {
     const videoId = extractYouTubeId(fullUrl);
     if (videoId) {
       videosFound++;
@@ -137,7 +160,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // Pattern 6: Dooca-specific video patterns
   // <div class="video-dooca" data-video="VIDEO_ID">
   const doocaVideoPattern = /<([a-z]+)[^>]*class=["'][^"']*(?:video-dooca|dooca-video|video-wrapper)[^"']*["'][^>]*data-(?:video|id)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(doocaVideoPattern, (match, tag, videoId) => {
+  safeReplace(doocaVideoPattern, (match, tag, videoId) => {
     videosFound++;
     patternsUsed.push('dooca-video');
     console.log(`[VIDEO] Pattern 6 - Dooca: ${videoId}`);
@@ -166,19 +189,25 @@ export function materializeVideos(html: string): MaterializationResult {
   // =============================================
   // NEW PATTERN 10: YouTube URLs in HTML comments
   // <!-- DEBUG: https://www.youtube.com/watch?v=VIDEO_ID -->
+  // FIXED: Only match short comments (< 500 chars) to avoid capturing entire sections
   // =============================================
-  const commentYoutubePattern = /<!--[\s\S]*?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[\s\S]*?-->/gi;
+  const commentYoutubePattern = /<!--[^>]{0,300}?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})[^>]{0,100}?-->/gi;
   const commentMatches: { match: string; videoId: string }[] = [];
   let commentMatch;
   while ((commentMatch = commentYoutubePattern.exec(content)) !== null) {
-    commentMatches.push({ match: commentMatch[0], videoId: commentMatch[1] });
+    // Double-check: only process short comments
+    if (commentMatch[0].length < 500) {
+      commentMatches.push({ match: commentMatch[0], videoId: commentMatch[1] });
+    } else {
+      console.log(`[VIDEO] Pattern 10 - SKIP: comment too large (${commentMatch[0].length} chars)`);
+    }
   }
   // Replace comments with embeds
   for (const cm of commentMatches) {
     content = content.replace(cm.match, createYouTubeEmbed(cm.videoId));
     videosFound++;
     patternsUsed.push('html-comment');
-    console.log(`[VIDEO] Pattern 10 - HTML comment: ${cm.videoId}`);
+    console.log(`[VIDEO] Pattern 10 - HTML comment: ${cm.videoId} (${cm.match.length} chars)`);
   }
   
   // =============================================
@@ -186,7 +215,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // <lite-youtube videoid="VIDEO_ID">
   // =============================================
   const liteYoutubePattern = /<lite-youtube[^>]*videoid=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/lite-youtube>/gi;
-  content = content.replace(liteYoutubePattern, (match, videoId) => {
+  safeReplace(liteYoutubePattern, (match, videoId) => {
     videosFound++;
     patternsUsed.push('lite-youtube');
     console.log(`[VIDEO] Pattern 11 - lite-youtube: ${videoId}`);
@@ -198,7 +227,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // <div class="youtube-player" data-id="VIDEO_ID">
   // =============================================
   const playerWrapperPattern = /<([a-z]+)[^>]*class=["'][^"']*(?:youtube|yt)[-_]?(?:player|video|wrapper|embed)[^"]*["'][^>]*data-(?:id|video|youtube)=["']([a-zA-Z0-9_-]{11})["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(playerWrapperPattern, (match, tag, videoId) => {
+  safeReplace(playerWrapperPattern, (match, tag, videoId) => {
     videosFound++;
     patternsUsed.push('player-wrapper');
     console.log(`[VIDEO] Pattern 12 - player wrapper: ${videoId}`);
@@ -209,7 +238,7 @@ export function materializeVideos(html: string): MaterializationResult {
   // VIMEO PATTERNS
   // =============================================
   
-  // Pattern 13: data-src Vimeo (lazy load)
+  // Pattern 13: data-src Vimeo (lazy load) - SAFE, doesn't use [\s\S]*
   const vimeoDataSrcPattern = /<iframe([^>]*)data-src=["']([^"']*vimeo\.com[^"']*)["']([^>]*)>/gi;
   content = content.replace(vimeoDataSrcPattern, (match, before, dataSrc, after) => {
     videosFound++;
@@ -220,7 +249,7 @@ export function materializeVideos(html: string): MaterializationResult {
   
   // Pattern 14: Vimeo links with video class
   const vimeoLinkPattern = /<a[^>]*href=["'](?:https?:\/\/)?(?:www\.)?vimeo\.com\/(\d+)[^"']*["'][^>]*class=["'][^"']*(?:video|play)[^"']*["'][^>]*>[\s\S]*?<\/a>/gi;
-  content = content.replace(vimeoLinkPattern, (match, videoId) => {
+  safeReplace(vimeoLinkPattern, (match, videoId) => {
     videosFound++;
     patternsUsed.push('vimeo-link');
     console.log(`[VIDEO] Pattern 14 - Vimeo link: ${videoId}`);
@@ -229,7 +258,7 @@ export function materializeVideos(html: string): MaterializationResult {
   
   // Pattern 15: Data attributes with Vimeo
   const vimeoDataPattern = /<([a-z]+)[^>]*data-(?:vimeo|video-id)=["'](\d+)["'][^>]*>[\s\S]*?<\/\1>/gi;
-  content = content.replace(vimeoDataPattern, (match, tag, videoId) => {
+  safeReplace(vimeoDataPattern, (match, tag, videoId) => {
     videosFound++;
     patternsUsed.push('vimeo-data-attr');
     console.log(`[VIDEO] Pattern 15 - Vimeo data-attr: ${videoId}`);
@@ -237,8 +266,17 @@ export function materializeVideos(html: string): MaterializationResult {
   });
   
   // Log summary
+  const outputLength = content.length;
+  const hasMainAfter = content.includes('<main');
+  console.log(`[VIDEO] OUTPUT: ${outputLength} chars (delta: ${outputLength - inputLength}), hasMain=${hasMainAfter}`);
+  
   if (videosFound > 0) {
     console.log(`[VIDEO] Materialized ${videosFound} video(s) using patterns: ${[...new Set(patternsUsed)].join(', ')}`);
+  }
+  
+  // SAFETY CHECK: If we lost <main>, log warning
+  if (hasMainBefore && !hasMainAfter) {
+    console.error(`[VIDEO] CRITICAL: Lost <main> during materialization! Input=${inputLength}, Output=${outputLength}`);
   }
   
   return {
