@@ -16,7 +16,7 @@ import { Trash2, Copy, Settings2, ChevronDown } from 'lucide-react';
 import { ProductSelector, CategorySelector, MenuSelector } from './DynamicSelectors';
 import { ProductMultiSelect } from './ProductMultiSelect';
 import { CategoryMultiSelect, CategoryItemConfig } from './CategoryMultiSelect';
-import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor } from './ArrayEditor';
+import { FAQEditor, TestimonialsEditor, InfoHighlightsEditor, FeaturesEditor, StepsEditor, StatsEditor, AccordionItemsEditor, LogosEditor } from './ArrayEditor';
 import { BannerSlidesEditor, BannerSlide } from './BannerSlidesEditor';
 import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
@@ -228,6 +228,60 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
         return (
           <BannerSlidesEditor
             slides={(value as BannerSlide[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // FeatureList items
+      if (blockType === 'FeatureList' && name === 'items') {
+        return (
+          <FeaturesEditor
+            items={(value as { id?: string; icon: string; text: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // ContentColumns features
+      if (blockType === 'ContentColumns' && name === 'features') {
+        return (
+          <FeaturesEditor
+            items={(value as { id?: string; icon: string; text: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // StepsTimeline steps
+      if (blockType === 'StepsTimeline' && name === 'steps') {
+        return (
+          <StepsEditor
+            items={(value as { number: number; title: string; description: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // StatsNumbers items
+      if (blockType === 'StatsNumbers' && name === 'items') {
+        return (
+          <StatsEditor
+            items={(value as { number: string; label: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // AccordionBlock items
+      if (blockType === 'AccordionBlock' && name === 'items') {
+        return (
+          <AccordionItemsEditor
+            items={(value as { title: string; content: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // LogosCarousel logos
+      if (blockType === 'LogosCarousel' && name === 'logos') {
+        return (
+          <LogosEditor
+            items={(value as { id?: string; imageUrl: string; alt: string; linkUrl?: string }[]) || []}
             onChange={onChange}
           />
         );

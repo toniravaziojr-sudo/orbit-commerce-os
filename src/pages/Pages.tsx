@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePrimaryPublicHost, buildPublicStorefrontUrl } from '@/hooks/usePrimaryPublicHost';
 import { validateSlug } from '@/lib/slugValidation';
 import { toast } from 'sonner';
-import { ImportPageDialog } from '@/components/pages/ImportPageDialog';
+// ImportPageDialog removido - função descontinuada
 
 export default function Pages() {
   const navigate = useNavigate();
@@ -143,12 +143,6 @@ export default function Pages() {
         description="Crie e gerencie páginas como Sobre Nós, Política de Privacidade, Landing Pages, etc."
         actions={
           <div className="flex gap-2">
-            {currentTenant?.id && (
-              <ImportPageDialog 
-                tenantId={currentTenant.id} 
-                onSuccess={() => refetch()} 
-              />
-            )}
             <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
                 <Button><Plus className="mr-2 h-4 w-4" />Nova Página</Button>
