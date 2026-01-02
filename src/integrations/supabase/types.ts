@@ -2055,6 +2055,433 @@ export type Database = {
           },
         ]
       }
+      fiscal_invoice_events: {
+        Row: {
+          created_at: string | null
+          event_data: Json | null
+          event_type: string
+          id: string
+          invoice_id: string
+          request_payload: Json | null
+          response_payload: Json | null
+          tenant_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          invoice_id: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          tenant_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          invoice_id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          tenant_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_invoice_events_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoice_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoice_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_invoice_items: {
+        Row: {
+          cfop: string
+          codigo_produto: string
+          created_at: string | null
+          csosn: string | null
+          cst: string | null
+          descricao: string
+          id: string
+          invoice_id: string
+          ncm: string
+          numero_item: number
+          order_item_id: string | null
+          origem: number | null
+          quantidade: number
+          unidade: string | null
+          valor_total: number
+          valor_unitario: number
+        }
+        Insert: {
+          cfop: string
+          codigo_produto: string
+          created_at?: string | null
+          csosn?: string | null
+          cst?: string | null
+          descricao: string
+          id?: string
+          invoice_id: string
+          ncm: string
+          numero_item: number
+          order_item_id?: string | null
+          origem?: number | null
+          quantidade: number
+          unidade?: string | null
+          valor_total: number
+          valor_unitario: number
+        }
+        Update: {
+          cfop?: string
+          codigo_produto?: string
+          created_at?: string | null
+          csosn?: string | null
+          cst?: string | null
+          descricao?: string
+          id?: string
+          invoice_id?: string
+          ncm?: string
+          numero_item?: number
+          order_item_id?: string | null
+          origem?: number | null
+          quantidade?: number
+          unidade?: string | null
+          valor_total?: number
+          valor_unitario?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoice_items_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_invoices: {
+        Row: {
+          cfop: string | null
+          chave_acesso: string | null
+          created_at: string | null
+          danfe_url: string | null
+          dest_cpf_cnpj: string
+          dest_endereco_bairro: string | null
+          dest_endereco_cep: string | null
+          dest_endereco_complemento: string | null
+          dest_endereco_logradouro: string | null
+          dest_endereco_municipio: string | null
+          dest_endereco_municipio_codigo: string | null
+          dest_endereco_numero: string | null
+          dest_endereco_uf: string | null
+          dest_inscricao_estadual: string | null
+          dest_nome: string
+          emitido_por: string | null
+          id: string
+          natureza_operacao: string | null
+          numero: number
+          observacoes: string | null
+          order_id: string | null
+          protocolo: string | null
+          serie: number
+          status: string
+          status_motivo: string | null
+          tenant_id: string
+          updated_at: string | null
+          valor_desconto: number | null
+          valor_frete: number | null
+          valor_produtos: number
+          valor_total: number
+          xml_autorizado: string | null
+        }
+        Insert: {
+          cfop?: string | null
+          chave_acesso?: string | null
+          created_at?: string | null
+          danfe_url?: string | null
+          dest_cpf_cnpj: string
+          dest_endereco_bairro?: string | null
+          dest_endereco_cep?: string | null
+          dest_endereco_complemento?: string | null
+          dest_endereco_logradouro?: string | null
+          dest_endereco_municipio?: string | null
+          dest_endereco_municipio_codigo?: string | null
+          dest_endereco_numero?: string | null
+          dest_endereco_uf?: string | null
+          dest_inscricao_estadual?: string | null
+          dest_nome: string
+          emitido_por?: string | null
+          id?: string
+          natureza_operacao?: string | null
+          numero: number
+          observacoes?: string | null
+          order_id?: string | null
+          protocolo?: string | null
+          serie: number
+          status?: string
+          status_motivo?: string | null
+          tenant_id: string
+          updated_at?: string | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_produtos: number
+          valor_total: number
+          xml_autorizado?: string | null
+        }
+        Update: {
+          cfop?: string | null
+          chave_acesso?: string | null
+          created_at?: string | null
+          danfe_url?: string | null
+          dest_cpf_cnpj?: string
+          dest_endereco_bairro?: string | null
+          dest_endereco_cep?: string | null
+          dest_endereco_complemento?: string | null
+          dest_endereco_logradouro?: string | null
+          dest_endereco_municipio?: string | null
+          dest_endereco_municipio_codigo?: string | null
+          dest_endereco_numero?: string | null
+          dest_endereco_uf?: string | null
+          dest_inscricao_estadual?: string | null
+          dest_nome?: string
+          emitido_por?: string | null
+          id?: string
+          natureza_operacao?: string | null
+          numero?: number
+          observacoes?: string | null
+          order_id?: string | null
+          protocolo?: string | null
+          serie?: number
+          status?: string
+          status_motivo?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+          valor_desconto?: number | null
+          valor_frete?: number | null
+          valor_produtos?: number
+          valor_total?: number
+          xml_autorizado?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_invoices_emitido_por_fkey"
+            columns: ["emitido_por"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_products: {
+        Row: {
+          cest: string | null
+          cfop_override: string | null
+          created_at: string | null
+          csosn_override: string | null
+          cst_override: string | null
+          id: string
+          ncm: string | null
+          origem: number | null
+          product_id: string
+          tenant_id: string
+          unidade_comercial: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          cest?: string | null
+          cfop_override?: string | null
+          created_at?: string | null
+          csosn_override?: string | null
+          cst_override?: string | null
+          id?: string
+          ncm?: string | null
+          origem?: number | null
+          product_id: string
+          tenant_id: string
+          unidade_comercial?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          cest?: string | null
+          cfop_override?: string | null
+          created_at?: string | null
+          csosn_override?: string | null
+          cst_override?: string | null
+          id?: string
+          ncm?: string | null
+          origem?: number | null
+          product_id?: string
+          tenant_id?: string
+          unidade_comercial?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_products_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_settings: {
+        Row: {
+          ambiente: string | null
+          cfop_interestadual: string | null
+          cfop_intrastadual: string | null
+          cnae: string | null
+          cnpj: string | null
+          created_at: string | null
+          crt: number | null
+          csosn_padrao: string | null
+          cst_padrao: string | null
+          emissao_automatica: boolean | null
+          emitir_apos_status: string | null
+          endereco_bairro: string | null
+          endereco_cep: string | null
+          endereco_complemento: string | null
+          endereco_logradouro: string | null
+          endereco_municipio: string | null
+          endereco_municipio_codigo: string | null
+          endereco_numero: string | null
+          endereco_uf: string | null
+          id: string
+          ie_isento: boolean | null
+          inscricao_estadual: string | null
+          is_configured: boolean | null
+          nome_fantasia: string | null
+          numero_nfe_atual: number | null
+          provider: string | null
+          provider_token: string | null
+          razao_social: string | null
+          serie_nfe: number | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          ambiente?: string | null
+          cfop_interestadual?: string | null
+          cfop_intrastadual?: string | null
+          cnae?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          crt?: number | null
+          csosn_padrao?: string | null
+          cst_padrao?: string | null
+          emissao_automatica?: boolean | null
+          emitir_apos_status?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_complemento?: string | null
+          endereco_logradouro?: string | null
+          endereco_municipio?: string | null
+          endereco_municipio_codigo?: string | null
+          endereco_numero?: string | null
+          endereco_uf?: string | null
+          id?: string
+          ie_isento?: boolean | null
+          inscricao_estadual?: string | null
+          is_configured?: boolean | null
+          nome_fantasia?: string | null
+          numero_nfe_atual?: number | null
+          provider?: string | null
+          provider_token?: string | null
+          razao_social?: string | null
+          serie_nfe?: number | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          ambiente?: string | null
+          cfop_interestadual?: string | null
+          cfop_intrastadual?: string | null
+          cnae?: string | null
+          cnpj?: string | null
+          created_at?: string | null
+          crt?: number | null
+          csosn_padrao?: string | null
+          cst_padrao?: string | null
+          emissao_automatica?: boolean | null
+          emitir_apos_status?: string | null
+          endereco_bairro?: string | null
+          endereco_cep?: string | null
+          endereco_complemento?: string | null
+          endereco_logradouro?: string | null
+          endereco_municipio?: string | null
+          endereco_municipio_codigo?: string | null
+          endereco_numero?: string | null
+          endereco_uf?: string | null
+          id?: string
+          ie_isento?: boolean | null
+          inscricao_estadual?: string | null
+          is_configured?: boolean | null
+          nome_fantasia?: string | null
+          numero_nfe_atual?: number | null
+          provider?: string | null
+          provider_token?: string | null
+          razao_social?: string | null
+          serie_nfe?: number | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_items: {
         Row: {
           created_at: string
