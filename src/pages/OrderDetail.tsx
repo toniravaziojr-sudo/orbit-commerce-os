@@ -32,6 +32,7 @@ import {
 import { useOrderDetails, useOrders, type OrderStatus } from '@/hooks/useOrders';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
+import { EmitInvoiceButton } from '@/components/fiscal/EmitInvoiceButton';
 
 const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -155,18 +156,21 @@ export default function OrderDetail() {
             </p>
           </div>
         </div>
-        <Select value={order.status} onValueChange={(v) => handleStatusChange(v as OrderStatus)}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Alterar status" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(orderStatusConfig).map(([key, config]) => (
-              <SelectItem key={key} value={key}>
-                {config.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {id && <EmitInvoiceButton orderId={id} orderNumber={order.order_number} />}
+          <Select value={order.status} onValueChange={(v) => handleStatusChange(v as OrderStatus)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Alterar status" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(orderStatusConfig).map(([key, config]) => (
+                <SelectItem key={key} value={key}>
+                  {config.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <Tabs defaultValue="details" className="space-y-4">
