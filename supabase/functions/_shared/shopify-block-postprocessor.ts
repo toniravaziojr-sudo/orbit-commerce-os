@@ -254,6 +254,7 @@ function splitGrauBlock(
 
 /**
  * Fix YouTubeVideo block props to ensure correct rendering
+ * Sets widthPreset to 'xl' for imported pages (larger video)
  */
 function fixVideoBlockProps(block: BlockNode, logs: string[]): BlockNode {
   const props = { ...block.props };
@@ -286,11 +287,14 @@ function fixVideoBlockProps(block: BlockNode, logs: string[]): BlockNode {
     }
   }
   
-  // Ensure other required props
+  // SET LARGER WIDTH PRESET FOR IMPORTED PAGES
+  props.widthPreset = 'xl';
   props.aspectRatio = props.aspectRatio || '16:9';
   props.autoplay = props.autoplay ?? false;
   props.muted = props.muted ?? false;
   props.controls = props.controls ?? true;
+  
+  logs.push(`[POST-PROCESSOR] Set video widthPreset=xl for imported page`);
   
   return {
     ...block,
