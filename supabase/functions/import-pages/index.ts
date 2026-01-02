@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { mapClassificationToBlocks, type BlockNode, type ClassificationResult } from '../_shared/intelligent-block-mapper.ts';
 import { composePageStructure, validatePageQuality } from '../_shared/page-composer.ts';
+import { detectAndGetAdapter, cleanHtmlWithAdapter, type PlatformExtractionAdapter } from '../_shared/platform-adapters/index.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,20 +9,25 @@ const corsHeaders = {
 };
 
 // =====================================================
-// INTELLIGENT PAGE IMPORTER v3
+// INTELLIGENT PAGE IMPORTER v4 - Enterprise Grade
 // =====================================================
+// Supports 8 platforms: Shopify, Nuvemshop, Tray, Yampi, Bagy, 
+// Loja Integrada, VTEX, WooCommerce + Generic fallback
+//
 // Flow:
-// 1. Fetch HTML from URL
-// 2. Deep clean HTML (remove YouTube noise, interface elements)
-// 3. Extract main content (remove header/footer/nav)
-// 4. Detect carousels (images, videos)
-// 5. Segment HTML into smaller sections
-// 6. Preprocess each section (remove noise)
-// 7. Classify each section with AI
-// 8. Map classifications to native blocks
-// 9. Compose page structure (order, deduplicate)
-// 10. Validate quality (reject noise blocks)
-// 11. Save to database
+// 1. Fetch HTML from URL (with platform-specific waitFor)
+// 2. Detect platform and get adapter
+// 3. Clean HTML with adapter (remove platform-specific noise)
+// 4. Deep clean HTML (remove YouTube noise, interface elements)
+// 5. Extract main content (using adapter's selectors)
+// 6. Detect carousels (images, videos)
+// 7. Segment HTML into smaller sections
+// 8. Preprocess each section (remove noise)
+// 9. Classify each section with AI (with platform context)
+// 10. Map classifications to native blocks
+// 11. Compose page structure (order, deduplicate)
+// 12. Validate quality (reject noise blocks)
+// 13. Save to database
 // =====================================================
 
 interface ImportRequest {
@@ -217,16 +223,17 @@ function detectCarousels(html: string): DetectionResult {
 }
 
 // =====================================================
-// HTML FETCHING
+// HTML FETCHING - Platform-aware
 // =====================================================
-async function fetchHtml(url: string): Promise<{ html: string; title: string }> {
+async function fetchHtml(url: string, adapter?: PlatformExtractionAdapter): Promise<{ html: string; title: string }> {
   console.log(`[FETCH] Fetching URL: ${url}`);
   
   const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+  const waitFor = adapter?.getFirecrawlOptions().waitFor || 3000;
   
   if (firecrawlKey) {
     try {
-      console.log('[FETCH] Using Firecrawl...');
+      console.log(`[FETCH] Using Firecrawl (waitFor: ${waitFor}ms)...`);
       const response = await fetch('https://api.firecrawl.dev/v0/scrape', {
         method: 'POST',
         headers: {
@@ -238,7 +245,7 @@ async function fetchHtml(url: string): Promise<{ html: string; title: string }> 
           pageOptions: {
             onlyMainContent: false,
             includeHtml: true,
-            waitFor: 3000,
+            waitFor: waitFor,
           },
         }),
       });
@@ -263,8 +270,9 @@ async function fetchHtml(url: string): Promise<{ html: string; title: string }> 
   console.log('[FETCH] Using direct fetch...');
   const response = await fetch(url, {
     headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Accept': 'text/html,application/xhtml+xml',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
     },
   });
   
@@ -513,13 +521,14 @@ function preprocessSection(html: string): string {
 }
 
 // =====================================================
-// AI CLASSIFICATION
+// AI CLASSIFICATION - Platform-aware
 // =====================================================
 async function classifySection(
   html: string,
   pageTitle: string,
   sectionIndex: number,
-  totalSections: number
+  totalSections: number,
+  platformContext?: string
 ): Promise<ClassificationResult | null> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -545,6 +554,7 @@ async function classifySection(
           sectionIndex,
           totalSections,
         },
+        platformContext, // Pass platform-specific AI context
       }),
     });
     
@@ -700,26 +710,50 @@ Deno.serve(async (req) => {
     
     console.log(`[IMPORT] Starting import for tenant ${tenantId}: ${url}`);
     
-    // 1. Fetch HTML
-    const { html, title: extractedTitle } = await fetchHtml(url);
+    // 1. Initial fetch to detect platform
+    const initialFetch = await fetchHtml(url);
+    
+    // 2. Detect platform and get adapter
+    const adapter = detectAndGetAdapter(initialFetch.html, url);
+    console.log(`[IMPORT] Platform detected: ${adapter.platform}`);
+    
+    // 3. Re-fetch with platform-specific options if needed (for SPAs)
+    let html = initialFetch.html;
+    let extractedTitle = initialFetch.title;
+    
+    const firecrawlOptions = adapter.getFirecrawlOptions();
+    if (firecrawlOptions.waitFor && firecrawlOptions.waitFor > 3000) {
+      console.log(`[IMPORT] Re-fetching with extended waitFor (${firecrawlOptions.waitFor}ms) for ${adapter.platform}`);
+      const refetch = await fetchHtml(url, adapter);
+      html = refetch.html;
+      extractedTitle = refetch.title;
+    }
+    
     const pageTitle = customTitle || extractedTitle;
     
-    // 2. Deep clean HTML (remove YouTube noise, interface elements)
-    const cleanedHtml = deepCleanHtml(html);
+    // 4. Clean HTML with platform adapter (remove platform-specific noise)
+    const adapterCleanedHtml = cleanHtmlWithAdapter(html, adapter);
+    console.log(`[IMPORT] Adapter cleaned: ${html.length} -> ${adapterCleanedHtml.length} chars`);
     
-    // 3. Detect carousels before extracting main content
+    // 5. Deep clean HTML (remove YouTube noise, interface elements)
+    const cleanedHtml = deepCleanHtml(adapterCleanedHtml);
+    
+    // 6. Detect carousels before extracting main content
     const { carousels } = detectCarousels(cleanedHtml);
     const carouselBlocks = createCarouselBlocks(carousels);
     console.log(`[IMPORT] Detected ${carousels.length} carousels -> ${carouselBlocks.length} blocks`);
     
-    // 4. Extract main content
+    // 7. Extract main content
     const mainContent = extractMainContent(cleanedHtml);
     
-    // 5. Segment into sections
+    // 8. Segment into sections
     const sections = segmentHtml(mainContent);
     console.log(`[IMPORT] Found ${sections.length} sections`);
     
-    // 6. Classify each section and build blocks
+    // 9. Get platform context for AI
+    const platformContext = adapter.getAIContext();
+    
+    // 10. Classify each section and build blocks
     const allBlocks: BlockNode[] = [...carouselBlocks]; // Start with carousel blocks
     
     for (const section of sections) {
@@ -736,7 +770,8 @@ Deno.serve(async (req) => {
         preprocessedHtml,
         pageTitle,
         section.index,
-        sections.length
+        sections.length,
+        platformContext // Pass platform context to AI
       );
       
       if (classification) {
@@ -748,11 +783,11 @@ Deno.serve(async (req) => {
       }
     }
     
-    // 7. Compose page structure (order + deduplicate)
+    // 11. Compose page structure (order + deduplicate)
     const composedBlocks = composePageStructure(allBlocks);
     console.log(`[IMPORT] Composed: ${allBlocks.length} raw blocks -> ${composedBlocks.length} ordered blocks`);
     
-    // 8. Validate quality
+    // 12. Validate quality
     const quality = validatePageQuality(composedBlocks);
     console.log(`[IMPORT] Quality: score=${quality.score}, valid=${quality.valid}`);
     if (quality.issues.length > 0) {
