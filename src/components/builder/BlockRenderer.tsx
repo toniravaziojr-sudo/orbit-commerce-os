@@ -34,6 +34,8 @@ import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogList
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
+import { FeatureListBlock as FeatureListBlockComponent } from './blocks/FeatureListBlock';
+import { ContentColumnsBlock as ContentColumnsBlockComponent } from './blocks/ContentColumnsBlock';
 import { getPublicMyOrdersUrl, getPublicPageUrl, getPublicProductUrl, getPublicCheckoutUrl } from '@/lib/publicUrls';
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -553,6 +555,9 @@ const components: Record<string, React.ComponentType<any>> = {
     HTMLSection: HTMLSectionWrapper,
     // Video Carousel (YouTube slider)
     VideoCarousel: VideoCarouselBlockWrapper,
+    // New blocks for import quality
+    FeatureList: FeatureListBlockWrapper,
+    ContentColumns: ContentColumnsBlockWrapper,
   };
 
   return components[type] || FallbackBlock;
@@ -2005,6 +2010,14 @@ function CollectionSectionBlockWrapper({ context, isEditing, ...props }: any) {
 
 function InfoHighlightsBlockWrapper({ context, ...props }: any) {
   return <InfoHighlightsBlockComponent {...props} context={context} />;
+}
+
+function FeatureListBlockWrapper({ context, ...props }: any) {
+  return <FeatureListBlockComponent {...props} context={context} />;
+}
+
+function ContentColumnsBlockWrapper({ context, ...props }: any) {
+  return <ContentColumnsBlockComponent {...props} context={context} />;
 }
 
 function BannerProductsBlockWrapper({ context, isEditing, ...props }: any) {
