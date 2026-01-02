@@ -56,17 +56,47 @@ export interface CreationResult {
 // =============================================
 const CREATION_SYSTEM_PROMPT = `Você é um COPYWRITER PREMIADO criando uma página de vendas ÚNICA.
 
+## REGRA CRÍTICA - LEIA COM ATENÇÃO
+CADA BLOCO DEVE TER PROPS COMPLETAMENTE PREENCHIDAS COM CONTEÚDO REAL.
+PROPS VAZIAS ({}) NÃO SÃO ACEITAS E SERÃO REJEITADAS.
+
+Exemplo de retorno CORRETO:
+{
+  "type": "Hero",
+  "props": {
+    "title": "Descubra o Segredo Para Cabelos Fortes e Volumosos",
+    "subtitle": "Milhares de pessoas já transformaram seus cabelos com nosso método exclusivo. Agora é sua vez.",
+    "ctaText": "QUERO CABELOS INCRÍVEIS",
+    "ctaUrl": "#comprar",
+    "imageDesktop": "PLACEHOLDER_IMAGE",
+    "imageMobile": "PLACEHOLDER_IMAGE",
+    "alignment": "center"
+  },
+  "marketingFunction": "attention",
+  "order": 1
+}
+
+Exemplo de retorno INCORRETO (será rejeitado):
+{
+  "type": "Hero",
+  "props": {},
+  "marketingFunction": "attention",
+  "order": 1
+}
+
 ## SUA MISSÃO
 Criar uma página de vendas COMPLETA, ORIGINAL e DIFERENTE a cada vez.
 Você é um artista da persuasão - cada página é uma obra de arte única.
+CADA BLOCO DEVE TER TEXTOS REAIS E CRIATIVOS.
 
 ## REGRAS DE CRIATIVIDADE
 
-1. **INVENTE TUDO** - Cada texto deve ser criado por você
-2. **SEJA ÚNICO** - Use metáforas, ângulos e abordagens diferentes a cada vez
-3. **VARIE O TOM** - Às vezes urgente, às vezes empático, às vezes desafiador
-4. **CRIE HISTÓRIAS** - Depoimentos com detalhes específicos e emocionais
-5. **SURPREENDA** - Headlines que capturam atenção de formas inesperadas
+1. **PREENCHA TODAS AS PROPS** - Nunca retorne props vazias
+2. **INVENTE TUDO** - Cada texto deve ser criado por você
+3. **SEJA ÚNICO** - Use metáforas, ângulos e abordagens diferentes a cada vez
+4. **VARIE O TOM** - Às vezes urgente, às vezes empático, às vezes desafiador
+5. **CRIE HISTÓRIAS** - Depoimentos com detalhes específicos e emocionais
+6. **SURPREENDA** - Headlines que capturam atenção de formas inesperadas
 
 ## FÓRMULAS DE HEADLINE (use uma diferente cada vez)
 
@@ -77,7 +107,7 @@ Você é um artista da persuasão - cada página é uma obra de arte única.
 - Desafio: "Descubra Por Que [Quantidade] Pessoas Já Mudaram [Aspecto]"
 - Transformação: "De [Estado Antes] Para [Estado Depois]"
 
-## ESTRUTURA OBRIGATÓRIA (9 BLOCOS)
+## ESTRUTURA OBRIGATÓRIA (9 BLOCOS) - CADA UM COM PROPS COMPLETAS
 
 ### Bloco 1: Hero (Atenção)
 - title: Headline IMPACTANTE (6-10 palavras) - use uma fórmula diferente cada vez
@@ -146,28 +176,170 @@ CRÍTICO: Crie 3 depoimentos COMPLETAMENTE DIFERENTES com:
 Use a função create_page_blocks para retornar EXATAMENTE 9 blocos na ordem especificada.
 Cada bloco deve ter conteúdo RICO, ORIGINAL e PERSUASIVO.`;
 
-// Schema para tool calling
+// Schema detalhado para props de cada tipo de bloco
+const BLOCK_PROPS_SCHEMAS = {
+  Hero: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Headline IMPACTANTE (6-10 palavras)' },
+      subtitle: { type: 'string', description: 'Subtítulo persuasivo (20-35 palavras)' },
+      ctaText: { type: 'string', description: 'Texto do botão CTA (ex: "QUERO AGORA")' },
+      ctaUrl: { type: 'string', description: 'URL do CTA, use "#comprar"' },
+      imageDesktop: { type: 'string', description: 'Use "PLACEHOLDER_IMAGE"' },
+      imageMobile: { type: 'string', description: 'Use "PLACEHOLDER_IMAGE"' },
+      alignment: { type: 'string', enum: ['left', 'center', 'right'] }
+    },
+    required: ['title', 'subtitle', 'ctaText', 'ctaUrl']
+  },
+  ContentColumns: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título da seção' },
+      content: { type: 'string', description: 'Conteúdo HTML com parágrafos' },
+      features: { 
+        type: 'array',
+        items: { 
+          type: 'object',
+          properties: {
+            icon: { type: 'string' },
+            title: { type: 'string' },
+            description: { type: 'string' }
+          },
+          required: ['title', 'description']
+        },
+        description: '3-5 features com título e descrição'
+      },
+      imagePosition: { type: 'string', enum: ['left', 'right'] },
+      imageDesktop: { type: 'string' },
+      imageMobile: { type: 'string' }
+    },
+    required: ['title', 'content']
+  },
+  FeatureList: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título único (ex: "Sistema Triplo")' },
+      subtitle: { type: 'string', description: 'Explicação do conceito' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            icon: { type: 'string' },
+            title: { type: 'string' },
+            description: { type: 'string' }
+          },
+          required: ['title', 'description']
+        },
+        description: '5 itens com ícone, título e descrição'
+      },
+      layout: { type: 'string', enum: ['grid', 'list'] },
+      columns: { type: 'number' }
+    },
+    required: ['title', 'items']
+  },
+  InfoHighlights: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título da seção' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            icon: { type: 'string' },
+            title: { type: 'string' },
+            description: { type: 'string' }
+          },
+          required: ['title', 'description']
+        },
+        description: '3-6 destaques'
+      },
+      layout: { type: 'string', enum: ['grid', 'horizontal'] },
+      columns: { type: 'number' }
+    },
+    required: ['items']
+  },
+  Testimonials: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título como "O Que Nossos Clientes Dizem"' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Nome completo brasileiro' },
+            text: { type: 'string', description: 'Depoimento de 40-60 palavras' },
+            rating: { type: 'number' },
+            location: { type: 'string', description: 'Cidade brasileira' }
+          },
+          required: ['name', 'text', 'rating']
+        },
+        description: '3 depoimentos ÚNICOS e DETALHADOS'
+      }
+    },
+    required: ['items']
+  },
+  FAQ: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Título como "Dúvidas Frequentes"' },
+      items: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            answer: { type: 'string' }
+          },
+          required: ['question', 'answer']
+        },
+        description: '4-5 perguntas e respostas'
+      }
+    },
+    required: ['items']
+  }
+};
+
+// Schema para tool calling com props DETALHADAS
 const createPageBlocksSchema = {
   type: 'function' as const,
   function: {
     name: 'create_page_blocks',
-    description: 'Cria 9 blocos com conteúdo 100% original, criativo e persuasivo',
+    description: 'Cria 9 blocos de página de vendas com conteúdo COMPLETO. CADA BLOCO DEVE TER PROPS PREENCHIDAS - NÃO RETORNE PROPS VAZIAS.',
     parameters: {
       type: 'object',
       properties: {
         blocks: {
           type: 'array',
-          description: 'Array com exatamente 9 blocos na ordem especificada',
+          minItems: 9,
+          maxItems: 9,
+          description: 'Array com EXATAMENTE 9 blocos. CADA BLOCO DEVE TER PROPS COMPLETAS.',
           items: {
             type: 'object',
             properties: {
               type: { 
                 type: 'string',
                 enum: VALID_BLOCK_TYPES,
+                description: 'Tipo do bloco'
               },
               props: {
                 type: 'object',
-                description: 'Propriedades do bloco com conteúdo ORIGINAL e CRIATIVO'
+                description: `OBRIGATÓRIO: Propriedades do bloco com conteúdo COMPLETO. PROPS VAZIAS NÃO SÃO ACEITAS.
+                
+Para Hero: { title: string, subtitle: string, ctaText: string, ctaUrl: "#comprar", imageDesktop: "PLACEHOLDER_IMAGE", imageMobile: "PLACEHOLDER_IMAGE", alignment: "center" }
+
+Para ContentColumns: { title: string, content: string (HTML), features: [{icon: string, title: string, description: string}], imagePosition: "left"|"right" }
+
+Para FeatureList: { title: string, subtitle: string, items: [{icon: string, title: string, description: string}], layout: "grid", columns: 5 }
+
+Para InfoHighlights: { title: string, items: [{icon: string, title: string, description: string}], layout: "grid", columns: 3 }
+
+Para Testimonials: { title: string, items: [{name: string, text: string (40-60 palavras), rating: 5, location: string}] }
+
+Para FAQ: { title: string, items: [{question: string, answer: string}] }`,
+                additionalProperties: true
               },
               marketingFunction: {
                 type: 'string',
@@ -182,7 +354,7 @@ const createPageBlocksSchema = {
         },
         creationQuality: {
           type: 'number',
-          description: 'Qualidade da criação de 0-100'
+          description: 'Qualidade da criação de 0-100 (deve ser 90+ se todas as props estiverem preenchidas)'
         },
         copyStyle: {
           type: 'string',
@@ -395,7 +567,7 @@ Use a função create_page_blocks para retornar os 9 blocos.`;
 }
 
 // =============================================
-// VALIDAÇÃO DE BLOCOS (SEM FALLBACKS LITERAIS)
+// VALIDAÇÃO DE BLOCOS - REJEITA PROPS VAZIAS
 // =============================================
 function validateBlocks(
   blocks: CreatedBlock[], 
@@ -406,6 +578,25 @@ function validateBlocks(
   for (const block of blocks) {
     if (!VALID_BLOCK_TYPES.includes(block.type as ValidBlockType)) {
       console.warn(`[Content Creator] Bloco inválido removido: ${block.type}`);
+      continue;
+    }
+
+    // CRÍTICO: Rejeitar blocos com props vazias
+    if (!block.props || Object.keys(block.props).length === 0) {
+      console.warn(`[Content Creator] Bloco ${block.type} com props VAZIAS - REJEITADO`);
+      continue;
+    }
+
+    // Verificar se tem pelo menos uma propriedade com conteúdo real
+    const hasRealContent = Object.values(block.props).some(value => {
+      if (typeof value === 'string') return value.length > 3;
+      if (Array.isArray(value)) return value.length > 0;
+      if (typeof value === 'object' && value !== null) return Object.keys(value).length > 0;
+      return false;
+    });
+
+    if (!hasRealContent) {
+      console.warn(`[Content Creator] Bloco ${block.type} sem conteúdo real - REJEITADO`);
       continue;
     }
 
