@@ -227,7 +227,8 @@ Deno.serve(async (req) => {
         content: pageContent,
         seo_title: pageTitle,
         seo_description: strategicPlan.mainPromise || '',
-        metadata: {
+        builder_enabled: true,
+        page_overrides: {
           importedFrom: url,
           importVersion: 'v5',
           strategicPlan: {
