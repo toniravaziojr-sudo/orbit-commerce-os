@@ -1,6 +1,6 @@
 // =============================================
-// IMPORT PAGE V5 - Sistema de Criação por Inspiração
-// Cria páginas ORIGINAIS baseadas em análise estratégica
+// IMPORT PAGE V5 - Sistema de Criação Original
+// Cria páginas ÚNICAS e DIFERENTES a cada importação
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -8,6 +8,7 @@ import { analyzePageStrategically, createFallbackPlan } from '../_shared/ai-stra
 import { createPageFromInspiration, createFallbackPage } from '../_shared/ai-content-creator.ts';
 import type { ImportV5Result } from '../_shared/marketing/types.ts';
 import type { CreatedBlock } from '../_shared/ai-content-creator.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -17,7 +18,6 @@ const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 // Fetch HTML usando Firecrawl ou fetch direto
 async function fetchPageContent(url: string): Promise<{ html: string; title: string; screenshot?: string }> {
-  // Tentar Firecrawl primeiro (melhor para SPAs)
   if (FIRECRAWL_API_KEY) {
     try {
       console.log('[Import v5] Usando Firecrawl para scrape...');
@@ -51,7 +51,6 @@ async function fetchPageContent(url: string): Promise<{ html: string; title: str
     }
   }
 
-  // Fallback: fetch direto
   console.log('[Import v5] Usando fetch direto...');
   const response = await fetch(url, {
     headers: {
@@ -77,7 +76,7 @@ async function fetchPageContent(url: string): Promise<{ html: string; title: str
 function convertToBuilderBlocks(blocks: CreatedBlock[]): { type: string; id: string; props: Record<string, unknown>; children: unknown[] }[] {
   return blocks.map((block, index) => ({
     type: block.type,
-    id: `created-${block.type.toLowerCase()}-${index}-${Date.now()}`,
+    id: `created-${block.type.toLowerCase()}-${index}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
     props: block.props,
     children: [],
   }));
@@ -107,6 +106,21 @@ function generateSlug(url: string, title?: string): string {
   }
 }
 
+// Verificar se conteúdo gerado é genérico demais
+function isContentGeneric(blocks: CreatedBlock[]): boolean {
+  const genericPatterns = [
+    'título principal',
+    'cliente 1',
+    'benefício a personalizar',
+    'conteúdo a ser personalizado',
+    'lorem ipsum',
+    'placeholder'
+  ];
+  
+  const allText = JSON.stringify(blocks).toLowerCase();
+  return genericPatterns.some(pattern => allText.includes(pattern));
+}
+
 // Handler principal
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -126,41 +140,65 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('[Import v5] Iniciando importação...', { tenantId, url });
+    console.log('[Import v5] Iniciando criação de página original...', { tenantId, url });
 
     // ========== PASSO 0: FETCH DO CONTEÚDO ==========
     console.log('[Import v5] Passo 0: Buscando conteúdo da página...');
     const { html, title: extractedTitle, screenshot } = await fetchPageContent(url);
     console.log('[Import v5] HTML obtido:', html.length, 'chars');
 
-    // ========== PASSO 1: ANÁLISE ESTRATÉGICA ==========
-    console.log('[Import v5] Passo 1: Análise estratégica...');
+    // ========== PASSO 1: ANÁLISE ESTRATÉGICA (categorização) ==========
+    console.log('[Import v5] Passo 1: Categorizando página...');
     let strategicPlan;
     try {
       const analysis = await analyzePageStrategically(html, url, { screenshotBase64: screenshot });
       strategicPlan = analysis.plan;
       aiCallsCount++;
     } catch (e) {
-      console.error('[Import v5] Erro na análise estratégica, usando fallback:', e);
+      console.error('[Import v5] Erro na categorização, usando fallback:', e);
       strategicPlan = createFallbackPlan(url, html);
     }
-    console.log('[Import v5] Framework escolhido:', strategicPlan.framework);
+    console.log('[Import v5] Categoria:', strategicPlan.productName, '| Framework:', strategicPlan.framework);
 
-    // ========== PASSO 2: CRIAÇÃO DE CONTEÚDO ==========
-    console.log('[Import v5] Passo 2: Criação de conteúdo por inspiração...');
-    let creation;
-    try {
-      const creationResult = await createPageFromInspiration(html, strategicPlan);
-      creation = creationResult.result;
-      aiCallsCount++;
-    } catch (e) {
-      console.error('[Import v5] Erro na criação, usando fallback:', e);
-      creation = createFallbackPage(strategicPlan);
+    // ========== PASSO 2: CRIAÇÃO DE CONTEÚDO ORIGINAL ==========
+    console.log('[Import v5] Passo 2: Criando página original com IA...');
+    let creation: Awaited<ReturnType<typeof createPageFromInspiration>>['result'] | null = null;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        const creationResult = await createPageFromInspiration(html, strategicPlan, {
+          forceUnique: retryCount > 0
+        });
+        creation = creationResult.result;
+        aiCallsCount++;
+        
+        // Verificar se conteúdo é genérico demais
+        if (isContentGeneric(creation.blocks) && retryCount < maxRetries) {
+          console.log('[Import v5] Conteúdo genérico detectado, tentando novamente...');
+          retryCount++;
+          continue;
+        }
+        
+        break;
+      } catch (e) {
+        console.error('[Import v5] Erro na criação:', e);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`[Import v5] Tentativa ${retryCount + 1} de ${maxRetries + 1}...`);
+          continue;
+        }
+        console.error('[Import v5] Todas as tentativas falharam, usando fallback');
+        creation = createFallbackPage(strategicPlan);
+        break;
+      }
     }
+    
     console.log('[Import v5] Blocos criados:', creation.blocks.length);
     console.log('[Import v5] Qualidade da criação:', creation.creationQuality);
+    console.log('[Import v5] Estilo de copy:', creation.copyStyle);
 
-    // Usar blocos criados diretamente (já validados)
     const finalBlocks = creation.blocks;
 
     // ========== SALVAR NO BANCO ==========
@@ -170,7 +208,7 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const pageTitle = customTitle || extractedTitle || strategicPlan.productName || 'Página Importada';
+    const pageTitle = customTitle || extractedTitle || `Página de ${strategicPlan.productName}`;
     const baseSlug = customSlug || generateSlug(url, pageTitle);
 
     // Verificar slug único
@@ -191,7 +229,7 @@ Deno.serve(async (req) => {
     // Construir conteúdo da página
     const pageContent = {
       type: 'Page',
-      id: `page-${Date.now()}`,
+      id: `page-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       props: { backgroundColor: 'transparent', padding: 'none' },
       children: convertToBuilderBlocks(finalBlocks),
     };
@@ -207,13 +245,15 @@ Deno.serve(async (req) => {
         status: 'draft',
         content: pageContent,
         seo_title: pageTitle,
-        seo_description: strategicPlan.mainPromise || '',
+        seo_description: `Página criada a partir de ${url}`,
         builder_enabled: true,
         page_overrides: {
           importedFrom: url,
-          importVersion: 'v5-creator',
+          importVersion: 'v5-creator-unique',
           strategicPlan: {
             productType: strategicPlan.productType,
+            productCategory: strategicPlan.productName,
+            audienceType: strategicPlan.targetAudience,
             framework: strategicPlan.framework,
             confidence: strategicPlan.confidence,
           },
@@ -221,6 +261,7 @@ Deno.serve(async (req) => {
             quality: creation.creationQuality,
             copyStyle: creation.copyStyle,
             warnings: creation.warnings,
+            retryCount,
           },
         },
       })
@@ -233,7 +274,7 @@ Deno.serve(async (req) => {
     }
 
     const processingTimeMs = Date.now() - startTime;
-    console.log('[Import v5] Importação concluída em', processingTimeMs, 'ms');
+    console.log('[Import v5] Criação concluída em', processingTimeMs, 'ms');
 
     const result: ImportV5Result = {
       success: true,
