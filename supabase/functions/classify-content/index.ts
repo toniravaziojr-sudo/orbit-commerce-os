@@ -48,10 +48,31 @@ interface ClassifyRequest {
   };
 }
 
-const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo. Sua tarefa é analisar fragmentos HTML e:
+const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo de e-commerce. Sua tarefa é analisar fragmentos HTML e:
 
 1. EXTRAIR o conteúdo relevante de forma estruturada
 2. CLASSIFICAR o tipo de seção e layout apropriado
+
+## REGRAS CRÍTICAS - EVITE "GENERIC"
+
+PRIORIZE SEMPRE uma classificação específica. Use "generic" APENAS como último recurso quando realmente não houver padrão reconhecível.
+
+### Padrões para detectar (NÃO classifique como generic):
+- Lista de itens com padrão visual repetido → "benefits" ou "features"
+- Imagem + texto lado a lado → "about" ou use layout "columns-image-*"
+- Números grandes destacados (10k+, 99%, 24h, R$ X) → "stats"
+- Timer/contagem regressiva → "countdown"
+- "Comprar agora", "Adicionar ao carrinho", botões proeminentes → "cta"
+- Avaliações ★★★★★ ou depoimentos → "testimonials"
+- Perguntas e respostas, accordions → "faq"
+- Passos numerados (1, 2, 3...) ou timeline → "steps"
+- Grid de logos ou marcas → "logos"
+- Grid de imagens clicáveis → "gallery"
+- Banner grande com título e CTA no topo → "hero"
+
+### QUANDO EM DÚVIDA:
+- Prefira classificação específica com confidence 0.5-0.7 do que "generic" com 0.8
+- Se parece um benefício mas não tem certeza → classifique como "benefits" com confidence 0.6
 
 ## REGRAS DE EXTRAÇÃO
 
@@ -77,44 +98,41 @@ const SYSTEM_PROMPT = `Você é um especialista em web design e extração de co
 
 ### Imagens
 - Extraia src e alt de imagens significativas
-- IGNORE: ícones pequenos, logos de pagamento, decorações
+- IGNORE: ícones pequenos (<50px), logos de pagamento, decorações
 
 ### Vídeos
-- YouTube: extraia URL do embed ou watch
+- YouTube: extraia URL do embed ou watch (mesmo se lazy-loaded)
 - Vimeo: extraia URL do embed
 - MP4: extraia src de <video>
 
 ### Botões
 - Extraia texto e URL de links/botões de ação
-- Foque em CTAs principais
-
-### Parágrafos
-- Texto corrido importante que não se encaixa em items
+- Foque em CTAs principais (Comprar, Ver mais, Saiba mais)
 
 ## O QUE IGNORAR
 - Menus de navegação
 - Footers e rodapés
 - Banners de cookies
-- Scripts e estilos
 - Breadcrumbs
 - Widgets de chat
-- Ícones decorativos
+- Ícones decorativos (SVG inline)
+- Classes CSS e estilos
 
-## TIPOS DE SEÇÃO
-- hero: Banner principal, introdução, geralmente primeira seção
-- benefits: Lista de vantagens/benefícios com íconos
-- features: Características do produto/serviço
-- testimonials: Depoimentos, avaliações de clientes
-- faq: Perguntas e respostas
-- cta: Chamada para ação, conversão
-- about: Sobre a empresa, quem somos
-- contact: Informações de contato
-- steps: Passos numerados, timeline, "como funciona", processo
-- stats: Números grandes, estatísticas, métricas, contadores
+## TIPOS DE SEÇÃO (em ordem de preferência sobre generic)
+- hero: Banner principal, introdução, primeira seção com título grande
+- benefits: Lista de vantagens/benefícios com ícones ou checkmarks
+- features: Características técnicas do produto/serviço
+- testimonials: Depoimentos, avaliações, reviews de clientes
+- faq: Perguntas e respostas, accordions
+- cta: Chamada para ação, botão de conversão proeminente
+- about: Sobre a empresa, quem somos, história
+- contact: Informações de contato, formulários
+- steps: Passos numerados, timeline, "como funciona"
+- stats: Números grandes, estatísticas, métricas destacadas
 - gallery: Grade de imagens, galeria de fotos
 - countdown: Timer, oferta limitada, contagem regressiva
-- logos: Marcas parceiras, logos de clientes, "visto em"
-- generic: Quando não se encaixa em outra categoria
+- logos: Marcas parceiras, "visto em", clientes
+- generic: ÚLTIMO RECURSO - apenas quando não se encaixa em NENHUMA categoria acima
 
 ## LAYOUTS
 - hero-centered: Hero centralizado
@@ -128,16 +146,21 @@ const SYSTEM_PROMPT = `Você é um especialista em web design e extração de co
 - timeline-horizontal: Timeline/passos horizontal
 - timeline-vertical: Timeline/passos vertical
 
-## DICAS
+## PLATAFORMAS BRASILEIRAS (padrões comuns)
+- Tray/Dooca: classes "section-*", "produto-*", divs com data-section
+- Nuvemshop: classes "js-*", sections com IDs numéricos
+- VTEX: classes "vtex-*", data-vtex-*
+- Shopify BR: shopify-section com nomes em português
+- WooCommerce: classes "wp-block-*", "woocommerce-*"
+
+## DICAS FINAIS
 - Benefícios geralmente têm 3-6 items com padrão visual repetido
-- Hero é geralmente a primeira seção com heading grande
+- Hero é geralmente a primeira seção com heading grande e imagem de fundo
 - CTA sections são curtas com botões proeminentes
 - Steps/Timeline tem números ou passos sequenciais (1, 2, 3...)
 - Stats tem números grandes e destacados (10k+, 99%, 24h)
-- Logos são grids de imagens pequenas em escala de cinza
-- Gallery são grids de imagens maiores clicáveis
-- Countdown tem timer com dias/horas/minutos/segundos
-- Considere padrões de e-commerce brasileiro`;
+- Countdown tem timer com dias/horas/minutos/segundos`;
+
 
 const EXTRACTION_FUNCTION = {
   type: "function",
@@ -243,11 +266,17 @@ function stripHtmlForAnalysis(html: string): string {
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+    // Remove SVGs (decorative noise)
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '[SVG]')
+    // Remove inline styles (reduce noise)
+    .replace(/\s*style="[^"]*"/gi, '')
+    // Remove data attributes
+    .replace(/\s*data-[a-z-]+="[^"]*"/gi, '');
   
-  // Truncate if too long (keep first ~12000 chars for better extraction)
-  if (cleaned.length > 12000) {
-    cleaned = cleaned.substring(0, 12000) + '... [truncado]';
+  // Truncate if too long - INCREASED to 20000 chars for better context
+  if (cleaned.length > 20000) {
+    cleaned = cleaned.substring(0, 20000) + '... [truncado]';
   }
   
   return cleaned;
