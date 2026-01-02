@@ -8,18 +8,20 @@ const corsHeaders = {
 };
 
 // =====================================================
-// INTELLIGENT PAGE IMPORTER v2
+// INTELLIGENT PAGE IMPORTER v3
 // =====================================================
 // Flow:
 // 1. Fetch HTML from URL
-// 2. Extract main content (remove header/footer/nav)
-// 3. Segment HTML into smaller sections (improved multi-platform)
-// 4. Preprocess each section (remove noise)
-// 5. Classify each section with AI
-// 6. Map classifications to native blocks
-// 7. Compose page structure (order, deduplicate)
-// 8. Validate quality
-// 9. Save to database
+// 2. Deep clean HTML (remove YouTube noise, interface elements)
+// 3. Extract main content (remove header/footer/nav)
+// 4. Detect carousels (images, videos)
+// 5. Segment HTML into smaller sections
+// 6. Preprocess each section (remove noise)
+// 7. Classify each section with AI
+// 8. Map classifications to native blocks
+// 9. Compose page structure (order, deduplicate)
+// 10. Validate quality (reject noise blocks)
+// 11. Save to database
 // =====================================================
 
 interface ImportRequest {
@@ -27,6 +29,191 @@ interface ImportRequest {
   url: string;
   slug?: string;
   title?: string;
+}
+
+// =====================================================
+// DEEP HTML CLEANING - Remove interface noise
+// =====================================================
+const YOUTUBE_NOISE_PATTERNS = [
+  /More videos/gi,
+  /Mais vídeos/gi,
+  /You're signed out/gi,
+  /Você não está conectado/gi,
+  /Watch later/gi,
+  /Assistir mais tarde/gi,
+  /Share\s*\n/gi,
+  /Compartilhar\s*\n/gi,
+  /Copy link/gi,
+  /Copiar link/gi,
+  /Include playlist/gi,
+  /Incluir playlist/gi,
+  /If playback doesn't begin shortly/gi,
+  /Se a reprodução não começar/gi,
+  /CancelConfirm/gi,
+  /An error occurred while retrieving/gi,
+  /Ocorreu um erro ao recuperar/gi,
+  /Videos you watch may be added/gi,
+  /Os vídeos que você assiste podem ser adicionados/gi,
+  /Hide more videos/gi,
+  /Ocultar mais vídeos/gi,
+  /Video unavailable/gi,
+  /Vídeo indisponível/gi,
+  /Watch on YouTube/gi,
+  /Assistir no YouTube/gi,
+  /Subscribe/gi,
+  /Inscrever-se/gi,
+  /^\d+\s*views?\s*$/gim,
+  /^\d+\s*visualizações?\s*$/gim,
+  /Tap to unmute/gi,
+  /Toque para ativar o som/gi,
+];
+
+const INTERFACE_NOISE_PATTERNS = [
+  /cookie consent/gi,
+  /aceitar cookies/gi,
+  /privacidade e cookies/gi,
+  /LGPD/gi,
+  /WhatsApp[^a-zA-Z]/gi,
+  /chat online/gi,
+  /fale conosco via/gi,
+  /atendimento 24h/gi,
+  /©\s*\d{4}/gi, // Copyright
+  /CNPJ[:\s]*[\d.\-\/]+/gi,
+  /CEP[:\s]*[\d.\-]+/gi,
+  /Todos os direitos reservados/gi,
+  /Desenvolvido por/gi,
+  /Powered by/gi,
+];
+
+function deepCleanHtml(html: string): string {
+  let cleaned = html;
+  
+  // 1. Remove YouTube player noise patterns
+  for (const pattern of YOUTUBE_NOISE_PATTERNS) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  // 2. Remove interface noise
+  for (const pattern of INTERFACE_NOISE_PATTERNS) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+  
+  // 3. Remove YouTube player controls and overlays
+  cleaned = cleaned.replace(/<div[^>]*class="[^"]*(?:ytp-|youtube-player)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // 4. Remove cookie consent banners
+  cleaned = cleaned.replace(/<div[^>]*(?:class|id)="[^"]*(?:cookie|lgpd|consent|gdpr)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // 5. Remove chat widgets
+  cleaned = cleaned.replace(/<div[^>]*(?:class|id)="[^"]*(?:whatsapp|chat-widget|tawk|zendesk|intercom|crisp)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+  
+  // 6. Remove hidden elements
+  cleaned = cleaned.replace(/<[^>]+style="[^"]*display\s*:\s*none[^"]*"[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
+  cleaned = cleaned.replace(/<[^>]+hidden[^>]*>[\s\S]*?<\/[^>]+>/gi, '');
+  
+  // 7. Remove empty iframes (lazy-loaded placeholders)
+  cleaned = cleaned.replace(/<iframe[^>]*src=""[^>]*>[\s\S]*?<\/iframe>/gi, '');
+  cleaned = cleaned.replace(/<iframe[^>]*data-src="[^"]*"[^>]*><\/iframe>/gi, '');
+  
+  // 8. Remove noscript tags
+  cleaned = cleaned.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+  
+  // 9. Remove inline onclick handlers that are just tracking
+  cleaned = cleaned.replace(/\s*onclick="[^"]*(?:gtag|fbq|ga\(|analytics)[^"]*"/gi, '');
+  
+  // 10. Clean up resulting empty lines
+  cleaned = cleaned.replace(/\n\s*\n\s*\n/g, '\n\n');
+  
+  console.log(`[DEEP_CLEAN] Cleaned HTML: ${html.length} -> ${cleaned.length} chars (removed ${html.length - cleaned.length})`);
+  
+  return cleaned;
+}
+
+// =====================================================
+// CAROUSEL DETECTION
+// =====================================================
+interface CarouselDetection {
+  type: 'image' | 'video' | 'banner';
+  items: string[]; // URLs
+  position: 'hero' | 'content' | 'testimonial';
+}
+
+interface DetectionResult {
+  carousels: CarouselDetection[];
+  cleanedHtml: string;
+}
+
+function detectCarousels(html: string): DetectionResult {
+  const carousels: CarouselDetection[] = [];
+  let cleanedHtml = html;
+  
+  // 1. Detect YouTube video groups (more than 2 from same pattern)
+  const youtubeMatches = [
+    ...html.matchAll(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/gi)
+  ];
+  const uniqueVideoIds = [...new Set(youtubeMatches.map(m => m[1]))];
+  
+  if (uniqueVideoIds.length >= 2) {
+    console.log(`[CAROUSEL] Detected ${uniqueVideoIds.length} YouTube videos -> VideoCarousel`);
+    carousels.push({
+      type: 'video',
+      items: uniqueVideoIds.map(id => `https://www.youtube.com/watch?v=${id}`),
+      position: uniqueVideoIds.length > 3 ? 'testimonial' : 'content',
+    });
+  }
+  
+  // 2. Detect image sliders/carousels
+  const sliderPatterns = [
+    // Swiper
+    /<div[^>]*class="[^"]*swiper[^"]*"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/gi,
+    // Slick
+    /<div[^>]*class="[^"]*slick[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    // Owl Carousel
+    /<div[^>]*class="[^"]*owl-[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    // Generic carousel
+    /<div[^>]*class="[^"]*carousel[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+    // Embla
+    /<div[^>]*class="[^"]*embla[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+  ];
+  
+  for (const pattern of sliderPatterns) {
+    const matches = [...html.matchAll(pattern)];
+    for (const match of matches) {
+      const sliderContent = match[1] || match[0];
+      // Extract images from slider
+      const imgMatches = [...sliderContent.matchAll(/<img[^>]*src="([^"]+)"[^>]*>/gi)];
+      if (imgMatches.length >= 2) {
+        const imageUrls = imgMatches.map(m => m[1]).filter(url => 
+          !url.includes('data:image') && 
+          !url.includes('placeholder') &&
+          !url.includes('loading')
+        );
+        if (imageUrls.length >= 2) {
+          console.log(`[CAROUSEL] Detected image slider with ${imageUrls.length} images -> ImageCarousel`);
+          carousels.push({
+            type: 'image',
+            items: imageUrls,
+            position: 'hero',
+          });
+        }
+      }
+    }
+  }
+  
+  // 3. Detect banner rotators (multiple large images in sequence)
+  const bannerPattern = /<a[^>]*>\s*<img[^>]*(?:width|height)=["']?(?:100%|\d{3,})[^>]*src="([^"]+)"[^>]*>\s*<\/a>/gi;
+  const bannerMatches = [...html.matchAll(bannerPattern)];
+  if (bannerMatches.length >= 2) {
+    const bannerUrls = bannerMatches.map(m => m[1]);
+    console.log(`[CAROUSEL] Detected banner rotator with ${bannerUrls.length} banners`);
+    carousels.push({
+      type: 'banner',
+      items: bannerUrls,
+      position: 'hero',
+    });
+  }
+  
+  return { carousels, cleanedHtml };
 }
 
 // =====================================================
@@ -267,10 +454,10 @@ function segmentHtml(html: string): Section[] {
   return subdivideIfNeeded([{ html, index: 0 }]);
 }
 
-// Subdivide large sections (>4000 chars) by headings - REDUCED threshold
+// Subdivide large sections (>3000 chars) by headings - REDUCED threshold
 function subdivideIfNeeded(sections: Section[]): Section[] {
   const result: Section[] = [];
-  const MAX_SECTION_SIZE = 4000; // Reduced from 10000
+  const MAX_SECTION_SIZE = 3000; // Reduced from 4000 for better granularity
   
   for (const section of sections) {
     if (section.html.length > MAX_SECTION_SIZE) {
@@ -318,6 +505,8 @@ function preprocessSection(html: string): string {
     .replace(/\s*style="[^"]*"/gi, '')
     // Remove data attributes (reduce noise)
     .replace(/\s*data-[a-z-]+="[^"]*"/gi, '')
+    // Remove aria attributes
+    .replace(/\s*aria-[a-z-]+="[^"]*"/gi, '')
     // Normalize whitespace
     .replace(/\s+/g, ' ')
     .trim();
@@ -394,6 +583,75 @@ function buildPageContent(blocks: BlockNode[]): BlockNode {
 }
 
 // =====================================================
+// CAROUSEL BLOCK CREATION
+// =====================================================
+function createCarouselBlocks(carousels: CarouselDetection[]): BlockNode[] {
+  const blocks: BlockNode[] = [];
+  
+  for (const carousel of carousels) {
+    if (carousel.type === 'video' && carousel.items.length >= 2) {
+      blocks.push({
+        id: `video-carousel-${Date.now().toString(36)}`,
+        type: 'VideoCarousel',
+        props: {
+          videos: carousel.items.map((url, i) => ({
+            id: `video-${i}`,
+            type: 'youtube' as const,
+            url,
+            title: `Vídeo ${i + 1}`,
+          })),
+          autoplay: true,
+          interval: 5000,
+          showNavigation: true,
+          showPagination: true,
+          aspectRatio: '16:9',
+        },
+      });
+    } else if (carousel.type === 'image' && carousel.items.length >= 2) {
+      blocks.push({
+        id: `image-carousel-${Date.now().toString(36)}`,
+        type: 'ImageCarousel',
+        props: {
+          images: carousel.items.map((url, i) => ({
+            id: `img-${i}`,
+            imageDesktop: url,
+            imageMobile: url,
+            alt: `Imagem ${i + 1}`,
+            linkUrl: '',
+          })),
+          autoplay: true,
+          interval: 4000,
+          aspectRatio: '16:9',
+          showNavigation: true,
+          showPagination: true,
+        },
+      });
+    } else if (carousel.type === 'banner' && carousel.items.length >= 2) {
+      blocks.push({
+        id: `banner-carousel-${Date.now().toString(36)}`,
+        type: 'ImageCarousel',
+        props: {
+          images: carousel.items.map((url, i) => ({
+            id: `banner-${i}`,
+            imageDesktop: url,
+            imageMobile: url,
+            alt: `Banner ${i + 1}`,
+            linkUrl: '',
+          })),
+          autoplay: true,
+          interval: 5000,
+          aspectRatio: '21:9',
+          showNavigation: true,
+          showPagination: true,
+        },
+      });
+    }
+  }
+  
+  return blocks;
+}
+
+// =====================================================
 // SLUG GENERATION
 // =====================================================
 function generateSlug(url: string, title?: string): string {
@@ -446,28 +704,36 @@ Deno.serve(async (req) => {
     const { html, title: extractedTitle } = await fetchHtml(url);
     const pageTitle = customTitle || extractedTitle;
     
-    // 2. Extract main content
-    const mainContent = extractMainContent(html);
+    // 2. Deep clean HTML (remove YouTube noise, interface elements)
+    const cleanedHtml = deepCleanHtml(html);
     
-    // 3. Segment into sections
+    // 3. Detect carousels before extracting main content
+    const { carousels } = detectCarousels(cleanedHtml);
+    const carouselBlocks = createCarouselBlocks(carousels);
+    console.log(`[IMPORT] Detected ${carousels.length} carousels -> ${carouselBlocks.length} blocks`);
+    
+    // 4. Extract main content
+    const mainContent = extractMainContent(cleanedHtml);
+    
+    // 5. Segment into sections
     const sections = segmentHtml(mainContent);
     console.log(`[IMPORT] Found ${sections.length} sections`);
     
-    // 4. Classify each section and build blocks
-    const allBlocks: BlockNode[] = [];
+    // 6. Classify each section and build blocks
+    const allBlocks: BlockNode[] = [...carouselBlocks]; // Start with carousel blocks
     
     for (const section of sections) {
       // Preprocess section to remove noise
-      const cleanedHtml = preprocessSection(section.html);
+      const preprocessedHtml = preprocessSection(section.html);
       
       // Skip sections that are too small after cleaning
-      if (cleanedHtml.length < 100) {
+      if (preprocessedHtml.length < 100) {
         console.log(`[IMPORT] Section ${section.index + 1}: skipped (too small after preprocessing)`);
         continue;
       }
       
       const classification = await classifySection(
-        cleanedHtml,
+        preprocessedHtml,
         pageTitle,
         section.index,
         sections.length
@@ -482,18 +748,18 @@ Deno.serve(async (req) => {
       }
     }
     
-    // 5. Compose page structure (order + deduplicate)
+    // 7. Compose page structure (order + deduplicate)
     const composedBlocks = composePageStructure(allBlocks);
     console.log(`[IMPORT] Composed: ${allBlocks.length} raw blocks -> ${composedBlocks.length} ordered blocks`);
     
-    // 6. Validate quality
+    // 8. Validate quality
     const quality = validatePageQuality(composedBlocks);
     console.log(`[IMPORT] Quality: score=${quality.score}, valid=${quality.valid}`);
     if (quality.issues.length > 0) {
       console.log(`[IMPORT] Quality issues: ${quality.issues.join(', ')}`);
     }
     
-    // 7. Build page content
+    // 9. Build page content
     if (composedBlocks.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -507,7 +773,7 @@ Deno.serve(async (req) => {
     const pageContent = buildPageContent(composedBlocks);
     const slug = customSlug || generateSlug(url, pageTitle);
     
-    // 8. Save to database
+    // 10. Save to database
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -570,6 +836,7 @@ Deno.serve(async (req) => {
           sectionsFound: sections.length,
           blocksCreated: composedBlocks.length,
           rawBlocks: allBlocks.length,
+          carouselsDetected: carousels.length,
           qualityScore: quality.score,
           qualityIssues: quality.issues,
         },

@@ -1,18 +1,45 @@
 // =====================================================
-// PAGE COMPOSER - Intelligent Block Ordering System
+// PAGE COMPOSER v3 - Intelligent Block Ordering System
 // =====================================================
 // 
 // Receives classified blocks and reorganizes them into
 // a logical, hierarchical page structure.
 //
-// Features:
-// - Priority-based ordering (Hero first, CTA last)
-// - Deduplication rules (max 1 Hero, 1 Countdown, etc.)
-// - Merging similar blocks (multiple Testimonials → one)
-// - Quality validation
+// IMPROVEMENTS v3:
+// - Strict noise validation (rejects blocks with YouTube noise)
+// - Better testimonial validation (rejects generic "Cliente 1")
+// - Improved deduplication
+// - VideoCarousel support
 // =====================================================
 
 import type { BlockNode } from './intelligent-block-mapper.ts';
+
+// =====================================================
+// NOISE PATTERNS - Reject blocks with these titles
+// =====================================================
+const NOISE_TITLE_PATTERNS = [
+  /^more videos$/i,
+  /^mais vídeos$/i,
+  /^hide more videos$/i,
+  /^ocultar mais vídeos$/i,
+  /^watch later$/i,
+  /^assistir mais tarde$/i,
+  /^share$/i,
+  /^compartilhar$/i,
+  /^subscribe$/i,
+  /^inscrever-se$/i,
+  /^copy link$/i,
+  /^copiar link$/i,
+  /^you're signed out$/i,
+  /^você não está conectado$/i,
+  /^\d+\s*views?$/i,
+  /^\d+\s*visualizações?$/i,
+];
+
+function isNoiseTitle(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return NOISE_TITLE_PATTERNS.some(pattern => pattern.test(title.trim()));
+}
 
 // =====================================================
 // BLOCK ORDER PRIORITY (lower = higher in page)
@@ -22,42 +49,44 @@ const BLOCK_ORDER_PRIORITY: Record<string, number> = {
   'Hero': 0,
   'HeroBanner': 0,
   
-  // Position 1: Video (main video after hero)
-  'YouTubeVideo': 1,
-  'VideoUpload': 1,
-  'VideoCarousel': 1,
+  // Position 1: Image Carousel (banner rotator)
+  'ImageCarousel': 1,
   
-  // Position 2: Benefits/Features (present the product)
-  'InfoHighlights': 2,
-  'FeatureList': 2,
+  // Position 2: Video (main video after hero)
+  'YouTubeVideo': 2,
+  'VideoUpload': 2,
+  'VideoCarousel': 2,
   
-  // Position 3: Stats (social proof with numbers)
-  'StatsNumbers': 3,
+  // Position 3: Benefits/Features (present the product)
+  'InfoHighlights': 3,
+  'FeatureList': 3,
   
-  // Position 4: Content columns (product details)
-  'ContentColumns': 4,
-  'TextBanners': 4,
+  // Position 4: Stats (social proof with numbers)
+  'StatsNumbers': 4,
   
-  // Position 5: Steps/Timeline (how it works)
-  'StepsTimeline': 5,
+  // Position 5: Content columns (product details)
+  'ContentColumns': 5,
+  'TextBanners': 5,
   
-  // Position 6: Gallery/Images
-  'ImageGallery': 6,
-  'ImageCarousel': 6,
-  'Image': 6,
+  // Position 6: Steps/Timeline (how it works)
+  'StepsTimeline': 6,
   
-  // Position 7: Testimonials (social proof)
-  'Testimonials': 7,
+  // Position 7: Gallery/Images
+  'ImageGallery': 7,
+  'Image': 7,
   
-  // Position 8: FAQ/Accordion
-  'FAQ': 8,
-  'AccordionBlock': 8,
+  // Position 8: Testimonials (social proof)
+  'Testimonials': 8,
   
-  // Position 9: Logos (partners)
-  'LogosCarousel': 9,
+  // Position 9: FAQ/Accordion
+  'FAQ': 9,
+  'AccordionBlock': 9,
   
-  // Position 10: Countdown (urgency)
-  'CountdownTimer': 10,
+  // Position 10: Logos (partners)
+  'LogosCarousel': 10,
+  
+  // Position 11: Countdown (urgency)
+  'CountdownTimer': 11,
   
   // Position 99: Generic/Fallback (at the end before CTA)
   'RichText': 99,
@@ -75,6 +104,8 @@ interface DedupRule {
 const DEDUP_RULES: Record<string, DedupRule> = {
   'Hero': { maxCount: 1, keepStrategy: 'first' },
   'HeroBanner': { maxCount: 1, keepStrategy: 'first' },
+  'ImageCarousel': { maxCount: 1, keepStrategy: 'first' },
+  'VideoCarousel': { maxCount: 1, keepStrategy: 'merge' },
   'CountdownTimer': { maxCount: 1, keepStrategy: 'first' },
   'StatsNumbers': { maxCount: 1, keepStrategy: 'first' },
   'StepsTimeline': { maxCount: 1, keepStrategy: 'first' },
@@ -88,6 +119,7 @@ const DEDUP_RULES: Record<string, DedupRule> = {
 // =====================================================
 interface PageComposition {
   hero: BlockNode[];
+  imageCarousel: BlockNode[];
   video: BlockNode[];
   benefits: BlockNode[];
   stats: BlockNode[];
@@ -102,11 +134,93 @@ interface PageComposition {
 }
 
 // =====================================================
+// BLOCK VALIDATION - Reject noise blocks
+// =====================================================
+interface ValidationResult {
+  valid: boolean;
+  reason?: string;
+}
+
+function validateBlock(block: BlockNode): ValidationResult {
+  const title = block.props.title as string | undefined;
+  
+  // Check for noise titles
+  if (isNoiseTitle(title)) {
+    return { valid: false, reason: `Título de ruído: "${title}"` };
+  }
+  
+  // Validate TextBanners - title must have real content
+  if (block.type === 'TextBanners') {
+    if (!title || title.length < 3) {
+      return { valid: false, reason: 'TextBanners sem título válido' };
+    }
+  }
+  
+  // Validate Testimonials - check for generic content
+  if (block.type === 'Testimonials') {
+    const items = block.props.items as Array<{ name: string; text: string }> | undefined;
+    if (!items || items.length === 0) {
+      return { valid: false, reason: 'Testimonials sem items' };
+    }
+    
+    // Check for generic names
+    const hasGenericNames = items.some(item => 
+      /^cliente\s*\d*$/i.test(item.name) ||
+      item.name === 'Cliente' ||
+      item.text === 'Excelente produto!' ||
+      item.text === 'Recomendo a todos.' ||
+      item.text === 'Depoimento do cliente.'
+    );
+    
+    if (hasGenericNames) {
+      return { valid: false, reason: 'Testimonials com conteúdo genérico' };
+    }
+  }
+  
+  // Validate RichText - check for interface noise
+  if (block.type === 'RichText') {
+    const content = block.props.content as string | undefined;
+    if (!content || content.length < 20) {
+      return { valid: false, reason: 'RichText vazio ou muito curto' };
+    }
+    
+    // Check for noise patterns in content
+    const lowerContent = content.toLowerCase();
+    const hasNoise = NOISE_TITLE_PATTERNS.some(pattern => 
+      pattern.test(lowerContent)
+    );
+    
+    if (hasNoise) {
+      return { valid: false, reason: 'RichText com ruído de interface' };
+    }
+  }
+  
+  // Validate InfoHighlights
+  if (block.type === 'InfoHighlights') {
+    const items = block.props.items as Array<{ title: string }> | undefined;
+    if (!items || items.length === 0) {
+      return { valid: false, reason: 'InfoHighlights sem items' };
+    }
+  }
+  
+  // Validate FAQ
+  if (block.type === 'FAQ') {
+    const items = block.props.items as Array<{ question: string }> | undefined;
+    if (!items || items.length === 0) {
+      return { valid: false, reason: 'FAQ sem items' };
+    }
+  }
+  
+  return { valid: true };
+}
+
+// =====================================================
 // CATEGORIZE BLOCKS
 // =====================================================
 function categorizeBlocks(blocks: BlockNode[]): PageComposition {
   const composition: PageComposition = {
     hero: [],
+    imageCarousel: [],
     video: [],
     benefits: [],
     stats: [],
@@ -121,11 +235,22 @@ function categorizeBlocks(blocks: BlockNode[]): PageComposition {
   };
   
   for (const block of blocks) {
+    // First validate the block
+    const validation = validateBlock(block);
+    if (!validation.valid) {
+      console.log(`[composer] Rejecting block ${block.type}: ${validation.reason}`);
+      continue;
+    }
+    
     const type = block.type;
     
     // Hero/Banner
     if (type === 'Hero' || type === 'HeroBanner') {
       composition.hero.push(block);
+    }
+    // Image Carousel
+    else if (type === 'ImageCarousel') {
+      composition.imageCarousel.push(block);
     }
     // Video
     else if (type === 'YouTubeVideo' || type === 'VideoUpload' || type === 'VideoCarousel') {
@@ -148,7 +273,7 @@ function categorizeBlocks(blocks: BlockNode[]): PageComposition {
       composition.steps.push(block);
     }
     // Gallery
-    else if (type === 'ImageGallery' || type === 'ImageCarousel' || type === 'Image') {
+    else if (type === 'ImageGallery' || type === 'Image') {
       composition.gallery.push(block);
     }
     // Testimonials
@@ -182,27 +307,36 @@ function categorizeBlocks(blocks: BlockNode[]): PageComposition {
 function mergeTestimonials(blocks: BlockNode[]): BlockNode[] {
   if (blocks.length <= 1) return blocks;
   
-  // Collect all testimonial items
   const allItems: any[] = [];
   let mergedTitle = '';
   
   for (const block of blocks) {
     if (block.props.items && Array.isArray(block.props.items)) {
-      allItems.push(...block.props.items);
+      // Only add non-generic items
+      const validItems = (block.props.items as any[]).filter(item => 
+        !/^cliente\s*\d*$/i.test(item.name) &&
+        item.name !== 'Cliente' &&
+        item.text !== 'Excelente produto!' &&
+        item.text !== 'Depoimento do cliente.'
+      );
+      allItems.push(...validItems);
     }
     if (!mergedTitle && block.props.title) {
       mergedTitle = block.props.title as string;
     }
   }
   
-  // Return single merged block
+  if (allItems.length === 0) {
+    return [];
+  }
+  
   return [{
     id: blocks[0].id,
     type: 'Testimonials',
     props: {
       ...blocks[0].props,
       title: mergedTitle || 'Depoimentos',
-      items: allItems.slice(0, 12), // Max 12 testimonials
+      items: allItems.slice(0, 12),
     },
   }];
 }
@@ -213,7 +347,6 @@ function mergeTestimonials(blocks: BlockNode[]): BlockNode[] {
 function mergeFAQ(blocks: BlockNode[]): BlockNode[] {
   if (blocks.length <= 1) return blocks;
   
-  // Collect all FAQ items
   const allItems: any[] = [];
   let mergedTitle = '';
   
@@ -226,14 +359,70 @@ function mergeFAQ(blocks: BlockNode[]): BlockNode[] {
     }
   }
   
-  // Return single merged block
   return [{
     id: blocks[0].id,
     type: 'FAQ',
     props: {
       ...blocks[0].props,
       title: mergedTitle || 'Perguntas Frequentes',
-      items: allItems.slice(0, 20), // Max 20 FAQ items
+      items: allItems.slice(0, 20),
+    },
+  }];
+}
+
+// =====================================================
+// MERGE VIDEO CAROUSELS
+// =====================================================
+function mergeVideoCarousels(blocks: BlockNode[]): BlockNode[] {
+  if (blocks.length <= 1) return blocks;
+  
+  const allVideos: any[] = [];
+  
+  for (const block of blocks) {
+    if (block.type === 'VideoCarousel' && Array.isArray(block.props.videos)) {
+      allVideos.push(...block.props.videos);
+    } else if (block.type === 'YouTubeVideo' && block.props.youtubeUrl) {
+      allVideos.push({
+        id: block.id,
+        type: 'youtube',
+        url: block.props.youtubeUrl,
+        title: 'Vídeo',
+      });
+    }
+  }
+  
+  // Deduplicate by URL
+  const uniqueVideos = allVideos.filter((video, index, self) => 
+    index === self.findIndex(v => v.url === video.url)
+  );
+  
+  if (uniqueVideos.length === 0) {
+    return [];
+  }
+  
+  if (uniqueVideos.length === 1) {
+    return [{
+      id: blocks[0].id,
+      type: 'YouTubeVideo',
+      props: {
+        youtubeUrl: uniqueVideos[0].url,
+        widthPreset: 'xl',
+        aspectRatio: '16:9',
+        autoplay: false,
+      },
+    }];
+  }
+  
+  return [{
+    id: blocks[0].id,
+    type: 'VideoCarousel',
+    props: {
+      videos: uniqueVideos.slice(0, 10),
+      autoplay: false,
+      interval: 5000,
+      showNavigation: true,
+      showPagination: true,
+      aspectRatio: '16:9',
     },
   }];
 }
@@ -244,16 +433,19 @@ function mergeFAQ(blocks: BlockNode[]): BlockNode[] {
 function deduplicateBlocks(composition: PageComposition): PageComposition {
   const deduplicated = { ...composition };
   
+  // Special handling for videos - merge into carousel
+  if (deduplicated.video.length > 1) {
+    deduplicated.video = mergeVideoCarousels(deduplicated.video);
+  }
+  
   // Apply dedup rules to each category
   for (const [blockType, rule] of Object.entries(DEDUP_RULES)) {
-    // Find the category that contains this block type
     for (const category of Object.keys(composition) as (keyof PageComposition)[]) {
       const blocks = deduplicated[category];
       const matchingBlocks = blocks.filter(b => b.type === blockType);
       
       if (matchingBlocks.length > rule.maxCount) {
         if (rule.keepStrategy === 'merge') {
-          // Merge blocks (for Testimonials, FAQ)
           if (blockType === 'Testimonials') {
             deduplicated[category] = [
               ...blocks.filter(b => b.type !== blockType),
@@ -264,15 +456,18 @@ function deduplicateBlocks(composition: PageComposition): PageComposition {
               ...blocks.filter(b => b.type !== blockType),
               ...mergeFAQ(matchingBlocks),
             ];
+          } else if (blockType === 'VideoCarousel') {
+            deduplicated[category] = [
+              ...blocks.filter(b => b.type !== blockType),
+              ...mergeVideoCarousels(matchingBlocks),
+            ];
           }
         } else if (rule.keepStrategy === 'first') {
-          // Keep first only
           deduplicated[category] = [
             ...blocks.filter(b => b.type !== blockType),
             matchingBlocks[0],
           ];
         } else if (rule.keepStrategy === 'last') {
-          // Keep last only
           deduplicated[category] = [
             ...blocks.filter(b => b.type !== blockType),
             matchingBlocks[matchingBlocks.length - 1],
@@ -291,41 +486,43 @@ function deduplicateBlocks(composition: PageComposition): PageComposition {
 function buildOrderedPage(composition: PageComposition): BlockNode[] {
   const orderedBlocks: BlockNode[] = [];
   
-  // Add blocks in priority order
   // 0: Hero (first)
   orderedBlocks.push(...composition.hero);
   
-  // 1: Video (main video after hero)
+  // 1: Image Carousel (banner rotator)
+  orderedBlocks.push(...composition.imageCarousel);
+  
+  // 2: Video (main video after hero)
   orderedBlocks.push(...composition.video);
   
-  // 2: Benefits/Features
+  // 3: Benefits/Features
   orderedBlocks.push(...composition.benefits);
   
-  // 3: Stats
+  // 4: Stats
   orderedBlocks.push(...composition.stats);
   
-  // 4: Content columns
+  // 5: Content columns
   orderedBlocks.push(...composition.content);
   
-  // 5: Steps/Timeline
+  // 6: Steps/Timeline
   orderedBlocks.push(...composition.steps);
   
-  // 6: Gallery
+  // 7: Gallery
   orderedBlocks.push(...composition.gallery);
   
-  // 7: Testimonials
+  // 8: Testimonials
   orderedBlocks.push(...composition.testimonials);
   
-  // 8: FAQ
+  // 9: FAQ
   orderedBlocks.push(...composition.faq);
   
-  // 9: Logos
+  // 10: Logos
   orderedBlocks.push(...composition.logos);
   
   // 99: Generic (before countdown)
   orderedBlocks.push(...composition.generic);
   
-  // 10: Countdown (urgency, near the end)
+  // 11: Countdown (urgency, near the end)
   orderedBlocks.push(...composition.countdown);
   
   return orderedBlocks;
@@ -336,7 +533,7 @@ function buildOrderedPage(composition: PageComposition): BlockNode[] {
 // =====================================================
 export interface PageQuality {
   valid: boolean;
-  score: number; // 0-100
+  score: number;
   issues: string[];
   suggestions: string[];
 }
@@ -393,9 +590,21 @@ export function validatePageQuality(blocks: BlockNode[]): PageQuality {
     score -= 10;
   }
   
+  // Check for videos (good for engagement)
+  const hasVideo = typeCounts['YouTubeVideo'] > 0 || typeCounts['VideoCarousel'] > 0;
+  if (hasVideo) {
+    score += 5; // Bonus for video content
+  }
+  
+  // Check for image carousel (good for visual impact)
+  const hasCarousel = typeCounts['ImageCarousel'] > 0;
+  if (hasCarousel) {
+    score += 5; // Bonus for carousel
+  }
+  
   return {
     valid: score >= 50,
-    score: Math.max(0, score),
+    score: Math.max(0, Math.min(100, score)),
     issues,
     suggestions,
   };
@@ -411,7 +620,7 @@ export function composePageStructure(blocks: BlockNode[]): BlockNode[] {
     return [];
   }
   
-  // 1. Categorize blocks by type
+  // 1. Categorize blocks by type (includes validation)
   const composition = categorizeBlocks(blocks);
   console.log(`[composer] Categorized: hero=${composition.hero.length}, video=${composition.video.length}, benefits=${composition.benefits.length}, content=${composition.content.length}, testimonials=${composition.testimonials.length}, faq=${composition.faq.length}, generic=${composition.generic.length}`);
   
