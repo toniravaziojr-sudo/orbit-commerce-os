@@ -34,6 +34,7 @@ import { BlogListingBlock as BlogListingBlockComponent } from './blocks/BlogList
 import { PageContentBlock as PageContentBlockComponent } from './blocks/PageContentBlock';
 import { CustomBlockRenderer as CustomBlockRendererComponent } from './blocks/CustomBlockRenderer';
 import { VideoCarouselBlock as VideoCarouselBlockComponent } from './blocks/VideoCarouselBlock';
+import { ImageCarouselBlock as ImageCarouselBlockComponent } from './blocks/ImageCarouselBlock';
 import { FeatureListBlock as FeatureListBlockComponent } from './blocks/FeatureListBlock';
 import { ContentColumnsBlock as ContentColumnsBlockComponent } from './blocks/ContentColumnsBlock';
 import { StepsTimelineBlock as StepsTimelineBlockComponent } from './blocks/StepsTimelineBlock';
@@ -559,8 +560,10 @@ const components: Record<string, React.ComponentType<any>> = {
     CustomBlock: CustomBlockWrapper,
     // HTML Section (manual HTML/CSS editing)
     HTMLSection: HTMLSectionWrapper,
-    // Video Carousel (YouTube slider)
+    // Video Carousel (YouTube + upload slider)
     VideoCarousel: VideoCarouselBlockWrapper,
+    // Image Carousel (image slider)
+    ImageCarousel: ImageCarouselBlockWrapper,
     // New blocks for import quality
     FeatureList: FeatureListBlockWrapper,
     ContentColumns: ContentColumnsBlockWrapper,
@@ -2059,6 +2062,10 @@ function VideoUploadBlockWrapper({ context, ...props }: any) {
 
 function VideoCarouselBlockWrapper({ context, ...props }: any) {
   return <VideoCarouselBlockComponent {...props} context={context} />;
+}
+
+function ImageCarouselBlockWrapper({ context, ...props }: any) {
+  return <ImageCarouselBlockComponent {...props} context={context} />;
 }
 
 function TrackingLookupBlockWrapper({ context, isEditing, ...props }: any) {
