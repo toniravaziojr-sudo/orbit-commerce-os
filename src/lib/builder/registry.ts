@@ -1927,6 +1927,7 @@ const blockDefinitions: BlockDefinition[] = [
     icon: 'PlayCircle',
     defaultProps: {
       title: '',
+      videos: [],
       videosJson: '',
       showControls: true,
       aspectRatio: '16:9',
@@ -1937,11 +1938,16 @@ const blockDefinitions: BlockDefinition[] = [
         label: 'Título (opcional)',
         placeholder: 'Nossos Vídeos',
       },
+      videos: {
+        type: 'array',
+        label: 'Vídeos',
+        helpText: 'YouTube: use "url". Upload: use "videoDesktop" e "videoMobile" (ou só videoDesktop)',
+      },
       videosJson: {
         type: 'textarea',
-        label: 'URLs dos Vídeos (uma por linha)',
+        label: 'URLs dos Vídeos (alternativo)',
         placeholder: 'https://youtube.com/watch?v=abc123\nhttps://youtu.be/xyz456',
-        helpText: 'Cole as URLs do YouTube, uma por linha',
+        helpText: 'Cole URLs do YouTube (uma por linha) ou JSON de vídeos',
       },
       showControls: {
         type: 'boolean',
@@ -1956,6 +1962,7 @@ const blockDefinitions: BlockDefinition[] = [
           { label: '16:9 (Horizontal)', value: '16:9' },
           { label: '4:3 (Clássico)', value: '4:3' },
           { label: '1:1 (Quadrado)', value: '1:1' },
+          { label: '9:16 (Vertical)', value: '9:16' },
         ],
       },
     },

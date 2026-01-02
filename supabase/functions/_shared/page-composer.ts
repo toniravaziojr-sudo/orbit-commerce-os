@@ -34,7 +34,36 @@ const NOISE_TITLE_PATTERNS = [
   /^você não está conectado$/i,
   /^\d+\s*views?$/i,
   /^\d+\s*visualizações?$/i,
+  /^tap to unmute$/i,
+  /^toque para ativar o som$/i,
+  /^video unavailable$/i,
+  /^vídeo indisponível$/i,
+  /^watch on youtube$/i,
+  /^assistir no youtube$/i,
 ];
+
+// Platform-specific noise patterns
+const PLATFORM_NOISE_PATTERNS: Record<string, RegExp[]> = {
+  shopify: [
+    /^announcement$/i,
+    /^quick view$/i,
+    /^add to cart$/i,
+    /^sold out$/i,
+  ],
+  nuvemshop: [
+    /^carregando$/i,
+    /^loading$/i,
+    /^ver mais$/i,
+  ],
+  tray: [
+    /^vitrine$/i,
+    /^lançamentos$/i,
+  ],
+  yampi: [
+    /^comprar agora$/i,
+    /^adicionar$/i,
+  ],
+};
 
 function isNoiseTitle(title: string | null | undefined): boolean {
   if (!title) return false;
@@ -141,6 +170,29 @@ interface ValidationResult {
   reason?: string;
 }
 
+// Generic testimonial patterns to reject
+const GENERIC_TESTIMONIAL_PATTERNS = [
+  /^cliente\s*\d*$/i,
+  /^customer\s*\d*$/i,
+  /^usuário\s*\d*$/i,
+  /^user\s*\d*$/i,
+  /^pessoa\s*\d*$/i,
+];
+
+const GENERIC_TESTIMONIAL_TEXTS = [
+  'excelente produto!',
+  'recomendo a todos.',
+  'recomendo a todos',
+  'depoimento do cliente.',
+  'depoimento do cliente',
+  'muito bom!',
+  'ótimo produto!',
+  'adorei!',
+  'produto incrível!',
+  'super recomendo!',
+  'melhor compra que fiz!',
+];
+
 function validateBlock(block: BlockNode): ValidationResult {
   const title = block.props.title as string | undefined;
   
@@ -164,13 +216,22 @@ function validateBlock(block: BlockNode): ValidationResult {
     }
     
     // Check for generic names
-    const hasGenericNames = items.some(item => 
-      /^cliente\s*\d*$/i.test(item.name) ||
-      item.name === 'Cliente' ||
-      item.text === 'Excelente produto!' ||
-      item.text === 'Recomendo a todos.' ||
-      item.text === 'Depoimento do cliente.'
-    );
+    const hasGenericNames = items.some(item => {
+      const name = (item.name || '').toLowerCase().trim();
+      const text = (item.text || '').toLowerCase().trim();
+      
+      // Check name patterns
+      const isGenericName = GENERIC_TESTIMONIAL_PATTERNS.some(p => p.test(name)) ||
+                           name === 'cliente' ||
+                           name === 'customer' ||
+                           name.length < 2;
+      
+      // Check text patterns
+      const isGenericText = GENERIC_TESTIMONIAL_TEXTS.includes(text) ||
+                           text.length < 10;
+      
+      return isGenericName || isGenericText;
+    });
     
     if (hasGenericNames) {
       return { valid: false, reason: 'Testimonials com conteúdo genérico' };
@@ -193,6 +254,14 @@ function validateBlock(block: BlockNode): ValidationResult {
     if (hasNoise) {
       return { valid: false, reason: 'RichText com ruído de interface' };
     }
+    
+    // Check for CSS/HTML noise
+    if (lowerContent.includes('{') && lowerContent.includes('}') && lowerContent.includes(':')) {
+      const cssLikeRatio = (lowerContent.match(/[{};:]/g) || []).length / lowerContent.length;
+      if (cssLikeRatio > 0.05) {
+        return { valid: false, reason: 'RichText parece conter CSS/código' };
+      }
+    }
   }
   
   // Validate InfoHighlights
@@ -201,6 +270,11 @@ function validateBlock(block: BlockNode): ValidationResult {
     if (!items || items.length === 0) {
       return { valid: false, reason: 'InfoHighlights sem items' };
     }
+    // Check for minimum content
+    const hasValidItems = items.some(item => item.title && item.title.length > 2);
+    if (!hasValidItems) {
+      return { valid: false, reason: 'InfoHighlights com items vazios' };
+    }
   }
   
   // Validate FAQ
@@ -208,6 +282,27 @@ function validateBlock(block: BlockNode): ValidationResult {
     const items = block.props.items as Array<{ question: string }> | undefined;
     if (!items || items.length === 0) {
       return { valid: false, reason: 'FAQ sem items' };
+    }
+    // Check for minimum content
+    const hasValidItems = items.some(item => item.question && item.question.length > 5);
+    if (!hasValidItems) {
+      return { valid: false, reason: 'FAQ com perguntas vazias' };
+    }
+  }
+  
+  // Validate VideoCarousel
+  if (block.type === 'VideoCarousel') {
+    const videos = block.props.videos as Array<{ url?: string }> | undefined;
+    if (!videos || videos.length === 0) {
+      return { valid: false, reason: 'VideoCarousel sem vídeos' };
+    }
+  }
+  
+  // Validate ImageCarousel
+  if (block.type === 'ImageCarousel') {
+    const images = block.props.images as Array<{ imageDesktop?: string }> | undefined;
+    if (!images || images.length === 0) {
+      return { valid: false, reason: 'ImageCarousel sem imagens' };
     }
   }
   

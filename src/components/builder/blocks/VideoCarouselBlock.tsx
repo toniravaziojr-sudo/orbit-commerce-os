@@ -13,7 +13,10 @@ import { BlockRenderContext } from '@/lib/builder/types';
 interface VideoItem {
   id: string;
   type?: 'youtube' | 'upload';
-  url: string;
+  url?: string; // For YouTube or single video URL
+  // Upload pattern (Desktop/Mobile like other blocks)
+  videoDesktop?: string;
+  videoMobile?: string;
   title?: string;
   thumbnail?: string;
 }
@@ -58,10 +61,20 @@ function isUploadedVideo(url: string): boolean {
 function parseVideos(videos?: VideoItem[], videosJson?: string): VideoItem[] {
   // Try from array prop first
   if (videos && Array.isArray(videos) && videos.length > 0) {
-    return videos.map(v => ({
-      ...v,
-      type: v.type || (isUploadedVideo(v.url) ? 'upload' : 'youtube'),
-    })).filter(v => v.url && (v.type === 'upload' || extractYouTubeId(v.url)));
+    return videos.map(v => {
+      // Determine the effective URL (support both url and videoDesktop/videoMobile)
+      const effectiveUrl = v.url || v.videoDesktop || v.videoMobile || '';
+      const videoType = v.type || (isUploadedVideo(effectiveUrl) ? 'upload' : 'youtube');
+      
+      return {
+        ...v,
+        url: effectiveUrl,
+        type: videoType,
+        // Keep videoDesktop/videoMobile for uploaded videos
+        videoDesktop: v.videoDesktop || (videoType === 'upload' ? effectiveUrl : undefined),
+        videoMobile: v.videoMobile || v.videoDesktop || (videoType === 'upload' ? effectiveUrl : undefined),
+      };
+    }).filter(v => v.url && (v.type === 'upload' || extractYouTubeId(v.url)));
   }
   
   // Try from JSON string
@@ -71,7 +84,7 @@ function parseVideos(videos?: VideoItem[], videosJson?: string): VideoItem[] {
       if (Array.isArray(parsed)) {
         // Could be array of strings (URLs) or array of objects
         return parsed.map((item, index) => {
-          const url = typeof item === 'string' ? item : (item.url || item.youtubeUrl || item.src || '');
+          const url = typeof item === 'string' ? item : (item.url || item.youtubeUrl || item.src || item.videoDesktop || '');
           const type = (typeof item === 'object' && item.type) 
             ? item.type 
             : (isUploadedVideo(url) ? 'upload' : 'youtube');
@@ -82,6 +95,8 @@ function parseVideos(videos?: VideoItem[], videosJson?: string): VideoItem[] {
             url,
             title: typeof item === 'object' ? item.title : undefined,
             thumbnail: typeof item === 'object' ? item.thumbnail : undefined,
+            videoDesktop: typeof item === 'object' ? (item.videoDesktop || (type === 'upload' ? url : undefined)) : undefined,
+            videoMobile: typeof item === 'object' ? (item.videoMobile || item.videoDesktop || (type === 'upload' ? url : undefined)) : undefined,
           };
         }).filter(v => v.url && (v.type === 'upload' || extractYouTubeId(v.url)));
       }
@@ -92,6 +107,8 @@ function parseVideos(videos?: VideoItem[], videosJson?: string): VideoItem[] {
         id: `video-${index}`,
         type: isUploadedVideo(url) ? 'upload' as const : 'youtube' as const,
         url,
+        videoDesktop: isUploadedVideo(url) ? url : undefined,
+        videoMobile: isUploadedVideo(url) ? url : undefined,
       })).filter(v => v.type === 'upload' || extractYouTubeId(v.url));
     }
   }
