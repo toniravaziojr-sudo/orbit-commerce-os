@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
         tenant_id: tenantId,
         title: pageTitle,
         slug: finalSlug,
-        type: 'custom',
+        type: 'institutional',
         status: 'draft',
         content: pageContent,
         seo_title: pageTitle,
