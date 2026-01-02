@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
     let slugSuffix = 1;
     while (true) {
       const { data: existing } = await supabase
-        .from('pages')
+        .from('store_pages')
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('slug', finalSlug)
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
 
     // Inserir página
     const { data: page, error: insertError } = await supabase
-      .from('pages')
+      .from('store_pages')
       .insert({
         tenant_id: tenantId,
         title: pageTitle,
