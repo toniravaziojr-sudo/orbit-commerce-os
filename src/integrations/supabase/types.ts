@@ -2375,6 +2375,13 @@ export type Database = {
       fiscal_settings: {
         Row: {
           ambiente: string | null
+          certificado_cn: string | null
+          certificado_cnpj: string | null
+          certificado_pfx: string | null
+          certificado_senha: string | null
+          certificado_serial: string | null
+          certificado_uploaded_at: string | null
+          certificado_valido_ate: string | null
           cfop_interestadual: string | null
           cfop_intrastadual: string | null
           cnae: string | null
@@ -2408,6 +2415,13 @@ export type Database = {
         }
         Insert: {
           ambiente?: string | null
+          certificado_cn?: string | null
+          certificado_cnpj?: string | null
+          certificado_pfx?: string | null
+          certificado_senha?: string | null
+          certificado_serial?: string | null
+          certificado_uploaded_at?: string | null
+          certificado_valido_ate?: string | null
           cfop_interestadual?: string | null
           cfop_intrastadual?: string | null
           cnae?: string | null
@@ -2441,6 +2455,13 @@ export type Database = {
         }
         Update: {
           ambiente?: string | null
+          certificado_cn?: string | null
+          certificado_cnpj?: string | null
+          certificado_pfx?: string | null
+          certificado_senha?: string | null
+          certificado_serial?: string | null
+          certificado_uploaded_at?: string | null
+          certificado_valido_ate?: string | null
           cfop_interestadual?: string | null
           cfop_intrastadual?: string | null
           cnae?: string | null
