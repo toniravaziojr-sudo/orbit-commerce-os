@@ -1,12 +1,16 @@
 // =====================================================
-// INTELLIGENT BLOCK MAPPER - NATIVE BLOCKS
+// INTELLIGENT BLOCK MAPPER v3 - NATIVE BLOCKS
 // =====================================================
 // 
 // Creates NATIVE Builder blocks from AI classification results.
-// Uses existing blocks from registry: Hero, InfoHighlights, 
-// Testimonials, FAQ, YouTubeVideo, Image.
-//
-// NO MORE generic Section + RichText + emojis!
+// 
+// IMPROVEMENTS v3:
+// - VideoCarousel for multiple videos
+// - Before/After block support
+// - Real testimonial names (no more "Cliente 1")
+// - Ingredient cards
+// - Category grids
+// - Better noise filtering
 // =====================================================
 
 export interface ExtractedContent {
@@ -16,6 +20,9 @@ export interface ExtractedContent {
     title: string;
     description: string;
     suggestedIcon: 'check' | 'shield' | 'zap' | 'star' | 'heart' | 'award' | 'truck' | 'clock' | 'gift' | 'percent' | null;
+    imageUrl?: string;
+    name?: string;
+    avatar?: string;
   }>;
   images: Array<{ src: string; alt: string }>;
   videos: Array<{ url: string; type: 'youtube' | 'vimeo' | 'mp4' }>;
@@ -24,8 +31,8 @@ export interface ExtractedContent {
 }
 
 export interface ClassificationResult {
-  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'steps' | 'stats' | 'gallery' | 'countdown' | 'logos' | 'generic';
-  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split' | 'timeline-horizontal' | 'timeline-vertical';
+  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'steps' | 'stats' | 'gallery' | 'countdown' | 'logos' | 'before_after' | 'product_cards' | 'category_grid' | 'ingredients' | 'generic';
+  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split' | 'timeline-horizontal' | 'timeline-vertical' | 'carousel';
   confidence: number;
   reasoning: string;
   extractedContent: ExtractedContent;
@@ -44,6 +51,40 @@ function generateBlockId(prefix: string = 'block'): string {
 }
 
 // =====================================================
+// NOISE DETECTION - Filter out interface garbage
+// =====================================================
+const NOISE_TITLES = [
+  'More videos',
+  'Mais vídeos',
+  'Hide more videos',
+  'Ocultar mais vídeos',
+  'Watch later',
+  'Assistir mais tarde',
+  'Share',
+  'Compartilhar',
+  'Subscribe',
+  'Inscrever-se',
+  'Copy link',
+  'Copiar link',
+  "You're signed out",
+  'Você não está conectado',
+];
+
+function isNoiseTitle(title: string | null): boolean {
+  if (!title) return false;
+  return NOISE_TITLES.some(noise => 
+    title.toLowerCase().includes(noise.toLowerCase())
+  );
+}
+
+function isNoiseParagraph(text: string): boolean {
+  const lowerText = text.toLowerCase();
+  return NOISE_TITLES.some(noise => 
+    lowerText.includes(noise.toLowerCase())
+  ) || lowerText.length < 10;
+}
+
+// =====================================================
 // ICON MAP: AI suggestions -> Lucide icon names
 // =====================================================
 const ICON_MAP: Record<string, string> = {
@@ -57,16 +98,18 @@ const ICON_MAP: Record<string, string> = {
   clock: 'Clock',
   gift: 'Gift',
   percent: 'Percent',
-  // Fallbacks
   default: 'CheckCircle',
 };
 
 // =====================================================
-// HERO BLOCK CREATOR - Uses native Hero block
+// HERO BLOCK CREATOR
 // =====================================================
 export function createHeroBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, subtitle, images, videos, buttons } = extractedContent;
+  
+  // Filter out noise titles
+  const cleanTitle = isNoiseTitle(title) ? null : title;
   
   const blocks: BlockNode[] = [];
   
@@ -75,7 +118,7 @@ export function createHeroBlock(classification: ClassificationResult): BlockNode
     id: generateBlockId('hero'),
     type: 'Hero',
     props: {
-      title: title || 'Título Principal',
+      title: cleanTitle || 'Título Principal',
       subtitle: subtitle || '',
       imageDesktop: images[0]?.src || '',
       imageMobile: images[0]?.src || '',
@@ -89,8 +132,26 @@ export function createHeroBlock(classification: ClassificationResult): BlockNode
     },
   });
   
-  // If there's a video, add YouTubeVideo block after hero
-  if (videos.length > 0) {
+  // If there are multiple videos, create VideoCarousel; otherwise single video
+  if (videos.length > 1) {
+    blocks.push({
+      id: generateBlockId('hero-video-carousel'),
+      type: 'VideoCarousel',
+      props: {
+        videos: videos.slice(0, 6).map((video, i) => ({
+          id: `video-${i}`,
+          type: video.type,
+          url: video.url,
+          title: `Vídeo ${i + 1}`,
+        })),
+        autoplay: false,
+        interval: 5000,
+        showNavigation: true,
+        showPagination: true,
+        aspectRatio: '16:9',
+      },
+    });
+  } else if (videos.length === 1) {
     blocks.push({
       id: generateBlockId('hero-video'),
       type: 'YouTubeVideo',
@@ -107,7 +168,7 @@ export function createHeroBlock(classification: ClassificationResult): BlockNode
 }
 
 // =====================================================
-// BENEFITS/FEATURES BLOCK - Uses InfoHighlights or FeatureList
+// BENEFITS/FEATURES BLOCK
 // =====================================================
 export function createBenefitsBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent, layout } = classification;
@@ -115,13 +176,16 @@ export function createBenefitsBlock(classification: ClassificationResult): Block
   
   const blocks: BlockNode[] = [];
   
+  // Filter out noise titles
+  const cleanTitle = isNoiseTitle(title) ? null : title;
+  
   // Add title as TextBanners if exists
-  if (title) {
+  if (cleanTitle) {
     blocks.push({
       id: generateBlockId('benefits-title'),
       type: 'TextBanners',
       props: {
-        title: title,
+        title: cleanTitle,
         subtitle: '',
         alignment: 'center',
         backgroundColor: 'transparent',
@@ -129,10 +193,16 @@ export function createBenefitsBlock(classification: ClassificationResult): Block
     });
   }
   
+  // Filter out items with noise titles
+  const cleanItems = items.filter(item => !isNoiseTitle(item.title));
+  
+  if (cleanItems.length === 0) {
+    return blocks; // No valid items
+  }
+  
   // Decide: FeatureList (vertical, 5+ items) vs InfoHighlights (horizontal grid, ≤4 items)
-  if (items.length > 4) {
-    // Use FeatureList for longer lists
-    const featureItems = items.map((item, index) => ({
+  if (cleanItems.length > 4) {
+    const featureItems = cleanItems.map((item, index) => ({
       id: generateBlockId(`feature-${index}`),
       icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
       text: item.title + (item.description ? `: ${item.description}` : ''),
@@ -149,22 +219,12 @@ export function createBenefitsBlock(classification: ClassificationResult): Block
       },
     });
   } else {
-    // Use InfoHighlights for shorter lists (grid layout)
-    const highlightItems = items.slice(0, 6).map((item, index) => ({
+    const highlightItems = cleanItems.slice(0, 6).map((item, index) => ({
       id: generateBlockId(`highlight-${index}`),
       icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
       title: item.title,
       description: item.description || '',
     }));
-    
-    // If no items, create default ones
-    if (highlightItems.length === 0) {
-      highlightItems.push(
-        { id: generateBlockId('highlight-0'), icon: 'CheckCircle', title: 'Benefício 1', description: '' },
-        { id: generateBlockId('highlight-1'), icon: 'Shield', title: 'Benefício 2', description: '' },
-        { id: generateBlockId('highlight-2'), icon: 'Zap', title: 'Benefício 3', description: '' },
-      );
-    }
     
     blocks.push({
       id: generateBlockId('info-highlights'),
@@ -182,32 +242,35 @@ export function createBenefitsBlock(classification: ClassificationResult): Block
 }
 
 // =====================================================
-// CONTENT COLUMNS BLOCK - Image + Text side by side
+// CONTENT COLUMNS BLOCK
 // =====================================================
 export function createContentColumnsBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent, layout } = classification;
   const { title, subtitle, paragraphs, images, items, buttons } = extractedContent;
   
-  // Determine image position from layout hint
   const imagePosition = layout === 'columns-image-right' ? 'right' : 'left';
   
-  // Build features list from items
-  const features = items.slice(0, 6).map((item, index) => ({
+  // Filter items with noise
+  const cleanItems = items.filter(item => !isNoiseTitle(item.title));
+  
+  const features = cleanItems.slice(0, 6).map((item, index) => ({
     id: generateBlockId(`content-feature-${index}`),
     icon: ICON_MAP[item.suggestedIcon || 'check'] || 'Check',
     text: item.title,
   }));
   
-  // Combine paragraphs into content HTML
-  const content = paragraphs.length > 0
-    ? paragraphs.slice(0, 3).map(p => `<p>${p}</p>`).join('')
+  // Filter paragraphs with noise
+  const cleanParagraphs = paragraphs.filter(p => !isNoiseParagraph(p));
+  
+  const content = cleanParagraphs.length > 0
+    ? cleanParagraphs.slice(0, 3).map(p => `<p>${p}</p>`).join('')
     : '';
   
   return [{
     id: generateBlockId('content-columns'),
     type: 'ContentColumns',
     props: {
-      title: title || '',
+      title: isNoiseTitle(title) ? '' : (title || ''),
       subtitle: subtitle || '',
       content: content,
       imageDesktop: images[0]?.src || '',
@@ -224,33 +287,46 @@ export function createContentColumnsBlock(classification: ClassificationResult):
 }
 
 // =====================================================
-// TESTIMONIALS BLOCK - Uses native Testimonials
+// TESTIMONIALS BLOCK - With real names
 // =====================================================
 export function createTestimonialsBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, items } = extractedContent;
   
-  // Map items to Testimonials format
-  const testimonialItems = items.slice(0, 6).map(item => ({
-    name: item.title || 'Cliente',
-    text: item.description || 'Depoimento do cliente.',
+  // Filter out generic/noise testimonials
+  const validItems = items.filter(item => {
+    const name = item.name || item.title;
+    // Reject generic names
+    if (/^cliente\s*\d*$/i.test(name)) return false;
+    if (name === 'Cliente') return false;
+    // Reject generic descriptions
+    if (item.description === 'Excelente produto!') return false;
+    if (item.description === 'Recomendo a todos.') return false;
+    if (item.description === 'Depoimento do cliente.') return false;
+    // Reject noise
+    if (isNoiseTitle(name)) return false;
+    return true;
+  });
+  
+  // Map items to Testimonials format with REAL names
+  const testimonialItems = validItems.slice(0, 6).map(item => ({
+    name: item.name || item.title || 'Cliente',
+    text: item.description || 'Depoimento.',
     rating: 5,
-    avatar: '',
+    avatar: item.avatar || item.imageUrl || '',
   }));
   
-  // If no items, create default ones
+  // If no valid items, don't create the block
   if (testimonialItems.length === 0) {
-    testimonialItems.push(
-      { name: 'Cliente 1', text: 'Excelente produto!', rating: 5, avatar: '' },
-      { name: 'Cliente 2', text: 'Recomendo a todos.', rating: 5, avatar: '' },
-    );
+    console.log('[mapper] No valid testimonials found, skipping block');
+    return [];
   }
   
   return [{
     id: generateBlockId('testimonials'),
     type: 'Testimonials',
     props: {
-      title: title || 'O que dizem nossos clientes',
+      title: isNoiseTitle(title) ? 'O que dizem nossos clientes' : (title || 'O que dizem nossos clientes'),
       items: testimonialItems,
       layout: 'grid',
       showRating: true,
@@ -259,38 +335,38 @@ export function createTestimonialsBlock(classification: ClassificationResult): B
 }
 
 // =====================================================
-// FAQ BLOCK - Uses native FAQ
+// FAQ BLOCK
 // =====================================================
 export function createFAQBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, items } = extractedContent;
   
-  // Map items to FAQ format
-  const faqItems = items.slice(0, 10).map(item => ({
+  // Filter noise
+  const validItems = items.filter(item => 
+    !isNoiseTitle(item.title) && item.title.length > 5
+  );
+  
+  const faqItems = validItems.slice(0, 10).map(item => ({
     question: item.title,
     answer: item.description || 'Resposta em breve.',
   }));
   
-  // If no items, create default ones
   if (faqItems.length === 0) {
-    faqItems.push(
-      { question: 'Pergunta 1?', answer: 'Resposta 1.' },
-      { question: 'Pergunta 2?', answer: 'Resposta 2.' },
-    );
+    return [];
   }
   
   return [{
     id: generateBlockId('faq'),
     type: 'FAQ',
     props: {
-      title: title || 'Perguntas Frequentes',
+      title: isNoiseTitle(title) ? 'Perguntas Frequentes' : (title || 'Perguntas Frequentes'),
       items: faqItems,
     },
   }];
 }
 
 // =====================================================
-// CTA BLOCK - Uses native Hero as CTA variant
+// CTA BLOCK
 // =====================================================
 export function createCTABlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
@@ -300,7 +376,7 @@ export function createCTABlock(classification: ClassificationResult): BlockNode[
     id: generateBlockId('cta'),
     type: 'Hero',
     props: {
-      title: title || 'Pronto para começar?',
+      title: isNoiseTitle(title) ? 'Pronto para começar?' : (title || 'Pronto para começar?'),
       subtitle: subtitle || 'Aproveite agora mesmo!',
       buttonText: buttons[0]?.text || 'Comprar Agora',
       buttonUrl: buttons[0]?.url || '#',
@@ -315,7 +391,7 @@ export function createCTABlock(classification: ClassificationResult): BlockNode[
 }
 
 // =====================================================
-// IMAGE BLOCK - Uses native Image
+// IMAGE BLOCK
 // =====================================================
 export function createImageBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
@@ -337,7 +413,7 @@ export function createImageBlock(classification: ClassificationResult): BlockNod
 }
 
 // =====================================================
-// VIDEO BLOCK - Uses native YouTubeVideo
+// VIDEO BLOCK - Creates VideoCarousel for multiple
 // =====================================================
 export function createVideoBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
@@ -345,11 +421,38 @@ export function createVideoBlock(classification: ClassificationResult): BlockNod
   
   if (videos.length === 0) return [];
   
+  // Deduplicate videos by URL
+  const uniqueVideos = videos.filter((video, index, self) => 
+    index === self.findIndex(v => v.url === video.url)
+  );
+  
+  // If multiple videos, create VideoCarousel
+  if (uniqueVideos.length > 1) {
+    return [{
+      id: generateBlockId('video-carousel'),
+      type: 'VideoCarousel',
+      props: {
+        videos: uniqueVideos.slice(0, 8).map((video, i) => ({
+          id: `video-${i}`,
+          type: video.type,
+          url: video.url,
+          title: `Vídeo ${i + 1}`,
+        })),
+        autoplay: false,
+        interval: 5000,
+        showNavigation: true,
+        showPagination: true,
+        aspectRatio: '16:9',
+      },
+    }];
+  }
+  
+  // Single video
   return [{
     id: generateBlockId('video'),
     type: 'YouTubeVideo',
     props: {
-      youtubeUrl: videos[0].url,
+      youtubeUrl: uniqueVideos[0].url,
       widthPreset: 'xl',
       aspectRatio: '16:9',
       autoplay: false,
@@ -358,7 +461,7 @@ export function createVideoBlock(classification: ClassificationResult): BlockNod
 }
 
 // =====================================================
-// GENERIC/FALLBACK BLOCK - Section + RichText (minimal)
+// GENERIC/FALLBACK BLOCK
 // =====================================================
 export function createGenericBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
@@ -366,13 +469,16 @@ export function createGenericBlock(classification: ClassificationResult): BlockN
   
   const blocks: BlockNode[] = [];
   
-  // Add title if exists
-  if (title) {
+  // Filter noise from title
+  const cleanTitle = isNoiseTitle(title) ? null : title;
+  
+  // Add title if exists and not noise
+  if (cleanTitle) {
     blocks.push({
       id: generateBlockId('generic-title'),
       type: 'TextBanners',
       props: {
-        title: title,
+        title: cleanTitle,
         subtitle: '',
         alignment: 'center',
         backgroundColor: 'transparent',
@@ -380,19 +486,40 @@ export function createGenericBlock(classification: ClassificationResult): BlockN
     });
   }
   
-  // Add video if exists (prioritize video over image)
-  if (videos.length > 0) {
+  // Deduplicate and add videos
+  const uniqueVideos = videos.filter((video, index, self) => 
+    index === self.findIndex(v => v.url === video.url)
+  );
+  
+  if (uniqueVideos.length > 1) {
+    blocks.push({
+      id: generateBlockId('generic-video-carousel'),
+      type: 'VideoCarousel',
+      props: {
+        videos: uniqueVideos.slice(0, 6).map((video, i) => ({
+          id: `video-${i}`,
+          type: video.type,
+          url: video.url,
+          title: `Vídeo ${i + 1}`,
+        })),
+        autoplay: false,
+        interval: 5000,
+        showNavigation: true,
+        showPagination: true,
+        aspectRatio: '16:9',
+      },
+    });
+  } else if (uniqueVideos.length === 1) {
     blocks.push({
       id: generateBlockId('generic-video'),
       type: 'YouTubeVideo',
       props: {
-        youtubeUrl: videos[0].url,
+        youtubeUrl: uniqueVideos[0].url,
         widthPreset: 'xl',
         aspectRatio: '16:9',
       },
     });
   } else if (images.length > 0) {
-    // Add image if no video
     blocks.push({
       id: generateBlockId('generic-image'),
       type: 'Image',
@@ -405,9 +532,11 @@ export function createGenericBlock(classification: ClassificationResult): BlockN
     });
   }
   
-  // Add paragraphs as RichText (sanitized, no inline styles)
-  if (paragraphs.length > 0) {
-    const sanitizedContent = paragraphs
+  // Filter and add paragraphs
+  const cleanParagraphs = paragraphs.filter(p => !isNoiseParagraph(p));
+  
+  if (cleanParagraphs.length > 0) {
+    const sanitizedContent = cleanParagraphs
       .slice(0, 5)
       .map(p => `<p>${p}</p>`)
       .join('');
@@ -445,32 +574,27 @@ export function createGenericBlock(classification: ClassificationResult): BlockN
 }
 
 // =====================================================
-// STEPS/TIMELINE BLOCK - Uses StepsTimeline
+// STEPS/TIMELINE BLOCK
 // =====================================================
 export function createStepsTimelineBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent, layout } = classification;
   const { title, subtitle, items } = extractedContent;
   
-  const steps = items.map((item, index) => ({
+  const steps = items.filter(item => !isNoiseTitle(item.title)).map((item, index) => ({
     number: index + 1,
     title: item.title,
     description: item.description || '',
   }));
   
-  // Default steps if none found
   if (steps.length === 0) {
-    steps.push(
-      { number: 1, title: 'Passo 1', description: 'Descrição do primeiro passo' },
-      { number: 2, title: 'Passo 2', description: 'Descrição do segundo passo' },
-      { number: 3, title: 'Passo 3', description: 'Descrição do terceiro passo' },
-    );
+    return [];
   }
   
   return [{
     id: generateBlockId('steps-timeline'),
     type: 'StepsTimeline',
     props: {
-      title: title || 'Como Funciona',
+      title: isNoiseTitle(title) ? 'Como Funciona' : (title || 'Como Funciona'),
       subtitle: subtitle || '',
       steps,
       layout: layout === 'timeline-vertical' ? 'vertical' : 'horizontal',
@@ -482,31 +606,26 @@ export function createStepsTimelineBlock(classification: ClassificationResult): 
 }
 
 // =====================================================
-// STATS/NUMBERS BLOCK - Uses StatsNumbers
+// STATS/NUMBERS BLOCK
 // =====================================================
 export function createStatsNumbersBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, subtitle, items } = extractedContent;
   
-  const stats = items.map(item => ({
-    number: item.title, // The number is usually in the title
+  const stats = items.filter(item => !isNoiseTitle(item.title)).map(item => ({
+    number: item.title,
     label: item.description || '',
   }));
   
-  // Default stats if none found
   if (stats.length === 0) {
-    stats.push(
-      { number: '10k+', label: 'Clientes' },
-      { number: '99%', label: 'Satisfação' },
-      { number: '24h', label: 'Suporte' },
-    );
+    return [];
   }
   
   return [{
     id: generateBlockId('stats-numbers'),
     type: 'StatsNumbers',
     props: {
-      title: title || '',
+      title: isNoiseTitle(title) ? '' : (title || ''),
       subtitle: subtitle || '',
       items: stats,
       layout: 'horizontal',
@@ -518,11 +637,13 @@ export function createStatsNumbersBlock(classification: ClassificationResult): B
 }
 
 // =====================================================
-// GALLERY BLOCK - Uses ImageGallery
+// GALLERY BLOCK
 // =====================================================
 export function createImageGalleryBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, subtitle, images } = extractedContent;
+  
+  if (images.length === 0) return [];
   
   const galleryImages = images.map(img => ({
     src: img.src,
@@ -534,7 +655,7 @@ export function createImageGalleryBlock(classification: ClassificationResult): B
     id: generateBlockId('image-gallery'),
     type: 'ImageGallery',
     props: {
-      title: title || '',
+      title: isNoiseTitle(title) ? '' : (title || ''),
       subtitle: subtitle || '',
       images: galleryImages,
       columns: images.length <= 4 ? images.length : 3,
@@ -548,13 +669,12 @@ export function createImageGalleryBlock(classification: ClassificationResult): B
 }
 
 // =====================================================
-// COUNTDOWN BLOCK - Uses CountdownTimer
+// COUNTDOWN BLOCK
 // =====================================================
 export function createCountdownBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, subtitle, buttons } = extractedContent;
   
-  // Set a default end date 7 days from now
   const futureDate = new Date();
   futureDate.setDate(futureDate.getDate() + 7);
   
@@ -562,7 +682,7 @@ export function createCountdownBlock(classification: ClassificationResult): Bloc
     id: generateBlockId('countdown-timer'),
     type: 'CountdownTimer',
     props: {
-      title: title || 'Oferta por tempo limitado',
+      title: isNoiseTitle(title) ? 'Oferta por tempo limitado' : (title || 'Oferta por tempo limitado'),
       subtitle: subtitle || '',
       endDate: futureDate.toISOString(),
       showDays: true,
@@ -579,11 +699,13 @@ export function createCountdownBlock(classification: ClassificationResult): Bloc
 }
 
 // =====================================================
-// LOGOS BLOCK - Uses LogosCarousel
+// LOGOS BLOCK
 // =====================================================
 export function createLogosCarouselBlock(classification: ClassificationResult): BlockNode[] {
   const { extractedContent } = classification;
   const { title, subtitle, images } = extractedContent;
+  
+  if (images.length === 0) return [];
   
   const logos = images.map(img => ({
     imageUrl: img.src,
@@ -595,7 +717,7 @@ export function createLogosCarouselBlock(classification: ClassificationResult): 
     id: generateBlockId('logos-carousel'),
     type: 'LogosCarousel',
     props: {
-      title: title || 'Nossos Parceiros',
+      title: isNoiseTitle(title) ? 'Nossos Parceiros' : (title || 'Nossos Parceiros'),
       subtitle: subtitle || '',
       logos,
       autoplay: true,
@@ -607,6 +729,258 @@ export function createLogosCarouselBlock(classification: ClassificationResult): 
 }
 
 // =====================================================
+// BEFORE/AFTER BLOCK (NEW)
+// =====================================================
+export function createBeforeAfterBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, items, images } = extractedContent;
+  
+  // Create content columns with before/after styling
+  const blocks: BlockNode[] = [];
+  
+  if (title && !isNoiseTitle(title)) {
+    blocks.push({
+      id: generateBlockId('before-after-title'),
+      type: 'TextBanners',
+      props: {
+        title: title,
+        subtitle: 'Resultados reais de nossos clientes',
+        alignment: 'center',
+        backgroundColor: 'transparent',
+      },
+    });
+  }
+  
+  // Create testimonial-style items for before/after
+  const testimonialItems = items.filter(item => !isNoiseTitle(item.title)).map(item => ({
+    name: item.name || item.title || 'Cliente',
+    text: item.description || 'Resultado após uso do produto',
+    rating: 5,
+    avatar: item.imageUrl || item.avatar || '',
+  }));
+  
+  if (testimonialItems.length > 0) {
+    blocks.push({
+      id: generateBlockId('before-after-results'),
+      type: 'Testimonials',
+      props: {
+        title: 'Resultados Comprovados',
+        items: testimonialItems,
+        layout: 'grid',
+        showRating: true,
+      },
+    });
+  }
+  
+  // Add images as gallery
+  if (images.length > 0) {
+    blocks.push({
+      id: generateBlockId('before-after-gallery'),
+      type: 'ImageGallery',
+      props: {
+        title: '',
+        images: images.map(img => ({
+          src: img.src,
+          alt: img.alt || 'Resultado',
+          caption: '',
+        })),
+        columns: Math.min(images.length, 3),
+        gap: 'md',
+        enableLightbox: true,
+        aspectRatio: 'portrait',
+        borderRadius: 8,
+      },
+    });
+  }
+  
+  return blocks;
+}
+
+// =====================================================
+// INGREDIENTS BLOCK (NEW)
+// =====================================================
+export function createIngredientsBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, items } = extractedContent;
+  
+  const validItems = items.filter(item => !isNoiseTitle(item.title));
+  
+  if (validItems.length === 0) return [];
+  
+  // Use InfoHighlights for ingredient cards
+  const highlightItems = validItems.slice(0, 6).map((item, index) => ({
+    id: generateBlockId(`ingredient-${index}`),
+    icon: ICON_MAP[item.suggestedIcon || 'zap'] || 'Zap',
+    title: item.title,
+    description: item.description || '',
+  }));
+  
+  const blocks: BlockNode[] = [];
+  
+  if (title && !isNoiseTitle(title)) {
+    blocks.push({
+      id: generateBlockId('ingredients-title'),
+      type: 'TextBanners',
+      props: {
+        title: title,
+        subtitle: 'Ingredientes ativos de alta performance',
+        alignment: 'center',
+        backgroundColor: 'transparent',
+      },
+    });
+  }
+  
+  blocks.push({
+    id: generateBlockId('ingredients-grid'),
+    type: 'InfoHighlights',
+    props: {
+      items: highlightItems,
+      layout: 'horizontal',
+      iconColor: '#22c55e',
+      textColor: '#1f2937',
+    },
+  });
+  
+  return blocks;
+}
+
+// =====================================================
+// CATEGORY GRID BLOCK (NEW)
+// =====================================================
+export function createCategoryGridBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, items, images } = extractedContent;
+  
+  const validItems = items.filter(item => !isNoiseTitle(item.title));
+  
+  const blocks: BlockNode[] = [];
+  
+  if (title && !isNoiseTitle(title)) {
+    blocks.push({
+      id: generateBlockId('category-title'),
+      type: 'TextBanners',
+      props: {
+        title: title,
+        subtitle: '',
+        alignment: 'center',
+        backgroundColor: 'transparent',
+      },
+    });
+  }
+  
+  // Create grid of category cards
+  const highlightItems = validItems.slice(0, 6).map((item, index) => ({
+    id: generateBlockId(`category-${index}`),
+    icon: ICON_MAP[item.suggestedIcon || 'star'] || 'Star',
+    title: item.title,
+    description: item.description || 'Ver produtos',
+  }));
+  
+  if (highlightItems.length > 0) {
+    blocks.push({
+      id: generateBlockId('category-grid'),
+      type: 'InfoHighlights',
+      props: {
+        items: highlightItems,
+        layout: 'horizontal',
+        iconColor: '#6366f1',
+        textColor: '#1f2937',
+      },
+    });
+  }
+  
+  // Add images as gallery if present
+  if (images.length > 0) {
+    blocks.push({
+      id: generateBlockId('category-images'),
+      type: 'ImageGallery',
+      props: {
+        title: '',
+        images: images.map(img => ({
+          src: img.src,
+          alt: img.alt || 'Categoria',
+          caption: '',
+        })),
+        columns: Math.min(images.length, 4),
+        gap: 'md',
+        enableLightbox: false,
+        aspectRatio: 'square',
+        borderRadius: 8,
+      },
+    });
+  }
+  
+  return blocks;
+}
+
+// =====================================================
+// PRODUCT CARDS BLOCK (NEW)
+// =====================================================
+export function createProductCardsBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, items, images, buttons } = extractedContent;
+  
+  const blocks: BlockNode[] = [];
+  
+  if (title && !isNoiseTitle(title)) {
+    blocks.push({
+      id: generateBlockId('products-title'),
+      type: 'TextBanners',
+      props: {
+        title: title,
+        subtitle: '',
+        alignment: 'center',
+        backgroundColor: 'transparent',
+      },
+    });
+  }
+  
+  // For now, represent as content columns or image gallery
+  // TODO: Create a proper ProductCards block type
+  if (images.length > 0) {
+    blocks.push({
+      id: generateBlockId('products-gallery'),
+      type: 'ImageGallery',
+      props: {
+        title: '',
+        images: images.map(img => ({
+          src: img.src,
+          alt: img.alt || 'Produto',
+          caption: '',
+        })),
+        columns: Math.min(images.length, 4),
+        gap: 'md',
+        enableLightbox: false,
+        aspectRatio: 'square',
+        borderRadius: 8,
+      },
+    });
+  }
+  
+  // Add CTA button if exists
+  if (buttons.length > 0) {
+    blocks.push({
+      id: generateBlockId('products-cta'),
+      type: 'Hero',
+      props: {
+        title: '',
+        subtitle: '',
+        buttonText: buttons[0].text || 'Ver Produtos',
+        buttonUrl: buttons[0].url || '#',
+        backgroundColor: '#6366f1',
+        textColor: '#ffffff',
+        alignment: 'center',
+        height: 'xs',
+        imageDesktop: '',
+        imageMobile: '',
+      },
+    });
+  }
+  
+  return blocks;
+}
+
+// =====================================================
 // MAIN MAPPER FUNCTION
 // =====================================================
 export function mapClassificationToBlocks(classification: ClassificationResult): BlockNode[] {
@@ -614,13 +988,19 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
   
   console.log(`[mapper] Mapping section: ${sectionType} (confidence: ${confidence}, layout: ${layout})`);
   
+  // Very low confidence or pure noise -> skip entirely
+  if (confidence < 0.2) {
+    console.log('[mapper] Very low confidence, skipping section');
+    return [];
+  }
+  
   // Low confidence -> generic fallback
   if (confidence < 0.4) {
     console.log('[mapper] Low confidence, using generic block');
     return createGenericBlock(classification);
   }
   
-  // Check if this looks like a columns layout (image + text)
+  // Check if this looks like a columns layout
   const hasImage = extractedContent.images.length > 0;
   const hasTextContent = extractedContent.paragraphs.length > 0 || extractedContent.items.length > 0;
   const isColumnsLayout = layout?.includes('columns-image');
@@ -633,12 +1013,11 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       
     case 'benefits':
     case 'features':
-      // If it looks like image+text layout, use ContentColumns
       if (isColumnsLayout && hasImage && hasTextContent) {
         console.log('[mapper] Creating ContentColumns for benefits with image');
         return createContentColumnsBlock(classification);
       }
-      console.log('[mapper] Creating native Benefits block (InfoHighlights or FeatureList)');
+      console.log('[mapper] Creating native Benefits block');
       return createBenefitsBlock(classification);
       
     case 'testimonials':
@@ -650,10 +1029,9 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       return createFAQBlock(classification);
       
     case 'cta':
-      console.log('[mapper] Creating CTA (Hero variant) block');
+      console.log('[mapper] Creating CTA block');
       return createCTABlock(classification);
     
-    // NEW SECTION TYPES
     case 'steps':
       console.log('[mapper] Creating StepsTimeline block');
       return createStepsTimelineBlock(classification);
@@ -673,9 +1051,25 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
     case 'logos':
       console.log('[mapper] Creating LogosCarousel block');
       return createLogosCarouselBlock(classification);
+    
+    // NEW SECTION TYPES
+    case 'before_after':
+      console.log('[mapper] Creating Before/After block');
+      return createBeforeAfterBlock(classification);
+      
+    case 'ingredients':
+      console.log('[mapper] Creating Ingredients block');
+      return createIngredientsBlock(classification);
+      
+    case 'category_grid':
+      console.log('[mapper] Creating Category Grid block');
+      return createCategoryGridBlock(classification);
+      
+    case 'product_cards':
+      console.log('[mapper] Creating Product Cards block');
+      return createProductCardsBlock(classification);
       
     case 'about':
-      // About sections often have image + text layout
       if (hasImage && hasTextContent) {
         console.log('[mapper] Creating ContentColumns for about section');
         return createContentColumnsBlock(classification);
@@ -686,7 +1080,6 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
     case 'contact':
     case 'generic':
     default:
-      // Check for image+text pattern even in generic sections
       if (isColumnsLayout && hasImage && hasTextContent) {
         console.log('[mapper] Creating ContentColumns for generic section with image+text');
         return createContentColumnsBlock(classification);

@@ -6,14 +6,18 @@ const corsHeaders = {
 };
 
 // ============================================================
-// AI-POWERED UNIFIED EXTRACTOR + CLASSIFIER
+// AI-POWERED UNIFIED EXTRACTOR + CLASSIFIER v3
 // ============================================================
 // Uses Lovable AI (gemini-2.5-flash) to:
 // 1. EXTRACT content (title, items, images, videos, buttons)
 // 2. CLASSIFY section type and layout
 // 
-// This is the SINGLE source of truth for content extraction.
-// No regex, no DOM parsing - the AI does everything.
+// IMPROVEMENTS v3:
+// - Stronger anti-generic rules
+// - Real testimonial extraction (names, actual text)
+// - Card pattern detection (categories, ingredients, products)
+// - Before/After detection
+// - YouTube noise filtering
 // ============================================================
 
 export interface ExtractedContent {
@@ -23,6 +27,9 @@ export interface ExtractedContent {
     title: string;
     description: string;
     suggestedIcon: 'check' | 'shield' | 'zap' | 'star' | 'heart' | 'award' | 'truck' | 'clock' | 'gift' | 'percent' | null;
+    imageUrl?: string;
+    name?: string; // Real name for testimonials
+    avatar?: string; // Avatar URL for testimonials
   }>;
   images: Array<{ src: string; alt: string }>;
   videos: Array<{ url: string; type: 'youtube' | 'vimeo' | 'mp4' }>;
@@ -31,8 +38,8 @@ export interface ExtractedContent {
 }
 
 export interface ClassificationResult {
-  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'steps' | 'stats' | 'gallery' | 'countdown' | 'logos' | 'generic';
-  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split' | 'timeline-horizontal' | 'timeline-vertical';
+  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'steps' | 'stats' | 'gallery' | 'countdown' | 'logos' | 'before_after' | 'product_cards' | 'category_grid' | 'ingredients' | 'generic';
+  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split' | 'timeline-horizontal' | 'timeline-vertical' | 'carousel';
   confidence: number;
   reasoning: string;
   extractedContent: ExtractedContent;
@@ -48,118 +55,181 @@ interface ClassifyRequest {
   };
 }
 
-const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo de e-commerce. Sua tarefa é analisar fragmentos HTML e:
+const SYSTEM_PROMPT = `Você é um especialista em web design e extração de conteúdo de e-commerce brasileiro. Sua tarefa é analisar fragmentos HTML e:
 
 1. EXTRAIR o conteúdo relevante de forma estruturada
 2. CLASSIFICAR o tipo de seção e layout apropriado
 
-## REGRAS CRÍTICAS - EVITE "GENERIC"
+## REGRA #1: NUNCA CLASSIFIQUE RUÍDO DE INTERFACE
 
-PRIORIZE SEMPRE uma classificação específica. Use "generic" APENAS como último recurso quando realmente não houver padrão reconhecível.
+### O que é RUÍDO (IGNORE COMPLETAMENTE):
+- "More videos", "Mais vídeos", "Hide more videos", "Ocultar mais vídeos"
+- "Watch later", "Assistir mais tarde", "Share", "Compartilhar"
+- "You're signed out", "Você não está conectado"
+- "Subscribe", "Inscrever-se"
+- "Copy link", "Copiar link"
+- Contadores de visualização ("1.2k views", "1000 visualizações")
+- Controles de player de vídeo
+- Textos de cookies/LGPD
+- Rodapés com CNPJ/CEP
 
-### Padrões para detectar (NÃO classifique como generic):
-- Lista de itens com padrão visual repetido → "benefits" ou "features"
-- Imagem + texto lado a lado → "about" ou use layout "columns-image-*"
-- Números grandes destacados (10k+, 99%, 24h, R$ X) → "stats"
-- Timer/contagem regressiva → "countdown"
-- "Comprar agora", "Adicionar ao carrinho", botões proeminentes → "cta"
-- Avaliações ★★★★★ ou depoimentos → "testimonials"
-- Perguntas e respostas, accordions → "faq"
-- Passos numerados (1, 2, 3...) ou timeline → "steps"
-- Grid de logos ou marcas → "logos"
-- Grid de imagens clicáveis → "gallery"
-- Banner grande com título e CTA no topo → "hero"
+Se uma seção contiver APENAS esses textos, retorne confidence=0 e sectionType="generic".
 
-### QUANDO EM DÚVIDA:
-- Prefira classificação específica com confidence 0.5-0.7 do que "generic" com 0.8
-- Se parece um benefício mas não tem certeza → classifique como "benefits" com confidence 0.6
+## REGRA #2: CLASSIFICAÇÕES ESPECÍFICAS > GENERIC
+
+PRIORIZE SEMPRE uma classificação específica. Use "generic" APENAS quando:
+- A seção contém apenas texto sem padrão visual
+- Não há estrutura reconhecível
+- O conteúdo é puramente informativo sem layout
+
+### Padrões de detecção prioritários:
+
+#### 🎯 TESTIMONIALS (depoimentos de clientes)
+- Foto/avatar + nome + texto
+- Estrelas de avaliação (★★★★★)
+- Citações com aspas
+- Vídeos de clientes falando
+- Padrões: "Depoimento de X", "Feedback", "O que dizem nossos clientes"
+- **CRÍTICO**: Extraia o NOME REAL da pessoa (Milton, Gustavo, etc.)
+- **CRÍTICO**: Extraia o TEXTO REAL do depoimento
+- **PROIBIDO**: Nunca use "Cliente 1", "Excelente produto!", textos genéricos
+
+#### 📊 BEFORE/AFTER (antes e depois)
+- Imagens lado a lado (antes/depois)
+- Textos como "X dias de uso", "Resultado em X dias"
+- Comparações visuais
+- Progressão de tratamento
+- Fotos de clientes com resultados
+
+#### 🛍️ PRODUCT_CARDS (cards de produtos/kits)
+- Imagem + título + preço + botão comprar
+- Badge de desconto ("30% OFF")
+- Preço original riscado + preço com desconto
+- "Adicionar ao carrinho", "Comprar"
+
+#### 📂 CATEGORY_GRID (grid de categorias)
+- Cards com: ícone/imagem + título de categoria + "Ver ofertas"/"Saiba mais"
+- Exemplos: "Cabelo", "Barba", "Pomada", "Skin Care"
+- Links para páginas de categoria
+
+#### 🧪 INGREDIENTS (ingredientes/ativos)
+- Cards com: ícone/imagem + nome do ingrediente + benefícios
+- Exemplos: "D-Panthenol: Fortalece os fios", "Biotina: Estimula crescimento"
+- Layout grid 3-4 colunas
+
+#### ✅ BENEFITS (benefícios)
+- Lista de vantagens com ícones/checkmarks
+- 3-6 items com padrão visual repetido
+- Frases curtas de benefício
+
+#### 📈 STATS (estatísticas)
+- Números grandes destacados: "10k+", "99%", "24h"
+- Métricas de sucesso
+- Contadores animados
+
+#### ⏰ COUNTDOWN (urgência)
+- Timer com dias/horas/minutos/segundos
+- "Oferta por tempo limitado"
+- "Últimas unidades"
+
+#### 🔢 STEPS (como funciona)
+- Passos numerados: 1, 2, 3...
+- Timeline visual
+- "Como funciona", "Passo a passo"
 
 ## REGRAS DE EXTRAÇÃO
 
 ### Título e Subtítulo
-- Título: O heading mais importante (h1, h2) da seção
+- Título: O heading mais importante (h1, h2) da seção - NÃO ruído de interface
 - Subtítulo: Texto complementar logo após o título
+- **IGNORE** títulos que são ruído: "More videos", "Share", "Watch later"
 
-### Items (para benefícios, features, etc.)
-- SEPARE título e descrição de cada item
-- Título: Texto curto e destacado (geralmente em negrito ou heading menor)
-- Descrição: Texto explicativo do item
-- Sugira um ícone baseado no conteúdo:
-  - check: confirmação, verificação, aprovação
-  - shield: proteção, segurança, garantia
-  - zap: rapidez, energia, velocidade
-  - star: qualidade, destaque, premium
-  - heart: amor, cuidado, saúde
-  - award: prêmio, reconhecimento, certificação
-  - truck: entrega, frete, logística
-  - clock: tempo, prazo, horário
-  - gift: presente, bônus, oferta
-  - percent: desconto, economia, promoção
+### Items (benefícios, features, testimonials, etc.)
+Para TESTIMONIALS especificamente:
+- title: NOME REAL da pessoa (ex: "Milton", "Gustavo", "Ivan")
+- description: TEXTO REAL do depoimento (a frase que a pessoa disse)
+- name: mesmo que title (nome da pessoa)
+- avatar: URL da foto se existir
+
+Para INGREDIENTS:
+- title: Nome do ingrediente (ex: "D-Panthenol", "Biotina")
+- description: Benefício/função do ingrediente
+
+Para BENEFITS/FEATURES:
+- title: Frase curta do benefício
+- description: Explicação se houver
+- suggestedIcon: ícone apropriado
 
 ### Imagens
 - Extraia src e alt de imagens significativas
-- IGNORE: ícones pequenos (<50px), logos de pagamento, decorações
+- IGNORE: ícones pequenos (<50px), logos de pagamento, decorações, placeholders
 
 ### Vídeos
-- YouTube: extraia URL do embed ou watch (mesmo se lazy-loaded)
-- Vimeo: extraia URL do embed
-- MP4: extraia src de <video>
+- YouTube: extraia URL mesmo de lazy-load (data-src, data-video-id)
+- IGNORE: thumbnails de vídeos não clicáveis
 
 ### Botões
-- Extraia texto e URL de links/botões de ação
-- Foque em CTAs principais (Comprar, Ver mais, Saiba mais)
+- Extraia CTAs principais: "Comprar Agora", "Saiba Mais", "Ver Ofertas"
+- IGNORE: botões de interface (Share, Watch later, Subscribe)
 
-## O QUE IGNORAR
-- Menus de navegação
-- Footers e rodapés
-- Banners de cookies
-- Breadcrumbs
-- Widgets de chat
-- Ícones decorativos (SVG inline)
-- Classes CSS e estilos
+## TIPOS DE SEÇÃO (ordem de preferência)
 
-## TIPOS DE SEÇÃO (em ordem de preferência sobre generic)
-- hero: Banner principal, introdução, primeira seção com título grande
-- benefits: Lista de vantagens/benefícios com ícones ou checkmarks
-- features: Características técnicas do produto/serviço
-- testimonials: Depoimentos, avaliações, reviews de clientes
-- faq: Perguntas e respostas, accordions
-- cta: Chamada para ação, botão de conversão proeminente
-- about: Sobre a empresa, quem somos, história
-- contact: Informações de contato, formulários
-- steps: Passos numerados, timeline, "como funciona"
-- stats: Números grandes, estatísticas, métricas destacadas
-- gallery: Grade de imagens, galeria de fotos
-- countdown: Timer, oferta limitada, contagem regressiva
-- logos: Marcas parceiras, "visto em", clientes
-- generic: ÚLTIMO RECURSO - apenas quando não se encaixa em NENHUMA categoria acima
+1. hero - Banner principal com título grande e CTA
+2. testimonials - Depoimentos com NOMES REAIS
+3. before_after - Comparações antes/depois
+4. product_cards - Cards de produtos com preço
+5. category_grid - Grid de categorias
+6. ingredients - Lista de ingredientes/ativos
+7. benefits - Lista de vantagens com ícones
+8. features - Características técnicas
+9. stats - Números/estatísticas destacados
+10. steps - Passos/timeline numerados
+11. faq - Perguntas e respostas
+12. countdown - Timer de urgência
+13. cta - Call-to-action
+14. about - Sobre a empresa
+15. gallery - Grade de imagens
+16. logos - Logos de parceiros
+17. generic - ÚLTIMO RECURSO (quando nada mais se aplica)
 
 ## LAYOUTS
+
 - hero-centered: Hero centralizado
 - hero-split: Hero com imagem de um lado e texto do outro
 - columns-image-left: Duas colunas, imagem à esquerda
 - columns-image-right: Duas colunas, imagem à direita
-- grid-2: Grade de 2 colunas
-- grid-3: Grade de 3 colunas (comum para benefícios)
-- grid-4: Grade de 4 colunas
+- grid-2, grid-3, grid-4: Grades de N colunas
 - stacked: Empilhado verticalmente
-- timeline-horizontal: Timeline/passos horizontal
-- timeline-vertical: Timeline/passos vertical
+- timeline-horizontal, timeline-vertical: Para steps
+- carousel: Para sliders/carrosséis
 
-## PLATAFORMAS BRASILEIRAS (padrões comuns)
-- Tray/Dooca: classes "section-*", "produto-*", divs com data-section
-- Nuvemshop: classes "js-*", sections com IDs numéricos
-- VTEX: classes "vtex-*", data-vtex-*
+## PLATAFORMAS BRASILEIRAS
+
+- Tray/Dooca: classes "section-*", "produto-*"
+- Nuvemshop: classes "js-*", sections numéricas
+- VTEX: classes "vtex-*"
 - Shopify BR: shopify-section com nomes em português
-- WooCommerce: classes "wp-block-*", "woocommerce-*"
+- Loja Integrada: classes "li-*"
 
-## DICAS FINAIS
-- Benefícios geralmente têm 3-6 items com padrão visual repetido
-- Hero é geralmente a primeira seção com heading grande e imagem de fundo
-- CTA sections são curtas com botões proeminentes
-- Steps/Timeline tem números ou passos sequenciais (1, 2, 3...)
-- Stats tem números grandes e destacados (10k+, 99%, 24h)
-- Countdown tem timer com dias/horas/minutos/segundos`;
+## EXEMPLOS DE CLASSIFICAÇÃO CORRETA
+
+HTML com foto + nome + texto de cliente:
+→ sectionType: "testimonials", extrair name real, text real
+
+HTML com "30 dias de uso" + imagem de resultado:
+→ sectionType: "before_after"
+
+HTML com ícone + "D-Panthenol" + "Fortalece os fios":
+→ sectionType: "ingredients"
+
+HTML com imagem + preço + botão comprar:
+→ sectionType: "product_cards"
+
+HTML com "Cabelo" + "Barba" + "Ver ofertas":
+→ sectionType: "category_grid"
+
+HTML com APENAS "More videos" ou controles YouTube:
+→ confidence: 0, sectionType: "generic" (será filtrado)`;
 
 
 const EXTRACTION_FUNCTION = {
@@ -172,19 +242,19 @@ const EXTRACTION_FUNCTION = {
       properties: {
         sectionType: {
           type: "string",
-          enum: ["hero", "benefits", "features", "testimonials", "faq", "cta", "about", "contact", "steps", "stats", "gallery", "countdown", "logos", "generic"],
+          enum: ["hero", "benefits", "features", "testimonials", "faq", "cta", "about", "contact", "steps", "stats", "gallery", "countdown", "logos", "before_after", "product_cards", "category_grid", "ingredients", "generic"],
           description: "Tipo semântico da seção"
         },
         layout: {
           type: "string",
-          enum: ["columns-image-left", "columns-image-right", "grid-2", "grid-3", "grid-4", "stacked", "hero-centered", "hero-split", "timeline-horizontal", "timeline-vertical"],
+          enum: ["columns-image-left", "columns-image-right", "grid-2", "grid-3", "grid-4", "stacked", "hero-centered", "hero-split", "timeline-horizontal", "timeline-vertical", "carousel"],
           description: "Layout recomendado"
         },
         confidence: {
           type: "number",
           minimum: 0,
           maximum: 1,
-          description: "Confiança na classificação (0-1)"
+          description: "Confiança na classificação (0-1). Use 0 para ruído de interface."
         },
         reasoning: {
           type: "string",
@@ -193,24 +263,27 @@ const EXTRACTION_FUNCTION = {
         extractedContent: {
           type: "object",
           properties: {
-            title: { type: ["string", "null"], description: "Título principal da seção" },
+            title: { type: ["string", "null"], description: "Título principal da seção (NÃO ruído como 'More videos')" },
             subtitle: { type: ["string", "null"], description: "Subtítulo ou texto complementar" },
             items: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  title: { type: "string", description: "Título do item (texto curto e destacado)" },
-                  description: { type: "string", description: "Descrição do item (texto explicativo)" },
+                  title: { type: "string", description: "Título/nome do item. Para testimonials, use o NOME REAL da pessoa." },
+                  description: { type: "string", description: "Descrição. Para testimonials, use o TEXTO REAL do depoimento." },
                   suggestedIcon: { 
                     type: ["string", "null"], 
                     enum: ["check", "shield", "zap", "star", "heart", "award", "truck", "clock", "gift", "percent", null],
-                    description: "Ícone sugerido baseado no conteúdo"
-                  }
+                    description: "Ícone sugerido"
+                  },
+                  imageUrl: { type: ["string", "null"], description: "URL da imagem do item se houver" },
+                  name: { type: ["string", "null"], description: "Nome real para testimonials" },
+                  avatar: { type: ["string", "null"], description: "URL do avatar para testimonials" }
                 },
                 required: ["title", "description"]
               },
-              description: "Lista de items (benefícios, features, etc.)"
+              description: "Lista de items extraídos"
             },
             images: {
               type: "array",
@@ -260,7 +333,45 @@ const EXTRACTION_FUNCTION = {
   }
 };
 
+// Noise patterns to detect and warn about
+const NOISE_INDICATORS = [
+  'more videos',
+  'mais vídeos',
+  'watch later',
+  'assistir mais tarde',
+  'you\'re signed out',
+  'você não está conectado',
+  'share',
+  'compartilhar',
+  'subscribe',
+  'inscrever',
+  'copy link',
+  'copiar link',
+  'hide more videos',
+  'ocultar mais vídeos',
+];
+
+function containsOnlyNoise(html: string): boolean {
+  const text = html.toLowerCase().replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  if (text.length < 50) return true;
+  
+  // Count noise indicators
+  let noiseCount = 0;
+  for (const pattern of NOISE_INDICATORS) {
+    if (text.includes(pattern)) noiseCount++;
+  }
+  
+  // If more than 2 noise indicators and less than 200 chars of real content, it's noise
+  const cleanText = text.replace(new RegExp(NOISE_INDICATORS.join('|'), 'gi'), '');
+  return noiseCount >= 2 && cleanText.trim().length < 100;
+}
+
 function stripHtmlForAnalysis(html: string): string {
+  // First check if it's mostly noise
+  if (containsOnlyNoise(html)) {
+    console.log('[CLASSIFY] Section appears to be mostly noise, marking for low confidence');
+  }
+  
   // Remove scripts, styles, comments
   let cleaned = html
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -272,11 +383,15 @@ function stripHtmlForAnalysis(html: string): string {
     // Remove inline styles (reduce noise)
     .replace(/\s*style="[^"]*"/gi, '')
     // Remove data attributes
-    .replace(/\s*data-[a-z-]+="[^"]*"/gi, '');
+    .replace(/\s*data-[a-z-]+="[^"]*"/gi, '')
+    // Remove YouTube player controls classes
+    .replace(/class="[^"]*ytp-[^"]*"/gi, '')
+    // Remove aria attributes
+    .replace(/\s*aria-[a-z-]+="[^"]*"/gi, '');
   
-  // Truncate if too long - INCREASED to 20000 chars for better context
-  if (cleaned.length > 20000) {
-    cleaned = cleaned.substring(0, 20000) + '... [truncado]';
+  // Truncate if too long - 18000 chars for good context
+  if (cleaned.length > 18000) {
+    cleaned = cleaned.substring(0, 18000) + '... [truncado]';
   }
   
   return cleaned;
@@ -296,8 +411,14 @@ function createUserPrompt(html: string, context?: ClassifyRequest['pageContext']
     prompt += '\n';
   }
   
+  // Check for noise and add warning
+  if (containsOnlyNoise(html)) {
+    prompt += '⚠️ AVISO: Esta seção parece conter apenas ruído de interface (YouTube controls, etc.). Se confirmado, retorne confidence=0.\n\n';
+  }
+  
   prompt += '```html\n' + html + '\n```\n\n';
-  prompt += 'Use a função extract_and_classify para extrair o conteúdo e classificar esta seção.';
+  prompt += 'Use a função extract_and_classify para extrair o conteúdo e classificar esta seção.\n';
+  prompt += 'LEMBRE-SE: Para testimonials, extraia NOMES REAIS e TEXTOS REAIS, nunca use "Cliente 1" ou "Excelente produto!".';
   
   return prompt;
 }
@@ -352,6 +473,12 @@ serve(async (req) => {
     }
 
     console.log(`[CLASSIFY] Processando seção: ${html.length} chars`);
+    
+    // Check for noise early
+    const isLikelyNoise = containsOnlyNoise(html);
+    if (isLikelyNoise) {
+      console.log('[CLASSIFY] Section detected as interface noise, returning low confidence');
+    }
     
     const cleanedHtml = stripHtmlForAnalysis(html);
     const userPrompt = createUserPrompt(cleanedHtml, pageContext);
@@ -408,6 +535,23 @@ serve(async (req) => {
     } catch (parseError) {
       console.error('[CLASSIFY] Falha ao parsear resposta:', toolCall.function.arguments);
       throw new Error('Falha ao parsear classificação da IA');
+    }
+
+    // Post-process: validate testimonials have real content
+    if (classification.sectionType === 'testimonials') {
+      const items = classification.extractedContent.items || [];
+      const hasGenericNames = items.some(item => 
+        /^cliente\s*\d*$/i.test(item.title) ||
+        /^cliente\s*\d*$/i.test(item.name || '') ||
+        item.title === 'Cliente' ||
+        item.description === 'Excelente produto!' ||
+        item.description === 'Recomendo a todos.'
+      );
+      
+      if (hasGenericNames) {
+        console.log('[CLASSIFY] Warning: Testimonials have generic content, reducing confidence');
+        classification.confidence = Math.min(classification.confidence, 0.4);
+      }
     }
 
     // Log summary
