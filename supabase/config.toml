@@ -225,3 +225,6 @@ verify_jwt = false
 
 [functions.import-pages-structure]
 verify_jwt = false
+
+[functions.classify-content]
+verify_jwt = false
