@@ -135,7 +135,19 @@ serve(async (req) => {
         cnae,
       } = body;
 
-      // Check if is_configured based on required fields
+      // Check existing certificate data for is_configured validation
+      const { data: existingCert } = await supabase
+        .from('fiscal_settings')
+        .select('certificado_pfx, certificado_valido_ate')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      const hasCertificate = !!existingCert?.certificado_pfx;
+      const certValid = existingCert?.certificado_valido_ate 
+        ? new Date(existingCert.certificado_valido_ate) > new Date() 
+        : false;
+
+      // Check if is_configured based on required fields (certificate replaces provider_token)
       const is_configured = !!(
         razao_social &&
         cnpj &&
@@ -146,7 +158,7 @@ serve(async (req) => {
         endereco_uf &&
         endereco_cep &&
         serie_nfe &&
-        provider_token
+        hasCertificate && certValid
       );
 
       // Check if record exists
