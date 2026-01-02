@@ -3535,7 +3535,12 @@ Deno.serve(async (req) => {
       throw new Error('Missing Supabase configuration');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
     
     const body: ImportPagesRequest = await req.json();
     const { tenantId, pages, storeUrl, useAI = true } = body; // AI is ON by default
