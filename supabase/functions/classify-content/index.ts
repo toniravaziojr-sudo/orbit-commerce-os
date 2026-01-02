@@ -31,8 +31,8 @@ export interface ExtractedContent {
 }
 
 export interface ClassificationResult {
-  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'generic';
-  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split';
+  sectionType: 'hero' | 'benefits' | 'features' | 'testimonials' | 'faq' | 'cta' | 'about' | 'contact' | 'steps' | 'stats' | 'gallery' | 'countdown' | 'logos' | 'generic';
+  layout: 'columns-image-left' | 'columns-image-right' | 'grid-2' | 'grid-3' | 'grid-4' | 'stacked' | 'hero-centered' | 'hero-split' | 'timeline-horizontal' | 'timeline-vertical';
   confidence: number;
   reasoning: string;
   extractedContent: ExtractedContent;
@@ -109,6 +109,11 @@ const SYSTEM_PROMPT = `Você é um especialista em web design e extração de co
 - cta: Chamada para ação, conversão
 - about: Sobre a empresa, quem somos
 - contact: Informações de contato
+- steps: Passos numerados, timeline, "como funciona", processo
+- stats: Números grandes, estatísticas, métricas, contadores
+- gallery: Grade de imagens, galeria de fotos
+- countdown: Timer, oferta limitada, contagem regressiva
+- logos: Marcas parceiras, logos de clientes, "visto em"
 - generic: Quando não se encaixa em outra categoria
 
 ## LAYOUTS
@@ -120,11 +125,18 @@ const SYSTEM_PROMPT = `Você é um especialista em web design e extração de co
 - grid-3: Grade de 3 colunas (comum para benefícios)
 - grid-4: Grade de 4 colunas
 - stacked: Empilhado verticalmente
+- timeline-horizontal: Timeline/passos horizontal
+- timeline-vertical: Timeline/passos vertical
 
 ## DICAS
 - Benefícios geralmente têm 3-6 items com padrão visual repetido
 - Hero é geralmente a primeira seção com heading grande
 - CTA sections são curtas com botões proeminentes
+- Steps/Timeline tem números ou passos sequenciais (1, 2, 3...)
+- Stats tem números grandes e destacados (10k+, 99%, 24h)
+- Logos são grids de imagens pequenas em escala de cinza
+- Gallery são grids de imagens maiores clicáveis
+- Countdown tem timer com dias/horas/minutos/segundos
 - Considere padrões de e-commerce brasileiro`;
 
 const EXTRACTION_FUNCTION = {
@@ -137,12 +149,12 @@ const EXTRACTION_FUNCTION = {
       properties: {
         sectionType: {
           type: "string",
-          enum: ["hero", "benefits", "features", "testimonials", "faq", "cta", "about", "contact", "generic"],
+          enum: ["hero", "benefits", "features", "testimonials", "faq", "cta", "about", "contact", "steps", "stats", "gallery", "countdown", "logos", "generic"],
           description: "Tipo semântico da seção"
         },
         layout: {
           type: "string",
-          enum: ["columns-image-left", "columns-image-right", "grid-2", "grid-3", "grid-4", "stacked", "hero-centered", "hero-split"],
+          enum: ["columns-image-left", "columns-image-right", "grid-2", "grid-3", "grid-4", "stacked", "hero-centered", "hero-split", "timeline-horizontal", "timeline-vertical"],
           description: "Layout recomendado"
         },
         confidence: {
