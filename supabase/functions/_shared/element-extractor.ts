@@ -1012,24 +1012,59 @@ export function extractAllElementsInOrder(html: string): ExtractedElement[] {
   // Remove overlapping elements (prefer more specific types)
   const filtered = removeOverlappingElements(allElements);
   
+  // =====================================================
+  // V5: REMOVE FOOTER/TRENDING ELEMENTS (ANTI-POLLUTION)
+  // =====================================================
+  const footerPatterns = [
+    'mais pesquisados', 'trending searches', 'trending products',
+    'cnpj', 'formas de pagamento', 'selos de segurança',
+    'receba nossas promoções', 'políticas da loja', 'política de',
+    'termos de uso', 'termos de serviço', 'sobre nós', 'fale conosco',
+    'atendimento ao cliente', 'central de ajuda', 'inscreva-se',
+    'newsletter', 'assine nossa', 'redes sociais', 'siga-nos',
+    'menu principal', 'navegação', 'mapa do site', 'todos os direitos'
+  ];
+  
+  const cleanedElements = filtered.filter((el) => {
+    const text = (el.metadata.text || el.metadata.buttonText || el.metadata.content || '').toLowerCase();
+    
+    // Check if text starts with or primarily contains footer patterns
+    const matchedPatterns = footerPatterns.filter(p => text.includes(p));
+    
+    if (matchedPatterns.length >= 1) {
+      // For text elements with footer patterns, check if it's MOSTLY footer content
+      const isShortFooterText = text.length < 200 && matchedPatterns.length >= 1;
+      const isTrending = text.startsWith('mais pesquisados') || text.includes('trending');
+      
+      if (isShortFooterText || isTrending) {
+        console.log(`[FUNC:extractAllElementsInOrder] FILTER_OUT_FOOTER: "${text.substring(0, 50)}..." (matches: ${matchedPatterns.join(', ')})`);
+        return false;
+      }
+    }
+    
+    return true;
+  });
+  
+  console.log(`[FUNC:extractAllElementsInOrder] STEP: After footer filter: ${cleanedElements.length} elements (removed ${filtered.length - cleanedElements.length})`);
+  
   // Sort by position to maintain original order
-  filtered.sort((a, b) => a.position - b.position);
+  cleanedElements.sort((a, b) => a.position - b.position);
   
   // Count by type
-  const countByType = filtered.reduce((acc, el) => {
+  const countByType = cleanedElements.reduce((acc, el) => {
     acc[el.type] = (acc[el.type] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   
   const elapsed = Date.now() - startTime;
   console.log(`[FUNC:extractAllElementsInOrder] OUTPUT: ${JSON.stringify({ 
-    totalElements: filtered.length,
+    totalElements: cleanedElements.length,
     byType: countByType,
     elapsedMs: elapsed 
   })}`);
   
   // Log each element
-  filtered.forEach((el, i) => {
+  cleanedElements.forEach((el, i) => {
     console.log(`[FUNC:extractAllElementsInOrder] ELEMENT[${i}]: ${JSON.stringify({ 
       type: el.type, 
       position: el.position,
@@ -1037,7 +1072,7 @@ export function extractAllElementsInOrder(html: string): ExtractedElement[] {
     })}`);
   });
   
-  return filtered;
+  return cleanedElements;
 }
 
 function removeOverlappingElements(elements: ExtractedElement[]): ExtractedElement[] {

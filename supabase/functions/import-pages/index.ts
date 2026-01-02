@@ -3094,6 +3094,15 @@ async function importPage(
       console.log(`[IMPORT] Primitives: h=${extractionResult.primitivesCount.headings}, p=${extractionResult.primitivesCount.paragraphs}, img=${extractionResult.primitivesCount.images}`);
       console.log(`[IMPORT] Removed: ${extractionResult.removedElements.length} element categories`);
       
+      // V5: CHECK FOR SHOPIFY EXTRACTION FAILURE - Return error immediately
+      if (platformDetection.platform === 'shopify' && (!extractionResult.mainContentFound || extractionResult.extractedFrom.includes('error'))) {
+        console.log(`[IMPORT] SHOPIFY V5 ERROR: Extraction failed (mainContentFound=${extractionResult.mainContentFound}, extractedFrom=${extractionResult.extractedFrom})`);
+        return {
+          success: false,
+          error: 'Não foi possível extrair conteúdo válido desta página Shopify. A extração retornou vazia ou inválida. Verifique se a página possui conteúdo de texto real (não apenas footer/menu).'
+        };
+      }
+      
       // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
       const extractedElements = extractAllElementsInOrder(mainContentHtml);
       console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
