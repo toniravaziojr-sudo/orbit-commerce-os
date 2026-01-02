@@ -228,3 +228,6 @@ verify_jwt = false
 
 [functions.classify-content]
 verify_jwt = false
+
+[functions.import-page-v5]
+verify_jwt = false
