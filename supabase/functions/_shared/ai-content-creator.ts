@@ -216,27 +216,49 @@ export async function createPageFromInspiration(
 
   const frameworkDef = FRAMEWORKS[strategicPlan.framework];
 
-  // Extrair APENAS URLs de vídeo do HTML (estrutural, não conteúdo)
+  // Extrair URLs de vídeo do HTML
   const youtubeUrls = extractYouTubeUrls(html);
+  
+  // Extrair CONTEÚDO REAL da página para inspiração
+  const extractedContent = extractPageContent(html, options?.maxHtmlLength || 15000);
   
   // Seed aleatório para garantir unicidade
   const creativeSeed = Math.random().toString(36).substring(2, 10);
   const styleVariation = ['urgente', 'empático', 'desafiador', 'inspirador', 'direto'][Math.floor(Math.random() * 5)];
   
-  // Prompt APENAS com categorias - ZERO textos prontos
+  // Prompt com CONTEÚDO REAL da página como inspiração
   const userPrompt = `[SEED CRIATIVO: ${creativeSeed}]
 [ESTILO SUGERIDO: ${styleVariation}]
 
-## BRIEFING CRIATIVO (NÃO COPIE - USE COMO INSPIRAÇÃO)
+## BRIEFING CRIATIVO
 
-**Categoria do Produto:** ${strategicPlan.productName}
+**Produto:** ${strategicPlan.productName}
 **Tipo:** ${strategicPlan.productType}
 **Público-Alvo:** ${strategicPlan.targetAudience}
-**Categoria do Problema:** ${strategicPlan.mainPainPoint}
-**Categoria da Solução:** ${strategicPlan.mainPromise}
+**Problema Principal:** ${strategicPlan.mainPainPoint}
+**Promessa Principal:** ${strategicPlan.mainPromise}
 
 ### FRAMEWORK: ${strategicPlan.framework}
 Etapas: ${frameworkDef.stages.join(' → ')}
+
+---
+
+## CONTEÚDO DA PÁGINA ORIGINAL (USE COMO INSPIRAÇÃO, NÃO COPIE)
+
+### Headlines e Títulos Encontrados:
+${extractedContent.headlines.slice(0, 8).map(h => `- "${h}"`).join('\n') || '(nenhum encontrado)'}
+
+### Benefícios/Features Mencionados:
+${extractedContent.benefits.slice(0, 10).map(b => `- ${b}`).join('\n') || '(nenhum encontrado)'}
+
+### Trechos de Depoimentos:
+${extractedContent.testimonials.slice(0, 3).map(t => `"${t.slice(0, 100)}..."`).join('\n') || '(nenhum encontrado)'}
+
+### Perguntas FAQ Encontradas:
+${extractedContent.faqs.slice(0, 5).map(f => `- ${f}`).join('\n') || '(nenhum encontrado)'}
+
+### Diferenciais/USPs:
+${extractedContent.usps.slice(0, 5).map(u => `- ${u}`).join('\n') || '(nenhum encontrado)'}
 
 ---
 
@@ -249,16 +271,16 @@ ${youtubeUrls.length > 0
 
 ## SUA MISSÃO CRIATIVA
 
-Crie uma página de vendas COMPLETA e ÚNICA para um produto de "${strategicPlan.productName}".
+Crie uma página de vendas INSPIRADA no conteúdo acima, mas com textos ÚNICOS e ORIGINAIS.
 
 REGRAS ABSOLUTAS:
-1. INVENTE todas as headlines - use sua criatividade
-2. CRIE depoimentos com histórias REAIS e EMOCIONAIS
-3. Use nomes brasileiros VARIADOS e REALISTAS
-4. Cada texto deve ser ORIGINAL - nada genérico
-5. Esta página deve ser DIFERENTE de qualquer outra
+1. USE os benefícios e USPs como INSPIRAÇÃO, mas REESCREVA com suas palavras
+2. CRIE depoimentos NOVOS inspirados no tom dos originais, mas com nomes e histórias DIFERENTES
+3. ADAPTE as headlines para serem mais impactantes e persuasivas
+4. Use nomes brasileiros VARIADOS e REALISTAS
+5. Cada texto deve ser uma VERSÃO MELHORADA, não uma cópia
 
-LEMBRE-SE: Você é um copywriter premiado. Surpreenda-me com sua criatividade!
+LEMBRE-SE: Você é um copywriter premiado. Transforme esse material bruto em OURO!
 
 Use a função create_page_blocks para retornar os 9 blocos.`;
 
@@ -492,6 +514,128 @@ function extractYouTubeUrls(html: string): string[] {
   }
 
   return urls;
+}
+
+// =============================================
+// EXTRATOR DE CONTEÚDO DA PÁGINA
+// Extrai headlines, benefícios, depoimentos, FAQs, etc.
+// =============================================
+interface ExtractedContent {
+  headlines: string[];
+  benefits: string[];
+  testimonials: string[];
+  faqs: string[];
+  usps: string[];
+}
+
+function extractPageContent(html: string, maxLength: number = 15000): ExtractedContent {
+  // Limpar HTML para extração
+  const cleanHtml = html
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .slice(0, maxLength);
+
+  const result: ExtractedContent = {
+    headlines: [],
+    benefits: [],
+    testimonials: [],
+    faqs: [],
+    usps: []
+  };
+
+  // Extrair headlines (h1, h2, h3)
+  const headlinePattern = /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi;
+  let match;
+  while ((match = headlinePattern.exec(cleanHtml)) !== null) {
+    const text = cleanText(match[1]);
+    if (text.length > 5 && text.length < 200 && !result.headlines.includes(text)) {
+      result.headlines.push(text);
+    }
+  }
+
+  // Extrair benefícios (li dentro de ul/ol, ou elementos com classes comuns)
+  const benefitPatterns = [
+    /<li[^>]*>([\s\S]*?)<\/li>/gi,
+    /class="[^"]*(?:benefit|feature|advantage)[^"]*"[^>]*>([\s\S]*?)</gi,
+  ];
+  for (const pattern of benefitPatterns) {
+    while ((match = pattern.exec(cleanHtml)) !== null) {
+      const text = cleanText(match[1]);
+      if (text.length > 10 && text.length < 300 && !result.benefits.includes(text)) {
+        result.benefits.push(text);
+      }
+    }
+  }
+
+  // Extrair depoimentos (procurar por padrões comuns)
+  const testimonialPatterns = [
+    /class="[^"]*(?:testimonial|review|depoimento)[^"]*"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/gi,
+    /<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi,
+    /(?:"[^"]{50,300}")/g, // Textos entre aspas longos
+  ];
+  for (const pattern of testimonialPatterns) {
+    while ((match = pattern.exec(cleanHtml)) !== null) {
+      const text = cleanText(match[1] || match[0]);
+      if (text.length > 30 && text.length < 500 && !result.testimonials.includes(text)) {
+        result.testimonials.push(text);
+      }
+    }
+  }
+
+  // Extrair FAQs (procurar por patterns de pergunta)
+  const faqPatterns = [
+    /class="[^"]*(?:faq|question|pergunta)[^"]*"[^>]*>([\s\S]*?)</gi,
+    /<(?:dt|summary)[^>]*>([\s\S]*?)<\/(?:dt|summary)>/gi,
+    /(?:^|\?[^a-z])([^?]{20,150}\?)/gim,
+  ];
+  for (const pattern of faqPatterns) {
+    while ((match = pattern.exec(cleanHtml)) !== null) {
+      const text = cleanText(match[1] || match[0]);
+      if (text.length > 10 && text.length < 200 && text.includes('?') && !result.faqs.includes(text)) {
+        result.faqs.push(text);
+      }
+    }
+  }
+
+  // Extrair USPs/Diferenciais
+  const uspPatterns = [
+    /class="[^"]*(?:usp|diferencial|highlight|destaque)[^"]*"[^>]*>([\s\S]*?)</gi,
+    /<strong[^>]*>([\s\S]*?)<\/strong>/gi,
+    /<b[^>]*>([\s\S]*?)<\/b>/gi,
+  ];
+  for (const pattern of uspPatterns) {
+    while ((match = pattern.exec(cleanHtml)) !== null) {
+      const text = cleanText(match[1]);
+      if (text.length > 5 && text.length < 150 && !result.usps.includes(text)) {
+        result.usps.push(text);
+      }
+    }
+  }
+
+  // Limitar quantidade
+  result.headlines = result.headlines.slice(0, 10);
+  result.benefits = result.benefits.slice(0, 15);
+  result.testimonials = result.testimonials.slice(0, 5);
+  result.faqs = result.faqs.slice(0, 8);
+  result.usps = result.usps.slice(0, 10);
+
+  return result;
+}
+
+// Limpar texto extraído do HTML
+function cleanText(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, '') // Remove tags HTML
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 // =============================================
