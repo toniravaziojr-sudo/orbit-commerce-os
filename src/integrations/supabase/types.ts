@@ -2503,6 +2503,24 @@ export type Database = {
           },
         ]
       }
+      ibge_municipios: {
+        Row: {
+          codigo: string
+          nome: string
+          uf: string
+        }
+        Insert: {
+          codigo: string
+          nome: string
+          uf: string
+        }
+        Update: {
+          codigo?: string
+          nome?: string
+          uf?: string
+        }
+        Relationships: []
+      }
       import_items: {
         Row: {
           created_at: string
@@ -6555,6 +6573,10 @@ export type Database = {
       get_discount_usage_by_customer: {
         Args: { p_discount_id: string; p_email: string }
         Returns: number
+      }
+      get_ibge_municipio_codigo: {
+        Args: { p_cidade: string; p_uf: string }
+        Returns: string
       }
       get_public_marketing_config: {
         Args: { p_tenant_id: string }
