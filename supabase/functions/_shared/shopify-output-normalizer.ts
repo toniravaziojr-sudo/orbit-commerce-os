@@ -454,25 +454,30 @@ export function createBlocksFromNormalizedOutput(
     console.log(`[NORMALIZER V2] Created Video block with youtubeUrl: ${normalized.videoUrl}`);
   }
   
-  // 3. Body text (as separate block)
+  // 3. Body text - estruturado com h3 para heading e p para parágrafo
   if (normalized.bodyHtml && normalized.bodyHtml.length > 0) {
-    const styledBody = `<div style="text-align: center; max-width: 600px; margin: 0 auto;">${normalized.bodyHtml}</div>`;
+    // Garante que h3 tenha estilo de heading visual (negrito, maior, espaçamento)
+    const styledBody = normalized.bodyHtml
+      .replace(/<h3>/g, '<h3 style="font-size: 1.25rem; font-weight: 700; margin-top: 24px; margin-bottom: 8px; text-transform: uppercase;">')
+      .replace(/<p>/g, '<p style="margin-bottom: 16px;">');
+    
+    const wrappedBody = `<div style="text-align: center; max-width: 600px; margin: 24px auto;">${styledBody}</div>`;
     
     blocks.push({
       id: generateBlockId('body'),
       type: 'RichText',
       props: {
-        content: styledBody,
+        content: wrappedBody,
         fontFamily: 'inherit',
         fontSize: 'base',
         fontWeight: 'normal',
       },
       children: [],
     });
-    console.log(`[NORMALIZER V2] Created Body block: ${normalized.bodyHtml.length} chars`);
+    console.log(`[NORMALIZER V2] Created Body block (structured): ${normalized.bodyHtml.length} chars`);
   }
   
-  // 4. CTA Button
+  // 4. CTA Button - usando cor primária do tenant (preto)
   if (normalized.ctaButton) {
     blocks.push({
       id: generateBlockId('cta'),
@@ -484,10 +489,13 @@ export function createBlocksFromNormalizedOutput(
         size: 'lg',
         fullWidth: false,
         alignment: 'center',
+        // Força cor preta (cor primária padrão do tenant) - não altera tema global
+        backgroundColor: '#000000',
+        textColor: '#ffffff',
       },
       children: [],
     });
-    console.log(`[NORMALIZER V2] Created CTA block: "${normalized.ctaButton.text}" -> ${normalized.ctaButton.href}`);
+    console.log(`[NORMALIZER V2] Created CTA block (black): "${normalized.ctaButton.text}" -> ${normalized.ctaButton.href}`);
   }
   
   console.log(`[NORMALIZER V2] Total blocks created: ${blocks.length}`);
