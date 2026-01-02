@@ -80,12 +80,17 @@ serve(async (req) => {
         throw error;
       }
 
-      // Mask token if exists
+      // Mask token if exists and remove encrypted certificate data
       let maskedSettings = settings;
-      if (settings?.provider_token) {
+      if (settings) {
         maskedSettings = {
           ...settings,
-          provider_token: settings.provider_token.substring(0, 8) + '****'
+          provider_token: settings.provider_token 
+            ? settings.provider_token.substring(0, 8) + '****' 
+            : null,
+          // Remove encrypted data from response - only return metadata
+          certificado_pfx: null,
+          certificado_senha: null,
         };
       }
 

@@ -246,3 +246,6 @@ verify_jwt = true
 
 [functions.fiscal-get-status]
 verify_jwt = true
+
+[functions.fiscal-upload-certificate]
+verify_jwt = true

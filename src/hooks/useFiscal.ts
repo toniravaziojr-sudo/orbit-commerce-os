@@ -40,6 +40,21 @@ export interface FiscalSettings {
   is_configured: boolean;
   created_at: string;
   updated_at: string;
+  // Certificate fields
+  certificado_cn: string | null;
+  certificado_cnpj: string | null;
+  certificado_valido_ate: string | null;
+  certificado_serial: string | null;
+  certificado_uploaded_at: string | null;
+}
+
+export interface CertificateInfo {
+  cn: string;
+  cnpj: string | null;
+  valid_until: string;
+  serial: string;
+  days_until_expiry: number;
+  uploaded_at: string;
 }
 
 export interface FiscalProduct {
@@ -139,11 +154,32 @@ export function useFiscalSettings() {
     },
   });
 
+  const uploadCertificate = useMutation({
+    mutationFn: async ({ pfxBase64, password }: { pfxBase64: string; password: string }): Promise<CertificateInfo> => {
+      const { data, error } = await supabase.functions.invoke('fiscal-upload-certificate', {
+        body: { pfx_base64: pfxBase64, password },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao enviar certificado');
+      
+      return data.certificate;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
+      toast.success('Certificado digital salvo com sucesso');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro: ${error.message}`);
+    },
+  });
+
   return {
     settings: settingsQuery.data,
     isLoading: settingsQuery.isLoading,
     error: settingsQuery.error,
     saveSettings,
+    uploadCertificate,
   };
 }
 
