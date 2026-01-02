@@ -8,6 +8,7 @@ import { analyzePageVisually, filterElementsByVisualAnalysis } from '../_shared/
 // DEPRECATED: extractMainContentByPlatform (regex-based) - usando DOM extractor
 import { extractContentWithDOM, type DOMExtractionResult } from '../_shared/dom-content-extractor.ts';
 import { detectPlatformFromHtml } from '../_shared/platform-detector.ts';
+import { normalizeShopifyOutput, createBlocksFromNormalizedOutput } from '../_shared/shopify-output-normalizer.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -3095,7 +3096,7 @@ async function importPage(
     // Use scraped title if available, otherwise use provided title
     const finalTitle = scraped.title || page.title || getTitleFromSlug(page.slug);
     
-    let pageContent: BlockNode;
+    let pageContent: BlockNode | undefined;
     
     // Store extracted CSS globally for pixel-perfect blocks
     const rawHtmlToCheck = scraped.rawHtml || scraped.html || '';
@@ -3255,71 +3256,144 @@ async function importPage(
         };
       }
       
-      // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
-      const extractedElements = extractAllElementsInOrder(mainContentHtml);
-      console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
+      // =============================================
+      // FASE 0.5 (NOVA): NORMALIZAÇÃO SHOPIFY COM SEEDS
+      // Para páginas Shopify com seeds detectados (title+video+cta),
+      // aplicar normalização determinística de ordem e formatação
+      // =============================================
+      const hasShopifySeeds = platformDetection.platform === 'shopify' && 
+        extractionResult.extractedFrom.includes('seeds[') &&
+        (extractionResult.extractedFrom.includes('video') || extractionResult.extractedFrom.includes('title'));
       
-      if (extractedElements.length > 0) {
-        // =============================================
-        // FASE 1.5 (NOVA): FILTRAR ELEMENTOS PELA ANÁLISE VISUAL
-        // =============================================
-        let elementsToProcess = extractedElements;
+      if (hasShopifySeeds) {
+        console.log(`[IMPORT] Phase 0.5 - SHOPIFY NORMALIZER: Seeds detected, applying order/format normalization`);
         
-        if (visualAnalysis && visualAnalysis.success) {
-          console.log(`[IMPORT] Phase 1.5 - Filtering elements by visual analysis`);
+        const normalizerLogs: string[] = [];
+        const normalizedOutput = normalizeShopifyOutput(mainContentHtml, finalTitle, normalizerLogs);
+        
+        // Log normalizer output
+        for (const log of normalizerLogs) {
+          console.log(log);
+        }
+        
+        // Check if normalization produced meaningful output
+        const hasNormalizedContent = normalizedOutput.title || normalizedOutput.videoId || 
+          normalizedOutput.bodyHtml.length > 50 || normalizedOutput.ctaButton;
+        
+        if (hasNormalizedContent) {
+          console.log(`[IMPORT] SHOPIFY NORMALIZER: Creating structured blocks from normalized output`);
           
-          const { approved, rejected } = filterElementsByVisualAnalysis(
-            extractedElements,
-            visualAnalysis,
-            { strictMode: false, minSimilarity: 0.5 }
+          const normalizedBlocks = createBlocksFromNormalizedOutput(normalizedOutput, generateBlockId);
+          console.log(`[IMPORT] SHOPIFY NORMALIZER: Created ${normalizedBlocks.length} blocks`);
+          
+          // Log block types
+          for (const block of normalizedBlocks) {
+            const preview = block.type === 'RichText' 
+              ? (block.props.content as string).substring(0, 60) + '...'
+              : block.type === 'Button' 
+                ? block.props.text
+                : block.type === 'YouTubeVideo'
+                  ? block.props.videoId
+                  : '';
+            console.log(`[IMPORT]   - ${block.type}: ${preview}`);
+          }
+          
+          // Build page from normalized blocks
+          pageContent = {
+            id: generateBlockId('page'),
+            type: 'Page',
+            props: { backgroundColor: 'transparent', padding: 'none' },
+            children: [{
+              id: generateBlockId('section'),
+              type: 'Section',
+              props: { 
+                backgroundColor: 'transparent', 
+                paddingX: 16, 
+                paddingY: 32, 
+                marginTop: 0, 
+                marginBottom: 0, 
+                gap: 24, 
+                alignItems: 'center', 
+                fullWidth: false 
+              },
+              children: normalizedBlocks,
+            }],
+          };
+          
+          console.log(`[IMPORT] SHOPIFY NORMALIZER: Page created successfully with ${normalizedBlocks.length} structured blocks`);
+        } else {
+          console.log(`[IMPORT] SHOPIFY NORMALIZER: Not enough content, falling back to element pipeline`);
+        }
+      }
+      
+      // FASE 1: Extrair TODOS os elementos com posição (do conteúdo principal apenas)
+      // Skip if SHOPIFY NORMALIZER already created pageContent
+      if (!pageContent) {
+        const extractedElements = extractAllElementsInOrder(mainContentHtml);
+        console.log(`[IMPORT] Phase 1 - Extracted ${extractedElements.length} elements`);
+      
+        if (extractedElements.length > 0) {
+          // =============================================
+          // FASE 1.5 (NOVA): FILTRAR ELEMENTOS PELA ANÁLISE VISUAL
+          // =============================================
+          let elementsToProcess = extractedElements;
+          
+          if (visualAnalysis && visualAnalysis.success) {
+            console.log(`[IMPORT] Phase 1.5 - Filtering elements by visual analysis`);
+            
+            const { approved, rejected } = filterElementsByVisualAnalysis(
+              extractedElements,
+              visualAnalysis,
+              { strictMode: false, minSimilarity: 0.5 }
+            );
+            
+            console.log(`[IMPORT] Visual filter result: ${approved.length} approved, ${rejected.length} rejected`);
+            
+            // Log what was rejected
+            for (const el of rejected.slice(0, 5)) {
+              const text = el.metadata?.text || el.metadata?.content || '';
+              console.log(`[IMPORT]   FILTERED OUT: [${el.type}] "${text.substring(0, 40)}..."`);
+            }
+            
+            elementsToProcess = approved;
+          }
+          
+          // FASE 2: Classificar cada elemento
+          const classifiedElements = classifyAllElements(elementsToProcess);
+          console.log(`[IMPORT] Phase 2 - Classified ${classifiedElements.length} elements`);
+          
+          // Log classified elements
+          for (const el of classifiedElements) {
+            console.log(`[IMPORT]   - ${el.type} -> ${el.blockType} (confidence: ${(el.confidence * 100).toFixed(0)}%, needsNewBlock: ${el.needsNewBlock})`);
+          }
+          
+          // FASE 3: Mesclar elementos consecutivos do mesmo tipo
+          const mergedElements = mergeConsecutiveElements(classifiedElements);
+          console.log(`[IMPORT] Phase 3 - Merged to ${mergedElements.length} elements`);
+          
+          // FASE 4: Processar com criação automática de blocos
+          const { page: builtPage, newBlockRequests } = await processElementsWithAutoBlockCreation(
+            supabase,
+            tenantId,
+            mergedElements,
+            {
+              extractedCss: globalExtractedCss,
+              sourceUrl: page.url,
+              sourcePlatform: 'import',
+            }
           );
           
-          console.log(`[IMPORT] Visual filter result: ${approved.length} approved, ${rejected.length} rejected`);
+          console.log(`[IMPORT] Phase 4 - Page built, ${newBlockRequests.length} new block requests created`);
           
-          // Log what was rejected
-          for (const el of rejected.slice(0, 5)) {
-            const text = el.metadata?.text || el.metadata?.content || '';
-            console.log(`[IMPORT]   FILTERED OUT: [${el.type}] "${text.substring(0, 40)}..."`);
+          if (newBlockRequests.length > 0) {
+            console.log(`[IMPORT] New block patterns detected: ${newBlockRequests.join(', ')}`);
           }
           
-          elementsToProcess = approved;
+          pageContent = builtPage;
+          
+          const blockTypes = pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
+          console.log(`[IMPORT] ELEMENT-BASED RESULT: ${blockTypes}`);
         }
-        
-        // FASE 2: Classificar cada elemento
-        const classifiedElements = classifyAllElements(elementsToProcess);
-        console.log(`[IMPORT] Phase 2 - Classified ${classifiedElements.length} elements`);
-        
-        // Log classified elements
-        for (const el of classifiedElements) {
-          console.log(`[IMPORT]   - ${el.type} -> ${el.blockType} (confidence: ${(el.confidence * 100).toFixed(0)}%, needsNewBlock: ${el.needsNewBlock})`);
-        }
-        
-        // FASE 3: Mesclar elementos consecutivos do mesmo tipo
-        const mergedElements = mergeConsecutiveElements(classifiedElements);
-        console.log(`[IMPORT] Phase 3 - Merged to ${mergedElements.length} elements`);
-        
-        // FASE 4: Processar com criação automática de blocos
-        const { page: builtPage, newBlockRequests } = await processElementsWithAutoBlockCreation(
-          supabase,
-          tenantId,
-          mergedElements,
-          {
-            extractedCss: globalExtractedCss,
-            sourceUrl: page.url,
-            sourcePlatform: 'import',
-          }
-        );
-        
-        console.log(`[IMPORT] Phase 4 - Page built, ${newBlockRequests.length} new block requests created`);
-        
-        if (newBlockRequests.length > 0) {
-          console.log(`[IMPORT] New block patterns detected: ${newBlockRequests.join(', ')}`);
-        }
-        
-        pageContent = builtPage;
-        
-        const blockTypes = pageContent.children[0]?.children?.map((b: BlockNode) => b.type).join(', ') || 'empty';
-        console.log(`[IMPORT] ELEMENT-BASED RESULT: ${blockTypes}`);
       }
     }
     
