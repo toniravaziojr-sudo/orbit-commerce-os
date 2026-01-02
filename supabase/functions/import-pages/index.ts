@@ -9,6 +9,7 @@ import { analyzePageVisually, filterElementsByVisualAnalysis } from '../_shared/
 import { extractContentWithDOM, type DOMExtractionResult } from '../_shared/dom-content-extractor.ts';
 import { detectPlatformFromHtml } from '../_shared/platform-detector.ts';
 import { normalizeShopifyOutput, createBlocksFromNormalizedOutput } from '../_shared/shopify-output-normalizer.ts';
+import { postProcessShopifyBlocks } from '../_shared/shopify-block-postprocessor.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -3283,22 +3284,42 @@ async function importPage(
         if (hasNormalizedContent) {
           console.log(`[IMPORT] SHOPIFY NORMALIZER: Creating structured blocks from normalized output`);
           
-          const normalizedBlocks = createBlocksFromNormalizedOutput(normalizedOutput, generateBlockId);
-          console.log(`[IMPORT] SHOPIFY NORMALIZER: Created ${normalizedBlocks.length} blocks`);
+          const rawBlocks = createBlocksFromNormalizedOutput(normalizedOutput, generateBlockId);
+          console.log(`[IMPORT] SHOPIFY NORMALIZER: Created ${rawBlocks.length} raw blocks`);
+          
+          // =============================================
+          // APPLY POST-PROCESSOR: Reorder, split, fix props
+          // =============================================
+          console.log(`[IMPORT] SHOPIFY POST-PROCESSOR: Applying block refinements...`);
+          const postProcessResult = postProcessShopifyBlocks(rawBlocks, generateBlockId);
+          
+          // Log post-processor output
+          for (const log of postProcessResult.logs) {
+            console.log(log);
+          }
+          
+          // Check for errors
+          if (!postProcessResult.success) {
+            console.log(`[IMPORT] SHOPIFY POST-PROCESSOR: Errors detected: ${postProcessResult.errors.join(', ')}`);
+            // Continue anyway - we'll use what we have
+          }
+          
+          const normalizedBlocks = postProcessResult.blocks;
+          console.log(`[IMPORT] SHOPIFY POST-PROCESSOR: Final ${normalizedBlocks.length} blocks after processing`);
           
           // Log block types
           for (const block of normalizedBlocks) {
             const preview = block.type === 'RichText' 
-              ? (block.props.content as string).substring(0, 60) + '...'
+              ? ((block.props.content as string) || '').substring(0, 60) + '...'
               : block.type === 'Button' 
                 ? block.props.text
                 : block.type === 'YouTubeVideo'
-                  ? block.props.url
+                  ? block.props.youtubeUrl
                   : '';
             console.log(`[IMPORT]   - ${block.type}: ${preview}`);
           }
           
-          // Build page from normalized blocks
+          // Build page from post-processed blocks
           pageContent = {
             id: generateBlockId('page'),
             type: 'Page',
@@ -3320,7 +3341,7 @@ async function importPage(
             }],
           };
           
-          console.log(`[IMPORT] SHOPIFY NORMALIZER: Page created successfully with ${normalizedBlocks.length} structured blocks`);
+          console.log(`[IMPORT] SHOPIFY POST-PROCESSOR: Page created with ${normalizedBlocks.length} refined blocks`);
         } else {
           console.log(`[IMPORT] SHOPIFY NORMALIZER: Not enough content, falling back to element pipeline`);
         }
