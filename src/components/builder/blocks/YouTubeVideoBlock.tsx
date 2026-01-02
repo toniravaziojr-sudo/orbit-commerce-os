@@ -92,12 +92,12 @@ export function YouTubeVideoBlock({
 
   return (
     <section className="py-8">
-      <div className="max-w-4xl mx-auto px-4">
+      <div className="w-full max-w-5xl mx-auto px-4">
         {title && (
           <h2 className="text-xl font-semibold mb-4 text-center">{title}</h2>
         )}
         <div className={cn(
-          'rounded-lg overflow-hidden shadow-lg',
+          'rounded-lg overflow-hidden shadow-lg w-full',
           aspectClasses[aspectRatio]
         )}>
           <iframe
