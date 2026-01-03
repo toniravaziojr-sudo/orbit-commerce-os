@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, Eye, Download, RefreshCw, Loader2, Edit, Printer, Send } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, History } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
@@ -17,6 +18,13 @@ import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEdit
 import { CancelInvoiceDialog } from '@/components/fiscal/CancelInvoiceDialog';
 import { InvoiceActionsDropdown } from '@/components/fiscal/InvoiceActionsDropdown';
 import { FiscalErrorResolver, parseErrorMessage } from '@/components/fiscal/FiscalErrorResolver';
+import { CorrectInvoiceDialog } from '@/components/fiscal/CorrectInvoiceDialog';
+import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
+import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
+import { InvoiceFiltersComponent, type InvoiceFilters } from '@/components/fiscal/InvoiceFilters';
+import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
+import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
+import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -57,9 +65,15 @@ export default function Fiscal() {
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
+  const [correctingInvoice, setCorrectingInvoice] = useState<FiscalInvoice | null>(null);
+  const [inutilizarDialogOpen, setInutilizarDialogOpen] = useState(false);
+  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [consultaChaveOpen, setConsultaChaveOpen] = useState(false);
+  const [timelineInvoice, setTimelineInvoice] = useState<FiscalInvoice | null>(null);
   const [errorResolverOpen, setErrorResolverOpen] = useState(false);
   const [currentErrors, setCurrentErrors] = useState<any[]>([]);
   const [currentErrorInvoiceId, setCurrentErrorInvoiceId] = useState<string | null>(null);
+  const [advancedFilters, setAdvancedFilters] = useState<InvoiceFilters>({});
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -94,7 +108,7 @@ export default function Fiscal() {
     }
   };
 
-  // Filter invoices by tab and search
+  // Filter invoices by tab, search, and advanced filters
   const filteredInvoices = invoices?.filter(inv => {
     // Filter by tab
     if (activeTab === 'draft' && inv.status !== 'draft') return false;
@@ -107,13 +121,35 @@ export default function Fiscal() {
     // Filter by search
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
-      return (
+      const matchesSearch = (
         inv.numero.toString().includes(search) ||
         inv.dest_nome.toLowerCase().includes(search) ||
         inv.dest_cpf_cnpj.includes(search) ||
         inv.chave_acesso?.includes(search)
       );
+      if (!matchesSearch) return false;
     }
+
+    // Advanced filters
+    if (advancedFilters.startDate) {
+      const invDate = new Date(inv.created_at);
+      if (invDate < advancedFilters.startDate) return false;
+    }
+    if (advancedFilters.endDate) {
+      const invDate = new Date(inv.created_at);
+      const endOfDay = new Date(advancedFilters.endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (invDate > endOfDay) return false;
+    }
+    if (advancedFilters.minValue && inv.valor_total < advancedFilters.minValue) return false;
+    if (advancedFilters.maxValue && inv.valor_total > advancedFilters.maxValue) return false;
+    if (advancedFilters.destNome) {
+      const searchName = advancedFilters.destNome.toLowerCase();
+      if (!inv.dest_nome.toLowerCase().includes(searchName) && 
+          !inv.dest_cpf_cnpj.includes(searchName)) return false;
+    }
+    if (advancedFilters.numero && !inv.numero.toString().includes(advancedFilters.numero)) return false;
+
     return true;
   });
 
@@ -377,10 +413,33 @@ export default function Fiscal() {
         description="Emissão de notas fiscais e integrações fiscais"
         actions={
           <div className="flex gap-2">
-            <Button onClick={() => setManualDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova NF-e
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova NF-e
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setManualDialogOpen(true)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  NF-e de Saída (Venda)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setEntryDialogOpen(true)}>
+                  <ArrowDownLeft className="h-4 w-4 mr-2" />
+                  NF-e de Entrada (Devolução)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setInutilizarDialogOpen(true)}>
+                  <Hash className="h-4 w-4 mr-2" />
+                  Inutilizar Numeração
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setConsultaChaveOpen(true)}>
+                  <Search className="h-4 w-4 mr-2" />
+                  Consultar por Chave
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button variant="outline" onClick={() => navigate('/settings/fiscal')}>
               <Settings className="h-4 w-4 mr-2" />
               Configurações
@@ -470,37 +529,47 @@ export default function Fiscal() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabStatus)} className="space-y-4">
-            <TabsList className="flex flex-wrap h-auto gap-1">
-              <TabsTrigger value="draft" className="gap-1">
-                <FileText className="h-3 w-3" />
-                Prontas para Emitir
-                {counts.draft > 0 && <Badge variant="secondary" className="ml-1 bg-amber-500/20 text-amber-600">{counts.draft}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="authorized" className="gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Autorizadas
-                {counts.authorized > 0 && <Badge variant="secondary" className="ml-1 bg-green-500/20 text-green-600">{counts.authorized}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="printed" className="gap-1">
-                <Printer className="h-3 w-3" />
-                Emitidas
-                {counts.printed > 0 && <Badge variant="secondary" className="ml-1">{counts.printed}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="pending" className="gap-1">
-                <Clock className="h-3 w-3" />
-                Pendentes SEFAZ
-                {counts.pending > 0 && <Badge variant="secondary" className="ml-1">{counts.pending}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="rejected" className="gap-1">
-                <XCircle className="h-3 w-3" />
-                Rejeitadas
-                {counts.rejected > 0 && <Badge variant="destructive" className="ml-1">{counts.rejected}</Badge>}
-              </TabsTrigger>
-              <TabsTrigger value="canceled" className="gap-1">
-                Canceladas
-                {counts.canceled > 0 && <Badge variant="secondary" className="ml-1">{counts.canceled}</Badge>}
-              </TabsTrigger>
-            </TabsList>
+            <div className="flex items-center justify-between">
+              <TabsList className="flex flex-wrap h-auto gap-1">
+                <TabsTrigger value="draft" className="gap-1">
+                  <FileText className="h-3 w-3" />
+                  Prontas para Emitir
+                  {counts.draft > 0 && <Badge variant="secondary" className="ml-1 bg-amber-500/20 text-amber-600">{counts.draft}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="authorized" className="gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  Autorizadas
+                  {counts.authorized > 0 && <Badge variant="secondary" className="ml-1 bg-green-500/20 text-green-600">{counts.authorized}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="printed" className="gap-1">
+                  <Printer className="h-3 w-3" />
+                  Emitidas
+                  {counts.printed > 0 && <Badge variant="secondary" className="ml-1">{counts.printed}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="pending" className="gap-1">
+                  <Clock className="h-3 w-3" />
+                  Pendentes SEFAZ
+                  {counts.pending > 0 && <Badge variant="secondary" className="ml-1">{counts.pending}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="rejected" className="gap-1">
+                  <XCircle className="h-3 w-3" />
+                  Rejeitadas
+                  {counts.rejected > 0 && <Badge variant="destructive" className="ml-1">{counts.rejected}</Badge>}
+                </TabsTrigger>
+                <TabsTrigger value="canceled" className="gap-1">
+                  Canceladas
+                  {counts.canceled > 0 && <Badge variant="secondary" className="ml-1">{counts.canceled}</Badge>}
+                </TabsTrigger>
+              </TabsList>
+              <div className="flex items-center gap-2">
+                <InvoiceFiltersComponent 
+                  filters={advancedFilters} 
+                  onChange={setAdvancedFilters}
+                  onClear={() => setAdvancedFilters({})}
+                />
+                <ExportInvoicesButton invoices={filteredInvoices || []} isLoading={invoicesLoading} />
+              </div>
+            </div>
 
             {isLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -583,6 +652,8 @@ export default function Fiscal() {
                             onCancel={() => setCancelingInvoice(invoice)}
                             onPrint={() => handlePrintDanfe(invoice)}
                             onDuplicate={() => handleDuplicateInvoice(invoice)}
+                            onCorrect={() => setCorrectingInvoice(invoice)}
+                            onViewTimeline={() => setTimelineInvoice(invoice)}
                             isSubmitting={submittingInvoiceId === invoice.id}
                             isCheckingStatus={checkStatus.isPending}
                           />
@@ -634,6 +705,47 @@ export default function Fiscal() {
         invoiceId={currentErrorInvoiceId || undefined}
         onRetry={handleRetrySubmit}
       />
+
+      {/* Correct Invoice Dialog (CC-e) */}
+      {correctingInvoice && (
+        <CorrectInvoiceDialog
+          open={!!correctingInvoice}
+          onOpenChange={(open) => !open && setCorrectingInvoice(null)}
+          invoice={correctingInvoice as any}
+          onSuccess={() => refetch()}
+        />
+      )}
+
+      {/* Inutilizar Números Dialog */}
+      <InutilizarNumerosDialog
+        open={inutilizarDialogOpen}
+        onOpenChange={setInutilizarDialogOpen}
+        serie={settings?.serie_nfe}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Entry Invoice Dialog */}
+      <EntryInvoiceDialog
+        open={entryDialogOpen}
+        onOpenChange={setEntryDialogOpen}
+        onSuccess={() => refetch()}
+      />
+
+      {/* Consulta por Chave Dialog */}
+      <ConsultaChaveDialog
+        open={consultaChaveOpen}
+        onOpenChange={setConsultaChaveOpen}
+      />
+
+      {/* Invoice Timeline */}
+      {timelineInvoice && (
+        <InvoiceTimeline
+          open={!!timelineInvoice}
+          onOpenChange={(open) => !open && setTimelineInvoice(null)}
+          invoiceId={timelineInvoice.id}
+          invoiceNumber={`${timelineInvoice.serie}-${timelineInvoice.numero}`}
+        />
+      )}
     </div>
   );
 }
