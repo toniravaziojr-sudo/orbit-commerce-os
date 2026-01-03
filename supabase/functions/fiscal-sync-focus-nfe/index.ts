@@ -98,27 +98,30 @@ serve(async (req) => {
     
     if (settings.certificado_pfx && settings.certificado_senha) {
       try {
-        // Descriptografar senha do certificado
         const encryptionKey = Deno.env.get('FISCAL_ENCRYPTION_KEY');
         if (encryptionKey) {
-          const { decryptCertificateData } = await import("../_shared/certificate-utils.ts");
+          // Usar loadTenantCertificate que já faz toda a descriptografia
+          const { loadTenantCertificate } = await import("../_shared/certificate-utils.ts");
           
-          // Converter certificado para base64 limpo
-          let pfxBase64 = settings.certificado_pfx;
-          if (typeof pfxBase64 === 'object') {
-            const { bufferToString } = await import("../_shared/certificate-utils.ts");
-            pfxBase64 = bufferToString(pfxBase64);
-          }
+          certificado = await loadTenantCertificate(
+            {
+              certificado_pfx: settings.certificado_pfx,
+              certificado_senha: settings.certificado_senha,
+              certificado_valido_ate: settings.certificado_valido_ate,
+            },
+            encryptionKey
+          );
           
-          // Descriptografar senha
-          const password = await decryptCertificateData(settings.certificado_senha, encryptionKey);
-          
-          certificado = { pfxBase64, password };
-          console.log('[fiscal-sync-focus-nfe] Certificado disponível para sincronização');
+          console.log('[fiscal-sync-focus-nfe] Certificado descriptografado com sucesso', {
+            pfxBase64Length: certificado.pfxBase64.length,
+            pfxSample: certificado.pfxBase64.substring(0, 50),
+          });
+        } else {
+          console.warn('[fiscal-sync-focus-nfe] FISCAL_ENCRYPTION_KEY não configurada');
         }
-      } catch (error) {
-        console.error('[fiscal-sync-focus-nfe] Erro ao processar certificado:', error);
-        // Continuar sem certificado
+      } catch (error: any) {
+        console.error('[fiscal-sync-focus-nfe] Erro ao processar certificado:', error.message);
+        // Continuar sem certificado - a empresa será cadastrada mas NF-e não poderá ser emitida
       }
     }
 
