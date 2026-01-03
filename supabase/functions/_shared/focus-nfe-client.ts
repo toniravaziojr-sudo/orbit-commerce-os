@@ -15,13 +15,12 @@ export interface FocusEmpresaPayload {
   nome_fantasia?: string;
   inscricao_estadual?: string;
   inscricao_municipal?: string;
-  regime_tributario: number; // 1=Simples, 2=Simples Excesso, 3=Lucro Presumido/Real
+  regime_tributario: number; // 1=Simples, 2=Simples Excesso, 3=Lucro Presumido/Real, 4=MEI
   logradouro: string;
   numero: string;
   complemento?: string;
   bairro: string;
-  municipio: string;
-  codigo_municipio: string; // Código IBGE do município (7 dígitos)
+  municipio: string; // Nome do município (não o código IBGE)
   uf: string;
   cep: string;
   telefone?: string;
