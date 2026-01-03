@@ -85,15 +85,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (existingInvoice.status !== 'draft') {
+    // Allow editing of drafts and rejected invoices
+    if (existingInvoice.status !== 'draft' && existingInvoice.status !== 'rejected') {
       return new Response(
-        JSON.stringify({ success: false, error: 'Apenas rascunhos podem ser editados' }),
+        JSON.stringify({ success: false, error: 'Apenas rascunhos e NF-e rejeitadas podem ser editados' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // If rejected, reset to draft status for re-submission
+    const shouldResetToDraft = existingInvoice.status === 'rejected';
+
     // Prepare invoice data for update
-    const invoiceUpdate = {
+    const invoiceUpdate: Record<string, any> = {
       natureza_operacao: data.natureza_operacao,
       cfop: data.cfop,
       observacoes: data.observacoes || null,
@@ -128,6 +132,14 @@ Deno.serve(async (req) => {
       especie_volumes: data.especie_volumes || null,
       updated_at: new Date().toISOString(),
     };
+
+    // If rejected, reset to draft and clear Focus ref so a new submission is possible
+    if (shouldResetToDraft) {
+      invoiceUpdate.status = 'draft';
+      invoiceUpdate.focus_ref = null;
+      invoiceUpdate.status_motivo = null;
+      console.log('[fiscal-update-draft] Resetting rejected invoice to draft');
+    }
 
     // Update invoice
     const { error: updateError } = await supabase
