@@ -53,6 +53,7 @@ export interface FocusNFeItem {
 
 export interface FocusNFePayload {
   natureza_operacao: string;
+  data_emissao: string; // Formato ISO: "2024-01-15T10:30:00-03:00"
   tipo_documento: number; // 0=Entrada, 1=Saída
   finalidade_emissao: number; // 1=Normal, 2=Complementar, 3=Ajuste, 4=Devolução
   consumidor_final: number; // 0=Não, 1=Sim
