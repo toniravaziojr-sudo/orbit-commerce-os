@@ -5,7 +5,7 @@
  * Algoritmos: SHA-1 (digest), RSA-SHA1 (assinatura), C14N (canonicalização)
  */
 
-import * as forge from "https://esm.sh/node-forge@1.3.1";
+import forge from "https://esm.sh/node-forge@1.3.1?bundle";
 
 export interface Certificate {
   privateKey: forge.pki.PrivateKey;
