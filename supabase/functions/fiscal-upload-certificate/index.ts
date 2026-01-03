@@ -278,25 +278,32 @@ serve(async (req) => {
       .maybeSingle();
 
     // Validate CNPJ match (if tenant has CNPJ configured and cert has CNPJ)
+    // Only warn, don't block - some certificates may have different CNPJ format
+    let cnpjMismatch = false;
     if (fiscalSettings?.cnpj && certCnpj) {
       const tenantCnpjClean = fiscalSettings.cnpj.replace(/\D/g, '');
       if (tenantCnpjClean !== certCnpj) {
-        console.warn('[fiscal-upload-certificate] CNPJ mismatch:', { tenant: tenantCnpjClean, cert: certCnpj });
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `CNPJ do certificado (${certCnpj}) não corresponde ao CNPJ cadastrado (${tenantCnpjClean})` 
-          }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.warn('[fiscal-upload-certificate] CNPJ mismatch (warning only):', { tenant: tenantCnpjClean, cert: certCnpj });
+        cnpjMismatch = true;
       }
     }
 
     console.log('[fiscal-upload-certificate] Certificate validated:', { cn, certCnpj, notAfter });
 
     // Encrypt the PFX and password
+    console.log('[fiscal-upload-certificate] Encrypting certificate...', { 
+      pfxBase64Length: pfxBase64.length,
+      passwordLength: password.length 
+    });
+    
     const encryptedPfx = await encryptData(pfxBase64, encryptionKey);
     const encryptedPassword = await encryptData(password, encryptionKey);
+    
+    console.log('[fiscal-upload-certificate] Encrypted successfully:', { 
+      encryptedPfxLength: encryptedPfx.length,
+      encryptedPasswordLength: encryptedPassword.length,
+      encryptedPfxSample: encryptedPfx.substring(0, 50)
+    });
 
     // Save to database
     const { data: existing } = await supabase
@@ -352,7 +359,8 @@ serve(async (req) => {
           serial: serialNumber,
           days_until_expiry: daysUntilExpiry,
           uploaded_at: certificateData.certificado_uploaded_at,
-        }
+        },
+        warning: cnpjMismatch ? `CNPJ do certificado (${certCnpj}) não corresponde ao CNPJ cadastrado` : undefined
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
