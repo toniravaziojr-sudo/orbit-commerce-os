@@ -53,17 +53,17 @@ serve(async (req) => {
 
     const tenantId = profile.current_tenant_id;
 
-    // Clear certificate fields from fiscal_settings
+    // Clear certificate fields from fiscal_settings (using correct column names)
     const { error: updateError } = await supabase
       .from("fiscal_settings")
       .update({
-        certificado_pfx_encrypted: null,
-        certificado_password_encrypted: null,
+        certificado_pfx: null,
+        certificado_senha: null,
         certificado_cn: null,
         certificado_cnpj: null,
-        certificado_valido_de: null,
         certificado_valido_ate: null,
         certificado_serial: null,
+        certificado_uploaded_at: null,
         updated_at: new Date().toISOString(),
       })
       .eq("tenant_id", tenantId);
