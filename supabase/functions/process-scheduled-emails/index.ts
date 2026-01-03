@@ -1,10 +1,53 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Helper function to send email via SendGrid
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  htmlContent: string,
+  replyTo?: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const payload: any = {
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email: from.email, name: from.name },
+      subject: subject,
+      content: [{ type: "text/html", value: htmlContent }],
+    };
+
+    if (replyTo) {
+      payload.reply_to = { email: replyTo };
+    }
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok || response.status === 202) {
+      const messageId = response.headers.get("X-Message-Id") || undefined;
+      return { success: true, messageId };
+    } else {
+      const errorBody = await response.text();
+      console.error("[process-scheduled-emails] SendGrid error:", response.status, errorBody);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorBody}` };
+    }
+  } catch (error: any) {
+    console.error("[process-scheduled-emails] SendGrid fetch error:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 /**
  * This function processes scheduled system emails (like tutorials).
@@ -22,12 +65,10 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      throw new Error("SENDGRID_API_KEY not configured");
     }
-
-    const resend = new Resend(resendApiKey);
 
     const stats = {
       processed: 0,
@@ -138,17 +179,18 @@ Deno.serve(async (req: Request) => {
           html = html.replace(regex, value);
         }
 
-        // Send email
-        const emailResult = await resend.emails.send({
-          from: `${emailConfig.from_name} <${emailConfig.from_email}>`,
-          to: [scheduled.email],
+        // Send email via SendGrid
+        const emailResult = await sendEmailViaSendGrid(
+          sendgridApiKey,
+          { email: emailConfig.from_email, name: emailConfig.from_name },
+          scheduled.email,
           subject,
           html,
-          reply_to: emailConfig.reply_to || undefined,
-        });
+          emailConfig.reply_to || undefined
+        );
 
-        if (emailResult.error) {
-          throw new Error(emailResult.error.message);
+        if (!emailResult.success) {
+          throw new Error(emailResult.error || "Failed to send email");
         }
 
         // Update as sent
@@ -157,7 +199,7 @@ Deno.serve(async (req: Request) => {
           .update({ 
             status: "sent", 
             sent_at: new Date().toISOString(),
-            provider_message_id: emailResult.data?.id 
+            provider_message_id: emailResult.messageId 
           })
           .eq("id", scheduled.id);
 
@@ -167,7 +209,7 @@ Deno.serve(async (req: Request) => {
           subject,
           email_type: scheduled.template_key,
           status: "sent",
-          provider_message_id: emailResult.data?.id,
+          provider_message_id: emailResult.messageId,
           sent_at: new Date().toISOString(),
         });
 
