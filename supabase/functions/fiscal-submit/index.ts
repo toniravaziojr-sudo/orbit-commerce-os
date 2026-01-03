@@ -20,7 +20,7 @@ serve(async (req) => {
   if (!focusToken) {
     return new Response(
       JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
@@ -57,7 +57,7 @@ serve(async (req) => {
     if (!profile?.current_tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -70,7 +70,7 @@ serve(async (req) => {
     if (!invoice_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'invoice_id é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -87,7 +87,7 @@ serve(async (req) => {
     if (invoiceError || !invoice) {
       return new Response(
         JSON.stringify({ success: false, error: 'NF-e não encontrada' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -95,7 +95,7 @@ serve(async (req) => {
     if (invoice.status !== 'draft' && invoice.status !== 'rejected') {
       return new Response(
         JSON.stringify({ success: false, error: `NF-e não pode ser enviada no status: ${invoice.status}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -109,7 +109,7 @@ serve(async (req) => {
     if (itemsError || !items || items.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: 'Itens da NF-e não encontrados' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -123,7 +123,7 @@ serve(async (req) => {
     if (settingsError || !settings) {
       return new Response(
         JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -134,7 +134,7 @@ serve(async (req) => {
           success: false, 
           error: 'Empresa não cadastrada na Focus NFe. Sincronize primeiro.' 
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -223,7 +223,7 @@ serve(async (req) => {
           success: false, 
           error: `Campos obrigatórios não preenchidos: ${faltando}. Verifique os dados de endereço do pedido.` 
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -296,7 +296,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: false, error: result.error }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -366,8 +366,8 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('[fiscal-submit] Erro:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: error.message || 'Erro interno do servidor' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

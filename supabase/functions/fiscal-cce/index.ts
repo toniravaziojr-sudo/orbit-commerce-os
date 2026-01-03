@@ -20,7 +20,7 @@ serve(async (req) => {
     if (!focusToken) {
       return new Response(
         JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -54,7 +54,7 @@ serve(async (req) => {
     if (!profile?.current_tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -66,7 +66,7 @@ serve(async (req) => {
     if (!invoice_id || !correcao) {
       return new Response(
         JSON.stringify({ success: false, error: 'invoice_id e correcao são obrigatórios' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -74,7 +74,7 @@ serve(async (req) => {
     if (correcao.length < 15 || correcao.length > 1000) {
       return new Response(
         JSON.stringify({ success: false, error: 'Correção deve ter entre 15 e 1000 caracteres' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -89,14 +89,14 @@ serve(async (req) => {
     if (invoiceError || !invoice) {
       return new Response(
         JSON.stringify({ success: false, error: 'NF-e não encontrada' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 404 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (invoice.status !== 'authorized') {
       return new Response(
         JSON.stringify({ success: false, error: 'Apenas NF-e autorizadas podem receber carta de correção' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -109,7 +109,7 @@ serve(async (req) => {
     if ((existingCount || 0) >= 20) {
       return new Response(
         JSON.stringify({ success: false, error: 'Limite de 20 cartas de correção atingido' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -186,7 +186,7 @@ serve(async (req) => {
           error: responseData.mensagem || 'Erro ao enviar carta de correção',
           details: responseData,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -203,7 +203,7 @@ serve(async (req) => {
     console.error('[fiscal-cce] Unexpected error:', error);
     return new Response(
       JSON.stringify({ success: false, error: 'Erro interno do servidor' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
