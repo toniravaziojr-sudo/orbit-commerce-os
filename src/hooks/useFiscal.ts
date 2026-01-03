@@ -50,6 +50,8 @@ export interface FiscalSettings {
   auto_create_shipment: boolean;
   auto_update_order_status: boolean;
   default_shipping_provider: string | null;
+  // Email notification
+  enviar_email_nfe: boolean;
 }
 
 export interface CertificateInfo {

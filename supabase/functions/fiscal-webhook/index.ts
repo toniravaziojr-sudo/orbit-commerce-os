@@ -280,6 +280,26 @@ serve(async (req) => {
           }
         }
       }
+      
+      // Send NF-e email to customer if enabled
+      const { data: fiscalSettingsEmail } = await supabase
+        .from("fiscal_settings")
+        .select("enviar_email_nfe")
+        .eq("tenant_id", invoice.tenant_id)
+        .single();
+
+      if (fiscalSettingsEmail?.enviar_email_nfe !== false) {
+        console.log(`[fiscal-webhook] Sending NF-e email for invoice ${invoice.id}`);
+        // Fire and forget - don't block the webhook response
+        fetch(`${supabaseUrl}/functions/v1/fiscal-send-nfe-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ invoice_id: invoice.id, tenant_id: invoice.tenant_id }),
+        }).catch(err => console.error('[fiscal-webhook] Email send error:', err));
+      }
     }
 
     console.log(`[fiscal-webhook] Invoice ${invoice.id} updated to status ${internalStatus}`);

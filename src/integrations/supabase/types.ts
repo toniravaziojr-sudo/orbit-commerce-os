@@ -2629,6 +2629,7 @@ export type Database = {
           endereco_municipio_codigo: string | null
           endereco_numero: string | null
           endereco_uf: string | null
+          enviar_email_nfe: boolean | null
           focus_ambiente: string | null
           focus_empresa_criada_em: string | null
           focus_empresa_id: string | null
@@ -2676,6 +2677,7 @@ export type Database = {
           endereco_municipio_codigo?: string | null
           endereco_numero?: string | null
           endereco_uf?: string | null
+          enviar_email_nfe?: boolean | null
           focus_ambiente?: string | null
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
@@ -2723,6 +2725,7 @@ export type Database = {
           endereco_municipio_codigo?: string | null
           endereco_numero?: string | null
           endereco_uf?: string | null
+          enviar_email_nfe?: boolean | null
           focus_ambiente?: string | null
           focus_empresa_criada_em?: string | null
           focus_empresa_id?: string | null
