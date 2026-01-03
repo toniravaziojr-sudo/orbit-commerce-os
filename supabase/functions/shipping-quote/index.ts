@@ -438,12 +438,24 @@ async function quoteLoggi(
 ): Promise<ShippingOption[]> {
   const clientId = provider.credentials.client_id as string;
   const clientSecret = provider.credentials.client_secret as string;
-  const shipperId = provider.credentials.shipper_id as string;
-  // company_id será obtido via handshake ou diretamente se já configurado
-  let companyId = provider.credentials.company_id as string;
+  const companyId = provider.credentials.company_id as string;
+  // Use origin_cep from credentials if provided, fallback to function parameter
+  const providerOriginCep = provider.credentials.origin_cep as string;
 
   if (!clientId || !clientSecret) {
-    console.log('[Loggi] Missing credentials for quote (client_id or client_secret)');
+    console.warn('[Loggi] Missing credentials for quote - tenant must configure client_id and client_secret');
+    return [];
+  }
+
+  if (!companyId) {
+    console.warn('[Loggi] Missing company_id - tenant must configure company_id');
+    return [];
+  }
+
+  // Use provider's origin_cep if available
+  const effectiveOriginCep = (providerOriginCep || originCep).replace(/\D/g, '');
+  if (!effectiveOriginCep) {
+    console.warn('[Loggi] No origin CEP available');
     return [];
   }
 
@@ -478,21 +490,11 @@ async function quoteLoggi(
 
     console.log('[Loggi] OAuth2 authentication successful');
 
-    // Se não tiver companyId, usar shipperId como fallback
-    if (!companyId && shipperId) {
-      companyId = shipperId;
-    }
-
-    if (!companyId) {
-      console.error('[Loggi] No company_id or shipper_id available');
-      return [];
-    }
-
     // Step 2: Fazer cotação
     const quotePayload = {
       pickup: {
         address: {
-          zip_code: originCep.replace(/\D/g, ''),
+          zip_code: effectiveOriginCep,
         },
       },
       delivery: {
@@ -501,10 +503,10 @@ async function quoteLoggi(
         },
       },
       packages: [{
-        weight_g: Math.round(totals.weight * 1000), // Convert to grams
-        height_cm: Math.round(totals.height),
-        width_cm: Math.round(totals.width),
-        length_cm: Math.round(totals.length),
+        weight_g: Math.max(100, Math.round(totals.weight * 1000)), // Convert to grams, min 100g
+        height_cm: Math.max(2, Math.round(totals.height)),
+        width_cm: Math.max(11, Math.round(totals.width)),
+        length_cm: Math.max(16, Math.round(totals.length)),
       }],
       declared_value: Math.round(totals.value * 100), // Convert to cents
     };
