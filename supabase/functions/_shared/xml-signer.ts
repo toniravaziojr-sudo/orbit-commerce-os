@@ -5,7 +5,48 @@
  * Algoritmos: SHA-1 (digest), RSA-SHA1 (assinatura), C14N (canonicalização)
  */
 
+// Import node-forge with bundle flag for Deno compatibility
 import forge from "https://esm.sh/node-forge@1.3.1?bundle";
+
+// ============================================
+// POLYFILL: Inicializar PRNG do node-forge para Deno
+// O node-forge depende de randomBytes do Node.js que não existe no Deno
+// Usamos a Web Crypto API nativa do Deno para prover entropia
+// ============================================
+try {
+  // Seed the PRNG with cryptographically secure random bytes
+  const seedBytes = new Uint8Array(32);
+  crypto.getRandomValues(seedBytes);
+  const seedString = Array.from(seedBytes).map(b => String.fromCharCode(b)).join('');
+  
+  // Initialize forge's PRNG with the seed
+  if (forge.random && typeof forge.random.seedFileSync === 'function') {
+    // forge.random already has a method, we're good
+  } else if (forge.random) {
+    // Provide a custom implementation
+    (forge.random as any).seedFileSync = (needed: number): string => {
+      const bytes = new Uint8Array(needed);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes).map(b => String.fromCharCode(b)).join('');
+    };
+  }
+  
+  // Also seed the random pool if available
+  if (forge.random && typeof (forge.random as any).getBytes === 'function') {
+    // Collect entropy from Web Crypto
+    const entropyBytes = new Uint8Array(32);
+    crypto.getRandomValues(entropyBytes);
+    const entropyString = Array.from(entropyBytes).map(b => String.fromCharCode(b)).join('');
+    
+    if (typeof (forge.random as any).collect === 'function') {
+      (forge.random as any).collect(entropyString);
+    }
+  }
+  
+  console.log('[xml-signer] PRNG polyfill initialized successfully');
+} catch (e) {
+  console.warn('[xml-signer] PRNG polyfill initialization warning:', e);
+}
 
 export interface Certificate {
   privateKey: forge.pki.PrivateKey;
@@ -18,7 +59,11 @@ export interface Certificate {
  */
 export function loadCertificate(pfxBase64: string, password: string): Certificate {
   try {
+    console.log('[xml-signer] Loading certificate, base64 length:', pfxBase64.length);
+    
     const pfxDer = forge.util.decode64(pfxBase64);
+    console.log('[xml-signer] Decoded DER length:', pfxDer.length);
+    
     const pfxAsn1 = forge.asn1.fromDer(pfxDer);
     const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
 
@@ -47,12 +92,15 @@ export function loadCertificate(pfxBase64: string, password: string): Certificat
       .replace('-----END CERTIFICATE-----', '')
       .replace(/\r?\n|\r/g, '');
 
+    console.log('[xml-signer] Certificate loaded successfully');
+    
     return {
       privateKey: keyBag[0].key,
       certificate,
       certificatePem: certBase64
     };
   } catch (error) {
+    console.error('[xml-signer] Error loading certificate:', error);
     if (error instanceof Error && error.message.includes('Invalid password')) {
       throw new Error('Senha do certificado inválida');
     }
