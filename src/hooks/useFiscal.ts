@@ -195,12 +195,33 @@ export function useFiscalSettings() {
     },
   });
 
+  const removeCertificate = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('fiscal-remove-certificate', {
+        method: 'POST',
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Erro ao remover certificado');
+      
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fiscal-settings'] });
+      toast.success('Certificado removido com sucesso');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro: ${error.message}`);
+    },
+  });
+
   return {
     settings: settingsQuery.data,
     isLoading: settingsQuery.isLoading,
     error: settingsQuery.error,
     saveSettings,
     uploadCertificate,
+    removeCertificate,
   };
 }
 

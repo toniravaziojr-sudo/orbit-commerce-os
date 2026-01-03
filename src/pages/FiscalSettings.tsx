@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package } from 'lucide-react';
+import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,7 +51,7 @@ function formatCEP(value: string) {
 
 export default function FiscalSettings() {
   const navigate = useNavigate();
-  const { settings, isLoading, saveSettings, uploadCertificate } = useFiscalSettings();
+  const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [formData, setFormData] = useState<Partial<FiscalSettings>>({
@@ -566,6 +566,24 @@ export default function FiscalSettings() {
                       <p>Válido até: {certValidUntil?.toLocaleDateString('pt-BR')}</p>
                     </div>
                   </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => {
+                      if (confirm('Tem certeza que deseja remover o certificado digital? Você não poderá emitir NF-e até enviar um novo certificado.')) {
+                        removeCertificate.mutate();
+                      }
+                    }}
+                    disabled={removeCertificate.isPending}
+                    title="Remover certificado"
+                  >
+                    {removeCertificate.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
 
                 {(isExpired || isExpiringSoon) && (
