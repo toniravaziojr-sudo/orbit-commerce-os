@@ -22,6 +22,7 @@ import { RichTextEditor } from './RichTextEditor';
 import { ImageUploader } from './ImageUploader';
 import { ImageUploaderWithLibrary } from './ImageUploaderWithLibrary';
 import { VideoUploaderWithLibrary } from './VideoUploaderWithLibrary';
+import { VideoCarouselEditor, ImageCarouselEditor, ImageGalleryEditor, ReviewsEditor } from './editors';
 import {
   Collapsible,
   CollapsibleContent,
@@ -282,6 +283,42 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
         return (
           <LogosEditor
             items={(value as { id?: string; imageUrl: string; alt: string; linkUrl?: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // VideoCarousel videos
+      if (blockType === 'VideoCarousel' && name === 'videos') {
+        return (
+          <VideoCarouselEditor
+            items={(value as { id?: string; url?: string; videoDesktop?: string; videoMobile?: string; title?: string; thumbnail?: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // ImageCarousel images
+      if (blockType === 'ImageCarousel' && name === 'images') {
+        return (
+          <ImageCarouselEditor
+            items={(value as { id?: string; srcDesktop?: string; srcMobile?: string; alt?: string; caption?: string; linkUrl?: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // ImageGallery images
+      if (blockType === 'ImageGallery' && name === 'images') {
+        return (
+          <ImageGalleryEditor
+            items={(value as { id?: string; src: string; alt?: string; caption?: string }[]) || []}
+            onChange={onChange}
+          />
+        );
+      }
+      // Reviews reviews
+      if (blockType === 'Reviews' && name === 'reviews') {
+        return (
+          <ReviewsEditor
+            items={(value as { id?: string; name: string; rating: number; text: string; productName?: string; productUrl?: string; productImage?: string }[]) || []}
             onChange={onChange}
           />
         );
