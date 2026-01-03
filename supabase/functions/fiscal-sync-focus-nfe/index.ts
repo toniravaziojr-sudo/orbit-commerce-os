@@ -125,24 +125,28 @@ serve(async (req) => {
       }
     }
 
-    // Montar payload da empresa
+    // Montar payload da empresa - mapeando campos corretos do banco
     const empresaPayload = buildEmpresaPayload({
       cnpj: settings.cnpj,
       razao_social: settings.razao_social,
       nome_fantasia: settings.nome_fantasia,
       inscricao_estadual: settings.inscricao_estadual,
       inscricao_municipal: settings.inscricao_municipal,
-      crt: settings.crt,
-      logradouro: settings.logradouro || '',
-      numero: settings.numero || 'S/N',
-      complemento: settings.complemento,
-      bairro: settings.bairro || '',
-      cidade: settings.cidade || '',
-      uf: settings.uf || '',
-      cep: settings.cep || '',
+      crt: settings.crt?.toString(),
+      // Mapeamento correto: banco usa endereco_* prefix
+      logradouro: settings.endereco_logradouro || '',
+      numero: settings.endereco_numero || 'S/N',
+      complemento: settings.endereco_complemento,
+      bairro: settings.endereco_bairro || '',
+      cidade: settings.endereco_municipio || '',
+      codigo_municipio: settings.endereco_municipio_codigo || '',
+      uf: settings.endereco_uf || '',
+      cep: settings.endereco_cep || '',
       telefone: settings.telefone,
       email: settings.email,
     }, certificado);
+    
+    console.log('[fiscal-sync-focus-nfe] Payload empresa:', JSON.stringify(empresaPayload, null, 2));
 
     // Verificar se empresa já existe na Focus NFe
     let empresaId = settings.focus_empresa_id;

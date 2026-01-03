@@ -49,6 +49,7 @@ export function buildEmpresaPayload(
     complemento?: string | null;
     bairro: string;
     cidade: string;
+    codigo_municipio: string; // Código IBGE (7 dígitos)
     uf: string;
     cep: string;
     telefone?: string | null;
@@ -71,6 +72,7 @@ export function buildEmpresaPayload(
     complemento: settings.complemento?.toUpperCase() || undefined,
     bairro: settings.bairro.toUpperCase(),
     municipio: settings.cidade.toUpperCase(),
+    codigo_municipio: onlyNumbers(settings.codigo_municipio), // Código IBGE
     uf: settings.uf.toUpperCase(),
     cep: onlyNumbers(settings.cep),
     telefone: settings.telefone ? onlyNumbers(settings.telefone) : undefined,

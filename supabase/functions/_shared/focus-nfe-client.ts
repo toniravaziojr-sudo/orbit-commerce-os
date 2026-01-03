@@ -21,6 +21,7 @@ export interface FocusEmpresaPayload {
   complemento?: string;
   bairro: string;
   municipio: string;
+  codigo_municipio: string; // Código IBGE do município (7 dígitos)
   uf: string;
   cep: string;
   telefone?: string;
