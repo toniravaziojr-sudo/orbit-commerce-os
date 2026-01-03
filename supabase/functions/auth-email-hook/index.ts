@@ -1,12 +1,48 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Webhook } from "https://esm.sh/standardwebhooks@1.0.0";
-import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, webhook-id, webhook-timestamp, webhook-signature",
 };
+
+// Helper function to send email via SendGrid
+async function sendEmailViaSendGrid(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  htmlContent: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: from.email, name: from.name },
+        subject: subject,
+        content: [{ type: "text/html", value: htmlContent }],
+      }),
+    });
+
+    if (response.ok || response.status === 202) {
+      const messageId = response.headers.get("X-Message-Id") || undefined;
+      return { success: true, messageId };
+    } else {
+      const errorBody = await response.text();
+      console.error("[auth-email-hook] SendGrid error:", response.status, errorBody);
+      return { success: false, error: `SendGrid error: ${response.status} - ${errorBody}` };
+    }
+  } catch (error: any) {
+    console.error("[auth-email-hook] SendGrid fetch error:", error);
+    return { success: false, error: error.message };
+  }
+}
 
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -20,9 +56,9 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("Hook secret not configured");
     }
 
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      console.error("[auth-email-hook] RESEND_API_KEY not configured");
+    const sendgridApiKey = Deno.env.get("SENDGRID_API_KEY");
+    if (!sendgridApiKey) {
+      console.error("[auth-email-hook] SENDGRID_API_KEY not configured");
       throw new Error("Email service not configured");
     }
 
@@ -134,28 +170,28 @@ serve(async (req: Request): Promise<Response> => {
       subject = subject.replace(regex, value);
     }
 
-    // Send email via Resend
-    const resend = new Resend(resendApiKey);
-
+    // Build from email
     const fromEmail = config.from_email.includes("@")
       ? config.from_email
       : `${config.from_email}@${config.sending_domain}`;
 
     console.log(`[auth-email-hook] Sending from: ${config.from_name} <${fromEmail}>`);
 
-    const emailResponse = await resend.emails.send({
-      from: `${config.from_name} <${fromEmail}>`,
-      to: [user.email],
-      subject: subject,
-      html: htmlBody,
-    });
+    // Send email via SendGrid
+    const emailResult = await sendEmailViaSendGrid(
+      sendgridApiKey,
+      { email: fromEmail, name: config.from_name },
+      user.email,
+      subject,
+      htmlBody
+    );
 
-    if (emailResponse.error) {
-      console.error("[auth-email-hook] Resend error:", emailResponse.error);
-      throw new Error(emailResponse.error.message);
+    if (!emailResult.success) {
+      console.error("[auth-email-hook] SendGrid error:", emailResult.error);
+      throw new Error(emailResult.error || "Failed to send email");
     }
 
-    console.log("[auth-email-hook] Email sent successfully:", emailResponse.data?.id);
+    console.log("[auth-email-hook] Email sent successfully:", emailResult.messageId);
 
     // Log the email
     await supabase.from("system_email_logs").insert({
@@ -166,7 +202,7 @@ serve(async (req: Request): Promise<Response> => {
       sent_at: new Date().toISOString(),
       metadata: {
         email_action_type,
-        resend_id: emailResponse.data?.id,
+        sendgrid_id: emailResult.messageId,
         hook: true,
       },
     });
