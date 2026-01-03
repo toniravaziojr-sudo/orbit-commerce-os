@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus } from 'lucide-react';
+import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
+import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 
 // Types
 export interface InvoiceData {
@@ -161,6 +162,26 @@ export function InvoiceEditor({
       origem: '0',
     };
     setData({ ...data, items: [...data.items, newItem] });
+  };
+
+  const addProductFromCatalog = (product: ProductWithFiscal) => {
+    if (!data) return;
+    const newItem: InvoiceItemData = {
+      numero_item: data.items.length + 1,
+      product_id: product.id,
+      codigo_produto: product.sku || product.id.substring(0, 8),
+      descricao: product.name,
+      ncm: product.ncm || '',
+      cfop: product.cfop || data.cfop || '5102',
+      unidade: product.unidade || 'UN',
+      quantidade: 1,
+      valor_unitario: product.price,
+      valor_total: product.price,
+      origem: String(product.origem ?? 0),
+    };
+    setData({ ...data, items: [...data.items, newItem] });
+    recalculateTotals([...data.items, newItem]);
+    toast.success(`Produto "${product.name}" adicionado`);
   };
 
   const removeItem = (index: number) => {
@@ -578,9 +599,14 @@ export function InvoiceEditor({
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline">{data.items.length} item(ns)</Badge>
+                    <ProductSelector 
+                      onSelect={addProductFromCatalog}
+                      placeholder="Buscar produto"
+                      className="h-9"
+                    />
                     <Button variant="outline" size="sm" onClick={addItem}>
                       <Plus className="h-4 w-4 mr-1" />
-                      Adicionar
+                      Manual
                     </Button>
                   </div>
                 </div>

@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
+import { ProductSelector, type ProductWithFiscal } from './ProductSelector';
 
 interface ManualInvoiceItem {
   codigo: string;
@@ -167,6 +168,20 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
   const handleAddItem = () => {
     setItems([...items, { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+  };
+
+  const handleAddProductFromCatalog = (product: ProductWithFiscal) => {
+    const newItem: ManualInvoiceItem = {
+      codigo: product.sku || product.id.substring(0, 8),
+      descricao: product.name,
+      ncm: product.ncm || '',
+      cfop: product.cfop || '5102',
+      unidade: product.unidade || 'UN',
+      quantidade: 1,
+      valor_unitario: product.price,
+    };
+    setItems([...items, newItem]);
+    toast.success(`Produto "${product.name}" adicionado`);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -358,10 +373,17 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
           <Card>
             <CardHeader className="py-3 flex flex-row items-center justify-between">
               <CardTitle className="text-base">Produtos / Serviços</CardTitle>
-              <Button variant="outline" size="sm" onClick={handleAddItem}>
-                <Plus className="h-4 w-4 mr-1" />
-                Adicionar Item
-              </Button>
+              <div className="flex items-center gap-2">
+                <ProductSelector 
+                  onSelect={handleAddProductFromCatalog}
+                  placeholder="Buscar produto"
+                  className="h-8"
+                />
+                <Button variant="outline" size="sm" onClick={handleAddItem}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Manual
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {items.map((item, index) => (
