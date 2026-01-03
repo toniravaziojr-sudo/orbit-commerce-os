@@ -788,7 +788,7 @@ export function AccordionItemsEditor({ items = [], onChange }: AccordionEditorPr
   );
 }
 
-// Logos Editor
+// Logos Editor - with visual image uploader
 interface LogoItem {
   id?: string;
   imageUrl: string;
@@ -820,32 +820,47 @@ export function LogosEditor({ items = [], onChange }: LogosEditorProps) {
 
   return (
     <div className="space-y-3">
-      {safeItems.map((item, index) => (
-        <Card key={item.id || index} className="p-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => removeItem(index)}>
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
-          <div className="space-y-2">
-            <div>
-              <Label className="text-xs">URL da Imagem</Label>
-              <Input value={item.imageUrl} onChange={(e) => updateItem(index, 'imageUrl', e.target.value)} placeholder="https://..." className="h-8 text-sm" />
+      <div className="grid grid-cols-2 gap-2">
+        {safeItems.map((item, index) => (
+          <Card key={item.id || index} className="p-2 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-foreground">#{index + 1}</span>
+              <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:text-destructive" onClick={() => removeItem(index)}>
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            
+            {/* Logo preview */}
+            <div className="aspect-[3/2] relative rounded overflow-hidden bg-muted flex items-center justify-center">
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt={item.alt} className="w-full h-full object-contain p-2" />
+              ) : (
+                <div className="text-muted-foreground/50 text-xs">Logo</div>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <div>
-                <Label className="text-xs">Texto Alt</Label>
-                <Input value={item.alt} onChange={(e) => updateItem(index, 'alt', e.target.value)} className="h-8 text-sm" />
+                <Label className="text-xs">Imagem</Label>
+                <Input 
+                  value={item.imageUrl} 
+                  onChange={(e) => updateItem(index, 'imageUrl', e.target.value)} 
+                  placeholder="URL ou arraste imagem" 
+                  className="h-7 text-xs" 
+                />
               </div>
               <div>
-                <Label className="text-xs">Link (opcional)</Label>
-                <Input value={item.linkUrl || ''} onChange={(e) => updateItem(index, 'linkUrl', e.target.value)} placeholder="https://..." className="h-8 text-sm" />
+                <Label className="text-xs">Alt</Label>
+                <Input value={item.alt} onChange={(e) => updateItem(index, 'alt', e.target.value)} className="h-7 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Link</Label>
+                <Input value={item.linkUrl || ''} onChange={(e) => updateItem(index, 'linkUrl', e.target.value)} placeholder="https://..." className="h-7 text-xs" />
               </div>
             </div>
-          </div>
-        </Card>
-      ))}
+          </Card>
+        ))}
+      </div>
       <Button variant="outline" size="sm" className="w-full gap-1" onClick={addItem}>
         <Plus className="h-3 w-3" />
         Adicionar logo
