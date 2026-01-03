@@ -173,6 +173,10 @@ interface InvoiceEditorProps {
   onSubmit: (data: InvoiceData) => Promise<void>;
   onDelete?: () => Promise<void>;
   isLoading?: boolean;
+  /** Error message from SEFAZ rejection or other error */
+  rejectionError?: string;
+  /** Invoice status to show appropriate UI */
+  invoiceStatus?: string;
 }
 
 export function InvoiceEditor({
@@ -183,6 +187,8 @@ export function InvoiceEditor({
   onSubmit,
   onDelete,
   isLoading = false,
+  rejectionError,
+  invoiceStatus,
 }: InvoiceEditorProps) {
   const [data, setData] = useState<InvoiceData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -445,8 +451,19 @@ export function InvoiceEditor({
           </div>
         </DialogHeader>
 
+        {/* SEFAZ Rejection Error Alert */}
+        {rejectionError && (
+          <Alert variant="destructive" className="mt-2 border-red-600/50 bg-red-500/10">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong className="block mb-1">Erro SEFAZ - NF-e Rejeitada:</strong>
+              <span className="text-sm">{rejectionError}</span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Validation Errors Alert */}
-        {validationErrors.length > 0 && (
+        {validationErrors.length > 0 && !rejectionError && (
           <Alert variant="destructive" className="mt-2">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
