@@ -139,7 +139,6 @@ serve(async (req) => {
       complemento: settings.endereco_complemento,
       bairro: settings.endereco_bairro || '',
       cidade: settings.endereco_municipio || '',
-      codigo_municipio: settings.endereco_municipio_codigo || '',
       uf: settings.endereco_uf || '',
       cep: settings.endereco_cep || '',
       telefone: settings.telefone,
