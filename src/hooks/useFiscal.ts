@@ -422,7 +422,7 @@ export function useCreateDraft() {
   });
 }
 
-// Hook: Submit NF-e
+// Hook: Submit NF-e with automatic polling
 export function useSubmitInvoice() {
   const queryClient = useQueryClient();
 
@@ -437,6 +437,12 @@ export function useSubmitInvoice() {
         throw new Error(data?.error || 'Erro ao emitir NF-e');
       }
       
+      // Se status é pending, iniciar polling automático
+      if (data.status === 'pending' && data.ref) {
+        // Polling em background - não bloqueia a UI
+        pollInvoiceStatus(invoiceId, queryClient);
+      }
+      
       return data;
     },
     onSuccess: (data) => {
@@ -446,13 +452,55 @@ export function useSubmitInvoice() {
       if (data.status === 'authorized') {
         toast.success('NF-e autorizada com sucesso!');
       } else if (data.status === 'pending') {
-        toast.info('NF-e em processamento...');
+        toast.info('NF-e enviada! Aguardando autorização da SEFAZ...');
       }
     },
     onError: (error: Error) => {
       toast.error(`Erro ao emitir: ${error.message}`);
     },
   });
+}
+
+// Função de polling automático para verificar status
+async function pollInvoiceStatus(invoiceId: string, queryClient: ReturnType<typeof useQueryClient>, attempt = 1) {
+  const MAX_ATTEMPTS = 10;
+  const POLL_INTERVAL = 3000; // 3 segundos
+
+  if (attempt > MAX_ATTEMPTS) {
+    console.log(`[polling] Max attempts reached for invoice ${invoiceId}`);
+    return;
+  }
+
+  await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL));
+
+  try {
+    const { data, error } = await supabase.functions.invoke('fiscal-check-status', {
+      body: { invoice_id: invoiceId },
+    });
+
+    if (error) {
+      console.error('[polling] Error checking status:', error);
+      return;
+    }
+
+    // Invalidar queries para atualizar UI
+    queryClient.invalidateQueries({ queryKey: ['fiscal-invoices'] });
+    queryClient.invalidateQueries({ queryKey: ['fiscal-stats'] });
+
+    if (data?.status === 'authorized') {
+      toast.success('NF-e autorizada pela SEFAZ!');
+      return;
+    } else if (data?.status === 'rejected') {
+      toast.error(`NF-e rejeitada: ${data?.mensagem_sefaz || 'Verifique os detalhes'}`);
+      return;
+    } else if (data?.status === 'pending') {
+      // Continuar polling
+      console.log(`[polling] Invoice ${invoiceId} still pending, attempt ${attempt}/${MAX_ATTEMPTS}`);
+      pollInvoiceStatus(invoiceId, queryClient, attempt + 1);
+    }
+  } catch (err) {
+    console.error('[polling] Exception:', err);
+  }
 }
 
 // Hook: Check Invoice Status

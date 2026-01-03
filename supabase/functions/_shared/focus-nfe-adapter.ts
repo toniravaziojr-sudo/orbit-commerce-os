@@ -153,7 +153,11 @@ export function buildNFePayload(
     }
   }
   
-  // Converter itens
+  // Calcular rateio de frete nos itens (SEFAZ exige que a soma dos fretes dos itens = valor_frete total)
+  const valorFreteTotal = invoice.valor_frete && invoice.valor_frete > 0 ? invoice.valor_frete : 0;
+  const valorProdutosTotal = items.reduce((sum, item) => sum + (item.valor_total || 0), 0);
+  
+  // Converter itens com rateio de frete
   const focusItems: FocusNFeItem[] = items.map((item, index) => {
     // Determinar CST/CSOSN do ICMS
     const icmsSituacao = item.csosn || item.cst_icms || '102';
@@ -163,7 +167,14 @@ export function buildNFePayload(
     const descricaoSegura = (item.descricao || 'PRODUTO').toUpperCase().substring(0, 120);
     const unidadeSegura = (item.unidade || 'UN').toUpperCase().substring(0, 6);
     
-    return {
+    // Ratear frete proporcionalmente ao valor do item
+    let valorFreteItem = 0;
+    if (valorFreteTotal > 0 && valorProdutosTotal > 0) {
+      const proporcao = item.valor_total / valorProdutosTotal;
+      valorFreteItem = roundDecimal(valorFreteTotal * proporcao, 2);
+    }
+    
+    const focusItem: FocusNFeItem = {
       numero_item: item.numero_item || index + 1,
       codigo_produto: codigoSeguro || `PROD${index + 1}`,
       descricao: descricaoSegura,
@@ -182,7 +193,24 @@ export function buildNFePayload(
       quantidade_tributavel: item.quantidade,
       valor_unitario_tributavel: roundDecimal(item.valor_unitario, 4),
     };
+    
+    // Adicionar frete rateado se houver
+    if (valorFreteItem > 0) {
+      (focusItem as any).valor_frete = valorFreteItem;
+    }
+    
+    return focusItem;
   });
+  
+  // Ajustar último item para garantir que soma = total exato (diferença de arredondamento)
+  if (valorFreteTotal > 0 && focusItems.length > 0) {
+    const somaFreteItens = focusItems.reduce((sum, item) => sum + ((item as any).valor_frete || 0), 0);
+    const diferenca = roundDecimal(valorFreteTotal - somaFreteItens, 2);
+    if (diferenca !== 0) {
+      const ultimoItem = focusItems[focusItems.length - 1] as any;
+      ultimoItem.valor_frete = roundDecimal((ultimoItem.valor_frete || 0) + diferenca, 2);
+    }
+  }
   
   // Determinar tipo de documento (0=Entrada, 1=Saída)
   const tipoDocumento = invoice.tipo_operacao === 'entrada' ? 0 : 1;
@@ -233,11 +261,11 @@ export function buildNFePayload(
     // Valores
     valor_produtos: roundDecimal(invoice.valor_produtos, 2),
     valor_total: roundDecimal(invoice.valor_total, 2),
-    valor_frete: invoice.valor_frete ? roundDecimal(invoice.valor_frete, 2) : undefined,
+    valor_frete: valorFreteTotal > 0 ? roundDecimal(valorFreteTotal, 2) : undefined,
     valor_desconto: invoice.valor_desconto ? roundDecimal(invoice.valor_desconto, 2) : undefined,
     
-    // Frete (9 = Sem frete para e-commerce)
-    modalidade_frete: invoice.valor_frete && invoice.valor_frete > 0 ? 1 : 9,
+    // Frete (0 = Remetente/Emitente, 1 = Destinatário, 9 = Sem frete)
+    modalidade_frete: valorFreteTotal > 0 ? 1 : 9,
     
     // Itens
     items: focusItems,
