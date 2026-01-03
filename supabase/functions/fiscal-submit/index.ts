@@ -475,6 +475,15 @@ serve(async (req) => {
           .update({ numero_nfe_atual: (settings.numero_nfe_atual || 1) + 1 })
           .eq('id', settings.id);
         
+        // Update order status to 'dispatched' when NF-e is authorized
+        if (invoice.order_id) {
+          console.log('[fiscal-submit] Updating order status to dispatched:', invoice.order_id);
+          await supabase
+            .from('orders')
+            .update({ status: 'dispatched' })
+            .eq('id', invoice.order_id);
+        }
+        
         await supabase
           .from('fiscal_invoice_events')
           .insert({
