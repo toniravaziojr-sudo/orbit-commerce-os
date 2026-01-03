@@ -2189,6 +2189,9 @@ export type Database = {
         Row: {
           action_dismissed_at: string | null
           action_reason: string | null
+          authorized_at: string | null
+          cancel_justificativa: string | null
+          cancelled_at: string | null
           cfop: string | null
           chave_acesso: string | null
           created_at: string | null
@@ -2209,6 +2212,7 @@ export type Database = {
           dest_telefone: string | null
           emitido_por: string | null
           especie_volumes: string | null
+          focus_ref: string | null
           id: string
           modalidade_frete: string | null
           natureza_operacao: string | null
@@ -2223,6 +2227,7 @@ export type Database = {
           serie: number
           status: string
           status_motivo: string | null
+          submitted_at: string | null
           tenant_id: string
           transportadora_cnpj: string | null
           transportadora_nome: string | null
@@ -2234,10 +2239,14 @@ export type Database = {
           valor_seguro: number | null
           valor_total: number
           xml_autorizado: string | null
+          xml_url: string | null
         }
         Insert: {
           action_dismissed_at?: string | null
           action_reason?: string | null
+          authorized_at?: string | null
+          cancel_justificativa?: string | null
+          cancelled_at?: string | null
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
@@ -2258,6 +2267,7 @@ export type Database = {
           dest_telefone?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
+          focus_ref?: string | null
           id?: string
           modalidade_frete?: string | null
           natureza_operacao?: string | null
@@ -2272,6 +2282,7 @@ export type Database = {
           serie: number
           status?: string
           status_motivo?: string | null
+          submitted_at?: string | null
           tenant_id: string
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
@@ -2283,10 +2294,14 @@ export type Database = {
           valor_seguro?: number | null
           valor_total: number
           xml_autorizado?: string | null
+          xml_url?: string | null
         }
         Update: {
           action_dismissed_at?: string | null
           action_reason?: string | null
+          authorized_at?: string | null
+          cancel_justificativa?: string | null
+          cancelled_at?: string | null
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
@@ -2307,6 +2322,7 @@ export type Database = {
           dest_telefone?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
+          focus_ref?: string | null
           id?: string
           modalidade_frete?: string | null
           natureza_operacao?: string | null
@@ -2321,6 +2337,7 @@ export type Database = {
           serie?: number
           status?: string
           status_motivo?: string | null
+          submitted_at?: string | null
           tenant_id?: string
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
@@ -2332,6 +2349,7 @@ export type Database = {
           valor_seguro?: number | null
           valor_total?: number
           xml_autorizado?: string | null
+          xml_url?: string | null
         }
         Relationships: [
           {

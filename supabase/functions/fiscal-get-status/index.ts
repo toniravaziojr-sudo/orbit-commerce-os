@@ -1,83 +1,11 @@
-// =============================================
-// FISCAL GET STATUS - Consulta status NF-e na SEFAZ
-// Usa certificado A1 do tenant para autenticação
-// =============================================
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-import { getSefazEndpoint } from "../_shared/sefaz-endpoints.ts";
-import { buildConsSitNFeXml } from "../_shared/nfe-builder.ts";
-import { loadCertificate, signXml } from "../_shared/xml-signer.ts";
-import { 
-  buildSoapEnvelope, 
-  sendSoapRequest, 
-  extractXmlTag 
-} from "../_shared/soap-client.ts";
-import { loadTenantCertificate } from "../_shared/certificate-utils.ts";
+import { getNFeStatus, type FocusNFeConfig } from "../_shared/focus-nfe-client.ts";
+import { mapFocusStatusToInternal } from "../_shared/focus-nfe-adapter.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-/**
- * Parse da resposta de consulta de NF-e
- */
-interface ConsultaResult {
-  cStat: string;
-  xMotivo: string;
-  nProt?: string;
-  dhRecbto?: string;
-  chNFe?: string;
-  xmlProt?: string;
-}
-
-function parseConsultaResponse(soapBody: string): ConsultaResult | null {
-  let retConsSitNFe = extractXmlTag(soapBody, 'retConsSitNFe');
-  
-  if (!retConsSitNFe) {
-    const nfeResultMsg = extractXmlTag(soapBody, 'nfeResultMsg');
-    if (nfeResultMsg) {
-      retConsSitNFe = extractXmlTag(nfeResultMsg, 'retConsSitNFe');
-    }
-  }
-  
-  if (!retConsSitNFe) {
-    return null;
-  }
-  
-  const cStat = extractXmlTag(retConsSitNFe, 'cStat') || '';
-  const xMotivo = extractXmlTag(retConsSitNFe, 'xMotivo') || '';
-  
-  // Verificar se tem protocolo
-  const protNFe = extractXmlTag(retConsSitNFe, 'protNFe');
-  
-  if (protNFe) {
-    const infProt = extractXmlTag(protNFe, 'infProt');
-    if (infProt) {
-      return {
-        cStat: extractXmlTag(infProt, 'cStat') || cStat,
-        xMotivo: extractXmlTag(infProt, 'xMotivo') || xMotivo,
-        nProt: extractXmlTag(infProt, 'nProt') || undefined,
-        dhRecbto: extractXmlTag(infProt, 'dhRecbto') || undefined,
-        chNFe: extractXmlTag(infProt, 'chNFe') || undefined,
-        xmlProt: protNFe,
-      };
-    }
-  }
-  
-  return { cStat, xMotivo };
-}
-
-// Mapeamento de código IBGE para sigla UF
-const UF_CODE_MAP: Record<string, string> = {
-  '12': 'AC', '27': 'AL', '16': 'AP', '13': 'AM', '29': 'BA',
-  '23': 'CE', '53': 'DF', '32': 'ES', '52': 'GO', '21': 'MA',
-  '51': 'MT', '50': 'MS', '31': 'MG', '15': 'PA', '25': 'PB',
-  '41': 'PR', '26': 'PE', '22': 'PI', '33': 'RJ', '24': 'RN',
-  '43': 'RS', '11': 'RO', '14': 'RR', '42': 'SC', '35': 'SP',
-  '28': 'SE', '17': 'TO'
 };
 
 serve(async (req) => {
@@ -85,42 +13,42 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
+
+  if (!focusToken) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const encryptionKey = Deno.env.get('FISCAL_ENCRYPTION_KEY');
-    
-    if (!encryptionKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Chave de criptografia não configurada' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
+    // Autenticar usuário
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing authorization header' }),
+        JSON.stringify({ success: false, error: 'Não autorizado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } }
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
-    
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { data: profile } = await supabase
+    // Obter tenant
+    const { data: profile } = await supabaseClient
       .from('profiles')
       .select('current_tenant_id')
       .eq('id', user.id)
@@ -128,25 +56,28 @@ serve(async (req) => {
 
     if (!profile?.current_tenant_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'No tenant selected' }),
+        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const tenantId = profile.current_tenant_id;
-    const { invoice_id } = await req.json();
+
+    // Obter invoice_id do body
+    const body = await req.json();
+    const { invoice_id } = body;
 
     if (!invoice_id) {
       return new Response(
-        JSON.stringify({ success: false, error: 'invoice_id is required' }),
+        JSON.stringify({ success: false, error: 'invoice_id é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[fiscal-get-status] Checking invoice:', invoice_id);
+    console.log(`[fiscal-get-status] Verificando NF-e ${invoice_id}`);
 
-    // Buscar invoice
-    const { data: invoice, error: invoiceError } = await supabase
+    // Buscar NF-e
+    const { data: invoice, error: invoiceError } = await supabaseClient
       .from('fiscal_invoices')
       .select('*')
       .eq('id', invoice_id)
@@ -155,234 +86,140 @@ serve(async (req) => {
 
     if (invoiceError || !invoice) {
       return new Response(
-        JSON.stringify({ success: false, error: 'NF-e não encontrada.' }),
+        JSON.stringify({ success: false, error: 'NF-e não encontrada' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Se não está pendente, retornar status atual
-    if (invoice.status !== 'pending') {
+    // Se já está em status final, retornar dados atuais
+    if (invoice.status === 'authorized' || invoice.status === 'cancelled') {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: invoice.status,
+          chave_acesso: invoice.chave_acesso,
+          numero: invoice.numero,
+          serie: invoice.serie,
+          protocolo: invoice.protocolo,
+          xml_url: invoice.xml_url,
+          danfe_url: invoice.danfe_url,
+          mensagem_sefaz: invoice.mensagem_sefaz,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Se não tem referência Focus NFe, não pode consultar
+    if (!invoice.focus_ref) {
       return new Response(
         JSON.stringify({ 
           success: true, 
           status: invoice.status,
-          chave_acesso: invoice.chave_acesso,
-          protocolo: invoice.protocolo,
-          danfe_url: invoice.danfe_url,
-          message: invoice.status === 'authorized' 
-            ? 'NF-e autorizada' 
-            : invoice.status_motivo || 'Status atual',
+          message: 'NF-e não foi enviada para Focus NFe' 
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Verificar se tem chave de acesso
-    if (!invoice.chave_acesso) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'NF-e pendente sem chave de acesso. Tente emitir novamente.',
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Buscar configurações fiscais
-    const { data: settings, error: settingsError } = await supabase
+    const { data: settings } = await supabaseClient
       .from('fiscal_settings')
-      .select('*')
+      .select('focus_ambiente, ambiente')
       .eq('tenant_id', tenantId)
       .single();
 
-    if (settingsError || !settings) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Configuração Focus NFe
+    const focusConfig: FocusNFeConfig = {
+      token: focusToken,
+      ambiente: (settings?.focus_ambiente || settings?.ambiente || 'homologacao') as 'homologacao' | 'producao',
+    };
 
-    // Carregar certificado
-    console.log('[fiscal-get-status] Loading certificate...');
-    
-    let pfxBase64: string;
-    let certPassword: string;
-    let certificate: Awaited<ReturnType<typeof loadCertificate>>;
-    
-    try {
-      const certData = await loadTenantCertificate(settings, encryptionKey);
-      pfxBase64 = certData.pfxBase64;
-      certPassword = certData.password;
-      
-      certificate = await loadCertificate(pfxBase64, certPassword);
-    } catch (certError: any) {
-      console.error('[fiscal-get-status] Certificate error:', certError);
-      return new Response(
-        JSON.stringify({ success: false, error: certError.message || 'Erro ao carregar certificado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Consultar status na Focus NFe
+    const result = await getNFeStatus(focusConfig, invoice.focus_ref);
 
-    // Montar XML de consulta
-    const ambiente = settings.ambiente === 'producao' ? 1 : 2;
-    const consultaXml = buildConsSitNFeXml(invoice.chave_acesso, ambiente);
-    
-    // Assinar XML de consulta
-    const signedConsultaXml = await signXml(consultaXml, 'consSitNFe', certificate);
-
-    // Determinar UF a partir da chave de acesso (primeiros 2 dígitos)
-    const ufCode = invoice.chave_acesso.substring(0, 2);
-    const uf = UF_CODE_MAP[ufCode] || settings.endereco_uf;
-
-    // Obter URL do WebService
-    const webServiceUrl = getSefazEndpoint(
-      uf, 
-      'NfeConsultaProtocolo', 
-      settings.ambiente === 'producao' ? 'producao' : 'homologacao'
-    );
-    
-    console.log('[fiscal-get-status] SEFAZ URL:', webServiceUrl);
-    
-    // Montar e enviar SOAP
-    const soapEnvelope = buildSoapEnvelope('NfeConsultaProtocolo4', signedConsultaXml);
-    
-    const soapResponse = await sendSoapRequest({
-      url: webServiceUrl,
-      action: 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeConsultaProtocolo4/nfeConsultaNF',
-      pfxBase64,
-      pfxPassword: certPassword,
-    }, soapEnvelope);
-    
-    console.log('[fiscal-get-status] SEFAZ response status:', soapResponse.statusCode);
-    
-    // Log da consulta
-    await supabase
-      .from('fiscal_invoice_events')
-      .insert({
-        invoice_id: invoice_id,
-        tenant_id: tenantId,
-        event_type: 'status_query',
-        response_payload: { 
-          statusCode: soapResponse.statusCode,
-          body: soapResponse.body.substring(0, 5000),
-        },
-        user_id: user.id,
-      });
-
-    if (!soapResponse.success) {
+    if (!result.success) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          status: 'pending',
-          error: soapResponse.error || `Erro na comunicação com SEFAZ (HTTP ${soapResponse.statusCode})`,
+          status: invoice.status,
+          error: result.error 
         }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Processar resposta
-    const result = parseConsultaResponse(soapResponse.body);
-    
-    if (!result) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          status: 'pending',
-          message: 'Não foi possível interpretar resposta da SEFAZ.',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    // Mapear status
+    const focusStatus = result.data?.status || 'processando_autorizacao';
+    const internalStatus = mapFocusStatusToInternal(focusStatus);
 
-    console.log('[fiscal-get-status] SEFAZ cStat:', result.cStat, 'xMotivo:', result.xMotivo);
+    // Preparar dados de atualização
+    const updateData: any = {
+      status: internalStatus,
+      mensagem_sefaz: result.data?.mensagem_sefaz,
+      status_sefaz: result.data?.status_sefaz,
+      updated_at: new Date().toISOString(),
+    };
 
-    // Códigos de sucesso (100=Autorizado, 150=Autorizado fora prazo)
-    if (result.cStat === '100' || result.cStat === '150') {
-      await supabase
-        .from('fiscal_invoices')
-        .update({
-          status: 'authorized',
-          protocolo: result.nProt,
-          xml_autorizado: invoice.xml_autorizado 
-            ? invoice.xml_autorizado + (result.xmlProt || '')
-            : result.xmlProt,
-        })
-        .eq('id', invoice_id);
+    // Se autorizado, salvar dados adicionais
+    if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
+      updateData.chave_acesso = result.data.chave_nfe;
+      updateData.numero = result.data.numero;
+      updateData.serie = result.data.serie;
+      updateData.xml_url = result.data.caminho_xml_nota_fiscal;
+      updateData.danfe_url = result.data.caminho_danfe;
       
-      await supabase
+      if (!invoice.authorized_at) {
+        updateData.authorized_at = new Date().toISOString();
+      }
+      
+      // Atualizar status do pedido
+      if (invoice.order_id) {
+        await supabaseClient
+          .from('orders')
+          .update({ status: 'dispatched' })
+          .eq('id', invoice.order_id);
+      }
+    }
+
+    // Atualizar NF-e se status mudou
+    if (invoice.status !== internalStatus) {
+      await supabaseClient
+        .from('fiscal_invoices')
+        .update(updateData)
+        .eq('id', invoice_id);
+
+      // Registrar log
+      await supabaseClient
         .from('fiscal_invoice_events')
         .insert({
-          invoice_id: invoice_id,
+          invoice_id,
           tenant_id: tenantId,
-          event_type: 'authorized',
-          event_data: {
-            cStat: result.cStat,
-            xMotivo: result.xMotivo,
-            nProt: result.nProt,
-          },
-          user_id: user.id,
+          event_type: focusStatus === 'autorizado' ? 'authorized' : 'status_check',
+          event_data: result.data,
         });
 
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          status: 'authorized',
-          chave_acesso: invoice.chave_acesso,
-          protocolo: result.nProt,
-          message: result.xMotivo,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.log(`[fiscal-get-status] Status atualizado: ${invoice.status} -> ${internalStatus}`);
     }
-
-    // Códigos de processamento (105=Lote em processamento)
-    if (result.cStat === '105') {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          status: 'pending',
-          message: result.xMotivo || 'Lote em processamento.',
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Qualquer outro código é problema/rejeição
-    await supabase
-      .from('fiscal_invoices')
-      .update({
-        status: 'rejected',
-        status_motivo: `[${result.cStat}] ${result.xMotivo}`,
-      })
-      .eq('id', invoice_id);
-
-    await supabase
-      .from('fiscal_invoice_events')
-      .insert({
-        invoice_id: invoice_id,
-        tenant_id: tenantId,
-        event_type: 'rejected',
-        event_data: {
-          cStat: result.cStat,
-          xMotivo: result.xMotivo,
-        },
-        user_id: user.id,
-      });
 
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        status: 'rejected',
-        error: `[${result.cStat}] ${result.xMotivo}`,
+      JSON.stringify({
+        success: true,
+        status: internalStatus,
+        focus_status: focusStatus,
+        chave_acesso: result.data?.chave_nfe || invoice.chave_acesso,
+        numero: result.data?.numero || invoice.numero,
+        serie: result.data?.serie || invoice.serie,
+        mensagem_sefaz: result.data?.mensagem_sefaz,
+        xml_url: result.data?.caminho_xml_nota_fiscal || invoice.xml_url,
+        danfe_url: result.data?.caminho_danfe || invoice.danfe_url,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[fiscal-get-status] Error:', error);
+  } catch (error: any) {
+    console.error('[fiscal-get-status] Erro:', error);
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
