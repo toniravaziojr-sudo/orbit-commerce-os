@@ -355,9 +355,10 @@ export function useFiscalStats() {
       const stats = {
         total: data.length,
         authorized: data.filter(i => i.status === 'authorized').length,
-        pending: data.filter(i => i.status === 'pending' || i.status === 'draft').length,
+        draft: data.filter(i => i.status === 'draft').length,
+        pending: data.filter(i => i.status === 'pending').length, // Only pending (submitted to SEFAZ)
         rejected: data.filter(i => i.status === 'rejected').length,
-        canceled: data.filter(i => i.status === 'canceled').length,
+        canceled: data.filter(i => i.status === 'canceled' || i.status === 'cancelled').length,
       };
 
       return stats;
