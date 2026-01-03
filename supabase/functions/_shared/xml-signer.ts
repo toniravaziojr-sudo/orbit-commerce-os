@@ -101,29 +101,51 @@ export async function loadCertificate(pfxBase64: string, password: string): Prom
   console.log('[xml-signer] Loading certificate, base64 length:', pfxBase64.length);
   
   // Importar forge dinamicamente para evitar problemas de inicialização
-  const forge = await import("https://esm.sh/node-forge@1.3.1?bundle");
+  const forgeModule = await import("https://esm.sh/node-forge@1.3.1?bundle");
+  
+  // O módulo pode vir como default export ou como named exports
+  const forge = forgeModule.default || forgeModule;
+  
+  console.log('[xml-signer] Forge module loaded, checking exports...');
+  console.log('[xml-signer] forge.util exists:', !!forge.util);
+  console.log('[xml-signer] forge.util.decode64 exists:', !!forge.util?.decode64);
+  console.log('[xml-signer] forge.pki exists:', !!forge.pki);
+  console.log('[xml-signer] forge.asn1 exists:', !!forge.asn1);
+  console.log('[xml-signer] forge.pkcs12 exists:', !!forge.pkcs12);
+  console.log('[xml-signer] forge.random exists:', !!forge.random);
+  
+  if (!forge.util || !forge.util.decode64) {
+    console.error('[xml-signer] forge.util structure:', Object.keys(forge.util || {}));
+    console.error('[xml-signer] forge structure:', Object.keys(forge));
+    throw new Error('node-forge não carregou corretamente - forge.util.decode64 não encontrado');
+  }
   
   // Polyfill do PRNG antes de usar forge
-  const prngPolyfill = () => {
-    const bytes = new Uint8Array(32);
+  const prngPolyfill = (needed: number): string => {
+    const bytes = new Uint8Array(needed || 32);
     crypto.getRandomValues(bytes);
     return String.fromCharCode(...bytes);
   };
   
   // Configurar o PRNG do forge
   if (forge.random) {
+    console.log('[xml-signer] Configuring PRNG polyfill...');
     forge.random.seedFileSync = prngPolyfill;
     // Adicionar entropia inicial
     if (typeof forge.random.collect === 'function') {
-      forge.random.collect(prngPolyfill());
+      forge.random.collect(prngPolyfill(32));
     }
   }
   
   try {
+    console.log('[xml-signer] Decoding PFX from base64...');
     const pfxDer = forge.util.decode64(pfxBase64);
     console.log('[xml-signer] Decoded DER length:', pfxDer.length);
     
+    console.log('[xml-signer] Parsing ASN1...');
     const pfxAsn1 = forge.asn1.fromDer(pfxDer);
+    
+    console.log('[xml-signer] Parsing PKCS12...');
     const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
 
     // Busca a chave privada
