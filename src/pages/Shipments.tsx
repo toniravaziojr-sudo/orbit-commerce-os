@@ -172,6 +172,7 @@ export default function Shipments() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [carrierFilter, setCarrierFilter] = useState('all');
   const [selectedShipment, setSelectedShipment] = useState<ShipmentRecord | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [lastPollResult, setLastPollResult] = useState<{ timestamp: string; processed: number; updated: number; errors: number } | null>(null);
@@ -182,7 +183,7 @@ export default function Shipments() {
   
   // Fetch shipments
   const { data: shipments, isLoading } = useQuery({
-    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter],
+    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter, carrierFilter],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
       
@@ -198,6 +199,10 @@ export default function Shipments() {
       
       if (statusFilter !== 'all') {
         query = query.eq('delivery_status', statusFilter as DeliveryStatus);
+      }
+      
+      if (carrierFilter !== 'all') {
+        query = query.ilike('carrier', carrierFilter);
       }
       
       if (search) {
@@ -284,6 +289,24 @@ export default function Shipments() {
     inTransit: shipments?.filter(s => ['posted', 'in_transit', 'out_for_delivery'].includes(s.delivery_status)).length || 0,
     delivered: shipments?.filter(s => s.delivery_status === 'delivered').length || 0,
     withErrors: shipments?.filter(s => (s.poll_error_count || 0) > 0).length || 0,
+  };
+
+  // Carrier stats
+  const carrierStats = {
+    correios: shipments?.filter(s => s.carrier?.toLowerCase() === 'correios').length || 0,
+    loggi: shipments?.filter(s => s.carrier?.toLowerCase() === 'loggi').length || 0,
+    frenet: shipments?.filter(s => s.carrier?.toLowerCase() === 'frenet').length || 0,
+    outros: shipments?.filter(s => s.carrier && !['correios', 'loggi', 'frenet'].includes(s.carrier.toLowerCase())).length || 0,
+  };
+
+  // Carrier badge config
+  const getCarrierBadge = (carrier: string | null) => {
+    if (!carrier) return { color: 'bg-muted text-muted-foreground', label: 'Não definido' };
+    const c = carrier.toLowerCase();
+    if (c === 'correios') return { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', label: 'Correios' };
+    if (c === 'loggi') return { color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', label: 'Loggi' };
+    if (c === 'frenet') return { color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300', label: 'Frenet' };
+    return { color: 'bg-muted text-muted-foreground', label: carrier };
   };
 
   return (
@@ -424,7 +447,7 @@ export default function Shipments() {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="all">Todos status</SelectItem>
                   <SelectItem value="label_created">Etiqueta gerada</SelectItem>
                   <SelectItem value="posted">Postado</SelectItem>
                   <SelectItem value="in_transit">Em trânsito</SelectItem>
@@ -432,6 +455,32 @@ export default function Shipments() {
                   <SelectItem value="delivered">Entregue</SelectItem>
                   <SelectItem value="failed">Falha</SelectItem>
                   <SelectItem value="returned">Devolvido</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={carrierFilter} onValueChange={setCarrierFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Transportadora" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas</SelectItem>
+                  <SelectItem value="correios">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      Correios
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="loggi">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500" />
+                      Loggi
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="frenet">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-orange-500" />
+                      Frenet
+                    </span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -508,8 +557,15 @@ export default function Shipments() {
                               </TooltipContent>
                             </Tooltip>
                           </TableCell>
-                          <TableCell className="capitalize">
-                            {shipment.carrier || '—'}
+                          <TableCell>
+                            {(() => {
+                              const badge = getCarrierBadge(shipment.carrier);
+                              return (
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+                                  {badge.label}
+                                </span>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             <Badge variant={config.variant} className="gap-1">
