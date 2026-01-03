@@ -73,6 +73,8 @@ interface ProviderCredentials {
   client_secret?: string;
   company_id?: string;
   shipper_id?: string;
+  external_service_id?: string;
+  origin_cep?: string;
   // Frenet
   frenet_token?: string;
 }
@@ -233,6 +235,9 @@ async function createCorreiosShipment(
 }
 
 // ========== LOGGI ADAPTER ==========
+// API Docs: https://docs.api.loggi.com/reference/nossa-documenta%C3%A7%C3%A3o
+// Endpoint: POST /v1/companies/{company_id}/async-shipments (retorna 202)
+// Payload: shipFrom + shipTo + packages + externalServiceId
 
 async function createLoggiShipment(
   order: OrderData,
@@ -243,19 +248,20 @@ async function createLoggiShipment(
 
   const clientId = credentials.client_id;
   const clientSecret = credentials.client_secret;
-  let companyId = credentials.company_id || credentials.shipper_id;
+  const companyId = credentials.company_id || credentials.shipper_id;
+  const externalServiceId = credentials.external_service_id || 'DLVR-SPOT-DOOR-STAN-01';
 
   if (!clientId || !clientSecret) {
-    return { success: false, error: 'Credenciais Loggi incompletas (client_id, client_secret)' };
+    return { success: false, error: 'Credenciais Loggi incompletas. Configure client_id e client_secret em Configurações → Transportadoras.' };
   }
 
   if (!companyId) {
-    return { success: false, error: 'company_id ou shipper_id não configurado para Loggi' };
+    return { success: false, error: 'Company ID não configurado para Loggi. Configure em Configurações → Transportadoras.' };
   }
 
   try {
-    // Authenticate with OAuth2
-    console.log('[Loggi] Authenticating...');
+    // Step 1: Authenticate with OAuth2
+    console.log('[Loggi] Authenticating with OAuth2...');
     const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
       method: 'POST',
       headers: {
@@ -271,69 +277,91 @@ async function createLoggiShipment(
     if (!authResponse.ok) {
       const errorText = await authResponse.text();
       console.error('[Loggi] Auth failed:', authResponse.status, errorText);
-      return { success: false, error: 'Falha na autenticação Loggi' };
+      return { success: false, error: 'Falha na autenticação Loggi. Verifique client_id e client_secret.' };
     }
 
     const authData = await authResponse.json();
     const token = authData.idToken;
 
     if (!token) {
-      return { success: false, error: 'Token Loggi não retornado' };
+      return { success: false, error: 'Token Loggi não retornado na autenticação.' };
     }
 
+    console.log('[Loggi] OAuth2 authentication successful');
+
     // Calculate totals
-    const totalWeight = order.items.reduce((sum, item) => {
-      const itemWeight = (item.weight || 0.3) * item.quantity;
+    const totalWeightGrams = order.items.reduce((sum, item) => {
+      const itemWeight = (item.weight || 0.3) * item.quantity * 1000; // Convert kg to grams
       return sum + itemWeight;
     }, 0);
 
-    // Create shipment
+    // Get sender info from settings or fiscal_settings
+    const senderCep = (credentials.origin_cep || settings?.sender_postal_code as string || '').replace(/\D/g, '');
+    const senderName = settings?.sender_name as string || 'Loja';
+    const senderDocument = settings?.sender_document as string || '';
+    const senderPhone = (settings?.sender_phone as string || '').replace(/\D/g, '');
+    const senderEmail = settings?.sender_email as string || '';
+    const senderStreet = settings?.sender_street as string || '';
+    const senderNumber = settings?.sender_number as string || '';
+    const senderComplement = settings?.sender_complement as string || '';
+    const senderNeighborhood = settings?.sender_neighborhood as string || '';
+    const senderCity = settings?.sender_city as string || '';
+    const senderState = settings?.sender_state as string || '';
+
+    if (!senderCep) {
+      return { success: false, error: 'CEP de origem não configurado. Configure origin_cep em Transportadoras → Loggi.' };
+    }
+
+    // Build payload using correiosAddress format (official Loggi API format for Brazil)
     const shipmentPayload = {
-      pickup: {
+      shipFrom: {
+        name: senderName,
+        federalTaxId: senderDocument.replace(/\D/g, ''),
+        phone: { number: senderPhone },
+        email: senderEmail,
         address: {
-          zip_code: (settings?.sender_postal_code as string)?.replace(/\D/g, '') || '',
-          street: settings?.sender_street || '',
-          number: settings?.sender_number || '',
-          complement: settings?.sender_complement || '',
-          neighborhood: settings?.sender_neighborhood || '',
-          city: settings?.sender_city || '',
-          state: settings?.sender_state || '',
-        },
-        contact: {
-          name: settings?.sender_name || 'Loja',
-          phone: settings?.sender_phone || '',
-          email: settings?.sender_email || '',
+          correiosAddress: {
+            logradouro: senderStreet,
+            numero: senderNumber,
+            complemento: senderComplement,
+            bairro: senderNeighborhood,
+            cep: senderCep,
+            cidade: senderCity,
+            uf: senderState,
+          },
         },
       },
-      delivery: {
+      shipTo: {
+        name: order.customer_name,
+        phone: { number: order.customer_phone?.replace(/\D/g, '') || '' },
+        email: order.customer_email || '',
         address: {
-          zip_code: order.shipping_postal_code.replace(/\D/g, ''),
-          street: order.shipping_street,
-          number: order.shipping_number,
-          complement: order.shipping_complement || '',
-          neighborhood: order.shipping_neighborhood,
-          city: order.shipping_city,
-          state: order.shipping_state,
-        },
-        contact: {
-          name: order.customer_name,
-          phone: order.customer_phone?.replace(/\D/g, '') || '',
-          email: order.customer_email || '',
+          correiosAddress: {
+            logradouro: order.shipping_street,
+            numero: order.shipping_number,
+            complemento: order.shipping_complement || '',
+            bairro: order.shipping_neighborhood,
+            cep: order.shipping_postal_code.replace(/\D/g, ''),
+            cidade: order.shipping_city,
+            uf: order.shipping_state,
+          },
         },
       },
-      package: {
-        weight_kg: Math.max(0.1, totalWeight),
-        height_cm: 10,
-        width_cm: 15,
-        length_cm: 20,
-        value: order.total,
-      },
-      external_id: order.id,
+      packages: [{
+        weightG: Math.max(100, Math.round(totalWeightGrams)), // Minimum 100g
+        lengthCm: 20,
+        widthCm: 15,
+        heightCm: 10,
+        declaredValue: order.total,
+        description: `Pedido ${order.id.substring(0, 8)}`,
+      }],
+      externalServiceId: externalServiceId, // Required! e.g. DLVR-SPOT-DOOR-STAN-01
     };
 
-    console.log('[Loggi] Shipment payload:', JSON.stringify(shipmentPayload).substring(0, 500));
+    console.log('[Loggi] Shipment payload:', JSON.stringify(shipmentPayload).substring(0, 800));
 
-    const response = await fetch(`https://api.loggi.com/v1/companies/${companyId}/packages`, {
+    // Step 2: Create async shipment
+    const response = await fetch(`https://api.loggi.com/v1/companies/${companyId}/async-shipments`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -344,12 +372,15 @@ async function createLoggiShipment(
     });
 
     const responseText = await response.text();
-    console.log('[Loggi] Response:', response.status, responseText.substring(0, 500));
+    console.log('[Loggi] Response:', response.status, responseText.substring(0, 800));
 
-    if (!response.ok) {
+    // Async shipment returns 202 Accepted
+    if (!response.ok && response.status !== 202) {
       try {
         const errorData = JSON.parse(responseText);
-        const errorMsg = errorData.message || errorData.error || `Erro ${response.status}`;
+        const errorMsg = errorData.message || errorData.error || 
+                         errorData.errors?.map((e: any) => e.message).join(', ') ||
+                         `Erro ${response.status}`;
         return { success: false, error: errorMsg };
       } catch {
         return { success: false, error: `Erro Loggi: ${response.status}` };
@@ -357,13 +388,23 @@ async function createLoggiShipment(
     }
 
     const data = JSON.parse(responseText);
+    
+    // Response includes packages array with trackingCode and loggiKey
+    const firstPackage = data.packages?.[0] || data;
+    const trackingCode = firstPackage.trackingCode || data.trackingCode || data.pk;
+    const loggiKey = firstPackage.loggiKey || data.loggiKey;
+
+    if (!trackingCode) {
+      console.warn('[Loggi] No tracking code in response:', JSON.stringify(data));
+      return { success: false, error: 'Loggi não retornou código de rastreio. A remessa pode estar em processamento.' };
+    }
 
     return {
       success: true,
-      tracking_code: data.tracking_code || data.pk,
-      label_url: data.label_url,
+      tracking_code: trackingCode,
+      label_url: undefined, // Label must be fetched separately using loggiKey
       carrier: 'Loggi',
-      provider_shipment_id: data.pk || data.id,
+      provider_shipment_id: loggiKey || trackingCode, // Store loggiKey for label retrieval
     };
 
   } catch (error: any) {

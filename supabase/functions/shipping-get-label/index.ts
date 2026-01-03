@@ -290,24 +290,34 @@ async function getCorreiosLabel(
 }
 
 // ========== LOGGI LABEL ==========
+// API Docs: https://docs.api.loggi.com/reference/labels
+// Endpoint: GET /v1/companies/{company_id}/labels?loggiKeys={loggiKey}
+// IMPORTANT: Use loggiKey (not trackingCode) to fetch labels
 
 async function getLoggiLabel(
   trackingCode: string,
-  providerShipmentId: string | null,
+  providerShipmentId: string | null, // This should be the loggiKey from shipment creation
   credentials: Record<string, unknown>
 ): Promise<LabelResult> {
-  console.log('[Loggi] Getting label for:', trackingCode);
+  console.log('[Loggi] Getting label for trackingCode:', trackingCode, 'loggiKey:', providerShipmentId);
 
   const clientId = credentials.client_id as string;
   const clientSecret = credentials.client_secret as string;
   const companyId = (credentials.company_id || credentials.shipper_id) as string;
 
   if (!clientId || !clientSecret || !companyId) {
-    return { success: false, error: 'Credenciais Loggi incompletas' };
+    return { success: false, error: 'Credenciais Loggi incompletas. Configure em Configurações → Transportadoras.' };
+  }
+
+  // loggiKey is required for label retrieval
+  const loggiKey = providerShipmentId || trackingCode;
+  if (!loggiKey) {
+    return { success: false, error: 'loggiKey não disponível para obter etiqueta.' };
   }
 
   try {
-    // Authenticate
+    // Step 1: Authenticate
+    console.log('[Loggi] Authenticating...');
     const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
       method: 'POST',
       headers: {
@@ -320,19 +330,21 @@ async function getLoggiLabel(
     });
 
     if (!authResponse.ok) {
-      return { success: false, error: 'Falha na autenticação Loggi' };
+      const errorText = await authResponse.text();
+      console.error('[Loggi] Auth failed:', authResponse.status, errorText);
+      return { success: false, error: 'Falha na autenticação Loggi. Verifique client_id e client_secret.' };
     }
 
     const authData = await authResponse.json();
     const token = authData.idToken;
 
     if (!token) {
-      return { success: false, error: 'Token Loggi não retornado' };
+      return { success: false, error: 'Token Loggi não retornado na autenticação.' };
     }
 
-    // Get label
-    const packageId = providerShipmentId || trackingCode;
-    const labelUrl = `https://api.loggi.com/v1/companies/${companyId}/packages/${packageId}/label`;
+    // Step 2: Get label using the correct endpoint
+    // Endpoint: GET /v1/companies/{company_id}/labels?loggiKeys={loggiKey}
+    const labelUrl = `https://api.loggi.com/v1/companies/${companyId}/labels?loggiKeys=${encodeURIComponent(loggiKey)}`;
 
     console.log('[Loggi] Fetching label from:', labelUrl);
 
@@ -347,15 +359,25 @@ async function getLoggiLabel(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[Loggi] Label error:', response.status, errorText);
-      return { success: false, error: `Erro ao obter etiqueta: ${response.status}` };
+      
+      // Try to parse error message
+      try {
+        const errorData = JSON.parse(errorText);
+        const errorMsg = errorData.message || errorData.error || `Erro ${response.status}`;
+        return { success: false, error: errorMsg };
+      } catch {
+        return { success: false, error: `Erro ao obter etiqueta Loggi: ${response.status}` };
+      }
     }
 
     const contentType = response.headers.get('content-type') || '';
 
+    // PDF response - convert to base64
     if (contentType.includes('application/pdf')) {
       const buffer = await response.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
       
+      console.log('[Loggi] Label retrieved successfully as PDF');
       return {
         success: true,
         label_base64: base64,
@@ -363,24 +385,36 @@ async function getLoggiLabel(
       };
     }
 
-    // Try to get URL from JSON response
+    // Try to parse JSON response for URL
     try {
       const data = await response.json();
-      if (data.url || data.label_url) {
+      console.log('[Loggi] Label response:', JSON.stringify(data).substring(0, 500));
+      
+      if (data.url || data.label_url || data.labels?.[0]?.url) {
+        const labelUrlFromResponse = data.url || data.label_url || data.labels?.[0]?.url;
         return {
           success: true,
-          label_url: data.url || data.label_url,
+          label_url: labelUrlFromResponse,
+          format: 'pdf',
+        };
+      }
+      
+      // If response contains base64 directly
+      if (data.base64 || data.content) {
+        return {
+          success: true,
+          label_base64: data.base64 || data.content,
           format: 'pdf',
         };
       }
     } catch {
-      // Not JSON
+      // Not JSON, might be direct binary
     }
 
-    return { success: false, error: 'Formato de resposta inesperado' };
+    return { success: false, error: 'Formato de resposta de etiqueta não reconhecido.' };
 
   } catch (error: any) {
     console.error('[Loggi] Label error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || 'Erro ao obter etiqueta Loggi.' };
   }
 }
