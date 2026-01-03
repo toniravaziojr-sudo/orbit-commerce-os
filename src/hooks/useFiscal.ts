@@ -78,7 +78,7 @@ export interface FiscalInvoice {
   serie: number;
   chave_acesso: string | null;
   protocolo: string | null;
-  status: 'draft' | 'pending' | 'authorized' | 'rejected' | 'canceled';
+  status: 'draft' | 'pending' | 'authorized' | 'rejected' | 'canceled' | 'cancelled';
   status_motivo: string | null;
   natureza_operacao: string;
   cfop: string | null;
