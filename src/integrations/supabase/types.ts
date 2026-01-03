@@ -2192,6 +2192,7 @@ export type Database = {
           cfop: string | null
           chave_acesso: string | null
           created_at: string | null
+          danfe_printed_at: string | null
           danfe_url: string | null
           dest_cpf_cnpj: string
           dest_endereco_bairro: string | null
@@ -2229,6 +2230,7 @@ export type Database = {
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
+          danfe_printed_at?: string | null
           danfe_url?: string | null
           dest_cpf_cnpj: string
           dest_endereco_bairro?: string | null
@@ -2266,6 +2268,7 @@ export type Database = {
           cfop?: string | null
           chave_acesso?: string | null
           created_at?: string | null
+          danfe_printed_at?: string | null
           danfe_url?: string | null
           dest_cpf_cnpj?: string
           dest_endereco_bairro?: string | null

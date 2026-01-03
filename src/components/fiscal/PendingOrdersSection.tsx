@@ -1,10 +1,11 @@
-import { Clock, FileText, Loader2 } from 'lucide-react';
+import { Clock, FileText, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useOrdersPendingInvoice, useCreateDraft, useSubmitInvoice } from '@/hooks/useFiscal';
+import { FiscalErrorResolver, parseErrorMessage } from '@/components/fiscal/FiscalErrorResolver';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useState } from 'react';
@@ -20,24 +21,44 @@ export function PendingOrdersSection() {
   const createDraft = useCreateDraft();
   const submitInvoice = useSubmitInvoice();
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
+  const [errorResolverOpen, setErrorResolverOpen] = useState(false);
+  const [currentErrors, setCurrentErrors] = useState<ReturnType<typeof parseErrorMessage>>([]);
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
+  const [currentInvoiceId, setCurrentInvoiceId] = useState<string | null>(null);
 
   const handleEmitNFe = async (orderId: string) => {
     try {
       setProcessingOrderId(orderId);
+      setCurrentOrderId(orderId);
       
       // Create draft
       const draftResult = await createDraft.mutateAsync({ orderId });
       
       if (draftResult.invoice?.id) {
+        setCurrentInvoiceId(draftResult.invoice.id);
         // Submit for authorization
         await submitInvoice.mutateAsync(draftResult.invoice.id);
+        toast.success('NF-e enviada para autorização');
         refetch();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error emitting NF-e:', error);
-      toast.error('Erro ao emitir NF-e');
+      
+      // Parse error message and show resolver
+      const errorMessage = error?.message || error?.error || 'Erro desconhecido ao emitir NF-e';
+      const parsedErrors = parseErrorMessage(errorMessage);
+      
+      setCurrentErrors(parsedErrors);
+      setErrorResolverOpen(true);
     } finally {
       setProcessingOrderId(null);
+    }
+  };
+
+  const handleRetry = () => {
+    if (currentOrderId) {
+      setErrorResolverOpen(false);
+      handleEmitNFe(currentOrderId);
     }
   };
 
@@ -119,6 +140,16 @@ export function PendingOrdersSection() {
           </p>
         )}
       </CardContent>
+
+      {/* Error Resolver Dialog */}
+      <FiscalErrorResolver
+        open={errorResolverOpen}
+        onOpenChange={setErrorResolverOpen}
+        errors={currentErrors}
+        orderId={currentOrderId || undefined}
+        invoiceId={currentInvoiceId || undefined}
+        onRetry={handleRetry}
+      />
     </Card>
   );
 }
