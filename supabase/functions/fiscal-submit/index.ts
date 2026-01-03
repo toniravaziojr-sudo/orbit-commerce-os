@@ -12,9 +12,9 @@ import { buildNFeXml, buildEnviNFeXml, type NFeData, type NFeEmitente, type NFeD
 import { loadCertificate, signNFeXml } from "../_shared/xml-signer.ts";
 import { 
   buildSoapEnvelope, 
-  sendSoapRequest, 
   parseAutorizacaoResponse 
 } from "../_shared/soap-client.ts";
+import { sendSoapRequestMtls, isMtlsSupported } from "../_shared/mtls-client.ts";
 import { loadTenantCertificate } from "../_shared/certificate-utils.ts";
 
 const corsHeaders = {
@@ -378,7 +378,7 @@ serve(async (req) => {
       });
 
     // ============================================
-    // 8. Enviar para SEFAZ
+    // 8. Enviar para SEFAZ via mTLS
     // ============================================
     
     const webServiceUrl = getSefazEndpoint(
@@ -388,16 +388,21 @@ serve(async (req) => {
     );
     
     console.log('[fiscal-submit] SEFAZ URL:', webServiceUrl);
+    console.log('[fiscal-submit] mTLS supported:', isMtlsSupported());
     
     const soapEnvelope = buildSoapEnvelope('NFeAutorizacao4', enviNFeXml);
     
     try {
-      const soapResponse = await sendSoapRequest({
-        url: webServiceUrl,
-        action: 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote',
-        pfxBase64,
-        pfxPassword: certPassword,
-      }, soapEnvelope);
+      // Usar cliente mTLS com certificado de cliente
+      const soapResponse = await sendSoapRequestMtls(
+        {
+          url: webServiceUrl,
+          soapAction: 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote',
+          certPem: certificate.certificateFullPem,
+          keyPem: certificate.privateKeyPem,
+        },
+        soapEnvelope
+      );
       
       console.log('[fiscal-submit] SEFAZ response status:', soapResponse.statusCode);
       
