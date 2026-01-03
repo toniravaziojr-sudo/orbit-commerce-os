@@ -21,7 +21,44 @@ interface ManualInvoiceItem {
   unidade: string;
   quantidade: number;
   valor_unitario: number;
+  origem: string;
+  csosn: string;
 }
+
+// Validation helpers
+function isValidNcm(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 8;
+}
+
+function isValidCpfCnpj(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 11 || numbers.length === 14;
+}
+
+function isValidCep(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 8;
+}
+
+// Options
+const ORIGEM_OPTIONS = [
+  { value: '0', label: '0 - Nacional' },
+  { value: '1', label: '1 - Estrangeira (importação direta)' },
+  { value: '2', label: '2 - Estrangeira (mercado interno)' },
+];
+
+const CSOSN_OPTIONS = [
+  { value: '101', label: '101 - Tributada com crédito' },
+  { value: '102', label: '102 - Tributada sem crédito' },
+  { value: '103', label: '103 - Isenção para faixa de receita' },
+  { value: '300', label: '300 - Imune' },
+  { value: '400', label: '400 - Não tributada' },
+  { value: '500', label: '500 - ICMS cobrado anteriormente por ST' },
+  { value: '900', label: '900 - Outros' },
+];
+
+const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 
 interface ManualInvoiceDialogProps {
   open: boolean;
@@ -52,7 +89,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   const [naturezaOperacao, setNaturezaOperacao] = useState('VENDA DE MERCADORIA');
   const [observacoes, setObservacoes] = useState('');
   const [items, setItems] = useState<ManualInvoiceItem[]>([
-    { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0 }
+    { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }
   ]);
 
   // Fetch orders for import
@@ -85,7 +122,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
       setDestMunicipio('');
       setDestUf('');
       setDestCep('');
-      setItems([{ codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+      setItems([{ codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }]);
       return;
     }
 
@@ -152,10 +189,12 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
           unidade: fp?.unidade_comercial || 'UN',
           quantidade: item.quantity || 1,
           valor_unitario: item.unit_price || 0,
+          origem: String(fp?.origem ?? 0),
+          csosn: fp?.csosn_override || '102',
         };
       });
 
-      setItems(invoiceItems.length > 0 ? invoiceItems : [{ codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+      setItems(invoiceItems.length > 0 ? invoiceItems : [{ codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }]);
 
       toast.success('Dados do pedido importados');
     } catch (error) {
@@ -167,7 +206,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
   };
 
   const handleAddItem = () => {
-    setItems([...items, { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0 }]);
+    setItems([...items, { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }]);
   };
 
   const handleAddProductFromCatalog = (product: ProductWithFiscal) => {
@@ -179,6 +218,8 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
       unidade: product.unidade || 'UN',
       quantidade: 1,
       valor_unitario: product.price,
+      origem: String(product.origem ?? 0),
+      csosn: '102',
     };
     setItems([...items, newItem]);
     toast.success(`Produto "${product.name}" adicionado`);
@@ -202,19 +243,55 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!destNome || !destCpfCnpj) {
-      toast.error('Preencha nome e CPF/CNPJ do destinatário');
-      return;
+    const errors: string[] = [];
+    
+    if (!destNome?.trim()) {
+      errors.push('Nome do destinatário é obrigatório');
+    }
+    
+    const cpfCnpj = destCpfCnpj.replace(/\D/g, '');
+    if (!cpfCnpj) {
+      errors.push('CPF/CNPJ do destinatário é obrigatório');
+    } else if (!isValidCpfCnpj(cpfCnpj)) {
+      errors.push(`CPF/CNPJ inválido: deve ter 11 dígitos (CPF) ou 14 dígitos (CNPJ). Atual: ${cpfCnpj.length} dígitos`);
     }
 
-    if (!destLogradouro || !destNumero || !destMunicipio || !destUf || !destCep) {
-      toast.error('Preencha o endereço completo do destinatário');
-      return;
+    if (!destLogradouro?.trim()) errors.push('Logradouro é obrigatório');
+    if (!destNumero?.trim()) errors.push('Número é obrigatório');
+    if (!destBairro?.trim()) errors.push('Bairro é obrigatório');
+    if (!destMunicipio?.trim()) errors.push('Município é obrigatório');
+    if (!destUf?.trim()) errors.push('UF é obrigatório');
+    
+    const cep = destCep.replace(/\D/g, '');
+    if (!cep) {
+      errors.push('CEP é obrigatório');
+    } else if (!isValidCep(cep)) {
+      errors.push(`CEP inválido: deve ter 8 dígitos. Atual: ${cep.length} dígitos`);
     }
 
-    const invalidItems = items.filter(i => !i.descricao || !i.ncm || i.valor_unitario <= 0);
-    if (invalidItems.length > 0) {
-      toast.error('Preencha descrição, NCM e valor de todos os itens');
+    // Validate items
+    items.forEach((item, idx) => {
+      const itemName = item.descricao || `Item ${idx + 1}`;
+      const ncm = item.ncm.replace(/\D/g, '');
+      
+      if (!item.descricao?.trim()) {
+        errors.push(`Item ${idx + 1}: Descrição é obrigatória`);
+      }
+      
+      if (!ncm) {
+        errors.push(`${itemName}: NCM é obrigatório`);
+      } else if (!isValidNcm(ncm)) {
+        errors.push(`${itemName}: NCM deve ter exatamente 8 dígitos (atual: ${ncm.length})`);
+      }
+      
+      if (item.valor_unitario <= 0) {
+        errors.push(`${itemName}: Valor unitário deve ser maior que zero`);
+      }
+    });
+
+    if (errors.length > 0) {
+      toast.error(errors[0]); // Show first error
+      console.error('Validation errors:', errors);
       return;
     }
 
@@ -246,10 +323,12 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
             codigo: item.codigo,
             descricao: item.descricao,
             ncm: item.ncm.replace(/\D/g, ''),
-            cfop: item.cfop,
+            cfop: item.cfop.replace(/\D/g, ''),
             unidade: item.unidade,
             quantidade: item.quantidade,
             valor_unitario: item.valor_unitario,
+            origem: item.origem,
+            csosn: item.csosn,
           })),
         },
       });
@@ -320,8 +399,14 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                   <Input value={destNome} onChange={e => setDestNome(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>CPF / CNPJ *</Label>
-                  <Input value={destCpfCnpj} onChange={e => setDestCpfCnpj(e.target.value)} />
+                  <Label>CPF / CNPJ * <span className="text-xs text-muted-foreground">({destCpfCnpj.replace(/\D/g, '').length}/14 dígitos)</span></Label>
+                  <Input 
+                    value={destCpfCnpj} 
+                    onChange={e => setDestCpfCnpj(e.target.value.replace(/\D/g, ''))} 
+                    maxLength={14}
+                    placeholder="Apenas números"
+                    className={`font-mono ${destCpfCnpj && !isValidCpfCnpj(destCpfCnpj) ? 'border-destructive' : ''}`}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -341,7 +426,7 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                 </div>
                 <div className="space-y-2">
                   <Label>Número *</Label>
-                  <Input value={destNumero} onChange={e => setDestNumero(e.target.value)} />
+                  <Input value={destNumero} onChange={e => setDestNumero(e.target.value)} placeholder="S/N se não houver" />
                 </div>
                 <div className="space-y-2">
                   <Label>Complemento</Label>
@@ -359,11 +444,26 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
                 </div>
                 <div className="space-y-2">
                   <Label>UF *</Label>
-                  <Input value={destUf} onChange={e => setDestUf(e.target.value)} maxLength={2} />
+                  <Select value={destUf} onValueChange={setDestUf}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="UF" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UF_OPTIONS.map(uf => (
+                        <SelectItem key={uf} value={uf}>{uf}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>CEP *</Label>
-                  <Input value={destCep} onChange={e => setDestCep(e.target.value)} />
+                  <Label>CEP * <span className="text-xs text-muted-foreground">(8 dígitos)</span></Label>
+                  <Input 
+                    value={destCep} 
+                    onChange={e => setDestCep(e.target.value.replace(/\D/g, ''))} 
+                    maxLength={8}
+                    placeholder="00000000"
+                    className={`font-mono ${destCep && !isValidCep(destCep) ? 'border-destructive' : ''}`}
+                  />
                 </div>
               </div>
             </CardContent>
@@ -386,85 +486,137 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="p-3 border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Item {index + 1}</span>
-                    {items.length > 1 && (
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+              {items.map((item, index) => {
+                const ncm = item.ncm.replace(/\D/g, '');
+                const hasNcmError = !ncm || ncm.length !== 8;
+                const cfop = item.cfop.replace(/\D/g, '');
+                const hasCfopError = !cfop || cfop.length !== 4;
+                
+                return (
+                  <div key={index} className={`p-3 border rounded-lg space-y-3 ${hasNcmError ? 'border-amber-400' : ''}`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">Item {index + 1}</span>
+                        <span className="text-primary font-bold">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
+                      </div>
+                      {items.length > 1 && (
+                        <Button variant="ghost" size="icon" onClick={() => handleRemoveItem(index)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-6 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Código</Label>
+                        <Input
+                          value={item.codigo}
+                          onChange={e => handleItemChange(index, 'codigo', e.target.value)}
+                          placeholder="SKU"
+                        />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-xs">Descrição *</Label>
+                        <Input
+                          value={item.descricao}
+                          onChange={e => handleItemChange(index, 'descricao', e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">
+                          NCM * {hasNcmError && <span className="text-amber-600">(8 dígitos)</span>}
+                        </Label>
+                        <Input
+                          value={item.ncm}
+                          onChange={e => handleItemChange(index, 'ncm', e.target.value.replace(/\D/g, ''))}
+                          placeholder="00000000"
+                          maxLength={8}
+                          className={`font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">
+                          CFOP * {hasCfopError && <span className="text-amber-600">(4 dígitos)</span>}
+                        </Label>
+                        <Input
+                          value={item.cfop}
+                          onChange={e => handleItemChange(index, 'cfop', e.target.value.replace(/\D/g, ''))}
+                          maxLength={4}
+                          className={`font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Unidade</Label>
+                        <Input
+                          value={item.unidade}
+                          onChange={e => handleItemChange(index, 'unidade', e.target.value.toUpperCase())}
+                          maxLength={6}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-5 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Origem</Label>
+                        <Select 
+                          value={item.origem || '0'} 
+                          onValueChange={v => handleItemChange(index, 'origem', v)}
+                        >
+                          <SelectTrigger className="text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ORIGEM_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">CSOSN</Label>
+                        <Select 
+                          value={item.csosn || '102'} 
+                          onValueChange={v => handleItemChange(index, 'csosn', v)}
+                        >
+                          <SelectTrigger className="text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CSOSN_OPTIONS.map(opt => (
+                              <SelectItem key={opt.value} value={opt.value} className="text-xs">{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Quantidade *</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantidade}
+                          onChange={e => handleItemChange(index, 'quantidade', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Valor Unitário *</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.valor_unitario}
+                          onChange={e => handleItemChange(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Subtotal</Label>
+                        <Input
+                          value={formatCurrency(item.quantidade * item.valor_unitario)}
+                          disabled
+                          className="bg-muted"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-6 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Código</Label>
-                      <Input
-                        value={item.codigo}
-                        onChange={e => handleItemChange(index, 'codigo', e.target.value)}
-                        placeholder="SKU"
-                      />
-                    </div>
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-xs">Descrição *</Label>
-                      <Input
-                        value={item.descricao}
-                        onChange={e => handleItemChange(index, 'descricao', e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">NCM *</Label>
-                      <Input
-                        value={item.ncm}
-                        onChange={e => handleItemChange(index, 'ncm', e.target.value)}
-                        placeholder="00000000"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">CFOP</Label>
-                      <Input
-                        value={item.cfop}
-                        onChange={e => handleItemChange(index, 'cfop', e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Unidade</Label>
-                      <Input
-                        value={item.unidade}
-                        onChange={e => handleItemChange(index, 'unidade', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs">Quantidade *</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={item.quantidade}
-                        onChange={e => handleItemChange(index, 'quantidade', parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Valor Unitário *</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.valor_unitario}
-                        onChange={e => handleItemChange(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Subtotal</Label>
-                      <Input
-                        value={formatCurrency(item.quantidade * item.valor_unitario)}
-                        disabled
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
               <div className="flex justify-end pt-2 border-t">
                 <div className="text-right">
                   <p className="text-sm text-muted-foreground">Total dos Produtos</p>

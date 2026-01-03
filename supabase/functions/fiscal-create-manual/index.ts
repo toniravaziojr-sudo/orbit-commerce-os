@@ -170,12 +170,14 @@ serve(async (req) => {
       numero_item: item.numero_item,
       codigo_produto: item.codigo || `ITEM${item.numero_item}`,
       descricao: item.descricao,
-      ncm: item.ncm,
-      cfop: item.cfop,
-      unidade: item.unidade,
+      ncm: (item.ncm || '').replace(/\D/g, '').padStart(8, '0'),
+      cfop: (item.cfop || '5102').replace(/\D/g, ''),
+      unidade: item.unidade || 'UN',
       quantidade: item.quantidade,
       valor_unitario: item.valor_unitario,
       valor_total: item.quantidade * item.valor_unitario,
+      origem: parseInt(item.origem || '0', 10),
+      csosn: item.csosn || '102',
     }));
 
     const { error: itemsError } = await supabase
