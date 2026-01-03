@@ -285,3 +285,6 @@ verify_jwt = true
 
 [functions.shipping-get-label]
 verify_jwt = true
+
+[functions.shipping-register-manual]
+verify_jwt = true

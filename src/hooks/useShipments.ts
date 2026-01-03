@@ -395,13 +395,14 @@ export function useRefreshTracking() {
 export function useShipmentsList(options: {
   search?: string;
   status?: DeliveryStatus | 'all';
+  carrier?: string;
   limit?: number;
 } = {}) {
   const { currentTenant } = useAuth();
-  const { search, status = 'all', limit = 100 } = options;
+  const { search, status = 'all', carrier = 'all', limit = 100 } = options;
 
   return useQuery({
-    queryKey: ['admin-shipments', currentTenant?.id, search, status, limit],
+    queryKey: ['admin-shipments', currentTenant?.id, search, status, carrier, limit],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
 
@@ -419,6 +420,10 @@ export function useShipmentsList(options: {
         query = query.eq('delivery_status', status);
       }
 
+      if (carrier !== 'all') {
+        query = query.ilike('carrier', carrier);
+      }
+
       if (search) {
         query = query.or(`tracking_code.ilike.%${search}%,order.order_number.ilike.%${search}%`);
       }
@@ -428,5 +433,40 @@ export function useShipmentsList(options: {
       return data as (ShipmentRecord & { order: { order_number: string; customer_name: string; customer_email: string } })[];
     },
     enabled: !!currentTenant?.id,
+  });
+}
+
+// Hook para registrar remessa manual
+export function useRegisterManualShipment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      order_id: string;
+      tracking_code: string;
+      carrier: string;
+    }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipping-register-manual', {
+        body: data,
+      });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao registrar remessa');
+
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-for-shipment'] });
+      toast.success(`Remessa registrada! Código: ${result.tracking_code}`);
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao registrar remessa:', error);
+      toast.error(error.message || 'Erro ao registrar remessa');
+    },
   });
 }

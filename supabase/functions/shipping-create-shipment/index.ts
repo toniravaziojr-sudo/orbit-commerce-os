@@ -418,22 +418,22 @@ async function createLoggiShipment(
   }
 }
 
-// ========== FRENET ADAPTER (Placeholder) ==========
+// ========== FRENET ADAPTER ==========
 
 async function createFrenetShipment(
   order: OrderData,
   credentials: ProviderCredentials,
   settings: Record<string, unknown>
 ): Promise<ShipmentResult> {
-  console.log('[Frenet] Frenet is a quote aggregator, cannot create shipments directly');
+  console.log('[Frenet] Frenet is a label marketplace, cannot create shipments via API');
   
-  // Frenet is an intermediary - it cannot create shipments
-  // The actual carrier must be used
-  // Return manual fallback
+  // Frenet is a label marketplace - labels must be purchased via their panel
+  // Return requires_manual flag so frontend can guide the user
   return {
     success: false,
-    error: 'Frenet é apenas intermediário de cotação. Configure Correios ou Loggi diretamente.',
-  };
+    error: 'Frenet não suporta criação automática de remessas. Acesse o painel Frenet para comprar a etiqueta, depois registre o código de rastreio manualmente usando o modo "Manual".',
+    requires_manual: true,
+  } as ShipmentResult & { requires_manual: boolean };
 }
 
 // ========== MAIN HANDLER ==========
