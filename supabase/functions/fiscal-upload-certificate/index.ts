@@ -349,6 +349,38 @@ serve(async (req) => {
     // Calculate days until expiration
     const daysUntilExpiry = Math.floor((notAfter.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
+    // Tentar sincronizar empresa com Focus NFe automaticamente
+    let focusSyncResult: { success: boolean; empresa_id?: string; error?: string } | null = null;
+    
+    try {
+      const focusToken = Deno.env.get('FOCUS_NFE_TOKEN');
+      if (focusToken) {
+        console.log('[fiscal-upload-certificate] Triggering Focus NFe sync...');
+        
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const syncResponse = await fetch(`${supabaseUrl}/functions/v1/fiscal-sync-focus-nfe`, {
+          method: 'POST',
+          headers: {
+            'Authorization': authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+        
+        if (syncResponse.ok) {
+          focusSyncResult = await syncResponse.json();
+          console.log('[fiscal-upload-certificate] Focus NFe sync result:', focusSyncResult);
+        } else {
+          const errorText = await syncResponse.text();
+          console.warn('[fiscal-upload-certificate] Focus NFe sync failed:', errorText);
+          focusSyncResult = { success: false, error: 'Falha ao sincronizar com Focus NFe' };
+        }
+      }
+    } catch (syncError: any) {
+      console.error('[fiscal-upload-certificate] Focus NFe sync error:', syncError);
+      focusSyncResult = { success: false, error: syncError.message };
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -360,6 +392,7 @@ serve(async (req) => {
           days_until_expiry: daysUntilExpiry,
           uploaded_at: certificateData.certificado_uploaded_at,
         },
+        focus_sync: focusSyncResult,
         warning: cnpjMismatch ? `CNPJ do certificado (${certCnpj}) não corresponde ao CNPJ cadastrado` : undefined
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
