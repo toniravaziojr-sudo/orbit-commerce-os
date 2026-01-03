@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, History } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, History, Download, Send, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, type FiscalInvoice } from '@/hooks/useFiscal';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
@@ -75,6 +76,8 @@ export default function Fiscal() {
   const [currentErrors, setCurrentErrors] = useState<any[]>([]);
   const [currentErrorInvoiceId, setCurrentErrorInvoiceId] = useState<string | null>(null);
   const [advancedFilters, setAdvancedFilters] = useState<InvoiceFilters>({});
+  const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -413,6 +416,141 @@ export default function Fiscal() {
     }
   };
 
+  // Bulk selection handlers
+  const handleSelectAll = () => {
+    if (!filteredInvoices) return;
+    if (selectedInvoices.size === filteredInvoices.length) {
+      setSelectedInvoices(new Set());
+    } else {
+      setSelectedInvoices(new Set(filteredInvoices.map(inv => inv.id)));
+    }
+  };
+
+  const handleSelectInvoice = (invoiceId: string) => {
+    const newSelected = new Set(selectedInvoices);
+    if (newSelected.has(invoiceId)) {
+      newSelected.delete(invoiceId);
+    } else {
+      newSelected.add(invoiceId);
+    }
+    setSelectedInvoices(newSelected);
+  };
+
+  const clearSelection = () => {
+    setSelectedInvoices(new Set());
+  };
+
+  // Bulk actions
+  const handleBulkSubmit = async () => {
+    const drafts = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
+    );
+    
+    if (drafts.length === 0) {
+      toast.error('Nenhum rascunho selecionado para emissão');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const invoice of drafts) {
+      try {
+        const { data, error } = await supabase.functions.invoke('fiscal-submit', {
+          body: { invoice_id: invoice.id },
+        });
+
+        if (error || !data?.success) {
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      } catch {
+        errorCount++;
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    refetch();
+
+    if (successCount > 0) {
+      toast.success(`${successCount} NF-e(s) enviada(s) para autorização`);
+    }
+    if (errorCount > 0) {
+      toast.error(`${errorCount} NF-e(s) com erro na emissão`);
+    }
+  };
+
+  const handleBulkPrint = async () => {
+    const authorized = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && inv.danfe_url
+    );
+    
+    if (authorized.length === 0) {
+      toast.error('Nenhuma NF-e autorizada com DANFE disponível');
+      return;
+    }
+
+    // Open all DANFEs in new tabs
+    authorized.forEach((invoice, index) => {
+      setTimeout(() => {
+        window.open(invoice.danfe_url, '_blank');
+      }, index * 300); // Delay to avoid popup blocking
+    });
+
+    // Mark all as printed
+    const ids = authorized.map(inv => inv.id);
+    await supabase
+      .from('fiscal_invoices')
+      .update({ 
+        danfe_printed_at: new Date().toISOString(),
+        printed_at: new Date().toISOString()
+      })
+      .in('id', ids);
+
+    clearSelection();
+    refetch();
+    toast.success(`${authorized.length} DANFE(s) abertas para impressão`);
+  };
+
+  const handleBulkDownloadXml = async () => {
+    const authorized = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && inv.xml_autorizado
+    );
+    
+    if (authorized.length === 0) {
+      toast.error('Nenhuma NF-e autorizada com XML disponível');
+      return;
+    }
+
+    // Download all XMLs
+    authorized.forEach((invoice, index) => {
+      setTimeout(() => {
+        const link = document.createElement('a');
+        link.href = invoice.xml_autorizado!;
+        link.download = `nfe_${invoice.serie}_${invoice.numero}.xml`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }, index * 300);
+    });
+
+    toast.success(`Baixando ${authorized.length} XML(s)`);
+    clearSelection();
+  };
+
+  // Get counts for bulk actions
+  const selectedDraftsCount = (filteredInvoices || []).filter(
+    inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
+  ).length;
+  
+  const selectedAuthorizedCount = (filteredInvoices || []).filter(
+    inv => selectedInvoices.has(inv.id) && inv.status === 'authorized'
+  ).length;
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -597,79 +735,141 @@ export default function Fiscal() {
                 } : undefined}
               />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Número</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Cliente</TableHead>
-                    <TableHead>CPF/CNPJ</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredInvoices.map((invoice) => {
-                    const status = statusConfig[invoice.status] || statusConfig.draft;
-                    const StatusIcon = status.icon;
-                    const isPrinted = (invoice as any).danfe_printed_at;
-                    
-                    return (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-medium">
-                          {invoice.serie}-{invoice.numero}
-                        </TableCell>
-                        <TableCell>
-                          {format(new Date(invoice.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate">
-                          {invoice.dest_nome}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {formatDocument(invoice.dest_cpf_cnpj)}
-                        </TableCell>
-                        <TableCell>{formatCurrency(invoice.valor_total)}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <Badge variant={status.variant} className="gap-1 w-fit">
-                              <StatusIcon className="h-3 w-3" />
-                              {status.label}
-                            </Badge>
-                            {invoice.status === 'authorized' && isPrinted && (
-                              <Badge variant="outline" className="gap-1 w-fit text-xs">
-                                <Printer className="h-3 w-3" />
-                                Impressa
+              <>
+                {/* Bulk Actions Bar */}
+                {selectedInvoices.size > 0 && (
+                  <div className="flex items-center gap-4 p-3 bg-muted rounded-lg mb-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{selectedInvoices.size} selecionada(s)</Badge>
+                      <Button variant="ghost" size="sm" onClick={clearSelection}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 ml-auto">
+                      {selectedDraftsCount > 0 && (
+                        <Button 
+                          size="sm" 
+                          onClick={handleBulkSubmit}
+                          disabled={isBulkProcessing}
+                        >
+                          {isBulkProcessing ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4 mr-2" />
+                          )}
+                          Emitir {selectedDraftsCount} rascunho(s)
+                        </Button>
+                      )}
+                      {selectedAuthorizedCount > 0 && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleBulkPrint}
+                          >
+                            <Printer className="h-4 w-4 mr-2" />
+                            Imprimir {selectedAuthorizedCount} DANFE(s)
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={handleBulkDownloadXml}
+                          >
+                            <Download className="h-4 w-4 mr-2" />
+                            Baixar {selectedAuthorizedCount} XML(s)
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={filteredInvoices.length > 0 && selectedInvoices.size === filteredInvoices.length}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead>Número</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead>CPF/CNPJ</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredInvoices.map((invoice) => {
+                      const status = statusConfig[invoice.status] || statusConfig.draft;
+                      const StatusIcon = status.icon;
+                      const isPrinted = (invoice as any).danfe_printed_at;
+                      
+                      return (
+                        <TableRow key={invoice.id} className={selectedInvoices.has(invoice.id) ? 'bg-muted/50' : ''}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedInvoices.has(invoice.id)}
+                              onCheckedChange={() => handleSelectInvoice(invoice.id)}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {invoice.serie}-{invoice.numero}
+                          </TableCell>
+                          <TableCell>
+                            {format(new Date(invoice.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate">
+                            {invoice.dest_nome}
+                          </TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {formatDocument(invoice.dest_cpf_cnpj)}
+                          </TableCell>
+                          <TableCell>{formatCurrency(invoice.valor_total)}</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col gap-1">
+                              <Badge variant={status.variant} className="gap-1 w-fit">
+                                <StatusIcon className="h-3 w-3" />
+                                {status.label}
                               </Badge>
-                            )}
-                            {invoice.status === 'rejected' && invoice.status_motivo && (
-                              <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
-                                {invoice.status_motivo}
-                              </p>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <InvoiceActionsDropdown
-                            invoice={invoice as any}
-                            onEdit={() => handleEditInvoice(invoice)}
-                            onSubmit={() => handleQuickSubmit(invoice)}
-                            onCheckStatus={() => handleCheckStatus(invoice.id)}
-                            onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
-                            onCancel={() => setCancelingInvoice(invoice)}
-                            onPrint={() => handlePrintDanfe(invoice)}
-                            onDuplicate={() => handleDuplicateInvoice(invoice)}
-                            onCorrect={() => setCorrectingInvoice(invoice)}
-                            onViewTimeline={() => setTimelineInvoice(invoice)}
-                            isSubmitting={submittingInvoiceId === invoice.id}
-                            isCheckingStatus={checkStatus.isPending}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                              {invoice.status === 'authorized' && isPrinted && (
+                                <Badge variant="outline" className="gap-1 w-fit text-xs">
+                                  <Printer className="h-3 w-3" />
+                                  Impressa
+                                </Badge>
+                              )}
+                              {invoice.status === 'rejected' && invoice.status_motivo && (
+                                <p className="text-xs text-destructive max-w-[200px] truncate" title={invoice.status_motivo}>
+                                  {invoice.status_motivo}
+                                </p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <InvoiceActionsDropdown
+                              invoice={invoice as any}
+                              onEdit={() => handleEditInvoice(invoice)}
+                              onSubmit={() => handleQuickSubmit(invoice)}
+                              onCheckStatus={() => handleCheckStatus(invoice.id)}
+                              onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
+                              onCancel={() => setCancelingInvoice(invoice)}
+                              onPrint={() => handlePrintDanfe(invoice)}
+                              onDuplicate={() => handleDuplicateInvoice(invoice)}
+                              onCorrect={() => setCorrectingInvoice(invoice)}
+                              onViewTimeline={() => setTimelineInvoice(invoice)}
+                              isSubmitting={submittingInvoiceId === invoice.id}
+                              isCheckingStatus={checkStatus.isPending}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </>
             )}
           </Tabs>
         </CardContent>
