@@ -249,10 +249,25 @@ export async function sendNFe(
       body: JSON.stringify(nfe),
     });
     
-    const data = await response.json();
-    
+    const responseText = await response.text();
     console.log(`[focus-nfe] Response status: ${response.status}`);
-    console.log(`[focus-nfe] Response:`, JSON.stringify(data).substring(0, 1000));
+    console.log(`[focus-nfe] Response:`, responseText.substring(0, 1000));
+    
+    // Verificar se é erro de autenticação (texto puro)
+    if (response.status === 401 || responseText.startsWith('HTTP Basic')) {
+      return { 
+        success: false, 
+        error: 'Token Focus NFe inválido ou não autorizado. Verifique o token configurado.' 
+      };
+    }
+    
+    // Tentar parsear JSON
+    let data: FocusNFeResponse;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      return { success: false, error: `Resposta inesperada da Focus NFe: ${responseText.substring(0, 200)}` };
+    }
     
     // Focus NFe retorna 202 para processando, 200 para autorizado imediato
     if (response.status === 202 || response.status === 200) {
@@ -260,7 +275,7 @@ export async function sendNFe(
     }
     
     const errorMsg = data.erros?.map((e: any) => `${e.campo || ''}: ${e.mensagem}`).join('; ') || 
-                     data.mensagem || 
+                     (data as any).mensagem || 
                      `HTTP ${response.status}`;
     return { success: false, error: errorMsg, data };
   } catch (error: any) {
