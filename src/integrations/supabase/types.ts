@@ -2445,6 +2445,10 @@ export type Database = {
           endereco_municipio_codigo: string | null
           endereco_numero: string | null
           endereco_uf: string | null
+          focus_ambiente: string | null
+          focus_empresa_criada_em: string | null
+          focus_empresa_id: string | null
+          focus_ultima_sincronizacao: string | null
           id: string
           ie_isento: boolean | null
           inscricao_estadual: string | null
@@ -2485,6 +2489,10 @@ export type Database = {
           endereco_municipio_codigo?: string | null
           endereco_numero?: string | null
           endereco_uf?: string | null
+          focus_ambiente?: string | null
+          focus_empresa_criada_em?: string | null
+          focus_empresa_id?: string | null
+          focus_ultima_sincronizacao?: string | null
           id?: string
           ie_isento?: boolean | null
           inscricao_estadual?: string | null
@@ -2525,6 +2533,10 @@ export type Database = {
           endereco_municipio_codigo?: string | null
           endereco_numero?: string | null
           endereco_uf?: string | null
+          focus_ambiente?: string | null
+          focus_empresa_criada_em?: string | null
+          focus_empresa_id?: string | null
+          focus_ultima_sincronizacao?: string | null
           id?: string
           ie_isento?: boolean | null
           inscricao_estadual?: string | null

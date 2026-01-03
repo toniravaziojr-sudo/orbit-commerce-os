@@ -103,7 +103,7 @@ function hexToString(hex: string): string {
 /**
  * Converte dados que podem vir como Buffer (bytea) ou string para string
  */
-function bufferToString(data: unknown): string {
+export function bufferToString(data: unknown): string {
   if (typeof data === 'string') {
     // Check if it's PostgreSQL hex format (starts with \x)
     if (data.startsWith('\\x')) {

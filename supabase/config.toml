@@ -255,3 +255,12 @@ verify_jwt = true
 
 [functions.fiscal-auto-create-drafts]
 verify_jwt = true
+
+[functions.fiscal-sync-focus-nfe]
+verify_jwt = true
+
+[functions.fiscal-check-status]
+verify_jwt = true
+
+[functions.fiscal-cancel]
+verify_jwt = true
