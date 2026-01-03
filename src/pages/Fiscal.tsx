@@ -161,7 +161,7 @@ export default function Fiscal() {
     printed: invoices?.filter(i => i.status === 'authorized' && (i as any).danfe_printed_at).length || 0,
     pending: invoices?.filter(i => i.status === 'pending').length || 0,
     rejected: invoices?.filter(i => i.status === 'rejected').length || 0,
-    canceled: invoices?.filter(i => i.status === 'canceled').length || 0,
+    canceled: invoices?.filter(i => i.status === 'canceled' || i.status === 'cancelled').length || 0,
   };
 
   const handleCheckStatus = async (invoiceId: string) => {
