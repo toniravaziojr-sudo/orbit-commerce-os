@@ -250,14 +250,14 @@ serve(async (req) => {
     
     let pfxBase64: string;
     let certPassword: string;
-    let certificate: ReturnType<typeof loadCertificate>;
+    let certificate: Awaited<ReturnType<typeof loadCertificate>>;
     
     try {
       const certData = await loadTenantCertificate(settings, encryptionKey);
       pfxBase64 = certData.pfxBase64;
       certPassword = certData.password;
       
-      certificate = loadCertificate(pfxBase64, certPassword);
+      certificate = await loadCertificate(pfxBase64, certPassword);
       console.log('[fiscal-submit] Certificate loaded successfully');
     } catch (certError: any) {
       console.error('[fiscal-submit] Certificate error:', certError);
@@ -330,7 +330,7 @@ serve(async (req) => {
     
     let signedNFeXml: string;
     try {
-      signedNFeXml = signNFeXml(nfeResult.xml, certificate);
+      signedNFeXml = await signNFeXml(nfeResult.xml, certificate);
       console.log('[fiscal-submit] XML signed successfully');
     } catch (signError: any) {
       console.error('[fiscal-submit] Sign error:', signError);
