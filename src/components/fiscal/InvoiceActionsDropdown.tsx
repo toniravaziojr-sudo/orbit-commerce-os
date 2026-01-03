@@ -14,7 +14,8 @@ import {
   Loader2,
   FileCode,
   FileEdit,
-  History
+  History,
+  Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -42,6 +43,7 @@ interface InvoiceActionsDropdownProps {
   onDuplicate?: () => void;
   onCorrect?: () => void;
   onViewTimeline?: () => void;
+  onDelete?: () => void;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
 }
@@ -57,6 +59,7 @@ export function InvoiceActionsDropdown({
   onDuplicate,
   onCorrect,
   onViewTimeline,
+  onDelete,
   isSubmitting,
   isCheckingStatus,
 }: InvoiceActionsDropdownProps) {
@@ -171,6 +174,14 @@ export function InvoiceActionsDropdown({
                 <Send className="h-4 w-4 mr-2" />
               )}
               Emitir NF-e
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem 
+              onClick={onDelete}
+              className="text-destructive"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Excluir
             </DropdownMenuItem>
           </>
         )}

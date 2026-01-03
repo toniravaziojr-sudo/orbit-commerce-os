@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, History, Download, Send, X } from "lucide-react";
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, RefreshCw, Loader2, Printer, ArrowDownLeft, Hash, Search, History, Download, Send, X, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -124,19 +124,21 @@ export default function Fiscal() {
     if (activeTab === 'rejected' && inv.status !== 'rejected') return false;
     if (activeTab === 'cancelled' && inv.status !== 'cancelled' && inv.status !== 'canceled') return false;
     
-    // Filter by search
+    // Filter by search - enhanced to search across multiple fields
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       const matchesSearch = (
         inv.numero.toString().includes(search) ||
         inv.dest_nome.toLowerCase().includes(search) ||
-        inv.dest_cpf_cnpj.includes(search) ||
-        inv.chave_acesso?.includes(search)
+        inv.dest_cpf_cnpj.replace(/\D/g, '').includes(search.replace(/\D/g, '')) ||
+        inv.chave_acesso?.toLowerCase().includes(search) ||
+        inv.order_id?.toLowerCase().includes(search) ||
+        (inv as any).dest_email?.toLowerCase().includes(search)
       );
       if (!matchesSearch) return false;
     }
 
-    // Advanced filters
+    // Advanced filters (only date now)
     if (advancedFilters.startDate) {
       const invDate = new Date(inv.created_at);
       if (invDate < advancedFilters.startDate) return false;
@@ -147,14 +149,6 @@ export default function Fiscal() {
       endOfDay.setHours(23, 59, 59, 999);
       if (invDate > endOfDay) return false;
     }
-    if (advancedFilters.minValue && inv.valor_total < advancedFilters.minValue) return false;
-    if (advancedFilters.maxValue && inv.valor_total > advancedFilters.maxValue) return false;
-    if (advancedFilters.destNome) {
-      const searchName = advancedFilters.destNome.toLowerCase();
-      if (!inv.dest_nome.toLowerCase().includes(searchName) && 
-          !inv.dest_cpf_cnpj.includes(searchName)) return false;
-    }
-    if (advancedFilters.numero && !inv.numero.toString().includes(advancedFilters.numero)) return false;
 
     return true;
   });
@@ -549,6 +543,76 @@ export default function Fiscal() {
     clearSelection();
   };
 
+  // Delete single draft
+  const handleDeleteDraft = async (invoice: FiscalInvoice) => {
+    if (invoice.status !== 'draft') {
+      toast.error('Apenas rascunhos podem ser excluídos');
+      return;
+    }
+
+    try {
+      // Delete invoice items first
+      await supabase
+        .from('fiscal_invoice_items')
+        .delete()
+        .eq('invoice_id', invoice.id);
+
+      // Then delete invoice
+      const { error } = await supabase
+        .from('fiscal_invoices')
+        .delete()
+        .eq('id', invoice.id);
+
+      if (error) throw error;
+      toast.success('Rascunho excluído');
+      refetch();
+    } catch (error: any) {
+      console.error('Error deleting draft:', error);
+      toast.error('Erro ao excluir rascunho');
+    }
+  };
+
+  // Bulk delete drafts
+  const handleBulkDelete = async () => {
+    const drafts = (filteredInvoices || []).filter(
+      inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
+    );
+    
+    if (drafts.length === 0) {
+      toast.error('Nenhum rascunho selecionado');
+      return;
+    }
+
+    setIsBulkProcessing(true);
+    let successCount = 0;
+
+    for (const invoice of drafts) {
+      try {
+        await supabase
+          .from('fiscal_invoice_items')
+          .delete()
+          .eq('invoice_id', invoice.id);
+
+        const { error } = await supabase
+          .from('fiscal_invoices')
+          .delete()
+          .eq('id', invoice.id);
+
+        if (!error) successCount++;
+      } catch {
+        // Continue with others
+      }
+    }
+
+    setIsBulkProcessing(false);
+    clearSelection();
+    refetch();
+
+    if (successCount > 0) {
+      toast.success(`${successCount} rascunho(s) excluído(s)`);
+    }
+  };
+
   // Get counts for bulk actions
   const selectedDraftsCount = (filteredInvoices || []).filter(
     inv => selectedInvoices.has(inv.id) && inv.status === 'draft'
@@ -754,18 +818,29 @@ export default function Fiscal() {
                     </div>
                     <div className="flex items-center gap-2 ml-auto">
                       {selectedDraftsCount > 0 && (
-                        <Button 
-                          size="sm" 
-                          onClick={handleBulkSubmit}
-                          disabled={isBulkProcessing}
-                        >
-                          {isBulkProcessing ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          ) : (
-                            <Send className="h-4 w-4 mr-2" />
-                          )}
-                          Emitir {selectedDraftsCount} rascunho(s)
-                        </Button>
+                        <>
+                          <Button 
+                            size="sm" 
+                            onClick={handleBulkSubmit}
+                            disabled={isBulkProcessing}
+                          >
+                            {isBulkProcessing ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Send className="h-4 w-4 mr-2" />
+                            )}
+                            Emitir {selectedDraftsCount}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="destructive"
+                            onClick={handleBulkDelete}
+                            disabled={isBulkProcessing}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir {selectedDraftsCount}
+                          </Button>
+                        </>
                       )}
                       {selectedAuthorizedCount > 0 && (
                         <>
@@ -775,7 +850,7 @@ export default function Fiscal() {
                             onClick={handleBulkPrint}
                           >
                             <Printer className="h-4 w-4 mr-2" />
-                            Imprimir {selectedAuthorizedCount} DANFE(s)
+                            Imprimir {selectedAuthorizedCount}
                           </Button>
                           <Button 
                             size="sm" 
@@ -783,7 +858,7 @@ export default function Fiscal() {
                             onClick={handleBulkDownloadXml}
                           >
                             <Download className="h-4 w-4 mr-2" />
-                            Baixar {selectedAuthorizedCount} XML(s)
+                            XMLs {selectedAuthorizedCount}
                           </Button>
                         </>
                       )}
@@ -867,6 +942,7 @@ export default function Fiscal() {
                               onDuplicate={() => handleDuplicateInvoice(invoice)}
                               onCorrect={() => setCorrectingInvoice(invoice)}
                               onViewTimeline={() => setTimelineInvoice(invoice)}
+                              onDelete={() => handleDeleteDraft(invoice)}
                               isSubmitting={submittingInvoiceId === invoice.id}
                               isCheckingStatus={checkStatus.isPending}
                             />

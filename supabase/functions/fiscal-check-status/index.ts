@@ -8,6 +8,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Build full URL for Focus NFe paths
+function buildFocusUrl(path: string | undefined, ambiente: string): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  const baseUrl = ambiente === 'producao' 
+    ? 'https://api.focusnfe.com.br'
+    : 'https://homologacao.focusnfe.com.br';
+  return `${baseUrl}${path}`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -142,12 +152,14 @@ serve(async (req) => {
     };
 
     // Se autorizado, salvar dados adicionais
+    const ambiente = focusConfig.ambiente;
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
       updateData.chave_acesso = result.data.chave_nfe;
       updateData.numero = result.data.numero;
       updateData.serie = result.data.serie;
-      updateData.xml_url = result.data.caminho_xml_nota_fiscal;
-      updateData.danfe_url = result.data.caminho_danfe;
+      // Build full URLs for DANFE and XML
+      updateData.xml_url = buildFocusUrl(result.data.caminho_xml_nota_fiscal, ambiente);
+      updateData.danfe_url = buildFocusUrl(result.data.caminho_danfe, ambiente);
       
       if (!invoice.authorized_at) {
         updateData.authorized_at = new Date().toISOString();

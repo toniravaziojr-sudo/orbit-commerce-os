@@ -19,6 +19,18 @@ function mapFocusStatusToInternal(focusStatus: string): string {
   return statusMap[focusStatus] || 'processing';
 }
 
+// Build full URL for Focus NFe paths
+function buildFocusUrl(path: string | undefined, ambiente: string): string | undefined {
+  if (!path) return undefined;
+  // Se já é uma URL completa, retorna como está
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  // Constrói URL com base no ambiente
+  const baseUrl = ambiente === 'producao' 
+    ? 'https://api.focusnfe.com.br'
+    : 'https://homologacao.focusnfe.com.br';
+  return `${baseUrl}${path}`;
+}
+
 serve(async (req) => {
   console.log("[fiscal-webhook] ========== WEBHOOK RECEIVED ==========");
   console.log("[fiscal-webhook] Method:", req.method);
@@ -118,6 +130,15 @@ serve(async (req) => {
 
     console.log(`[fiscal-webhook] Found invoice: id=${invoice.id}, current_status=${invoice.status}, order_id=${invoice.order_id}`);
 
+    // Get fiscal settings to determine ambiente
+    const { data: settings } = await supabase
+      .from("fiscal_settings")
+      .select("focus_ambiente, ambiente")
+      .eq("tenant_id", invoice.tenant_id)
+      .single();
+    
+    const ambiente = settings?.focus_ambiente || settings?.ambiente || 'homologacao';
+
     // Map status
     const internalStatus = mapFocusStatusToInternal(status);
     console.log(`[fiscal-webhook] Mapped status: ${status} -> ${internalStatus}`);
@@ -134,11 +155,14 @@ serve(async (req) => {
       console.log("[fiscal-webhook] Processing 'autorizado' status");
       if (chave_nfe) updateData.chave_acesso = chave_nfe;
       // Don't update numero/serie - they're already set when creating the draft
-      // The SEFAZ returns the same values we sent, and updating them can cause
-      // unique constraint violations if another draft has the same number
-      if (caminho_xml_nota_fiscal) updateData.xml_url = caminho_xml_nota_fiscal;
-      if (caminho_danfe) updateData.danfe_url = caminho_danfe;
+      // Build full URLs for DANFE and XML
+      const fullXmlUrl = buildFocusUrl(caminho_xml_nota_fiscal, ambiente);
+      const fullDanfeUrl = buildFocusUrl(caminho_danfe, ambiente);
+      if (fullXmlUrl) updateData.xml_url = fullXmlUrl;
+      if (fullDanfeUrl) updateData.danfe_url = fullDanfeUrl;
       updateData.authorized_at = now;
+      console.log(`[fiscal-webhook] Full DANFE URL: ${fullDanfeUrl}`);
+      console.log(`[fiscal-webhook] Full XML URL: ${fullXmlUrl}`);
     }
 
     if (status === 'cancelado') {
