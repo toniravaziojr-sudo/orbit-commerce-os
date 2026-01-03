@@ -160,38 +160,48 @@ serve(async (req) => {
         .single();
 
       if (order) {
+        // Extrair CPF ou CNPJ do campo unificado dest_cpf_cnpj
+        const cpfCnpj = (order.customer?.cpf || invoice.dest_cpf_cnpj)?.replace(/\D/g, '') || '';
+        const isCnpj = cpfCnpj.length === 14;
+        
         destinatario = {
-          nome: order.customer?.full_name || order.shipping_name || 'CONSUMIDOR FINAL',
-          cpf: order.customer?.cpf || invoice.destinatario_cpf,
-          cnpj: invoice.destinatario_cnpj,
-          inscricao_estadual: invoice.destinatario_ie,
-          logradouro: order.shipping_street || invoice.destinatario_logradouro || '',
-          numero: order.shipping_number || invoice.destinatario_numero || 'S/N',
-          complemento: order.shipping_complement || invoice.destinatario_complemento,
-          bairro: order.shipping_neighborhood || invoice.destinatario_bairro || '',
-          cidade: order.shipping_city || invoice.destinatario_cidade || '',
-          uf: order.shipping_state || invoice.destinatario_uf || '',
-          cep: order.shipping_postal_code || invoice.destinatario_cep || '',
-          telefone: order.customer?.phone,
-          email: order.customer?.email,
+          nome: order.customer?.full_name || order.shipping_name || invoice.dest_nome || 'CONSUMIDOR FINAL',
+          cpf: !isCnpj ? cpfCnpj : undefined,
+          cnpj: isCnpj ? cpfCnpj : undefined,
+          inscricao_estadual: invoice.dest_inscricao_estadual,
+          logradouro: order.shipping_street || invoice.dest_endereco_logradouro || '',
+          numero: order.shipping_number || invoice.dest_endereco_numero || 'S/N',
+          complemento: order.shipping_complement || invoice.dest_endereco_complemento,
+          bairro: order.shipping_neighborhood || invoice.dest_endereco_bairro || '',
+          cidade: order.shipping_city || invoice.dest_endereco_municipio || '',
+          uf: order.shipping_state || invoice.dest_endereco_uf || '',
+          cep: order.shipping_postal_code || invoice.dest_endereco_cep || '',
+          telefone: order.customer?.phone || invoice.dest_telefone,
+          email: order.customer?.email || invoice.dest_email,
         };
       }
     }
 
-    // Fallback para dados da invoice
+    // Fallback para dados da invoice (usando campos dest_*)
     if (!destinatario) {
+      // Extrair CPF ou CNPJ do campo unificado dest_cpf_cnpj
+      const cpfCnpj = invoice.dest_cpf_cnpj?.replace(/\D/g, '') || '';
+      const isCnpj = cpfCnpj.length === 14;
+      
       destinatario = {
-        nome: invoice.destinatario_nome || 'CONSUMIDOR FINAL',
-        cpf: invoice.destinatario_cpf,
-        cnpj: invoice.destinatario_cnpj,
-        inscricao_estadual: invoice.destinatario_ie,
-        logradouro: invoice.destinatario_logradouro || '',
-        numero: invoice.destinatario_numero || 'S/N',
-        complemento: invoice.destinatario_complemento,
-        bairro: invoice.destinatario_bairro || '',
-        cidade: invoice.destinatario_cidade || '',
-        uf: invoice.destinatario_uf || '',
-        cep: invoice.destinatario_cep || '',
+        nome: invoice.dest_nome || 'CONSUMIDOR FINAL',
+        cpf: !isCnpj ? cpfCnpj : undefined,
+        cnpj: isCnpj ? cpfCnpj : undefined,
+        inscricao_estadual: invoice.dest_inscricao_estadual,
+        logradouro: invoice.dest_endereco_logradouro || '',
+        numero: invoice.dest_endereco_numero || 'S/N',
+        complemento: invoice.dest_endereco_complemento,
+        bairro: invoice.dest_endereco_bairro || '',
+        cidade: invoice.dest_endereco_municipio || '',
+        uf: invoice.dest_endereco_uf || '',
+        cep: invoice.dest_endereco_cep || '',
+        telefone: invoice.dest_telefone,
+        email: invoice.dest_email,
       };
     }
 
