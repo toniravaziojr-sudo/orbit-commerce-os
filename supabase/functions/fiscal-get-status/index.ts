@@ -207,14 +207,14 @@ serve(async (req) => {
     
     let pfxBase64: string;
     let certPassword: string;
-    let certificate: ReturnType<typeof loadCertificate>;
+    let certificate: Awaited<ReturnType<typeof loadCertificate>>;
     
     try {
       const certData = await loadTenantCertificate(settings, encryptionKey);
       pfxBase64 = certData.pfxBase64;
       certPassword = certData.password;
       
-      certificate = loadCertificate(pfxBase64, certPassword);
+      certificate = await loadCertificate(pfxBase64, certPassword);
     } catch (certError: any) {
       console.error('[fiscal-get-status] Certificate error:', certError);
       return new Response(
@@ -228,7 +228,7 @@ serve(async (req) => {
     const consultaXml = buildConsSitNFeXml(invoice.chave_acesso, ambiente);
     
     // Assinar XML de consulta
-    const signedConsultaXml = signXml(consultaXml, 'consSitNFe', certificate);
+    const signedConsultaXml = await signXml(consultaXml, 'consSitNFe', certificate);
 
     // Determinar UF a partir da chave de acesso (primeiros 2 dígitos)
     const ufCode = invoice.chave_acesso.substring(0, 2);

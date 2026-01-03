@@ -5,49 +5,6 @@
  * usando certificado digital A1 para autenticação mTLS
  */
 
-// Import node-forge with bundle flag for Deno compatibility
-import forge from "https://esm.sh/node-forge@1.3.1?bundle";
-
-// ============================================
-// POLYFILL: Inicializar PRNG do node-forge para Deno
-// O node-forge depende de randomBytes do Node.js que não existe no Deno
-// Usamos a Web Crypto API nativa do Deno para prover entropia
-// ============================================
-try {
-  // Seed the PRNG with cryptographically secure random bytes
-  const seedBytes = new Uint8Array(32);
-  crypto.getRandomValues(seedBytes);
-  const seedString = Array.from(seedBytes).map(b => String.fromCharCode(b)).join('');
-  
-  // Initialize forge's PRNG with the seed
-  if (forge.random && typeof forge.random.seedFileSync === 'function') {
-    // forge.random already has a method, we're good
-  } else if (forge.random) {
-    // Provide a custom implementation
-    (forge.random as any).seedFileSync = (needed: number): string => {
-      const bytes = new Uint8Array(needed);
-      crypto.getRandomValues(bytes);
-      return Array.from(bytes).map(b => String.fromCharCode(b)).join('');
-    };
-  }
-  
-  // Also seed the random pool if available
-  if (forge.random && typeof (forge.random as any).getBytes === 'function') {
-    // Collect entropy from Web Crypto
-    const entropyBytes = new Uint8Array(32);
-    crypto.getRandomValues(entropyBytes);
-    const entropyString = Array.from(entropyBytes).map(b => String.fromCharCode(b)).join('');
-    
-    if (typeof (forge.random as any).collect === 'function') {
-      (forge.random as any).collect(entropyString);
-    }
-  }
-  
-  console.log('[soap-client] PRNG polyfill initialized successfully');
-} catch (e) {
-  console.warn('[soap-client] PRNG polyfill initialization warning:', e);
-}
-
 export interface SoapClientConfig {
   /** URL do WebService SEFAZ */
   url: string;
@@ -100,47 +57,6 @@ export function buildSoapEnvelope(serviceName: string, xmlContent: string): stri
     </${method}>
   </soap12:Body>
 </soap12:Envelope>`;
-}
-
-/**
- * Extrai certificado e chave do PFX usando node-forge
- */
-export function extractCertFromPfx(pfxBase64: string, password: string): { cert: string; key: string } {
-  const pfxDer = forge.util.decode64(pfxBase64);
-  const pfxAsn1 = forge.asn1.fromDer(pfxDer);
-  const pfx = forge.pkcs12.pkcs12FromAsn1(pfxAsn1, password);
-  
-  // Extrair certificado
-  const certBags = pfx.getBags({ bagType: forge.pki.oids.certBag });
-  const certBag = certBags[forge.pki.oids.certBag];
-  
-  if (!certBag || certBag.length === 0) {
-    throw new Error('Certificado não encontrado no PFX');
-  }
-  
-  const cert = certBag[0].cert;
-  if (!cert) {
-    throw new Error('Certificado inválido no PFX');
-  }
-  
-  // Extrair chave privada
-  const keyBags = pfx.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-  const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag];
-  
-  if (!keyBag || keyBag.length === 0) {
-    throw new Error('Chave privada não encontrada no PFX');
-  }
-  
-  const key = keyBag[0].key;
-  if (!key) {
-    throw new Error('Chave privada inválida no PFX');
-  }
-  
-  // Converter para PEM
-  const certPem = forge.pki.certificateToPem(cert);
-  const keyPem = forge.pki.privateKeyToPem(key);
-  
-  return { cert: certPem, key: keyPem };
 }
 
 /**

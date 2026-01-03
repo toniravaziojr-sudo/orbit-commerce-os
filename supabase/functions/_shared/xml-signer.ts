@@ -3,64 +3,123 @@
  * 
  * Implementa assinatura XMLDSig conforme exigido pela SEFAZ
  * Algoritmos: SHA-1 (digest), RSA-SHA1 (assinatura), C14N (canonicalização)
+ * 
+ * Esta versão usa Web Crypto API nativa do Deno para operações criptográficas
  */
 
-// Import node-forge with bundle flag for Deno compatibility
-import forge from "https://esm.sh/node-forge@1.3.1?bundle";
+// ============================================
+// Constantes e tipos
+// ============================================
+
+export interface Certificate {
+  privateKeyPem: string;
+  certificatePem: string;
+  privateKeyRaw?: CryptoKey;
+}
 
 // ============================================
-// POLYFILL: Inicializar PRNG do node-forge para Deno
-// O node-forge depende de randomBytes do Node.js que não existe no Deno
-// Usamos a Web Crypto API nativa do Deno para prover entropia
+// Funções utilitárias de codificação
 // ============================================
-try {
-  // Seed the PRNG with cryptographically secure random bytes
-  const seedBytes = new Uint8Array(32);
-  crypto.getRandomValues(seedBytes);
-  const seedString = Array.from(seedBytes).map(b => String.fromCharCode(b)).join('');
+
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function hexToArrayBuffer(hex: string): ArrayBuffer {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes.buffer;
+}
+
+// ============================================
+// Parser ASN.1/DER simplificado para PFX/PKCS12
+// ============================================
+
+interface Asn1Element {
+  tag: number;
+  length: number;
+  value: Uint8Array;
+  children?: Asn1Element[];
+}
+
+function parseAsn1(data: Uint8Array, offset = 0): { element: Asn1Element; bytesRead: number } {
+  const tag = data[offset];
+  let length = data[offset + 1];
+  let headerLength = 2;
   
-  // Initialize forge's PRNG with the seed
-  if (forge.random && typeof forge.random.seedFileSync === 'function') {
-    // forge.random already has a method, we're good
-  } else if (forge.random) {
-    // Provide a custom implementation
-    (forge.random as any).seedFileSync = (needed: number): string => {
-      const bytes = new Uint8Array(needed);
-      crypto.getRandomValues(bytes);
-      return Array.from(bytes).map(b => String.fromCharCode(b)).join('');
-    };
+  if (length & 0x80) {
+    const numLengthBytes = length & 0x7f;
+    length = 0;
+    for (let i = 0; i < numLengthBytes; i++) {
+      length = (length << 8) | data[offset + 2 + i];
+    }
+    headerLength = 2 + numLengthBytes;
   }
   
-  // Also seed the random pool if available
-  if (forge.random && typeof (forge.random as any).getBytes === 'function') {
-    // Collect entropy from Web Crypto
-    const entropyBytes = new Uint8Array(32);
-    crypto.getRandomValues(entropyBytes);
-    const entropyString = Array.from(entropyBytes).map(b => String.fromCharCode(b)).join('');
-    
-    if (typeof (forge.random as any).collect === 'function') {
-      (forge.random as any).collect(entropyString);
+  const value = data.slice(offset + headerLength, offset + headerLength + length);
+  const element: Asn1Element = { tag, length, value };
+  
+  // Se é uma sequência ou set, parse os filhos
+  if ((tag & 0x20) !== 0) {
+    element.children = [];
+    let childOffset = 0;
+    while (childOffset < value.length) {
+      const { element: child, bytesRead } = parseAsn1(value, childOffset);
+      element.children.push(child);
+      childOffset += bytesRead;
     }
   }
   
-  console.log('[xml-signer] PRNG polyfill initialized successfully');
-} catch (e) {
-  console.warn('[xml-signer] PRNG polyfill initialization warning:', e);
+  return { element, bytesRead: headerLength + length };
 }
 
-export interface Certificate {
-  privateKey: forge.pki.PrivateKey;
-  certificate: forge.pki.Certificate;
-  certificatePem: string;
-}
+// ============================================
+// Parser PKCS12/PFX usando forge via esm.sh com polyfill
+// ============================================
 
 /**
  * Carrega o certificado PFX
+ * Usa uma abordagem híbrida: forge para parsing do PFX e Web Crypto para assinatura
  */
-export function loadCertificate(pfxBase64: string, password: string): Certificate {
+export async function loadCertificate(pfxBase64: string, password: string): Promise<Certificate> {
+  console.log('[xml-signer] Loading certificate, base64 length:', pfxBase64.length);
+  
+  // Importar forge dinamicamente para evitar problemas de inicialização
+  const forge = await import("https://esm.sh/node-forge@1.3.1?bundle");
+  
+  // Polyfill do PRNG antes de usar forge
+  const prngPolyfill = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return String.fromCharCode(...bytes);
+  };
+  
+  // Configurar o PRNG do forge
+  if (forge.random) {
+    forge.random.seedFileSync = prngPolyfill;
+    // Adicionar entropia inicial
+    if (typeof forge.random.collect === 'function') {
+      forge.random.collect(prngPolyfill());
+    }
+  }
+  
   try {
-    console.log('[xml-signer] Loading certificate, base64 length:', pfxBase64.length);
-    
     const pfxDer = forge.util.decode64(pfxBase64);
     console.log('[xml-signer] Decoded DER length:', pfxDer.length);
     
@@ -83,10 +142,14 @@ export function loadCertificate(pfxBase64: string, password: string): Certificat
       throw new Error('Certificado não encontrado no PFX');
     }
 
+    const privateKey = keyBag[0].key;
     const certificate = certBag[0].cert;
+    
+    // Converter para PEM
+    const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
     const certificatePem = forge.pki.certificateToPem(certificate);
     
-    // Extrai apenas o conteúdo base64 do PEM (sem headers)
+    // Extrai apenas o conteúdo base64 do PEM do certificado (sem headers)
     const certBase64 = certificatePem
       .replace('-----BEGIN CERTIFICATE-----', '')
       .replace('-----END CERTIFICATE-----', '')
@@ -94,10 +157,13 @@ export function loadCertificate(pfxBase64: string, password: string): Certificat
 
     console.log('[xml-signer] Certificate loaded successfully');
     
+    // Importar a chave privada para Web Crypto para assinatura
+    const privateKeyRaw = await importPrivateKeyForSigning(privateKeyPem);
+    
     return {
-      privateKey: keyBag[0].key,
-      certificate,
-      certificatePem: certBase64
+      privateKeyPem,
+      certificatePem: certBase64,
+      privateKeyRaw
     };
   } catch (error) {
     console.error('[xml-signer] Error loading certificate:', error);
@@ -109,10 +175,119 @@ export function loadCertificate(pfxBase64: string, password: string): Certificat
 }
 
 /**
+ * Importa uma chave privada PEM para uso com Web Crypto
+ */
+async function importPrivateKeyForSigning(privateKeyPem: string): Promise<CryptoKey> {
+  // Extrair o conteúdo base64 do PEM
+  const pemHeader = '-----BEGIN RSA PRIVATE KEY-----';
+  const pemFooter = '-----END RSA PRIVATE KEY-----';
+  const pkcs8Header = '-----BEGIN PRIVATE KEY-----';
+  const pkcs8Footer = '-----END PRIVATE KEY-----';
+  
+  let keyData: ArrayBuffer;
+  let format: 'pkcs8' | 'spki' = 'pkcs8';
+  
+  if (privateKeyPem.includes(pkcs8Header)) {
+    const base64 = privateKeyPem
+      .replace(pkcs8Header, '')
+      .replace(pkcs8Footer, '')
+      .replace(/\s/g, '');
+    keyData = base64ToArrayBuffer(base64);
+  } else if (privateKeyPem.includes(pemHeader)) {
+    // Chave RSA tradicional precisa ser convertida para PKCS8
+    const base64 = privateKeyPem
+      .replace(pemHeader, '')
+      .replace(pemFooter, '')
+      .replace(/\s/g, '');
+    
+    // Para chaves RSA tradicionais, precisamos envolver em PKCS8
+    const rsaKey = base64ToArrayBuffer(base64);
+    keyData = wrapRsaKeyInPkcs8(new Uint8Array(rsaKey));
+  } else {
+    throw new Error('Formato de chave privada não suportado');
+  }
+  
+  try {
+    // Web Crypto não suporta SHA-1 para assinatura por padrão em muitos browsers
+    // Mas Deno suporta para compatibilidade
+    const key = await crypto.subtle.importKey(
+      'pkcs8',
+      keyData,
+      {
+        name: 'RSASSA-PKCS1-v1_5',
+        hash: 'SHA-1'
+      },
+      false,
+      ['sign']
+    );
+    
+    console.log('[xml-signer] Private key imported for signing');
+    return key;
+  } catch (error) {
+    console.error('[xml-signer] Error importing private key:', error);
+    throw error;
+  }
+}
+
+/**
+ * Envolve uma chave RSA tradicional em formato PKCS8
+ */
+function wrapRsaKeyInPkcs8(rsaKeyBytes: Uint8Array): ArrayBuffer {
+  // OID para rsaEncryption
+  const rsaOid = new Uint8Array([0x06, 0x09, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01]);
+  const nullParam = new Uint8Array([0x05, 0x00]);
+  
+  // Construir AlgorithmIdentifier SEQUENCE
+  const algIdContent = new Uint8Array(rsaOid.length + nullParam.length);
+  algIdContent.set(rsaOid, 0);
+  algIdContent.set(nullParam, rsaOid.length);
+  
+  // Calcular tamanhos
+  const algIdLen = algIdContent.length;
+  const privateKeyOctetLen = rsaKeyBytes.length;
+  
+  // Construir a estrutura PKCS8
+  const result: number[] = [];
+  
+  // Version INTEGER 0
+  result.push(0x02, 0x01, 0x00);
+  
+  // AlgorithmIdentifier SEQUENCE
+  result.push(0x30);
+  pushLength(result, algIdLen);
+  for (let i = 0; i < algIdContent.length; i++) {
+    result.push(algIdContent[i]);
+  }
+  
+  // PrivateKey OCTET STRING
+  result.push(0x04);
+  pushLength(result, privateKeyOctetLen);
+  for (let i = 0; i < rsaKeyBytes.length; i++) {
+    result.push(rsaKeyBytes[i]);
+  }
+  
+  // Envolver tudo em SEQUENCE
+  const finalResult: number[] = [0x30];
+  pushLength(finalResult, result.length);
+  finalResult.push(...result);
+  
+  return new Uint8Array(finalResult).buffer;
+}
+
+function pushLength(arr: number[], len: number) {
+  if (len < 128) {
+    arr.push(len);
+  } else if (len < 256) {
+    arr.push(0x81, len);
+  } else if (len < 65536) {
+    arr.push(0x82, (len >> 8) & 0xff, len & 0xff);
+  } else {
+    arr.push(0x83, (len >> 16) & 0xff, (len >> 8) & 0xff, len & 0xff);
+  }
+}
+
+/**
  * Implementação simplificada de Canonicalização C14N Exclusiva
- * 
- * Nota: Esta é uma implementação básica. Para produção,
- * pode ser necessário usar uma biblioteca C14N mais robusta.
  */
 export function canonicalize(xml: string): string {
   // Remove declaração XML
@@ -161,22 +336,27 @@ export function canonicalize(xml: string): string {
 }
 
 /**
- * Calcula o hash SHA-1 e retorna em Base64
+ * Calcula o hash SHA-1 e retorna em Base64 usando Web Crypto API
  */
-export function sha1Base64(data: string): string {
-  const md = forge.md.sha1.create();
-  md.update(data, 'utf8');
-  return forge.util.encode64(md.digest().bytes());
+export async function sha1Base64(data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', dataBuffer);
+  return arrayBufferToBase64(hashBuffer);
 }
 
 /**
- * Assina dados com RSA-SHA1
+ * Assina dados com RSA-SHA1 usando Web Crypto API
  */
-export function signRsaSha1(data: string, privateKey: forge.pki.PrivateKey): string {
-  const md = forge.md.sha1.create();
-  md.update(data, 'utf8');
-  const signature = privateKey.sign(md);
-  return forge.util.encode64(signature);
+export async function signRsaSha1(data: string, privateKey: CryptoKey): Promise<string> {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    dataBuffer
+  );
+  return arrayBufferToBase64(signature);
 }
 
 /**
@@ -191,7 +371,11 @@ function extractTagContent(xml: string, tagName: string): string | null {
 /**
  * Assina o XML da NF-e conforme padrão SEFAZ
  */
-export function signNFeXml(xml: string, certificate: Certificate): string {
+export async function signNFeXml(xml: string, certificate: Certificate): Promise<string> {
+  if (!certificate.privateKeyRaw) {
+    throw new Error('Chave privada não carregada para assinatura');
+  }
+  
   // Encontra o elemento infNFe para extrair o Id
   const infNFeMatch = xml.match(/<infNFe[^>]*Id="([^"]+)"[^>]*>/);
   if (!infNFeMatch) {
@@ -211,7 +395,7 @@ export function signNFeXml(xml: string, certificate: Certificate): string {
   const canonicalizedInfNFe = canonicalize(infNFeContent);
   
   // Calcula o DigestValue (SHA-1 do conteúdo canonicalizado)
-  const digestValue = sha1Base64(canonicalizedInfNFe);
+  const digestValue = await sha1Base64(canonicalizedInfNFe);
   
   // Monta o SignedInfo
   const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="${uri}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
@@ -220,7 +404,7 @@ export function signNFeXml(xml: string, certificate: Certificate): string {
   const canonicalizedSignedInfo = canonicalize(signedInfo);
   
   // Assina o SignedInfo canonicalizado
-  const signatureValue = signRsaSha1(canonicalizedSignedInfo, certificate.privateKey);
+  const signatureValue = await signRsaSha1(canonicalizedSignedInfo, certificate.privateKeyRaw);
   
   // Monta o bloco Signature completo
   const signature = `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certificate.certificatePem}</X509Certificate></X509Data></KeyInfo></Signature>`;
@@ -234,7 +418,11 @@ export function signNFeXml(xml: string, certificate: Certificate): string {
 /**
  * Assina XML genérico (para eventos, consultas, etc.)
  */
-export function signXml(xml: string, tagToSign: string, certificate: Certificate): string {
+export async function signXml(xml: string, tagToSign: string, certificate: Certificate): Promise<string> {
+  if (!certificate.privateKeyRaw) {
+    throw new Error('Chave privada não carregada para assinatura');
+  }
+  
   // Encontra o elemento para assinar
   const tagMatch = xml.match(new RegExp(`<${tagToSign}[^>]*Id="([^"]+)"[^>]*>`));
   if (!tagMatch) {
@@ -246,12 +434,12 @@ export function signXml(xml: string, tagToSign: string, certificate: Certificate
     
     // Para tags sem Id, usamos URI vazia
     const canonicalized = canonicalize(tagContent);
-    const digestValue = sha1Base64(canonicalized);
+    const digestValue = await sha1Base64(canonicalized);
     
     const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
     
     const canonicalizedSignedInfo = canonicalize(signedInfo);
-    const signatureValue = signRsaSha1(canonicalizedSignedInfo, certificate.privateKey);
+    const signatureValue = await signRsaSha1(canonicalizedSignedInfo, certificate.privateKeyRaw);
     
     const signature = `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certificate.certificatePem}</X509Certificate></X509Data></KeyInfo></Signature>`;
     
@@ -268,12 +456,12 @@ export function signXml(xml: string, tagToSign: string, certificate: Certificate
   }
   
   const canonicalized = canonicalize(tagContent);
-  const digestValue = sha1Base64(canonicalized);
+  const digestValue = await sha1Base64(canonicalized);
   
   const signedInfo = `<SignedInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="${uri}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digestValue}</DigestValue></Reference></SignedInfo>`;
   
   const canonicalizedSignedInfo = canonicalize(signedInfo);
-  const signatureValue = signRsaSha1(canonicalizedSignedInfo, certificate.privateKey);
+  const signatureValue = await signRsaSha1(canonicalizedSignedInfo, certificate.privateKeyRaw);
   
   const signature = `<Signature xmlns="http://www.w3.org/2000/09/xmldsig#">${signedInfo}<SignatureValue>${signatureValue}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certificate.certificatePem}</X509Certificate></X509Data></KeyInfo></Signature>`;
   
@@ -296,12 +484,6 @@ export function validateSignature(signedXml: string, certificate: Certificate): 
     if (!digestMatch) {
       return false;
     }
-    
-    // Para uma validação completa, seria necessário:
-    // 1. Extrair e canonicalizar o SignedInfo
-    // 2. Verificar a assinatura com a chave pública
-    // 3. Extrair e canonicalizar o elemento referenciado
-    // 4. Verificar se o digest calculado bate com o DigestValue
     
     // Por ora, apenas verifica se os elementos existem
     return true;
