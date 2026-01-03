@@ -67,7 +67,7 @@ export function InvoiceActionsDropdown({
   const isDraft = invoice.status === 'draft';
   const isPending = invoice.status === 'pending';
   const isRejected = invoice.status === 'rejected';
-  const isCanceled = invoice.status === 'canceled';
+  const isCanceled = invoice.status === 'canceled' || invoice.status === 'cancelled';
 
   // Download DANFE (PDF)
   const handleDownloadDanfe = () => {

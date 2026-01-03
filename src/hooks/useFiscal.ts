@@ -486,7 +486,7 @@ export function useOrderInvoice(orderId?: string) {
         .select('*')
         .eq('order_id', orderId)
         .eq('tenant_id', tenantId)
-        .neq('status', 'canceled')
+        .not('status', 'in', '("canceled","cancelled")')
         .order('created_at', { ascending: false })
         .maybeSingle();
 
@@ -530,7 +530,7 @@ export function useOrdersPendingInvoice() {
         .from('fiscal_invoices')
         .select('order_id')
         .eq('tenant_id', tenantId)
-        .neq('status', 'canceled')
+        .not('status', 'in', '("canceled","cancelled")')
         .not('order_id', 'is', null);
 
       if (invoiceError) throw invoiceError;
