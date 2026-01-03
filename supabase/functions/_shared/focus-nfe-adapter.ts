@@ -193,6 +193,7 @@ export function buildNFePayload(
   
   const payload: FocusNFePayload = {
     natureza_operacao: (invoice.natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
+    data_emissao: new Date().toISOString(), // Data de emissão no formato ISO
     tipo_documento: tipoDocumento,
     finalidade_emissao: finalidade,
     consumidor_final: destinatario.cnpj ? 0 : 1,
