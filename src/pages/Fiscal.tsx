@@ -64,6 +64,8 @@ export default function Fiscal() {
   const [searchTerm, setSearchTerm] = useState('');
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
+  const [editingInvoiceError, setEditingInvoiceError] = useState<string | null>(null);
+  const [editingInvoiceStatus, setEditingInvoiceStatus] = useState<string | null>(null);
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
@@ -240,6 +242,8 @@ export default function Fiscal() {
     };
 
     setEditingInvoice(invoiceData);
+    setEditingInvoiceError(data.status_motivo || null);
+    setEditingInvoiceStatus(data.status || null);
   };
 
   const handleSaveInvoice = async (data: InvoiceData) => {
@@ -886,11 +890,19 @@ export default function Fiscal() {
       {editingInvoice && (
         <InvoiceEditor
           open={!!editingInvoice}
-          onOpenChange={(open) => !open && setEditingInvoice(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingInvoice(null);
+              setEditingInvoiceError(null);
+              setEditingInvoiceStatus(null);
+            }
+          }}
           invoice={editingInvoice}
           onSave={handleSaveInvoice}
           onSubmit={handleSubmitInvoice}
           onDelete={handleDeleteInvoice}
+          rejectionError={editingInvoiceError || undefined}
+          invoiceStatus={editingInvoiceStatus || undefined}
         />
       )}
 
