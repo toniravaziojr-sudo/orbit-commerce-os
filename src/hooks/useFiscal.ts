@@ -112,6 +112,12 @@ export interface FiscalInvoice {
   danfe_url: string | null;
   danfe_printed_at?: string | null;
   xml_autorizado: string | null;
+  xml_url?: string | null;
+  focus_ref?: string | null;
+  submitted_at?: string | null;
+  authorized_at?: string | null;
+  cancelled_at?: string | null;
+  cancel_justificativa?: string | null;
   created_at: string;
   updated_at: string;
 }

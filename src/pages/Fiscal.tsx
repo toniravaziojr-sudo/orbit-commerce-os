@@ -517,7 +517,7 @@ export default function Fiscal() {
 
   const handleBulkDownloadXml = async () => {
     const authorized = (filteredInvoices || []).filter(
-      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && inv.xml_autorizado
+      inv => selectedInvoices.has(inv.id) && inv.status === 'authorized' && (inv.xml_url || inv.xml_autorizado)
     );
     
     if (authorized.length === 0) {
@@ -528,8 +528,11 @@ export default function Fiscal() {
     // Download all XMLs
     authorized.forEach((invoice, index) => {
       setTimeout(() => {
+        const xmlUrl = invoice.xml_url || invoice.xml_autorizado;
+        if (!xmlUrl) return;
+        
         const link = document.createElement('a');
-        link.href = invoice.xml_autorizado!;
+        link.href = xmlUrl;
         link.download = `nfe_${invoice.serie}_${invoice.numero}.xml`;
         link.target = '_blank';
         document.body.appendChild(link);
