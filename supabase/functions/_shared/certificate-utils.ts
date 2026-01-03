@@ -85,10 +85,31 @@ export async function decryptCertificateData(
 }
 
 /**
+ * Converte hex string (formato PostgreSQL bytea) para string ASCII
+ * Formato: \x47397750... onde cada par de hex representa um byte ASCII
+ */
+function hexToString(hex: string): string {
+  // Remove o prefixo \x se presente
+  const cleanHex = hex.startsWith('\\x') ? hex.slice(2) : hex;
+  
+  let result = '';
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    const byte = parseInt(cleanHex.substring(i, i + 2), 16);
+    result += String.fromCharCode(byte);
+  }
+  return result;
+}
+
+/**
  * Converte dados que podem vir como Buffer (bytea) ou string para string
  */
 function bufferToString(data: unknown): string {
   if (typeof data === 'string') {
+    // Check if it's PostgreSQL hex format (starts with \x)
+    if (data.startsWith('\\x')) {
+      console.log('[certificate-utils] Detected PostgreSQL hex format, converting...');
+      return hexToString(data);
+    }
     return data;
   }
   
