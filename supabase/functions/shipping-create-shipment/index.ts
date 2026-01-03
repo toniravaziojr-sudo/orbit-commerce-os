@@ -605,10 +605,12 @@ serve(async (req) => {
     console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
 
     if (result.success && result.tracking_code) {
-      // Update order with tracking code
+      // Update order with tracking code, status and shipped_at
       const orderUpdate: Record<string, unknown> = {
         tracking_code: result.tracking_code,
         shipping_carrier: result.carrier,
+        status: 'shipped',
+        shipped_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
@@ -621,6 +623,8 @@ serve(async (req) => {
         .from('orders')
         .update(orderUpdate)
         .eq('id', order_id);
+      
+      console.log(`[shipping-create-shipment] Order ${order_id} updated to shipped with tracking: ${result.tracking_code}`);
 
       // Create/update shipment record via shipment-ingest
       await supabase

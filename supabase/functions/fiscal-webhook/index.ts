@@ -235,23 +235,49 @@ serve(async (req) => {
         if (fiscalSettingsShip?.auto_create_shipment) {
           console.log(`[fiscal-webhook] Auto-creating shipment for order ${invoice.order_id}`);
           
-          // Call shipping-create-shipment as fire-and-forget
+          // Call shipping-create-shipment and wait for result
           const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
           const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
           
-          fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({ order_id: invoice.order_id }),
-          }).then(async (response) => {
-            const result = await response.json();
-            console.log(`[fiscal-webhook] Shipment creation result:`, JSON.stringify(result));
-          }).catch((error) => {
-            console.error(`[fiscal-webhook] Failed to create shipment:`, error);
-          });
+          try {
+            const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ order_id: invoice.order_id }),
+            });
+            
+            const shipResult = await shipResponse.json();
+            console.log(`[fiscal-webhook] Shipment creation result:`, JSON.stringify(shipResult));
+            
+            // Se remessa criada com sucesso, atualizar pedido para shipped
+            if (shipResult.success && shipResult.tracking_code) {
+              await supabase
+                .from("orders")
+                .update({ 
+                  status: 'shipped',
+                  shipped_at: new Date().toISOString()
+                })
+                .eq("id", invoice.order_id);
+              
+              console.log(`[fiscal-webhook] Order ${invoice.order_id} updated to shipped`);
+            } else {
+              // Se não criou remessa, apenas marcar como dispatched
+              await supabase
+                .from("orders")
+                .update({ status: 'dispatched' })
+                .eq("id", invoice.order_id);
+            }
+          } catch (shipError) {
+            console.error(`[fiscal-webhook] Failed to create shipment:`, shipError);
+            // Fallback: marcar como dispatched
+            await supabase
+              .from("orders")
+              .update({ status: 'dispatched' })
+              .eq("id", invoice.order_id);
+          }
         }
       }
     }

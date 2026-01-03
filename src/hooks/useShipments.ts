@@ -281,11 +281,152 @@ export function useIngestShipment() {
       queryClient.invalidateQueries({ queryKey: ['order'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
       toast.success(result.is_new ? 'Remessa criada!' : 'Remessa atualizada!');
     },
     onError: (error: Error) => {
       console.error('Erro ao processar remessa:', error);
       toast.error('Erro ao processar remessa');
     },
+  });
+}
+
+// Hook para criar remessa via shipping-create-shipment
+export function useCreateShipment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: {
+      order_id: string;
+      provider_override?: string;
+    }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipping-create-shipment', {
+        body: data,
+      });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao criar remessa');
+
+      return result;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['order'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-for-shipment'] });
+      toast.success(`Remessa criada! Código: ${result.tracking_code}`);
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao criar remessa:', error);
+      toast.error(error.message || 'Erro ao criar remessa');
+    },
+  });
+}
+
+// Hook para obter etiqueta
+export function usePrintLabel() {
+  return useMutation({
+    mutationFn: async (data: {
+      tracking_code: string;
+      provider_shipment_id?: string;
+    }) => {
+      const { data: result, error } = await supabase.functions.invoke('shipping-get-label', {
+        body: data,
+      });
+
+      if (error) throw error;
+      if (!result?.success) throw new Error(result?.error || 'Erro ao obter etiqueta');
+
+      return result;
+    },
+    onSuccess: (result) => {
+      if (result.label_url) {
+        window.open(result.label_url, '_blank');
+      } else if (result.label_base64) {
+        const byteCharacters = atob(result.label_base64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: result.label_type || 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      } else {
+        toast.info('Etiqueta não disponível');
+      }
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao obter etiqueta:', error);
+      toast.error(error.message || 'Erro ao obter etiqueta');
+    },
+  });
+}
+
+// Hook para atualizar rastreamento de uma remessa
+export function useRefreshTracking() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (shipmentId: string) => {
+      const { data: result, error } = await supabase.functions.invoke('tracking-poll-single', {
+        body: { shipment_id: shipmentId },
+      });
+
+      if (error) throw error;
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['shipment-events'] });
+      queryClient.invalidateQueries({ queryKey: ['order-shipments'] });
+      toast.success('Rastreamento atualizado');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar rastreamento:', error);
+      toast.error(error.message || 'Erro ao atualizar rastreamento');
+    },
+  });
+}
+
+// Hook para listar remessas do tenant com filtros
+export function useShipmentsList(options: {
+  search?: string;
+  status?: DeliveryStatus | 'all';
+  limit?: number;
+} = {}) {
+  const { currentTenant } = useAuth();
+  const { search, status = 'all', limit = 100 } = options;
+
+  return useQuery({
+    queryKey: ['admin-shipments', currentTenant?.id, search, status, limit],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+
+      let query = supabase
+        .from('shipments')
+        .select(`
+          *,
+          order:orders!inner(order_number, customer_name, customer_email)
+        `)
+        .eq('tenant_id', currentTenant.id)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (status !== 'all') {
+        query = query.eq('delivery_status', status);
+      }
+
+      if (search) {
+        query = query.or(`tracking_code.ilike.%${search}%,order.order_number.ilike.%${search}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as (ShipmentRecord & { order: { order_number: string; customer_name: string; customer_email: string } })[];
+    },
+    enabled: !!currentTenant?.id,
   });
 }
