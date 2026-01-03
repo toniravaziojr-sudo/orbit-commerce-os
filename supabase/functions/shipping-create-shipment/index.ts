@@ -238,6 +238,8 @@ async function createCorreiosShipment(
 // API Docs: https://docs.api.loggi.com/reference/nossa-documenta%C3%A7%C3%A3o
 // Endpoint: POST /v1/companies/{company_id}/async-shipments (retorna 202)
 // Payload: shipFrom + shipTo + packages + externalServiceId
+// Auth: Platform secrets (LOGGI_CLIENT_ID, LOGGI_CLIENT_SECRET, LOGGI_EXTERNAL_SERVICE_ID)
+// Tenant provides: company_id, origin_cep
 
 async function createLoggiShipment(
   order: OrderData,
@@ -246,22 +248,25 @@ async function createLoggiShipment(
 ): Promise<ShipmentResult> {
   console.log('[Loggi] Creating shipment for order:', order.id);
 
-  const clientId = credentials.client_id;
-  const clientSecret = credentials.client_secret;
+  // Platform secrets (integrator credentials)
+  const clientId = Deno.env.get('LOGGI_CLIENT_ID');
+  const clientSecret = Deno.env.get('LOGGI_CLIENT_SECRET');
+  const externalServiceId = Deno.env.get('LOGGI_EXTERNAL_SERVICE_ID') || 'DLVR-SPOT-DOOR-STAN-01';
+  
+  // Tenant credentials
   const companyId = credentials.company_id || credentials.shipper_id;
-  const externalServiceId = credentials.external_service_id || 'DLVR-SPOT-DOOR-STAN-01';
 
   if (!clientId || !clientSecret) {
-    return { success: false, error: 'Credenciais Loggi incompletas. Configure client_id e client_secret em Configurações → Transportadoras.' };
+    return { success: false, error: 'Loggi não configurado na plataforma. Entre em contato com o suporte.' };
   }
 
   if (!companyId) {
-    return { success: false, error: 'Company ID não configurado para Loggi. Configure em Configurações → Transportadoras.' };
+    return { success: false, error: 'ID do Embarcador não configurado. Configure em Configurações → Transportadoras → Loggi.' };
   }
 
   try {
-    // Step 1: Authenticate with OAuth2
-    console.log('[Loggi] Authenticating with OAuth2...');
+    // Step 1: Authenticate with OAuth2 using platform secrets
+    console.log('[Loggi] Authenticating with platform credentials...');
     const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
       method: 'POST',
       headers: {
@@ -277,7 +282,7 @@ async function createLoggiShipment(
     if (!authResponse.ok) {
       const errorText = await authResponse.text();
       console.error('[Loggi] Auth failed:', authResponse.status, errorText);
-      return { success: false, error: 'Falha na autenticação Loggi. Verifique client_id e client_secret.' };
+      return { success: false, error: 'Falha na autenticação Loggi. Entre em contato com o suporte.' };
     }
 
     const authData = await authResponse.json();

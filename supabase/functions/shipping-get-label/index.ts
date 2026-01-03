@@ -293,6 +293,8 @@ async function getCorreiosLabel(
 // API Docs: https://docs.api.loggi.com/reference/labels
 // Endpoint: GET /v1/companies/{company_id}/labels?loggiKeys={loggiKey}
 // IMPORTANT: Use loggiKey (not trackingCode) to fetch labels
+// Auth: Platform secrets (LOGGI_CLIENT_ID, LOGGI_CLIENT_SECRET)
+// Tenant provides: company_id
 
 async function getLoggiLabel(
   trackingCode: string,
@@ -301,12 +303,19 @@ async function getLoggiLabel(
 ): Promise<LabelResult> {
   console.log('[Loggi] Getting label for trackingCode:', trackingCode, 'loggiKey:', providerShipmentId);
 
-  const clientId = credentials.client_id as string;
-  const clientSecret = credentials.client_secret as string;
+  // Platform secrets (integrator credentials)
+  const clientId = Deno.env.get('LOGGI_CLIENT_ID');
+  const clientSecret = Deno.env.get('LOGGI_CLIENT_SECRET');
+  
+  // Tenant credentials
   const companyId = (credentials.company_id || credentials.shipper_id) as string;
 
-  if (!clientId || !clientSecret || !companyId) {
-    return { success: false, error: 'Credenciais Loggi incompletas. Configure em Configurações → Transportadoras.' };
+  if (!clientId || !clientSecret) {
+    return { success: false, error: 'Loggi não configurado na plataforma. Entre em contato com o suporte.' };
+  }
+
+  if (!companyId) {
+    return { success: false, error: 'ID do Embarcador não configurado. Configure em Configurações → Transportadoras → Loggi.' };
   }
 
   // loggiKey is required for label retrieval
@@ -316,8 +325,8 @@ async function getLoggiLabel(
   }
 
   try {
-    // Step 1: Authenticate
-    console.log('[Loggi] Authenticating...');
+    // Step 1: Authenticate with platform secrets
+    console.log('[Loggi] Authenticating with platform credentials...');
     const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
       method: 'POST',
       headers: {
@@ -332,7 +341,7 @@ async function getLoggiLabel(
     if (!authResponse.ok) {
       const errorText = await authResponse.text();
       console.error('[Loggi] Auth failed:', authResponse.status, errorText);
-      return { success: false, error: 'Falha na autenticação Loggi. Verifique client_id e client_secret.' };
+      return { success: false, error: 'Falha na autenticação Loggi. Entre em contato com o suporte.' };
     }
 
     const authData = await authResponse.json();
