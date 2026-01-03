@@ -61,7 +61,7 @@ export function buildEmpresaPayload(
 ): FocusEmpresaPayload {
   const payload: FocusEmpresaPayload = {
     cnpj: onlyNumbers(settings.cnpj),
-    razao_social: settings.razao_social.toUpperCase(),
+    nome: settings.razao_social.toUpperCase(), // Focus NFe usa 'nome' para razão social
     nome_fantasia: settings.nome_fantasia?.toUpperCase() || undefined,
     inscricao_estadual: settings.inscricao_estadual ? onlyNumbers(settings.inscricao_estadual) : undefined,
     inscricao_municipal: settings.inscricao_municipal ? onlyNumbers(settings.inscricao_municipal) : undefined,
