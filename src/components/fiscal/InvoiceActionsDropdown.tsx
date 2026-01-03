@@ -12,7 +12,9 @@ import {
   Eye,
   Copy,
   Loader2,
-  FileCode
+  FileCode,
+  FileEdit,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +40,8 @@ interface InvoiceActionsDropdownProps {
   onCancel?: () => void;
   onPrint?: () => void;
   onDuplicate?: () => void;
+  onCorrect?: () => void;
+  onViewTimeline?: () => void;
   isSubmitting?: boolean;
   isCheckingStatus?: boolean;
 }
@@ -51,6 +55,8 @@ export function InvoiceActionsDropdown({
   onCancel,
   onPrint,
   onDuplicate,
+  onCorrect,
+  onViewTimeline,
   isSubmitting,
   isCheckingStatus,
 }: InvoiceActionsDropdownProps) {
@@ -227,9 +233,17 @@ export function InvoiceActionsDropdown({
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onCorrect}>
+              <FileEdit className="h-4 w-4 mr-2" />
+              Carta de Correção
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={onDuplicate}>
               <Copy className="h-4 w-4 mr-2" />
               Duplicar NF-e
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onViewTimeline}>
+              <History className="h-4 w-4 mr-2" />
+              Ver Histórico
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem 
