@@ -428,7 +428,8 @@ async function quoteCorreios(
 }
 
 // Loggi Quote Adapter
-// Auth: OAuth2 com client_id/client_secret para obter token
+// Auth: OAuth2 com client_id/client_secret (secrets da plataforma)
+// Tenant fornece: integration_code, company_id, origin_cep
 // Docs: https://docs.api.loggi.com/reference/quotationapi
 async function quoteLoggi(
   provider: ProviderRecord,
@@ -436,19 +437,21 @@ async function quoteLoggi(
   recipientCep: string,
   totals: { weight: number; height: number; width: number; length: number; value: number }
 ): Promise<ShippingOption[]> {
-  const clientId = provider.credentials.client_id as string;
-  const clientSecret = provider.credentials.client_secret as string;
+  // Platform secrets (integrator credentials)
+  const clientId = Deno.env.get('LOGGI_CLIENT_ID');
+  const clientSecret = Deno.env.get('LOGGI_CLIENT_SECRET');
+  
+  // Tenant credentials
   const companyId = provider.credentials.company_id as string;
-  // Use origin_cep from credentials if provided, fallback to function parameter
   const providerOriginCep = provider.credentials.origin_cep as string;
 
   if (!clientId || !clientSecret) {
-    console.warn('[Loggi] Missing credentials for quote - tenant must configure client_id and client_secret');
+    console.warn('[Loggi] Platform secrets not configured (LOGGI_CLIENT_ID, LOGGI_CLIENT_SECRET)');
     return [];
   }
 
   if (!companyId) {
-    console.warn('[Loggi] Missing company_id - tenant must configure company_id');
+    console.warn('[Loggi] Missing company_id - tenant must configure ID do Embarcador');
     return [];
   }
 
@@ -460,8 +463,8 @@ async function quoteLoggi(
   }
 
   try {
-    // Step 1: Obter token OAuth2
-    console.log('[Loggi] Authenticating with OAuth2...');
+    // Step 1: Obter token OAuth2 with platform secrets
+    console.log('[Loggi] Authenticating with platform credentials...');
     const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
       method: 'POST',
       headers: {
