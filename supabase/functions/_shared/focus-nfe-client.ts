@@ -11,7 +11,7 @@ export interface FocusNFeConfig {
 
 export interface FocusEmpresaPayload {
   cnpj: string;
-  razao_social: string;
+  nome: string; // Campo obrigatório - razão social (Focus NFe usa 'nome', não 'razao_social')
   nome_fantasia?: string;
   inscricao_estadual?: string;
   inscricao_municipal?: string;
