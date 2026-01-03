@@ -19,7 +19,7 @@ serve(async (req) => {
   if (!focusToken) {
     return new Response(
       JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
@@ -56,7 +56,7 @@ serve(async (req) => {
     if (!profile?.current_tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -69,14 +69,14 @@ serve(async (req) => {
     if (!invoice_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'invoice_id é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!justificativa || justificativa.length < 15 || justificativa.length > 255) {
       return new Response(
         JSON.stringify({ success: false, error: 'Justificativa deve ter entre 15 e 255 caracteres' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -93,7 +93,7 @@ serve(async (req) => {
     if (invoiceError || !invoice) {
       return new Response(
         JSON.stringify({ success: false, error: 'NF-e não encontrada' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -101,7 +101,7 @@ serve(async (req) => {
     if (invoice.status !== 'authorized') {
       return new Response(
         JSON.stringify({ success: false, error: 'Apenas NF-e autorizadas podem ser canceladas' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -109,7 +109,7 @@ serve(async (req) => {
     if (!invoice.focus_ref) {
       return new Response(
         JSON.stringify({ success: false, error: 'NF-e não foi enviada para Focus NFe' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -142,7 +142,7 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: false, error: result.error }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -181,8 +181,8 @@ serve(async (req) => {
   } catch (error: any) {
     console.error('[fiscal-cancel] Erro:', error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: error.message || 'Erro interno do servidor' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

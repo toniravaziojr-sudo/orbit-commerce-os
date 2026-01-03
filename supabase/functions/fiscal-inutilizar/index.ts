@@ -20,7 +20,7 @@ serve(async (req) => {
     if (!focusToken) {
       return new Response(
         JSON.stringify({ success: false, error: 'Token Focus NFe não configurado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -54,7 +54,7 @@ serve(async (req) => {
     if (!profile?.current_tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -66,7 +66,7 @@ serve(async (req) => {
     if (!serie || !numero_inicial || !numero_final || !justificativa) {
       return new Response(
         JSON.stringify({ success: false, error: 'Todos os campos são obrigatórios' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -74,14 +74,14 @@ serve(async (req) => {
     if (numero_inicial > numero_final) {
       return new Response(
         JSON.stringify({ success: false, error: 'Número inicial deve ser menor ou igual ao final' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (justificativa.length < 15 || justificativa.length > 255) {
       return new Response(
         JSON.stringify({ success: false, error: 'Justificativa deve ter entre 15 e 255 caracteres' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -95,7 +95,7 @@ serve(async (req) => {
     if (settingsError || !settings?.cnpj) {
       return new Response(
         JSON.stringify({ success: false, error: 'Configurações fiscais não encontradas' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -155,7 +155,7 @@ serve(async (req) => {
           error: responseData.mensagem || 'Erro ao inutilizar numeração',
           details: responseData,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -172,7 +172,7 @@ serve(async (req) => {
     console.error('[fiscal-inutilizar] Unexpected error:', error);
     return new Response(
       JSON.stringify({ success: false, error: 'Erro interno do servidor' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
