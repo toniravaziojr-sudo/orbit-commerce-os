@@ -91,7 +91,8 @@ export function ImageCarouselBlock({
 }: ImageCarouselBlockProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   
-  const isInBuilder = context?.isPreview === false;
+  // Detect if we're in the Builder editor (viewport is defined only in builder)
+  const isInBuilder = context?.viewport !== undefined;
   
   // Parse images from props
   const parsedImages = useMemo(() => parseImages(images, imagesJson), [images, imagesJson]);
