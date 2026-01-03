@@ -27,6 +27,15 @@ function parseErrorMessage(errorMessage: string): FiscalError[] {
   const errors: FiscalError[] = [];
   const msg = errorMessage?.toLowerCase() || '';
   
+  // Check for generic edge function error
+  if (msg.includes('edge function returned a non-2xx') || msg.includes('non-2xx status code')) {
+    errors.push({
+      type: 'unknown',
+      message: 'Erro ao comunicar com o servidor fiscal. Tente novamente em alguns instantes.',
+    });
+    return errors;
+  }
+  
   // Check for missing NCM
   if (msg.includes('ncm')) {
     const match = errorMessage.match(/Produtos sem NCM[^:]*:\s*(.+?)(?:\.|$)/i);
