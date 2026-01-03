@@ -2195,6 +2195,7 @@ export type Database = {
           danfe_printed_at: string | null
           danfe_url: string | null
           dest_cpf_cnpj: string
+          dest_email: string | null
           dest_endereco_bairro: string | null
           dest_endereco_cep: string | null
           dest_endereco_complemento: string | null
@@ -2205,22 +2206,32 @@ export type Database = {
           dest_endereco_uf: string | null
           dest_inscricao_estadual: string | null
           dest_nome: string
+          dest_telefone: string | null
           emitido_por: string | null
+          especie_volumes: string | null
           id: string
+          modalidade_frete: string | null
           natureza_operacao: string | null
           numero: number
           observacoes: string | null
           order_id: string | null
+          peso_bruto: number | null
+          peso_liquido: number | null
           protocolo: string | null
+          quantidade_volumes: number | null
           requires_action: boolean | null
           serie: number
           status: string
           status_motivo: string | null
           tenant_id: string
+          transportadora_cnpj: string | null
+          transportadora_nome: string | null
           updated_at: string | null
           valor_desconto: number | null
           valor_frete: number | null
+          valor_outras_despesas: number | null
           valor_produtos: number
+          valor_seguro: number | null
           valor_total: number
           xml_autorizado: string | null
         }
@@ -2233,6 +2244,7 @@ export type Database = {
           danfe_printed_at?: string | null
           danfe_url?: string | null
           dest_cpf_cnpj: string
+          dest_email?: string | null
           dest_endereco_bairro?: string | null
           dest_endereco_cep?: string | null
           dest_endereco_complemento?: string | null
@@ -2243,22 +2255,32 @@ export type Database = {
           dest_endereco_uf?: string | null
           dest_inscricao_estadual?: string | null
           dest_nome: string
+          dest_telefone?: string | null
           emitido_por?: string | null
+          especie_volumes?: string | null
           id?: string
+          modalidade_frete?: string | null
           natureza_operacao?: string | null
           numero: number
           observacoes?: string | null
           order_id?: string | null
+          peso_bruto?: number | null
+          peso_liquido?: number | null
           protocolo?: string | null
+          quantidade_volumes?: number | null
           requires_action?: boolean | null
           serie: number
           status?: string
           status_motivo?: string | null
           tenant_id: string
+          transportadora_cnpj?: string | null
+          transportadora_nome?: string | null
           updated_at?: string | null
           valor_desconto?: number | null
           valor_frete?: number | null
+          valor_outras_despesas?: number | null
           valor_produtos: number
+          valor_seguro?: number | null
           valor_total: number
           xml_autorizado?: string | null
         }
@@ -2271,6 +2293,7 @@ export type Database = {
           danfe_printed_at?: string | null
           danfe_url?: string | null
           dest_cpf_cnpj?: string
+          dest_email?: string | null
           dest_endereco_bairro?: string | null
           dest_endereco_cep?: string | null
           dest_endereco_complemento?: string | null
@@ -2281,22 +2304,32 @@ export type Database = {
           dest_endereco_uf?: string | null
           dest_inscricao_estadual?: string | null
           dest_nome?: string
+          dest_telefone?: string | null
           emitido_por?: string | null
+          especie_volumes?: string | null
           id?: string
+          modalidade_frete?: string | null
           natureza_operacao?: string | null
           numero?: number
           observacoes?: string | null
           order_id?: string | null
+          peso_bruto?: number | null
+          peso_liquido?: number | null
           protocolo?: string | null
+          quantidade_volumes?: number | null
           requires_action?: boolean | null
           serie?: number
           status?: string
           status_motivo?: string | null
           tenant_id?: string
+          transportadora_cnpj?: string | null
+          transportadora_nome?: string | null
           updated_at?: string | null
           valor_desconto?: number | null
           valor_frete?: number | null
+          valor_outras_despesas?: number | null
           valor_produtos?: number
+          valor_seguro?: number | null
           valor_total?: number
           xml_autorizado?: string | null
         }
