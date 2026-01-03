@@ -27,8 +27,53 @@ function parseErrorMessage(errorMessage: string): FiscalError[] {
   const errors: FiscalError[] = [];
   const msg = errorMessage?.toLowerCase() || '';
   
-  // Check for generic edge function error
-  if (msg.includes('edge function returned a non-2xx') || msg.includes('non-2xx status code')) {
+  // Check for missing required fields (from our improved validation)
+  if (msg.includes('campos obrigatórios não preenchidos') || msg.includes('obrigatórios')) {
+    const camposMatch = errorMessage.match(/preenchidos:\s*(.+?)(?:\.|$)/i);
+    if (camposMatch) {
+      const campos = camposMatch[1].split(',').map(c => c.trim());
+      campos.forEach(campo => {
+        // Determine the error type based on the field
+        let type: FiscalError['type'] = 'missing_field';
+        if (campo.toLowerCase().includes('bairro') || 
+            campo.toLowerCase().includes('logradouro') || 
+            campo.toLowerCase().includes('cidade') || 
+            campo.toLowerCase().includes('uf') || 
+            campo.toLowerCase().includes('cep')) {
+          type = 'missing_address';
+        } else if (campo.toLowerCase().includes('cpf') || campo.toLowerCase().includes('cnpj')) {
+          type = 'invalid_document';
+        }
+        
+        errors.push({
+          type,
+          message: `${campo} não informado. Complete os dados para emitir a NF-e.`,
+          field: campo,
+        });
+      });
+      return errors;
+    }
+  }
+  
+  // Check for specific missing field messages
+  if (msg.includes('bairro') && (msg.includes('não informado') || msg.includes('não preenchido') || msg.includes('obrigatório'))) {
+    errors.push({
+      type: 'missing_address',
+      message: 'Bairro do destinatário não informado. Complete o endereço para emitir a NF-e.',
+      field: 'bairro',
+    });
+  }
+  
+  if (msg.includes('logradouro') && (msg.includes('não informado') || msg.includes('não preenchido') || msg.includes('obrigatório'))) {
+    errors.push({
+      type: 'missing_address',
+      message: 'Logradouro do destinatário não informado. Complete o endereço para emitir a NF-e.',
+      field: 'logradouro',
+    });
+  }
+  
+  // Check for generic edge function error - but only if no specific errors were found
+  if (errors.length === 0 && (msg.includes('edge function returned a non-2xx') || msg.includes('non-2xx status code'))) {
     errors.push({
       type: 'unknown',
       message: 'Erro ao comunicar com o servidor fiscal. Tente novamente em alguns instantes.',

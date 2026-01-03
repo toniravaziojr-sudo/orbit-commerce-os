@@ -158,12 +158,17 @@ export function buildNFePayload(
     // Determinar CST/CSOSN do ICMS
     const icmsSituacao = item.csosn || item.cst_icms || '102';
     
+    // Coerção segura para campos string
+    const codigoSeguro = (item.codigo_produto || '').substring(0, 60);
+    const descricaoSegura = (item.descricao || 'PRODUTO').toUpperCase().substring(0, 120);
+    const unidadeSegura = (item.unidade || 'UN').toUpperCase().substring(0, 6);
+    
     return {
       numero_item: item.numero_item || index + 1,
-      codigo_produto: item.codigo_produto.substring(0, 60),
-      descricao: item.descricao.toUpperCase().substring(0, 120),
+      codigo_produto: codigoSeguro || `PROD${index + 1}`,
+      descricao: descricaoSegura,
       cfop: onlyNumbers(item.cfop),
-      unidade_comercial: item.unidade.toUpperCase().substring(0, 6),
+      unidade_comercial: unidadeSegura,
       quantidade_comercial: item.quantidade,
       valor_unitario_comercial: roundDecimal(item.valor_unitario, 4),
       valor_bruto: roundDecimal(item.valor_total, 2),
@@ -173,7 +178,7 @@ export function buildNFePayload(
       icms_origem: parseInt(item.origem || '0', 10),
       pis_situacao_tributaria: item.cst_pis || '07',
       cofins_situacao_tributaria: item.cst_cofins || '07',
-      unidade_tributavel: item.unidade.toUpperCase().substring(0, 6),
+      unidade_tributavel: unidadeSegura,
       quantidade_tributavel: item.quantidade,
       valor_unitario_tributavel: roundDecimal(item.valor_unitario, 4),
     };
@@ -191,6 +196,15 @@ export function buildNFePayload(
   };
   const finalidade = finalidadeMap[invoice.finalidade || 'normal'] || 1;
   
+  // Coerção segura para campos do destinatário (previne crash em null/undefined)
+  const nomeSeguro = (destinatario.nome || 'CONSUMIDOR FINAL').toUpperCase().substring(0, 60);
+  const logradouroSeguro = (destinatario.logradouro || '').toUpperCase().substring(0, 60);
+  const numeroSeguro = (destinatario.numero || 'S/N').substring(0, 60);
+  const complementoSeguro = destinatario.complemento ? destinatario.complemento.toUpperCase().substring(0, 60) : undefined;
+  const bairroSeguro = (destinatario.bairro || '').toUpperCase().substring(0, 60);
+  const cidadeSegura = (destinatario.cidade || '').toUpperCase().substring(0, 60);
+  const ufSeguro = (destinatario.uf || '').toUpperCase();
+
   const payload: FocusNFePayload = {
     natureza_operacao: (invoice.natureza_operacao || 'VENDA DE MERCADORIA').toUpperCase(),
     data_emissao: new Date().toISOString(), // Data de emissão no formato ISO
@@ -200,17 +214,17 @@ export function buildNFePayload(
     presenca_comprador: 2, // Internet
     cnpj_emitente: onlyNumbers(emitente.cnpj),
     
-    // Destinatário
-    nome_destinatario: destinatario.nome.toUpperCase().substring(0, 60),
+    // Destinatário (com coerção segura)
+    nome_destinatario: nomeSeguro,
     cpf_destinatario: destinatario.cpf ? onlyNumbers(destinatario.cpf) : undefined,
     cnpj_destinatario: destinatario.cnpj ? onlyNumbers(destinatario.cnpj) : undefined,
     inscricao_estadual_destinatario: destinatario.inscricao_estadual ? onlyNumbers(destinatario.inscricao_estadual) : undefined,
-    logradouro_destinatario: destinatario.logradouro.toUpperCase().substring(0, 60),
-    numero_destinatario: destinatario.numero.substring(0, 60),
-    complemento_destinatario: destinatario.complemento?.toUpperCase().substring(0, 60) || undefined,
-    bairro_destinatario: destinatario.bairro.toUpperCase().substring(0, 60),
-    municipio_destinatario: destinatario.cidade.toUpperCase().substring(0, 60),
-    uf_destinatario: destinatario.uf.toUpperCase(),
+    logradouro_destinatario: logradouroSeguro,
+    numero_destinatario: numeroSeguro,
+    complemento_destinatario: complementoSeguro,
+    bairro_destinatario: bairroSeguro,
+    municipio_destinatario: cidadeSegura,
+    uf_destinatario: ufSeguro,
     cep_destinatario: onlyNumbers(destinatario.cep),
     telefone_destinatario: destinatario.telefone ? onlyNumbers(destinatario.telefone) : undefined,
     email_destinatario: destinatario.email || undefined,
