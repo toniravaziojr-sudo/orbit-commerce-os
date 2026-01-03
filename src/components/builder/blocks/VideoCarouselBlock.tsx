@@ -128,9 +128,10 @@ export function VideoCarouselBlock({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
   
-  // isPreview means we're in the builder preview mode (not editing)
-  // In the builder, we want to disable video playback
-  const isInBuilder = context?.isPreview === false;
+  // Detect if we're in the Builder editor (editing mode)
+  // In the builder editor, viewport is defined (either 'desktop' or 'mobile')
+  // In the public storefront, viewport is undefined
+  const isInBuilder = context?.viewport !== undefined;
   
   // Parse videos from props
   const parsedVideos = useMemo(() => parseVideos(videos, videosJson), [videos, videosJson]);
