@@ -370,7 +370,30 @@ export default function Fiscal() {
         body: { invoice_id: invoice.id },
       });
 
-      if (error) throw error;
+      // When edge function returns non-2xx, the error object may contain the response body
+      if (error) {
+        // Try to extract the actual error message from the response
+        let errorMessage = 'Erro desconhecido';
+        
+        // Check if error has context with body (Supabase SDK v2)
+        if ((error as any)?.context?.body) {
+          try {
+            const body = JSON.parse((error as any).context.body);
+            errorMessage = body.error || body.message || error.message;
+          } catch {
+            errorMessage = error.message;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        // Parse errors and show error resolver
+        const errors = parseErrorMessage(errorMessage);
+        setCurrentErrors(errors);
+        setCurrentErrorInvoiceId(invoice.id);
+        setErrorResolverOpen(true);
+        return;
+      }
       
       // Check if the response indicates an error
       if (data && !data.success) {
