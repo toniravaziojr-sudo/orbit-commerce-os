@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Info,
   Timer,
+  Plus,
 } from 'lucide-react';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -56,6 +57,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog';
+import { ShipmentDetailsCard } from '@/components/shipping/ShipmentDetailsCard';
 
 type DeliveryStatus = 
   | 'label_created' 
@@ -172,6 +175,7 @@ export default function Shipments() {
   const [selectedShipment, setSelectedShipment] = useState<ShipmentRecord | null>(null);
   const [isPolling, setIsPolling] = useState(false);
   const [lastPollResult, setLastPollResult] = useState<{ timestamp: string; processed: number; updated: number; errors: number } | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   
   // Owner/Admin check for debug features (real check using hasRole)
   const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
@@ -289,17 +293,26 @@ export default function Shipments() {
           title="Rastreios"
           description="Acompanhe o status de entrega dos pedidos"
           actions={
-            isOwnerOrAdmin && (
+            <div className="flex items-center gap-2">
               <Button 
-                variant="outline" 
+                onClick={() => setIsCreateDialogOpen(true)}
                 className="gap-2"
-                onClick={() => runTrackingPoll.mutate()}
-                disabled={isPolling}
               >
-                <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
-                {isPolling ? 'Atualizando...' : 'Atualizar rastreios'}
+                <Plus className="h-4 w-4" />
+                Criar Remessa
               </Button>
-            )
+              {isOwnerOrAdmin && (
+                <Button 
+                  variant="outline" 
+                  className="gap-2"
+                  onClick={() => runTrackingPoll.mutate()}
+                  disabled={isPolling}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
+                  {isPolling ? 'Atualizando...' : 'Atualizar rastreios'}
+                </Button>
+              )}
+            </div>
           }
         />
         
@@ -591,142 +604,29 @@ export default function Shipments() {
         
         {/* Shipment Events Dialog */}
         <Dialog open={!!selectedShipment} onOpenChange={() => setSelectedShipment(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Truck className="h-5 w-5" />
-                Timeline de Rastreio
+                Detalhes do Rastreio
               </DialogTitle>
             </DialogHeader>
             
             {selectedShipment && (
-              <div className="space-y-4">
-                {/* Shipment Info */}
-                <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pedido</p>
-                    <p className="font-medium">{selectedShipment.order?.order_number}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Transportadora</p>
-                    <p className="font-medium capitalize">{selectedShipment.carrier || '—'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Código de Rastreio</p>
-                    <code className="text-sm">{selectedShipment.tracking_code}</code>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Status Atual</p>
-                    <Badge variant={statusConfig[selectedShipment.delivery_status as DeliveryStatus]?.variant || 'outline'}>
-                      {statusConfig[selectedShipment.delivery_status as DeliveryStatus]?.label || selectedShipment.delivery_status}
-                    </Badge>
-                  </div>
-                </div>
-                
-                {/* Polling Status Details */}
-                <div className="p-4 bg-muted/30 rounded-lg border border-dashed">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Info className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Detalhes do Polling</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Última verificação</p>
-                      <p className="font-medium">{formatDate(selectedShipment.last_polled_at)}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Próxima verificação</p>
-                      <p className="font-medium">
-                        {(() => {
-                          const nextPoll = formatNextPoll(
-                            selectedShipment.next_poll_at, 
-                            selectedShipment.poll_error_count || 0, 
-                            selectedShipment.last_poll_error
-                          );
-                          return (
-                            <span className={nextPoll.isBackoff ? 'text-orange-600 dark:text-orange-400' : ''}>
-                              {nextPoll.isBackoff && '⚠️ '}{formatDate(selectedShipment.next_poll_at)} ({nextPoll.text})
-                            </span>
-                          );
-                        })()}
-                      </p>
-                    </div>
-                    {(selectedShipment.poll_error_count || 0) > 0 && (
-                      <>
-                        <div>
-                          <p className="text-muted-foreground">Erros consecutivos</p>
-                          <p className="font-medium text-destructive">{selectedShipment.poll_error_count}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Último erro</p>
-                          <p className="font-medium text-destructive">{sanitizeErrorMessage(selectedShipment.last_poll_error)}</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Events Timeline */}
-                <ScrollArea className="h-[300px]">
-                  {eventsLoading ? (
-                    <div className="space-y-4 p-4">
-                      {[...Array(3)].map((_, i) => (
-                        <div key={i} className="flex gap-4">
-                          <Skeleton className="h-3 w-3 rounded-full mt-1" />
-                          <div className="space-y-2 flex-1">
-                            <Skeleton className="h-4 w-32" />
-                            <Skeleton className="h-3 w-48" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : !shipmentEvents?.length ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                      <Clock className="h-8 w-8 mb-2" />
-                      <p>Nenhum evento registrado</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-0 relative">
-                      {/* Timeline line */}
-                      <div className="absolute left-[11px] top-3 bottom-3 w-0.5 bg-border" />
-                      
-                      {shipmentEvents.map((event, index) => (
-                        <div key={event.id} className="flex gap-4 p-3 relative">
-                          {/* Timeline dot */}
-                          <div className={`h-6 w-6 rounded-full flex items-center justify-center z-10 ${
-                            index === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted border-2 border-border'
-                          }`}>
-                            <ChevronRight className="h-3 w-3" />
-                          </div>
-                          
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {event.status}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {formatDate(event.occurred_at)}
-                              </span>
-                            </div>
-                            {event.description && (
-                              <p className="text-sm mt-1">{event.description}</p>
-                            )}
-                            {event.location && (
-                              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {event.location}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
+              <ShipmentDetailsCard 
+                shipment={selectedShipment}
+                events={shipmentEvents || []}
+                eventsLoading={eventsLoading}
+              />
             )}
           </DialogContent>
         </Dialog>
+        
+        {/* Create Shipment Dialog */}
+        <CreateShipmentDialog 
+          open={isCreateDialogOpen} 
+          onOpenChange={setIsCreateDialogOpen} 
+        />
       </div>
     </TooltipProvider>
   );

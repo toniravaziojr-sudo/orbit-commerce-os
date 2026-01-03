@@ -197,7 +197,7 @@ serve(async (req) => {
         if (fiscalSettingsShip?.auto_create_shipment) {
           console.log(`[fiscal-check-status] Auto-creating shipment for order ${invoice.order_id}`);
           
-          // Call shipping-create-shipment
+          // Call shipping-create-shipment and update order status
           try {
             const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
             const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -213,8 +213,32 @@ serve(async (req) => {
             
             const shipResult = await shipResponse.json();
             console.log(`[fiscal-check-status] Shipment creation result:`, JSON.stringify(shipResult));
+            
+            // Se remessa criada com sucesso, atualizar pedido para shipped
+            if (shipResult.success && shipResult.tracking_code) {
+              await supabaseClient
+                .from('orders')
+                .update({ 
+                  status: 'shipped',
+                  shipped_at: new Date().toISOString()
+                })
+                .eq('id', invoice.order_id);
+              
+              console.log(`[fiscal-check-status] Order ${invoice.order_id} updated to shipped`);
+            } else {
+              // Se não criou remessa, apenas marcar como dispatched
+              await supabaseClient
+                .from('orders')
+                .update({ status: 'dispatched' })
+                .eq('id', invoice.order_id);
+            }
           } catch (shipError) {
             console.error(`[fiscal-check-status] Failed to create shipment:`, shipError);
+            // Fallback: marcar como dispatched
+            await supabaseClient
+              .from('orders')
+              .update({ status: 'dispatched' })
+              .eq('id', invoice.order_id);
           }
         }
       }
