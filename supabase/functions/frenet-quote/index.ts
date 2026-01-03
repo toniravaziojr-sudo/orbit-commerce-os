@@ -14,7 +14,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-const ENV_FRENET_TOKEN = Deno.env.get('FRENET_TOKEN');
+// NOTE: ENV_FRENET_TOKEN removed - pure multi-tenant model, each tenant uses their own token
 
 interface ShippingQuoteRequest {
   store_host?: string;        // Domain-aware: host do storefront
@@ -85,39 +85,44 @@ async function resolveTenantByHost(supabase: any, host: string): Promise<string 
   return null;
 }
 
-// Get Frenet credentials from database or fallback
+// Get Frenet credentials from database - NO FALLBACK (pure multi-tenant)
 async function getFrenetCredentials(supabase: any, tenantId: string): Promise<{
   token: string;
   originCep: string;
-  source: 'database' | 'fallback';
 }> {
-  const { data: provider } = await supabase
+  const { data: provider, error } = await supabase
     .from('shipping_providers')
     .select('credentials, settings, is_enabled')
     .eq('tenant_id', tenantId)
     .eq('provider', 'frenet')
     .single();
 
-  if (provider?.is_enabled && provider?.credentials?.token) {
-    console.log('[Frenet] Using database credentials');
-    const originCep = provider.credentials.seller_cep || provider.settings?.origin_cep || '01310100';
-    return {
-      token: provider.credentials.token,
-      originCep: originCep.replace(/\D/g, ''),
-      source: 'database',
-    };
+  if (error || !provider) {
+    console.log('[Frenet] Provider not found for tenant:', tenantId);
+    throw new Error('Frenet não configurado para esta loja. Configure em Integrações → Transportadoras.');
   }
 
-  if (ENV_FRENET_TOKEN) {
-    console.log('[Frenet] Using fallback (Secrets)');
-    return {
-      token: ENV_FRENET_TOKEN,
-      originCep: '01310100',
-      source: 'fallback',
-    };
+  if (!provider.is_enabled) {
+    console.log('[Frenet] Provider disabled for tenant:', tenantId);
+    throw new Error('Frenet está desativado para esta loja. Ative em Integrações → Transportadoras.');
   }
 
-  throw new Error('Frenet não configurado. Configure em Sistema → Integrações.');
+  if (!provider.credentials?.token) {
+    console.log('[Frenet] Token not configured for tenant:', tenantId);
+    throw new Error('Token Frenet não configurado. Configure em Integrações → Transportadoras.');
+  }
+
+  console.log('[Frenet] Using tenant credentials for:', tenantId);
+  const originCep = provider.credentials.seller_cep || provider.settings?.origin_cep;
+  
+  if (!originCep) {
+    throw new Error('CEP de origem não configurado. Configure em Integrações → Transportadoras.');
+  }
+
+  return {
+    token: provider.credentials.token,
+    originCep: originCep.replace(/\D/g, ''),
+  };
 }
 
 serve(async (req) => {
@@ -163,7 +168,7 @@ serve(async (req) => {
     }
 
     const credentials = await getFrenetCredentials(supabase, tenantId);
-    console.log(`[Frenet] Using ${credentials.source} credentials, origin CEP: ${credentials.originCep}`);
+    console.log(`[Frenet] Using tenant credentials, origin CEP: ${credentials.originCep}`);
 
     const sellerCep = body.seller_cep || credentials.originCep;
 
@@ -255,7 +260,6 @@ serve(async (req) => {
         options,
         seller_cep: sellerCep,
         recipient_cep,
-        credential_source: credentials.source,
         totals: {
           weight: totalWeight,
           height: totalHeight,

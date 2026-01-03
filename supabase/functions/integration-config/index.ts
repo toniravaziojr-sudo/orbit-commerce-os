@@ -22,6 +22,7 @@ function maskCredential(value: string | undefined): string {
 }
 
 // Check if running with fallback (Secrets) or database config
+// NOTE: Frenet removed from fallback - pure multi-tenant model, each tenant uses their own token
 function getEnvFallback(provider: string): Record<string, string> {
   if (provider === 'pagarme') {
     return {
@@ -30,11 +31,7 @@ function getEnvFallback(provider: string): Record<string, string> {
       public_key: Deno.env.get('PAGARME_PUBLIC_KEY') || '',
     };
   }
-  if (provider === 'frenet') {
-    return {
-      token: Deno.env.get('FRENET_TOKEN') || '',
-    };
-  }
+  // Frenet: No fallback - tenants must configure their own token
   return {};
 }
 
@@ -465,7 +462,7 @@ serve(async (req) => {
       }
 
       if (provider === 'frenet') {
-        let token = '';
+        // Pure multi-tenant: NO fallback to env vars
         const { data: dbProvider } = await supabaseClient
           .from('shipping_providers')
           .select('credentials, settings')
@@ -473,17 +470,24 @@ serve(async (req) => {
           .eq('provider', 'frenet')
           .single();
 
-        if (dbProvider?.credentials?.token) {
-          token = dbProvider.credentials.token;
-        } else {
-          token = Deno.env.get('FRENET_TOKEN') || '';
-        }
-
-        if (!token) {
+        if (!dbProvider?.credentials?.token) {
           return new Response(JSON.stringify({
             success: false,
-            message: 'Token não configurado',
+            message: 'Token Frenet não configurado. Insira seu token acima.',
             source: 'none',
+          }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        const token = dbProvider.credentials.token;
+        const originCep = dbProvider.credentials.seller_cep || dbProvider.settings?.origin_cep;
+        
+        if (!originCep) {
+          return new Response(JSON.stringify({
+            success: false,
+            message: 'CEP de origem não configurado. Insira o CEP de origem acima.',
+            source: 'database',
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
@@ -492,7 +496,7 @@ serve(async (req) => {
         // Test Frenet connection with a simple quote
         try {
           const testPayload = {
-            SellerCEP: dbProvider?.settings?.origin_cep?.replace(/\D/g, '') || '01310100',
+            SellerCEP: originCep.replace(/\D/g, ''),
             RecipientCEP: '04543000',
             ShipmentInvoiceValue: 100,
             ShippingItemArray: [{
@@ -517,14 +521,13 @@ serve(async (req) => {
             body: JSON.stringify(testPayload)
           });
 
-          const isDb = !!dbProvider?.credentials?.token;
           const data = await response.json();
 
           if (response.ok && data.ShippingSevicesArray) {
             return new Response(JSON.stringify({
               success: true,
               message: `Conexão OK - ${data.ShippingSevicesArray.length} serviços disponíveis`,
-              source: isDb ? 'database' : 'fallback (Secrets)',
+              origin_cep: originCep,
               tested_at: new Date().toISOString(),
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -532,8 +535,7 @@ serve(async (req) => {
           } else {
             return new Response(JSON.stringify({
               success: false,
-              message: data.Message || 'Falha na conexão',
-              source: isDb ? 'database' : 'fallback (Secrets)',
+              message: data.Message || 'Token inválido ou sem permissão',
             }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
@@ -541,7 +543,7 @@ serve(async (req) => {
         } catch (e) {
           return new Response(JSON.stringify({
             success: false,
-            message: 'Erro de conexão com Frenet',
+            message: 'Erro de conexão com Frenet - verifique sua internet',
           }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });

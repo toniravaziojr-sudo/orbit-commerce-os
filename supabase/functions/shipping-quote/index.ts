@@ -119,17 +119,17 @@ function normalizeServiceCode(code: string): string {
 
 // ========== PROVIDER ADAPTERS ==========
 
-// Frenet Quote Adapter
+// Frenet Quote Adapter - NO FALLBACK (pure multi-tenant)
 async function quoteFrenet(
   provider: ProviderRecord,
   originCep: string,
   recipientCep: string,
   totals: { weight: number; height: number; width: number; length: number; value: number }
 ): Promise<ShippingOption[]> {
-  const token = provider.credentials.token as string || Deno.env.get('FRENET_TOKEN');
+  const token = provider.credentials.token as string;
   
   if (!token) {
-    console.error('[Frenet] No token available');
+    console.warn('[Frenet] Tenant has no token configured - skipping provider');
     return [];
   }
 
