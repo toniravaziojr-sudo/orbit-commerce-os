@@ -36,6 +36,7 @@ const statusConfig: Record<string, { label: string; variant: 'default' | 'second
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
   canceled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
+  cancelled: { label: 'Cancelada', variant: 'destructive', icon: XCircle },
 };
 
 function formatCurrency(value: number) {
@@ -54,7 +55,7 @@ function formatDocument(doc: string) {
   return doc;
 }
 
-type TabStatus = 'draft' | 'authorized' | 'printed' | 'pending' | 'rejected' | 'canceled';
+type TabStatus = 'draft' | 'authorized' | 'printed' | 'pending' | 'rejected' | 'cancelled';
 
 export default function Fiscal() {
   const navigate = useNavigate();
@@ -116,7 +117,7 @@ export default function Fiscal() {
     if (activeTab === 'printed' && (inv.status !== 'authorized' || !(inv as any).danfe_printed_at)) return false;
     if (activeTab === 'pending' && inv.status !== 'pending') return false;
     if (activeTab === 'rejected' && inv.status !== 'rejected') return false;
-    if (activeTab === 'canceled' && inv.status !== 'canceled') return false;
+    if (activeTab === 'cancelled' && inv.status !== 'cancelled' && inv.status !== 'canceled') return false;
     
     // Filter by search
     if (searchTerm) {
@@ -556,7 +557,7 @@ export default function Fiscal() {
                   Rejeitadas
                   {counts.rejected > 0 && <Badge variant="destructive" className="ml-1">{counts.rejected}</Badge>}
                 </TabsTrigger>
-                <TabsTrigger value="canceled" className="gap-1">
+                <TabsTrigger value="cancelled" className="gap-1">
                   Canceladas
                   {counts.canceled > 0 && <Badge variant="secondary" className="ml-1">{counts.canceled}</Badge>}
                 </TabsTrigger>
