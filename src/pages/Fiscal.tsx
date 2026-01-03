@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, Eye, Download, RefreshCw, Loader2, Edit, Printer } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { FileText, Plus, AlertTriangle, CheckCircle, Clock, XCircle, Settings, Eye, Download, RefreshCw, Loader2, Edit, Printer, Send } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceStatus, type FiscalInvoice } from '@/hooks/useFiscal';
-import { PendingOrdersSection } from '@/components/fiscal/PendingOrdersSection';
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
 import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEditor';
@@ -21,7 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: React.ElementType }> = {
-  draft: { label: 'Rascunho', variant: 'secondary', icon: FileText },
+  draft: { label: 'Pronta para Emitir', variant: 'secondary', icon: FileText },
   pending: { label: 'Processando', variant: 'outline', icon: Clock },
   authorized: { label: 'Autorizada', variant: 'default', icon: CheckCircle },
   rejected: { label: 'Rejeitada', variant: 'destructive', icon: XCircle },
@@ -44,15 +43,15 @@ function formatDocument(doc: string) {
   return doc;
 }
 
-type TabStatus = 'all' | 'draft' | 'authorized' | 'printed' | 'pending' | 'rejected' | 'canceled';
+type TabStatus = 'draft' | 'authorized' | 'printed' | 'pending' | 'rejected' | 'canceled';
 
 export default function Fiscal() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabStatus>('all');
+  const [activeTab, setActiveTab] = useState<TabStatus>('draft');
   const [searchTerm, setSearchTerm] = useState('');
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
+  const [isAutoCreating, setIsAutoCreating] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -61,6 +60,31 @@ export default function Fiscal() {
 
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
   const isConfigured = settings?.is_configured;
+
+  // Auto-create drafts on page load when configured
+  useEffect(() => {
+    if (isConfigured && !isAutoCreating) {
+      autoCreateDrafts();
+    }
+  }, [isConfigured]);
+
+  const autoCreateDrafts = async () => {
+    setIsAutoCreating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fiscal-auto-create-drafts');
+      
+      if (error) {
+        console.error('Error auto-creating drafts:', error);
+      } else if (data?.created > 0) {
+        toast.success(`${data.created} rascunho(s) criado(s) automaticamente`);
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error calling auto-create-drafts:', error);
+    } finally {
+      setIsAutoCreating(false);
+    }
+  };
 
   // Filter invoices by tab and search
   const filteredInvoices = invoices?.filter(inv => {
@@ -87,7 +111,6 @@ export default function Fiscal() {
 
   // Count by status for tabs
   const counts = {
-    all: invoices?.length || 0,
     draft: invoices?.filter(i => i.status === 'draft').length || 0,
     authorized: invoices?.filter(i => i.status === 'authorized' && !(i as any).danfe_printed_at).length || 0,
     printed: invoices?.filter(i => i.status === 'authorized' && (i as any).danfe_printed_at).length || 0,
@@ -221,6 +244,21 @@ export default function Fiscal() {
     refetch();
   };
 
+  const handleQuickSubmit = async (invoice: FiscalInvoice) => {
+    try {
+      const { error } = await supabase.functions.invoke('fiscal-submit', {
+        body: { invoice_id: invoice.id },
+      });
+
+      if (error) throw error;
+      toast.success('NF-e enviada para autorização');
+      refetch();
+    } catch (error: any) {
+      console.error('Error submitting invoice:', error);
+      toast.error(error?.message || 'Erro ao emitir NF-e');
+    }
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -231,10 +269,6 @@ export default function Fiscal() {
             <Button onClick={() => setManualDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Nova NF-e
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/fiscal/products')}>
-              <Settings className="h-4 w-4 mr-2" />
-              Produtos
             </Button>
             <Button variant="outline" onClick={() => navigate('/settings/fiscal')}>
               <Settings className="h-4 w-4 mr-2" />
@@ -269,16 +303,13 @@ export default function Fiscal() {
         </Card>
       )}
 
-      {/* Pending Orders for NF-e */}
-      {isConfigured && <PendingOrdersSection />}
-
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          title="NF-e Emitidas (Mês)"
-          value={statsLoading ? '...' : stats?.total?.toString() || '0'}
+          title="Prontas para Emitir"
+          value={statsLoading ? '...' : counts.draft.toString()}
           icon={FileText}
-          variant="primary"
+          variant="warning"
         />
         <StatCard
           title="Autorizadas"
@@ -287,10 +318,10 @@ export default function Fiscal() {
           variant="success"
         />
         <StatCard
-          title="Pendentes"
+          title="Pendentes SEFAZ"
           value={statsLoading ? '...' : stats?.pending?.toString() || '0'}
           icon={Clock}
-          variant="warning"
+          variant="primary"
         />
         <StatCard
           title="Rejeitadas"
@@ -312,8 +343,16 @@ export default function Fiscal() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-64"
               />
-              <Button variant="outline" size="icon" onClick={() => refetch()}>
-                <RefreshCw className="h-4 w-4" />
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={() => {
+                  autoCreateDrafts();
+                  refetch();
+                }}
+                disabled={isAutoCreating}
+              >
+                <RefreshCw className={`h-4 w-4 ${isAutoCreating ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </div>
@@ -321,10 +360,6 @@ export default function Fiscal() {
         <CardContent>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabStatus)} className="space-y-4">
             <TabsList className="flex flex-wrap h-auto gap-1">
-              <TabsTrigger value="all" className="gap-1">
-                Todas
-                <Badge variant="secondary" className="ml-1">{counts.all}</Badge>
-              </TabsTrigger>
               <TabsTrigger value="draft" className="gap-1">
                 <FileText className="h-3 w-3" />
                 Prontas para Emitir
@@ -363,11 +398,11 @@ export default function Fiscal() {
             ) : !filteredInvoices || filteredInvoices.length === 0 ? (
               <EmptyState
                 icon={FileText}
-                title={activeTab === 'all' ? 'Nenhuma nota fiscal encontrada' : `Nenhuma NF-e ${statusConfig[activeTab]?.label || activeTab}`}
+                title={`Nenhuma NF-e ${statusConfig[activeTab]?.label || activeTab}`}
                 description={isConfigured 
                   ? activeTab === 'draft' 
-                    ? "Notas fiscais em rascunho aparecerão aqui. Você pode editá-las antes de emitir."
-                    : "As NF-e emitidas aparecerão aqui."
+                    ? "Quando houver pedidos aprovados, os rascunhos de NF-e aparecerão aqui automaticamente. Você pode editar e emitir quando quiser."
+                    : "As NF-e aparecerão aqui conforme forem processadas."
                   : "Configure sua integração fiscal para emitir NF-e automaticamente."}
                 action={!isConfigured ? {
                   label: "Configurar Integração",
@@ -429,13 +464,35 @@ export default function Fiscal() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
-                            {/* Draft: Edit button */}
+                            {/* Draft: Edit + Quick Submit buttons */}
                             {invoice.status === 'draft' && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleEditInvoice(invoice)}
+                                  title="Editar rascunho"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => handleQuickSubmit(invoice)}
+                                  title="Emitir NF-e"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {/* Rejected: Edit to resubmit */}
+                            {invoice.status === 'rejected' && (
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleEditInvoice(invoice)}
-                                title="Editar rascunho"
+                                title="Editar e reemitir"
                               >
                                 <Edit className="h-4 w-4" />
                               </Button>

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, ExternalLink } from 'lucide-react';
+import { FileText, User, Package, MapPin, Calculator, Truck, Save, Send, Trash2, X, Loader2, AlertCircle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -13,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { EntityLink } from '@/components/common/EntityLink';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 
 // Types
@@ -85,6 +84,7 @@ const NATUREZA_OPTIONS = [
   'Devolução de compra',
   'Remessa para conserto',
   'Remessa para demonstração',
+  'VENDA DE MERCADORIA',
 ];
 
 const MODALIDADE_FRETE_OPTIONS = [
@@ -115,15 +115,16 @@ export function InvoiceEditor({
   onDelete,
   isLoading = false,
 }: InvoiceEditorProps) {
-  const navigate = useNavigate();
   const [data, setData] = useState<InvoiceData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('geral');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (invoice) {
       setData({ ...invoice });
+      setValidationErrors([]);
     }
   }, [invoice]);
 
@@ -145,6 +146,23 @@ export function InvoiceEditor({
     recalculateTotals(newItems);
   };
 
+  const addItem = () => {
+    if (!data) return;
+    const newItem: InvoiceItemData = {
+      numero_item: data.items.length + 1,
+      codigo_produto: '',
+      descricao: '',
+      ncm: '',
+      cfop: data.cfop || '5102',
+      unidade: 'UN',
+      quantidade: 1,
+      valor_unitario: 0,
+      valor_total: 0,
+      origem: '0',
+    };
+    setData({ ...data, items: [...data.items, newItem] });
+  };
+
   const removeItem = (index: number) => {
     if (!data) return;
     const newItems = data.items.filter((_, i) => i !== index);
@@ -159,6 +177,40 @@ export function InvoiceEditor({
     const valor_produtos = items.reduce((sum, item) => sum + item.valor_total, 0);
     const valor_total = valor_produtos + (data.valor_frete || 0) + (data.valor_seguro || 0) + (data.valor_outras_despesas || 0) - (data.valor_desconto || 0);
     setData(prev => prev ? { ...prev, valor_produtos, valor_total } : null);
+  };
+
+  const validateForSubmission = (): string[] => {
+    if (!data) return ['Dados não carregados'];
+    
+    const errors: string[] = [];
+    
+    // Recipient validation
+    if (!data.dest_nome?.trim()) errors.push('Nome do destinatário é obrigatório');
+    if (!data.dest_cpf_cnpj?.trim()) errors.push('CPF/CNPJ do destinatário é obrigatório');
+    
+    // Address validation
+    if (!data.dest_endereco_logradouro?.trim()) errors.push('Logradouro é obrigatório');
+    if (!data.dest_endereco_municipio?.trim()) errors.push('Município é obrigatório');
+    if (!data.dest_endereco_uf?.trim()) errors.push('UF é obrigatório');
+    if (!data.dest_endereco_municipio_codigo?.trim()) errors.push('Código IBGE do município é obrigatório');
+    if (!data.dest_endereco_cep?.trim()) errors.push('CEP é obrigatório');
+    
+    // Items validation
+    if (data.items.length === 0) {
+      errors.push('A NF-e precisa ter pelo menos um item');
+    } else {
+      const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
+      if (itemsWithoutNcm.length > 0) {
+        errors.push(`NCM não preenchido em ${itemsWithoutNcm.length} item(ns): ${itemsWithoutNcm.map(i => i.descricao || `Item ${i.numero_item}`).join(', ')}`);
+      }
+      
+      const itemsWithoutDesc = data.items.filter(item => !item.descricao?.trim());
+      if (itemsWithoutDesc.length > 0) {
+        errors.push(`Descrição não preenchida em ${itemsWithoutDesc.length} item(ns)`);
+      }
+    }
+    
+    return errors;
   };
 
   const handleSave = async () => {
@@ -179,15 +231,12 @@ export function InvoiceEditor({
     if (!data) return;
     
     // Validate required fields
-    const errors: string[] = [];
-    if (!data.dest_nome) errors.push('Nome do destinatário');
-    if (!data.dest_cpf_cnpj) errors.push('CPF/CNPJ do destinatário');
-    if (!data.dest_endereco_logradouro) errors.push('Endereço do destinatário');
-    if (!data.dest_endereco_municipio_codigo) errors.push('Código IBGE do município');
-    if (data.items.some(item => !item.ncm)) errors.push('NCM de todos os itens');
+    const errors = validateForSubmission();
+    setValidationErrors(errors);
     
     if (errors.length > 0) {
-      toast.error(`Campos obrigatórios: ${errors.join(', ')}`);
+      toast.error('Corrija os erros antes de emitir');
+      setActiveTab('geral'); // Go to first tab to show alert
       return;
     }
     
@@ -223,6 +272,9 @@ export function InvoiceEditor({
 
   if (!data) return null;
 
+  // Check for missing NCM items
+  const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -233,15 +285,8 @@ export function InvoiceEditor({
                 <FileText className="h-5 w-5" />
                 Editar NF-e - Rascunho
               </DialogTitle>
-              <DialogDescription>
-                {data.order_id && (
-                  <span className="flex items-center gap-1 mt-1">
-                    Pedido: 
-                    <EntityLink type="order" id={data.order_id} showIcon>
-                      Ver Pedido
-                    </EntityLink>
-                  </span>
-                )}
+              <DialogDescription className="mt-1">
+                As alterações feitas aqui afetam apenas esta NF-e, não o pedido original.
               </DialogDescription>
             </div>
             <Badge variant="secondary">
@@ -249,6 +294,31 @@ export function InvoiceEditor({
             </Badge>
           </div>
         </DialogHeader>
+
+        {/* Validation Errors Alert */}
+        {validationErrors.length > 0 && (
+          <Alert variant="destructive" className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Corrija os erros antes de emitir:</strong>
+              <ul className="list-disc ml-4 mt-1">
+                {validationErrors.map((error, index) => (
+                  <li key={index}>{error}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* NCM Warning */}
+        {itemsWithoutNcm.length > 0 && validationErrors.length === 0 && (
+          <Alert className="mt-2 border-amber-500/50 bg-amber-500/5">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="text-amber-700">
+              {itemsWithoutNcm.length} item(ns) sem NCM preenchido. Preencha na aba "Itens" antes de emitir.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
           <TabsList className="grid w-full grid-cols-5">
@@ -260,9 +330,14 @@ export function InvoiceEditor({
               <User className="h-4 w-4" />
               Destinatário
             </TabsTrigger>
-            <TabsTrigger value="itens" className="gap-1">
+            <TabsTrigger value="itens" className="gap-1 relative">
               <Package className="h-4 w-4" />
               Itens
+              {itemsWithoutNcm.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                  !
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="valores" className="gap-1">
               <Calculator className="h-4 w-4" />
@@ -432,7 +507,7 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>CEP</Label>
+                  <Label>CEP <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_cep}
                     onChange={(e) => updateField('dest_endereco_cep', e.target.value)}
@@ -440,7 +515,7 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Município</Label>
+                  <Label>Município <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio}
                     onChange={(e) => updateField('dest_endereco_municipio', e.target.value)}
@@ -456,7 +531,7 @@ export function InvoiceEditor({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>UF</Label>
+                  <Label>UF <span className="text-destructive">*</span></Label>
                   <Select
                     value={data.dest_endereco_uf}
                     onValueChange={(value) => updateField('dest_endereco_uf', value)}
@@ -495,8 +570,19 @@ export function InvoiceEditor({
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">Itens da Nota Fiscal</CardTitle>
-                  <Badge variant="outline">{data.items.length} item(ns)</Badge>
+                  <div>
+                    <CardTitle className="text-base">Itens da Nota Fiscal</CardTitle>
+                    <CardDescription>
+                      Edite os itens livremente. As alterações afetam apenas esta NF-e.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{data.items.length} item(ns)</Badge>
+                    <Button variant="outline" size="sm" onClick={addItem}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Adicionar
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -506,7 +592,9 @@ export function InvoiceEditor({
                       <TableRow>
                         <TableHead className="w-10">#</TableHead>
                         <TableHead>Descrição</TableHead>
-                        <TableHead className="w-24">NCM</TableHead>
+                        <TableHead className="w-28">
+                          NCM <span className="text-destructive">*</span>
+                        </TableHead>
                         <TableHead className="w-16">CFOP</TableHead>
                         <TableHead className="w-16">UN</TableHead>
                         <TableHead className="w-20">Qtd</TableHead>
@@ -516,86 +604,80 @@ export function InvoiceEditor({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {data.items.map((item, index) => (
-                        <TableRow key={item.id || index}>
-                          <TableCell className="font-mono text-xs">{item.numero_item}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
+                      {data.items.map((item, index) => {
+                        const hasNcmError = !item.ncm?.trim();
+                        return (
+                          <TableRow key={item.id || index}>
+                            <TableCell className="font-mono text-xs">{item.numero_item}</TableCell>
+                            <TableCell>
                               <Input
                                 value={item.descricao}
                                 onChange={(e) => updateItem(index, 'descricao', e.target.value)}
                                 className="h-8 text-sm"
+                                placeholder="Descrição do produto"
                               />
-                              {item.product_id && (
-                                <EntityLink 
-                                  type="fiscal-product" 
-                                  id={item.product_id} 
-                                  className="text-xs mt-1"
-                                >
-                                  Editar Fiscal
-                                </EntityLink>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={item.ncm}
-                              onChange={(e) => updateItem(index, 'ncm', e.target.value)}
-                              className="h-8 text-sm font-mono"
-                              maxLength={8}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={item.cfop}
-                              onChange={(e) => updateItem(index, 'cfop', e.target.value)}
-                              className="h-8 text-sm font-mono"
-                              maxLength={4}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={item.unidade}
-                              onChange={(e) => updateItem(index, 'unidade', e.target.value)}
-                              className="h-8 text-sm"
-                              maxLength={6}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={item.quantidade}
-                              onChange={(e) => updateItem(index, 'quantidade', parseFloat(e.target.value) || 0)}
-                              className="h-8 text-sm"
-                              min={0}
-                              step="0.01"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              value={item.valor_unitario}
-                              onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
-                              className="h-8 text-sm"
-                              min={0}
-                              step="0.01"
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium text-right">
-                            {formatCurrency(item.valor_total)}
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeItem(index)}
-                              className="h-8 w-8 text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.ncm}
+                                onChange={(e) => updateItem(index, 'ncm', e.target.value)}
+                                className={`h-8 text-sm font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
+                                maxLength={8}
+                                placeholder="00000000"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.cfop}
+                                onChange={(e) => updateItem(index, 'cfop', e.target.value)}
+                                className="h-8 text-sm font-mono"
+                                maxLength={4}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                value={item.unidade}
+                                onChange={(e) => updateItem(index, 'unidade', e.target.value)}
+                                className="h-8 text-sm"
+                                maxLength={6}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={item.quantidade}
+                                onChange={(e) => updateItem(index, 'quantidade', parseFloat(e.target.value) || 0)}
+                                className="h-8 text-sm"
+                                min={0}
+                                step="0.01"
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                value={item.valor_unitario}
+                                onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                                className="h-8 text-sm"
+                                min={0}
+                                step="0.01"
+                              />
+                            </TableCell>
+                            <TableCell className="font-medium text-right">
+                              {formatCurrency(item.valor_total)}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeItem(index)}
+                                className="h-8 w-8 text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
