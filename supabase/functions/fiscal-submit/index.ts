@@ -205,6 +205,28 @@ serve(async (req) => {
       };
     }
 
+    // Validar campos obrigatórios do destinatário
+    const camposObrigatorios = [
+      { campo: 'bairro', valor: destinatario.bairro, nome: 'Bairro do destinatário' },
+      { campo: 'logradouro', valor: destinatario.logradouro, nome: 'Logradouro do destinatário' },
+      { campo: 'cidade', valor: destinatario.cidade, nome: 'Cidade do destinatário' },
+      { campo: 'uf', valor: destinatario.uf, nome: 'UF do destinatário' },
+      { campo: 'cep', valor: destinatario.cep, nome: 'CEP do destinatário' },
+    ];
+
+    const camposFaltando = camposObrigatorios.filter(c => !c.valor || c.valor.trim() === '');
+    
+    if (camposFaltando.length > 0) {
+      const faltando = camposFaltando.map(c => c.nome).join(', ');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Campos obrigatórios não preenchidos: ${faltando}. Verifique os dados de endereço do pedido.` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Converter itens para formato Focus NFe
     const focusItems = items.map((item, index) => ({
       numero_item: item.numero_item || index + 1,
