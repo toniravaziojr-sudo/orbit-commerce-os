@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key } from 'lucide-react';
+import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -225,6 +225,26 @@ export default function FiscalSettings() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Quick Actions Card */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+              <Package className="h-6 w-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Configurar Produtos</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Configure NCM, origem e dados fiscais de cada produto para emitir NF-e corretamente.
+              </p>
+            </div>
+            <Button onClick={() => navigate('/fiscal/products')}>
+              Configurar Produtos
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Dados do Emitente */}
