@@ -2601,6 +2601,8 @@ export type Database = {
       fiscal_settings: {
         Row: {
           ambiente: string | null
+          auto_create_shipment: boolean | null
+          auto_update_order_status: boolean | null
           certificado_cn: string | null
           certificado_cnpj: string | null
           certificado_pfx: string | null
@@ -2616,6 +2618,7 @@ export type Database = {
           crt: number | null
           csosn_padrao: string | null
           cst_padrao: string | null
+          default_shipping_provider: string | null
           emissao_automatica: boolean | null
           emitir_apos_status: string | null
           endereco_bairro: string | null
@@ -2645,6 +2648,8 @@ export type Database = {
         }
         Insert: {
           ambiente?: string | null
+          auto_create_shipment?: boolean | null
+          auto_update_order_status?: boolean | null
           certificado_cn?: string | null
           certificado_cnpj?: string | null
           certificado_pfx?: string | null
@@ -2660,6 +2665,7 @@ export type Database = {
           crt?: number | null
           csosn_padrao?: string | null
           cst_padrao?: string | null
+          default_shipping_provider?: string | null
           emissao_automatica?: boolean | null
           emitir_apos_status?: string | null
           endereco_bairro?: string | null
@@ -2689,6 +2695,8 @@ export type Database = {
         }
         Update: {
           ambiente?: string | null
+          auto_create_shipment?: boolean | null
+          auto_update_order_status?: boolean | null
           certificado_cn?: string | null
           certificado_cnpj?: string | null
           certificado_pfx?: string | null
@@ -2704,6 +2712,7 @@ export type Database = {
           crt?: number | null
           csosn_padrao?: string | null
           cst_padrao?: string | null
+          default_shipping_provider?: string | null
           emissao_automatica?: boolean | null
           emitir_apos_status?: string | null
           endereco_bairro?: string | null

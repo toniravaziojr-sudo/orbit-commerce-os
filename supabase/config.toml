@@ -279,3 +279,9 @@ verify_jwt = true
 
 [functions.fiscal-create-manual]
 verify_jwt = true
+
+[functions.shipping-create-shipment]
+verify_jwt = true
+
+[functions.shipping-get-label]
+verify_jwt = true

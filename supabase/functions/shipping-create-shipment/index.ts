@@ -1,0 +1,621 @@
+/**
+ * shipping-create-shipment
+ * 
+ * Cria pré-postagem/remessa na transportadora após NF-e autorizada.
+ * Suporta: Correios, Loggi, Frenet (via carrier original)
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+// ========== TYPES ==========
+
+interface ShipmentRequest {
+  order_id: string;
+  invoice_id?: string;
+  provider_override?: string; // correios, loggi, frenet
+}
+
+interface ShipmentResult {
+  success: boolean;
+  tracking_code?: string;
+  label_url?: string;
+  carrier?: string;
+  provider_shipment_id?: string;
+  error?: string;
+}
+
+interface OrderData {
+  id: string;
+  tenant_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  shipping_street: string;
+  shipping_number: string;
+  shipping_complement: string | null;
+  shipping_neighborhood: string;
+  shipping_city: string;
+  shipping_state: string;
+  shipping_postal_code: string;
+  shipping_carrier: string | null;
+  shipping_method: string | null;
+  subtotal: number;
+  shipping_total: number;
+  total: number;
+  items: Array<{
+    product_name: string;
+    quantity: number;
+    unit_price: number;
+    weight?: number;
+    height?: number;
+    width?: number;
+    length?: number;
+  }>;
+}
+
+interface ProviderCredentials {
+  // Correios
+  usuario?: string;
+  senha?: string;
+  cartao_postagem?: string;
+  contrato?: string;
+  dr?: string;
+  auth_mode?: string;
+  token?: string;
+  // Loggi
+  client_id?: string;
+  client_secret?: string;
+  company_id?: string;
+  shipper_id?: string;
+  // Frenet
+  frenet_token?: string;
+}
+
+// ========== CORREIOS ADAPTER ==========
+
+async function createCorreiosShipment(
+  order: OrderData,
+  credentials: ProviderCredentials,
+  settings: Record<string, unknown>
+): Promise<ShipmentResult> {
+  console.log('[Correios] Creating pre-shipment for order:', order.id);
+  
+  // Authenticate
+  const authMode = credentials.auth_mode || (credentials.token ? 'token' : 'oauth');
+  let token: string;
+
+  try {
+    if (authMode === 'token') {
+      token = credentials.token!;
+      if (!token) {
+        return { success: false, error: 'Token Correios não configurado' };
+      }
+    } else {
+      // OAuth2 authentication
+      const usuario = credentials.usuario;
+      const senha = credentials.senha;
+      const cartaoPostagem = credentials.cartao_postagem;
+
+      if (!usuario || !senha || !cartaoPostagem) {
+        return { success: false, error: 'Credenciais Correios incompletas (usuário, senha, cartão postagem)' };
+      }
+
+      const authString = btoa(`${usuario}:${senha}`);
+      const authResponse = await fetch('https://api.correios.com.br/token/v1/autentica/cartaopostagem', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${authString}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ numero: cartaoPostagem }),
+      });
+
+      if (!authResponse.ok) {
+        const errorText = await authResponse.text();
+        console.error('[Correios] Auth failed:', authResponse.status, errorText);
+        return { success: false, error: 'Falha na autenticação Correios' };
+      }
+
+      const authData = await authResponse.json();
+      token = authData.token;
+    }
+
+    // Calculate totals
+    const totalWeight = order.items.reduce((sum, item) => {
+      const itemWeight = (item.weight || 0.3) * item.quantity;
+      return sum + itemWeight;
+    }, 0);
+
+    // Get service code - default SEDEX or PAC based on shipping_method
+    const shippingMethod = (order.shipping_method || '').toLowerCase();
+    let serviceCode = '03220'; // SEDEX
+    if (shippingMethod.includes('pac') || shippingMethod.includes('econômico')) {
+      serviceCode = '03298'; // PAC
+    }
+    if (settings?.default_service_code) {
+      serviceCode = settings.default_service_code as string;
+    }
+
+    // Create pre-shipment (pré-postagem)
+    const prepostagemPayload = {
+      idCorreios: credentials.cartao_postagem,
+      codigoServico: serviceCode,
+      peso: Math.max(100, Math.round(totalWeight * 1000)), // grams, min 100g
+      alturaEmCentimetro: 10,
+      larguraEmCentimetro: 15,
+      comprimentoEmCentimetro: 20,
+      diametroemCentimetro: 0,
+      valorDeclarado: order.total,
+      avisoRecebimento: false,
+      maoPropria: false,
+      objetosPostados: false,
+      remetente: {
+        nome: settings?.sender_name || 'Loja',
+        cpfCnpj: settings?.sender_document || '',
+        telefone: settings?.sender_phone || '',
+        email: settings?.sender_email || '',
+        endereco: {
+          cep: (settings?.sender_postal_code as string)?.replace(/\D/g, '') || '',
+          logradouro: settings?.sender_street || '',
+          numero: settings?.sender_number || '',
+          complemento: settings?.sender_complement || '',
+          bairro: settings?.sender_neighborhood || '',
+          cidade: settings?.sender_city || '',
+          uf: settings?.sender_state || '',
+        },
+      },
+      destinatario: {
+        nome: order.customer_name,
+        cpfCnpj: '', // CPF opcional
+        telefone: order.customer_phone?.replace(/\D/g, '') || '',
+        email: order.customer_email || '',
+        endereco: {
+          cep: order.shipping_postal_code.replace(/\D/g, ''),
+          logradouro: order.shipping_street,
+          numero: order.shipping_number,
+          complemento: order.shipping_complement || '',
+          bairro: order.shipping_neighborhood,
+          cidade: order.shipping_city,
+          uf: order.shipping_state,
+        },
+      },
+    };
+
+    console.log('[Correios] Pre-shipment payload:', JSON.stringify(prepostagemPayload).substring(0, 500));
+
+    const response = await fetch('https://api.correios.com.br/prepostagem/v1/prepostagens', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(prepostagemPayload),
+    });
+
+    const responseText = await response.text();
+    console.log('[Correios] Response:', response.status, responseText.substring(0, 500));
+
+    if (!response.ok) {
+      // Try to parse error
+      try {
+        const errorData = JSON.parse(responseText);
+        const errorMsg = errorData.msgs?.map((m: any) => m.texto).join(', ') || 
+                         errorData.message || 
+                         `Erro ${response.status}`;
+        return { success: false, error: errorMsg };
+      } catch {
+        return { success: false, error: `Erro Correios: ${response.status}` };
+      }
+    }
+
+    const data = JSON.parse(responseText);
+    
+    return {
+      success: true,
+      tracking_code: data.codigoObjeto || data.etiqueta,
+      label_url: data.urlEtiqueta,
+      carrier: 'Correios',
+      provider_shipment_id: data.id || data.codigoObjeto,
+    };
+
+  } catch (error: any) {
+    console.error('[Correios] Error:', error);
+    return { success: false, error: error.message || 'Erro ao criar pré-postagem' };
+  }
+}
+
+// ========== LOGGI ADAPTER ==========
+
+async function createLoggiShipment(
+  order: OrderData,
+  credentials: ProviderCredentials,
+  settings: Record<string, unknown>
+): Promise<ShipmentResult> {
+  console.log('[Loggi] Creating shipment for order:', order.id);
+
+  const clientId = credentials.client_id;
+  const clientSecret = credentials.client_secret;
+  let companyId = credentials.company_id || credentials.shipper_id;
+
+  if (!clientId || !clientSecret) {
+    return { success: false, error: 'Credenciais Loggi incompletas (client_id, client_secret)' };
+  }
+
+  if (!companyId) {
+    return { success: false, error: 'company_id ou shipper_id não configurado para Loggi' };
+  }
+
+  try {
+    // Authenticate with OAuth2
+    console.log('[Loggi] Authenticating...');
+    const authResponse = await fetch('https://api.loggi.com/v2/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+
+    if (!authResponse.ok) {
+      const errorText = await authResponse.text();
+      console.error('[Loggi] Auth failed:', authResponse.status, errorText);
+      return { success: false, error: 'Falha na autenticação Loggi' };
+    }
+
+    const authData = await authResponse.json();
+    const token = authData.idToken;
+
+    if (!token) {
+      return { success: false, error: 'Token Loggi não retornado' };
+    }
+
+    // Calculate totals
+    const totalWeight = order.items.reduce((sum, item) => {
+      const itemWeight = (item.weight || 0.3) * item.quantity;
+      return sum + itemWeight;
+    }, 0);
+
+    // Create shipment
+    const shipmentPayload = {
+      pickup: {
+        address: {
+          zip_code: (settings?.sender_postal_code as string)?.replace(/\D/g, '') || '',
+          street: settings?.sender_street || '',
+          number: settings?.sender_number || '',
+          complement: settings?.sender_complement || '',
+          neighborhood: settings?.sender_neighborhood || '',
+          city: settings?.sender_city || '',
+          state: settings?.sender_state || '',
+        },
+        contact: {
+          name: settings?.sender_name || 'Loja',
+          phone: settings?.sender_phone || '',
+          email: settings?.sender_email || '',
+        },
+      },
+      delivery: {
+        address: {
+          zip_code: order.shipping_postal_code.replace(/\D/g, ''),
+          street: order.shipping_street,
+          number: order.shipping_number,
+          complement: order.shipping_complement || '',
+          neighborhood: order.shipping_neighborhood,
+          city: order.shipping_city,
+          state: order.shipping_state,
+        },
+        contact: {
+          name: order.customer_name,
+          phone: order.customer_phone?.replace(/\D/g, '') || '',
+          email: order.customer_email || '',
+        },
+      },
+      package: {
+        weight_kg: Math.max(0.1, totalWeight),
+        height_cm: 10,
+        width_cm: 15,
+        length_cm: 20,
+        value: order.total,
+      },
+      external_id: order.id,
+    };
+
+    console.log('[Loggi] Shipment payload:', JSON.stringify(shipmentPayload).substring(0, 500));
+
+    const response = await fetch(`https://api.loggi.com/v1/companies/${companyId}/packages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify(shipmentPayload),
+    });
+
+    const responseText = await response.text();
+    console.log('[Loggi] Response:', response.status, responseText.substring(0, 500));
+
+    if (!response.ok) {
+      try {
+        const errorData = JSON.parse(responseText);
+        const errorMsg = errorData.message || errorData.error || `Erro ${response.status}`;
+        return { success: false, error: errorMsg };
+      } catch {
+        return { success: false, error: `Erro Loggi: ${response.status}` };
+      }
+    }
+
+    const data = JSON.parse(responseText);
+
+    return {
+      success: true,
+      tracking_code: data.tracking_code || data.pk,
+      label_url: data.label_url,
+      carrier: 'Loggi',
+      provider_shipment_id: data.pk || data.id,
+    };
+
+  } catch (error: any) {
+    console.error('[Loggi] Error:', error);
+    return { success: false, error: error.message || 'Erro ao criar remessa Loggi' };
+  }
+}
+
+// ========== FRENET ADAPTER (Placeholder) ==========
+
+async function createFrenetShipment(
+  order: OrderData,
+  credentials: ProviderCredentials,
+  settings: Record<string, unknown>
+): Promise<ShipmentResult> {
+  console.log('[Frenet] Frenet is a quote aggregator, cannot create shipments directly');
+  
+  // Frenet is an intermediary - it cannot create shipments
+  // The actual carrier must be used
+  // Return manual fallback
+  return {
+    success: false,
+    error: 'Frenet é apenas intermediário de cotação. Configure Correios ou Loggi diretamente.',
+  };
+}
+
+// ========== MAIN HANDLER ==========
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  try {
+    // Authenticate user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Não autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Usuário não autenticado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get tenant
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('current_tenant_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile?.current_tenant_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const tenantId = profile.current_tenant_id;
+
+    // Parse request
+    const body: ShipmentRequest = await req.json();
+    const { order_id, provider_override } = body;
+
+    if (!order_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'order_id é obrigatório' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[shipping-create-shipment] Processing order ${order_id} for tenant ${tenantId}`);
+
+    // Get order with items
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select(`
+        id, tenant_id, customer_name, customer_email, customer_phone,
+        shipping_street, shipping_number, shipping_complement, shipping_neighborhood,
+        shipping_city, shipping_state, shipping_postal_code, shipping_carrier, shipping_method,
+        subtotal, shipping_total, total, tracking_code
+      `)
+      .eq('id', order_id)
+      .eq('tenant_id', tenantId)
+      .single();
+
+    if (orderError || !order) {
+      console.error('[shipping-create-shipment] Order not found:', orderError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Pedido não encontrado' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check if already has tracking
+    if (order.tracking_code) {
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          tracking_code: order.tracking_code,
+          message: 'Pedido já possui código de rastreio' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get order items
+    const { data: orderItems } = await supabase
+      .from('order_items')
+      .select('product_name, quantity, unit_price')
+      .eq('order_id', order_id);
+
+    const orderData: OrderData = {
+      ...order,
+      items: (orderItems || []).map(item => ({
+        ...item,
+        weight: 0.3, // Default weight
+        height: 10,
+        width: 15,
+        length: 20,
+      })),
+    };
+
+    // Get fiscal settings for default provider
+    const { data: fiscalSettings } = await supabase
+      .from('fiscal_settings')
+      .select('default_shipping_provider, auto_update_order_status')
+      .eq('tenant_id', tenantId)
+      .single();
+
+    // Determine provider
+    const provider = provider_override || 
+                     fiscalSettings?.default_shipping_provider || 
+                     order.shipping_carrier?.toLowerCase() ||
+                     'correios';
+
+    console.log(`[shipping-create-shipment] Using provider: ${provider}`);
+
+    // Get provider credentials
+    const { data: providerRecord } = await supabase
+      .from('shipping_providers')
+      .select('credentials, settings, is_enabled')
+      .eq('tenant_id', tenantId)
+      .eq('provider', provider)
+      .eq('is_enabled', true)
+      .single();
+
+    if (!providerRecord) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Transportadora ${provider} não configurada ou desabilitada` 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const credentials = providerRecord.credentials as ProviderCredentials;
+    const settings = providerRecord.settings as Record<string, unknown>;
+
+    // Create shipment based on provider
+    let result: ShipmentResult;
+
+    switch (provider.toLowerCase()) {
+      case 'correios':
+        result = await createCorreiosShipment(orderData, credentials, settings);
+        break;
+      case 'loggi':
+        result = await createLoggiShipment(orderData, credentials, settings);
+        break;
+      case 'frenet':
+        result = await createFrenetShipment(orderData, credentials, settings);
+        break;
+      default:
+        result = { success: false, error: `Transportadora ${provider} não suportada` };
+    }
+
+    console.log(`[shipping-create-shipment] Result:`, JSON.stringify(result));
+
+    if (result.success && result.tracking_code) {
+      // Update order with tracking code
+      const orderUpdate: Record<string, unknown> = {
+        tracking_code: result.tracking_code,
+        shipping_carrier: result.carrier,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Update shipping status if enabled
+      if (fiscalSettings?.auto_update_order_status !== false) {
+        orderUpdate.shipping_status = 'label_created';
+      }
+
+      await supabase
+        .from('orders')
+        .update(orderUpdate)
+        .eq('id', order_id);
+
+      // Create/update shipment record via shipment-ingest
+      await supabase
+        .from('shipments')
+        .upsert({
+          tenant_id: tenantId,
+          order_id: order_id,
+          carrier: result.carrier || provider,
+          tracking_code: result.tracking_code,
+          delivery_status: 'label_created',
+          label_url: result.label_url,
+          provider_shipment_id: result.provider_shipment_id,
+          last_status_at: new Date().toISOString(),
+          next_poll_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min
+          poll_error_count: 0,
+        }, {
+          onConflict: 'tenant_id,order_id,tracking_code',
+        });
+
+      // Log in order history
+      await supabase
+        .from('order_history')
+        .insert({
+          order_id: order_id,
+          status: 'shipment_created',
+          notes: `Remessa criada via ${result.carrier}. Código: ${result.tracking_code}`,
+        });
+
+      console.log(`[shipping-create-shipment] Order ${order_id} updated with tracking: ${result.tracking_code}`);
+    }
+
+    return new Response(
+      JSON.stringify(result),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('[shipping-create-shipment] Error:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

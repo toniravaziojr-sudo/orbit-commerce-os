@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,12 @@ const EMIT_STATUS_OPTIONS = [
   { value: 'paid', label: 'Após pagamento confirmado' },
   { value: 'shipped', label: 'Após envio' },
   { value: 'processing', label: 'Após processamento' },
+];
+
+// Shipping provider options
+const SHIPPING_PROVIDER_OPTIONS = [
+  { value: 'correios', label: 'Correios' },
+  { value: 'loggi', label: 'Loggi' },
 ];
 
 function formatCNPJ(value: string) {
@@ -79,6 +85,9 @@ export default function FiscalSettings() {
     ambiente: 'homologacao',
     emissao_automatica: false,
     emitir_apos_status: 'paid',
+    auto_create_shipment: false,
+    auto_update_order_status: true,
+    default_shipping_provider: null,
   });
 
   const [certPassword, setCertPassword] = useState('');
@@ -708,7 +717,7 @@ export default function FiscalSettings() {
                 <div>
                   <Label htmlFor="emissao_automatica" className="flex items-center gap-2">
                     <Zap className="h-4 w-4" />
-                    Emissão Automática
+                    Emissão Automática de NF-e
                   </Label>
                   <p className="text-xs text-muted-foreground mt-1">
                     Emitir NF-e automaticamente quando o pedido mudar de status
@@ -723,7 +732,7 @@ export default function FiscalSettings() {
 
               {formData.emissao_automatica && (
                 <div className="space-y-2">
-                  <Label htmlFor="emitir_apos_status">Emitir quando</Label>
+                  <Label htmlFor="emitir_apos_status">Emitir NF-e quando</Label>
                   <Select
                     value={formData.emitir_apos_status || 'paid'}
                     onValueChange={(v) => handleChange('emitir_apos_status', v)}
@@ -738,6 +747,64 @@ export default function FiscalSettings() {
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="auto_create_shipment" className="flex items-center gap-2">
+                    <Truck className="h-4 w-4" />
+                    Criar Remessa Automaticamente
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Gerar código de rastreio na transportadora após NF-e autorizada
+                  </p>
+                </div>
+                <Switch
+                  id="auto_create_shipment"
+                  checked={formData.auto_create_shipment || false}
+                  onCheckedChange={(checked) => handleChange('auto_create_shipment', checked)}
+                />
+              </div>
+
+              {formData.auto_create_shipment && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="default_shipping_provider">Transportadora Padrão</Label>
+                    <Select
+                      value={formData.default_shipping_provider || ''}
+                      onValueChange={(v) => handleChange('default_shipping_provider', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Usar transportadora do pedido" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Usar transportadora do pedido</SelectItem>
+                        {SHIPPING_PROVIDER_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      A transportadora deve estar configurada em Integrações
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="auto_update_order_status">Atualizar Status do Pedido</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Marcar pedido como "Etiqueta Criada" após gerar remessa
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto_update_order_status"
+                      checked={formData.auto_update_order_status !== false}
+                      onCheckedChange={(checked) => handleChange('auto_update_order_status', checked)}
+                    />
+                  </div>
+                </>
               )}
             </div>
           </CardContent>
