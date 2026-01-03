@@ -75,6 +75,74 @@ export interface InvoiceItemData {
   valor_unitario: number;
   valor_total: number;
   origem: string;
+  csosn?: string;
+  cst?: string;
+}
+
+// Opções de Origem do produto
+const ORIGEM_OPTIONS = [
+  { value: '0', label: '0 - Nacional' },
+  { value: '1', label: '1 - Estrangeira (importação direta)' },
+  { value: '2', label: '2 - Estrangeira (adquirida no mercado interno)' },
+  { value: '3', label: '3 - Nacional (mais de 40% conteúdo estrangeiro)' },
+  { value: '4', label: '4 - Nacional (processos básicos)' },
+  { value: '5', label: '5 - Nacional (menos de 40% conteúdo estrangeiro)' },
+  { value: '6', label: '6 - Estrangeira (importação direta, sem similar)' },
+  { value: '7', label: '7 - Estrangeira (mercado interno, sem similar)' },
+  { value: '8', label: '8 - Nacional (mais de 70% conteúdo nacional)' },
+];
+
+// Opções de CSOSN para Simples Nacional
+const CSOSN_OPTIONS = [
+  { value: '101', label: '101 - Tributada com permissão de crédito' },
+  { value: '102', label: '102 - Tributada sem permissão de crédito' },
+  { value: '103', label: '103 - Isenção do ICMS para faixa de receita bruta' },
+  { value: '201', label: '201 - Com permissão de crédito e cobrança por ST' },
+  { value: '202', label: '202 - Sem permissão de crédito e cobrança por ST' },
+  { value: '203', label: '203 - Isenção para faixa e cobrança por ST' },
+  { value: '300', label: '300 - Imune' },
+  { value: '400', label: '400 - Não tributada' },
+  { value: '500', label: '500 - ICMS cobrado anteriormente por ST' },
+  { value: '900', label: '900 - Outros' },
+];
+
+// Funções de validação
+function isValidCpfCnpj(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 11 || numbers.length === 14;
+}
+
+function isValidCep(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 8;
+}
+
+function isValidNcm(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 8;
+}
+
+function isValidCfop(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 4;
+}
+
+function isValidIbge(value: string): boolean {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length === 7;
+}
+
+function formatCpfCnpj(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  if (numbers.length <= 11) {
+    return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  }
+  return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+}
+
+function formatCep(value: string): string {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.replace(/(\d{5})(\d{3})/, '$1-$2');
 }
 
 const UF_OPTIONS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -206,29 +274,90 @@ export function InvoiceEditor({
     const errors: string[] = [];
     
     // Recipient validation
-    if (!data.dest_nome?.trim()) errors.push('Nome do destinatário é obrigatório');
-    if (!data.dest_cpf_cnpj?.trim()) errors.push('CPF/CNPJ do destinatário é obrigatório');
+    if (!data.dest_nome?.trim()) {
+      errors.push('Nome do destinatário é obrigatório');
+    }
+    
+    const cpfCnpj = data.dest_cpf_cnpj?.replace(/\D/g, '') || '';
+    if (!cpfCnpj) {
+      errors.push('CPF/CNPJ do destinatário é obrigatório');
+    } else if (!isValidCpfCnpj(cpfCnpj)) {
+      errors.push(`CPF/CNPJ inválido: deve ter 11 dígitos (CPF) ou 14 dígitos (CNPJ). Atual: ${cpfCnpj.length} dígitos`);
+    }
     
     // Address validation
-    if (!data.dest_endereco_logradouro?.trim()) errors.push('Logradouro é obrigatório');
-    if (!data.dest_endereco_municipio?.trim()) errors.push('Município é obrigatório');
-    if (!data.dest_endereco_uf?.trim()) errors.push('UF é obrigatório');
-    if (!data.dest_endereco_municipio_codigo?.trim()) errors.push('Código IBGE do município é obrigatório');
-    if (!data.dest_endereco_cep?.trim()) errors.push('CEP é obrigatório');
+    if (!data.dest_endereco_logradouro?.trim()) {
+      errors.push('Logradouro é obrigatório');
+    }
+    if (!data.dest_endereco_numero?.trim()) {
+      errors.push('Número do endereço é obrigatório (use "S/N" se não houver)');
+    }
+    if (!data.dest_endereco_bairro?.trim()) {
+      errors.push('Bairro é obrigatório');
+    }
+    if (!data.dest_endereco_municipio?.trim()) {
+      errors.push('Município é obrigatório');
+    }
+    if (!data.dest_endereco_uf?.trim()) {
+      errors.push('UF é obrigatório');
+    }
+    
+    const ibge = data.dest_endereco_municipio_codigo?.replace(/\D/g, '') || '';
+    if (!ibge) {
+      errors.push('Código IBGE do município é obrigatório');
+    } else if (!isValidIbge(ibge)) {
+      errors.push(`Código IBGE inválido: deve ter exatamente 7 dígitos. Atual: ${ibge.length} dígitos`);
+    }
+    
+    const cep = data.dest_endereco_cep?.replace(/\D/g, '') || '';
+    if (!cep) {
+      errors.push('CEP é obrigatório');
+    } else if (!isValidCep(cep)) {
+      errors.push(`CEP inválido: deve ter exatamente 8 dígitos. Atual: ${cep.length} dígitos`);
+    }
+    
+    // CFOP validation
+    const cfop = data.cfop?.replace(/\D/g, '') || '';
+    if (!cfop) {
+      errors.push('CFOP principal é obrigatório');
+    } else if (!isValidCfop(cfop)) {
+      errors.push(`CFOP inválido: deve ter exatamente 4 dígitos. Atual: ${cfop.length} dígitos`);
+    }
     
     // Items validation
     if (data.items.length === 0) {
       errors.push('A NF-e precisa ter pelo menos um item');
     } else {
-      const itemsWithoutNcm = data.items.filter(item => !item.ncm?.trim());
-      if (itemsWithoutNcm.length > 0) {
-        errors.push(`NCM não preenchido em ${itemsWithoutNcm.length} item(ns): ${itemsWithoutNcm.map(i => i.descricao || `Item ${i.numero_item}`).join(', ')}`);
-      }
-      
-      const itemsWithoutDesc = data.items.filter(item => !item.descricao?.trim());
-      if (itemsWithoutDesc.length > 0) {
-        errors.push(`Descrição não preenchida em ${itemsWithoutDesc.length} item(ns)`);
-      }
+      data.items.forEach((item, idx) => {
+        const itemNum = idx + 1;
+        const itemName = item.descricao || `Item ${itemNum}`;
+        
+        if (!item.descricao?.trim()) {
+          errors.push(`Item ${itemNum}: Descrição é obrigatória`);
+        }
+        
+        const ncm = item.ncm?.replace(/\D/g, '') || '';
+        if (!ncm) {
+          errors.push(`${itemName}: NCM é obrigatório`);
+        } else if (!isValidNcm(ncm)) {
+          errors.push(`${itemName}: NCM inválido - deve ter exatamente 8 dígitos (atual: ${ncm.length}). Consulte: https://portalunico.siscomex.gov.br/classif`);
+        }
+        
+        const itemCfop = item.cfop?.replace(/\D/g, '') || '';
+        if (!itemCfop) {
+          errors.push(`${itemName}: CFOP é obrigatório`);
+        } else if (!isValidCfop(itemCfop)) {
+          errors.push(`${itemName}: CFOP inválido - deve ter 4 dígitos`);
+        }
+        
+        if (item.quantidade <= 0) {
+          errors.push(`${itemName}: Quantidade deve ser maior que zero`);
+        }
+        
+        if (item.valor_unitario <= 0) {
+          errors.push(`${itemName}: Valor unitário deve ser maior que zero`);
+        }
+      });
     }
     
     return errors;
@@ -418,13 +547,17 @@ export function InvoiceEditor({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>CFOP Principal</Label>
+                  <Label>CFOP Principal <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.cfop || ''}
-                    onChange={(e) => updateField('cfop', e.target.value)}
+                    onChange={(e) => updateField('cfop', e.target.value.replace(/\D/g, ''))}
                     placeholder="Ex: 5102"
                     maxLength={4}
+                    className={`font-mono ${data.cfop && !isValidCfop(data.cfop) ? 'border-destructive' : ''}`}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    5102 (dentro do estado) ou 6102 (fora do estado)
+                  </p>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>Observações / Informações Complementares</Label>
@@ -457,9 +590,14 @@ export function InvoiceEditor({
                   <Label>CPF/CNPJ <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_cpf_cnpj}
-                    onChange={(e) => updateField('dest_cpf_cnpj', e.target.value)}
-                    placeholder="Apenas números"
+                    onChange={(e) => updateField('dest_cpf_cnpj', e.target.value.replace(/\D/g, ''))}
+                    placeholder="Apenas números (11 ou 14 dígitos)"
+                    maxLength={14}
+                    className={`font-mono ${data.dest_cpf_cnpj && !isValidCpfCnpj(data.dest_cpf_cnpj) ? 'border-destructive' : ''}`}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {data.dest_cpf_cnpj?.replace(/\D/g, '').length || 0}/14 dígitos
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Inscrição Estadual</Label>
@@ -531,9 +669,14 @@ export function InvoiceEditor({
                   <Label>CEP <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_cep}
-                    onChange={(e) => updateField('dest_endereco_cep', e.target.value)}
-                    maxLength={9}
+                    onChange={(e) => updateField('dest_endereco_cep', e.target.value.replace(/\D/g, ''))}
+                    maxLength={8}
+                    placeholder="00000000"
+                    className={`font-mono ${data.dest_endereco_cep && !isValidCep(data.dest_endereco_cep) ? 'border-destructive' : ''}`}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    8 dígitos, sem traço
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Município <span className="text-destructive">*</span></Label>
@@ -546,10 +689,14 @@ export function InvoiceEditor({
                   <Label>Código IBGE <span className="text-destructive">*</span></Label>
                   <Input
                     value={data.dest_endereco_municipio_codigo}
-                    onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value)}
+                    onChange={(e) => updateField('dest_endereco_municipio_codigo', e.target.value.replace(/\D/g, ''))}
                     placeholder="7 dígitos"
                     maxLength={7}
+                    className={`font-mono ${data.dest_endereco_municipio_codigo && !isValidIbge(data.dest_endereco_municipio_codigo) ? 'border-destructive' : ''}`}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Consulte em <a href="https://www.ibge.gov.br/explica/codigos-dos-municipios.php" target="_blank" rel="noopener" className="text-primary underline">ibge.gov.br</a>
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>UF <span className="text-destructive">*</span></Label>
@@ -611,102 +758,180 @@ export function InvoiceEditor({
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-10">#</TableHead>
-                        <TableHead>Descrição</TableHead>
-                        <TableHead className="w-28">
-                          NCM <span className="text-destructive">*</span>
-                        </TableHead>
-                        <TableHead className="w-16">CFOP</TableHead>
-                        <TableHead className="w-16">UN</TableHead>
-                        <TableHead className="w-20">Qtd</TableHead>
-                        <TableHead className="w-28">Valor Unit.</TableHead>
-                        <TableHead className="w-28">Total</TableHead>
-                        <TableHead className="w-20">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {data.items.map((item, index) => {
-                        const hasNcmError = !item.ncm?.trim();
-                        return (
-                          <TableRow key={item.id || index}>
-                            <TableCell className="font-mono text-xs">{item.numero_item}</TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.descricao}
-                                onChange={(e) => updateItem(index, 'descricao', e.target.value)}
-                                className="h-8 text-sm"
-                                placeholder="Descrição do produto"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.ncm}
-                                onChange={(e) => updateItem(index, 'ncm', e.target.value)}
-                                className={`h-8 text-sm font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
-                                maxLength={8}
-                                placeholder="00000000"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.cfop}
-                                onChange={(e) => updateItem(index, 'cfop', e.target.value)}
-                                className="h-8 text-sm font-mono"
-                                maxLength={4}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                value={item.unidade}
-                                onChange={(e) => updateItem(index, 'unidade', e.target.value)}
-                                className="h-8 text-sm"
-                                maxLength={6}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                value={item.quantidade}
-                                onChange={(e) => updateItem(index, 'quantidade', parseFloat(e.target.value) || 0)}
-                                className="h-8 text-sm"
-                                min={0}
-                                step="0.01"
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                value={item.valor_unitario}
-                                onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
-                                className="h-8 text-sm"
-                                min={0}
-                                step="0.01"
-                              />
-                            </TableCell>
-                            <TableCell className="font-medium text-right">
-                              {formatCurrency(item.valor_total)}
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => removeItem(index)}
-                                className="h-8 w-8 text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+              <CardContent className="space-y-4">
+                {/* Legenda e ajuda */}
+                <Alert className="border-blue-200 bg-blue-50">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <AlertDescription className="text-blue-800 text-xs">
+                    <strong>Campos obrigatórios:</strong> NCM (8 dígitos), CFOP (4 dígitos), Descrição, Quantidade e Valor. 
+                    Consulte NCM em <a href="https://portalunico.siscomex.gov.br/classif" target="_blank" rel="noopener" className="underline">SISCOMEX</a>
+                  </AlertDescription>
+                </Alert>
+
+                {data.items.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                    <p>Nenhum item adicionado</p>
+                    <p className="text-xs">Use os botões acima para adicionar produtos</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {data.items.map((item, index) => {
+                      const ncm = item.ncm?.replace(/\D/g, '') || '';
+                      const hasNcmError = !ncm || ncm.length !== 8;
+                      const cfop = item.cfop?.replace(/\D/g, '') || '';
+                      const hasCfopError = !cfop || cfop.length !== 4;
+                      
+                      return (
+                        <Card key={item.id || index} className={`${hasNcmError ? 'border-amber-400' : ''}`}>
+                          <CardHeader className="py-3 px-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="font-mono">#{item.numero_item}</Badge>
+                                <span className="font-medium text-sm truncate max-w-[300px]">
+                                  {item.descricao || 'Sem descrição'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-primary">{formatCurrency(item.valor_total)}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => removeItem(index)}
+                                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="py-3 px-4 pt-0">
+                            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                              {/* Descrição */}
+                              <div className="space-y-1 sm:col-span-2">
+                                <Label className="text-xs">Descrição <span className="text-destructive">*</span></Label>
+                                <Input
+                                  value={item.descricao}
+                                  onChange={(e) => updateItem(index, 'descricao', e.target.value)}
+                                  className="h-8 text-sm"
+                                  placeholder="Descrição do produto"
+                                />
+                              </div>
+                              
+                              {/* NCM */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">
+                                  NCM <span className="text-destructive">*</span>
+                                  {hasNcmError && <span className="text-amber-600 ml-1">(8 dígitos)</span>}
+                                </Label>
+                                <Input
+                                  value={item.ncm}
+                                  onChange={(e) => updateItem(index, 'ncm', e.target.value.replace(/\D/g, ''))}
+                                  className={`h-8 text-sm font-mono ${hasNcmError ? 'border-amber-500 bg-amber-50' : ''}`}
+                                  maxLength={8}
+                                  placeholder="00000000"
+                                />
+                              </div>
+                              
+                              {/* CFOP */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">
+                                  CFOP <span className="text-destructive">*</span>
+                                  {hasCfopError && <span className="text-amber-600 ml-1">(4 dígitos)</span>}
+                                </Label>
+                                <Input
+                                  value={item.cfop}
+                                  onChange={(e) => updateItem(index, 'cfop', e.target.value.replace(/\D/g, ''))}
+                                  className={`h-8 text-sm font-mono ${hasCfopError ? 'border-amber-500 bg-amber-50' : ''}`}
+                                  maxLength={4}
+                                  placeholder="5102"
+                                />
+                              </div>
+                              
+                              {/* Origem */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Origem</Label>
+                                <Select
+                                  value={item.origem || '0'}
+                                  onValueChange={(value) => updateItem(index, 'origem', value)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ORIGEM_OPTIONS.map(opt => (
+                                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                        {opt.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              {/* CSOSN */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">CSOSN (Simples Nacional)</Label>
+                                <Select
+                                  value={item.csosn || '102'}
+                                  onValueChange={(value) => updateItem(index, 'csosn', value)}
+                                >
+                                  <SelectTrigger className="h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {CSOSN_OPTIONS.map(opt => (
+                                      <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                        {opt.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              
+                              {/* Unidade */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Unidade</Label>
+                                <Input
+                                  value={item.unidade}
+                                  onChange={(e) => updateItem(index, 'unidade', e.target.value.toUpperCase())}
+                                  className="h-8 text-sm"
+                                  maxLength={6}
+                                  placeholder="UN"
+                                />
+                              </div>
+                              
+                              {/* Quantidade */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Quantidade <span className="text-destructive">*</span></Label>
+                                <Input
+                                  type="number"
+                                  value={item.quantidade}
+                                  onChange={(e) => updateItem(index, 'quantidade', parseFloat(e.target.value) || 0)}
+                                  className="h-8 text-sm"
+                                  min={0}
+                                  step="0.01"
+                                />
+                              </div>
+                              
+                              {/* Valor Unitário */}
+                              <div className="space-y-1">
+                                <Label className="text-xs">Valor Unitário <span className="text-destructive">*</span></Label>
+                                <Input
+                                  type="number"
+                                  value={item.valor_unitario}
+                                  onChange={(e) => updateItem(index, 'valor_unitario', parseFloat(e.target.value) || 0)}
+                                  className="h-8 text-sm"
+                                  min={0}
+                                  step="0.01"
+                                />
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
