@@ -12,9 +12,10 @@
 // ============================================
 
 export interface Certificate {
-  privateKeyPem: string;
-  certificatePem: string;
-  privateKeyRaw?: CryptoKey;
+  privateKeyPem: string;       // Chave privada em PEM (para mTLS)
+  certificatePem: string;      // Certificado base64 (sem headers, para XML)
+  certificateFullPem: string;  // Certificado completo em PEM (para mTLS)
+  privateKeyRaw?: CryptoKey;   // Chave importada para Web Crypto
 }
 
 // ============================================
@@ -171,7 +172,7 @@ export async function loadCertificate(pfxBase64: string, password: string): Prom
     const privateKeyPem = forge.pki.privateKeyToPem(privateKey);
     const certificatePem = forge.pki.certificateToPem(certificate);
     
-    // Extrai apenas o conteúdo base64 do PEM do certificado (sem headers)
+    // Extrai apenas o conteúdo base64 do PEM do certificado (sem headers, para XML)
     const certBase64 = certificatePem
       .replace('-----BEGIN CERTIFICATE-----', '')
       .replace('-----END CERTIFICATE-----', '')
@@ -185,6 +186,7 @@ export async function loadCertificate(pfxBase64: string, password: string): Prom
     return {
       privateKeyPem,
       certificatePem: certBase64,
+      certificateFullPem: certificatePem, // PEM completo para mTLS
       privateKeyRaw
     };
   } catch (error) {
