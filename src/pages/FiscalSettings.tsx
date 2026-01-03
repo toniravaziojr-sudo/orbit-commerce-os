@@ -226,25 +226,46 @@ export default function FiscalSettings() {
         </Alert>
       )}
 
-      {/* Quick Actions Card */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-              <Package className="h-6 w-6 text-primary" />
+      {/* Quick Actions Cards */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                <Package className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">Configurar Produtos</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Configure NCM, origem e dados fiscais de cada produto.
+                </p>
+              </div>
+              <Button onClick={() => navigate('/fiscal/products')}>
+                Configurar
+              </Button>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground">Configurar Produtos</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Configure NCM, origem e dados fiscais de cada produto para emitir NF-e corretamente.
-              </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-secondary/20 bg-secondary/5">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
+                <FileText className="h-6 w-6 text-secondary-foreground" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground">Naturezas de Operação</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Cadastre naturezas para diferentes tipos de NF-e.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => navigate('/fiscal/operation-natures')}>
+                Gerenciar
+              </Button>
             </div>
-            <Button onClick={() => navigate('/fiscal/products')}>
-              Configurar Produtos
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Dados do Emitente */}

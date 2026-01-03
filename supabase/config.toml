@@ -270,3 +270,12 @@ verify_jwt = false
 
 [functions.fiscal-remove-certificate]
 verify_jwt = true
+
+[functions.fiscal-cce]
+verify_jwt = true
+
+[functions.fiscal-inutilizar]
+verify_jwt = true
+
+[functions.fiscal-create-manual]
+verify_jwt = true

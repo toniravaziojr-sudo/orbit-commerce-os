@@ -29,6 +29,7 @@ import Finance from "@/pages/Finance";
 import Fiscal from "@/pages/Fiscal";
 import FiscalSettings from "@/pages/FiscalSettings";
 import FiscalProductsConfig from "@/pages/FiscalProductsConfig";
+import OperationNaturesSettings from "@/pages/OperationNaturesSettings";
 import Purchases from "@/pages/Purchases";
 import Settings from "@/pages/Settings";
 import Domains from "@/pages/Domains";
@@ -241,6 +242,7 @@ const App = () => {
                   <Route path="/shipping" element={<Navigate to="/integrations" replace />} />
                   <Route path="/fiscal" element={<Fiscal />} />
                   <Route path="/fiscal/products" element={<FiscalProductsConfig />} />
+                  <Route path="/fiscal/operation-natures" element={<OperationNaturesSettings />} />
                   <Route path="/import" element={<Import />} />
                   <Route path="/purchases" element={<Purchases />} />
                   <Route path="/settings" element={<Settings />} />
