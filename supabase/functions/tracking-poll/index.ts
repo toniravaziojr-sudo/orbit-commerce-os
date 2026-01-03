@@ -589,6 +589,153 @@ function mapLoggiStatus(status: string, description?: string): DeliveryStatus {
   return 'unknown';
 }
 
+// ========== FRENET ADAPTER =========
+
+// Frenet API - GetTrackingInfo
+// Docs: https://docs.frenet.com.br/
+async function fetchFrenetEvents(
+  trackingCode: string,
+  credentials: Record<string, unknown>,
+  tenantId: string
+): Promise<AdapterResult> {
+  try {
+    const token = credentials.token as string;
+    
+    if (!token) {
+      console.error('[Frenet] Missing token in credentials');
+      return { success: false, events: [], error: 'missing_frenet_token' };
+    }
+
+    console.log(`[Frenet] Fetching tracking for ${trackingCode}...`);
+    
+    // Frenet GetTrackingInfo API
+    const response = await fetch('https://api.frenet.com.br/tracking/trackinginfo', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'token': token,
+      },
+      body: JSON.stringify({
+        ShippingServiceCode: '',
+        TrackingNumber: trackingCode,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Frenet] API error:', response.status, errorText);
+      
+      const errorMessages: Record<number, string> = {
+        400: 'Requisição inválida',
+        401: 'Token Frenet inválido ou expirado',
+        403: 'Acesso negado',
+        404: 'Rastreio não encontrado',
+        429: 'Limite de requisições excedido',
+        500: 'Erro interno Frenet',
+      };
+      
+      return { 
+        success: false, 
+        events: [], 
+        error: errorMessages[response.status] || `Erro ${response.status}` 
+      };
+    }
+
+    const data = await response.json();
+    console.log('[Frenet] Tracking response:', JSON.stringify(data).substring(0, 500));
+
+    // Frenet returns tracking events in TrackingEvents array
+    const trackingEvents = data.TrackingEvents || data.trackingEvents || [];
+    
+    if (!Array.isArray(trackingEvents) || trackingEvents.length === 0) {
+      console.log('[Frenet] No tracking events found');
+      return { success: true, events: [] };
+    }
+
+    const events: TrackingEvent[] = trackingEvents.map((e: Record<string, unknown>, idx: number) => {
+      const eventDate = e.EventDateTime || e.eventDateTime || e.Date || e.date || new Date().toISOString();
+      const eventDescription = e.EventDescription || e.eventDescription || e.Description || e.description || '';
+      const eventLocation = e.EventLocation || e.eventLocation || e.Location || e.location || '';
+      const eventType = e.EventType || e.eventType || e.Type || e.type || '';
+
+      return {
+        provider_event_id: `frenet_${trackingCode}_${eventDate}_${idx}`,
+        status: mapFrenetStatus(String(eventType), String(eventDescription)),
+        description: String(eventDescription) || 'Evento Frenet',
+        location: typeof eventLocation === 'string' ? eventLocation : '',
+        occurred_at: String(eventDate),
+      };
+    });
+
+    console.log(`[Frenet] Found ${events.length} events for ${trackingCode}`);
+    return { success: true, events };
+  } catch (error) {
+    console.error('[Frenet] Fetch error:', error);
+    return { success: false, events: [], error: 'fetch_error' };
+  }
+}
+
+function mapFrenetStatus(eventType: string, description?: string): DeliveryStatus {
+  const typeLower = eventType?.toLowerCase() || '';
+  const descLower = (description || '').toLowerCase();
+
+  // Check by event type first
+  const typeMap: Record<string, DeliveryStatus> = {
+    'posted': 'posted',
+    'postado': 'posted',
+    'collected': 'posted',
+    'coletado': 'posted',
+    'in_transit': 'in_transit',
+    'em_transito': 'in_transit',
+    'transit': 'in_transit',
+    'out_for_delivery': 'out_for_delivery',
+    'saiu_para_entrega': 'out_for_delivery',
+    'delivered': 'delivered',
+    'entregue': 'delivered',
+    'failed': 'failed',
+    'falha': 'failed',
+    'returned': 'returned',
+    'devolvido': 'returned',
+    'canceled': 'canceled',
+    'cancelado': 'canceled',
+  };
+
+  if (typeMap[typeLower]) {
+    return typeMap[typeLower];
+  }
+
+  // Fallback: check description
+  if (descLower.includes('entregue') || descLower.includes('delivered') || descLower.includes('entrega realizada')) {
+    return 'delivered';
+  }
+  if (descLower.includes('saiu para entrega') || descLower.includes('out for delivery') || descLower.includes('em rota')) {
+    return 'out_for_delivery';
+  }
+  if (descLower.includes('trânsito') || descLower.includes('transit') || descLower.includes('encaminhado') || descLower.includes('transferido')) {
+    return 'in_transit';
+  }
+  if (descLower.includes('postado') || descLower.includes('coletado') || descLower.includes('objeto postado')) {
+    return 'posted';
+  }
+  if (descLower.includes('não entregue') || descLower.includes('tentativa') || descLower.includes('ausente')) {
+    return 'failed';
+  }
+  if (descLower.includes('devolvido') || descLower.includes('devolução') || descLower.includes('return')) {
+    return 'returned';
+  }
+  if (descLower.includes('cancelado') || descLower.includes('cancel')) {
+    return 'canceled';
+  }
+
+  // Log unknown for debugging
+  if (eventType || description) {
+    console.warn(`[Frenet] Unmapped status - type: ${eventType}, description: ${description?.substring(0, 50)}`);
+  }
+
+  return 'unknown';
+}
+
 // Fallback adapter (no provider available)
 function noProviderAdapter(carrier: string): AdapterResult {
   console.log(`[NoProvider] No adapter available for carrier: ${carrier}`);
@@ -728,6 +875,14 @@ async function fetchTrackingEvents(
       return noProviderAdapter(carrier);
     }
     return fetchLoggiEvents(trackingCode, credentials.credentials, tenantId);
+  }
+
+  // Frenet
+  if (normalizedCarrier.includes('frenet')) {
+    if (!credentials || !credentials.is_enabled) {
+      return noProviderAdapter(carrier);
+    }
+    return fetchFrenetEvents(trackingCode, credentials.credentials, tenantId);
   }
 
   // Other carriers - no adapter yet

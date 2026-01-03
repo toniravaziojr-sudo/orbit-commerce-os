@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck } from 'lucide-react';
+import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -88,6 +88,7 @@ export default function FiscalSettings() {
     auto_create_shipment: false,
     auto_update_order_status: true,
     default_shipping_provider: null,
+    enviar_email_nfe: true,
   });
 
   const [certPassword, setCertPassword] = useState('');
@@ -748,6 +749,25 @@ export default function FiscalSettings() {
                   </Select>
                 </div>
               )}
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="enviar_email_nfe" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Enviar Email com NF-e ao Cliente
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enviar email automático com DANFE e XML quando NF-e for autorizada
+                  </p>
+                </div>
+                <Switch
+                  id="enviar_email_nfe"
+                  checked={formData.enviar_email_nfe !== false}
+                  onCheckedChange={(checked) => handleChange('enviar_email_nfe', checked)}
+                />
+              </div>
 
               <Separator />
 
