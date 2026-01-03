@@ -224,6 +224,35 @@ serve(async (req) => {
           .eq("id", invoice.id);
         
         console.log(`[fiscal-webhook] Fiscal alert: order ${invoice.order_id} cancelled but NF-e authorized`);
+      } else {
+        // Check if auto_create_shipment is enabled
+        const { data: fiscalSettingsShip } = await supabase
+          .from("fiscal_settings")
+          .select("auto_create_shipment")
+          .eq("tenant_id", invoice.tenant_id)
+          .single();
+
+        if (fiscalSettingsShip?.auto_create_shipment) {
+          console.log(`[fiscal-webhook] Auto-creating shipment for order ${invoice.order_id}`);
+          
+          // Call shipping-create-shipment as fire-and-forget
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+          
+          fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ order_id: invoice.order_id }),
+          }).then(async (response) => {
+            const result = await response.json();
+            console.log(`[fiscal-webhook] Shipment creation result:`, JSON.stringify(result));
+          }).catch((error) => {
+            console.error(`[fiscal-webhook] Failed to create shipment:`, error);
+          });
+        }
       }
     }
 

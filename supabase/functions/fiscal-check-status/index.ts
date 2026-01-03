@@ -167,7 +167,8 @@ serve(async (req) => {
     }
 
     // Atualizar NF-e se status mudou
-    if (invoice.status !== internalStatus) {
+    const statusChanged = invoice.status !== internalStatus;
+    if (statusChanged) {
       await supabaseClient
         .from('fiscal_invoices')
         .update(updateData)
@@ -184,6 +185,39 @@ serve(async (req) => {
         });
 
       console.log(`[fiscal-check-status] Status atualizado: ${invoice.status} -> ${internalStatus}`);
+
+      // Se autorizado, verificar se deve criar remessa automaticamente
+      if (focusStatus === 'autorizado' && invoice.order_id) {
+        const { data: fiscalSettingsShip } = await supabaseClient
+          .from('fiscal_settings')
+          .select('auto_create_shipment')
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (fiscalSettingsShip?.auto_create_shipment) {
+          console.log(`[fiscal-check-status] Auto-creating shipment for order ${invoice.order_id}`);
+          
+          // Call shipping-create-shipment
+          try {
+            const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+            const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+            
+            const shipResponse = await fetch(`${supabaseUrl}/functions/v1/shipping-create-shipment`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ order_id: invoice.order_id }),
+            });
+            
+            const shipResult = await shipResponse.json();
+            console.log(`[fiscal-check-status] Shipment creation result:`, JSON.stringify(shipResult));
+          } catch (shipError) {
+            console.error(`[fiscal-check-status] Failed to create shipment:`, shipError);
+          }
+        }
+      }
     }
 
     return new Response(

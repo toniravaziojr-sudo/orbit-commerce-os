@@ -46,6 +46,10 @@ export interface FiscalSettings {
   certificado_valido_ate: string | null;
   certificado_serial: string | null;
   certificado_uploaded_at: string | null;
+  // Shipping automation fields
+  auto_create_shipment: boolean;
+  auto_update_order_status: boolean;
+  default_shipping_provider: string | null;
 }
 
 export interface CertificateInfo {
