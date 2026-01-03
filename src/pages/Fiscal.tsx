@@ -52,6 +52,7 @@ export default function Fiscal() {
   const [manualDialogOpen, setManualDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [isAutoCreating, setIsAutoCreating] = useState(false);
+  const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -245,17 +246,26 @@ export default function Fiscal() {
   };
 
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
+    setSubmittingInvoiceId(invoice.id);
     try {
-      const { error } = await supabase.functions.invoke('fiscal-submit', {
+      const { data, error } = await supabase.functions.invoke('fiscal-submit', {
         body: { invoice_id: invoice.id },
       });
 
       if (error) throw error;
+      
+      // Check if the response indicates an error
+      if (data && !data.success) {
+        throw new Error(data.error || 'Erro ao emitir NF-e');
+      }
+      
       toast.success('NF-e enviada para autorização');
       refetch();
     } catch (error: any) {
       console.error('Error submitting invoice:', error);
       toast.error(error?.message || 'Erro ao emitir NF-e');
+    } finally {
+      setSubmittingInvoiceId(null);
     }
   };
 
@@ -481,8 +491,13 @@ export default function Fiscal() {
                                   onClick={() => handleQuickSubmit(invoice)}
                                   title="Emitir NF-e"
                                   className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                  disabled={submittingInvoiceId === invoice.id}
                                 >
-                                  <Send className="h-4 w-4" />
+                                  {submittingInvoiceId === invoice.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Send className="h-4 w-4" />
+                                  )}
                                 </Button>
                               </>
                             )}

@@ -85,12 +85,37 @@ export async function decryptCertificateData(
 }
 
 /**
+ * Converte dados que podem vir como Buffer (bytea) ou string para string
+ */
+function bufferToString(data: unknown): string {
+  if (typeof data === 'string') {
+    return data;
+  }
+  
+  // Handle Supabase bytea format: { type: 'Buffer', data: number[] }
+  if (data && typeof data === 'object') {
+    const bufferObj = data as { type?: string; data?: number[] };
+    if (bufferObj.type === 'Buffer' && Array.isArray(bufferObj.data)) {
+      // Convert byte array to string
+      return String.fromCharCode(...bufferObj.data);
+    }
+  }
+  
+  // Handle Uint8Array
+  if (data instanceof Uint8Array) {
+    return new TextDecoder().decode(data);
+  }
+  
+  throw new Error('Formato de dados do certificado não reconhecido');
+}
+
+/**
  * Carrega e valida o certificado do tenant
  * Retorna o PFX em base64 e a senha descriptografados
  */
 export async function loadTenantCertificate(
   settings: {
-    certificado_pfx?: string | null;
+    certificado_pfx?: unknown;
     certificado_senha?: string | null;
     certificado_valido_ate?: string | null;
   },
@@ -112,13 +137,17 @@ export async function loadTenantCertificate(
     }
   }
 
+  // Converter certificado_pfx de Buffer para string se necessário
+  const pfxData = bufferToString(settings.certificado_pfx);
+  
   console.log('[certificate-utils] Decrypting certificate...', {
-    pfxLength: settings.certificado_pfx.length,
-    senhaLength: settings.certificado_senha.length
+    pfxLength: pfxData.length,
+    senhaLength: settings.certificado_senha.length,
+    pfxSample: pfxData.substring(0, 30)
   });
 
   // Descriptografar PFX (que é o PFX em base64 criptografado)
-  const pfxBase64 = await decryptCertificateData(settings.certificado_pfx, encryptionKey);
+  const pfxBase64 = await decryptCertificateData(pfxData, encryptionKey);
   
   // Descriptografar senha
   const password = await decryptCertificateData(settings.certificado_senha, encryptionKey);
