@@ -163,8 +163,8 @@ serve(async (req) => {
     // Se autorizado, salvar dados adicionais
     if (focusStatus === 'autorizado' && result.data?.chave_nfe) {
       updateData.chave_acesso = result.data.chave_nfe;
-      updateData.numero = result.data.numero;
-      updateData.serie = result.data.serie;
+      // Don't update numero/serie - they're already set when creating the draft
+      // Updating them can cause unique constraint violations
       updateData.xml_url = result.data.caminho_xml_nota_fiscal;
       updateData.danfe_url = result.data.caminho_danfe;
       

@@ -133,8 +133,9 @@ serve(async (req) => {
     if (status === 'autorizado') {
       console.log("[fiscal-webhook] Processing 'autorizado' status");
       if (chave_nfe) updateData.chave_acesso = chave_nfe;
-      if (numero) updateData.numero = numero;
-      if (serie) updateData.serie = serie;
+      // Don't update numero/serie - they're already set when creating the draft
+      // The SEFAZ returns the same values we sent, and updating them can cause
+      // unique constraint violations if another draft has the same number
       if (caminho_xml_nota_fiscal) updateData.xml_url = caminho_xml_nota_fiscal;
       if (caminho_danfe) updateData.danfe_url = caminho_danfe;
       updateData.authorized_at = now;
