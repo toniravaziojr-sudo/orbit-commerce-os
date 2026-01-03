@@ -20,8 +20,20 @@ function mapFocusStatusToInternal(focusStatus: string): string {
 }
 
 serve(async (req) => {
+  console.log("[fiscal-webhook] ========== WEBHOOK RECEIVED ==========");
+  console.log("[fiscal-webhook] Method:", req.method);
+  console.log("[fiscal-webhook] URL:", req.url);
+  
+  // Log headers for debugging
+  const headers: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headers[key] = key.toLowerCase().includes('auth') ? '[REDACTED]' : value;
+  });
+  console.log("[fiscal-webhook] Headers:", JSON.stringify(headers));
+
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
+    console.log("[fiscal-webhook] Responding to OPTIONS preflight");
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -30,10 +42,23 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   try {
-    // Parse webhook payload
-    const payload = await req.json();
+    // Get raw body for logging
+    const rawBody = await req.text();
+    console.log("[fiscal-webhook] Raw body:", rawBody);
     
-    console.log("[fiscal-webhook] Received webhook:", JSON.stringify(payload));
+    // Parse webhook payload
+    let payload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error("[fiscal-webhook] Failed to parse JSON:", parseError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Invalid JSON payload" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    console.log("[fiscal-webhook] Parsed payload:", JSON.stringify(payload, null, 2));
 
     // Focus NFe sends different event types
     // Common fields: cnpj, ref, status, chave_nfe, numero, serie, etc.
@@ -60,9 +85,12 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[fiscal-webhook] Processing ref=${ref}, status=${status}`);
+    console.log(`[fiscal-webhook] Processing ref=${ref}, status=${status}, cnpj=${cnpj}`);
+    console.log(`[fiscal-webhook] chave_nfe=${chave_nfe}, numero=${numero}, serie=${serie}`);
+    console.log(`[fiscal-webhook] mensagem_sefaz=${mensagem_sefaz}, status_sefaz=${status_sefaz}`);
 
     // Find invoice by focus_ref
+    console.log(`[fiscal-webhook] Searching for invoice with focus_ref=${ref}`);
     const { data: invoice, error: invoiceError } = await supabase
       .from("fiscal_invoices")
       .select("id, tenant_id, status, order_id")
@@ -70,24 +98,29 @@ serve(async (req) => {
       .maybeSingle();
 
     if (invoiceError) {
-      console.error("[fiscal-webhook] Error finding invoice:", invoiceError);
+      console.error("[fiscal-webhook] Error finding invoice:", JSON.stringify(invoiceError));
       return new Response(
-        JSON.stringify({ success: false, error: "Database error" }),
+        JSON.stringify({ success: false, error: "Database error", details: invoiceError }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log(`[fiscal-webhook] Invoice query result:`, JSON.stringify(invoice));
+
     if (!invoice) {
-      console.warn(`[fiscal-webhook] Invoice not found for ref=${ref}`);
+      console.warn(`[fiscal-webhook] Invoice not found for ref=${ref}. Returning 200 to avoid retries.`);
       // Return 200 to acknowledge receipt (avoid retries)
       return new Response(
-        JSON.stringify({ success: true, warning: "Invoice not found" }),
+        JSON.stringify({ success: true, warning: "Invoice not found", ref }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
+    console.log(`[fiscal-webhook] Found invoice: id=${invoice.id}, current_status=${invoice.status}, order_id=${invoice.order_id}`);
+
     // Map status
     const internalStatus = mapFocusStatusToInternal(status);
+    console.log(`[fiscal-webhook] Mapped status: ${status} -> ${internalStatus}`);
     const now = new Date().toISOString();
 
     // Prepare update data
@@ -98,6 +131,7 @@ serve(async (req) => {
 
     // Add status-specific fields
     if (status === 'autorizado') {
+      console.log("[fiscal-webhook] Processing 'autorizado' status");
       if (chave_nfe) updateData.chave_acesso = chave_nfe;
       if (numero) updateData.numero = numero;
       if (serie) updateData.serie = serie;
@@ -107,14 +141,18 @@ serve(async (req) => {
     }
 
     if (status === 'cancelado') {
+      console.log("[fiscal-webhook] Processing 'cancelado' status");
       updateData.cancelled_at = now;
       if (motivo_cancelamento) updateData.cancel_justificativa = motivo_cancelamento;
       if (protocolo_cancelamento) updateData.protocolo = protocolo_cancelamento;
     }
 
     if (status === 'erro_autorizacao' || status === 'denegado') {
+      console.log(`[fiscal-webhook] Processing error status: ${status}`);
       updateData.status_motivo = mensagem_sefaz || status_sefaz;
     }
+
+    console.log("[fiscal-webhook] Update data:", JSON.stringify(updateData, null, 2));
 
     // Update invoice
     const { error: updateError } = await supabase
@@ -123,12 +161,14 @@ serve(async (req) => {
       .eq("id", invoice.id);
 
     if (updateError) {
-      console.error("[fiscal-webhook] Error updating invoice:", updateError);
+      console.error("[fiscal-webhook] Error updating invoice:", JSON.stringify(updateError));
       return new Response(
-        JSON.stringify({ success: false, error: "Update failed" }),
+        JSON.stringify({ success: false, error: "Update failed", details: updateError }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log("[fiscal-webhook] Invoice updated successfully");
 
     // Log event
     await supabase
