@@ -557,31 +557,6 @@ export default function Fiscal() {
         </CardContent>
       </Card>
 
-      {/* Integration Card */}
-      {isConfigured && (
-        <Card className="border-dashed">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">
-                  Integração Fiscal
-                </h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Conectado ao <span className="font-medium">Focus NFe</span> • 
-                  Ambiente: <span className="font-medium">{settings?.ambiente === 'producao' ? 'Produção' : 'Homologação'}</span> •
-                  Série: <span className="font-medium">{settings?.serie_nfe}</span>
-                </p>
-              </div>
-              <Button variant="outline" onClick={() => navigate('/settings/fiscal')}>
-                Configurar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Manual Invoice Dialog */}
       <ManualInvoiceDialog open={manualDialogOpen} onOpenChange={setManualDialogOpen} />
