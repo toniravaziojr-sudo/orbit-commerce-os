@@ -14,6 +14,9 @@ import { useFiscalStats, useFiscalInvoices, useFiscalSettings, useCheckInvoiceSt
 import { FiscalAlertsCard } from '@/components/fiscal/FiscalAlertsCard';
 import { ManualInvoiceDialog } from '@/components/fiscal/ManualInvoiceDialog';
 import { InvoiceEditor, type InvoiceData } from '@/components/fiscal/InvoiceEditor';
+import { CancelInvoiceDialog } from '@/components/fiscal/CancelInvoiceDialog';
+import { InvoiceActionsDropdown } from '@/components/fiscal/InvoiceActionsDropdown';
+import { FiscalErrorResolver, parseErrorMessage } from '@/components/fiscal/FiscalErrorResolver';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,6 +56,10 @@ export default function Fiscal() {
   const [editingInvoice, setEditingInvoice] = useState<InvoiceData | null>(null);
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [submittingInvoiceId, setSubmittingInvoiceId] = useState<string | null>(null);
+  const [cancelingInvoice, setCancelingInvoice] = useState<FiscalInvoice | null>(null);
+  const [errorResolverOpen, setErrorResolverOpen] = useState(false);
+  const [currentErrors, setCurrentErrors] = useState<any[]>([]);
+  const [currentErrorInvoiceId, setCurrentErrorInvoiceId] = useState<string | null>(null);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats();
@@ -231,18 +238,92 @@ export default function Fiscal() {
     refetch();
   };
 
-  const handleMarkAsPrinted = async (invoiceId: string) => {
-    const { error } = await supabase
-      .from('fiscal_invoices')
-      .update({ danfe_printed_at: new Date().toISOString() })
-      .eq('id', invoiceId);
-
-    if (error) {
-      toast.error('Erro ao marcar como impressa');
+  const handlePrintDanfe = async (invoice: FiscalInvoice) => {
+    if (!invoice.danfe_url) {
+      toast.error('DANFE não disponível para impressão');
       return;
     }
-    toast.success('DANFE marcada como impressa');
-    refetch();
+
+    try {
+      // Open PDF in new window for printing
+      const printWindow = window.open(invoice.danfe_url, '_blank');
+      if (printWindow) {
+        printWindow.addEventListener('load', () => {
+          printWindow.print();
+        });
+      }
+      
+      // Mark as printed in database
+      const { error } = await supabase
+        .from('fiscal_invoices')
+        .update({ 
+          danfe_printed_at: new Date().toISOString(),
+          printed_at: new Date().toISOString()
+        })
+        .eq('id', invoice.id);
+
+      if (error) {
+        console.error('Error marking as printed:', error);
+      } else {
+        toast.success('DANFE enviada para impressão');
+        refetch();
+      }
+    } catch (error) {
+      console.error('Error printing DANFE:', error);
+    }
+  };
+
+  const handleDuplicateInvoice = async (invoice: FiscalInvoice) => {
+    try {
+      // Fetch full invoice data with items
+      const { data, error } = await supabase
+        .from('fiscal_invoices')
+        .select('*, fiscal_invoice_items(*)')
+        .eq('id', invoice.id)
+        .single();
+
+      if (error || !data) {
+        toast.error('Erro ao carregar dados da NF-e');
+        return;
+      }
+
+      // Create new draft based on this invoice
+      const { data: newInvoice, error: createError } = await supabase.functions.invoke('fiscal-create-manual', {
+        body: {
+          natureza_operacao: data.natureza_operacao,
+          dest_nome: data.dest_nome,
+          dest_cpf_cnpj: data.dest_cpf_cnpj,
+          dest_inscricao_estadual: data.dest_inscricao_estadual,
+          dest_endereco_logradouro: data.dest_endereco_logradouro,
+          dest_endereco_numero: data.dest_endereco_numero,
+          dest_endereco_complemento: data.dest_endereco_complemento,
+          dest_endereco_bairro: data.dest_endereco_bairro,
+          dest_endereco_municipio: data.dest_endereco_municipio,
+          dest_endereco_uf: data.dest_endereco_uf,
+          dest_endereco_cep: data.dest_endereco_cep,
+          observacoes: data.observacoes,
+          items: (data.fiscal_invoice_items || []).map((item: any) => ({
+            codigo: item.codigo_produto,
+            descricao: item.descricao,
+            ncm: item.ncm,
+            cfop: item.cfop,
+            unidade: item.unidade,
+            quantidade: item.quantidade,
+            valor_unitario: item.valor_unitario,
+            origem: item.origem,
+            csosn: item.csosn,
+          })),
+        },
+      });
+
+      if (createError) throw createError;
+
+      toast.success('NF-e duplicada como rascunho');
+      refetch();
+    } catch (error: any) {
+      console.error('Error duplicating invoice:', error);
+      toast.error(error.message || 'Erro ao duplicar NF-e');
+    }
   };
 
   const handleQuickSubmit = async (invoice: FiscalInvoice) => {
@@ -256,16 +337,36 @@ export default function Fiscal() {
       
       // Check if the response indicates an error
       if (data && !data.success) {
-        throw new Error(data.error || 'Erro ao emitir NF-e');
+        // Parse errors and show error resolver
+        const errors = parseErrorMessage(data.error || 'Erro desconhecido');
+        setCurrentErrors(errors);
+        setCurrentErrorInvoiceId(invoice.id);
+        setErrorResolverOpen(true);
+        return;
       }
       
       toast.success('NF-e enviada para autorização');
       refetch();
     } catch (error: any) {
       console.error('Error submitting invoice:', error);
-      toast.error(error?.message || 'Erro ao emitir NF-e');
+      
+      // Parse errors and show error resolver
+      const errors = parseErrorMessage(error?.message || 'Erro desconhecido');
+      setCurrentErrors(errors);
+      setCurrentErrorInvoiceId(invoice.id);
+      setErrorResolverOpen(true);
     } finally {
       setSubmittingInvoiceId(null);
+    }
+  };
+
+  const handleRetrySubmit = () => {
+    setErrorResolverOpen(false);
+    if (currentErrorInvoiceId) {
+      const invoice = invoices?.find(i => i.id === currentErrorInvoiceId);
+      if (invoice) {
+        handleQuickSubmit(invoice);
+      }
     }
   };
 
@@ -473,94 +574,18 @@ export default function Fiscal() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            {/* Draft: Edit + Quick Submit buttons */}
-                            {invoice.status === 'draft' && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEditInvoice(invoice)}
-                                  title="Editar rascunho"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleQuickSubmit(invoice)}
-                                  title="Emitir NF-e"
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                  disabled={submittingInvoiceId === invoice.id}
-                                >
-                                  {submittingInvoiceId === invoice.id ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                  ) : (
-                                    <Send className="h-4 w-4" />
-                                  )}
-                                </Button>
-                              </>
-                            )}
-                            {/* Rejected: Edit to resubmit */}
-                            {invoice.status === 'rejected' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditInvoice(invoice)}
-                                title="Editar e reemitir"
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {/* Pending: Check status button */}
-                            {invoice.status === 'pending' && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleCheckStatus(invoice.id)}
-                                disabled={checkStatus.isPending}
-                                title="Atualizar status"
-                              >
-                                <RefreshCw className={`h-4 w-4 ${checkStatus.isPending ? 'animate-spin' : ''}`} />
-                              </Button>
-                            )}
-                            {/* Authorized: Download + Mark as printed */}
-                            {invoice.status === 'authorized' && (
-                              <>
-                                {invoice.danfe_url && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => window.open(invoice.danfe_url!, '_blank')}
-                                    title="Download DANFE"
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {!isPrinted && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleMarkAsPrinted(invoice.id)}
-                                    title="Marcar como impressa"
-                                  >
-                                    <Printer className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                            {/* View order */}
-                            {invoice.order_id && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => navigate(`/orders/${invoice.order_id}`)}
-                                title="Ver pedido"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
+                          <InvoiceActionsDropdown
+                            invoice={invoice as any}
+                            onEdit={() => handleEditInvoice(invoice)}
+                            onSubmit={() => handleQuickSubmit(invoice)}
+                            onCheckStatus={() => handleCheckStatus(invoice.id)}
+                            onViewOrder={() => navigate(`/orders/${invoice.order_id}`)}
+                            onCancel={() => setCancelingInvoice(invoice)}
+                            onPrint={() => handlePrintDanfe(invoice)}
+                            onDuplicate={() => handleDuplicateInvoice(invoice)}
+                            isSubmitting={submittingInvoiceId === invoice.id}
+                            isCheckingStatus={checkStatus.isPending}
+                          />
                         </TableCell>
                       </TableRow>
                     );
@@ -587,6 +612,28 @@ export default function Fiscal() {
           onDelete={handleDeleteInvoice}
         />
       )}
+
+      {/* Cancel Invoice Dialog */}
+      {cancelingInvoice && (
+        <CancelInvoiceDialog
+          open={!!cancelingInvoice}
+          onOpenChange={(open) => !open && setCancelingInvoice(null)}
+          invoice={cancelingInvoice as any}
+          onSuccess={() => {
+            setCancelingInvoice(null);
+            refetch();
+          }}
+        />
+      )}
+
+      {/* Error Resolver Dialog */}
+      <FiscalErrorResolver
+        open={errorResolverOpen}
+        onOpenChange={setErrorResolverOpen}
+        errors={currentErrors}
+        invoiceId={currentErrorInvoiceId || undefined}
+        onRetry={handleRetrySubmit}
+      />
     </div>
   );
 }

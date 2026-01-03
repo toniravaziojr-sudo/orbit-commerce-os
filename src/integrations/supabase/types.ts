@@ -2055,6 +2055,104 @@ export type Database = {
           },
         ]
       }
+      fiscal_inutilizacoes: {
+        Row: {
+          created_at: string | null
+          id: string
+          justificativa: string
+          numero_final: number
+          numero_inicial: number
+          protocolo: string | null
+          response_data: Json | null
+          serie: string
+          status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          justificativa: string
+          numero_final: number
+          numero_inicial: number
+          protocolo?: string | null
+          response_data?: Json | null
+          serie: string
+          status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          justificativa?: string
+          numero_final?: number
+          numero_inicial?: number
+          protocolo?: string | null
+          response_data?: Json | null
+          serie?: string
+          status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_inutilizacoes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_invoice_cces: {
+        Row: {
+          correcao: string
+          created_at: string | null
+          id: string
+          invoice_id: string
+          numero_sequencia: number
+          protocolo: string | null
+          response_data: Json | null
+          status: string | null
+          tenant_id: string
+        }
+        Insert: {
+          correcao: string
+          created_at?: string | null
+          id?: string
+          invoice_id: string
+          numero_sequencia: number
+          protocolo?: string | null
+          response_data?: Json | null
+          status?: string | null
+          tenant_id: string
+        }
+        Update: {
+          correcao?: string
+          created_at?: string | null
+          id?: string
+          invoice_id?: string
+          numero_sequencia?: number
+          protocolo?: string | null
+          response_data?: Json | null
+          status?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_invoice_cces_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fiscal_invoice_cces_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fiscal_invoice_events: {
         Row: {
           created_at: string | null
@@ -2212,15 +2310,18 @@ export type Database = {
           dest_telefone: string | null
           emitido_por: string | null
           especie_volumes: string | null
+          finalidade_emissao: number | null
           focus_ref: string | null
           id: string
           modalidade_frete: string | null
           natureza_operacao: string | null
+          nfe_referenciada: string | null
           numero: number
           observacoes: string | null
           order_id: string | null
           peso_bruto: number | null
           peso_liquido: number | null
+          printed_at: string | null
           protocolo: string | null
           quantidade_volumes: number | null
           requires_action: boolean | null
@@ -2229,6 +2330,7 @@ export type Database = {
           status_motivo: string | null
           submitted_at: string | null
           tenant_id: string
+          tipo_documento: number | null
           transportadora_cnpj: string | null
           transportadora_nome: string | null
           updated_at: string | null
@@ -2267,15 +2369,18 @@ export type Database = {
           dest_telefone?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
+          finalidade_emissao?: number | null
           focus_ref?: string | null
           id?: string
           modalidade_frete?: string | null
           natureza_operacao?: string | null
+          nfe_referenciada?: string | null
           numero: number
           observacoes?: string | null
           order_id?: string | null
           peso_bruto?: number | null
           peso_liquido?: number | null
+          printed_at?: string | null
           protocolo?: string | null
           quantidade_volumes?: number | null
           requires_action?: boolean | null
@@ -2284,6 +2389,7 @@ export type Database = {
           status_motivo?: string | null
           submitted_at?: string | null
           tenant_id: string
+          tipo_documento?: number | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           updated_at?: string | null
@@ -2322,15 +2428,18 @@ export type Database = {
           dest_telefone?: string | null
           emitido_por?: string | null
           especie_volumes?: string | null
+          finalidade_emissao?: number | null
           focus_ref?: string | null
           id?: string
           modalidade_frete?: string | null
           natureza_operacao?: string | null
+          nfe_referenciada?: string | null
           numero?: number
           observacoes?: string | null
           order_id?: string | null
           peso_bruto?: number | null
           peso_liquido?: number | null
+          printed_at?: string | null
           protocolo?: string | null
           quantidade_volumes?: number | null
           requires_action?: boolean | null
@@ -2339,6 +2448,7 @@ export type Database = {
           status_motivo?: string | null
           submitted_at?: string | null
           tenant_id?: string
+          tipo_documento?: number | null
           transportadora_cnpj?: string | null
           transportadora_nome?: string | null
           updated_at?: string | null
@@ -2368,6 +2478,59 @@ export type Database = {
           },
           {
             foreignKeyName: "fiscal_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_operation_natures: {
+        Row: {
+          ativo: boolean | null
+          cfop_inter: string
+          cfop_intra: string
+          codigo: string | null
+          created_at: string | null
+          finalidade: number | null
+          id: string
+          is_system: boolean | null
+          nome: string
+          tenant_id: string
+          tipo_documento: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          cfop_inter: string
+          cfop_intra: string
+          codigo?: string | null
+          created_at?: string | null
+          finalidade?: number | null
+          id?: string
+          is_system?: boolean | null
+          nome: string
+          tenant_id: string
+          tipo_documento?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          cfop_inter?: string
+          cfop_intra?: string
+          codigo?: string | null
+          created_at?: string | null
+          finalidade?: number | null
+          id?: string
+          is_system?: boolean | null
+          nome?: string
+          tenant_id?: string
+          tipo_documento?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_operation_natures_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

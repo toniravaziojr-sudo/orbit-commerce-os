@@ -25,9 +25,10 @@ interface FiscalErrorResolverProps {
 
 function parseErrorMessage(errorMessage: string): FiscalError[] {
   const errors: FiscalError[] = [];
+  const msg = errorMessage?.toLowerCase() || '';
   
   // Check for missing NCM
-  if (errorMessage.includes('NCM') || errorMessage.includes('ncm')) {
+  if (msg.includes('ncm')) {
     const match = errorMessage.match(/Produtos sem NCM[^:]*:\s*(.+?)(?:\.|$)/i);
     if (match) {
       const products = match[1].split(',').map(p => p.trim());
@@ -41,40 +42,93 @@ function parseErrorMessage(errorMessage: string): FiscalError[] {
     } else {
       errors.push({
         type: 'missing_ncm',
-        message: 'Um ou mais produtos não possuem NCM cadastrado',
+        message: 'Um ou mais produtos não possuem NCM cadastrado. O NCM é obrigatório para emissão de NF-e.',
       });
     }
   }
   
   // Check for IBGE code issues
-  if (errorMessage.includes('IBGE') || errorMessage.includes('município')) {
+  if (msg.includes('ibge') || msg.includes('município') || msg.includes('municipio')) {
     errors.push({
       type: 'missing_ibge',
-      message: 'Código IBGE do município não encontrado. Verifique o endereço do destinatário.',
+      message: 'Código IBGE do município não encontrado. Verifique se o nome da cidade e estado estão corretos.',
     });
   }
   
   // Check for document issues
-  if (errorMessage.includes('CPF') || errorMessage.includes('CNPJ') || errorMessage.includes('documento')) {
+  if (msg.includes('cpf') || msg.includes('cnpj') || msg.includes('documento')) {
     errors.push({
       type: 'invalid_document',
-      message: 'CPF/CNPJ do destinatário inválido ou não informado',
+      message: 'CPF ou CNPJ do destinatário inválido ou não informado. Verifique o documento.',
     });
   }
   
   // Check for address issues
-  if (errorMessage.includes('endereço') || errorMessage.includes('CEP') || errorMessage.includes('address')) {
+  if (msg.includes('endereço') || msg.includes('endereco') || msg.includes('cep') || msg.includes('address')) {
     errors.push({
       type: 'missing_address',
-      message: 'Endereço do destinatário incompleto ou inválido',
+      message: 'Endereço do destinatário incompleto. Verifique logradouro, número, bairro, cidade e CEP.',
     });
+  }
+
+  // Check for CFOP issues
+  if (msg.includes('cfop')) {
+    errors.push({
+      type: 'missing_field',
+      field: 'CFOP',
+      message: 'CFOP inválido ou não compatível com a operação. Verifique o código fiscal.',
+    });
+  }
+
+  // Check for CSOSN issues
+  if (msg.includes('csosn') || msg.includes('cst')) {
+    errors.push({
+      type: 'missing_field',
+      field: 'CSOSN/CST',
+      message: 'Código de Situação Tributária inválido. Verifique o CSOSN ou CST do produto.',
+    });
+  }
+
+  // Check for certificate issues
+  if (msg.includes('certificado') || msg.includes('certificate')) {
+    errors.push({
+      type: 'unknown',
+      message: 'Problema com o certificado digital. Verifique se está válido e configurado corretamente.',
+    });
+  }
+
+  // Check for Focus NFe / SEFAZ rejection codes
+  const rejectCodeMatch = errorMessage.match(/\[(\d{3})\]/);
+  if (rejectCodeMatch) {
+    const code = rejectCodeMatch[1];
+    const sefazErrors: Record<string, string> = {
+      '207': 'CNPJ do emitente não cadastrado na SEFAZ',
+      '225': 'Falha no schema XML da NF-e',
+      '226': 'Código UF do emitente diverge da UF autorizadora',
+      '227': 'Erro na Chave de Acesso',
+      '228': 'Data de emissão muito antiga',
+      '233': 'IE do destinatário inválida',
+      '234': 'IE do destinatário não informada',
+      '235': 'IE do emitente não cadastrada',
+      '539': 'Duplicidade de NF-e',
+      '594': 'NF-e com data de emissão futura',
+      '778': 'CFOP de entrada para operação de saída',
+      '999': 'Erro não catalogado',
+    };
+    
+    if (sefazErrors[code]) {
+      errors.push({
+        type: 'unknown',
+        message: `Erro SEFAZ [${code}]: ${sefazErrors[code]}`,
+      });
+    }
   }
   
   // If no specific errors were found, add a generic one
   if (errors.length === 0) {
     errors.push({
       type: 'unknown',
-      message: errorMessage || 'Ocorreu um erro desconhecido',
+      message: errorMessage || 'Ocorreu um erro desconhecido ao emitir a NF-e. Verifique os dados e tente novamente.',
     });
   }
   
