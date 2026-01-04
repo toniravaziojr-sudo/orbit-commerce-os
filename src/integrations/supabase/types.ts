@@ -2491,11 +2491,24 @@ export type Database = {
           cfop_inter: string
           cfop_intra: string
           codigo: string | null
+          consumidor_final: boolean | null
           created_at: string | null
+          crt: number | null
+          csosn_padrao: string | null
+          cst_cofins: string | null
+          cst_icms: string | null
+          cst_pis: string | null
+          descricao: string | null
+          faturada: boolean | null
           finalidade: number | null
           id: string
+          ind_pres: number | null
+          info_complementares: string | null
+          info_fisco: string | null
           is_system: boolean | null
           nome: string
+          operacao_devolucao: boolean | null
+          serie: number | null
           tenant_id: string
           tipo_documento: number | null
           updated_at: string | null
@@ -2505,11 +2518,24 @@ export type Database = {
           cfop_inter: string
           cfop_intra: string
           codigo?: string | null
+          consumidor_final?: boolean | null
           created_at?: string | null
+          crt?: number | null
+          csosn_padrao?: string | null
+          cst_cofins?: string | null
+          cst_icms?: string | null
+          cst_pis?: string | null
+          descricao?: string | null
+          faturada?: boolean | null
           finalidade?: number | null
           id?: string
+          ind_pres?: number | null
+          info_complementares?: string | null
+          info_fisco?: string | null
           is_system?: boolean | null
           nome: string
+          operacao_devolucao?: boolean | null
+          serie?: number | null
           tenant_id: string
           tipo_documento?: number | null
           updated_at?: string | null
@@ -2519,11 +2545,24 @@ export type Database = {
           cfop_inter?: string
           cfop_intra?: string
           codigo?: string | null
+          consumidor_final?: boolean | null
           created_at?: string | null
+          crt?: number | null
+          csosn_padrao?: string | null
+          cst_cofins?: string | null
+          cst_icms?: string | null
+          cst_pis?: string | null
+          descricao?: string | null
+          faturada?: boolean | null
           finalidade?: number | null
           id?: string
+          ind_pres?: number | null
+          info_complementares?: string | null
+          info_fisco?: string | null
           is_system?: boolean | null
           nome?: string
+          operacao_devolucao?: boolean | null
+          serie?: number | null
           tenant_id?: string
           tipo_documento?: number | null
           updated_at?: string | null
@@ -2619,6 +2658,8 @@ export type Database = {
           csosn_padrao: string | null
           cst_padrao: string | null
           default_shipping_provider: string | null
+          email_nfe_body: string | null
+          email_nfe_subject: string | null
           emissao_automatica: boolean | null
           emitir_apos_status: string | null
           endereco_bairro: string | null
@@ -2667,6 +2708,8 @@ export type Database = {
           csosn_padrao?: string | null
           cst_padrao?: string | null
           default_shipping_provider?: string | null
+          email_nfe_body?: string | null
+          email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
           emitir_apos_status?: string | null
           endereco_bairro?: string | null
@@ -2715,6 +2758,8 @@ export type Database = {
           csosn_padrao?: string | null
           cst_padrao?: string | null
           default_shipping_provider?: string | null
+          email_nfe_body?: string | null
+          email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
           emitir_apos_status?: string | null
           endereco_bairro?: string | null

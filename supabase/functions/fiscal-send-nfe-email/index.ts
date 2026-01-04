@@ -134,27 +134,18 @@ serve(async (req) => {
       );
     }
 
-    // Fetch email template
-    const { data: template, error: templateError } = await supabase
-      .from("system_email_templates")
-      .select("subject, body_html")
-      .eq("template_key", "nfe_autorizada")
-      .eq("is_active", true)
-      .single();
-
-    if (templateError || !template) {
-      console.error("[fiscal-send-nfe-email] Template not found:", templateError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Template de email não encontrado" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // Fetch tenant info for store name
     const { data: tenant } = await supabase
       .from("tenants")
       .select("name")
       .eq("id", tenant_id)
+      .single();
+
+    // Fetch fiscal settings to check for custom email template
+    const { data: fiscalSettings } = await supabase
+      .from("fiscal_settings")
+      .select("email_nfe_subject, email_nfe_body")
+      .eq("tenant_id", tenant_id)
       .single();
 
     // Fetch system email config for sender details
@@ -180,10 +171,60 @@ serve(async (req) => {
       store_name: tenant?.name || "Nossa Loja",
     };
 
-    // Replace variables in template
-    let subject = template.subject;
-    let htmlBody = template.body_html;
+    let subject: string;
+    let htmlBody: string;
 
+    // Check if tenant has custom email template configured
+    if (fiscalSettings?.email_nfe_subject && fiscalSettings?.email_nfe_body) {
+      console.log("[fiscal-send-nfe-email] Using custom email template from fiscal_settings");
+      subject = fiscalSettings.email_nfe_subject;
+      
+      // Convert plain text body to HTML (preserve line breaks)
+      const bodyText = fiscalSettings.email_nfe_body
+        .replace(/\n/g, "<br>")
+        .replace(/  /g, "&nbsp;&nbsp;");
+      
+      htmlBody = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            a { color: #0066cc; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            ${bodyText}
+          </div>
+        </body>
+        </html>
+      `;
+    } else {
+      // Use system template
+      console.log("[fiscal-send-nfe-email] Using system email template");
+      const { data: template, error: templateError } = await supabase
+        .from("system_email_templates")
+        .select("subject, body_html")
+        .eq("template_key", "nfe_autorizada")
+        .eq("is_active", true)
+        .single();
+
+      if (templateError || !template) {
+        console.error("[fiscal-send-nfe-email] Template not found:", templateError);
+        return new Response(
+          JSON.stringify({ success: false, error: "Template de email não encontrado" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      subject = template.subject;
+      htmlBody = template.body_html;
+    }
+
+    // Replace variables in template
     for (const [key, value] of Object.entries(variables)) {
       const regex = new RegExp(`{{${key}}}`, "g");
       subject = subject.replace(regex, value);

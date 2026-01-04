@@ -89,6 +89,8 @@ export default function FiscalSettings() {
     auto_update_order_status: true,
     default_shipping_provider: null,
     enviar_email_nfe: true,
+    email_nfe_subject: '',
+    email_nfe_body: '',
   });
 
   const [certPassword, setCertPassword] = useState('');
@@ -236,46 +238,25 @@ export default function FiscalSettings() {
         </Alert>
       )}
 
-      {/* Quick Actions Cards */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                <Package className="h-6 w-6 text-primary" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Configurar Produtos</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Configure NCM, origem e dados fiscais de cada produto.
-                </p>
-              </div>
-              <Button onClick={() => navigate('/fiscal/products')}>
-                Configurar
-              </Button>
+      {/* Quick Actions Card */}
+      <Card className="border-secondary/20 bg-secondary/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
+              <FileText className="h-6 w-6 text-secondary-foreground" />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-secondary/20 bg-secondary/5">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-secondary/10">
-                <FileText className="h-6 w-6 text-secondary-foreground" />
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold text-foreground">Naturezas de Operação</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Cadastre naturezas para diferentes tipos de NF-e.
-                </p>
-              </div>
-              <Button variant="outline" onClick={() => navigate('/fiscal/operation-natures')}>
-                Gerenciar
-              </Button>
+            <div className="flex-1">
+              <h3 className="font-semibold text-foreground">Naturezas de Operação</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Cadastre naturezas para diferentes tipos de NF-e.
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Button variant="outline" onClick={() => navigate('/fiscal/operation-natures')}>
+              Gerenciar
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Dados do Emitente */}
@@ -768,6 +749,84 @@ export default function FiscalSettings() {
                   onCheckedChange={(checked) => handleChange('enviar_email_nfe', checked)}
                 />
               </div>
+
+              {formData.enviar_email_nfe !== false && (
+                <div className="space-y-4 p-4 rounded-lg bg-muted/30 border">
+                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Mail className="h-4 w-4" />
+                    Personalizar Email da NF-e
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email_nfe_subject">Assunto do Email</Label>
+                    <Input
+                      id="email_nfe_subject"
+                      value={formData.email_nfe_subject || ''}
+                      onChange={(e) => handleChange('email_nfe_subject', e.target.value)}
+                      placeholder="Sua Nota Fiscal - Pedido {{order_number}}"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email_nfe_body">Conteúdo do Email</Label>
+                    <textarea
+                      id="email_nfe_body"
+                      className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      value={formData.email_nfe_body || ''}
+                      onChange={(e) => handleChange('email_nfe_body', e.target.value)}
+                      placeholder={`Olá {{customer_name}},
+
+Segue anexo a Nota Fiscal referente ao seu pedido {{order_number}}.
+
+Número da NF-e: {{nfe_number}}
+Série: {{nfe_serie}}
+Data de Emissão: {{data_emissao}}
+Valor Total: {{valor_total}}
+
+Você pode acessar os documentos nos links abaixo:
+- DANFE: {{danfe_url}}
+- XML: {{xml_url}}
+
+Obrigado pela preferência!
+{{store_name}}`}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Deixe em branco para usar o template padrão do sistema
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Variáveis Disponíveis</Label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { key: '{{customer_name}}', label: 'Nome do Cliente' },
+                        { key: '{{order_number}}', label: 'Nº Pedido' },
+                        { key: '{{nfe_number}}', label: 'Nº NF-e' },
+                        { key: '{{nfe_serie}}', label: 'Série' },
+                        { key: '{{data_emissao}}', label: 'Data Emissão' },
+                        { key: '{{valor_total}}', label: 'Valor Total' },
+                        { key: '{{chave_acesso}}', label: 'Chave de Acesso' },
+                        { key: '{{danfe_url}}', label: 'Link DANFE' },
+                        { key: '{{xml_url}}', label: 'Link XML' },
+                        { key: '{{store_name}}', label: 'Nome da Loja' },
+                      ].map((variable) => (
+                        <Badge 
+                          key={variable.key} 
+                          variant="secondary" 
+                          className="cursor-pointer hover:bg-secondary/80 text-xs"
+                          onClick={() => {
+                            navigator.clipboard.writeText(variable.key);
+                            toast.success(`${variable.key} copiado!`);
+                          }}
+                          title={`Clique para copiar: ${variable.label}`}
+                        >
+                          {variable.key}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <Separator />
 

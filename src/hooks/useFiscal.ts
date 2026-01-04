@@ -52,6 +52,8 @@ export interface FiscalSettings {
   default_shipping_provider: string | null;
   // Email notification
   enviar_email_nfe: boolean;
+  email_nfe_subject: string | null;
+  email_nfe_body: string | null;
 }
 
 export interface CertificateInfo {
