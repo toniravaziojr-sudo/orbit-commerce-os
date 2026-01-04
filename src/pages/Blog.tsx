@@ -76,10 +76,34 @@ export default function Blog() {
     enabled: !!currentTenant?.id,
   });
 
+  // Check if slug already exists
+  const checkSlugExists = async (slug: string, excludeId?: string): Promise<boolean> => {
+    if (!currentTenant?.id) return false;
+    
+    let query = supabase
+      .from('blog_posts')
+      .select('id')
+      .eq('tenant_id', currentTenant.id)
+      .eq('slug', slug);
+    
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+    
+    const { data } = await query.maybeSingle();
+    return !!data;
+  };
+
   // Create post mutation
   const createPost = useMutation({
     mutationFn: async (data: { title: string; slug: string; excerpt?: string; seo_title?: string; seo_description?: string }) => {
       if (!currentTenant?.id) throw new Error('No tenant');
+      
+      // Check slug uniqueness before insert
+      const slugExists = await checkSlugExists(data.slug);
+      if (slugExists) {
+        throw new Error('Este slug já está em uso. Escolha outro.');
+      }
       
       const { defaultNeutralPageTemplate } = await import('@/lib/builder/defaults');
       
@@ -114,6 +138,14 @@ export default function Blog() {
   // Update post mutation
   const updatePost = useMutation({
     mutationFn: async (data: { id: string; title?: string; slug?: string; excerpt?: string; status?: string; seo_title?: string; seo_description?: string }) => {
+      // Check slug uniqueness before update (if slug is being changed)
+      if (data.slug) {
+        const slugExists = await checkSlugExists(data.slug, data.id);
+        if (slugExists) {
+          throw new Error('Este slug já está em uso. Escolha outro.');
+        }
+      }
+      
       const updateData: any = { ...data };
       delete updateData.id;
       
@@ -162,14 +194,21 @@ export default function Blog() {
     setEditingPost(null);
   };
 
-  const handleEdit = (post: BlogPost) => {
+  const handleEdit = async (post: BlogPost) => {
+    // Fetch full post data including SEO fields
+    const { data: fullPost } = await supabase
+      .from('blog_posts')
+      .select('seo_title, seo_description')
+      .eq('id', post.id)
+      .single();
+    
     setEditingPost(post);
     setFormData({
       title: post.title,
       slug: post.slug,
       excerpt: post.excerpt || '',
-      seo_title: '',
-      seo_description: '',
+      seo_title: fullPost?.seo_title || '',
+      seo_description: fullPost?.seo_description || '',
     });
     setIsDialogOpen(true);
   };
@@ -270,7 +309,40 @@ export default function Blog() {
                     className="min-h-[80px]"
                   />
                 </div>
-                <Button 
+                
+                {/* SEO Fields */}
+                <div className="border-t pt-4 mt-4">
+                  <p className="text-sm font-medium mb-3">SEO</p>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Título SEO</Label>
+                      <Input 
+                        value={formData.seo_title} 
+                        onChange={(e) => setFormData({ ...formData, seo_title: e.target.value })} 
+                        placeholder={formData.title || 'Título para mecanismos de busca'}
+                        maxLength={60}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formData.seo_title.length}/60 caracteres
+                      </p>
+                    </div>
+                    <div>
+                      <Label>Descrição SEO</Label>
+                      <Textarea 
+                        value={formData.seo_description} 
+                        onChange={(e) => setFormData({ ...formData, seo_description: e.target.value })} 
+                        placeholder="Descrição para mecanismos de busca"
+                        className="min-h-[60px]"
+                        maxLength={160}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {formData.seo_description.length}/160 caracteres
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <Button
                   onClick={handleSubmit} 
                   disabled={!formData.title || createPost.isPending || updatePost.isPending} 
                   className="w-full"

@@ -42,6 +42,13 @@ export default function StorefrontBlogPost() {
         return null;
       }
 
+      // Increment view count (fire and forget)
+      if (data?.id) {
+        supabase.rpc('increment_blog_view_count', { post_id: data.id }).catch(() => {
+          // Silently ignore errors - view count is not critical
+        });
+      }
+
       return data;
     },
     enabled: !!storeSettings?.tenant_id && !!postSlug,
