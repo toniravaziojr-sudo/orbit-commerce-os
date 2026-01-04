@@ -15,6 +15,7 @@ import {
 import { StatCard } from '@/components/ui/stat-card';
 import { OrderList } from '@/components/orders/OrderList';
 import { useOrders, type Order, type OrderStatus } from '@/hooks/useOrders';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 
 const PAGE_SIZE = 50;
 
@@ -26,6 +27,9 @@ export default function Orders() {
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [shippingFilter, setShippingFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
+  const [dateField, setDateField] = useState('created_at');
 
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
@@ -50,6 +54,12 @@ export default function Orders() {
     setCurrentPage(1);
   };
 
+  const handleDateChange = (start?: Date, end?: Date) => {
+    setStartDate(start);
+    setEndDate(end);
+    setCurrentPage(1);
+  };
+
   const { 
     orders, 
     totalCount, 
@@ -62,6 +72,9 @@ export default function Orders() {
     status: statusFilter,
     paymentStatus: paymentFilter,
     shippingStatus: shippingFilter,
+    startDate,
+    endDate,
+    dateField,
   });
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -139,6 +152,19 @@ export default function Orders() {
               />
             </div>
             <div className="flex gap-3 flex-wrap">
+              <DateRangeFilter
+                startDate={startDate}
+                endDate={endDate}
+                onChange={handleDateChange}
+                label="Data do pedido"
+                dateFieldOptions={[
+                  { value: 'created_at', label: 'Data do pedido' },
+                  { value: 'paid_at', label: 'Data de pagamento' },
+                  { value: 'shipped_at', label: 'Data de envio' },
+                ]}
+                selectedDateField={dateField}
+                onDateFieldChange={setDateField}
+              />
               <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Status" />
