@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePurchases, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS } from "@/hooks/usePurchases";
+import { usePurchases, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS, Purchase } from "@/hooks/usePurchases";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { usePurchaseTypes } from "@/hooks/usePurchaseTypes";
 import { useSupplierTypes } from "@/hooks/useSupplierTypes";
@@ -18,7 +18,10 @@ import { SupplierFormDialog } from "@/components/purchases/SupplierFormDialog";
 import { PurchaseFormDialog } from "@/components/purchases/PurchaseFormDialog";
 import { DeleteConfirmDialog } from "@/components/purchases/DeleteConfirmDialog";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { ExportDropdown } from "@/components/ui/export-dropdown";
+import { exportToCSV, exportToExcel, formatDateForExport, formatCurrencyForExport } from "@/lib/exportUtils";
 import { format, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
 
 export default function Purchases() {
   const { purchases, pendingCount, inTransitCount, deliveredThisMonth, createPurchase, updatePurchase, deletePurchase, isLoading: loadingPurchases } = usePurchases();
@@ -50,7 +53,6 @@ export default function Purchases() {
 
   // Filters for history tab
   const [historySearch, setHistorySearch] = useState("");
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("delivered");
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
 
@@ -116,14 +118,9 @@ export default function Purchases() {
     });
   }, [suppliers, suppliersSearch, suppliersTypeFilter]);
 
-  // Filtered history (delivered orders)
+  // Filtered history (all orders for history)
   const filteredHistory = useMemo(() => {
     return purchases.filter(purchase => {
-      // Status filter (default to delivered for history)
-      if (historyStatusFilter !== 'all' && purchase.status !== historyStatusFilter) {
-        return false;
-      }
-      
       // Search filter
       if (historySearch) {
         const searchLower = historySearch.toLowerCase();
@@ -138,15 +135,15 @@ export default function Purchases() {
       
       // Date filter
       if (historyStartDate && historyEndDate) {
-        const deliveryDate = purchase.actual_delivery_date ? new Date(purchase.actual_delivery_date) : new Date(purchase.created_at);
-        if (!isWithinInterval(deliveryDate, { start: historyStartDate, end: historyEndDate })) {
+        const purchaseDate = new Date(purchase.created_at);
+        if (!isWithinInterval(purchaseDate, { start: historyStartDate, end: historyEndDate })) {
           return false;
         }
       }
       
       return true;
     });
-  }, [purchases, historySearch, historyStatusFilter, historyStartDate, historyEndDate]);
+  }, [purchases, historySearch, historyStartDate, historyEndDate]);
 
   const handleSupplierSubmit = (data: any) => {
     if (editingSupplier) {
@@ -196,6 +193,30 @@ export default function Purchases() {
     if (!typeId) return null;
     const type = supplierTypes.find(t => t.id === typeId);
     return type?.name;
+  };
+
+  const handleExportHistory = (format: 'csv' | 'excel') => {
+    const columns: { key: keyof Purchase; label: string; format?: (value: any, row: Purchase) => string }[] = [
+      { key: 'order_number', label: 'Nº Pedido' },
+      { key: 'description', label: 'Descrição', format: (v) => v || '' },
+      { key: 'purchase_type_id', label: 'Tipo', format: (v) => getPurchaseTypeName(v) || '' },
+      { key: 'supplier', label: 'Fornecedor', format: (_, row) => row.supplier?.name || '' },
+      { key: 'total_value', label: 'Valor', format: (v) => formatCurrencyForExport(v) },
+      { key: 'created_at', label: 'Data Criação', format: (v) => formatDateForExport(v) },
+      { key: 'expected_delivery_date', label: 'Previsão Entrega', format: (v) => formatDateForExport(v) },
+      { key: 'actual_delivery_date', label: 'Data Entrega', format: (v) => formatDateForExport(v) },
+      { key: 'status', label: 'Status', format: (v) => PURCHASE_STATUS_LABELS[v as Purchase['status']] || v },
+    ];
+    
+    const filename = `historico-compras-${format === 'csv' ? 'csv' : 'excel'}`;
+    
+    if (format === 'csv') {
+      exportToCSV(filteredHistory, columns, filename);
+    } else {
+      exportToExcel(filteredHistory, columns, filename);
+    }
+    
+    toast.success(`Exportação ${format.toUpperCase()} concluída`);
   };
 
   return (
@@ -394,8 +415,13 @@ export default function Purchases() {
 
         <TabsContent value="history">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-lg font-semibold">Histórico de Compras</CardTitle>
+              <ExportDropdown
+                onExportCSV={() => handleExportHistory('csv')}
+                onExportExcel={() => handleExportHistory('excel')}
+                disabled={filteredHistory.length === 0}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filters */}
@@ -409,16 +435,6 @@ export default function Purchases() {
                     className="pl-9"
                   />
                 </div>
-                <Select value={historyStatusFilter} onValueChange={setHistoryStatusFilter}>
-                  <SelectTrigger className="w-[150px]">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="delivered">Entregues</SelectItem>
-                    <SelectItem value="cancelled">Cancelados</SelectItem>
-                  </SelectContent>
-                </Select>
                 <DateRangeFilter
                   startDate={historyStartDate}
                   endDate={historyEndDate}
