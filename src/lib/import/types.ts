@@ -170,7 +170,7 @@ export interface NormalizedVisual {
 export interface NormalizedMenu {
   name: string;
   slug: string;
-  location: 'header' | 'footer' | 'mobile';
+  location: 'header' | 'footer' | 'footer_1' | 'footer_2' | 'mobile';
   items: NormalizedMenuItem[];
 }
 
