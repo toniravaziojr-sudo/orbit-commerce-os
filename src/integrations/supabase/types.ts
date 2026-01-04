@@ -737,6 +737,86 @@ export type Database = {
           },
         ]
       }
+      checkout_testimonial_products: {
+        Row: {
+          id: string
+          product_id: string
+          testimonial_id: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          testimonial_id: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          testimonial_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_testimonial_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_testimonial_products_testimonial_id_fkey"
+            columns: ["testimonial_id"]
+            isOneToOne: false
+            referencedRelation: "checkout_testimonials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkout_testimonials: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          name: string
+          rating: number
+          sort_order: number
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name: string
+          rating?: number
+          sort_order?: number
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          name?: string
+          rating?: number
+          sort_order?: number
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_testimonials_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       checkouts: {
         Row: {
           abandoned_at: string | null

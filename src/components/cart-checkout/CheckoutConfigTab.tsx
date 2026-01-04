@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useStoreConfig } from '@/hooks/useStoreConfig';
 import { CheckoutConfig, PaymentMethod, defaultCheckoutConfig } from '@/lib/storeConfigTypes';
+import { TestimonialsManager } from './TestimonialsManager';
 import { 
   CreditCard, 
   Percent, 
@@ -19,7 +20,8 @@ import {
   GripVertical,
   Loader2,
   Save,
-  BarChart3
+  BarChart3,
+  Settings2
 } from 'lucide-react';
 
 // Payment method labels
@@ -34,6 +36,7 @@ export function CheckoutConfigTab() {
   const [form, setForm] = useState<CheckoutConfig>(defaultCheckoutConfig);
   const [hasChanges, setHasChanges] = useState(false);
   const [draggedMethod, setDraggedMethod] = useState<PaymentMethod | null>(null);
+  const [showTestimonialsManager, setShowTestimonialsManager] = useState(false);
 
   useEffect(() => {
     if (config?.checkoutConfig) {
@@ -140,11 +143,30 @@ export function CheckoutConfigTab() {
                 </p>
               </div>
             </div>
-            <Switch
-              checked={form.testimonialsEnabled}
-              onCheckedChange={(checked) => handleChange('testimonialsEnabled', checked)}
-            />
+            <div className="flex items-center gap-2">
+              {form.testimonialsEnabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowTestimonialsManager(!showTestimonialsManager)}
+                >
+                  <Settings2 className="h-4 w-4 mr-1" />
+                  Gerenciar
+                </Button>
+              )}
+              <Switch
+                checked={form.testimonialsEnabled}
+                onCheckedChange={(checked) => handleChange('testimonialsEnabled', checked)}
+              />
+            </div>
           </div>
+
+          {/* Testimonials Manager (collapsible) */}
+          {form.testimonialsEnabled && showTestimonialsManager && (
+            <div className="pl-7 pt-4 border-t mt-4">
+              <TestimonialsManager />
+            </div>
+          )}
         </CardContent>
       </Card>
 
