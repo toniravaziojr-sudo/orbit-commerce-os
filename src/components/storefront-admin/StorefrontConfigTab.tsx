@@ -143,29 +143,6 @@ export function StorefrontConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Visual Builder Link */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="p-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Palette className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <p className="font-medium">Construtor Visual</p>
-              <p className="text-sm text-muted-foreground">
-                Personalize as páginas da sua loja com o editor visual
-              </p>
-            </div>
-          </div>
-          <Link to="/storefront/builder?edit=home">
-            <Button>
-              Abrir Editor
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-
       {/* 1. Informações do Negócio */}
       <Card>
         <CardHeader>

@@ -164,14 +164,16 @@ export default function PageBuilder() {
       ? (template.content as unknown as BlockNode)
       : undefined;
 
-  // For pages with their own content, edit the page directly (not the template)
-  const editingPageDirectly = !!pageOwnContent;
+  // Determine pageType based on the actual page type
+  // For page overrides to work correctly, we need to pass the correct pageType
+  const effectivePageType = (page.type === 'landing_page' ? 'landing_page' : 'institutional') as 
+    'institutional' | 'landing_page';
 
   return (
     <VisualBuilder
       tenantId={currentTenant.id}
-      pageType={editingPageDirectly ? "institutional" : "page_template"}
-      pageId={editingPageDirectly ? pageId : (templateId || pageId)}
+      pageType={effectivePageType}
+      pageId={pageId}
       pageTitle={page.title}
       pageSlug={page.slug}
       initialContent={initialContent}
