@@ -59,6 +59,11 @@ export interface GlobalLayoutData {
   footer_config: BlockNode;
   checkout_header_config: BlockNode;
   checkout_footer_config: BlockNode;
+  // Visibility toggles
+  header_enabled: boolean;
+  footer_enabled: boolean;
+  show_footer_1: boolean;
+  show_footer_2: boolean;
   isDefault: boolean;
   needsMigration: boolean;
 }
