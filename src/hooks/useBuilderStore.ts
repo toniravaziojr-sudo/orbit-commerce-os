@@ -58,13 +58,23 @@ export function useBuilderStore(initialContent?: BlockNode) {
   }, []);
 
   // Set content without history (for initial load)
-  const setContent = useCallback((content: BlockNode) => {
-    setState({
-      content,
-      selectedBlockId: null,
-      history: [cloneBlockNode(content)],
-      historyIndex: 0,
-      isDirty: false,
+  const setContent = useCallback((content: BlockNode, preserveSelection?: boolean) => {
+    setState(prev => {
+      // If preserving selection, verify the selected block still exists in new content
+      let newSelectedBlockId = preserveSelection ? prev.selectedBlockId : null;
+      if (newSelectedBlockId) {
+        const stillExists = findBlockById(content, newSelectedBlockId);
+        if (!stillExists) {
+          newSelectedBlockId = null;
+        }
+      }
+      return {
+        content,
+        selectedBlockId: newSelectedBlockId,
+        history: [cloneBlockNode(content)],
+        historyIndex: 0,
+        isDirty: false,
+      };
     });
   }, []);
 
