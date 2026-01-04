@@ -7,7 +7,7 @@ export interface Menu {
   id: string;
   tenant_id: string;
   name: string;
-  location: 'header' | 'footer';
+  location: 'header' | 'footer' | 'footer_1' | 'footer_2';
   created_at: string;
   updated_at: string;
 }

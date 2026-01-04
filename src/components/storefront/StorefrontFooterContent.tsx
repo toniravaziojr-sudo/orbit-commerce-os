@@ -141,35 +141,52 @@ export function StorefrontFooterContent({
     staleTime: 1000 * 60 * 5,
   });
 
-  // Fetch footer menu items
-  const { data: footerMenu } = useQuery({
-    queryKey: ['footer-menu', tenantSlug],
+  // Fetch footer menus (footer_1 and footer_2)
+  const { data: footerMenus } = useQuery({
+    queryKey: ['footer-menus', tenantSlug],
     queryFn: async () => {
-      if (!tenantSlug) return null;
+      if (!tenantSlug) return { footer1: null, footer2: null };
       const { data: tenant } = await supabase
         .from('tenants')
         .select('id')
         .eq('slug', tenantSlug)
         .single();
       
-      if (!tenant) return null;
+      if (!tenant) return { footer1: null, footer2: null };
       
-      const { data: menu } = await supabase
+      // Fetch all footer menus
+      const { data: menus } = await supabase
         .from('menus')
-        .select('id')
+        .select('id, name, location')
         .eq('tenant_id', tenant.id)
-        .eq('location', 'footer')
-        .maybeSingle();
+        .in('location', ['footer', 'footer_1', 'footer_2']);
       
-      if (!menu) return null;
+      if (!menus || menus.length === 0) return { footer1: null, footer2: null };
       
-      const { data: items } = await supabase
-        .from('menu_items')
-        .select('id, label, url, item_type, ref_id')
-        .eq('menu_id', menu.id)
-        .order('sort_order');
+      // Find footer_1 (or legacy 'footer') and footer_2
+      const footer1Menu = menus.find(m => m.location === 'footer_1' || m.location === 'footer');
+      const footer2Menu = menus.find(m => m.location === 'footer_2');
       
-      return items || [];
+      // Fetch items for each menu
+      const fetchItems = async (menuId: string | undefined) => {
+        if (!menuId) return [];
+        const { data: items } = await supabase
+          .from('menu_items')
+          .select('id, label, url, item_type, ref_id')
+          .eq('menu_id', menuId)
+          .order('sort_order');
+        return items || [];
+      };
+      
+      const [footer1Items, footer2Items] = await Promise.all([
+        fetchItems(footer1Menu?.id),
+        fetchItems(footer2Menu?.id),
+      ]);
+      
+      return {
+        footer1: footer1Menu ? { name: footer1Menu.name, items: footer1Items } : null,
+        footer2: footer2Menu ? { name: footer2Menu.name, items: footer2Items } : null,
+      };
     },
     enabled: !!tenantSlug,
     staleTime: 1000 * 60 * 5,
@@ -201,18 +218,23 @@ export function StorefrontFooterContent({
   });
 
   const baseUrl = getStoreBaseUrl(tenantSlug);
-  const menuItems: MenuItem[] = footerMenu || [];
+  const footer1Items: MenuItem[] = footerMenus?.footer1?.items || [];
+  const footer2Items: MenuItem[] = footerMenus?.footer2?.items || [];
+  const footer1Name = footerMenus?.footer1?.name || 'Menu';
+  const footer2Name = footerMenus?.footer2?.name || 'Políticas';
 
-  // Helper to resolve menu item URLs
+  // Helper to resolve menu item URLs (supports 'link' as fallback for 'external')
   const getMenuItemUrl = (item: MenuItem): string => {
-    if (item.item_type === 'external' && item.url) {
+    const itemType = item.item_type === 'link' ? 'external' : item.item_type;
+    
+    if (itemType === 'external' && item.url) {
       return item.url;
     }
-    if (item.item_type === 'category' && item.ref_id) {
+    if (itemType === 'category' && item.ref_id) {
       const category = categories?.find((c: Category) => c.id === item.ref_id);
       return category ? getPublicCategoryUrl(tenantSlug, category.slug) || baseUrl : baseUrl;
     }
-    if (item.item_type === 'page' && item.ref_id) {
+    if (itemType === 'page' && item.ref_id) {
       const page = pagesData?.find(p => p.id === item.ref_id);
       if (page) {
         const urlFn = page.type === 'landing_page' ? getPublicLandingUrl : getPublicPageUrl;
@@ -421,12 +443,32 @@ export function StorefrontFooterContent({
             </div>
           )}
 
-          {/* Footer Menu Links */}
-          {menuItems.length > 0 && (
+          {/* Footer Menu 1 Links */}
+          {footer1Items.length > 0 && (
             <div className="text-center md:text-left">
-              <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>Links</h4>
+              <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>{footer1Name}</h4>
               <nav className="flex flex-col gap-2">
-                {menuItems.map((item) => (
+                {footer1Items.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={getMenuItemUrl(item)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={e => isEditing && e.preventDefault()}
+                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          )}
+          
+          {/* Footer Menu 2 Links */}
+          {footer2Items.length > 0 && (
+            <div className="text-center md:text-left">
+              <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>{footer2Name}</h4>
+              <nav className="flex flex-col gap-2">
+                {footer2Items.map((item) => (
                   <Link
                     key={item.id}
                     to={getMenuItemUrl(item)}
