@@ -14,6 +14,7 @@ export interface FinanceEntry {
   category: string | null;
   entry_date: string;
   notes: string | null;
+  finance_entry_type_id: string | null;
   created_at: string;
   updated_at: string;
 }

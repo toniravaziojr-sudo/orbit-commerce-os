@@ -16,6 +16,7 @@ export interface Purchase {
   actual_delivery_date: string | null;
   notes: string | null;
   entry_invoice_id: string | null;
+  purchase_type_id: string | null;
   created_at: string;
   updated_at: string;
   supplier?: Supplier;

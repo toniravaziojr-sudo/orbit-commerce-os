@@ -8,7 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { TypeSelector } from "@/components/ui/type-selector";
 import type { Supplier } from "@/hooks/useSuppliers";
+import { useSupplierTypes } from "@/hooks/useSupplierTypes";
 
 const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
@@ -19,6 +21,7 @@ const formSchema = z.object({
   contact_person: z.string().optional(),
   notes: z.string().optional(),
   is_active: z.boolean().default(true),
+  supplier_type_id: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -38,6 +41,8 @@ export function SupplierFormDialog({
   onSubmit,
   isLoading,
 }: SupplierFormDialogProps) {
+  const { supplierTypes, createSupplierType, deleteSupplierType } = useSupplierTypes();
+  
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -49,6 +54,7 @@ export function SupplierFormDialog({
       contact_person: "",
       notes: "",
       is_active: true,
+      supplier_type_id: "",
     },
   });
 
@@ -64,13 +70,25 @@ export function SupplierFormDialog({
         contact_person: supplier?.contact_person || "",
         notes: supplier?.notes || "",
         is_active: supplier?.is_active ?? true,
+        supplier_type_id: supplier?.supplier_type_id || "",
       });
     }
   }, [open, supplier, form]);
 
   const handleSubmit = (data: FormData) => {
-    onSubmit(data);
+    onSubmit({
+      ...data,
+      supplier_type_id: data.supplier_type_id || null,
+    } as any);
     form.reset();
+  };
+
+  const handleCreateType = async (name: string) => {
+    await createSupplierType.mutateAsync(name);
+  };
+
+  const handleDeleteType = async (id: string) => {
+    await deleteSupplierType.mutateAsync(id);
   };
 
   return (
@@ -90,6 +108,29 @@ export function SupplierFormDialog({
                   <FormLabel>Nome *</FormLabel>
                   <FormControl>
                     <Input placeholder="Nome do fornecedor" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="supplier_type_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Fornecedor</FormLabel>
+                  <FormControl>
+                    <TypeSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={supplierTypes.map(t => ({ id: t.id, name: t.name }))}
+                      onCreateNew={handleCreateType}
+                      onDelete={handleDeleteType}
+                      placeholder="Selecione o tipo de fornecedor..."
+                      createPlaceholder="Ex: Matéria-prima, Serviços..."
+                      isCreating={createSupplierType.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
