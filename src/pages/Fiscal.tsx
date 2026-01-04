@@ -22,7 +22,7 @@ import { FiscalErrorResolver, parseErrorMessage } from '@/components/fiscal/Fisc
 import { CorrectInvoiceDialog } from '@/components/fiscal/CorrectInvoiceDialog';
 import { InutilizarNumerosDialog } from '@/components/fiscal/InutilizarNumerosDialog';
 import { EntryInvoiceDialog } from '@/components/fiscal/EntryInvoiceDialog';
-import { InvoiceFiltersComponent, type InvoiceFilters } from '@/components/fiscal/InvoiceFilters';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
 import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
@@ -77,7 +77,8 @@ export default function Fiscal() {
   const [errorResolverOpen, setErrorResolverOpen] = useState(false);
   const [currentErrors, setCurrentErrors] = useState<any[]>([]);
   const [currentErrorInvoiceId, setCurrentErrorInvoiceId] = useState<string | null>(null);
-  const [advancedFilters, setAdvancedFilters] = useState<InvoiceFilters>({});
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   
@@ -138,14 +139,14 @@ export default function Fiscal() {
       if (!matchesSearch) return false;
     }
 
-    // Advanced filters (only date now)
-    if (advancedFilters.startDate) {
+    // Date filters
+    if (startDate) {
       const invDate = new Date(inv.created_at);
-      if (invDate < advancedFilters.startDate) return false;
+      if (invDate < startDate) return false;
     }
-    if (advancedFilters.endDate) {
+    if (endDate) {
       const invDate = new Date(inv.created_at);
-      const endOfDay = new Date(advancedFilters.endDate);
+      const endOfDay = new Date(endDate);
       endOfDay.setHours(23, 59, 59, 999);
       if (invDate > endOfDay) return false;
     }
@@ -778,10 +779,14 @@ export default function Fiscal() {
                 </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
-                <InvoiceFiltersComponent 
-                  filters={advancedFilters} 
-                  onChange={setAdvancedFilters}
-                  onClear={() => setAdvancedFilters({})}
+                <DateRangeFilter
+                  startDate={startDate}
+                  endDate={endDate}
+                  onChange={(start, end) => {
+                    setStartDate(start);
+                    setEndDate(end);
+                  }}
+                  label="Data de emissão"
                 />
                 <ExportInvoicesButton invoices={filteredInvoices || []} isLoading={invoicesLoading} />
               </div>

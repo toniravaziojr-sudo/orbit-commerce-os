@@ -152,6 +152,9 @@ export function useOrders(options?: {
   status?: string;
   paymentStatus?: string;
   shippingStatus?: string;
+  startDate?: Date;
+  endDate?: Date;
+  dateField?: string;
 }) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
@@ -161,9 +164,12 @@ export function useOrders(options?: {
   const status = options?.status ?? 'all';
   const paymentStatus = options?.paymentStatus ?? 'all';
   const shippingStatus = options?.shippingStatus ?? 'all';
+  const startDate = options?.startDate;
+  const endDate = options?.endDate;
+  const dateField = options?.dateField ?? 'created_at';
 
   const ordersQuery = useQuery({
-    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus],
+    queryKey: ['orders', currentTenant?.id, page, pageSize, search, status, paymentStatus, shippingStatus, startDate?.toISOString(), endDate?.toISOString(), dateField],
     queryFn: async () => {
       if (!currentTenant?.id) return { data: [], count: 0 };
       
@@ -184,6 +190,17 @@ export function useOrders(options?: {
       }
       if (shippingStatus && shippingStatus !== 'all') {
         query = query.eq('shipping_status', shippingStatus as ShippingStatus);
+      }
+
+      // Date filters
+      if (startDate) {
+        const startIso = startDate.toISOString();
+        query = query.gte(dateField, startIso);
+      }
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte(dateField, endOfDay.toISOString());
       }
 
       // Apply pagination

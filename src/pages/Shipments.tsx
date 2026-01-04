@@ -59,6 +59,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog';
 import { ShipmentDetailsCard } from '@/components/shipping/ShipmentDetailsCard';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 
 type DeliveryStatus = 
   | 'label_created' 
@@ -177,13 +178,15 @@ export default function Shipments() {
   const [isPolling, setIsPolling] = useState(false);
   const [lastPollResult, setLastPollResult] = useState<{ timestamp: string; processed: number; updated: number; errors: number } | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [startDate, setStartDate] = useState<Date | undefined>();
+  const [endDate, setEndDate] = useState<Date | undefined>();
   
   // Owner/Admin check for debug features (real check using hasRole)
   const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
   
   // Fetch shipments
   const { data: shipments, isLoading } = useQuery({
-    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter, carrierFilter],
+    queryKey: ['admin-shipments', currentTenant?.id, search, statusFilter, carrierFilter, startDate?.toISOString(), endDate?.toISOString()],
     queryFn: async () => {
       if (!currentTenant?.id) return [];
       
@@ -207,6 +210,16 @@ export default function Shipments() {
       
       if (search) {
         query = query.or(`tracking_code.ilike.%${search}%,order.order_number.ilike.%${search}%`);
+      }
+      
+      // Date filters
+      if (startDate) {
+        query = query.gte('created_at', startDate.toISOString());
+      }
+      if (endDate) {
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('created_at', endOfDay.toISOString());
       }
       
       const { data, error } = await query;
@@ -442,6 +455,15 @@ export default function Shipments() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+              <DateRangeFilter
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(start, end) => {
+                  setStartDate(start);
+                  setEndDate(end);
+                }}
+                label="Data da remessa"
+              />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Status" />
