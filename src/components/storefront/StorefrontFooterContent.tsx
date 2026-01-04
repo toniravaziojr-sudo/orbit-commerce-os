@@ -498,25 +498,11 @@ export function StorefrontFooterContent({
             </div>
           )}
 
-          {/* Categories */}
-          {categories && categories.length > 0 && (
-            <div className="text-center md:text-left">
-              <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>Categorias</h4>
-              <nav className="flex flex-col gap-2">
-                {categories.map((category: Category) => (
-                  <Link
-                    key={category.id}
-                    to={getPublicCategoryUrl(tenantSlug, category.slug) || baseUrl}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={e => isEditing && e.preventDefault()}
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                  >
-                    {category.name}
-                  </Link>
-                ))}
-              </nav>
-            </div>
-          )}
+          {/* 
+            REMOVIDO: Seção automática de categorias
+            Motivo: Causava duplicação quando o Footer Menu 1 já tinha categorias.
+            As categorias devem ser gerenciadas exclusivamente via Menu Builder (Menus > Footer 1).
+          */}
 
           {/* Social Media - respects showSocial toggle */}
           {showSocial && hasSocialMedia && (
