@@ -134,9 +134,11 @@ export function VisualBuilder({
   const store = useBuilderStore(contentWithGlobalLayout);
 
   // Sync content when template or global layout changes
+  // Use preserveSelection to avoid losing sidebar when overrides change
   useEffect(() => {
     if (!layoutLoading && !overridesLoading) {
-      store.setContent(contentWithGlobalLayout);
+      // Preserve selection when only pageOverrides change (to keep sidebar visible)
+      store.setContent(contentWithGlobalLayout, true);
     }
   }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading]);
 

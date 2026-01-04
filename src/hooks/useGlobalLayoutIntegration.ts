@@ -93,6 +93,20 @@ export function applyGlobalLayout(
     ? globalLayout.checkout_footer_config 
     : globalLayout.footer_config;
 
+  // Global visibility flags
+  const globalHeaderEnabled = globalLayout.header_enabled ?? true;
+  const globalFooterEnabled = globalLayout.footer_enabled ?? true;
+
+  // Determine effective visibility (priority: page override > global)
+  // For checkout pages, always use global (no overrides)
+  const effectiveHeaderEnabled = !isCheckout && pageOverrides?.header?.headerEnabled !== undefined
+    ? pageOverrides.header.headerEnabled
+    : globalHeaderEnabled;
+  
+  const effectiveFooterEnabled = !isCheckout && pageOverrides?.footer?.footerEnabled !== undefined
+    ? pageOverrides.footer.footerEnabled
+    : globalFooterEnabled;
+
   // If content has no children, return as is
   if (!content.children || content.children.length === 0) {
     return content;
@@ -103,7 +117,7 @@ export function applyGlobalLayout(
     child => child.type !== 'Header' && child.type !== 'Footer'
   );
 
-  // Apply page overrides to header (only for non-checkout pages)
+  // Apply page overrides to header props (only for non-checkout pages)
   let finalHeaderConfig = { ...headerConfig };
   if (!isCheckout && pageOverrides?.header) {
     // Apply notice enabled override
@@ -118,14 +132,25 @@ export function applyGlobalLayout(
     }
   }
 
-  // Add global Header at the beginning and Footer at the end
+  // Build children array based on visibility
+  const newChildren: BlockNode[] = [];
+  
+  // Add header only if enabled
+  if (effectiveHeaderEnabled) {
+    newChildren.push({ ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' });
+  }
+  
+  // Add content
+  newChildren.push(...filteredChildren);
+  
+  // Add footer only if enabled
+  if (effectiveFooterEnabled) {
+    newChildren.push({ ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' });
+  }
+
   return {
     ...content,
-    children: [
-      { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
-      ...filteredChildren,
-      { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' },
-    ],
+    children: newChildren,
   };
 }
 
