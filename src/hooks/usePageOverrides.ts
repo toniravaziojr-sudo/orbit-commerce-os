@@ -9,6 +9,7 @@ import { Json } from '@/integrations/supabase/types';
 export interface HeaderOverrides {
   noticeEnabled?: boolean;
   headerEnabled?: boolean;  // Exibir/ocultar header nesta página
+  showHeaderMenu?: boolean; // Exibir/ocultar o menu dentro do header nesta página
 }
 
 export interface FooterOverrides {

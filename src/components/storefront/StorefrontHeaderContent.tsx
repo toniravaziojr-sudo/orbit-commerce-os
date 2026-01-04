@@ -124,6 +124,9 @@ export function StorefrontHeaderContent({
   const customerAreaEnabled = Boolean(props.customerAreaEnabled);
   // Label fixo: apenas ícone no mobile, "Minha Conta" no desktop
   
+  // Header menu visibility (from page overrides)
+  const showHeaderMenu = props.showHeaderMenu !== undefined ? Boolean(props.showHeaderMenu) : true;
+  
   // Featured promos props
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
@@ -381,8 +384,8 @@ export function StorefrontHeaderContent({
                       </div>
                     )}
 
-                    {/* Mobile Navigation with hierarchy */}
-                    <nav className="flex flex-col gap-1">
+                    {/* Mobile Navigation with hierarchy - respects showHeaderMenu */}
+                    {showHeaderMenu && <nav className="flex flex-col gap-1">
                       {hierarchicalMenuItems.map((item) => (
                         <div key={item.id}>
                           {item.children.length > 0 ? (
@@ -459,8 +462,8 @@ export function StorefrontHeaderContent({
                           Minha Conta
                         </LinkWrapper>
                       )}
-                    </nav>
-                      
+                    </nav>}
+
                     {/* Contact Section (Mobile Drawer) */}
                     {(isWhatsAppValid || isPhoneValidFlag || isEmailValid) && (
                       <div className="border-t pt-4 mt-2">
@@ -571,7 +574,8 @@ export function StorefrontHeaderContent({
               "items-center gap-6",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
-              {hierarchicalMenuItems.map((item) => (
+              {/* Menu items - respects showHeaderMenu */}
+              {showHeaderMenu && hierarchicalMenuItems.map((item) => (
                 <div
                   key={item.id}
                   className="relative"

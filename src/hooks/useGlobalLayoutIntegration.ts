@@ -77,12 +77,14 @@ export interface GlobalLayoutData {
  * @param globalLayout - Global layout configuration
  * @param isCheckout - Whether this is a checkout page
  * @param pageOverrides - Optional page-specific overrides
+ * @param isEditing - If true, always include header/footer with hidden prop for toggling
  */
 export function applyGlobalLayout(
   content: BlockNode,
   globalLayout: GlobalLayoutData | null,
   isCheckout: boolean,
-  pageOverrides?: PageOverrides | null
+  pageOverrides?: PageOverrides | null,
+  isEditing: boolean = false
 ): BlockNode {
   if (!content || !globalLayout) return content;
 
@@ -130,22 +132,40 @@ export function applyGlobalLayout(
         },
       };
     }
+    // Apply show header menu override
+    if (pageOverrides.header.showHeaderMenu !== undefined) {
+      finalHeaderConfig = {
+        ...finalHeaderConfig,
+        props: {
+          ...finalHeaderConfig.props,
+          showHeaderMenu: pageOverrides.header.showHeaderMenu,
+        },
+      };
+    }
   }
 
   // Build children array based on visibility
   const newChildren: BlockNode[] = [];
   
-  // Add header only if enabled
-  if (effectiveHeaderEnabled) {
-    newChildren.push({ ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' });
+  // Add header - always in editor (with hidden prop), only if enabled in public
+  if (effectiveHeaderEnabled || isEditing) {
+    newChildren.push({ 
+      ...finalHeaderConfig, 
+      id: isCheckout ? 'checkout-header' : 'global-header',
+      hidden: !effectiveHeaderEnabled,
+    });
   }
   
   // Add content
   newChildren.push(...filteredChildren);
   
-  // Add footer only if enabled
-  if (effectiveFooterEnabled) {
-    newChildren.push({ ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' });
+  // Add footer - always in editor (with hidden prop), only if enabled in public
+  if (effectiveFooterEnabled || isEditing) {
+    newChildren.push({ 
+      ...footerConfig, 
+      id: isCheckout ? 'checkout-footer' : 'global-footer',
+      hidden: !effectiveFooterEnabled,
+    });
   }
 
   return {

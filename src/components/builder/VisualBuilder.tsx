@@ -127,7 +127,8 @@ export function VisualBuilder({
     if (!globalLayout || isCheckoutPage) return startingContent;
     // For home page, no overrides; for other pages, apply overrides
     const overridesToApply = isHomePage ? null : pageOverrides;
-    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply);
+    // isEditing=true so header/footer always appear in builder (with hidden prop if disabled)
+    return applyGlobalLayout(startingContent, globalLayout, isCheckoutPage, overridesToApply, true);
   }, [startingContent, globalLayout, isCheckoutPage, isHomePage, pageOverrides]);
 
   // Builder store for state management

@@ -512,6 +512,13 @@ export function HeaderFooterPropsEditor({
     ? Boolean(overrides.header?.headerEnabled)
     : globalHeaderEnabled;
 
+  // === HEADER MENU VISIBILITY OVERRIDE ===
+  // showHeaderMenu controls whether the navigation menu is shown in the header
+  const hasShowHeaderMenuOverride = overrides?.header?.showHeaderMenu !== undefined;
+  const effectiveShowHeaderMenu = hasShowHeaderMenuOverride
+    ? Boolean(overrides.header?.showHeaderMenu)
+    : true; // Default to true (menu visible)
+
   // Handle toggle change - only creates override, never modifies global
   const handleHeaderNoticeToggle = async (checked: boolean) => {
     try {
@@ -546,6 +553,26 @@ export function HeaderFooterPropsEditor({
   const handleHeaderEnabledRevertToGlobal = async () => {
     try {
       await clearHeaderOverride.mutateAsync('headerEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // Handle show header menu toggle
+  const handleShowHeaderMenuToggle = async (checked: boolean) => {
+    try {
+      await updateHeaderOverrides.mutateAsync({ showHeaderMenu: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
+  // Handle revert show header menu to global
+  const handleShowHeaderMenuRevertToGlobal = async () => {
+    try {
+      await clearHeaderOverride.mutateAsync('showHeaderMenu');
       toast.success('Revertido para configuração global');
     } catch (error) {
       toast.error('Erro ao reverter configuração');
@@ -1483,6 +1510,59 @@ export function HeaderFooterPropsEditor({
                       size="sm"
                       className="w-full gap-2 text-muted-foreground hover:text-foreground"
                       onClick={handleHeaderRevertToGlobal}
+                      disabled={clearHeaderOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Show Header Menu Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="header-menu-toggle" className="text-sm font-medium">
+                      Exibir Menu do Cabeçalho
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasShowHeaderMenuOverride 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="header-menu-toggle"
+                    checked={effectiveShowHeaderMenu}
+                    onCheckedChange={handleShowHeaderMenuToggle}
+                    disabled={isLoading || updateHeaderOverrides.isPending}
+                  />
+                </div>
+
+                {!hasShowHeaderMenuOverride && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: Ativado
+                    </span>
+                  </div>
+                )}
+
+                {hasShowHeaderMenuOverride && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleShowHeaderMenuRevertToGlobal}
                       disabled={clearHeaderOverride.isPending}
                     >
                       <RotateCcw className="h-3 w-3" />
