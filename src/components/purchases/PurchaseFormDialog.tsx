@@ -10,10 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { TypeSelector } from "@/components/ui/type-selector";
 import { Check, ChevronsUpDown, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Purchase } from "@/hooks/usePurchases";
 import type { Supplier } from "@/hooks/useSuppliers";
+import { usePurchaseTypes } from "@/hooks/usePurchaseTypes";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +29,7 @@ const formSchema = z.object({
   actual_delivery_date: z.string().optional(),
   notes: z.string().optional(),
   entry_invoice_id: z.string().optional(),
+  purchase_type_id: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -49,6 +52,7 @@ export function PurchaseFormDialog({
   isLoading,
 }: PurchaseFormDialogProps) {
   const { currentTenant } = useAuth();
+  const { purchaseTypes, createPurchaseType, deletePurchaseType } = usePurchaseTypes();
   const [invoiceOpen, setInvoiceOpen] = useState(false);
 
   // Buscar NF-es de entrada (tipo entrada ou todas autorizadas para vincular)
@@ -81,6 +85,7 @@ export function PurchaseFormDialog({
       actual_delivery_date: "",
       notes: "",
       entry_invoice_id: "",
+      purchase_type_id: "",
     },
   });
 
@@ -96,6 +101,7 @@ export function PurchaseFormDialog({
         actual_delivery_date: purchase?.actual_delivery_date || "",
         notes: purchase?.notes || "",
         entry_invoice_id: purchase?.entry_invoice_id || "",
+        purchase_type_id: purchase?.purchase_type_id || "",
       });
     }
   }, [open, purchase, form]);
@@ -106,9 +112,18 @@ export function PurchaseFormDialog({
       ...data,
       supplier_id: data.supplier_id || null,
       entry_invoice_id: data.entry_invoice_id || null,
+      purchase_type_id: data.purchase_type_id || null,
     };
     onSubmit(cleanData);
     form.reset();
+  };
+
+  const handleCreateType = async (name: string) => {
+    await createPurchaseType.mutateAsync(name);
+  };
+
+  const handleDeleteType = async (id: string) => {
+    await deletePurchaseType.mutateAsync(id);
   };
 
   const selectedInvoice = entryInvoices.find(inv => inv.id === form.watch('entry_invoice_id'));
@@ -130,6 +145,29 @@ export function PurchaseFormDialog({
                   <FormLabel>Descrição da Compra *</FormLabel>
                   <FormControl>
                     <Input placeholder="Ex: Materiais de escritório, Estoque de produtos..." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="purchase_type_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de Compra</FormLabel>
+                  <FormControl>
+                    <TypeSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={purchaseTypes.map(t => ({ id: t.id, name: t.name }))}
+                      onCreateNew={handleCreateType}
+                      onDelete={handleDeleteType}
+                      placeholder="Selecione o tipo de compra..."
+                      createPlaceholder="Ex: Matéria-prima, Serviços..."
+                      isCreating={createPurchaseType.isPending}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

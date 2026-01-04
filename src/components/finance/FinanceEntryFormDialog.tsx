@@ -8,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TypeSelector } from "@/components/ui/type-selector";
 import type { FinanceEntry } from "@/hooks/useFinanceEntries";
 import { FINANCE_CATEGORIES } from "@/hooks/useFinanceEntries";
+import { useFinanceEntryTypes } from "@/hooks/useFinanceEntryTypes";
 
 const formSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -18,6 +20,7 @@ const formSchema = z.object({
   category: z.string().optional(),
   entry_date: z.string().min(1, "Data é obrigatória"),
   notes: z.string().optional(),
+  finance_entry_type_id: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -39,6 +42,8 @@ export function FinanceEntryFormDialog({
   onSubmit,
   isLoading,
 }: FinanceEntryFormDialogProps) {
+  const { incomeTypes, expenseTypes, createFinanceEntryType, deleteFinanceEntryType } = useFinanceEntryTypes();
+  
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -48,6 +53,7 @@ export function FinanceEntryFormDialog({
       category: "",
       entry_date: new Date().toISOString().split('T')[0],
       notes: "",
+      finance_entry_type_id: "",
     },
   });
 
@@ -61,16 +67,30 @@ export function FinanceEntryFormDialog({
         category: entry?.category || "",
         entry_date: entry?.entry_date || new Date().toISOString().split('T')[0],
         notes: entry?.notes || "",
+        finance_entry_type_id: entry?.finance_entry_type_id || "",
       });
     }
   }, [open, entry, defaultType, form]);
 
   const watchType = form.watch('type');
   const categories = FINANCE_CATEGORIES[watchType];
+  const entryTypes = watchType === 'income' ? incomeTypes : expenseTypes;
 
   const handleSubmit = (data: FormData) => {
-    onSubmit({ ...data, source: 'manual' } as any);
+    onSubmit({ 
+      ...data, 
+      source: 'manual',
+      finance_entry_type_id: data.finance_entry_type_id || null,
+    } as any);
     form.reset();
+  };
+
+  const handleCreateType = async (name: string) => {
+    await createFinanceEntryType.mutateAsync({ name, entryType: watchType });
+  };
+
+  const handleDeleteType = async (id: string) => {
+    await deleteFinanceEntryType.mutateAsync(id);
   };
 
   return (
@@ -90,7 +110,7 @@ export function FinanceEntryFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Tipo</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue />
@@ -101,6 +121,29 @@ export function FinanceEntryFormDialog({
                       <SelectItem value="expense">Saída</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="finance_entry_type_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Tipo de {watchType === 'income' ? 'Entrada' : 'Saída'}</FormLabel>
+                  <FormControl>
+                    <TypeSelector
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={entryTypes.map(t => ({ id: t.id, name: t.name }))}
+                      onCreateNew={handleCreateType}
+                      onDelete={handleDeleteType}
+                      placeholder={`Selecione o tipo de ${watchType === 'income' ? 'entrada' : 'saída'}...`}
+                      createPlaceholder="Ex: Aluguel, Serviços..."
+                      isCreating={createFinanceEntryType.isPending}
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -156,7 +199,7 @@ export function FinanceEntryFormDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Categoria</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma categoria" />

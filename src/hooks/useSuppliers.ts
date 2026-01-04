@@ -14,6 +14,7 @@ export interface Supplier {
   contact_person: string | null;
   notes: string | null;
   is_active: boolean;
+  supplier_type_id: string | null;
   created_at: string;
   updated_at: string;
 }
