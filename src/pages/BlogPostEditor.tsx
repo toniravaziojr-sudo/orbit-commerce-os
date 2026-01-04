@@ -148,7 +148,7 @@ export default function BlogPostEditor() {
   return (
     <VisualBuilder
       tenantId={currentTenant.id}
-      pageType="institutional"
+      pageType="blog"
       pageId={postId}
       pageTitle={post.title}
       pageSlug={post.slug}

@@ -692,6 +692,8 @@ export function getDefaultTemplate(pageType: string): BlockNode {
       return JSON.parse(JSON.stringify(defaultNeutralPageTemplate));
     case 'page_template':
       return JSON.parse(JSON.stringify(defaultInstitutionalTemplate));
+    case 'blog':
+      return JSON.parse(JSON.stringify(defaultNeutralPageTemplate)); // Blog uses neutral template as base
     case 'institutional':
     default:
       return JSON.parse(JSON.stringify(defaultInstitutionalTemplate));
