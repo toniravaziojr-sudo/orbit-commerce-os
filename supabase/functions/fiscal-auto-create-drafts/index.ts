@@ -6,6 +6,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unbundleKitItems } from "../_shared/kit-unbundler.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -206,17 +207,6 @@ serve(async (req) => {
           continue;
         }
 
-        // Get fiscal product data
-        const productIds = orderItems.map(item => item.product_id).filter(Boolean);
-        const { data: fiscalProducts } = await supabase
-          .from('fiscal_products')
-          .select('*')
-          .in('product_id', productIds);
-
-        const fiscalProductMap = new Map(
-          (fiscalProducts || []).map(fp => [fp.product_id, fp])
-        );
-
         // Determine CFOP
         const cfop = determineCfop(
           fiscalSettings.endereco_uf,
@@ -225,12 +215,48 @@ serve(async (req) => {
           fiscalSettings.cfop_interestadual
         );
 
-        // Build invoice items - allow empty NCM, user can fill it in editor
-        const invoiceItems = orderItems.map((item, index) => {
+        // Check if we should unbundle kits
+        let itemsToProcess: Array<{
+          id?: string;
+          product_id: string;
+          product_name: string;
+          sku: string;
+          quantity: number;
+          unit_price: number;
+          total_price: number;
+        }> = orderItems.map(item => ({
+          id: item.id,
+          product_id: item.product_id,
+          product_name: item.product_name || 'Produto',
+          sku: item.sku || '',
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+        }));
+
+        // Unbundle kits if setting is enabled
+        if (fiscalSettings.desmembrar_estrutura) {
+          console.log(`[fiscal-auto-create-drafts] Unbundling kits for order ${order.order_number}`);
+          itemsToProcess = await unbundleKitItems(supabase, itemsToProcess);
+        }
+
+        // Get fiscal product data for all products (including unbundled)
+        const productIds = itemsToProcess.map(item => item.product_id).filter(Boolean);
+        const { data: fiscalProducts } = await supabase
+          .from('fiscal_products')
+          .select('*')
+          .in('product_id', productIds);
+
+        const fiscalProductMap = new Map(
+          (fiscalProducts || []).map((fp: any) => [fp.product_id, fp])
+        );
+
+        // Build invoice items
+        const invoiceItems = itemsToProcess.map((item, index) => {
           const fiscalProduct = fiscalProductMap.get(item.product_id);
           return {
             numero_item: index + 1,
-            order_item_id: item.id,
+            order_item_id: item.id || null,
             codigo_produto: item.sku || item.product_id?.substring(0, 8) || `PROD${index + 1}`,
             descricao: item.product_name || 'Produto',
             ncm: fiscalProduct?.ncm || '', // Can be empty, user fills in editor

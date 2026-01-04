@@ -54,6 +54,8 @@ export interface FiscalSettings {
   enviar_email_nfe: boolean;
   email_nfe_subject: string | null;
   email_nfe_body: string | null;
+  // Kit unbundling
+  desmembrar_estrutura: boolean;
 }
 
 export interface CertificateInfo {

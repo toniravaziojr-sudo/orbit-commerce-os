@@ -91,6 +91,7 @@ export default function FiscalSettings() {
     enviar_email_nfe: true,
     email_nfe_subject: '',
     email_nfe_body: '',
+    desmembrar_estrutura: false,
   });
 
   const [certPassword, setCertPassword] = useState('');
@@ -884,6 +885,37 @@ Obrigado pela preferência!
                     />
                   </div>
                 </>
+              )}
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="desmembrar_estrutura" className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    Desmembrar Estrutura do Produto na NF-e
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Produtos com composição (kits) serão desmembrados em seus componentes na NF-e
+                  </p>
+                </div>
+                <Switch
+                  id="desmembrar_estrutura"
+                  checked={formData.desmembrar_estrutura || false}
+                  onCheckedChange={(checked) => handleChange('desmembrar_estrutura', checked)}
+                />
+              </div>
+              {formData.desmembrar_estrutura && (
+                <div className="p-3 bg-muted/50 rounded-lg border text-sm">
+                  <p className="font-medium mb-1">Exemplo:</p>
+                  <p className="text-muted-foreground">
+                    Um "Kit 2x Shampoo + 2x Suplemento" aparecerá na NF-e como:
+                  </p>
+                  <ul className="list-disc list-inside text-muted-foreground mt-1">
+                    <li>Item 1: Shampoo (Qtde: 2)</li>
+                    <li>Item 2: Suplemento (Qtde: 2)</li>
+                  </ul>
+                </div>
               )}
             </div>
           </CardContent>

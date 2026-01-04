@@ -27,9 +27,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, ArrowLeft, ImageIcon, Link2 } from 'lucide-react';
+import { Loader2, ArrowLeft, ImageIcon, Link2, Package } from 'lucide-react';
 import { ProductImageManager } from './ProductImageManager';
 import { RelatedProductsSelect } from './RelatedProductsSelect';
+import { ProductStructureEditor } from './ProductStructureEditor';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
 
 const productSchema = z.object({
@@ -62,6 +63,8 @@ const productSchema = z.object({
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
   
   has_variants: z.boolean().default(false),
+  product_format: z.enum(['simple', 'with_variants', 'with_composition']).default('simple'),
+  stock_type: z.enum(['physical', 'virtual']).default('physical'),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -135,6 +138,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       status: product?.status ?? 'draft',
       
       has_variants: product?.has_variants ?? false,
+      product_format: product?.product_format ?? 'simple',
+      stock_type: product?.stock_type ?? 'physical',
     },
   });
 
@@ -182,6 +187,8 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           status: data.status,
           is_featured: false,
           has_variants: data.has_variants,
+          product_format: data.product_format,
+          stock_type: data.stock_type,
         });
       }
       onSuccess();
@@ -211,7 +218,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="basic">Básico</TabsTrigger>
               <TabsTrigger value="images" disabled={!isEditing}>
                 <ImageIcon className="h-4 w-4 mr-1" />
@@ -219,6 +226,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               </TabsTrigger>
               <TabsTrigger value="pricing">Preços</TabsTrigger>
               <TabsTrigger value="inventory">Estoque</TabsTrigger>
+              <TabsTrigger 
+                value="structure" 
+                disabled={!isEditing || form.watch('product_format') !== 'with_composition'}
+              >
+                <Package className="h-4 w-4 mr-1" />
+                Estrutura
+              </TabsTrigger>
               <TabsTrigger value="related" disabled={!isEditing}>
                 <Link2 className="h-4 w-4 mr-1" />
                 Relacionados
@@ -324,7 +338,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
                   <Separator />
 
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-3">
                     <FormField
                       control={form.control}
                       name="status"
@@ -347,6 +361,39 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                               <SelectItem value="archived">Arquivado</SelectItem>
                             </SelectContent>
                           </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="product_format"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Formato do Produto</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            defaultValue={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione o formato" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="simple">Simples</SelectItem>
+                              <SelectItem value="with_variants">Com variações</SelectItem>
+                              <SelectItem value="with_composition">Com composição (Kit)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            {field.value === 'with_composition' 
+                              ? 'Configure os componentes na aba "Estrutura"' 
+                              : field.value === 'with_variants'
+                              ? 'Produto com variações de cor, tamanho, etc.'
+                              : 'Produto simples sem variações'}
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -730,6 +777,29 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="structure" className="space-y-4 mt-4">
+              {isEditing && product && form.watch('product_format') === 'with_composition' ? (
+                <ProductStructureEditor
+                  productId={product.id}
+                  stockType={form.watch('stock_type')}
+                  onStockTypeChange={(type) => form.setValue('stock_type', type)}
+                />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Estrutura do Produto</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground text-sm">
+                      {!isEditing 
+                        ? 'Salve o produto primeiro para configurar a estrutura'
+                        : 'Selecione o formato "Com composição (Kit)" para habilitar esta aba'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="related" className="space-y-4 mt-4">

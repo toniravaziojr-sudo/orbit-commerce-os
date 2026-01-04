@@ -2658,6 +2658,7 @@ export type Database = {
           csosn_padrao: string | null
           cst_padrao: string | null
           default_shipping_provider: string | null
+          desmembrar_estrutura: boolean | null
           email_nfe_body: string | null
           email_nfe_subject: string | null
           emissao_automatica: boolean | null
@@ -2708,6 +2709,7 @@ export type Database = {
           csosn_padrao?: string | null
           cst_padrao?: string | null
           default_shipping_provider?: string | null
+          desmembrar_estrutura?: boolean | null
           email_nfe_body?: string | null
           email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
@@ -2758,6 +2760,7 @@ export type Database = {
           csosn_padrao?: string | null
           cst_padrao?: string | null
           default_shipping_provider?: string | null
+          desmembrar_estrutura?: boolean | null
           email_nfe_body?: string | null
           email_nfe_subject?: string | null
           emissao_automatica?: boolean | null
@@ -4791,6 +4794,57 @@ export type Database = {
           },
         ]
       }
+      product_components: {
+        Row: {
+          component_product_id: string
+          cost_price: number | null
+          created_at: string | null
+          id: string
+          parent_product_id: string
+          quantity: number
+          sale_price: number | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          component_product_id: string
+          cost_price?: number | null
+          created_at?: string | null
+          id?: string
+          parent_product_id: string
+          quantity?: number
+          sale_price?: number | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          component_product_id?: string
+          cost_price?: number | null
+          created_at?: string | null
+          id?: string
+          parent_product_id?: string
+          quantity?: number
+          sale_price?: number | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_components_component_product_id_fkey"
+            columns: ["component_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_components_parent_product_id_fkey"
+            columns: ["parent_product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_feed_status: {
         Row: {
           created_at: string
@@ -5064,6 +5118,7 @@ export type Database = {
           name: string
           ncm: string | null
           price: number
+          product_format: string | null
           promotion_end_date: string | null
           promotion_start_date: string | null
           seo_description: string | null
@@ -5073,6 +5128,7 @@ export type Database = {
           slug: string
           status: string
           stock_quantity: number
+          stock_type: string | null
           tenant_id: string
           updated_at: string
           weight: number | null
@@ -5096,6 +5152,7 @@ export type Database = {
           name: string
           ncm?: string | null
           price: number
+          product_format?: string | null
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           seo_description?: string | null
@@ -5105,6 +5162,7 @@ export type Database = {
           slug: string
           status?: string
           stock_quantity?: number
+          stock_type?: string | null
           tenant_id: string
           updated_at?: string
           weight?: number | null
@@ -5128,6 +5186,7 @@ export type Database = {
           name?: string
           ncm?: string | null
           price?: number
+          product_format?: string | null
           promotion_end_date?: string | null
           promotion_start_date?: string | null
           seo_description?: string | null
@@ -5137,6 +5196,7 @@ export type Database = {
           slug?: string
           status?: string
           stock_quantity?: number
+          stock_type?: string | null
           tenant_id?: string
           updated_at?: string
           weight?: number | null

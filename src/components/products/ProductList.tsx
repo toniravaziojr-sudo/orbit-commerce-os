@@ -140,6 +140,8 @@ export function ProductList({ onCreateProduct, onEditProduct }: ProductListProps
         status: 'draft',
         is_featured: false,
         has_variants: product.has_variants,
+        product_format: product.product_format || 'simple',
+        stock_type: product.stock_type || 'physical',
       });
 
       toast.success('Produto duplicado com sucesso!');
