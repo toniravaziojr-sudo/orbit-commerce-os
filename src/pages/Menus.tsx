@@ -333,9 +333,14 @@ export default function Menus() {
     });
   };
 
-  const handleCreateMenu = async (location: 'header' | 'footer') => {
+  const handleCreateMenu = async (location: 'header' | 'footer_1' | 'footer_2') => {
+    const nameMap: Record<string, string> = {
+      header: 'Menu Principal',
+      footer_1: 'Menu',
+      footer_2: 'Políticas',
+    };
     await createMenu.mutateAsync({
-      name: location === 'header' ? 'Menu Principal' : 'Menu Rodapé',
+      name: nameMap[location] || 'Menu',
       location,
     });
   };
@@ -385,7 +390,8 @@ export default function Menus() {
   };
 
   const headerMenu = menus?.find(m => m.location === 'header');
-  const footerMenu = menus?.find(m => m.location === 'footer');
+  const footer1Menu = menus?.find(m => m.location === 'footer_1' || m.location === 'footer');
+  const footer2Menu = menus?.find(m => m.location === 'footer_2');
 
   // Get parent options for dropdown
   const parentOptions = items?.filter(i => !i.parent_id) || [];
@@ -406,7 +412,7 @@ export default function Menus() {
         description="Gerencie os menus de navegação da sua loja"
       />
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-3 gap-6">
         {/* Header Menu */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
@@ -439,33 +445,71 @@ export default function Menus() {
           </CardContent>
         </Card>
 
-        {/* Footer Menu */}
+        {/* Footer 1 Menu */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg flex items-center gap-2">
               <MenuIcon className="h-5 w-5" />
-              Menu Footer
+              Footer 1
             </CardTitle>
-            {footerMenu && (
+            {footer1Menu && (
               <Badge variant="outline">Ativo</Badge>
             )}
           </CardHeader>
           <CardContent>
-            {footerMenu ? (
+            <p className="text-xs text-muted-foreground mb-3">
+              Título: <strong>{footer1Menu?.name || 'Menu'}</strong>
+            </p>
+            {footer1Menu ? (
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => setSelectedMenuId(footerMenu.id)}
+                onClick={() => setSelectedMenuId(footer1Menu.id)}
               >
                 Editar Itens
               </Button>
             ) : (
               <Button 
                 className="w-full"
-                onClick={() => handleCreateMenu('footer')}
+                onClick={() => handleCreateMenu('footer_1')}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Criar Menu Footer
+                Criar Footer 1
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Footer 2 Menu */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MenuIcon className="h-5 w-5" />
+              Footer 2
+            </CardTitle>
+            {footer2Menu && (
+              <Badge variant="outline">Ativo</Badge>
+            )}
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              Título: <strong>{footer2Menu?.name || 'Políticas'}</strong>
+            </p>
+            {footer2Menu ? (
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => setSelectedMenuId(footer2Menu.id)}
+              >
+                Editar Itens
+              </Button>
+            ) : (
+              <Button 
+                className="w-full"
+                onClick={() => handleCreateMenu('footer_2')}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Criar Footer 2
               </Button>
             )}
           </CardContent>
