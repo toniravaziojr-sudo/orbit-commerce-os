@@ -114,18 +114,38 @@ export function PublicTemplateRenderer({
       ? globalLayout.checkout_footer_config 
       : globalLayout.footer_config;
 
-    // Visibility flags from global layout
-    const headerEnabled = globalLayout.header_enabled ?? true;
-    const footerEnabled = globalLayout.footer_enabled ?? true;
+    // Global visibility flags from storefront_global_layout
+    const globalHeaderEnabled = globalLayout.header_enabled ?? true;
+    const globalFooterEnabled = globalLayout.footer_enabled ?? true;
+    const globalShowFooter1 = globalLayout.show_footer_1 ?? true;
+    const globalShowFooter2 = globalLayout.show_footer_2 ?? true;
+
+    // Apply page overrides for visibility (priority: page override > global)
+    // For checkout, we don't use page overrides
+    const effectiveHeaderEnabled = !isCheckout && pageOverrides?.header?.headerEnabled !== undefined
+      ? pageOverrides.header.headerEnabled
+      : globalHeaderEnabled;
+    
+    const effectiveFooterEnabled = !isCheckout && pageOverrides?.footer?.footerEnabled !== undefined
+      ? pageOverrides.footer.footerEnabled
+      : globalFooterEnabled;
+    
+    const effectiveShowFooter1 = !isCheckout && pageOverrides?.footer?.showFooter1 !== undefined
+      ? pageOverrides.footer.showFooter1
+      : globalShowFooter1;
+    
+    const effectiveShowFooter2 = !isCheckout && pageOverrides?.footer?.showFooter2 !== undefined
+      ? pageOverrides.footer.showFooter2
+      : globalShowFooter2;
 
     // If content has no children, return empty
     if (!content.children || content.children.length === 0) {
       return { 
-        headerNode: headerEnabled ? { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null, 
+        headerNode: effectiveHeaderEnabled ? { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null, 
         contentNodes: [], 
-        footerNode: footerEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
-        showFooter1: globalLayout.show_footer_1 ?? true,
-        showFooter2: globalLayout.show_footer_2 ?? true,
+        footerNode: effectiveFooterEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
+        showFooter1: effectiveShowFooter1,
+        showFooter2: effectiveShowFooter2,
       };
     }
 
@@ -134,7 +154,7 @@ export function PublicTemplateRenderer({
       child => child.type !== 'Header' && child.type !== 'Footer'
     );
 
-    // Apply page overrides to header (only for non-checkout pages)
+    // Apply page overrides to header props (only for non-checkout pages)
     let finalHeaderConfig = { ...headerConfig };
     if (!isCheckout && pageOverrides?.header) {
       if (pageOverrides.header.noticeEnabled !== undefined) {
@@ -149,11 +169,11 @@ export function PublicTemplateRenderer({
     }
 
     return {
-      headerNode: headerEnabled ? { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null,
+      headerNode: effectiveHeaderEnabled ? { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null,
       contentNodes: filteredChildren,
-      footerNode: footerEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
-      showFooter1: globalLayout.show_footer_1 ?? true,
-      showFooter2: globalLayout.show_footer_2 ?? true,
+      footerNode: effectiveFooterEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
+      showFooter1: effectiveShowFooter1,
+      showFooter2: effectiveShowFooter2,
     };
   }, [content, globalLayout, isCheckout, pageOverrides]);
 
