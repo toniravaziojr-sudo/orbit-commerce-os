@@ -8,10 +8,14 @@ import { Json } from '@/integrations/supabase/types';
 
 export interface HeaderOverrides {
   noticeEnabled?: boolean;
+  headerEnabled?: boolean;  // Exibir/ocultar header nesta página
 }
 
 export interface FooterOverrides {
   noticeEnabled?: boolean;
+  footerEnabled?: boolean;  // Exibir/ocultar footer nesta página
+  showFooter1?: boolean;    // Exibir/ocultar menu footer 1
+  showFooter2?: boolean;    // Exibir/ocultar menu footer 2
 }
 
 export interface PageOverrides {
@@ -241,6 +245,42 @@ export function usePageOverrides({ tenantId, pageType, pageId }: UsePageOverride
     // Check if there's a footer notice override
     hasFooterNoticeOverride: (): boolean => {
       return overrides?.footer?.noticeEnabled !== undefined;
+    },
+    // Helper to get effective header enabled state
+    getEffectiveHeaderEnabled: (globalHeaderEnabled: boolean): boolean => {
+      const override = overrides?.header?.headerEnabled;
+      return override !== undefined ? override : globalHeaderEnabled;
+    },
+    // Check if there's a header enabled override
+    hasHeaderEnabledOverride: (): boolean => {
+      return overrides?.header?.headerEnabled !== undefined;
+    },
+    // Helper to get effective footer enabled state
+    getEffectiveFooterEnabled: (globalFooterEnabled: boolean): boolean => {
+      const override = overrides?.footer?.footerEnabled;
+      return override !== undefined ? override : globalFooterEnabled;
+    },
+    // Check if there's a footer enabled override
+    hasFooterEnabledOverride: (): boolean => {
+      return overrides?.footer?.footerEnabled !== undefined;
+    },
+    // Helper to get effective show footer 1 state
+    getEffectiveShowFooter1: (globalShowFooter1: boolean): boolean => {
+      const override = overrides?.footer?.showFooter1;
+      return override !== undefined ? override : globalShowFooter1;
+    },
+    // Check if there's a show footer 1 override
+    hasShowFooter1Override: (): boolean => {
+      return overrides?.footer?.showFooter1 !== undefined;
+    },
+    // Helper to get effective show footer 2 state
+    getEffectiveShowFooter2: (globalShowFooter2: boolean): boolean => {
+      const override = overrides?.footer?.showFooter2;
+      return override !== undefined ? override : globalShowFooter2;
+    },
+    // Check if there's a show footer 2 override
+    hasShowFooter2Override: (): boolean => {
+      return overrides?.footer?.showFooter2 !== undefined;
     },
   };
 }

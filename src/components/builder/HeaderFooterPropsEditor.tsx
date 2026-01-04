@@ -483,6 +483,13 @@ export function HeaderFooterPropsEditor({
     ? Boolean(overrides.header?.noticeEnabled) 
     : globalHeaderNoticeEnabled;
 
+  // === HEADER VISIBILITY OVERRIDE ===
+  // headerEnabled controls whether header is shown on this page
+  const hasHeaderEnabledOverride = overrides?.header?.headerEnabled !== undefined;
+  const effectiveHeaderEnabled = hasHeaderEnabledOverride
+    ? Boolean(overrides.header?.headerEnabled)
+    : true; // Default: true (global value comes from storefront_global_layout)
+
   // Handle toggle change - only creates override, never modifies global
   const handleHeaderNoticeToggle = async (checked: boolean) => {
     try {
@@ -493,10 +500,30 @@ export function HeaderFooterPropsEditor({
     }
   };
 
+  // Handle header enabled toggle
+  const handleHeaderEnabledToggle = async (checked: boolean) => {
+    try {
+      await updateHeaderOverrides.mutateAsync({ headerEnabled: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
   // Handle revert to global - removes override
   const handleHeaderRevertToGlobal = async () => {
     try {
       await clearHeaderOverride.mutateAsync('noticeEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // Handle revert header enabled to global
+  const handleHeaderEnabledRevertToGlobal = async () => {
+    try {
+      await clearHeaderOverride.mutateAsync('headerEnabled');
       toast.success('Revertido para configuração global');
     } catch (error) {
       toast.error('Erro ao reverter configuração');
@@ -515,6 +542,22 @@ export function HeaderFooterPropsEditor({
     ? Boolean(overrides.footer?.noticeEnabled) 
     : globalFooterNoticeEnabled;
 
+  // === FOOTER VISIBILITY OVERRIDES ===
+  const hasFooterEnabledOverride = overrides?.footer?.footerEnabled !== undefined;
+  const effectiveFooterEnabled = hasFooterEnabledOverride
+    ? Boolean(overrides.footer?.footerEnabled)
+    : true;
+
+  const hasShowFooter1Override = overrides?.footer?.showFooter1 !== undefined;
+  const effectiveShowFooter1 = hasShowFooter1Override
+    ? Boolean(overrides.footer?.showFooter1)
+    : true;
+
+  const hasShowFooter2Override = overrides?.footer?.showFooter2 !== undefined;
+  const effectiveShowFooter2 = hasShowFooter2Override
+    ? Boolean(overrides.footer?.showFooter2)
+    : true;
+
   // Handle footer toggle change - only creates override, never modifies global
   const handleFooterNoticeToggle = async (checked: boolean) => {
     try {
@@ -525,10 +568,70 @@ export function HeaderFooterPropsEditor({
     }
   };
 
+  // Handle footer enabled toggle
+  const handleFooterEnabledToggle = async (checked: boolean) => {
+    try {
+      await updateFooterOverrides.mutateAsync({ footerEnabled: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
+  // Handle show footer 1 toggle
+  const handleShowFooter1Toggle = async (checked: boolean) => {
+    try {
+      await updateFooterOverrides.mutateAsync({ showFooter1: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
+  // Handle show footer 2 toggle
+  const handleShowFooter2Toggle = async (checked: boolean) => {
+    try {
+      await updateFooterOverrides.mutateAsync({ showFooter2: checked });
+      toast.success('Configuração salva');
+    } catch (error) {
+      toast.error('Erro ao salvar configuração');
+    }
+  };
+
   // Handle footer revert to global - removes override
   const handleFooterRevertToGlobal = async () => {
     try {
       await clearFooterOverride.mutateAsync('noticeEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // Handle footer enabled revert to global
+  const handleFooterEnabledRevertToGlobal = async () => {
+    try {
+      await clearFooterOverride.mutateAsync('footerEnabled');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // Handle show footer 1 revert to global
+  const handleShowFooter1RevertToGlobal = async () => {
+    try {
+      await clearFooterOverride.mutateAsync('showFooter1');
+      toast.success('Revertido para configuração global');
+    } catch (error) {
+      toast.error('Erro ao reverter configuração');
+    }
+  };
+
+  // Handle show footer 2 revert to global
+  const handleShowFooter2RevertToGlobal = async () => {
+    try {
+      await clearFooterOverride.mutateAsync('showFooter2');
       toast.success('Revertido para configuração global');
     } catch (error) {
       toast.error('Erro ao reverter configuração');
@@ -1261,6 +1364,59 @@ export function HeaderFooterPropsEditor({
                 Personalizações desta página
               </div>
 
+              {/* Header Enabled Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="header-enabled-toggle" className="text-sm font-medium">
+                      Exibir Cabeçalho
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasHeaderEnabledOverride 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="header-enabled-toggle"
+                    checked={effectiveHeaderEnabled}
+                    onCheckedChange={handleHeaderEnabledToggle}
+                    disabled={isLoading || updateHeaderOverrides.isPending}
+                  />
+                </div>
+
+                {!hasHeaderEnabledOverride && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: Ativado
+                    </span>
+                  </div>
+                )}
+
+                {hasHeaderEnabledOverride && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleHeaderEnabledRevertToGlobal}
+                      disabled={clearHeaderOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {/* Notice Toggle Override */}
               <div className="rounded-lg border bg-background p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1282,7 +1438,6 @@ export function HeaderFooterPropsEditor({
                   />
                 </div>
 
-                {/* Inheritance indicator when no override */}
                 {!hasHeaderNoticeOverride && (
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
@@ -1292,7 +1447,6 @@ export function HeaderFooterPropsEditor({
                   </div>
                 )}
 
-                {/* Override indicator when override exists */}
                 {hasHeaderNoticeOverride && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
@@ -1326,6 +1480,165 @@ export function HeaderFooterPropsEditor({
                 Personalizações desta página
               </div>
 
+              {/* Footer Enabled Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="footer-enabled-toggle" className="text-sm font-medium">
+                      Exibir Rodapé
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasFooterEnabledOverride 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="footer-enabled-toggle"
+                    checked={effectiveFooterEnabled}
+                    onCheckedChange={handleFooterEnabledToggle}
+                    disabled={isLoading || updateFooterOverrides.isPending}
+                  />
+                </div>
+
+                {!hasFooterEnabledOverride && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: Ativado
+                    </span>
+                  </div>
+                )}
+
+                {hasFooterEnabledOverride && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleFooterEnabledRevertToGlobal}
+                      disabled={clearFooterOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Show Footer 1 Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="footer-menu1-toggle" className="text-sm font-medium">
+                      Exibir Menu do Rodapé 1
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasShowFooter1Override 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="footer-menu1-toggle"
+                    checked={effectiveShowFooter1}
+                    onCheckedChange={handleShowFooter1Toggle}
+                    disabled={isLoading || updateFooterOverrides.isPending}
+                  />
+                </div>
+
+                {!hasShowFooter1Override && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: Ativado
+                    </span>
+                  </div>
+                )}
+
+                {hasShowFooter1Override && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleShowFooter1RevertToGlobal}
+                      disabled={clearFooterOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Show Footer 2 Toggle Override */}
+              <div className="rounded-lg border bg-background p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="footer-menu2-toggle" className="text-sm font-medium">
+                      Exibir Menu do Rodapé 2
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {hasShowFooter2Override 
+                        ? 'Usando configuração desta página' 
+                        : 'Herdando do global'}
+                    </p>
+                  </div>
+                  <Switch
+                    id="footer-menu2-toggle"
+                    checked={effectiveShowFooter2}
+                    onCheckedChange={handleShowFooter2Toggle}
+                    disabled={isLoading || updateFooterOverrides.isPending}
+                  />
+                </div>
+
+                {!hasShowFooter2Override && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
+                    <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span className="text-xs text-primary">
+                      Herdando do global: Ativado
+                    </span>
+                  </div>
+                )}
+
+                {hasShowFooter2Override && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
+                      <AlertCircle className="h-3 w-3 text-amber-600" />
+                      <span className="text-xs text-amber-700">
+                        Override ativo nesta página
+                      </span>
+                    </div>
+                    
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-muted-foreground hover:text-foreground"
+                      onClick={handleShowFooter2RevertToGlobal}
+                      disabled={clearFooterOverride.isPending}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      Voltar ao global
+                    </Button>
+                  </div>
+                )}
+              </div>
+
               {/* Notice Toggle Override */}
               <div className="rounded-lg border bg-background p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -1347,7 +1660,6 @@ export function HeaderFooterPropsEditor({
                   />
                 </div>
 
-                {/* Inheritance indicator when no override */}
                 {!hasFooterNoticeOverride && (
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
@@ -1357,7 +1669,6 @@ export function HeaderFooterPropsEditor({
                   </div>
                 )}
 
-                {/* Override indicator when override exists */}
                 {hasFooterNoticeOverride && (
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 p-2 rounded-md bg-amber-500/10 border border-amber-500/30">
