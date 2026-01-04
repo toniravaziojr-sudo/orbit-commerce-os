@@ -9,12 +9,14 @@ import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { useCart } from '@/contexts/CartContext';
 import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
+import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { CheckoutForm, CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
 import { CheckoutOrderSummary } from './CheckoutOrderSummary';
 import { CheckoutShipping } from './CheckoutShipping';
 import { OrderBumpSection } from './OrderBumpSection';
 import { PaymentMethodSelector } from './PaymentMethodSelector';
 import { PaymentResultDisplay } from './PaymentResult';
+import { CheckoutTestimonials } from './CheckoutTestimonials';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft } from 'lucide-react';
@@ -41,12 +43,16 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
   const { items, shipping, isLoading: cartLoading, clearCart } = useCart();
   const { draft, isHydrated, updateCartSnapshot, updateCustomer, clearDraft } = useOrderDraft();
   const { processPayment, isProcessing, paymentResult } = useCheckoutPayment({ tenantId });
+  const { config: checkoutConfig } = useCheckoutConfig();
   
   const [formData, setFormData] = useState<CheckoutFormData>(initialCheckoutFormData);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof CheckoutFormData, string>>>({});
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
+  // Initialize payment method from config order (first enabled method)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    checkoutConfig.paymentMethodsOrder[0] || 'pix'
+  );
   const [cardData, setCardData] = useState<CardData>({
     number: '', holderName: '', expMonth: '', expYear: '', cvv: '',
   });
@@ -368,11 +374,19 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
               cardData={cardData}
               onCardDataChange={setCardData}
               disabled={isProcessing}
+              methodsOrder={checkoutConfig.paymentMethodsOrder}
             />
           </div>
 
           {/* Order bump */}
-          <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
+          {checkoutConfig.orderBumpEnabled && (
+            <OrderBumpSection tenantId={tenantId} disabled={isProcessing} />
+          )}
+          
+          {/* Testimonials */}
+          {checkoutConfig.testimonialsEnabled && (
+            <CheckoutTestimonials />
+          )}
         </div>
 
         {/* Sidebar - Order Summary */}

@@ -583,7 +583,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         console.log('[Checkout] Navigating to thankYou with cleanOrderNumber:', cleanOrderNumber);
 
         if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
-          // Credit card approved immediately - track Purchase
+          // Credit card approved immediately - always track Purchase
           trackPurchase({
             order_id: cleanOrderNumber,
             value: totals.grandTotal,
@@ -596,12 +596,15 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
           toast.success('Pedido realizado com sucesso!');
           navigate(`${urls.thankYou()}?pedido=${encodeURIComponent(cleanOrderNumber)}`);
         } else {
-          // PIX/Boleto - track Purchase (pending payment still counts as conversion)
-          trackPurchase({
-            order_id: cleanOrderNumber,
-            value: totals.grandTotal,
-            items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
-          });
+          // PIX/Boleto - track Purchase only if purchaseEventTiming allows
+          // 'all_orders' = track now, 'paid_only' = defer to payment confirmation
+          if (checkoutConfig.purchaseEventTiming === 'all_orders') {
+            trackPurchase({
+              order_id: cleanOrderNumber,
+              value: totals.grandTotal,
+              items: items.map(i => ({ id: i.product_id, name: i.name, price: i.price, quantity: i.quantity })),
+            });
+          }
           
           if (result.pixQrCode || result.pixQrCodeUrl || result.boletoUrl) {
             localStorage.setItem(`pending_payment_${cleanOrderNumber}`, JSON.stringify({
