@@ -44,7 +44,9 @@ export default function StorefrontBlogPost() {
 
       // Increment view count (fire and forget)
       if (data?.id) {
-        supabase.rpc('increment_blog_view_count', { post_id: data.id }).catch(() => {
+        // Using type assertion because the RPC function is newly created
+        // and types.ts hasn't been regenerated yet
+        (supabase.rpc as any)('increment_blog_view_count', { post_id: data.id }).then(() => {}).catch(() => {
           // Silently ignore errors - view count is not critical
         });
       }
