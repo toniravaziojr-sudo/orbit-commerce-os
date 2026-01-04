@@ -226,18 +226,18 @@ serve(async (req) => {
               
               console.log(`[fiscal-check-status] Order ${invoice.order_id} updated to shipped`);
             } else {
-              // Se não criou remessa, apenas marcar como dispatched
+              // Se não criou remessa, marcar como processing (aguardando remessa manual)
               await supabaseClient
                 .from('orders')
-                .update({ status: 'dispatched' })
+                .update({ status: 'processing' })
                 .eq('id', invoice.order_id);
             }
           } catch (shipError) {
             console.error(`[fiscal-check-status] Failed to create shipment:`, shipError);
-            // Fallback: marcar como dispatched
+            // Fallback: marcar como processing (aguardando remessa manual)
           await supabaseClient
             .from('orders')
-            .update({ status: 'dispatched' })
+            .update({ status: 'processing' })
             .eq('id', invoice.order_id);
         }
       }

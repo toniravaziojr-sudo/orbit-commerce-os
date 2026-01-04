@@ -357,25 +357,25 @@ serve(async (req) => {
                 })
                 .eq('id', invoice.order_id);
             } else {
-              // Se não criou remessa, apenas marcar como dispatched
+              // Se não criou remessa, marcar como processing (aguardando remessa manual)
               await supabaseClient
                 .from('orders')
-                .update({ status: 'dispatched' })
+                .update({ status: 'processing' })
                 .eq('id', invoice.order_id);
             }
           } catch (shipError) {
             console.error(`[fiscal-submit] Failed to create shipment:`, shipError);
-            // Fallback: marcar como dispatched
+            // Fallback: marcar como processing (aguardando remessa manual)
             await supabaseClient
               .from('orders')
-              .update({ status: 'dispatched' })
+              .update({ status: 'processing' })
               .eq('id', invoice.order_id);
           }
         } else {
-          // Sem auto_create_shipment, apenas atualizar status
+          // Sem auto_create_shipment, marcar como processing (aguardando remessa manual)
           await supabaseClient
             .from('orders')
-            .update({ status: 'dispatched' })
+            .update({ status: 'processing' })
             .eq('id', invoice.order_id);
         }
       }

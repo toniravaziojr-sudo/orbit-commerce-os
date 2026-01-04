@@ -172,11 +172,11 @@ serve(async (req) => {
         updateData.authorized_at = new Date().toISOString();
       }
       
-      // Atualizar status do pedido
+      // Atualizar status do pedido para processing (aguardando remessa manual)
       if (invoice.order_id) {
         await supabaseClient
           .from('orders')
-          .update({ status: 'dispatched' })
+          .update({ status: 'processing' })
           .eq('id', invoice.order_id);
       }
     }
