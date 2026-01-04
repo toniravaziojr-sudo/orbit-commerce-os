@@ -78,6 +78,43 @@ export interface OffersConfig {
   buyTogether: BuyTogetherConfig;
 }
 
+// =============================================
+// CART CONFIG - Cart display and feature configuration
+// =============================================
+
+export interface CartConfig {
+  // Carrinho suspenso
+  miniCartEnabled: boolean;
+  showGoToCartButton: boolean;
+  
+  // Funcionalidades
+  crossSellEnabled: boolean;
+  shippingCalculatorEnabled: boolean;
+  couponEnabled: boolean;
+  sessionTrackingEnabled: boolean;
+  
+  // Banner promocional (controle individual por formato)
+  bannerDesktopEnabled: boolean;
+  bannerDesktopUrl: string | null;
+  bannerMobileEnabled: boolean;
+  bannerMobileUrl: string | null;
+  bannerLink: string | null;
+}
+
+// =============================================
+// CHECKOUT CONFIG - Checkout display and feature configuration
+// =============================================
+
+export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
+
+export interface CheckoutConfig {
+  couponEnabled: boolean;
+  orderBumpEnabled: boolean;
+  testimonialsEnabled: boolean;
+  paymentMethodsOrder: PaymentMethod[];
+  purchaseEventTiming: 'all_orders' | 'paid_only';
+}
+
 // Default configurations
 export const defaultShippingConfig: ShippingConfig = {
   provider: 'mock',
@@ -124,6 +161,28 @@ export const defaultOffersConfig: OffersConfig = {
     enabled: true,
     useExistingRules: true,
   },
+};
+
+export const defaultCartConfig: CartConfig = {
+  miniCartEnabled: true,
+  showGoToCartButton: true,
+  crossSellEnabled: true,
+  shippingCalculatorEnabled: true,
+  couponEnabled: true,
+  sessionTrackingEnabled: true,
+  bannerDesktopEnabled: false,
+  bannerDesktopUrl: null,
+  bannerMobileEnabled: false,
+  bannerMobileUrl: null,
+  bannerLink: null,
+};
+
+export const defaultCheckoutConfig: CheckoutConfig = {
+  couponEnabled: true,
+  orderBumpEnabled: true,
+  testimonialsEnabled: false,
+  paymentMethodsOrder: ['pix', 'credit_card', 'boleto'],
+  purchaseEventTiming: 'paid_only',
 };
 
 // Parse functions for database JSONB
@@ -208,5 +267,46 @@ export function parseOffersConfig(data: unknown): OffersConfig {
       enabled: buyTogetherData?.enabled !== false,
       useExistingRules: buyTogetherData?.useExistingRules !== false,
     },
+  };
+}
+
+export function parseCartConfig(data: unknown): CartConfig {
+  if (!data || typeof data !== 'object') return defaultCartConfig;
+  const obj = data as Record<string, unknown>;
+  return {
+    miniCartEnabled: obj.miniCartEnabled !== false,
+    showGoToCartButton: obj.showGoToCartButton !== false,
+    crossSellEnabled: obj.crossSellEnabled !== false,
+    shippingCalculatorEnabled: obj.shippingCalculatorEnabled !== false,
+    couponEnabled: obj.couponEnabled !== false,
+    sessionTrackingEnabled: obj.sessionTrackingEnabled !== false,
+    bannerDesktopEnabled: Boolean(obj.bannerDesktopEnabled),
+    bannerDesktopUrl: obj.bannerDesktopUrl ? String(obj.bannerDesktopUrl) : null,
+    bannerMobileEnabled: Boolean(obj.bannerMobileEnabled),
+    bannerMobileUrl: obj.bannerMobileUrl ? String(obj.bannerMobileUrl) : null,
+    bannerLink: obj.bannerLink ? String(obj.bannerLink) : null,
+  };
+}
+
+export function parseCheckoutConfig(data: unknown): CheckoutConfig {
+  if (!data || typeof data !== 'object') return defaultCheckoutConfig;
+  const obj = data as Record<string, unknown>;
+  
+  const validMethods: PaymentMethod[] = ['pix', 'credit_card', 'boleto'];
+  let paymentMethodsOrder: PaymentMethod[] = defaultCheckoutConfig.paymentMethodsOrder;
+  
+  if (Array.isArray(obj.paymentMethodsOrder)) {
+    const parsed = obj.paymentMethodsOrder.filter(
+      (m): m is PaymentMethod => validMethods.includes(m as PaymentMethod)
+    );
+    if (parsed.length > 0) paymentMethodsOrder = parsed;
+  }
+  
+  return {
+    couponEnabled: obj.couponEnabled !== false,
+    orderBumpEnabled: obj.orderBumpEnabled !== false,
+    testimonialsEnabled: Boolean(obj.testimonialsEnabled),
+    paymentMethodsOrder,
+    purchaseEventTiming: obj.purchaseEventTiming === 'all_orders' ? 'all_orders' : 'paid_only',
   };
 }

@@ -62,7 +62,6 @@ const navigation: NavGroup[] = [
     label: "E-commerce",
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
-      { title: "Checkouts Abandonados", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },
@@ -73,7 +72,7 @@ const navigation: NavGroup[] = [
     label: "Loja Online",
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
-      { title: "Conversão de Carrinho", href: "/storefront/conversao", icon: TrendingUp },
+      { title: "Carrinho e Checkout", href: "/cart-checkout", icon: ShoppingBag },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas da Loja", href: "/pages", icon: FileText },
       { title: "Blog", href: "/blog", icon: BookOpen },

@@ -10,18 +10,26 @@ import {
   ShippingConfig,
   BenefitConfig,
   OffersConfig,
+  CartConfig,
+  CheckoutConfig,
   parseShippingConfig,
   parseBenefitConfig,
   parseOffersConfig,
+  parseCartConfig,
+  parseCheckoutConfig,
   defaultShippingConfig,
   defaultBenefitConfig,
   defaultOffersConfig,
+  defaultCartConfig,
+  defaultCheckoutConfig,
 } from '@/lib/storeConfigTypes';
 
 export interface StoreConfig {
   shippingConfig: ShippingConfig;
   benefitConfig: BenefitConfig;
   offersConfig: OffersConfig;
+  cartConfig: CartConfig;
+  checkoutConfig: CheckoutConfig;
 }
 
 export function useStoreConfig() {
@@ -34,7 +42,7 @@ export function useStoreConfig() {
     queryFn: async (): Promise<StoreConfig> => {
       const { data, error } = await supabase
         .from('store_settings')
-        .select('shipping_config, benefit_config, offers_config')
+        .select('shipping_config, benefit_config, offers_config, cart_config, checkout_config')
         .eq('tenant_id', currentTenant!.id)
         .maybeSingle();
 
@@ -44,6 +52,8 @@ export function useStoreConfig() {
         shippingConfig: parseShippingConfig(data?.shipping_config),
         benefitConfig: parseBenefitConfig(data?.benefit_config),
         offersConfig: parseOffersConfig(data?.offers_config),
+        cartConfig: parseCartConfig(data?.cart_config),
+        checkoutConfig: parseCheckoutConfig(data?.checkout_config),
       };
     },
     enabled: !!currentTenant?.id,
@@ -51,7 +61,6 @@ export function useStoreConfig() {
 
   const updateShippingConfig = useMutation({
     mutationFn: async (shippingConfig: ShippingConfig) => {
-      // First check if settings exist
       const { data: existing } = await supabase
         .from('store_settings')
         .select('id')
@@ -149,16 +158,86 @@ export function useStoreConfig() {
     },
   });
 
+  const updateCartConfig = useMutation({
+    mutationFn: async (cartConfig: CartConfig) => {
+      const { data: existing } = await supabase
+        .from('store_settings')
+        .select('id')
+        .eq('tenant_id', currentTenant!.id)
+        .maybeSingle();
+
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ cart_config: cartConfig as unknown as import('@/integrations/supabase/types').Json })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('store_settings')
+          .insert({ 
+            tenant_id: currentTenant!.id, 
+            cart_config: cartConfig as unknown as import('@/integrations/supabase/types').Json 
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['store-config'] });
+      toast({ title: 'Configurações do carrinho salvas!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao salvar configurações do carrinho', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const updateCheckoutConfig = useMutation({
+    mutationFn: async (checkoutConfig: CheckoutConfig) => {
+      const { data: existing } = await supabase
+        .from('store_settings')
+        .select('id')
+        .eq('tenant_id', currentTenant!.id)
+        .maybeSingle();
+
+      if (existing?.id) {
+        const { error } = await supabase
+          .from('store_settings')
+          .update({ checkout_config: checkoutConfig as unknown as import('@/integrations/supabase/types').Json })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('store_settings')
+          .insert({ 
+            tenant_id: currentTenant!.id, 
+            checkout_config: checkoutConfig as unknown as import('@/integrations/supabase/types').Json 
+          });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['store-config'] });
+      toast({ title: 'Configurações do checkout salvas!' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Erro ao salvar configurações do checkout', description: error.message, variant: 'destructive' });
+    },
+  });
+
   return {
     config: config || {
       shippingConfig: defaultShippingConfig,
       benefitConfig: defaultBenefitConfig,
       offersConfig: defaultOffersConfig,
+      cartConfig: defaultCartConfig,
+      checkoutConfig: defaultCheckoutConfig,
     },
     isLoading,
     error,
     updateShippingConfig,
     updateBenefitConfig,
     updateOffersConfig,
+    updateCartConfig,
+    updateCheckoutConfig,
   };
 }
