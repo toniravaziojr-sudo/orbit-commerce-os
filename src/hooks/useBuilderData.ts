@@ -148,6 +148,20 @@ export function useSaveDraft() {
         return 1;
       }
 
+      // Special handling for blog posts - save directly to blog_posts.content
+      if (pageType === 'blog' && pageId) {
+        const { error } = await supabase
+          .from('blog_posts')
+          .update({ 
+            content: content as unknown as Json,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
+        return 1;
+      }
+
       // Special handling for institutional pages with direct content - save to store_pages.content
       if (pageType === 'institutional' && pageId) {
         const { error } = await supabase
@@ -262,6 +276,22 @@ export function usePublish() {
           })
           .eq('template_id', pageId);
         
+        return 1;
+      }
+
+      // Special handling for blog posts - save directly to blog_posts.content and publish
+      if (pageType === 'blog' && pageId) {
+        const { error } = await supabase
+          .from('blog_posts')
+          .update({ 
+            content: content as unknown as Json,
+            status: 'published',
+            published_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pageId);
+        
+        if (error) throw error;
         return 1;
       }
 
