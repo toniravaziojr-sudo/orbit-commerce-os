@@ -385,7 +385,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
           
           {/* Testimonials */}
           {checkoutConfig.testimonialsEnabled && (
-            <CheckoutTestimonials />
+            <CheckoutTestimonials productIds={items.map(item => item.product_id)} />
           )}
         </div>
 
