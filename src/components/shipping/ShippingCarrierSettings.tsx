@@ -49,46 +49,7 @@ interface CarrierDefinition {
   authModes?: { value: string; label: string; description: string; recommended?: boolean }[];
 }
 
-// Helper to parse JWT and check expiration
-function parseJwt(token: string): { exp?: number; iat?: number } | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-function getTokenStatus(token: string | undefined): {
-  status: 'ok' | 'expiring' | 'expired' | 'invalid' | 'none';
-  expiresAt?: Date;
-  hoursRemaining?: number;
-} {
-  if (!token || token.length < 50) {
-    return { status: 'none' };
-  }
-  
-  const payload = parseJwt(token);
-  if (!payload || !payload.exp) {
-    return { status: 'invalid' };
-  }
-  
-  const expiresAt = new Date(payload.exp * 1000);
-  const now = new Date();
-  const hoursRemaining = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
-  
-  if (hoursRemaining <= 0) {
-    return { status: 'expired', expiresAt, hoursRemaining: 0 };
-  }
-  
-  if (hoursRemaining < 2) {
-    return { status: 'expiring', expiresAt, hoursRemaining };
-  }
-  
-  return { status: 'ok', expiresAt, hoursRemaining };
-}
+import { getTokenStatus } from '@/lib/tokenUtils';
 
 const CARRIER_DEFINITIONS: CarrierDefinition[] = [
   {
