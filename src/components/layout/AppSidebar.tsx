@@ -62,7 +62,6 @@ const navigation: NavGroup[] = [
     label: "E-commerce",
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
-      { title: "Rastreios", href: "/shipments", icon: Truck },
       { title: "Checkouts Abandonados", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },
@@ -100,13 +99,19 @@ const navigation: NavGroup[] = [
     ],
   },
   {
+    label: "ERP",
+    items: [
+      { title: "Fiscal", href: "/fiscal", icon: FileText },
+      { title: "Financeiro", href: "/finance", icon: DollarSign },
+      { title: "Compras", href: "/purchases", icon: ShoppingBag },
+      { title: "Remessas Logísticas", href: "/shipping", icon: Truck },
+    ],
+  },
+  {
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
       { title: "Importar Dados", href: "/import", icon: Upload },
-      { title: "Financeiro", href: "/finance", icon: DollarSign },
-      { title: "Fiscal", href: "/fiscal", icon: FileText },
-      { title: "Compras", href: "/purchases", icon: ShoppingBag },
       { title: "Configurações", href: "/settings", icon: Settings },
     ],
   },

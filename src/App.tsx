@@ -48,6 +48,8 @@ import StoreConfigSettings from "@/pages/StoreConfigSettings";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import HealthMonitor from "@/pages/HealthMonitor";
 import Shipments from "@/pages/Shipments";
+import ShippingDashboard from "@/pages/ShippingDashboard";
+import ShippingSettings from "@/pages/ShippingSettings";
 import Auth from "@/pages/Auth";
 import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
 import CreateStore from "@/pages/CreateStore";
@@ -212,8 +214,12 @@ const App = () => {
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/orders/new" element={<OrderNew />} />
                   <Route path="/orders/:id" element={<OrderDetail />} />
-                  <Route path="/shipments" element={<Shipments />} />
                   <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
+                  {/* Shipping / Remessas Logísticas */}
+                  <Route path="/shipping" element={<ShippingDashboard />} />
+                  <Route path="/shipping/shipments" element={<Shipments />} />
+                  <Route path="/shipping/settings" element={<ShippingSettings />} />
+                  <Route path="/shipments" element={<Navigate to="/shipping/shipments" replace />} />
                   <Route path="/products" element={<Products />} />
                   <Route path="/categories" element={<Categories />} />
                   <Route path="/discounts" element={<Discounts />} />
