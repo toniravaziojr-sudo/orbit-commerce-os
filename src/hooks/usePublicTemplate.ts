@@ -76,7 +76,8 @@ export function usePublicTemplate(tenantSlug: string, pageType: PageType): Publi
       };
     },
     enabled: !!tenantSlug,
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    staleTime: 1000 * 60 * 15, // Cache for 15 minutes (published templates rarely change)
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
   });
 
   return {
@@ -250,7 +251,8 @@ export function usePublicPageTemplate(tenantSlug: string, pageSlug: string): Pub
       };
     },
     enabled: !!tenantSlug && !!pageSlug,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 15, // Cache for 15 minutes (published pages rarely change)
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
   });
 
   return {
