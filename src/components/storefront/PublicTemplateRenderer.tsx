@@ -102,9 +102,9 @@ export function PublicTemplateRenderer({
 
   // Build final content with global layout applied - but WITHOUT the afterHeaderSlot in the tree
   // The afterHeaderSlot will be rendered separately between header and content
-  const { headerNode, contentNodes, footerNode } = useMemo(() => {
+  const { headerNode, contentNodes, footerNode, showFooter1, showFooter2 } = useMemo(() => {
     if (!content || !globalLayout) {
-      return { headerNode: null, contentNodes: [], footerNode: null };
+      return { headerNode: null, contentNodes: [], footerNode: null, showFooter1: true, showFooter2: true };
     }
 
     const headerConfig = isCheckout 
@@ -114,12 +114,18 @@ export function PublicTemplateRenderer({
       ? globalLayout.checkout_footer_config 
       : globalLayout.footer_config;
 
+    // Visibility flags from global layout
+    const headerEnabled = globalLayout.header_enabled ?? true;
+    const footerEnabled = globalLayout.footer_enabled ?? true;
+
     // If content has no children, return empty
     if (!content.children || content.children.length === 0) {
       return { 
-        headerNode: { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' }, 
+        headerNode: headerEnabled ? { ...headerConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null, 
         contentNodes: [], 
-        footerNode: { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } 
+        footerNode: footerEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
+        showFooter1: globalLayout.show_footer_1 ?? true,
+        showFooter2: globalLayout.show_footer_2 ?? true,
       };
     }
 
@@ -143,9 +149,11 @@ export function PublicTemplateRenderer({
     }
 
     return {
-      headerNode: { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' },
+      headerNode: headerEnabled ? { ...finalHeaderConfig, id: isCheckout ? 'checkout-header' : 'global-header' } : null,
       contentNodes: filteredChildren,
-      footerNode: { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' },
+      footerNode: footerEnabled ? { ...footerConfig, id: isCheckout ? 'checkout-footer' : 'global-footer' } : null,
+      showFooter1: globalLayout.show_footer_1 ?? true,
+      showFooter2: globalLayout.show_footer_2 ?? true,
     };
   }, [content, globalLayout, isCheckout, pageOverrides]);
 
@@ -257,7 +265,14 @@ export function PublicTemplateRenderer({
         {/* 5. FOOTER - always rendered last */}
         {footerNode && (
           <BlockRenderer
-            node={footerNode}
+            node={{
+              ...footerNode,
+              props: {
+                ...footerNode.props,
+                showFooter1,
+                showFooter2,
+              },
+            }}
             context={context}
             isEditing={false}
           />

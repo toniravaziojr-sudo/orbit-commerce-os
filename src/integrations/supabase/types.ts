@@ -6188,8 +6188,12 @@ export type Database = {
           checkout_header_config: Json
           created_at: string
           footer_config: Json
+          footer_enabled: boolean
           header_config: Json
+          header_enabled: boolean
           id: string
+          show_footer_1: boolean
+          show_footer_2: boolean
           tenant_id: string
           updated_at: string
         }
@@ -6198,8 +6202,12 @@ export type Database = {
           checkout_header_config?: Json
           created_at?: string
           footer_config?: Json
+          footer_enabled?: boolean
           header_config?: Json
+          header_enabled?: boolean
           id?: string
+          show_footer_1?: boolean
+          show_footer_2?: boolean
           tenant_id: string
           updated_at?: string
         }
@@ -6208,8 +6216,12 @@ export type Database = {
           checkout_header_config?: Json
           created_at?: string
           footer_config?: Json
+          footer_enabled?: boolean
           header_config?: Json
+          header_enabled?: boolean
           id?: string
+          show_footer_1?: boolean
+          show_footer_2?: boolean
           tenant_id?: string
           updated_at?: string
         }
