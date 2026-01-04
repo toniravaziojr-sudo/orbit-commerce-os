@@ -1,4 +1,4 @@
-import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette, Globe, Mail, FileText } from "lucide-react";
+import { Settings as SettingsIcon, Store, Users, Shield, Bell, Palette, Globe, Mail } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,6 @@ const getSettingsSections = (isPlatformAdmin: boolean) => {
       description: "Gerencie domínios personalizados da sua loja",
       icon: Globe,
       href: "/settings/domains",
-    },
-    {
-      title: "Fiscal / NF-e",
-      description: "Configure emissão de notas fiscais eletrônicas",
-      icon: FileText,
-      href: "/settings/fiscal",
     },
     {
       title: "Equipe & Permissões",

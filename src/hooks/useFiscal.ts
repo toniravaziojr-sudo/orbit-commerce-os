@@ -311,7 +311,12 @@ export function useFiscalProducts() {
 }
 
 // Hook: Fiscal Invoices
-export function useFiscalInvoices(filters?: { status?: string; startDate?: string; endDate?: string }) {
+export function useFiscalInvoices(filters?: { 
+  status?: string; 
+  startDate?: string; 
+  endDate?: string;
+  tipoDocumento?: number; // 0 = Entrada, 1 = Saída (default)
+}) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
 
@@ -325,6 +330,10 @@ export function useFiscalInvoices(filters?: { status?: string; startDate?: strin
         .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
+
+      // Filter by tipo_documento (default to 1 = Saída if not specified)
+      const tipoDoc = filters?.tipoDocumento ?? 1;
+      query = query.eq('tipo_documento', tipoDoc);
 
       if (filters?.status) {
         query = query.eq('status', filters.status);
@@ -345,12 +354,12 @@ export function useFiscalInvoices(filters?: { status?: string; startDate?: strin
 }
 
 // Hook: Invoice Stats
-export function useFiscalStats() {
+export function useFiscalStats(tipoDocumento?: number) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
   
   return useQuery({
-    queryKey: ['fiscal-stats', tenantId],
+    queryKey: ['fiscal-stats', tenantId, tipoDocumento],
     queryFn: async () => {
       if (!tenantId) return { total: 0, authorized: 0, pending: 0, rejected: 0 };
 
@@ -359,12 +368,19 @@ export function useFiscalStats() {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('fiscal_invoices')
         .select('status')
         .eq('tenant_id', tenantId)
         .gte('created_at', startOfMonth)
         .lte('created_at', endOfMonth);
+
+      // Filter by tipo_documento if specified
+      if (tipoDocumento !== undefined) {
+        query = query.eq('tipo_documento', tipoDocumento);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
