@@ -179,7 +179,7 @@ export function usePublicStorefront(tenantSlug: string) {
     enabled: !!tenant?.id,
   });
 
-  // Fetch footer menu
+  // Fetch footer menu (footer_1, with legacy 'footer' fallback)
   const { data: footerMenu } = useQuery({
     queryKey: ['public-footer-menu', tenant?.id],
     queryFn: async () => {
@@ -187,7 +187,7 @@ export function usePublicStorefront(tenantSlug: string) {
         .from('menus')
         .select('*')
         .eq('tenant_id', tenant!.id)
-        .eq('location', 'footer')
+        .in('location', ['footer', 'footer_1'])
         .maybeSingle();
 
       if (menuError) throw menuError;
