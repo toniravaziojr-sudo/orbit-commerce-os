@@ -15,6 +15,7 @@ import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
+import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -42,6 +43,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   const [copied, setCopied] = useState(false);
   const [user, setUser] = useState<any>(null);
   const { trackPurchase } = useMarketingEvents();
+  const { config: checkoutConfig } = useCheckoutConfig();
   const purchaseTrackedRef = useRef<string | null>(null);
   
   // Get order identifier from URL - normalize by removing # and trimming
@@ -75,11 +77,23 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
   }, [order?.payment_instructions]);
 
   // MARKETING: Track Purchase event when order loads (with deduplication)
+  // Respects purchaseEventTiming setting
   useEffect(() => {
     if (!order || !order.order_number || isLoading || isPreview) return;
     
     // Dedupe: only track once per order (even if component re-renders)
     if (purchaseTrackedRef.current === order.order_number) return;
+    
+    // Check purchaseEventTiming configuration
+    // 'paid_only': only track if payment_status is 'paid' or 'approved'
+    // 'all_orders': always track (this page is also called from checkout so we track here as backup)
+    const isPaid = order.payment_status === 'paid' || order.payment_status === 'approved';
+    
+    if (checkoutConfig.purchaseEventTiming === 'paid_only' && !isPaid) {
+      console.log('[ThankYou] Skipping Purchase event - payment not confirmed yet (purchaseEventTiming: paid_only)');
+      return;
+    }
+    
     purchaseTrackedRef.current = order.order_number;
     
     // Track Purchase event with all order data
@@ -95,7 +109,7 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
     });
     
     console.log('[ThankYou] Purchase event tracked for order:', order.order_number);
-  }, [order, isLoading, isPreview, trackPurchase]);
+  }, [order, isLoading, isPreview, trackPurchase, checkoutConfig.purchaseEventTiming]);
 
   // Check auth state
   useEffect(() => {

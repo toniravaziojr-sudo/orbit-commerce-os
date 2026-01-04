@@ -1,13 +1,46 @@
 // =============================================
 // PAYMENT METHOD SELECTOR - Choose between PIX, Boleto, Credit Card
+// Supports dynamic ordering via methodsOrder prop
 // =============================================
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { QrCode, Barcode, CreditCard } from 'lucide-react';
 import { PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
+
+interface PaymentMethodConfig {
+  value: PaymentMethod;
+  id: string;
+  icon: React.ReactNode;
+  label: string;
+  description: string;
+}
+
+const PAYMENT_METHODS: Record<PaymentMethod, PaymentMethodConfig> = {
+  pix: {
+    value: 'pix',
+    id: 'payment-pix',
+    icon: <QrCode className="h-5 w-5 text-green-600" />,
+    label: 'PIX',
+    description: 'Pagamento instantâneo',
+  },
+  boleto: {
+    value: 'boleto',
+    id: 'payment-boleto',
+    icon: <Barcode className="h-5 w-5 text-blue-600" />,
+    label: 'Boleto Bancário',
+    description: 'Vencimento em 3 dias úteis',
+  },
+  credit_card: {
+    value: 'credit_card',
+    id: 'payment-card',
+    icon: <CreditCard className="h-5 w-5 text-purple-600" />,
+    label: 'Cartão de Crédito',
+    description: 'Em até 12x sem juros',
+  },
+};
 
 interface PaymentMethodSelectorProps {
   selectedMethod: PaymentMethod;
@@ -15,6 +48,7 @@ interface PaymentMethodSelectorProps {
   cardData: CardData;
   onCardDataChange: (data: CardData) => void;
   disabled?: boolean;
+  methodsOrder?: PaymentMethod[];
 }
 
 export function PaymentMethodSelector({
@@ -23,6 +57,7 @@ export function PaymentMethodSelector({
   cardData,
   onCardDataChange,
   disabled = false,
+  methodsOrder = ['pix', 'credit_card', 'boleto'],
 }: PaymentMethodSelectorProps) {
   const formatCardNumber = (value: string): string => {
     const digits = value.replace(/\D/g, '').slice(0, 16);
@@ -37,6 +72,13 @@ export function PaymentMethodSelector({
     return digits;
   };
 
+  // Get ordered methods based on methodsOrder prop
+  const orderedMethods = useMemo(() => {
+    return methodsOrder
+      .filter(method => PAYMENT_METHODS[method])
+      .map(method => PAYMENT_METHODS[method]);
+  }, [methodsOrder]);
+
   return (
     <div className="border rounded-lg p-4">
       <h3 className="font-semibold mb-4">Forma de pagamento</h3>
@@ -47,44 +89,20 @@ export function PaymentMethodSelector({
         className="space-y-3"
         disabled={disabled}
       >
-        {/* PIX */}
-        <Label
-          htmlFor="payment-pix"
-          className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-        >
-          <RadioGroupItem value="pix" id="payment-pix" disabled={disabled} />
-          <QrCode className="h-5 w-5 text-green-600" />
-          <div className="flex-1">
-            <p className="font-medium">PIX</p>
-            <p className="text-sm text-muted-foreground">Pagamento instantâneo</p>
-          </div>
-        </Label>
-
-        {/* Boleto */}
-        <Label
-          htmlFor="payment-boleto"
-          className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-        >
-          <RadioGroupItem value="boleto" id="payment-boleto" disabled={disabled} />
-          <Barcode className="h-5 w-5 text-blue-600" />
-          <div className="flex-1">
-            <p className="font-medium">Boleto Bancário</p>
-            <p className="text-sm text-muted-foreground">Vencimento em 3 dias úteis</p>
-          </div>
-        </Label>
-
-        {/* Credit Card */}
-        <Label
-          htmlFor="payment-card"
-          className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
-        >
-          <RadioGroupItem value="credit_card" id="payment-card" disabled={disabled} />
-          <CreditCard className="h-5 w-5 text-purple-600" />
-          <div className="flex-1">
-            <p className="font-medium">Cartão de Crédito</p>
-            <p className="text-sm text-muted-foreground">Em até 12x sem juros</p>
-          </div>
-        </Label>
+        {orderedMethods.map((method) => (
+          <Label
+            key={method.value}
+            htmlFor={method.id}
+            className="flex items-center gap-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50 has-[:checked]:border-primary has-[:checked]:bg-primary/5"
+          >
+            <RadioGroupItem value={method.value} id={method.id} disabled={disabled} />
+            {method.icon}
+            <div className="flex-1">
+              <p className="font-medium">{method.label}</p>
+              <p className="text-sm text-muted-foreground">{method.description}</p>
+            </div>
+          </Label>
+        ))}
       </RadioGroup>
 
       {/* Credit Card Form */}
