@@ -25,6 +25,18 @@ interface ManualInvoiceItem {
   csosn: string;
 }
 
+interface OperationNature {
+  id: string;
+  nome: string;
+  cfop_intra: string;
+  cfop_inter: string;
+  csosn_padrao: string | null;
+  cst_pis: string | null;
+  cst_cofins: string | null;
+  info_complementares: string | null;
+  ativo: boolean;
+}
+
 // Validation helpers
 function isValidNcm(value: string): boolean {
   const numbers = value.replace(/\D/g, '');
@@ -72,7 +84,9 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
 
   const [isLoading, setIsLoading] = useState(false);
   const [orders, setOrders] = useState<Array<{ id: string; order_number: string; customer_name: string; total: number }>>([]);
+  const [operationNatures, setOperationNatures] = useState<OperationNature[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState<string>('manual');
+  const [selectedNatureId, setSelectedNatureId] = useState<string>('');
 
   // Form state
   const [destNome, setDestNome] = useState('');
@@ -92,9 +106,10 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
     { codigo: '', descricao: '', ncm: '', cfop: '5102', unidade: 'UN', quantidade: 1, valor_unitario: 0, origem: '0', csosn: '102' }
   ]);
 
-  // Fetch orders for import
+  // Fetch orders and operation natures
   useEffect(() => {
     if (open && tenantId) {
+      // Fetch orders
       supabase
         .from('orders')
         .select('id, order_number, customer_name, total')
@@ -104,8 +119,45 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
         .then(({ data }) => {
           if (data) setOrders(data);
         });
+
+      // Fetch operation natures
+      supabase
+        .from('fiscal_operation_natures')
+        .select('id, nome, cfop_intra, cfop_inter, csosn_padrao, cst_pis, cst_cofins, info_complementares, ativo')
+        .eq('tenant_id', tenantId)
+        .eq('ativo', true)
+        .order('nome')
+        .then(({ data }) => {
+          if (data) {
+            setOperationNatures(data as OperationNature[]);
+            // Set default nature if available
+            const defaultNature = data.find(n => n.nome === 'Venda de Mercadoria');
+            if (defaultNature && !selectedNatureId) {
+              handleNatureChange(defaultNature.id);
+            }
+          }
+        });
     }
   }, [open, tenantId]);
+
+  // Handle nature selection
+  const handleNatureChange = (natureId: string) => {
+    setSelectedNatureId(natureId);
+    const nature = operationNatures.find(n => n.id === natureId);
+    if (nature) {
+      setNaturezaOperacao(nature.nome);
+      // Apply nature's CFOP and CSOSN to items
+      setItems(prev => prev.map(item => ({
+        ...item,
+        cfop: nature.cfop_intra || item.cfop,
+        csosn: nature.csosn_padrao || item.csosn,
+      })));
+      // Apply complementary info as observations
+      if (nature.info_complementares) {
+        setObservacoes(prev => prev ? `${prev}\n${nature.info_complementares}` : nature.info_complementares || '');
+      }
+    }
+  };
 
   // Import order data
   const handleImportOrder = async (orderId: string) => {
@@ -632,12 +684,33 @@ export function ManualInvoiceDialog({ open, onOpenChange }: ManualInvoiceDialogP
               <CardTitle className="text-base">Informações Adicionais</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Natureza da Operação</Label>
-                <Input
-                  value={naturezaOperacao}
-                  onChange={e => setNaturezaOperacao(e.target.value)}
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Natureza da Operação</Label>
+                  <Select value={selectedNatureId} onValueChange={handleNatureChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a natureza..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {operationNatures.map((nature) => (
+                        <SelectItem key={nature.id} value={nature.id}>
+                          {nature.nome} (CFOP: {nature.cfop_intra}/{nature.cfop_inter})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Ao selecionar, o CFOP e CSOSN serão aplicados aos itens
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Descrição da Natureza</Label>
+                  <Input
+                    value={naturezaOperacao}
+                    onChange={e => setNaturezaOperacao(e.target.value)}
+                    placeholder="Ex: VENDA DE MERCADORIA"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Observações</Label>
