@@ -1,11 +1,16 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { WhatsAppOperatorSettings } from "@/components/integrations/WhatsAppOperatorSettings";
 import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
-import { IntegrationReadinessPanel } from "@/components/integrations/IntegrationReadinessPanel";
+import { PlatformIntegrationsSummary } from "@/components/integrations/PlatformIntegrationsSummary";
+import { PaymentsPlatformStatus } from "@/components/integrations/PaymentsPlatformStatus";
+import { FiscalPlatformStatus } from "@/components/integrations/FiscalPlatformStatus";
+import { ShippingPlatformStatus } from "@/components/integrations/ShippingPlatformStatus";
+import { MarketingPlatformStatus } from "@/components/integrations/MarketingPlatformStatus";
+import { DomainsPlatformStatus } from "@/components/integrations/DomainsPlatformStatus";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, AlertTriangle, Send, Activity } from "lucide-react";
+import { Shield, MessageCircle, Mail, AlertTriangle, Send, CreditCard, FileText, Truck, BarChart3, Globe, LayoutDashboard } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -16,11 +21,15 @@ import { Navigate } from "react-router-dom";
  * Platform Admin page for managing operator-level integrations.
  * Only accessible by platform operators (respeiteohomem@gmail.com).
  * 
- * This is separate from tenant-level integrations to avoid confusion.
- * 
- * Contains:
- * - WhatsApp Operator Settings (Z-API credentials per tenant)
- * - System Email Settings (platform-wide email configuration)
+ * Contains all external service integrations:
+ * - Summary overview of all integrations
+ * - WhatsApp (Z-API credentials per tenant)
+ * - Email (SendGrid system configuration)
+ * - Payments (Pagar.me, MercadoPago status)
+ * - Fiscal (Focus NFe status)
+ * - Shipping (Frenet, Correios, Loggi status)
+ * - Marketing (Meta, Google, TikTok pixels)
+ * - Domains (Custom domains and SSL status)
  */
 export default function PlatformIntegrations() {
   const { isPlatformOperator, isLoading } = usePlatformOperator();
@@ -60,22 +69,45 @@ export default function PlatformIntegrations() {
         </AlertDescription>
       </Alert>
 
-      {/* Integration Readiness Panel */}
-      <IntegrationReadinessPanel />
-
-      <Tabs defaultValue="whatsapp" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+      <Tabs defaultValue="resumo" className="space-y-6">
+        <TabsList className="flex flex-wrap gap-1 h-auto p-1">
+          <TabsTrigger value="resumo" className="gap-2">
+            <LayoutDashboard className="h-4 w-4" />
+            <span className="hidden sm:inline">Resumo</span>
+          </TabsTrigger>
           <TabsTrigger value="whatsapp" className="gap-2">
             <MessageCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp (Z-API)</span>
-            <span className="sm:hidden">WhatsApp</span>
+            <span className="hidden sm:inline">WhatsApp</span>
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-2">
             <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">Email do Sistema</span>
-            <span className="sm:hidden">Email</span>
+            <span className="hidden sm:inline">Email</span>
+          </TabsTrigger>
+          <TabsTrigger value="pagamentos" className="gap-2">
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Pagamentos</span>
+          </TabsTrigger>
+          <TabsTrigger value="fiscal" className="gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Fiscal</span>
+          </TabsTrigger>
+          <TabsTrigger value="logistica" className="gap-2">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Logística</span>
+          </TabsTrigger>
+          <TabsTrigger value="marketing" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            <span className="hidden sm:inline">Marketing</span>
+          </TabsTrigger>
+          <TabsTrigger value="dominios" className="gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Domínios</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="resumo" className="space-y-4">
+          <PlatformIntegrationsSummary />
+        </TabsContent>
 
         <TabsContent value="whatsapp" className="space-y-4">
           <Card className="bg-muted/30 border-dashed">
@@ -115,6 +147,101 @@ export default function PlatformIntegrations() {
           </Card>
 
           <SystemEmailSettings />
+        </TabsContent>
+
+        <TabsContent value="pagamentos" className="space-y-4">
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium mb-1">Gateways de Pagamento:</p>
+                  <p className="text-muted-foreground">
+                    Visualize os gateways configurados por cada tenant. As credenciais são 
+                    gerenciadas pelos próprios tenants na tela de Configurações → Pagamentos.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <PaymentsPlatformStatus />
+        </TabsContent>
+
+        <TabsContent value="fiscal" className="space-y-4">
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium mb-1">Integração Fiscal (Focus NFe):</p>
+                  <p className="text-muted-foreground">
+                    Visualize o status da integração com Focus NFe de cada tenant. 
+                    Token e certificado são configurados pelos tenants em Fiscal → Configurações.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <FiscalPlatformStatus />
+        </TabsContent>
+
+        <TabsContent value="logistica" className="space-y-4">
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium mb-1">Transportadoras:</p>
+                  <p className="text-muted-foreground">
+                    Visualize as transportadoras configuradas por tenant. Suporta Frenet, 
+                    Correios, Loggi e outras integrações de frete.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <ShippingPlatformStatus />
+        </TabsContent>
+
+        <TabsContent value="marketing" className="space-y-4">
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium mb-1">Integrações de Marketing:</p>
+                  <p className="text-muted-foreground">
+                    Visualize os pixels e analytics configurados por tenant: Meta Pixel, 
+                    Google Analytics, Google Ads e TikTok Pixel.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <MarketingPlatformStatus />
+        </TabsContent>
+
+        <TabsContent value="dominios" className="space-y-4">
+          <Card className="bg-muted/30 border-dashed">
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium mb-1">Domínios Personalizados:</p>
+                  <p className="text-muted-foreground">
+                    Visualize os domínios custom configurados por tenant e status do SSL. 
+                    Integração com Cloudflare for SaaS para gestão automática de certificados.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <DomainsPlatformStatus />
         </TabsContent>
       </Tabs>
 
