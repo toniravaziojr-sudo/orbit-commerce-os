@@ -5,7 +5,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Clock, ArrowRight } from 'lucide-react';
+import { Calendar, Clock, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +34,7 @@ interface BlogListingBlockProps {
   showExcerpt?: boolean;
   showImage?: boolean;
   showTags?: boolean;
+  showPagination?: boolean;
   context?: any;
   isEditing?: boolean;
 }
@@ -45,10 +46,12 @@ export function BlogListingBlock({
   showExcerpt = true,
   showImage = true,
   showTags = true,
+  showPagination = true,
   context,
   isEditing,
 }: BlogListingBlockProps) {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
+  const [currentPage, setCurrentPage] = React.useState(1);
   
   // Try to get tenantId from context - may not be available in all contexts
   let tenantId: string | undefined;
@@ -60,11 +63,34 @@ export function BlogListingBlock({
   }
   const basePath = getStoreBaseUrl(tenantSlug || '');
 
-  // Fetch published posts
+  // Fetch total count for pagination
+  const { data: totalCount } = useQuery({
+    queryKey: ['blog-posts-count', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return 0;
+      
+      const { count, error } = await supabase
+        .from('blog_posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenant_id', tenantId)
+        .eq('status', 'published');
+
+      if (error) return 0;
+      return count || 0;
+    },
+    enabled: !!tenantId && !isEditing && showPagination,
+  });
+
+  const totalPages = Math.ceil((totalCount || 0) / postsPerPage);
+
+  // Fetch published posts with pagination
   const { data: posts, isLoading } = useQuery({
-    queryKey: ['blog-posts-public', tenantId],
+    queryKey: ['blog-posts-public', tenantId, currentPage, postsPerPage],
     queryFn: async () => {
       if (!tenantId) return [];
+      
+      const from = (currentPage - 1) * postsPerPage;
+      const to = from + postsPerPage - 1;
       
       const { data, error } = await supabase
         .from('blog_posts')
@@ -72,7 +98,7 @@ export function BlogListingBlock({
         .eq('tenant_id', tenantId)
         .eq('status', 'published')
         .order('published_at', { ascending: false })
-        .limit(postsPerPage);
+        .range(from, to);
 
       if (error) {
         console.error('Error fetching blog posts:', error);
