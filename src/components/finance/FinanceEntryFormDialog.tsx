@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,14 +42,28 @@ export function FinanceEntryFormDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      type: entry?.type || defaultType,
-      description: entry?.description || "",
-      amount: entry?.amount || 0,
-      category: entry?.category || "",
-      entry_date: entry?.entry_date || new Date().toISOString().split('T')[0],
-      notes: entry?.notes || "",
+      type: defaultType,
+      description: "",
+      amount: 0,
+      category: "",
+      entry_date: new Date().toISOString().split('T')[0],
+      notes: "",
     },
   });
+
+  // Reset form when dialog opens or entry changes
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        type: entry?.type || defaultType,
+        description: entry?.description || "",
+        amount: entry?.amount || 0,
+        category: entry?.category || "",
+        entry_date: entry?.entry_date || new Date().toISOString().split('T')[0],
+        notes: entry?.notes || "",
+      });
+    }
+  }, [open, entry, defaultType, form]);
 
   const watchType = form.watch('type');
   const categories = FINANCE_CATEGORIES[watchType];
