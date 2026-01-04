@@ -25,7 +25,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Loader2, AlertTriangle, ShoppingCart, ArrowLeft, ArrowRight, Check, User, MapPin, Truck, CreditCard, Info, Eye, EyeOff, Tag } from 'lucide-react';
 import { toast } from 'sonner';
 import { calculateCartTotals, formatCurrency } from '@/lib/cartTotals';
-import { useShipping, useCanonicalDomain } from '@/contexts/StorefrontConfigContext';
+import { useShipping, useCanonicalDomain, useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { getCanonicalOrigin } from '@/lib/canonicalUrls';
@@ -71,6 +71,7 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
   const { config: shippingConfig, quote, quoteAsync, isLoading: shippingLoading } = useShipping();
   const { processPayment, isProcessing: paymentProcessing, paymentResult } = useCheckoutPayment({ tenantId });
   const { customDomain } = useCanonicalDomain();
+  const { config: checkoutConfig } = useCheckoutConfig();
   const { trackInitiateCheckout, trackLead, trackAddShippingInfo, trackAddPaymentInfo, trackPurchase } = useMarketingEvents();
   
   // Get canonical origin for auth redirects (custom domain or platform subdomain)
@@ -814,22 +815,24 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
 
         {/* Sidebar - Order summary + Coupon */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Coupon input */}
-          <div className="bg-card border rounded-lg p-4">
-            <h3 className="font-semibold mb-3 flex items-center gap-2">
-              <Tag className="h-4 w-4" />
-              Cupom de desconto
-            </h3>
-            <CouponInput
-              storeHost={storeHost}
-              subtotal={subtotal}
-              appliedDiscount={appliedDiscount}
-              onApply={(discount) => {
-                applyDiscount(storeHost, discount.discount_code, subtotal);
-              }}
-              onRemove={removeDiscount}
-            />
-          </div>
+          {/* Coupon input - Conditional based on checkout_config */}
+          {checkoutConfig.couponEnabled && (
+            <div className="bg-card border rounded-lg p-4">
+              <h3 className="font-semibold mb-3 flex items-center gap-2">
+                <Tag className="h-4 w-4" />
+                Cupom de desconto
+              </h3>
+              <CouponInput
+                storeHost={storeHost}
+                subtotal={subtotal}
+                appliedDiscount={appliedDiscount}
+                onApply={(discount) => {
+                  applyDiscount(storeHost, discount.discount_code, subtotal);
+                }}
+                onRemove={removeDiscount}
+              />
+            </div>
+          )}
 
           <OrderSummarySidebar 
             items={items} 
