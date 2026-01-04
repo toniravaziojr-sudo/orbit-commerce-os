@@ -272,6 +272,10 @@ export function StorefrontFooterContent({
   const showSocial = getBoolean('showSocial', true);
   const showLegal = getBoolean('showLegal', true);
   
+  // Footer menu visibility (from global layout toggles)
+  const showFooter1 = getBoolean('showFooter1', true);
+  const showFooter2 = getBoolean('showFooter2', true);
+  
   // ============================================
   // CONTENT OVERRIDES
   // ============================================
@@ -443,8 +447,8 @@ export function StorefrontFooterContent({
             </div>
           )}
 
-          {/* Footer Menu 1 Links */}
-          {footer1Items.length > 0 && (
+          {/* Footer Menu 1 Links - respects showFooter1 toggle */}
+          {showFooter1 && footer1Items.length > 0 && (
             <div className="text-center md:text-left">
               <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>{footer1Name}</h4>
               <nav className="flex flex-col gap-2">
@@ -463,8 +467,8 @@ export function StorefrontFooterContent({
             </div>
           )}
           
-          {/* Footer Menu 2 Links */}
-          {footer2Items.length > 0 && (
+          {/* Footer Menu 2 Links - respects showFooter2 toggle */}
+          {showFooter2 && footer2Items.length > 0 && (
             <div className="text-center md:text-left">
               <h4 className="font-semibold mb-4" style={footerTextColor ? { color: footerTextColor } : {}}>{footer2Name}</h4>
               <nav className="flex flex-col gap-2">

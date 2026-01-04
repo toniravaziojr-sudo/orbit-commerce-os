@@ -174,6 +174,10 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         footer_config: (data?.footer_config as unknown as BlockNode) || defaultFooterConfig,
         checkout_header_config: (data?.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
         checkout_footer_config: (data?.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+        header_enabled: data?.header_enabled ?? true,
+        footer_enabled: data?.footer_enabled ?? true,
+        show_footer_1: data?.show_footer_1 ?? true,
+        show_footer_2: data?.show_footer_2 ?? true,
         isDefault: !data,
         needsMigration: isEmpty,
       } as GlobalLayoutData;
@@ -396,6 +400,46 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
     },
   });
 
+  // Update visibility toggles
+  const updateVisibilityToggles = useMutation({
+    mutationFn: async (toggles: {
+      header_enabled?: boolean;
+      footer_enabled?: boolean;
+      show_footer_1?: boolean;
+      show_footer_2?: boolean;
+    }) => {
+      if (!tenantId) throw new Error('No tenant');
+
+      const { data: existing } = await supabase
+        .from('storefront_global_layout')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from('storefront_global_layout')
+          .update(toggles)
+          .eq('tenant_id', tenantId);
+      } else {
+        await supabase
+          .from('storefront_global_layout')
+          .insert({
+            tenant_id: tenantId,
+            header_config: defaultHeaderConfig as unknown as Json,
+            footer_config: defaultFooterConfig as unknown as Json,
+            checkout_header_config: defaultCheckoutHeaderConfig as unknown as Json,
+            checkout_footer_config: defaultCheckoutFooterConfig as unknown as Json,
+            ...toggles,
+          });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
+    },
+  });
+
   return {
     globalLayout,
     isLoading,
@@ -403,6 +447,7 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
     updateGlobalFooter,
     updateCheckoutHeader,
     updateCheckoutFooter,
+    updateVisibilityToggles,
     migrateFromHome,
   };
 }
@@ -427,6 +472,10 @@ export function usePublicGlobalLayout(tenantSlug: string) {
           footer_config: defaultFooterConfig,
           checkout_header_config: defaultCheckoutHeaderConfig,
           checkout_footer_config: defaultCheckoutFooterConfig,
+          header_enabled: true,
+          footer_enabled: true,
+          show_footer_1: true,
+          show_footer_2: true,
           isDefault: true,
           needsMigration: false,
         } as GlobalLayoutData;
@@ -444,6 +493,10 @@ export function usePublicGlobalLayout(tenantSlug: string) {
           footer_config: defaultFooterConfig,
           checkout_header_config: defaultCheckoutHeaderConfig,
           checkout_footer_config: defaultCheckoutFooterConfig,
+          header_enabled: true,
+          footer_enabled: true,
+          show_footer_1: true,
+          show_footer_2: true,
           isDefault: true,
           needsMigration: false,
         } as GlobalLayoutData;
@@ -454,6 +507,10 @@ export function usePublicGlobalLayout(tenantSlug: string) {
         footer_config: (data.footer_config as unknown as BlockNode) || defaultFooterConfig,
         checkout_header_config: (data.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
         checkout_footer_config: (data.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+        header_enabled: data.header_enabled ?? true,
+        footer_enabled: data.footer_enabled ?? true,
+        show_footer_1: data.show_footer_1 ?? true,
+        show_footer_2: data.show_footer_2 ?? true,
         isDefault: false,
         needsMigration: false,
       } as GlobalLayoutData;
