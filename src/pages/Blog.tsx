@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +56,7 @@ export default function Blog() {
     title: '',
     slug: '',
     excerpt: '',
+    tags: '',
     seo_title: '',
     seo_description: '',
   });
@@ -137,7 +139,7 @@ export default function Blog() {
 
   // Update post mutation
   const updatePost = useMutation({
-    mutationFn: async (data: { id: string; title?: string; slug?: string; excerpt?: string; status?: string; seo_title?: string; seo_description?: string }) => {
+    mutationFn: async (data: { id: string; title?: string; slug?: string; excerpt?: string; status?: string; tags?: string[]; seo_title?: string; seo_description?: string }) => {
       // Check slug uniqueness before update (if slug is being changed)
       if (data.slug) {
         const slugExists = await checkSlugExists(data.slug, data.id);
@@ -190,15 +192,15 @@ export default function Blog() {
   });
 
   const resetForm = () => {
-    setFormData({ title: '', slug: '', excerpt: '', seo_title: '', seo_description: '' });
+    setFormData({ title: '', slug: '', excerpt: '', tags: '', seo_title: '', seo_description: '' });
     setEditingPost(null);
   };
 
   const handleEdit = async (post: BlogPost) => {
-    // Fetch full post data including SEO fields
+    // Fetch full post data including SEO fields and tags
     const { data: fullPost } = await supabase
       .from('blog_posts')
-      .select('seo_title, seo_description')
+      .select('seo_title, seo_description, tags')
       .eq('id', post.id)
       .single();
     
@@ -207,6 +209,7 @@ export default function Blog() {
       title: post.title,
       slug: post.slug,
       excerpt: post.excerpt || '',
+      tags: fullPost?.tags?.join(', ') || '',
       seo_title: fullPost?.seo_title || '',
       seo_description: fullPost?.seo_description || '',
     });
@@ -222,12 +225,19 @@ export default function Blog() {
       return;
     }
     
+    // Parse tags
+    const tagsArray = formData.tags
+      .split(',')
+      .map(t => t.trim())
+      .filter(t => t.length > 0);
+    
     if (editingPost) {
       await updatePost.mutateAsync({
         id: editingPost.id,
         title: formData.title,
         slug,
         excerpt: formData.excerpt || undefined,
+        tags: tagsArray.length > 0 ? tagsArray : undefined,
         seo_title: formData.seo_title || undefined,
         seo_description: formData.seo_description || undefined,
       });
@@ -244,9 +254,24 @@ export default function Blog() {
     }
   };
 
-  const handleToggleStatus = async (post: BlogPost) => {
-    const newStatus = post.status === 'published' ? 'draft' : 'published';
+  const handleStatusChange = async (post: BlogPost, newStatus: string) => {
     await updatePost.mutateAsync({ id: post.id, status: newStatus });
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'published': return 'Publicado';
+      case 'archived': return 'Arquivado';
+      default: return 'Rascunho';
+    }
+  };
+
+  const getStatusVariant = (status: string): 'default' | 'secondary' | 'outline' => {
+    switch (status) {
+      case 'published': return 'default';
+      case 'archived': return 'outline';
+      default: return 'secondary';
+    }
   };
 
   if (isLoading) {
@@ -309,6 +334,21 @@ export default function Blog() {
                     className="min-h-[80px]"
                   />
                 </div>
+                
+                {/* Tags Field - only show when editing */}
+                {editingPost && (
+                  <div>
+                    <Label>Tags</Label>
+                    <Input 
+                      value={formData.tags} 
+                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })} 
+                      placeholder="tag1, tag2, tag3"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Separe as tags por vírgula
+                    </p>
+                  </div>
+                )}
                 
                 {/* SEO Fields */}
                 <div className="border-t pt-4 mt-4">
@@ -378,13 +418,21 @@ export default function Blog() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">/blog/{post.slug}</TableCell>
                   <TableCell>
-                    <Badge 
-                      variant={post.status === 'published' ? 'default' : 'secondary'}
-                      className="cursor-pointer"
-                      onClick={() => handleToggleStatus(post)}
+                    <Select
+                      value={post.status}
+                      onValueChange={(value) => handleStatusChange(post, value)}
                     >
-                      {post.status === 'published' ? 'Publicado' : 'Rascunho'}
-                    </Badge>
+                      <SelectTrigger className="w-[120px] h-8">
+                        <Badge variant={getStatusVariant(post.status)} className="font-normal">
+                          {getStatusLabel(post.status)}
+                        </Badge>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Rascunho</SelectItem>
+                        <SelectItem value="published">Publicado</SelectItem>
+                        <SelectItem value="archived">Arquivado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     <div className="flex items-center gap-1 text-sm">
