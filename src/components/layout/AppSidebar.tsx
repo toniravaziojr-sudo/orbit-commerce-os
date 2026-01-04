@@ -91,7 +91,7 @@ const navigation: NavGroup[] = [
     ],
   },
   {
-    label: "Comunicação",
+    label: "CRM",
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare },
