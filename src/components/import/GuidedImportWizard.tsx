@@ -902,31 +902,108 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
       }
       
-      // === FOOTER MENU ===
+      // === FOOTER MENUS (Footer 1 = Categorias, Footer 2 = Institucional) ===
       if (footerMenuItems.length > 0) {
-        const { data: footerMenuData, error: footerMenuError } = await supabase
-          .from('menus')
-          .upsert({
-            tenant_id: currentTenant.id,
-            name: 'Menu Footer',
-            location: 'footer',
-          }, { onConflict: 'tenant_id,location' })
-          .select('id')
-          .single();
+        // Helper to check if item is a category link
+        const isCategoryItem = (item: any): boolean => {
+          const url = item.internalUrl || item.url || '';
+          const categoryMatch = findCategoryMatch(url, item.label || '');
+          if (categoryMatch) return true;
+          // Check URL patterns for categories
+          if (/\/(?:collections?|categoria|category|c)\//i.test(url)) return true;
+          return false;
+        };
+        
+        // Helper to check if item is institutional/policy page
+        const isInstitutionalItem = (item: any): boolean => {
+          const url = item.internalUrl || item.url || '';
+          const label = (item.label || '').toLowerCase();
+          // Check URL patterns for pages
+          if (/\/(?:pages?|pagina|policies)\//i.test(url)) return true;
+          // Check common institutional labels
+          const institutionalKeywords = [
+            'política', 'politica', 'policy', 'policies',
+            'termos', 'terms', 'privacidade', 'privacy',
+            'troca', 'devolução', 'devoluçao', 'return', 'refund',
+            'entrega', 'delivery', 'envio', 'shipping',
+            'sobre', 'about', 'quem somos', 'contato', 'contact',
+            'faq', 'ajuda', 'help', 'suporte', 'support'
+          ];
+          if (institutionalKeywords.some(kw => label.includes(kw))) return true;
+          return false;
+        };
+        
+        // Separate items into categories (footer_1) and institutional (footer_2)
+        const categoryFooterItems: any[] = [];
+        const institutionalFooterItems: any[] = [];
+        
+        for (const item of footerMenuItems) {
+          if (isCategoryItem(item)) {
+            categoryFooterItems.push(item);
+          } else {
+            institutionalFooterItems.push(item);
+          }
+        }
+        
+        // === FOOTER 1: Categories ===
+        if (categoryFooterItems.length > 0) {
+          const { data: footer1Data, error: footer1Error } = await supabase
+            .from('menus')
+            .upsert({
+              tenant_id: currentTenant.id,
+              name: 'Menu',
+              location: 'footer_1',
+            }, { onConflict: 'tenant_id,location' })
+            .select('id')
+            .single();
 
-        if (footerMenuError) {
-          console.error('Error creating footer menu:', footerMenuError);
-          setImportErrors(prev => [...prev, 'Erro ao criar menu do footer']);
-        } else if (footerMenuData) {
-          // Delete existing menu items for idempotency
-          await supabase
-            .from('menu_items')
-            .delete()
-            .eq('menu_id', footerMenuData.id);
+          if (footer1Error) {
+            console.error('Error creating footer_1 menu:', footer1Error);
+            setImportErrors(prev => [...prev, 'Erro ao criar menu Footer 1']);
+          } else if (footer1Data) {
+            await supabase
+              .from('menu_items')
+              .delete()
+              .eq('menu_id', footer1Data.id);
 
-          const footerItemsCount = await insertMenuItems(footerMenuItems, footerMenuData.id);
-          totalMenuItems += footerItemsCount;
-          console.log(`Imported ${footerItemsCount} footer menu items`);
+            const footer1ItemsCount = await insertMenuItems(categoryFooterItems, footer1Data.id);
+            totalMenuItems += footer1ItemsCount;
+            console.log(`Imported ${footer1ItemsCount} footer_1 (categories) menu items`);
+          }
+        }
+        
+        // === FOOTER 2: Institutional/Policies ===
+        if (institutionalFooterItems.length > 0) {
+          const { data: footer2Data, error: footer2Error } = await supabase
+            .from('menus')
+            .upsert({
+              tenant_id: currentTenant.id,
+              name: 'Políticas',
+              location: 'footer_2',
+            }, { onConflict: 'tenant_id,location' })
+            .select('id')
+            .single();
+
+          if (footer2Error) {
+            console.error('Error creating footer_2 menu:', footer2Error);
+            setImportErrors(prev => [...prev, 'Erro ao criar menu Footer 2']);
+          } else if (footer2Data) {
+            await supabase
+              .from('menu_items')
+              .delete()
+              .eq('menu_id', footer2Data.id);
+
+            const footer2ItemsCount = await insertMenuItems(institutionalFooterItems, footer2Data.id);
+            totalMenuItems += footer2ItemsCount;
+            console.log(`Imported ${footer2ItemsCount} footer_2 (institutional) menu items`);
+          }
+        }
+        
+        // If all items went to one group, still log it
+        if (categoryFooterItems.length === 0 && institutionalFooterItems.length > 0) {
+          console.log('All footer items classified as institutional');
+        } else if (institutionalFooterItems.length === 0 && categoryFooterItems.length > 0) {
+          console.log('All footer items classified as categories');
         }
       }
       
