@@ -9,14 +9,21 @@ export interface Purchase {
   tenant_id: string;
   supplier_id: string | null;
   order_number: string;
+  description: string | null;
   status: 'pending' | 'confirmed' | 'in_transit' | 'delivered' | 'cancelled';
   total_value: number;
   expected_delivery_date: string | null;
   actual_delivery_date: string | null;
   notes: string | null;
+  entry_invoice_id: string | null;
   created_at: string;
   updated_at: string;
   supplier?: Supplier;
+  entry_invoice?: {
+    id: string;
+    numero: number;
+    dest_nome: string | null;
+  } | null;
 }
 
 export interface PurchaseItem {
@@ -60,7 +67,7 @@ export function usePurchases() {
       if (!tenantId) return [];
       const { data, error } = await supabase
         .from('purchases')
-        .select(`*, supplier:suppliers(*)`)
+        .select(`*, supplier:suppliers(*), entry_invoice:fiscal_invoices(id, numero, dest_nome)`)
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
       

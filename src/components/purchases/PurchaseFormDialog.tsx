@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,16 +8,25 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Purchase, PURCHASE_STATUS_LABELS } from "@/hooks/usePurchases";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown, FileText } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { Purchase } from "@/hooks/usePurchases";
 import type { Supplier } from "@/hooks/useSuppliers";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 const formSchema = z.object({
   supplier_id: z.string().optional(),
+  description: z.string().optional(),
   status: z.enum(['pending', 'confirmed', 'in_transit', 'delivered', 'cancelled']),
   total_value: z.coerce.number().min(0, "Valor deve ser positivo"),
   expected_delivery_date: z.string().optional(),
   actual_delivery_date: z.string().optional(),
   notes: z.string().optional(),
+  entry_invoice_id: z.string().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -39,15 +48,39 @@ export function PurchaseFormDialog({
   onSubmit,
   isLoading,
 }: PurchaseFormDialogProps) {
+  const { currentTenant } = useAuth();
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
+
+  // Buscar NF-es de entrada (tipo entrada ou todas autorizadas para vincular)
+  const { data: entryInvoices = [] } = useQuery({
+    queryKey: ['entry-invoices', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+      const { data, error } = await supabase
+        .from('fiscal_invoices')
+        .select('id, numero, dest_nome, valor_total, created_at')
+        .eq('tenant_id', currentTenant.id)
+        .eq('status', 'authorized')
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!currentTenant?.id && open,
+  });
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       supplier_id: "",
+      description: "",
       status: "pending",
       total_value: 0,
       expected_delivery_date: "",
       actual_delivery_date: "",
       notes: "",
+      entry_invoice_id: "",
     },
   });
 
@@ -56,19 +89,29 @@ export function PurchaseFormDialog({
     if (open) {
       form.reset({
         supplier_id: purchase?.supplier_id || "",
+        description: purchase?.description || "",
         status: purchase?.status || "pending",
         total_value: purchase?.total_value || 0,
         expected_delivery_date: purchase?.expected_delivery_date || "",
         actual_delivery_date: purchase?.actual_delivery_date || "",
         notes: purchase?.notes || "",
+        entry_invoice_id: purchase?.entry_invoice_id || "",
       });
     }
   }, [open, purchase, form]);
 
   const handleSubmit = (data: FormData) => {
-    onSubmit(data);
+    // Limpar campos vazios
+    const cleanData = {
+      ...data,
+      supplier_id: data.supplier_id || null,
+      entry_invoice_id: data.entry_invoice_id || null,
+    };
+    onSubmit(cleanData);
     form.reset();
   };
+
+  const selectedInvoice = entryInvoices.find(inv => inv.id === form.watch('entry_invoice_id'));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,11 +124,25 @@ export function PurchaseFormDialog({
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
             <FormField
               control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descrição da Compra *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ex: Materiais de escritório, Estoque de produtos..." {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="supplier_id"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Fornecedor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione um fornecedor" />
@@ -125,7 +182,7 @@ export function PurchaseFormDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue />
@@ -174,6 +231,90 @@ export function PurchaseFormDialog({
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="entry_invoice_id"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>NF de Entrada</FormLabel>
+                  <Popover open={invoiceOpen} onOpenChange={setInvoiceOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={invoiceOpen}
+                          className={cn(
+                            "justify-between",
+                            !field.value && "text-muted-foreground"
+                          )}
+                        >
+                          {selectedInvoice ? (
+                            <span className="flex items-center gap-2">
+                              <FileText className="h-4 w-4" />
+                              NF {selectedInvoice.numero} - {selectedInvoice.dest_nome}
+                            </span>
+                          ) : (
+                            "Vincular NF de entrada..."
+                          )}
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0">
+                      <Command>
+                        <CommandInput placeholder="Buscar NF..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhuma NF encontrada.</CommandEmpty>
+                          <CommandGroup>
+                            <CommandItem
+                              value=""
+                              onSelect={() => {
+                                form.setValue('entry_invoice_id', '');
+                                setInvoiceOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  !field.value ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              Nenhuma
+                            </CommandItem>
+                            {entryInvoices.map((invoice) => (
+                              <CommandItem
+                                key={invoice.id}
+                                value={`${invoice.numero} ${invoice.dest_nome}`}
+                                onSelect={() => {
+                                  form.setValue('entry_invoice_id', invoice.id);
+                                  setInvoiceOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    field.value === invoice.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <div className="flex flex-col">
+                                  <span>NF {invoice.numero} - {invoice.dest_nome}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    R$ {Number(invoice.valor_total || 0).toFixed(2)}
+                                  </span>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

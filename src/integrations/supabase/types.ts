@@ -5309,6 +5309,8 @@ export type Database = {
         Row: {
           actual_delivery_date: string | null
           created_at: string
+          description: string | null
+          entry_invoice_id: string | null
           expected_delivery_date: string | null
           id: string
           notes: string | null
@@ -5322,6 +5324,8 @@ export type Database = {
         Insert: {
           actual_delivery_date?: string | null
           created_at?: string
+          description?: string | null
+          entry_invoice_id?: string | null
           expected_delivery_date?: string | null
           id?: string
           notes?: string | null
@@ -5335,6 +5339,8 @@ export type Database = {
         Update: {
           actual_delivery_date?: string | null
           created_at?: string
+          description?: string | null
+          entry_invoice_id?: string | null
           expected_delivery_date?: string | null
           id?: string
           notes?: string | null
@@ -5346,6 +5352,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "purchases_entry_invoice_id_fkey"
+            columns: ["entry_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "fiscal_invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "purchases_supplier_id_fkey"
             columns: ["supplier_id"]
