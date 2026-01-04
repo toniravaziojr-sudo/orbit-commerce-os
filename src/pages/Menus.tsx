@@ -457,9 +457,6 @@ export default function Menus() {
             )}
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              Título: <strong>{footer1Menu?.name || 'Menu'}</strong>
-            </p>
             {footer1Menu ? (
               <Button 
                 variant="outline" 
@@ -492,9 +489,6 @@ export default function Menus() {
             )}
           </CardHeader>
           <CardContent>
-            <p className="text-xs text-muted-foreground mb-3">
-              Título: <strong>{footer2Menu?.name || 'Políticas'}</strong>
-            </p>
             {footer2Menu ? (
               <Button 
                 variant="outline" 
