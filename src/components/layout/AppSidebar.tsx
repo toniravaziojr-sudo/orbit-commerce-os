@@ -104,7 +104,7 @@ const navigation: NavGroup[] = [
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },
-      { title: "Remessas Logísticas", href: "/shipping", icon: Truck },
+      { title: "Logística", href: "/shipping", icon: Truck },
     ],
   },
   {

@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   Truck, 
   Package, 
   RefreshCw, 
   CheckCircle, 
   AlertTriangle, 
-  Clock,
   Plus,
   Settings,
   TrendingUp,
   ArrowRight,
+  Search,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -33,7 +33,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog';
-import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
+import { CarrierCardsGrid } from '@/components/shipping/CarrierCardsGrid';
+import { TrackingLookup } from '@/components/shipping/TrackingLookup';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import {
   PieChart,
@@ -46,7 +47,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 
 type DeliveryStatus = 
@@ -99,13 +99,19 @@ export default function ShippingDashboard() {
   const { currentTenant, hasRole } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isPolling, setIsPolling] = useState(false);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'dashboard');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   
   const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    setSearchParams({ tab });
+  };
 
   // Fetch shipments for stats and charts
   const { data: shipments, isLoading } = useQuery({
@@ -205,48 +211,44 @@ export default function ShippingDashboard() {
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
-        title="Remessas Logísticas"
-        description="Dashboard de remessas e rastreamento de entregas"
+        title="Logística"
+        description="Gerencie remessas, rastreamento e transportadoras"
         actions={
-          <div className="flex items-center gap-2">
+          isOwnerOrAdmin && (
             <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
+              variant="outline" 
               className="gap-2"
+              onClick={() => runTrackingPoll.mutate()}
+              disabled={isPolling}
             >
-              <Plus className="h-4 w-4" />
-              Criar Remessa
+              <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
+              Sync
             </Button>
-            {isOwnerOrAdmin && (
-              <Button 
-                variant="outline" 
-                className="gap-2"
-                onClick={() => runTrackingPoll.mutate()}
-                disabled={isPolling}
-              >
-                <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
-                Sync
-              </Button>
-            )}
-          </div>
+          )
         }
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="dashboard" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Dashboard
           </TabsTrigger>
-          <TabsTrigger value="shipments" className="gap-2">
+          <TabsTrigger value="remessas" className="gap-2">
             <Truck className="h-4 w-4" />
             Remessas
           </TabsTrigger>
-          <TabsTrigger value="settings" className="gap-2">
+          <TabsTrigger value="rastreios" className="gap-2">
+            <Search className="h-4 w-4" />
+            Rastreios
+          </TabsTrigger>
+          <TabsTrigger value="meios-transporte" className="gap-2">
             <Settings className="h-4 w-4" />
-            Transportadoras
+            Meios de Transporte
           </TabsTrigger>
         </TabsList>
 
+        {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6 mt-6">
           {/* Date Filter */}
           <div className="flex justify-end">
@@ -368,7 +370,7 @@ export default function ShippingDashboard() {
                 variant="ghost" 
                 size="sm" 
                 className="gap-1"
-                onClick={() => setActiveTab('shipments')}
+                onClick={() => handleTabChange('remessas')}
               >
                 Ver todas
                 <ArrowRight className="h-4 w-4" />
@@ -401,7 +403,9 @@ export default function ShippingDashboard() {
                       <TableRow 
                         key={shipment.id} 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(`/shipping/shipments?search=${shipment.tracking_code}`)}
+                        onClick={() => {
+                          handleTabChange('rastreios');
+                        }}
                       >
                         <TableCell className="font-medium">
                           #{shipment.order?.order_number || '—'}
@@ -429,7 +433,19 @@ export default function ShippingDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="shipments" className="mt-6">
+        {/* Remessas Tab */}
+        <TabsContent value="remessas" className="mt-6 space-y-6">
+          {/* Action Button */}
+          <div className="flex justify-end">
+            <Button 
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Criar Remessa
+            </Button>
+          </div>
+
           {/* Redirect to full shipments page */}
           <Card>
             <CardContent className="pt-6">
@@ -440,7 +456,7 @@ export default function ShippingDashboard() {
                   Acesse a página completa de remessas para visualizar, filtrar e gerenciar todas as entregas.
                 </p>
                 <Button onClick={() => navigate('/shipping/shipments')}>
-                  Ir para Remessas
+                  Ir para Lista de Remessas
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </div>
@@ -448,8 +464,14 @@ export default function ShippingDashboard() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-6">
-          <ShippingCarrierSettings />
+        {/* Rastreios Tab */}
+        <TabsContent value="rastreios" className="mt-6">
+          <TrackingLookup />
+        </TabsContent>
+
+        {/* Meios de Transporte Tab */}
+        <TabsContent value="meios-transporte" className="mt-6">
+          <CarrierCardsGrid />
         </TabsContent>
       </Tabs>
 
