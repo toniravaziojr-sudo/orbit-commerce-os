@@ -9,13 +9,19 @@ import {
   ShippingConfig,
   BenefitConfig,
   OffersConfig,
+  CartConfig,
+  CheckoutConfig,
   ShippingRule,
   parseShippingConfig,
   parseBenefitConfig,
   parseOffersConfig,
+  parseCartConfig,
+  parseCheckoutConfig,
   defaultShippingConfig,
   defaultBenefitConfig,
   defaultOffersConfig,
+  defaultCartConfig,
+  defaultCheckoutConfig,
 } from '@/lib/storeConfigTypes';
 
 // ===== SHIPPING PROVIDER =====
@@ -92,6 +98,40 @@ export function useOffers() {
   return context;
 }
 
+// ===== CART CONFIG PROVIDER =====
+
+interface CartConfigContextValue {
+  config: CartConfig;
+  isLoading: boolean;
+}
+
+const CartConfigContext = createContext<CartConfigContextValue | null>(null);
+
+export function useCartConfig() {
+  const context = useContext(CartConfigContext);
+  if (!context) {
+    throw new Error('useCartConfig must be used within StorefrontConfigProvider');
+  }
+  return context;
+}
+
+// ===== CHECKOUT CONFIG PROVIDER =====
+
+interface CheckoutConfigContextValue {
+  config: CheckoutConfig;
+  isLoading: boolean;
+}
+
+const CheckoutConfigContext = createContext<CheckoutConfigContextValue | null>(null);
+
+export function useCheckoutConfig() {
+  const context = useContext(CheckoutConfigContext);
+  if (!context) {
+    throw new Error('useCheckoutConfig must be used within StorefrontConfigProvider');
+  }
+  return context;
+}
+
 // ===== CANONICAL DOMAIN CONTEXT =====
 
 interface CanonicalDomainContextValue {
@@ -140,7 +180,7 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
       // Fetch store_settings
       const { data: storeData, error: storeError } = await supabase
         .from('store_settings')
-        .select('shipping_config, benefit_config, offers_config')
+        .select('shipping_config, benefit_config, offers_config, cart_config, checkout_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
@@ -172,6 +212,8 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         shippingConfig,
         benefitConfig: parseBenefitConfig(storeData?.benefit_config),
         offersConfig: parseOffersConfig(storeData?.offers_config),
+        cartConfig: parseCartConfig(storeData?.cart_config),
+        checkoutConfig: parseCheckoutConfig(storeData?.checkout_config),
       };
     },
     enabled: !!tenantId,
@@ -181,6 +223,8 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
   const shippingConfig = data?.shippingConfig || defaultShippingConfig;
   const benefitConfig = data?.benefitConfig || defaultBenefitConfig;
   const offersConfig = data?.offersConfig || defaultOffersConfig;
+  const cartConfig = data?.cartConfig || defaultCartConfig;
+  const checkoutConfig = data?.checkoutConfig || defaultCheckoutConfig;
 
   // Shipping quote function (sync - for mock/manual providers)
   // For Frenet provider, returns fallback. Use quoteAsync for real Frenet quotes.
@@ -391,6 +435,16 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
     isLoading,
   };
 
+  const cartConfigValue: CartConfigContextValue = {
+    config: cartConfig,
+    isLoading,
+  };
+
+  const checkoutConfigValue: CheckoutConfigContextValue = {
+    config: checkoutConfig,
+    isLoading,
+  };
+
   const canonicalDomainValue: CanonicalDomainContextValue = {
     customDomain,
   };
@@ -405,7 +459,11 @@ export function StorefrontConfigProvider({ tenantId, customDomain = null, childr
         <ShippingContext.Provider value={shippingValue}>
           <BenefitContext.Provider value={benefitValue}>
             <OffersContext.Provider value={offersValue}>
-              {children}
+              <CartConfigContext.Provider value={cartConfigValue}>
+                <CheckoutConfigContext.Provider value={checkoutConfigValue}>
+                  {children}
+                </CheckoutConfigContext.Provider>
+              </CartConfigContext.Provider>
             </OffersContext.Provider>
           </BenefitContext.Provider>
         </ShippingContext.Provider>

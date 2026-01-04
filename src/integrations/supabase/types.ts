@@ -5977,6 +5977,8 @@ export type Database = {
           benefit_config: Json | null
           business_cnpj: string | null
           business_legal_name: string | null
+          cart_config: Json | null
+          checkout_config: Json | null
           contact_address: string | null
           contact_email: string | null
           contact_phone: string | null
@@ -6015,6 +6017,8 @@ export type Database = {
           benefit_config?: Json | null
           business_cnpj?: string | null
           business_legal_name?: string | null
+          cart_config?: Json | null
+          checkout_config?: Json | null
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null
@@ -6053,6 +6057,8 @@ export type Database = {
           benefit_config?: Json | null
           business_cnpj?: string | null
           business_legal_name?: string | null
+          cart_config?: Json | null
+          checkout_config?: Json | null
           contact_address?: string | null
           contact_email?: string | null
           contact_phone?: string | null

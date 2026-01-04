@@ -44,6 +44,7 @@ import Offers from "@/pages/Offers";
 import Discounts from "@/pages/Discounts";
 import AbandonedCheckouts from "@/pages/AbandonedCheckouts";
 import StoreConfigSettings from "@/pages/StoreConfigSettings";
+import CartAndCheckout from "@/pages/CartAndCheckout";
 import UrlDiagnostics from "@/pages/UrlDiagnostics";
 import HealthMonitor from "@/pages/HealthMonitor";
 import Shipments from "@/pages/Shipments";
@@ -255,7 +256,9 @@ const App = () => {
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/builder" element={<StorefrontBuilder />} />
-                  <Route path="/storefront/conversao" element={<StoreConfigSettings />} />
+                  <Route path="/storefront/conversao" element={<Navigate to="/cart-checkout" replace />} />
+                  <Route path="/cart-checkout" element={<CartAndCheckout />} />
+                  <Route path="/abandoned-checkouts" element={<Navigate to="/cart-checkout?tab=abandoned" replace />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
                   {/* Platform admin routes */}
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
