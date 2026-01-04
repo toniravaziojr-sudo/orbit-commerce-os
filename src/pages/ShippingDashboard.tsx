@@ -1,17 +1,16 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { 
   Truck, 
   Package, 
-  RefreshCw, 
   CheckCircle, 
   AlertTriangle, 
-  Plus,
   Settings,
   TrendingUp,
   ArrowRight,
   Search,
+  RotateCcw,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -31,10 +30,10 @@ import {
 } from '@/components/ui/table';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
-import { CreateShipmentDialog } from '@/components/shipping/CreateShipmentDialog';
 import { CarrierCardsGrid } from '@/components/shipping/CarrierCardsGrid';
-import { TrackingLookup } from '@/components/shipping/TrackingLookup';
+import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
+import { TrackingTab } from '@/components/shipping/TrackingTab';
+import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import {
   PieChart,
@@ -95,22 +94,25 @@ const CARRIER_COLORS = {
   outros: 'hsl(var(--muted-foreground))',
 };
 
+type SubTab = 'in_transit' | 'delivered' | 'problems' | 'returned';
+
 export default function ShippingDashboard() {
-  const { currentTenant, hasRole } = useAuth();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const { currentTenant } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isPolling, setIsPolling] = useState(false);
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'dashboard');
+  const [trackingSubTab, setTrackingSubTab] = useState<SubTab>('in_transit');
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
-  
-  const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setSearchParams({ tab });
+  };
+
+  const handleKPIClick = (subTab: SubTab) => {
+    setTrackingSubTab(subTab);
+    setActiveTab('rastreios');
+    setSearchParams({ tab: 'rastreios' });
   };
 
   // Fetch shipments for stats and charts
@@ -145,37 +147,19 @@ export default function ShippingDashboard() {
     enabled: !!currentTenant?.id,
   });
 
-  // Manual poll mutation
-  const runTrackingPoll = useMutation({
-    mutationFn: async () => {
-      setIsPolling(true);
-      const { data, error } = await supabase.functions.invoke('tracking-poll');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      const stats = data.stats || {};
-      toast.success(`Rastreios atualizados: ${stats.updated || 0} de ${stats.processed || 0}`);
-      queryClient.invalidateQueries({ queryKey: ['shipping-dashboard'] });
-    },
-    onError: (error: Error) => {
-      toast.error(`Erro: ${error.message}`);
-    },
-    onSettled: () => {
-      setIsPolling(false);
-    },
-  });
+  // Calculate stats - New order: Em Trânsito, Entregues, Com Problemas, Em Devolução, Taxa de Sucesso
+  const stats = useMemo(() => {
+    const all = shipments || [];
+    return {
+      inTransit: all.filter(s => ['posted', 'in_transit', 'out_for_delivery', 'label_created'].includes(s.delivery_status)).length,
+      delivered: all.filter(s => s.delivery_status === 'delivered').length,
+      problems: all.filter(s => ['failed', 'canceled'].includes(s.delivery_status)).length,
+      returned: all.filter(s => s.delivery_status === 'returned').length,
+    };
+  }, [shipments]);
 
-  // Calculate stats
-  const stats = {
-    total: shipments?.length || 0,
-    inTransit: shipments?.filter(s => ['posted', 'in_transit', 'out_for_delivery'].includes(s.delivery_status)).length || 0,
-    delivered: shipments?.filter(s => s.delivery_status === 'delivered').length || 0,
-    failed: shipments?.filter(s => ['failed', 'returned', 'canceled'].includes(s.delivery_status)).length || 0,
-  };
-
-  const successRate = stats.total > 0 
-    ? Math.round((stats.delivered / stats.total) * 100) 
+  const successRate = (shipments?.length || 0) > 0 
+    ? Math.round((stats.delivered / (shipments?.length || 1)) * 100) 
     : 0;
 
   // Data for status pie chart
@@ -213,19 +197,6 @@ export default function ShippingDashboard() {
       <PageHeader
         title="Logística"
         description="Gerencie remessas, rastreamento e transportadoras"
-        actions={
-          isOwnerOrAdmin && (
-            <Button 
-              variant="outline" 
-              className="gap-2"
-              onClick={() => runTrackingPoll.mutate()}
-              disabled={isPolling}
-            >
-              <RefreshCw className={`h-4 w-4 ${isPolling ? 'animate-spin' : ''}`} />
-              Sync
-            </Button>
-          )
-        }
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -263,38 +234,62 @@ export default function ShippingDashboard() {
             />
           </div>
 
-          {/* KPIs */}
+          {/* KPIs - New order: Em Trânsito, Entregues, Com Problemas, Em Devolução, Taxa de Sucesso */}
           <div className="grid gap-4 md:grid-cols-5">
-            <StatCard
-              title="Total de Remessas"
-              value={stats.total}
-              icon={Package}
-              variant="default"
-            />
-            <StatCard
-              title="Em Trânsito"
-              value={stats.inTransit}
-              icon={Truck}
-              variant="primary"
-            />
-            <StatCard
-              title="Entregues"
-              value={stats.delivered}
-              icon={CheckCircle}
-              variant="success"
-            />
-            <StatCard
-              title="Com Problemas"
-              value={stats.failed}
-              icon={AlertTriangle}
-              variant="destructive"
-            />
-            <StatCard
-              title="Taxa de Sucesso"
-              value={`${successRate}%`}
-              icon={TrendingUp}
-              variant="success"
-            />
+            <div 
+              className="cursor-pointer transition-transform hover:scale-[1.02]"
+              onClick={() => handleKPIClick('in_transit')}
+            >
+              <StatCard
+                title="Em Trânsito"
+                value={stats.inTransit}
+                icon={Truck}
+                variant="primary"
+              />
+            </div>
+            <div 
+              className="cursor-pointer transition-transform hover:scale-[1.02]"
+              onClick={() => handleKPIClick('delivered')}
+            >
+              <StatCard
+                title="Entregues"
+                value={stats.delivered}
+                icon={CheckCircle}
+                variant="success"
+              />
+            </div>
+            <div 
+              className="cursor-pointer transition-transform hover:scale-[1.02]"
+              onClick={() => handleKPIClick('problems')}
+            >
+              <StatCard
+                title="Com Problemas"
+                value={stats.problems}
+                icon={AlertTriangle}
+                variant="destructive"
+              />
+            </div>
+            <div 
+              className="cursor-pointer transition-transform hover:scale-[1.02]"
+              onClick={() => handleKPIClick('returned')}
+            >
+              <StatCard
+                title="Em Devolução"
+                value={stats.returned}
+                icon={RotateCcw}
+                variant="destructive"
+              />
+            </div>
+            <SuccessRatePopover shipments={shipments || []}>
+              <div className="cursor-pointer transition-transform hover:scale-[1.02]">
+                <StatCard
+                  title="Taxa de Sucesso"
+                  value={`${successRate}%`}
+                  icon={TrendingUp}
+                  variant="success"
+                />
+              </div>
+            </SuccessRatePopover>
           </div>
 
           {/* Charts */}
@@ -370,7 +365,7 @@ export default function ShippingDashboard() {
                 variant="ghost" 
                 size="sm" 
                 className="gap-1"
-                onClick={() => handleTabChange('remessas')}
+                onClick={() => handleTabChange('rastreios')}
               >
                 Ver todas
                 <ArrowRight className="h-4 w-4" />
@@ -404,6 +399,7 @@ export default function ShippingDashboard() {
                         key={shipment.id} 
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => {
+                          setTrackingSubTab('in_transit');
                           handleTabChange('rastreios');
                         }}
                       >
@@ -434,39 +430,13 @@ export default function ShippingDashboard() {
         </TabsContent>
 
         {/* Remessas Tab */}
-        <TabsContent value="remessas" className="mt-6 space-y-6">
-          {/* Action Button */}
-          <div className="flex justify-end">
-            <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="gap-2"
-            >
-              <Plus className="h-4 w-4" />
-              Criar Remessa
-            </Button>
-          </div>
-
-          {/* Redirect to full shipments page */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">Gerenciar Remessas</h3>
-                <p className="text-muted-foreground mb-4">
-                  Acesse a página completa de remessas para visualizar, filtrar e gerenciar todas as entregas.
-                </p>
-                <Button onClick={() => navigate('/shipping/shipments')}>
-                  Ir para Lista de Remessas
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        <TabsContent value="remessas" className="mt-6">
+          <ShipmentGenerator />
         </TabsContent>
 
         {/* Rastreios Tab */}
         <TabsContent value="rastreios" className="mt-6">
-          <TrackingLookup />
+          <TrackingTab initialSubTab={trackingSubTab} />
         </TabsContent>
 
         {/* Meios de Transporte Tab */}
@@ -474,11 +444,6 @@ export default function ShippingDashboard() {
           <CarrierCardsGrid />
         </TabsContent>
       </Tabs>
-
-      <CreateShipmentDialog
-        open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
-      />
     </div>
   );
 }
