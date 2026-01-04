@@ -56,6 +56,10 @@ interface StorefrontFooterContentProps {
   /** Footer config from global layout - has PRIORITY over store_settings */
   footerConfig?: BlockNode | null;
   isEditing?: boolean;
+  /** Visibility override for footer menu 1 (passed from PublicTemplateRenderer) */
+  showFooter1Override?: boolean;
+  /** Visibility override for footer menu 2 (passed from PublicTemplateRenderer) */
+  showFooter2Override?: boolean;
 }
 
 /**
@@ -70,7 +74,9 @@ interface StorefrontFooterContentProps {
 export function StorefrontFooterContent({ 
   tenantSlug, 
   footerConfig,
-  isEditing = false 
+  isEditing = false,
+  showFooter1Override,
+  showFooter2Override,
 }: StorefrontFooterContentProps) {
   // Fetch store settings as fallback data source
   const { data: storeSettings } = useQuery({
@@ -272,9 +278,14 @@ export function StorefrontFooterContent({
   const showSocial = getBoolean('showSocial', true);
   const showLegal = getBoolean('showLegal', true);
   
-  // Footer menu visibility (from global layout toggles)
-  const showFooter1 = getBoolean('showFooter1', true);
-  const showFooter2 = getBoolean('showFooter2', true);
+  // Footer menu visibility
+  // Priority: props passed by PublicTemplateRenderer > footerConfig > default true
+  const showFooter1 = showFooter1Override !== undefined 
+    ? showFooter1Override 
+    : getBoolean('showFooter1', true);
+  const showFooter2 = showFooter2Override !== undefined 
+    ? showFooter2Override 
+    : getBoolean('showFooter2', true);
   
   // ============================================
   // CONTENT OVERRIDES

@@ -16,7 +16,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { GlobalLayoutToggles } from './GlobalLayoutToggles';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
@@ -66,9 +65,6 @@ export function StorefrontPagesTab() {
   return (
     <TooltipProvider>
       <div className="space-y-6">
-        {/* Layout Global Toggles */}
-        <GlobalLayoutToggles />
-
         {/* E-commerce Pages */}
         <Card>
         <CardHeader className="pb-4">

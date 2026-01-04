@@ -471,6 +471,28 @@ export function HeaderFooterPropsEditor({
     clearFooterOverride,
   } = usePageOverrides({ tenantId, pageType, pageId });
 
+  // Fetch global layout values for displaying "Herdando do global: X"
+  const { data: globalLayout } = useQuery({
+    queryKey: ['global-layout-visibility', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      const { data } = await supabase
+        .from('storefront_global_layout')
+        .select('header_enabled, footer_enabled, show_footer_1, show_footer_2')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!tenantId && !isHomePage && !isCheckoutPage,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Global values (fallback to true if no data)
+  const globalHeaderEnabled = globalLayout?.header_enabled ?? true;
+  const globalFooterEnabled = globalLayout?.footer_enabled ?? true;
+  const globalShowFooter1 = globalLayout?.show_footer_1 ?? true;
+  const globalShowFooter2 = globalLayout?.show_footer_2 ?? true;
+
   // === HEADER OVERRIDES ===
   // Get global notice enabled value from props
   const globalHeaderNoticeEnabled = Boolean(props.noticeEnabled);
@@ -488,7 +510,7 @@ export function HeaderFooterPropsEditor({
   const hasHeaderEnabledOverride = overrides?.header?.headerEnabled !== undefined;
   const effectiveHeaderEnabled = hasHeaderEnabledOverride
     ? Boolean(overrides.header?.headerEnabled)
-    : true; // Default: true (global value comes from storefront_global_layout)
+    : globalHeaderEnabled;
 
   // Handle toggle change - only creates override, never modifies global
   const handleHeaderNoticeToggle = async (checked: boolean) => {
@@ -546,17 +568,17 @@ export function HeaderFooterPropsEditor({
   const hasFooterEnabledOverride = overrides?.footer?.footerEnabled !== undefined;
   const effectiveFooterEnabled = hasFooterEnabledOverride
     ? Boolean(overrides.footer?.footerEnabled)
-    : true;
+    : globalFooterEnabled;
 
   const hasShowFooter1Override = overrides?.footer?.showFooter1 !== undefined;
   const effectiveShowFooter1 = hasShowFooter1Override
     ? Boolean(overrides.footer?.showFooter1)
-    : true;
+    : globalShowFooter1;
 
   const hasShowFooter2Override = overrides?.footer?.showFooter2 !== undefined;
   const effectiveShowFooter2 = hasShowFooter2Override
     ? Boolean(overrides.footer?.showFooter2)
-    : true;
+    : globalShowFooter2;
 
   // Handle footer toggle change - only creates override, never modifies global
   const handleFooterNoticeToggle = async (checked: boolean) => {
@@ -1389,7 +1411,7 @@ export function HeaderFooterPropsEditor({
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
                     <span className="text-xs text-primary">
-                      Herdando do global: Ativado
+                      Herdando do global: {globalHeaderEnabled ? 'Ativado' : 'Desativado'}
                     </span>
                   </div>
                 )}
@@ -1505,7 +1527,7 @@ export function HeaderFooterPropsEditor({
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
                     <span className="text-xs text-primary">
-                      Herdando do global: Ativado
+                      Herdando do global: {globalFooterEnabled ? 'Ativado' : 'Desativado'}
                     </span>
                   </div>
                 )}
@@ -1558,7 +1580,7 @@ export function HeaderFooterPropsEditor({
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
                     <span className="text-xs text-primary">
-                      Herdando do global: Ativado
+                      Herdando do global: {globalShowFooter1 ? 'Ativado' : 'Desativado'}
                     </span>
                   </div>
                 )}
@@ -1611,7 +1633,7 @@ export function HeaderFooterPropsEditor({
                   <div className="flex items-center gap-2 p-2 rounded-md bg-primary/5 border border-primary/20">
                     <div className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
                     <span className="text-xs text-primary">
-                      Herdando do global: Ativado
+                      Herdando do global: {globalShowFooter2 ? 'Ativado' : 'Desativado'}
                     </span>
                   </div>
                 )}
