@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
+import { AttributionData } from '@/hooks/useAttribution';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
@@ -79,6 +80,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     card,
     checkoutSessionId,
     discount,
+    attribution,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -88,6 +90,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     card?: CardData;
     checkoutSessionId?: string;
     discount?: DiscountData;
+    attribution?: AttributionData;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -154,6 +157,25 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             discount_type: discount.discount_type,
             discount_amount: discount.discount_amount,
             free_shipping: discount.free_shipping,
+          } : undefined,
+          // Attribution data for conversion tracking
+          attribution: attribution ? {
+            utm_source: attribution.utm_source,
+            utm_medium: attribution.utm_medium,
+            utm_campaign: attribution.utm_campaign,
+            utm_content: attribution.utm_content,
+            utm_term: attribution.utm_term,
+            gclid: attribution.gclid,
+            fbclid: attribution.fbclid,
+            ttclid: attribution.ttclid,
+            msclkid: attribution.msclkid,
+            referrer_url: attribution.referrer_url,
+            referrer_domain: attribution.referrer_domain,
+            landing_page: attribution.landing_page,
+            attribution_source: attribution.attribution_source,
+            attribution_medium: attribution.attribution_medium,
+            session_id: attribution.session_id,
+            first_touch_at: attribution.first_touch_at,
           } : undefined,
         },
       });

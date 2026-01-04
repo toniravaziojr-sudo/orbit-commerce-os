@@ -234,7 +234,25 @@ serve(async (req) => {
       console.error('[checkout-create-order] Error creating order items:', itemsError);
     }
 
-    // 5. Create discount redemption if discount was applied
+    // 5. Create initial order_history entry
+    console.log('[checkout-create-order] Creating initial order history entry');
+    const { error: historyError } = await supabase
+      .from('order_history')
+      .insert({
+        order_id: orderId,
+        status: 'pending',
+        changed_by: 'system',
+        notes: 'Pedido criado via checkout',
+      });
+
+    if (historyError) {
+      console.error('[checkout-create-order] Error creating order history:', historyError);
+      // Non-blocking - order was created
+    } else {
+      console.log('[checkout-create-order] Order history entry created');
+    }
+
+    // 6. Create discount redemption if discount was applied
     if (payload.discount?.discount_id) {
       console.log('[checkout-create-order] Creating discount redemption');
       const { error: redemptionError } = await supabase
@@ -256,7 +274,7 @@ serve(async (req) => {
       }
     }
 
-    // 6. Save attribution data if provided
+    // 7. Save attribution data if provided
     if (payload.attribution) {
       console.log('[checkout-create-order] Saving attribution data');
       const { error: attrError } = await supabase
