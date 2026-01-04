@@ -264,18 +264,18 @@ serve(async (req) => {
               
               console.log(`[fiscal-webhook] Order ${invoice.order_id} updated to shipped`);
             } else {
-              // Se não criou remessa, apenas marcar como dispatched
+              // Se não criou remessa, marcar como processing (aguardando remessa manual)
               await supabase
                 .from("orders")
-                .update({ status: 'dispatched' })
+                .update({ status: 'processing' })
                 .eq("id", invoice.order_id);
             }
           } catch (shipError) {
             console.error(`[fiscal-webhook] Failed to create shipment:`, shipError);
-            // Fallback: marcar como dispatched
+            // Fallback: marcar como processing (aguardando remessa manual)
             await supabase
               .from("orders")
-              .update({ status: 'dispatched' })
+              .update({ status: 'processing' })
               .eq("id", invoice.order_id);
           }
         }
