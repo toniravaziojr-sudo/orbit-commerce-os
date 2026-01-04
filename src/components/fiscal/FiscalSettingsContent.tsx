@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Building2, MapPin, FileText, Settings2, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail } from 'lucide-react';
+import { Save, Building2, MapPin, FileText, Zap, Loader2, CheckCircle, AlertCircle, Upload, ShieldCheck, ShieldAlert, ShieldX, Key, Package, Trash2, Truck, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,7 +55,7 @@ function formatCEP(value: string) {
   return numbers.replace(/^(\d{5})(\d{3}).*/, '$1-$2');
 }
 
-export default function FiscalSettings() {
+export function FiscalSettingsContent() {
   const navigate = useNavigate();
   const { settings, isLoading, saveSettings, uploadCertificate, removeCertificate } = useFiscalSettings();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -194,17 +194,12 @@ export default function FiscalSettings() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/fiscal')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">Configurações Fiscais</h1>
-            <p className="text-muted-foreground">Configure a emissão de NF-e para sua loja</p>
-          </div>
+        <div>
+          <h2 className="text-xl font-bold">Configurações Fiscais</h2>
+          <p className="text-muted-foreground">Configure a emissão de NF-e para sua loja</p>
         </div>
         <div className="flex items-center gap-2">
           {isConfigured ? (
