@@ -1,5 +1,6 @@
 // =============================================
 // CART CONTENT - Main cart page content
+// Respects cart_config settings
 // =============================================
 
 import { CartItemsList } from './CartItemsList';
@@ -9,9 +10,11 @@ import { BenefitProgressBar } from './BenefitProgressBar';
 import { CrossSellSection } from './CrossSellSection';
 import { BundlesSection } from './BundlesSection';
 import { BuyTogetherSection } from './BuyTogetherSection';
+import { CartPromoBanner } from './CartPromoBanner';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { useCart } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
+import { useCartConfig } from '@/contexts/StorefrontConfigContext';
 import { getStoreHost } from '@/lib/storeHost';
 
 interface CartContentProps {
@@ -21,6 +24,7 @@ interface CartContentProps {
 export function CartContent({ tenantId }: CartContentProps) {
   const { items, subtotal } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount } = useDiscount();
+  const { config: cartConfig } = useCartConfig();
   const hasItems = items.length > 0;
 
   // Use centralized store host helper - always sends actual browser host
@@ -28,6 +32,9 @@ export function CartContent({ tenantId }: CartContentProps) {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Cart Promo Banner - Conditional based on cart_config */}
+      <CartPromoBanner config={cartConfig} />
+      
       <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
 
       {/* Benefit Progress Bar - Always at top when has items */}
@@ -42,15 +49,15 @@ export function CartContent({ tenantId }: CartContentProps) {
         <div className="lg:col-span-2 space-y-8">
           <CartItemsList />
 
-          {/* Shipping Estimator */}
-          {hasItems && (
+          {/* Shipping Estimator - Conditional based on cart_config */}
+          {hasItems && cartConfig.shippingCalculatorEnabled && (
             <div className="border rounded-lg p-4">
               <ShippingEstimator />
             </div>
           )}
 
-          {/* Coupon Input */}
-          {hasItems && (
+          {/* Coupon Input - Conditional based on cart_config */}
+          {hasItems && cartConfig.couponEnabled && (
             <div className="border rounded-lg p-4">
               <h3 className="text-sm font-medium mb-3">Cupom de desconto</h3>
               <CouponInput
@@ -65,8 +72,8 @@ export function CartContent({ tenantId }: CartContentProps) {
             </div>
           )}
 
-          {/* AOV Sections - Only show when has items */}
-          {hasItems && (
+          {/* AOV Sections - Conditional based on cart_config */}
+          {hasItems && cartConfig.crossSellEnabled && (
             <>
               <CrossSellSection tenantId={tenantId} />
               <BundlesSection tenantId={tenantId} />

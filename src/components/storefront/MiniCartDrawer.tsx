@@ -2,6 +2,7 @@
 // MINI CART DRAWER - Opens when adding to cart
 // Uses ResponsiveDrawerLayout for anti-regression mobile CSS
 // Reflects same Conversion configs as /cart (benefit/shipping)
+// Respects cart_config settings
 // =============================================
 
 import { useState } from 'react';
@@ -17,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Minus, Plus, X, ShoppingCart, Truck, Check, Gift, Loader2, Tag } from 'lucide-react';
 import { useCart, CartItem } from '@/contexts/CartContext';
 import { useDiscount } from '@/contexts/DiscountContext';
-import { useBenefit, useShipping } from '@/contexts/StorefrontConfigContext';
+import { useBenefit, useShipping, useCartConfig } from '@/contexts/StorefrontConfigContext';
 import { getPublicCheckoutUrl, getPublicCartUrl } from '@/lib/publicUrls';
 import { ResponsiveDrawerLayout } from '@/components/ui/responsive-drawer-layout';
 import { calculateCartTotals, formatCurrency, formatPrice } from '@/lib/cartTotals';
@@ -41,6 +42,7 @@ export function MiniCartDrawer({
   const navigate = useNavigate();
   const { items, shipping, subtotal, updateQuantity, removeItem, setShippingCep, setShippingOptions, selectShipping } = useCart();
   const { appliedDiscount, applyDiscount, removeDiscount, getDiscountAmount } = useDiscount();
+  const { config: cartConfig } = useCartConfig();
 
   // Use centralized store host helper - always sends actual browser host
   const storeHost = getStoreHost();
@@ -109,15 +111,17 @@ export function MiniCartDrawer({
             />
           ))}
           
-          {/* Shipping Calculator - Same state as /cart */}
-          <MiniCartShipping 
-            subtotal={subtotal}
-            shipping={shipping}
-            items={items}
-            setShippingCep={setShippingCep}
-            setShippingOptions={setShippingOptions}
-            selectShipping={selectShipping}
-          />
+          {/* Shipping Calculator - Conditional based on cart_config */}
+          {cartConfig.shippingCalculatorEnabled && (
+            <MiniCartShipping 
+              subtotal={subtotal}
+              shipping={shipping}
+              items={items}
+              setShippingCep={setShippingCep}
+              setShippingOptions={setShippingOptions}
+              selectShipping={selectShipping}
+            />
+          )}
         </div>
       )}
     </div>
@@ -126,8 +130,8 @@ export function MiniCartDrawer({
   // Footer component - summary + CTAs
   const Footer = (
     <div className="border-t px-4 py-4 space-y-4 bg-background">
-      {/* Coupon Input */}
-      {items.length > 0 && (
+      {/* Coupon Input - Conditional based on cart_config */}
+      {items.length > 0 && cartConfig.couponEnabled && (
         <CouponInput
           storeHost={storeHost}
           subtotal={subtotal}
@@ -189,14 +193,17 @@ export function MiniCartDrawer({
         >
           Iniciar Compra
         </Button>
-        <Button
-          variant="outline"
-          onClick={handleGoToCart}
-          disabled={items.length === 0}
-          className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
-        >
-          Ir para o Carrinho
-        </Button>
+        {/* "Ir para Carrinho" button - Conditional based on cart_config */}
+        {cartConfig.showGoToCartButton && (
+          <Button
+            variant="outline"
+            onClick={handleGoToCart}
+            disabled={items.length === 0}
+            className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm"
+          >
+            Ir para o Carrinho
+          </Button>
+        )}
         <Button
           variant="ghost"
           onClick={handleContinueShopping}
