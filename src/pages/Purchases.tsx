@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShoppingBag, Plus, Truck, Package, Users, Pencil, Trash2 } from "lucide-react";
+import { ShoppingBag, Plus, Truck, Package, Users, Pencil, Trash2, FileText } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -12,6 +12,7 @@ import { usePurchases, PURCHASE_STATUS_LABELS, PURCHASE_STATUS_COLORS } from "@/
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { SupplierFormDialog } from "@/components/purchases/SupplierFormDialog";
 import { PurchaseFormDialog } from "@/components/purchases/PurchaseFormDialog";
+import { DeleteConfirmDialog } from "@/components/purchases/DeleteConfirmDialog";
 import { format } from "date-fns";
 
 export default function Purchases() {
@@ -22,6 +23,12 @@ export default function Purchases() {
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<any>(null);
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
+  
+  // States para confirmação de exclusão
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteType, setDeleteType] = useState<'purchase' | 'supplier'>('purchase');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteName, setDeleteName] = useState<string>('');
 
   const handleSupplierSubmit = (data: any) => {
     if (editingSupplier) {
@@ -41,6 +48,24 @@ export default function Purchases() {
     }
     setPurchaseDialogOpen(false);
     setEditingPurchase(null);
+  };
+
+  const handleDeleteClick = (type: 'purchase' | 'supplier', id: string, name: string) => {
+    setDeleteType(type);
+    setDeleteId(id);
+    setDeleteName(name);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!deleteId) return;
+    if (deleteType === 'purchase') {
+      deletePurchase.mutate(deleteId);
+    } else {
+      deleteSupplier.mutate(deleteId);
+    }
+    setDeleteDialogOpen(false);
+    setDeleteId(null);
   };
 
   return (
@@ -79,8 +104,10 @@ export default function Purchases() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nº Pedido</TableHead>
+                      <TableHead>Descrição</TableHead>
                       <TableHead>Fornecedor</TableHead>
                       <TableHead>Valor</TableHead>
+                      <TableHead>NF Entrada</TableHead>
                       <TableHead>Previsão</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="w-24">Ações</TableHead>
@@ -90,14 +117,23 @@ export default function Purchases() {
                     {purchases.map((p) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">{p.order_number}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{p.description || "-"}</TableCell>
                         <TableCell>{p.supplier?.name || "-"}</TableCell>
                         <TableCell>R$ {Number(p.total_value).toFixed(2)}</TableCell>
+                        <TableCell>
+                          {p.entry_invoice ? (
+                            <Badge variant="outline" className="gap-1">
+                              <FileText className="h-3 w-3" />
+                              {p.entry_invoice.numero}
+                            </Badge>
+                          ) : "-"}
+                        </TableCell>
                         <TableCell>{p.expected_delivery_date ? format(new Date(p.expected_delivery_date), "dd/MM/yyyy") : "-"}</TableCell>
                         <TableCell><Badge className={PURCHASE_STATUS_COLORS[p.status]}>{PURCHASE_STATUS_LABELS[p.status]}</Badge></TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" onClick={() => { setEditingPurchase(p); setPurchaseDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deletePurchase.mutate(p.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick('purchase', p.id, p.order_number)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -139,7 +175,7 @@ export default function Purchases() {
                         <TableCell>
                           <div className="flex gap-1">
                             <Button variant="ghost" size="icon" onClick={() => { setEditingSupplier(s); setSupplierDialogOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={() => deleteSupplier.mutate(s.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteClick('supplier', s.id, s.name)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -154,6 +190,15 @@ export default function Purchases() {
 
       <SupplierFormDialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen} supplier={editingSupplier} onSubmit={handleSupplierSubmit} isLoading={createSupplier.isPending || updateSupplier.isPending} />
       <PurchaseFormDialog open={purchaseDialogOpen} onOpenChange={setPurchaseDialogOpen} purchase={editingPurchase} suppliers={suppliers} onSubmit={handlePurchaseSubmit} isLoading={createPurchase.isPending || updatePurchase.isPending} />
+      
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleConfirmDelete}
+        title={deleteType === 'purchase' ? 'Excluir Pedido de Compra' : 'Excluir Fornecedor'}
+        description={`Tem certeza que deseja excluir "${deleteName}"? Esta ação não pode ser desfeita.`}
+        isLoading={deletePurchase.isPending || deleteSupplier.isPending}
+      />
     </div>
   );
 }
