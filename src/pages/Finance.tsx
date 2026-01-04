@@ -10,12 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useFinanceEntries } from "@/hooks/useFinanceEntries";
+import { useFinanceEntries, FinanceEntry } from "@/hooks/useFinanceEntries";
 import { useFinanceEntryTypes } from "@/hooks/useFinanceEntryTypes";
 import { FinanceEntryFormDialog } from "@/components/finance/FinanceEntryFormDialog";
 import { DeleteConfirmDialog } from "@/components/purchases/DeleteConfirmDialog";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { ExportDropdown } from "@/components/ui/export-dropdown";
+import { exportToCSV, exportToExcel, formatDateForExport, formatCurrencyForExport } from "@/lib/exportUtils";
 import { format, isWithinInterval, startOfMonth, endOfMonth } from "date-fns";
+import { toast } from "sonner";
 
 export default function Finance() {
   const { entries, orders, totalIncome, totalExpense, netProfit, margin, ordersIncome, createEntry, updateEntry, deleteEntry, isLoading } = useFinanceEntries();
@@ -29,6 +32,10 @@ export default function Finance() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteName, setDeleteName] = useState<string>('');
+
+  // Filters for dashboard
+  const [dashboardStartDate, setDashboardStartDate] = useState<Date | undefined>(startOfMonth(new Date()));
+  const [dashboardEndDate, setDashboardEndDate] = useState<Date | undefined>(endOfMonth(new Date()));
 
   // Filters for history tab
   const [historySearch, setHistorySearch] = useState("");
@@ -109,15 +116,97 @@ export default function Finance() {
     return type?.name;
   };
 
+  // Calculate filtered dashboard stats
+  const filteredDashboardStats = useMemo(() => {
+    const filteredEntries = entries.filter(entry => {
+      if (dashboardStartDate && dashboardEndDate) {
+        const entryDate = new Date(entry.entry_date);
+        if (!isWithinInterval(entryDate, { start: dashboardStartDate, end: dashboardEndDate })) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const filteredOrders = orders.filter(order => {
+      if (dashboardStartDate && dashboardEndDate) {
+        const orderDate = new Date(order.created_at);
+        if (!isWithinInterval(orderDate, { start: dashboardStartDate, end: dashboardEndDate })) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    const manualIncome = filteredEntries
+      .filter(e => e.type === 'income')
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const manualExpense = filteredEntries
+      .filter(e => e.type === 'expense')
+      .reduce((sum, e) => sum + Number(e.amount), 0);
+
+    const ordersIncomeFiltered = filteredOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+
+    const totalIncomeFiltered = manualIncome + ordersIncomeFiltered;
+    const totalExpenseFiltered = manualExpense;
+    const netProfitFiltered = totalIncomeFiltered - totalExpenseFiltered;
+    const marginFiltered = totalIncomeFiltered > 0 ? ((netProfitFiltered / totalIncomeFiltered) * 100).toFixed(1) : '0';
+
+    return {
+      totalIncome: totalIncomeFiltered,
+      totalExpense: totalExpenseFiltered,
+      netProfit: netProfitFiltered,
+      margin: marginFiltered,
+      ordersIncome: ordersIncomeFiltered,
+      ordersCount: filteredOrders.length,
+    };
+  }, [entries, orders, dashboardStartDate, dashboardEndDate]);
+
+  const handleExportHistory = (exportFormat: 'csv' | 'excel') => {
+    const columns: { key: keyof FinanceEntry; label: string; format?: (value: any, row: FinanceEntry) => string }[] = [
+      { key: 'entry_date', label: 'Data', format: (v) => formatDateForExport(v) },
+      { key: 'description', label: 'Descrição' },
+      { key: 'type', label: 'Tipo', format: (v) => v === 'income' ? 'Entrada' : 'Saída' },
+      { key: 'finance_entry_type_id', label: 'Classificação', format: (v) => getEntryTypeName(v) || '' },
+      { key: 'category', label: 'Categoria', format: (v) => v || 'Outros' },
+      { key: 'amount', label: 'Valor', format: (v) => formatCurrencyForExport(v) },
+      { key: 'notes', label: 'Observações', format: (v) => v || '' },
+    ];
+    
+    const filename = `historico-financeiro-${exportFormat === 'csv' ? 'csv' : 'excel'}`;
+    
+    if (exportFormat === 'csv') {
+      exportToCSV(filteredHistoryEntries, columns, filename);
+    } else {
+      exportToExcel(filteredHistoryEntries, columns, filename);
+    }
+    
+    toast.success(`Exportação ${exportFormat.toUpperCase()} concluída`);
+  };
+
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader title="Financeiro" description="Controle de entradas, saídas, margens e conciliação" />
 
+      {/* Dashboard filter */}
+      <div className="flex items-center gap-4">
+        <DateRangeFilter
+          startDate={dashboardStartDate}
+          endDate={dashboardEndDate}
+          onChange={(start, end) => {
+            setDashboardStartDate(start);
+            setDashboardEndDate(end);
+          }}
+          label="Período"
+        />
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Receita (Mês)" value={formatCurrency(totalIncome)} icon={TrendingUp} variant="success" />
-        <StatCard title="Despesas (Mês)" value={formatCurrency(totalExpense)} icon={TrendingDown} variant="destructive" />
-        <StatCard title="Lucro Líquido" value={formatCurrency(netProfit)} icon={DollarSign} variant="primary" />
-        <StatCard title="Margem Média" value={`${margin}%`} icon={PiggyBank} variant="info" />
+        <StatCard title="Receita" value={formatCurrency(filteredDashboardStats.totalIncome)} icon={TrendingUp} variant="success" />
+        <StatCard title="Despesas" value={formatCurrency(filteredDashboardStats.totalExpense)} icon={TrendingDown} variant="destructive" />
+        <StatCard title="Lucro Líquido" value={formatCurrency(filteredDashboardStats.netProfit)} icon={DollarSign} variant="primary" />
+        <StatCard title="Margem Média" value={`${filteredDashboardStats.margin}%`} icon={PiggyBank} variant="info" />
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
@@ -125,7 +214,7 @@ export default function Finance() {
           <TabsTrigger value="overview" className="gap-2"><DollarSign className="h-4 w-4" />Visão Geral</TabsTrigger>
           <TabsTrigger value="income" className="gap-2"><ArrowUpRight className="h-4 w-4" />Entradas</TabsTrigger>
           <TabsTrigger value="expenses" className="gap-2"><ArrowDownRight className="h-4 w-4" />Saídas</TabsTrigger>
-          <TabsTrigger value="history" className="gap-2"><History className="h-4 w-4" />Histórico</TabsTrigger>
+          <TabsTrigger value="history" className="gap-2"><History className="h-4 w-4" />Histórico Financeiro</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -133,24 +222,24 @@ export default function Finance() {
             <Card>
               <CardHeader><CardTitle className="text-lg">Receita de Vendas (Automático)</CardTitle></CardHeader>
               <CardContent>
-                {orders.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">Nenhuma venda paga este mês.</p>
+                {filteredDashboardStats.ordersCount === 0 ? (
+                  <p className="text-muted-foreground text-sm">Nenhuma venda paga no período.</p>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-2xl font-bold text-green-600">{formatCurrency(ordersIncome)}</p>
-                    <p className="text-sm text-muted-foreground">{orders.length} pedido(s) pago(s) este mês</p>
+                    <p className="text-2xl font-bold text-green-600">{formatCurrency(filteredDashboardStats.ordersIncome)}</p>
+                    <p className="text-sm text-muted-foreground">{filteredDashboardStats.ordersCount} pedido(s) pago(s) no período</p>
                   </div>
                 )}
               </CardContent>
             </Card>
             <Card>
-              <CardHeader><CardTitle className="text-lg">Resumo do Mês</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Resumo do Período</CardTitle></CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Entradas</span><span className="text-green-600 font-medium">{formatCurrency(totalIncome)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Saídas</span><span className="text-red-600 font-medium">{formatCurrency(totalExpense)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Entradas</span><span className="text-green-600 font-medium">{formatCurrency(filteredDashboardStats.totalIncome)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Saídas</span><span className="text-red-600 font-medium">{formatCurrency(filteredDashboardStats.totalExpense)}</span></div>
                   <hr />
-                  <div className="flex justify-between"><span className="font-medium">Saldo</span><span className={`font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(netProfit)}</span></div>
+                  <div className="flex justify-between"><span className="font-medium">Saldo</span><span className={`font-bold ${filteredDashboardStats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(filteredDashboardStats.netProfit)}</span></div>
                 </div>
               </CardContent>
             </Card>
@@ -229,8 +318,13 @@ export default function Finance() {
 
         <TabsContent value="history">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Histórico de Lançamentos</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-lg font-semibold">Histórico Financeiro</CardTitle>
+              <ExportDropdown
+                onExportCSV={() => handleExportHistory('csv')}
+                onExportExcel={() => handleExportHistory('excel')}
+                disabled={filteredHistoryEntries.length === 0}
+              />
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Filters */}
