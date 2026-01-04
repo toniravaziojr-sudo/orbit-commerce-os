@@ -32,6 +32,8 @@ export interface Product {
   status: 'draft' | 'active' | 'inactive' | 'archived';
   is_featured: boolean;
   has_variants: boolean;
+  product_format: 'simple' | 'with_variants' | 'with_composition';
+  stock_type: 'physical' | 'virtual';
   created_at: string;
   updated_at: string;
 }
