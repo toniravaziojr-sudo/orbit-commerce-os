@@ -7133,6 +7133,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_blog_view_count: {
+        Args: { post_id: string }
+        Returns: undefined
+      }
       initialize_default_page_template: {
         Args: { p_tenant_id: string }
         Returns: string
