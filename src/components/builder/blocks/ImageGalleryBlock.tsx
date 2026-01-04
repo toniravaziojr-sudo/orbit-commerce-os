@@ -21,6 +21,10 @@ interface ImageGalleryBlockProps {
   backgroundColor?: string;
 }
 
+interface ImageGalleryBlockPropsWithContext extends ImageGalleryBlockProps {
+  context?: { viewport?: 'desktop' | 'mobile' | 'tablet' };
+}
+
 export function ImageGalleryBlock({
   title,
   subtitle,
@@ -31,8 +35,12 @@ export function ImageGalleryBlock({
   aspectRatio = 'square',
   borderRadius = 8,
   backgroundColor = 'transparent',
-}: ImageGalleryBlockProps) {
+  context,
+}: ImageGalleryBlockPropsWithContext) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  
+  // Detect if we're in builder mode (disable interactions)
+  const isInBuilder = context?.viewport !== undefined;
 
   const gapClasses = {
     sm: 'gap-2',
@@ -54,7 +62,8 @@ export function ImageGalleryBlock({
   };
 
   const openLightbox = (index: number) => {
-    if (enableLightbox) {
+    // Disable lightbox in builder mode
+    if (enableLightbox && !isInBuilder) {
       setLightboxIndex(index);
     }
   };

@@ -63,7 +63,12 @@ export function ReviewsBlock({
   visibleCount = 4,
   context,
 }: ReviewsBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally
+  const isMobileDevice = useIsMobile();
+  
+  // Determine if mobile based on builder context or device detection
+  const isMobile = context?.viewport === 'mobile' || 
+    (context?.viewport === undefined && isMobileDevice);
   
   const [emblaRef, emblaApi] = useEmblaCarousel({
     align: 'start',
