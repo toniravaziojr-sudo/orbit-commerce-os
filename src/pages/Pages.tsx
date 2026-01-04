@@ -62,6 +62,22 @@ export default function Pages() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
     
+    // Validate slug format
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.isValid) {
+      toast.error(slugValidation.error || 'Slug inválido');
+      return;
+    }
+    
+    // Check for duplicate slug (excluding current page when editing)
+    const isDuplicate = pages?.some(p => 
+      p.slug === slug && (!editingPage || p.id !== editingPage.id)
+    );
+    if (isDuplicate) {
+      toast.error('Já existe uma página com este slug');
+      return;
+    }
+    
     if (editingPage) {
       // When editing, only update title and slug
       await updatePage.mutateAsync({

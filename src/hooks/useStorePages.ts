@@ -134,11 +134,30 @@ export function useStorePages() {
 
   const deletePage = useMutation({
     mutationFn: async (id: string) => {
+      // First, get the page to check if it has a template
+      const { data: page, error: fetchError } = await supabase
+        .from('store_pages')
+        .select('template_id')
+        .eq('id', id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      const templateId = page?.template_id;
+      
+      // Delete the page first
       const { error } = await supabase.from('store_pages').delete().eq('id', id);
       if (error) throw error;
+      
+      // Then delete the associated template if it exists
+      if (templateId) {
+        await supabase.from('page_templates').delete().eq('id', templateId);
+        // We don't throw on template deletion error - page is already deleted
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-pages'] });
+      queryClient.invalidateQueries({ queryKey: ['page-templates'] });
       toast({ title: 'Página excluída!' });
     },
     onError: (error: Error) => {
