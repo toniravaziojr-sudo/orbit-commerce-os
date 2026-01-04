@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,16 +41,32 @@ export function SupplierFormDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: supplier?.name || "",
-      cnpj: supplier?.cnpj || "",
-      email: supplier?.email || "",
-      phone: supplier?.phone || "",
-      address: supplier?.address || "",
-      contact_person: supplier?.contact_person || "",
-      notes: supplier?.notes || "",
-      is_active: supplier?.is_active ?? true,
+      name: "",
+      cnpj: "",
+      email: "",
+      phone: "",
+      address: "",
+      contact_person: "",
+      notes: "",
+      is_active: true,
     },
   });
+
+  // Reset form when supplier changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: supplier?.name || "",
+        cnpj: supplier?.cnpj || "",
+        email: supplier?.email || "",
+        phone: supplier?.phone || "",
+        address: supplier?.address || "",
+        contact_person: supplier?.contact_person || "",
+        notes: supplier?.notes || "",
+        is_active: supplier?.is_active ?? true,
+      });
+    }
+  }, [open, supplier, form]);
 
   const handleSubmit = (data: FormData) => {
     onSubmit(data);

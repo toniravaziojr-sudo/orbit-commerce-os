@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -41,14 +42,28 @@ export function PurchaseFormDialog({
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      supplier_id: purchase?.supplier_id || "",
-      status: purchase?.status || "pending",
-      total_value: purchase?.total_value || 0,
-      expected_delivery_date: purchase?.expected_delivery_date || "",
-      actual_delivery_date: purchase?.actual_delivery_date || "",
-      notes: purchase?.notes || "",
+      supplier_id: "",
+      status: "pending",
+      total_value: 0,
+      expected_delivery_date: "",
+      actual_delivery_date: "",
+      notes: "",
     },
   });
+
+  // Reset form when purchase changes or dialog opens
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        supplier_id: purchase?.supplier_id || "",
+        status: purchase?.status || "pending",
+        total_value: purchase?.total_value || 0,
+        expected_delivery_date: purchase?.expected_delivery_date || "",
+        actual_delivery_date: purchase?.actual_delivery_date || "",
+        notes: purchase?.notes || "",
+      });
+    }
+  }, [open, purchase, form]);
 
   const handleSubmit = (data: FormData) => {
     onSubmit(data);
