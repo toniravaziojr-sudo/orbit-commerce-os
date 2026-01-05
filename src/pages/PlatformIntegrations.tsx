@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
 import { PlatformIntegrationsDashboard } from "@/components/integrations/PlatformIntegrationsDashboard";
-import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
+import { EmailAndDomainsPlatformSettings } from "@/components/integrations/EmailAndDomainsPlatformSettings";
 import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlatformSettings";
 import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
-import { DomainsPlatformSettings } from "@/components/integrations/DomainsPlatformSettings";
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
@@ -21,10 +20,9 @@ import { Navigate } from "react-router-dom";
  * 
  * Contains tabs for each integration:
  * - Resumo: Dashboard with status cards for all integrations
- * - Email: SendGrid system configuration
+ * - Email e Domínios: SendGrid + Cloudflare unified settings
  * - WhatsApp: Z-API manager account configuration
  * - Fiscal: Focus NFe token configuration
- * - Domínios: Cloudflare for SaaS configuration
  * - Logística: Loggi OAuth configuration
  * - IA: Firecrawl and Lovable AI configuration
  */
@@ -73,9 +71,9 @@ export default function PlatformIntegrations() {
             <LayoutGrid className="h-4 w-4" />
             <span className="hidden sm:inline">Resumo</span>
           </TabsTrigger>
-          <TabsTrigger value="email" className="gap-2">
+          <TabsTrigger value="emaildomains" className="gap-2">
             <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">Email</span>
+            <span className="hidden sm:inline">Email e Domínios</span>
           </TabsTrigger>
           <TabsTrigger value="whatsapp" className="gap-2">
             <MessageCircle className="h-4 w-4" />
@@ -84,10 +82,6 @@ export default function PlatformIntegrations() {
           <TabsTrigger value="fiscal" className="gap-2">
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Fiscal</span>
-          </TabsTrigger>
-          <TabsTrigger value="domains" className="gap-2">
-            <Globe className="h-4 w-4" />
-            <span className="hidden sm:inline">Domínios</span>
           </TabsTrigger>
           <TabsTrigger value="logistics" className="gap-2">
             <Truck className="h-4 w-4" />
@@ -103,8 +97,8 @@ export default function PlatformIntegrations() {
           <PlatformIntegrationsDashboard onNavigateToTab={setActiveTab} />
         </TabsContent>
 
-        <TabsContent value="email">
-          <SystemEmailSettings />
+        <TabsContent value="emaildomains">
+          <EmailAndDomainsPlatformSettings />
         </TabsContent>
 
         <TabsContent value="whatsapp">
@@ -113,10 +107,6 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="fiscal">
           <FiscalPlatformSettings />
-        </TabsContent>
-
-        <TabsContent value="domains">
-          <DomainsPlatformSettings />
         </TabsContent>
 
         <TabsContent value="logistics">

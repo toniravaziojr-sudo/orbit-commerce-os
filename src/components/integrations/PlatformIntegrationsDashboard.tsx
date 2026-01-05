@@ -53,12 +53,13 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
   });
 
   const tabMap: Record<string, string> = {
-    sendgrid: 'email',
+    sendgrid: 'emaildomains',
     focus_nfe: 'fiscal',
-    cloudflare: 'domains',
+    cloudflare: 'emaildomains',
     loggi: 'logistics',
     firecrawl: 'ai',
     lovable_ai: 'ai',
+    zapi: 'whatsapp',
   };
 
   const getStatusBadge = (status: string) => {
@@ -107,21 +108,8 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     );
   }
 
-  // Add WhatsApp manually since it's not in secrets check (uses database config)
-  const allIntegrations = [
-    {
-      key: 'whatsapp',
-      name: 'WhatsApp (Z-API)',
-      description: 'Conta gerenciadora para mensagens WhatsApp',
-      icon: 'MessageSquare',
-      docs: 'https://developer.z-api.io/',
-      status: 'configured' as const, // Will be checked separately
-      configuredCount: 1,
-      totalCount: 1,
-      secrets: {},
-    },
-    ...(integrations || []),
-  ];
+  // Use integrations from API (includes zapi now)
+  const allIntegrations = integrations || [];
 
   return (
     <div className="space-y-6">
@@ -137,7 +125,7 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {allIntegrations.map((integration) => {
           const IconComponent = iconMap[integration.icon] || Bot;
-          const targetTab = integration.key === 'whatsapp' ? 'whatsapp' : tabMap[integration.key];
+          const targetTab = tabMap[integration.key];
 
           return (
             <Card 
