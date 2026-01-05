@@ -1,10 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useTenantType } from "@/hooks/useTenantType";
+import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useAuth } from "@/hooks/useAuth";
+import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
+import { FeatureGate } from "@/components/layout/FeatureGate";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -45,11 +48,17 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string | number;
+  /** Feature key for gating - if set, item is wrapped in FeatureGate */
+  featureKey?: string;
+  /** If true, item is only shown to platform admins via PlatformAdminGate */
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
   label: string;
   items: NavItem[];
+  /** If true, entire group is only shown to platform admins */
+  adminOnly?: boolean;
 }
 
 // Full navigation for tenant users
@@ -293,77 +302,97 @@ export function AppSidebar() {
                   </NavLink>
                 );
 
-                if (collapsed) {
-                  return (
-                    <li key={item.href}>
-                      <Tooltip delayDuration={0}>
-                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                        <TooltipContent side="right" className="font-medium">
-                          {item.title}
-                        </TooltipContent>
-                      </Tooltip>
-                    </li>
+                // Wrap with tooltip if collapsed
+                const wrappedLink = collapsed ? (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                    <TooltipContent side="right" className="font-medium">
+                      {item.title}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  linkContent
+                );
+
+                // Apply gating based on item properties
+                let gatedContent: ReactNode = wrappedLink;
+
+                // Admin-only items use PlatformAdminGate
+                if (item.adminOnly) {
+                  gatedContent = (
+                    <PlatformAdminGate>
+                      {wrappedLink}
+                    </PlatformAdminGate>
+                  );
+                }
+                // Feature-gated items use FeatureGate
+                else if (item.featureKey) {
+                  gatedContent = (
+                    <FeatureGate feature={item.featureKey}>
+                      {wrappedLink}
+                    </FeatureGate>
                   );
                 }
 
-                return <li key={item.href}>{linkContent}</li>;
+                return <li key={item.href}>{gatedContent}</li>;
               })}
             </ul>
           </div>
         ))}
 
         {/* Platform admin navigation - only for platform operators WITH tenant context */}
+        {/* Double-protected: showPlatformSection + PlatformAdminGate */}
         {showPlatformSection && (
-          <div className="mb-4">
-            {!collapsed && (
-              <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-primary">
-                {platformNavigation.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {platformNavigation.items.map((item) => {
-                const Icon = item.icon;
-                const active = location.pathname.startsWith(item.href);
+          <PlatformAdminGate>
+            <div className="mb-4">
+              {!collapsed && (
+                <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-primary">
+                  {platformNavigation.label}
+                </p>
+              )}
+              <ul className="space-y-0.5">
+                {platformNavigation.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = location.pathname.startsWith(item.href);
 
-                const linkContent = (
-                  <NavLink
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all border border-primary/20",
-                      active
-                        ? "bg-primary/10 text-primary"
-                        : "text-sidebar-foreground hover:bg-primary/5 hover:text-primary"
-                    )}
-                  >
-                    <Icon
+                  const linkContent = (
+                    <NavLink
+                      to={item.href}
                       className={cn(
-                        "h-4 w-4 flex-shrink-0",
-                        active ? "text-primary" : "text-primary/70"
+                        "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all border border-primary/20",
+                        active
+                          ? "bg-primary/10 text-primary"
+                          : "text-sidebar-foreground hover:bg-primary/5 hover:text-primary"
                       )}
-                    />
-                    {!collapsed && (
-                      <span className="flex-1 truncate">{item.title}</span>
-                    )}
-                  </NavLink>
-                );
-
-                if (collapsed) {
-                  return (
-                    <li key={item.href}>
-                      <Tooltip delayDuration={0}>
-                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                        <TooltipContent side="right" className="font-medium">
-                          {item.title}
-                        </TooltipContent>
-                      </Tooltip>
-                    </li>
+                    >
+                      <Icon
+                        className={cn(
+                          "h-4 w-4 flex-shrink-0",
+                          active ? "text-primary" : "text-primary/70"
+                        )}
+                      />
+                      {!collapsed && (
+                        <span className="flex-1 truncate">{item.title}</span>
+                      )}
+                    </NavLink>
                   );
-                }
 
-                return <li key={item.href}>{linkContent}</li>;
-              })}
-            </ul>
-          </div>
+                  const wrappedLink = collapsed ? (
+                    <Tooltip delayDuration={0}>
+                      <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                      <TooltipContent side="right" className="font-medium">
+                        {item.title}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    linkContent
+                  );
+
+                  return <li key={item.href}>{wrappedLink}</li>;
+                })}
+              </ul>
+            </div>
+          </PlatformAdminGate>
         )}
       </nav>
 

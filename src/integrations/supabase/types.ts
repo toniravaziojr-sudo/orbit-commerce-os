@@ -6935,6 +6935,44 @@ export type Database = {
           },
         ]
       }
+      tenant_feature_overrides: {
+        Row: {
+          created_at: string
+          feature_key: string
+          id: string
+          is_enabled: boolean
+          note: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          feature_key: string
+          id?: string
+          is_enabled: boolean
+          note?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          feature_key?: string
+          id?: string
+          is_enabled?: boolean
+          note?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_feature_overrides_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_invites: {
         Row: {
           accepted_at: string | null
@@ -7024,9 +7062,11 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_special: boolean
           logo_url: string | null
           name: string
           next_order_number: number
+          plan: Database["public"]["Enums"]["tenant_plan"]
           settings: Json | null
           slug: string
           type: Database["public"]["Enums"]["tenant_type"]
@@ -7035,9 +7075,11 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          is_special?: boolean
           logo_url?: string | null
           name: string
           next_order_number?: number
+          plan?: Database["public"]["Enums"]["tenant_plan"]
           settings?: Json | null
           slug: string
           type?: Database["public"]["Enums"]["tenant_type"]
@@ -7046,9 +7088,11 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          is_special?: boolean
           logo_url?: string | null
           name?: string
           next_order_number?: number
+          plan?: Database["public"]["Enums"]["tenant_plan"]
           settings?: Json | null
           slug?: string
           type?: Database["public"]["Enums"]["tenant_type"]
@@ -7282,9 +7326,11 @@ export type Database = {
         Returns: {
           created_at: string
           id: string
+          is_special: boolean
           logo_url: string | null
           name: string
           next_order_number: number
+          plan: Database["public"]["Enums"]["tenant_plan"]
           settings: Json | null
           slug: string
           type: Database["public"]["Enums"]["tenant_type"]
@@ -7448,6 +7494,7 @@ export type Database = {
         | "mercadolivre"
         | "shopee"
         | "chat"
+      tenant_plan: "start" | "growth" | "scale" | "enterprise" | "unlimited"
       tenant_type: "platform" | "customer"
     }
     CompositeTypes: {
@@ -7654,6 +7701,7 @@ export const Constants = {
         "shopee",
         "chat",
       ],
+      tenant_plan: ["start", "growth", "scale", "enterprise", "unlimited"],
       tenant_type: ["platform", "customer"],
     },
   },
