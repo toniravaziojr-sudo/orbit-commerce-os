@@ -7,6 +7,7 @@ import { MessageSquare, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, R
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CredentialEditor } from "./CredentialEditor";
 
 export function WhatsAppPlatformSettings() {
   const queryClient = useQueryClient();
@@ -17,6 +18,26 @@ export function WhatsAppPlatformSettings() {
       const { data, error } = await supabase.functions.invoke('whatsapp-test-connection');
       if (error) throw error;
       return data;
+    },
+  });
+
+  const { data: secretStatus, isLoading: isLoadingSecrets } = useQuery({
+    queryKey: ['platform-secrets-status', 'zapi'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('platform-secrets-check', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      const zapi = response.data.integrations?.find((i: any) => i.key === 'zapi');
+      return zapi || null;
     },
   });
 
@@ -73,6 +94,61 @@ export function WhatsAppPlatformSettings() {
           A conta gerenciadora da plataforma coordena todas as instâncias.
         </AlertDescription>
       </Alert>
+
+      {/* Credenciais Z-API */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Shield className="h-5 w-5" />
+              <div>
+                <CardTitle className="text-base">Credenciais Z-API (Plataforma)</CardTitle>
+                <CardDescription>
+                  Tokens de acesso para a conta gerenciadora
+                </CardDescription>
+              </div>
+            </div>
+            {secretStatus?.status === 'configured' ? (
+              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Configurado
+              </Badge>
+            ) : secretStatus?.status === 'partial' ? (
+              <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Parcial
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Pendente
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <CredentialEditor
+              credentialKey="ZAPI_INSTANCE_ID"
+              label="Instance ID"
+              description="ID da instância gerenciadora da Z-API"
+              isConfigured={secretStatus?.secrets?.ZAPI_INSTANCE_ID || false}
+              preview={secretStatus?.previews?.ZAPI_INSTANCE_ID}
+              source={secretStatus?.sources?.ZAPI_INSTANCE_ID as 'db' | 'env' | null}
+              placeholder="Cole o Instance ID aqui..."
+            />
+            <CredentialEditor
+              credentialKey="ZAPI_TOKEN"
+              label="Token"
+              description="Token de autenticação da instância"
+              isConfigured={secretStatus?.secrets?.ZAPI_TOKEN || false}
+              preview={secretStatus?.previews?.ZAPI_TOKEN}
+              source={secretStatus?.sources?.ZAPI_TOKEN as 'db' | 'env' | null}
+              placeholder="Cole o Token aqui..."
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

@@ -100,6 +100,8 @@ serve(async (req) => {
     const loggiExternalServiceId = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_EXTERNAL_SERVICE_ID');
     const firecrawlApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FIRECRAWL_API_KEY');
     const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
+    const zapiInstanceId = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_INSTANCE_ID');
+    const zapiToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_TOKEN');
 
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
@@ -200,6 +202,24 @@ serve(async (req) => {
         },
         sources: {
           LOVABLE_API_KEY: lovableApiKey.source || '',
+        },
+      },
+      zapi: {
+        name: 'Z-API',
+        description: 'WhatsApp Business API',
+        icon: 'MessageSquare',
+        docs: 'https://developer.z-api.io/',
+        secrets: {
+          ZAPI_INSTANCE_ID: zapiInstanceId.exists,
+          ZAPI_TOKEN: zapiToken.exists,
+        },
+        previews: {
+          ZAPI_INSTANCE_ID: zapiInstanceId.preview || '',
+          ZAPI_TOKEN: zapiToken.preview || '',
+        },
+        sources: {
+          ZAPI_INSTANCE_ID: zapiInstanceId.source || '',
+          ZAPI_TOKEN: zapiToken.source || '',
         },
       },
     };

@@ -7,6 +7,7 @@ import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Spar
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { CredentialEditor } from "./CredentialEditor";
 
 export function AIPlatformSettings() {
   const { data: secretsStatus, isLoading } = useQuery({
@@ -93,22 +94,15 @@ export function AIPlatformSettings() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="p-4 rounded-lg border bg-muted/30">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs font-medium text-muted-foreground">FIRECRAWL_API_KEY</p>
-              {firecrawlConfigured ? (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              )}
-            </div>
-            <p className="text-sm font-mono">
-              {firecrawlConfigured ? '••••••••••••••••' : 'Não configurado'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Usado para importar produtos, categorias e páginas de lojas externas
-            </p>
-          </div>
+          <CredentialEditor
+            credentialKey="FIRECRAWL_API_KEY"
+            label="API Key"
+            description="Usado para importar produtos, categorias e páginas de lojas externas"
+            isConfigured={firecrawlConfigured}
+            preview={secretsStatus?.firecrawl?.previews?.FIRECRAWL_API_KEY}
+            source={secretsStatus?.firecrawl?.sources?.FIRECRAWL_API_KEY as 'db' | 'env' | null}
+            placeholder="Cole a API Key do Firecrawl aqui..."
+          />
 
           <div className="grid gap-2 md:grid-cols-3">
             <div className="flex items-center gap-2 text-sm">
