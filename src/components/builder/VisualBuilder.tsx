@@ -561,7 +561,7 @@ export function VisualBuilder({
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Block Palette + Tree */}
         {!isPreviewMode && (
-          <div className="w-52 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+          <div className="w-44 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             {/* Category Settings Panel - Only for Category template */}
             {isCategoryPage && (
               <CategorySettingsPanel
@@ -581,19 +581,19 @@ export function VisualBuilder({
             )}
             
             <Tabs value={leftTab} onValueChange={(v) => setLeftTab(v as 'blocks' | 'tree')} className="flex flex-col h-full">
-              <TabsList className="w-full justify-start rounded-none border-b bg-background px-2 py-0 h-11">
+              <TabsList className="w-full justify-start rounded-none border-b bg-background px-1 py-0 h-9">
                 <TabsTrigger 
                   value="blocks" 
-                  className="gap-1.5 data-[state=active]:bg-primary/10 rounded-md px-3"
+                  className="gap-1 data-[state=active]:bg-primary/10 rounded-md px-2 text-xs"
                 >
-                  <LayoutGrid className="h-4 w-4" />
+                  <LayoutGrid className="h-3.5 w-3.5" />
                   <span>Blocos</span>
                 </TabsTrigger>
                 <TabsTrigger 
                   value="tree" 
-                  className="gap-1.5 data-[state=active]:bg-primary/10 rounded-md px-3"
+                  className="gap-1 data-[state=active]:bg-primary/10 rounded-md px-2 text-xs"
                 >
-                  <Layers className="h-4 w-4" />
+                  <Layers className="h-3.5 w-3.5" />
                   <span>Estrutura</span>
                 </TabsTrigger>
               </TabsList>
@@ -636,7 +636,7 @@ export function VisualBuilder({
 
         {/* Right Sidebar - Props Editor */}
         {!isPreviewMode && (
-          <div className="w-64 flex-shrink-0 bg-background shadow-sm">
+          <div className="w-56 flex-shrink-0 bg-background shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Use specialized editor for Header/Footer blocks (governance)
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
