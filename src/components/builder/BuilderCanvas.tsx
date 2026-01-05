@@ -29,7 +29,7 @@ interface BuilderCanvasProps {
 type ViewportSize = 'desktop' | 'mobile';
 
 const viewportSizes: Record<ViewportSize, { width: string; label: string; icon: typeof Monitor }> = {
-  desktop: { width: '100%', label: 'Desktop', icon: Monitor },
+  desktop: { width: '1280px', label: 'Desktop', icon: Monitor },
   mobile: { width: '375px', label: 'Mobile', icon: Smartphone },
 };
 
