@@ -4778,6 +4778,45 @@ export type Database = {
           },
         ]
       }
+      platform_credentials: {
+        Row: {
+          created_at: string
+          credential_key: string
+          credential_value: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_test_success: boolean | null
+          last_tested_at: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          credential_key: string
+          credential_value?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_test_success?: boolean | null
+          last_tested_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          credential_key?: string
+          credential_value?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_test_success?: boolean | null
+          last_tested_at?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       post_sale_backfill_items: {
         Row: {
           created_at: string
