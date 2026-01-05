@@ -7029,6 +7029,7 @@ export type Database = {
           next_order_number: number
           settings: Json | null
           slug: string
+          type: Database["public"]["Enums"]["tenant_type"]
           updated_at: string
         }
         Insert: {
@@ -7039,6 +7040,7 @@ export type Database = {
           next_order_number?: number
           settings?: Json | null
           slug: string
+          type?: Database["public"]["Enums"]["tenant_type"]
           updated_at?: string
         }
         Update: {
@@ -7049,6 +7051,7 @@ export type Database = {
           next_order_number?: number
           settings?: Json | null
           slug?: string
+          type?: Database["public"]["Enums"]["tenant_type"]
           updated_at?: string
         }
         Relationships: []
@@ -7284,6 +7287,7 @@ export type Database = {
           next_order_number: number
           settings: Json | null
           slug: string
+          type: Database["public"]["Enums"]["tenant_type"]
           updated_at: string
         }
         SetofOptions: {
@@ -7444,6 +7448,7 @@ export type Database = {
         | "mercadolivre"
         | "shopee"
         | "chat"
+      tenant_type: "platform" | "customer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7649,6 +7654,7 @@ export const Constants = {
         "shopee",
         "chat",
       ],
+      tenant_type: ["platform", "customer"],
     },
   },
 } as const

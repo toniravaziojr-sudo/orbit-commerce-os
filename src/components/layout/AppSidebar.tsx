@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useTenantType } from "@/hooks/useTenantType";
 import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard,
@@ -178,19 +179,20 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
+  const { isPlatformTenant, isCustomerTenant } = useTenantType();
   const { currentTenant, tenants } = useAuth();
 
-  // Determine which navigation to show based on user type and tenant context
+  // Determine which navigation to show based on tenant type
   const { navigation, showPlatformSection } = useMemo(() => {
-    // Platform admin WITHOUT any tenants: show reduced platform-only menu
-    // This is the pure platform admin experience
-    if (isPlatformOperator && tenants.length === 0) {
+    // Platform tenant (Comando Central): show platform admin menu
+    if (isPlatformTenant) {
       return { navigation: platformAdminNavigation, showPlatformSection: false };
     }
-    // User with tenants (either regular user or platform admin with tenant access): show full menu
-    // Platform admin with tenants also gets the platform section added
+    
+    // Customer tenant: show full e-commerce menu
+    // Platform operators with customer tenants also get the platform section
     return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
-  }, [isPlatformOperator, tenants.length]);
+  }, [isPlatformTenant, isPlatformOperator]);
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     
