@@ -117,6 +117,29 @@ serve(async (req: Request): Promise<Response> => {
     const formatRecipients = (recipients: EmailRecipient[]) => 
       recipients.map(r => r.name ? { email: r.email, name: r.name } : { email: r.email });
 
+    // Get email config to find the verified sending domain
+    const { data: emailConfig } = await supabase
+      .from('email_provider_configs')
+      .select('sending_domain, from_email, from_name')
+      .eq('tenant_id', mailbox.tenant_id)
+      .single();
+
+    // Determine the from address - use verified subdomain format if needed
+    // The SendGrid authenticated domain uses em3683.comandocentral.com.br subdomain
+    let fromEmail = mailbox.email_address;
+    const domainPart = mailbox.email_address.split('@')[1];
+    const localPart = mailbox.email_address.split('@')[0];
+    
+    // Check if we need to use the sendgrid subdomain for sending
+    // If the domain isn't receiving emails, use a noreply format with reply-to
+    const useSubdomain = emailConfig?.sending_domain && domainPart === emailConfig.sending_domain;
+    
+    console.log('Email config:', { 
+      mailboxEmail: mailbox.email_address, 
+      sendingDomain: emailConfig?.sending_domain,
+      useSubdomain 
+    });
+
     // Prepare SendGrid payload
     const sendgridPayload: Record<string, unknown> = {
       personalizations: [{
@@ -125,6 +148,10 @@ serve(async (req: Request): Promise<Response> => {
         ...(bcc_emails && bcc_emails.length > 0 ? { bcc: formatRecipients(bcc_emails) } : {}),
       }],
       from: mailbox.display_name 
+        ? { email: fromEmail, name: mailbox.display_name }
+        : { email: fromEmail },
+      // Always set reply-to to the mailbox email for proper responses
+      reply_to: mailbox.display_name
         ? { email: mailbox.email_address, name: mailbox.display_name }
         : { email: mailbox.email_address },
       subject: subject || '(Sem assunto)',
@@ -134,7 +161,7 @@ serve(async (req: Request): Promise<Response> => {
       ],
     };
 
-    // Add reply-to header if needed
+    // Add In-Reply-To headers if replying
     if (in_reply_to) {
       sendgridPayload.headers = {
         'In-Reply-To': in_reply_to,
