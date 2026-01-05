@@ -528,7 +528,7 @@ export function VisualBuilder({
         setDraggingBlockType(null);
       }}
     >
-    <div className="h-screen flex flex-col bg-muted/30">
+    <div className="h-screen w-screen flex flex-col bg-muted/30 overflow-hidden fixed inset-0 z-50">
       {/* Toolbar */}
       <BuilderToolbar
         pageTitle={pageTypeLabels[pageType] || pageType}
@@ -561,7 +561,7 @@ export function VisualBuilder({
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Block Palette + Tree */}
         {!isPreviewMode && (
-          <div className="w-44 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+          <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             {/* Category Settings Panel - Only for Category template */}
             {isCategoryPage && (
               <CategorySettingsPanel
@@ -636,7 +636,7 @@ export function VisualBuilder({
 
         {/* Right Sidebar - Props Editor */}
         {!isPreviewMode && (
-          <div className="w-56 flex-shrink-0 bg-background shadow-sm">
+          <div className="w-72 flex-shrink-0 bg-background shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Use specialized editor for Header/Footer blocks (governance)
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
