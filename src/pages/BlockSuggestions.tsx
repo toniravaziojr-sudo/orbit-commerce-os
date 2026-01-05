@@ -4,7 +4,9 @@
 // =============================================
 
 import React, { useState } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useBlockSuggestions, BlockRequestStatus, BlockImplementationRequest } from '@/hooks/useBlockSuggestions';
+import { usePlatformOperator } from '@/hooks/usePlatformOperator';
 import { blockRegistry } from '@/lib/builder/registry';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +43,8 @@ const statusConfig: Record<BlockRequestStatus, { label: string; color: string; i
 };
 
 export default function BlockSuggestions() {
+  const { isPlatformOperator, isLoading: authLoading } = usePlatformOperator();
+  
   const { 
     requests, 
     isLoading, 
@@ -64,6 +68,19 @@ export default function BlockSuggestions() {
   // Form state for map dialog
   const [mapToBlock, setMapToBlock] = useState('');
   const [mapNotes, setMapNotes] = useState('');
+
+  // Block access for non-platform operators
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isPlatformOperator) {
+    return <Navigate to="/" replace />;
+  }
 
   // Get existing block types for mapping
   const existingBlockTypes = blockRegistry.getAll().map(b => ({ type: b.type, label: b.label }));
