@@ -7,6 +7,7 @@ import { Truck, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CredentialEditor } from "./CredentialEditor";
 
 export function LogisticsPlatformSettings() {
   const queryClient = useQueryClient();
@@ -120,45 +121,33 @@ export function LogisticsPlatformSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-muted-foreground">LOGGI_CLIENT_ID</p>
-                {clientIdConfigured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-sm font-mono">
-                {clientIdConfigured ? '••••••••' : 'Não configurado'}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-muted-foreground">LOGGI_CLIENT_SECRET</p>
-                {clientSecretConfigured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-sm font-mono">
-                {clientSecretConfigured ? '••••••••' : 'Não configurado'}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-muted-foreground">LOGGI_EXTERNAL_SERVICE_ID</p>
-                {externalServiceIdConfigured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-sm font-mono">
-                {externalServiceIdConfigured ? '••••••••' : 'Não configurado'}
-              </p>
-            </div>
+            <CredentialEditor
+              credentialKey="LOGGI_CLIENT_ID"
+              label="Novo Client ID"
+              description="Client ID do aplicativo OAuth"
+              isConfigured={clientIdConfigured}
+              preview={secretStatus?.previews?.LOGGI_CLIENT_ID}
+              source={secretStatus?.sources?.LOGGI_CLIENT_ID as 'db' | 'env' | null}
+              placeholder="Cole o Client ID aqui..."
+            />
+            <CredentialEditor
+              credentialKey="LOGGI_CLIENT_SECRET"
+              label="Novo Client Secret"
+              description="Client Secret do aplicativo OAuth"
+              isConfigured={clientSecretConfigured}
+              preview={secretStatus?.previews?.LOGGI_CLIENT_SECRET}
+              source={secretStatus?.sources?.LOGGI_CLIENT_SECRET as 'db' | 'env' | null}
+              placeholder="Cole o Client Secret aqui..."
+            />
+            <CredentialEditor
+              credentialKey="LOGGI_EXTERNAL_SERVICE_ID"
+              label="Novo External Service ID"
+              description="ID do serviço externo Loggi"
+              isConfigured={externalServiceIdConfigured}
+              preview={secretStatus?.previews?.LOGGI_EXTERNAL_SERVICE_ID}
+              source={secretStatus?.sources?.LOGGI_EXTERNAL_SERVICE_ID as 'db' | 'env' | null}
+              placeholder="Cole o External Service ID aqui..."
+            />
           </div>
 
           <div className="flex gap-2">

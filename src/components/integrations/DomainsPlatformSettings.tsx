@@ -7,6 +7,7 @@ import { Globe, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CredentialEditor } from "./CredentialEditor";
 
 export function DomainsPlatformSettings() {
   const queryClient = useQueryClient();
@@ -121,38 +122,24 @@ export function DomainsPlatformSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-muted-foreground">CLOUDFLARE_API_TOKEN</p>
-                {apiTokenConfigured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-sm font-mono">
-                {apiTokenConfigured ? '••••••••••••••••' : 'Não configurado'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Token com permissões de SSL for SaaS
-              </p>
-            </div>
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-muted-foreground">CLOUDFLARE_ZONE_ID</p>
-                {zoneIdConfigured ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-              <p className="text-sm font-mono">
-                {zoneIdConfigured ? '••••••••••••••••' : 'Não configurado'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Zone ID do domínio comandocentral.com.br
-              </p>
-            </div>
+            <CredentialEditor
+              credentialKey="CLOUDFLARE_API_TOKEN"
+              label="Novo API Token"
+              description="Token com permissões de SSL for SaaS"
+              isConfigured={apiTokenConfigured}
+              preview={secretStatus?.previews?.CLOUDFLARE_API_TOKEN}
+              source={secretStatus?.sources?.CLOUDFLARE_API_TOKEN as 'db' | 'env' | null}
+              placeholder="Cole o API Token aqui..."
+            />
+            <CredentialEditor
+              credentialKey="CLOUDFLARE_ZONE_ID"
+              label="Novo Zone ID"
+              description="Zone ID do domínio comandocentral.com.br"
+              isConfigured={zoneIdConfigured}
+              preview={secretStatus?.previews?.CLOUDFLARE_ZONE_ID}
+              source={secretStatus?.sources?.CLOUDFLARE_ZONE_ID as 'db' | 'env' | null}
+              placeholder="Cole o Zone ID aqui..."
+            />
           </div>
 
           <div className="flex gap-2">

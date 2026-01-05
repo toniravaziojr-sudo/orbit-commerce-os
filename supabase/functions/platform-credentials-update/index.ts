@@ -6,22 +6,21 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Lista fechada de secrets editáveis pela plataforma
-const EDITABLE_SECRETS = [
+// Lista fechada de credenciais editáveis pela plataforma
+const EDITABLE_CREDENTIALS = [
   'FOCUS_NFE_TOKEN',
   'CLOUDFLARE_API_TOKEN',
   'CLOUDFLARE_ZONE_ID',
   'LOGGI_CLIENT_ID',
   'LOGGI_CLIENT_SECRET',
   'LOGGI_EXTERNAL_SERVICE_ID',
-  'ZAPI_CLIENT_TOKEN',
   'SENDGRID_API_KEY',
-  'FRENET_TOKEN',
-  'FRENET_PASSWORD',
-  'FRENET_KEY',
   'PAGARME_API_KEY',
   'PAGARME_PUBLIC_KEY',
   'PAGARME_ACCOUNT_ID',
+  'FRENET_TOKEN',
+  'FRENET_PASSWORD',
+  'FRENET_KEY',
 ];
 
 serve(async (req) => {
@@ -40,6 +39,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -62,37 +62,82 @@ serve(async (req) => {
       );
     }
 
-    const { secretName, secretValue }: { secretName: string; secretValue: string } = await req.json();
+    const { credentialKey, credentialValue }: { credentialKey: string; credentialValue: string } = await req.json();
 
-    if (!secretName || !secretValue) {
+    if (!credentialKey) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Nome e valor do secret são obrigatórios' }),
+        JSON.stringify({ success: false, error: 'Nome da credencial é obrigatório' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Validar que é um secret permitido
-    if (!EDITABLE_SECRETS.includes(secretName)) {
+    // Validar que é uma credencial permitida
+    if (!EDITABLE_CREDENTIALS.includes(credentialKey)) {
       return new Response(
-        JSON.stringify({ success: false, error: `Secret '${secretName}' não é editável via painel` }),
+        JSON.stringify({ success: false, error: `Credencial '${credentialKey}' não é editável` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // NOTA: Supabase Edge Functions não podem atualizar secrets programaticamente
-    // Esta é uma limitação da plataforma. Os secrets são configurados via Dashboard ou CLI.
-    // Esta função serve como placeholder para quando a funcionalidade estiver disponível
-    // ou para usar com Vault no futuro.
-    
-    // Por enquanto, retornamos instruções para o admin
-    console.log(`[platform-credentials-update] Admin ${user.email} solicitou atualização de ${secretName}`);
+    // Usar service role para atualizar
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Se credentialValue está vazio ou null, limpar (volta a usar env var)
+    if (!credentialValue) {
+      const { error } = await supabaseAdmin
+        .from('platform_credentials')
+        .update({ 
+          credential_value: null, 
+          updated_at: new Date().toISOString(),
+          updated_by: user.id 
+        })
+        .eq('credential_key', credentialKey);
+
+      if (error) {
+        console.error('[platform-credentials-update] Error clearing:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[platform-credentials-update] Cleared ${credentialKey}, will use env var fallback`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `${credentialKey} limpo. Usando variável de ambiente como fallback.` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Atualizar ou inserir credencial
+    const { error } = await supabaseAdmin
+      .from('platform_credentials')
+      .upsert({
+        credential_key: credentialKey,
+        credential_value: credentialValue,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      }, {
+        onConflict: 'credential_key'
+      });
+
+    if (error) {
+      console.error('[platform-credentials-update] Error updating:', error);
+      return new Response(
+        JSON.stringify({ success: false, error: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[platform-credentials-update] Updated ${credentialKey} by user ${user.email}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Para atualizar ${secretName}, use o painel Lovable Cloud > Secrets ou a CLI do Supabase.`,
-        instruction: `supabase secrets set ${secretName}="${secretValue}"`,
-        note: 'A atualização de secrets via API ainda não é suportada nativamente pelo Supabase.'
+        message: `${credentialKey} atualizado com sucesso!` 
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

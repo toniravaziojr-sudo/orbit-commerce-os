@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Refres
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { CredentialEditor } from "./CredentialEditor";
 
 export function FiscalPlatformSettings() {
   const queryClient = useQueryClient();
@@ -54,6 +54,8 @@ export function FiscalPlatformSettings() {
   });
 
   const isConfigured = secretStatus?.status === 'configured';
+  const tokenPreview = secretStatus?.previews?.FOCUS_NFE_TOKEN;
+  const tokenSource = secretStatus?.sources?.FOCUS_NFE_TOKEN;
 
   if (isLoading) {
     return (
@@ -112,15 +114,15 @@ export function FiscalPlatformSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-1">FOCUS_NFE_TOKEN</p>
-              <p className="text-sm font-mono">
-                {isConfigured ? '••••••••••••••••' : 'Não configurado'}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isConfigured ? 'Configurado via Lovable Cloud Secrets' : 'Configure via Lovable Cloud > Secrets'}
-              </p>
-            </div>
+            <CredentialEditor
+              credentialKey="FOCUS_NFE_TOKEN"
+              label="Novo Token"
+              description="Token de autenticação da API Focus NFe"
+              isConfigured={secretStatus?.secrets?.FOCUS_NFE_TOKEN || false}
+              preview={tokenPreview}
+              source={tokenSource as 'db' | 'env' | null}
+              placeholder="Cole o token aqui..."
+            />
             <div className="p-4 rounded-lg border bg-muted/30">
               <p className="text-xs font-medium text-muted-foreground mb-1">Ambiente</p>
               <div className="flex items-center gap-2">
@@ -153,7 +155,7 @@ export function FiscalPlatformSettings() {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-start gap-2">
                 <span className="text-primary">1.</span>
-                Você configurou o token Focus NFe via Lovable Cloud Secrets
+                Configure o token clicando em "Alterar" ou "Configurar"
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">2.</span>
