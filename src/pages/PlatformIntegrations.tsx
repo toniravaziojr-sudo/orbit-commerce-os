@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/page-header";
-import { Card, CardContent } from "@/components/ui/card";
-import { WhatsAppOperatorSettings } from "@/components/integrations/WhatsAppOperatorSettings";
+import { PlatformIntegrationsDashboard } from "@/components/integrations/PlatformIntegrationsDashboard";
 import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
-import { PlatformSecretsStatus } from "@/components/integrations/PlatformSecretsStatus";
+import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlatformSettings";
+import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
+import { DomainsPlatformSettings } from "@/components/integrations/DomainsPlatformSettings";
+import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
+import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, AlertTriangle, Send, Key } from "lucide-react";
+import { Shield, MessageCircle, Mail, FileText, Globe, Truck, Bot, LayoutGrid, Send } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -14,15 +17,20 @@ import { Navigate } from "react-router-dom";
 
 /**
  * Platform Admin page for managing operator-level integrations.
- * Only accessible by platform operators (respeiteohomem@gmail.com).
+ * Only accessible by platform operators.
  * 
- * Contains:
- * - Credenciais: Global platform secrets status (Focus NFe, SendGrid, Cloudflare, Loggi, Firecrawl, Lovable AI)
- * - WhatsApp: Z-API credentials per tenant (operator manages, tenant connects)
+ * Contains tabs for each integration:
+ * - Resumo: Dashboard with status cards for all integrations
  * - Email: SendGrid system configuration
+ * - WhatsApp: Z-API manager account configuration
+ * - Fiscal: Focus NFe token configuration
+ * - Domínios: Cloudflare for SaaS configuration
+ * - Logística: Loggi OAuth configuration
+ * - IA: Firecrawl and Lovable AI configuration
  */
 export default function PlatformIntegrations() {
   const { isPlatformOperator, isLoading } = usePlatformOperator();
+  const [activeTab, setActiveTab] = useState("overview");
   const [smokeTestOpen, setSmokeTestOpen] = useState(false);
 
   // Block access for non-platform operators
@@ -59,65 +67,64 @@ export default function PlatformIntegrations() {
         </AlertDescription>
       </Alert>
 
-      <Tabs defaultValue="credenciais" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="flex flex-wrap gap-1 h-auto p-1">
-          <TabsTrigger value="credenciais" className="gap-2">
-            <Key className="h-4 w-4" />
-            <span className="hidden sm:inline">Credenciais Globais</span>
-            <span className="sm:hidden">Credenciais</span>
-          </TabsTrigger>
-          <TabsTrigger value="whatsapp" className="gap-2">
-            <MessageCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">WhatsApp</span>
+          <TabsTrigger value="overview" className="gap-2">
+            <LayoutGrid className="h-4 w-4" />
+            <span className="hidden sm:inline">Resumo</span>
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-2">
             <Mail className="h-4 w-4" />
             <span className="hidden sm:inline">Email</span>
           </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="gap-2">
+            <MessageCircle className="h-4 w-4" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </TabsTrigger>
+          <TabsTrigger value="fiscal" className="gap-2">
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">Fiscal</span>
+          </TabsTrigger>
+          <TabsTrigger value="domains" className="gap-2">
+            <Globe className="h-4 w-4" />
+            <span className="hidden sm:inline">Domínios</span>
+          </TabsTrigger>
+          <TabsTrigger value="logistics" className="gap-2">
+            <Truck className="h-4 w-4" />
+            <span className="hidden sm:inline">Logística</span>
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-2">
+            <Bot className="h-4 w-4" />
+            <span className="hidden sm:inline">IA</span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="credenciais" className="space-y-4">
-          <PlatformSecretsStatus />
+        <TabsContent value="overview">
+          <PlatformIntegrationsDashboard onNavigateToTab={setActiveTab} />
         </TabsContent>
 
-        <TabsContent value="whatsapp" className="space-y-4">
-          <Card className="bg-muted/30 border-dashed">
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium mb-1">Como funciona:</p>
-                  <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                    <li>Crie uma instância na Z-API para cada tenant</li>
-                    <li>Copie o Instance ID e Token e salve aqui</li>
-                    <li>O tenant poderá conectar escaneando o QR Code na tela dele</li>
-                  </ol>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <WhatsAppOperatorSettings />
-        </TabsContent>
-
-        <TabsContent value="email" className="space-y-4">
-          <Card className="bg-muted/30 border-dashed">
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium mb-1">Email do Sistema:</p>
-                  <p className="text-muted-foreground">
-                    Configure o remetente padrão para emails de autenticação, convites e 
-                    comunicações do sistema. Este email é usado quando o tenant não tem 
-                    domínio próprio configurado.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        <TabsContent value="email">
           <SystemEmailSettings />
+        </TabsContent>
+
+        <TabsContent value="whatsapp">
+          <WhatsAppPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="fiscal">
+          <FiscalPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="domains">
+          <DomainsPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="logistics">
+          <LogisticsPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="ai">
+          <AIPlatformSettings />
         </TabsContent>
       </Tabs>
 

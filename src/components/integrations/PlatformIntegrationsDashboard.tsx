@@ -1,0 +1,190 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Loader2, Mail, MessageSquare, FileText, Globe, Truck, Bot, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+interface IntegrationStatus {
+  key: string;
+  name: string;
+  description: string;
+  icon: string;
+  docs: string;
+  isSystem?: boolean;
+  secrets: Record<string, boolean>;
+  status: 'configured' | 'partial' | 'pending' | 'system';
+  configuredCount: number;
+  totalCount: number;
+}
+
+interface PlatformIntegrationsDashboardProps {
+  onNavigateToTab: (tab: string) => void;
+}
+
+const iconMap: Record<string, React.ElementType> = {
+  Mail: Mail,
+  MessageSquare: MessageSquare,
+  FileText: FileText,
+  Cloud: Globe,
+  Truck: Truck,
+  Flame: Bot,
+  Bot: Bot,
+};
+
+export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformIntegrationsDashboardProps) {
+  const { data: integrations, isLoading, error } = useQuery({
+    queryKey: ['platform-secrets-status'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('platform-secrets-check', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      return response.data.integrations as IntegrationStatus[];
+    },
+  });
+
+  const tabMap: Record<string, string> = {
+    sendgrid: 'email',
+    focus_nfe: 'fiscal',
+    cloudflare: 'domains',
+    loggi: 'logistics',
+    firecrawl: 'ai',
+    lovable_ai: 'ai',
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'configured':
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Configurado</Badge>;
+      case 'partial':
+        return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Parcial</Badge>;
+      case 'system':
+        return <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">Sistema</Badge>;
+      default:
+        return <Badge variant="outline" className="text-muted-foreground">Pendente</Badge>;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'configured':
+      case 'system':
+        return <CheckCircle2 className="h-5 w-5 text-green-500" />;
+      case 'partial':
+        return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+      default:
+        return <AlertCircle className="h-5 w-5 text-muted-foreground" />;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="border-destructive/50">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <span>Erro ao carregar status: {error instanceof Error ? error.message : 'Erro desconhecido'}</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Add WhatsApp manually since it's not in secrets check (uses database config)
+  const allIntegrations = [
+    {
+      key: 'whatsapp',
+      name: 'WhatsApp (Z-API)',
+      description: 'Conta gerenciadora para mensagens WhatsApp',
+      icon: 'MessageSquare',
+      docs: 'https://developer.z-api.io/',
+      status: 'configured' as const, // Will be checked separately
+      configuredCount: 1,
+      totalCount: 1,
+      secrets: {},
+    },
+    ...(integrations || []),
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Status das Integrações</h2>
+          <p className="text-sm text-muted-foreground">
+            Visão geral de todas as integrações configuradas na plataforma
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {allIntegrations.map((integration) => {
+          const IconComponent = iconMap[integration.icon] || Bot;
+          const targetTab = integration.key === 'whatsapp' ? 'whatsapp' : tabMap[integration.key];
+
+          return (
+            <Card 
+              key={integration.key} 
+              className="hover:shadow-md transition-shadow cursor-pointer group"
+              onClick={() => targetTab && onNavigateToTab(targetTab)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10">
+                      <IconComponent className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base">{integration.name}</CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        {integration.configuredCount}/{integration.totalCount} credenciais
+                      </CardDescription>
+                    </div>
+                  </div>
+                  {getStatusIcon(integration.status)}
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                  {integration.description}
+                </p>
+                <div className="flex items-center justify-between">
+                  {getStatusBadge(integration.status)}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(integration.docs, '_blank');
+                    }}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Docs
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

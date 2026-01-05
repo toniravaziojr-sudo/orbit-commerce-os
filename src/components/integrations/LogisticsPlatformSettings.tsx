@@ -1,0 +1,217 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { Truck, CheckCircle2, AlertCircle, ExternalLink, Info, Shield } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
+
+export function LogisticsPlatformSettings() {
+  const { data: secretStatus, isLoading } = useQuery({
+    queryKey: ['platform-secrets-status', 'loggi'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('platform-secrets-check', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      const loggi = response.data.integrations?.find((i: any) => i.key === 'loggi');
+      return loggi || null;
+    },
+  });
+
+  const isConfigured = secretStatus?.status === 'configured';
+  const isPartial = secretStatus?.status === 'partial';
+  const clientIdConfigured = secretStatus?.secrets?.LOGGI_CLIENT_ID || false;
+  const clientSecretConfigured = secretStatus?.secrets?.LOGGI_CLIENT_SECRET || false;
+  const externalServiceIdConfigured = secretStatus?.secrets?.LOGGI_EXTERNAL_SERVICE_ID || false;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="p-3 rounded-lg bg-purple-500/10">
+          <Truck className="h-6 w-6 text-purple-600" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold">Logística (Loggi)</h2>
+          <p className="text-sm text-muted-foreground">
+            OAuth para entregas Loggi (cada tenant fornece seu company_id)
+          </p>
+        </div>
+      </div>
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          A integração Loggi usa OAuth centralizado. Cada tenant configura seu próprio
+          company_id para criar coletas e rastrear entregas.
+        </AlertDescription>
+      </Alert>
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Credenciais OAuth Loggi
+              </CardTitle>
+              <CardDescription>
+                Credenciais de aplicação para autenticação OAuth 2.0
+              </CardDescription>
+            </div>
+            {isConfigured ? (
+              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Configurado
+              </Badge>
+            ) : isPartial ? (
+              <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Parcial ({secretStatus?.configuredCount}/{secretStatus?.totalCount})
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Pendente
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-muted-foreground">LOGGI_CLIENT_ID</p>
+                {clientIdConfigured ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-sm font-mono">
+                {clientIdConfigured ? '••••••••' : 'Não configurado'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-muted-foreground">LOGGI_CLIENT_SECRET</p>
+                {clientSecretConfigured ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-sm font-mono">
+                {clientSecretConfigured ? '••••••••' : 'Não configurado'}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg border bg-muted/30">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-muted-foreground">LOGGI_EXTERNAL_SERVICE_ID</p>
+                {externalServiceIdConfigured ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+              <p className="text-sm font-mono">
+                {externalServiceIdConfigured ? '••••••••' : 'Não configurado'}
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h4 className="text-sm font-medium mb-2">Como funciona</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li className="flex items-start gap-2">
+                <span className="text-primary">1.</span>
+                Você configurou as credenciais OAuth do aplicativo Loggi
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary">2.</span>
+                Cada tenant configura seu próprio company_id no painel
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary">3.</span>
+                O sistema autentica via OAuth e usa o company_id do tenant
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary">4.</span>
+                Coletas são criadas e rastreadas na conta do tenant
+              </li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recursos da Integração</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Cotação de frete</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Criação de coleta</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Geração de etiqueta</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Rastreamento de pacotes</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Webhooks de status</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Múltiplos tenants</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex gap-3">
+        <Button variant="outline" asChild>
+          <a href="https://docs.loggi.com/" target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Documentação Loggi
+          </a>
+        </Button>
+        <Button variant="outline" asChild>
+          <a href="https://www.loggi.com/entrar/" target="_blank" rel="noopener noreferrer">
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Painel Loggi
+          </a>
+        </Button>
+      </div>
+    </div>
+  );
+}
