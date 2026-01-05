@@ -3,12 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Globe, CheckCircle2, AlertCircle, ExternalLink, Info, Shield } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Globe, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export function DomainsPlatformSettings() {
+  const queryClient = useQueryClient();
+  
   const { data: secretStatus, isLoading } = useQuery({
     queryKey: ['platform-secrets-status', 'cloudflare'],
     queryFn: async () => {
@@ -26,6 +28,29 @@ export function DomainsPlatformSettings() {
       
       const cloudflare = response.data.integrations?.find((i: any) => i.key === 'cloudflare');
       return cloudflare || null;
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('cloudflare-test-connection');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success('Conexão estabelecida com sucesso', {
+          description: data.results?.zoneId?.zoneName 
+            ? `Zone: ${data.results.zoneId.zoneName}` 
+            : 'API Token válido'
+        });
+      } else {
+        toast.error('Falha na conexão', { description: data.error });
+      }
+      queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao testar conexão', { description: error.message });
     },
   });
 
@@ -130,6 +155,22 @@ export function DomainsPlatformSettings() {
             </div>
           </div>
 
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testConnectionMutation.mutate()}
+              disabled={!apiTokenConfigured || testConnectionMutation.isPending}
+            >
+              {testConnectionMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Testar Conexão
+            </Button>
+          </div>
+
           <Separator />
 
           <div>
@@ -149,7 +190,7 @@ export function DomainsPlatformSettings() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">4.</span>
-                Configurar Zone ID e API Token nas variáveis de ambiente
+                Configurar Zone ID e API Token via Lovable Cloud Secrets
               </li>
             </ul>
           </div>

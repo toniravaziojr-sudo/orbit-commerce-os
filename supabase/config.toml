@@ -294,3 +294,18 @@ verify_jwt = true
 
 [functions.fiscal-send-nfe-email]
 verify_jwt = false
+
+[functions.platform-credentials-update]
+verify_jwt = true
+
+[functions.fiscal-test-connection]
+verify_jwt = true
+
+[functions.cloudflare-test-connection]
+verify_jwt = true
+
+[functions.loggi-test-connection]
+verify_jwt = true
+
+[functions.whatsapp-test-connection]
+verify_jwt = true
