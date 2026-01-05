@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
@@ -200,6 +200,22 @@ const App = () => {
                 }
               />
 
+              {/* FULLSCREEN BUILDER ROUTES - Outside AppShell for 100% viewport */}
+              {!shouldUseTenantRootRoutes && (
+                <Route
+                  element={
+                    <ProtectedRoute>
+                      <Outlet />
+                    </ProtectedRoute>
+                  }
+                >
+                  <Route path="/storefront/builder" element={<StorefrontBuilder />} />
+                  <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
+                  <Route path="/page-templates/:templateId/builder" element={<TemplateBuilder />} />
+                  <Route path="/blog/:postId/editor" element={<BlogPostEditor />} />
+                </Route>
+              )}
+
               {/* Protected routes with tenant requirement (admin panel) */}
               {!shouldUseTenantRootRoutes && (
                 <Route
@@ -225,11 +241,8 @@ const App = () => {
                   <Route path="/discounts" element={<Discounts />} />
                   <Route path="/menus" element={<Menus />} />
                   <Route path="/pages" element={<Pages />} />
-                  <Route path="/pages/:pageId/builder" element={<PageBuilder />} />
                   <Route path="/page-templates" element={<PageTemplates />} />
-                  <Route path="/page-templates/:templateId/builder" element={<TemplateBuilder />} />
                   <Route path="/blog" element={<Blog />} />
-                  <Route path="/blog/:postId/editor" element={<BlogPostEditor />} />
                   <Route path="/customers" element={<Customers />} />
                   <Route path="/customers/:id" element={<CustomerDetail />} />
                   <Route path="/notifications" element={<Notifications />} />
@@ -255,7 +268,6 @@ const App = () => {
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
-                  <Route path="/storefront/builder" element={<StorefrontBuilder />} />
                   <Route path="/storefront/conversao" element={<Navigate to="/cart-checkout" replace />} />
                   <Route path="/cart-checkout" element={<CartAndCheckout />} />
                   <Route path="/abandoned-checkouts" element={<Navigate to="/cart-checkout?tab=abandoned" replace />} />
