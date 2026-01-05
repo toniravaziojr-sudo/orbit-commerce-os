@@ -100,17 +100,17 @@ export function PropsEditor({
           {isHeaderBlock && noticePropsEntries.length > 0 && (
             <>
               <Collapsible open={noticeOpen} onOpenChange={setNoticeOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">📢</span>
-                    <span className="font-medium text-sm">Aviso Geral</span>
+                <CollapsibleTrigger className="flex items-center justify-between w-full p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm">📢</span>
+                    <span className="font-medium text-xs">Aviso Geral</span>
                   </div>
                   <ChevronDown className={cn(
-                    "h-4 w-4 transition-transform duration-200",
+                    "h-3.5 w-3.5 transition-transform duration-200",
                     noticeOpen && "rotate-180"
                   )} />
                 </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3 pl-3 pr-1 space-y-4 border-l-2 border-muted ml-2 mt-2">
+                <CollapsibleContent className="pt-2 pl-2 pr-1 space-y-2 border-l-2 border-muted ml-2 mt-1.5">
                   {noticePropsEntries.map(([key, schema]) => (
                     <PropField
                       key={key}
@@ -123,7 +123,7 @@ export function PropsEditor({
                   ))}
                 </CollapsibleContent>
               </Collapsible>
-              <Separator className="my-4" />
+              <Separator className="my-2" />
             </>
           )}
           
@@ -348,13 +348,13 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
             value={(value as string) || ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={schema.placeholder}
-            className="h-9"
+            className="h-7 text-xs"
           />
         );
 
       case 'number':
         return (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Slider
               value={[Number(value) || schema.min || 0]}
               onValueChange={([v]) => onChange(v)}
@@ -369,7 +369,7 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
               onChange={(e) => onChange(Number(e.target.value))}
               min={schema.min}
               max={schema.max}
-              className="w-16 h-9"
+              className="w-14 h-7 text-xs"
             />
           </div>
         );
@@ -377,10 +377,11 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
       case 'boolean':
         return (
           <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">{schema.label}</span>
+            <span className="text-xs text-muted-foreground">{schema.label}</span>
             <Switch
               checked={Boolean(value)}
               onCheckedChange={onChange}
+              className="scale-90"
             />
           </div>
         );
@@ -388,12 +389,12 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
       case 'select':
         return (
           <Select value={value as string} onValueChange={onChange}>
-            <SelectTrigger className="h-9">
+            <SelectTrigger className="h-7 text-xs">
               <SelectValue placeholder="Selecionar..." />
             </SelectTrigger>
             <SelectContent>
               {schema.options?.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">
                   {opt.label}
                 </SelectItem>
               ))}
@@ -403,18 +404,18 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
 
       case 'color':
         return (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <input
               type="color"
               value={(value as string) || '#000000'}
               onChange={(e) => onChange(e.target.value)}
-              className="w-10 h-9 rounded border cursor-pointer"
+              className="w-8 h-7 rounded border cursor-pointer"
             />
             <Input
               value={(value as string) || ''}
               onChange={(e) => onChange(e.target.value)}
               placeholder="#000000"
-              className="flex-1 h-9 font-mono text-sm"
+              className="flex-1 h-7 font-mono text-xs"
             />
           </div>
         );
@@ -550,7 +551,7 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
           <Input
             value={String(value || '')}
             onChange={(e) => onChange(e.target.value)}
-            className="h-9"
+            className="h-7 text-xs"
           />
         );
     }
@@ -559,15 +560,15 @@ function PropField({ name, schema, value, onChange, blockType, allProps }: PropF
   // Boolean has its own layout with label inside
   if (schema.type === 'boolean') {
     return (
-      <div className="py-2 border-b border-border/50">
+      <div className="py-1.5 border-b border-border/50">
         {renderField()}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium flex items-center gap-1">
+    <div className="space-y-1">
+      <Label className="text-[10px] font-medium flex items-center gap-1">
         {schema.label}
         {schema.required && <span className="text-destructive">*</span>}
       </Label>

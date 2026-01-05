@@ -55,27 +55,27 @@ function ColorInput({
   placeholder?: string;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
-      <div className="flex gap-2">
+    <div className="space-y-1">
+      <Label className="text-[10px]">{label}</Label>
+      <div className="flex gap-1.5">
         <input
           type="color"
           value={value || '#000000'}
           onChange={(e) => onChange(e.target.value)}
-          className="w-10 h-9 rounded border cursor-pointer"
+          className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
           value={value || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="flex-1 h-9 text-sm"
+          className="flex-1 h-7 text-xs"
         />
         {value && (
           <Button
             variant="ghost"
             size="sm"
             onClick={() => onChange('')}
-            className="h-9 px-2"
+            className="h-7 px-1.5 text-xs"
           >
             ✕
           </Button>
