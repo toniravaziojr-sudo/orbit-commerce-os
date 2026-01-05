@@ -5,12 +5,11 @@
 
 import { useContext, createContext, useState, ReactNode, useCallback } from 'react';
 
-export type ViewportMode = 'desktop' | 'tablet' | 'mobile';
+export type ViewportMode = 'desktop' | 'mobile';
 
 // Breakpoints (same as Tailwind defaults)
 export const BREAKPOINTS = {
   mobile: 640,  // sm
-  tablet: 1024, // lg
 } as const;
 
 /**
@@ -18,7 +17,6 @@ export const BREAKPOINTS = {
  */
 export function getViewportFromWidth(width: number): ViewportMode {
   if (width < BREAKPOINTS.mobile) return 'mobile';
-  if (width < BREAKPOINTS.tablet) return 'tablet';
   return 'desktop';
 }
 
@@ -32,7 +30,6 @@ export function useResponsiveCheck(viewportOverride?: ViewportMode) {
   if (viewportOverride) {
     return {
       isMobile: viewportOverride === 'mobile',
-      isTablet: viewportOverride === 'tablet',
       isDesktop: viewportOverride === 'desktop',
       viewport: viewportOverride,
     };
@@ -42,7 +39,6 @@ export function useResponsiveCheck(viewportOverride?: ViewportMode) {
   // Return desktop by default (SSR-safe), CSS handles the rest
   return {
     isMobile: false, // CSS handles this in public
-    isTablet: false,
     isDesktop: true,
     viewport: 'desktop' as ViewportMode,
   };
@@ -55,19 +51,16 @@ export function getResponsiveColumns(
   viewport: ViewportMode | undefined,
   options: {
     mobile?: number;
-    tablet?: number;
     desktop: number;
   }
 ): number {
-  const { mobile = 2, tablet = 3, desktop } = options;
+  const { mobile = 2, desktop } = options;
   
   if (!viewport) return desktop;
   
   switch (viewport) {
     case 'mobile':
       return mobile;
-    case 'tablet':
-      return tablet;
     case 'desktop':
     default:
       return desktop;
@@ -82,11 +75,10 @@ export function getResponsiveGridClass(
   viewport: ViewportMode | undefined,
   options: {
     mobile?: number;
-    tablet?: number;
     desktop: number;
   }
 ): string {
-  const { mobile = 2, tablet = 3, desktop } = options;
+  const { mobile = 2, desktop } = options;
   
   // If we have a viewport override (Builder), return fixed column class
   if (viewport) {
@@ -95,7 +87,7 @@ export function getResponsiveGridClass(
   }
   
   // For public storefront, return responsive Tailwind classes
-  return `grid-cols-${mobile} sm:grid-cols-${tablet} lg:grid-cols-${desktop}`;
+  return `grid-cols-${mobile} lg:grid-cols-${desktop}`;
 }
 
 /**

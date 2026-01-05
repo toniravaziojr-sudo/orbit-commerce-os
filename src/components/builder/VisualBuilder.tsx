@@ -56,7 +56,7 @@ export function VisualBuilder({
   const [isInteractMode, setIsInteractMode] = useState(false);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
-  const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
   
   // Example selectors state (for Product/Category templates)
   const [exampleProductId, setExampleProductId] = useState<string>('');
@@ -561,7 +561,7 @@ export function VisualBuilder({
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Block Palette + Tree */}
         {!isPreviewMode && (
-          <div className="w-64 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
+          <div className="w-52 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             {/* Category Settings Panel - Only for Category template */}
             {isCategoryPage && (
               <CategorySettingsPanel
@@ -636,7 +636,7 @@ export function VisualBuilder({
 
         {/* Right Sidebar - Props Editor */}
         {!isPreviewMode && (
-          <div className="w-80 flex-shrink-0 bg-background shadow-sm">
+          <div className="w-64 flex-shrink-0 bg-background shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
               // Use specialized editor for Header/Footer blocks (governance)
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (

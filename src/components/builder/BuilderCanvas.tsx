@@ -6,7 +6,7 @@ import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { Monitor, Tablet, Smartphone } from 'lucide-react';
+import { Monitor, Smartphone } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
 
@@ -26,11 +26,10 @@ interface BuilderCanvasProps {
   onViewportChange?: (viewport: ViewportSize) => void;
 }
 
-type ViewportSize = 'desktop' | 'tablet' | 'mobile';
+type ViewportSize = 'desktop' | 'mobile';
 
 const viewportSizes: Record<ViewportSize, { width: string; label: string; icon: typeof Monitor }> = {
   desktop: { width: '100%', label: 'Desktop', icon: Monitor },
-  tablet: { width: '768px', label: 'Tablet', icon: Tablet },
   mobile: { width: '375px', label: 'Mobile', icon: Smartphone },
 };
 
