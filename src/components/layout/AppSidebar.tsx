@@ -178,18 +178,19 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
-  const { currentTenant } = useAuth();
+  const { currentTenant, tenants } = useAuth();
 
   // Determine which navigation to show based on user type and tenant context
   const { navigation, showPlatformSection } = useMemo(() => {
-    // Platform admin WITHOUT tenant context: show reduced menu
-    if (isPlatformOperator && !currentTenant) {
+    // Platform admin WITHOUT any tenants: show reduced platform-only menu
+    // This is the pure platform admin experience
+    if (isPlatformOperator && tenants.length === 0) {
       return { navigation: platformAdminNavigation, showPlatformSection: false };
     }
-    // User with tenant (either regular or platform admin): show full menu
-    // Platform admin with tenant also gets the platform section
+    // User with tenants (either regular user or platform admin with tenant access): show full menu
+    // Platform admin with tenants also gets the platform section added
     return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
-  }, [isPlatformOperator, currentTenant]);
+  }, [isPlatformOperator, tenants.length]);
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     
