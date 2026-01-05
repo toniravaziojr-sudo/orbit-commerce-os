@@ -179,18 +179,21 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
-  const { isPlatformTenant, isCustomerTenant } = useTenantType();
+  const { isPlatformTenant, isLoading: isTenantTypeLoading } = useTenantType();
   const { currentTenant, tenants } = useAuth();
 
   // Determine which navigation to show based on tenant type
   const { navigation, showPlatformSection } = useMemo(() => {
-    // Platform tenant (Comando Central): show platform admin menu
+    // While loading tenant type, default to customer menu to avoid flash
+    // But if we know it's platform, show platform menu
     if (isPlatformTenant) {
+      console.log('[AppSidebar] Showing platform admin navigation');
       return { navigation: platformAdminNavigation, showPlatformSection: false };
     }
     
     // Customer tenant: show full e-commerce menu
     // Platform operators with customer tenants also get the platform section
+    console.log('[AppSidebar] Showing full navigation, isPlatformOperator:', isPlatformOperator);
     return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
   }, [isPlatformTenant, isPlatformOperator]);
   const isActive = (href: string) => {
