@@ -7,7 +7,7 @@ import { BlockRenderer } from './BlockRenderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { Monitor, Smartphone } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
 
 interface BuilderCanvasProps {
@@ -28,9 +28,13 @@ interface BuilderCanvasProps {
 
 type ViewportSize = 'desktop' | 'mobile';
 
-const viewportSizes: Record<ViewportSize, { width: string; label: string; icon: typeof Monitor }> = {
-  desktop: { width: '1280px', label: 'Desktop', icon: Monitor },
-  mobile: { width: '375px', label: 'Mobile', icon: Smartphone },
+// Desktop viewport width and mobile width
+const DESKTOP_WIDTH = 1280;
+const MOBILE_WIDTH = 375;
+
+const viewportSizes: Record<ViewportSize, { width: number; label: string; icon: typeof Monitor }> = {
+  desktop: { width: DESKTOP_WIDTH, label: 'Desktop', icon: Monitor },
+  mobile: { width: MOBILE_WIDTH, label: 'Mobile', icon: Smartphone },
 };
 
 export function BuilderCanvas({ 
@@ -51,6 +55,8 @@ export function BuilderCanvas({
   const [internalViewport, setInternalViewport] = useState<ViewportSize>('desktop');
   const viewport = controlledViewport ?? internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const handleViewportChange = (newViewport: ViewportSize) => {
     if (onViewportChange) {
@@ -59,6 +65,38 @@ export function BuilderCanvas({
       setInternalViewport(newViewport);
     }
   };
+
+  // Calculate scale based on available container width
+  useEffect(() => {
+    const calculateScale = () => {
+      if (!containerRef.current || isPreviewMode) {
+        setScale(1);
+        return;
+      }
+
+      const containerWidth = containerRef.current.offsetWidth;
+      const targetWidth = viewportSizes[viewport].width;
+      const padding = 24; // 12px padding on each side
+      const availableWidth = containerWidth - padding;
+
+      if (availableWidth < targetWidth) {
+        // Scale down to fit
+        const newScale = availableWidth / targetWidth;
+        setScale(Math.max(0.5, Math.min(1, newScale))); // Clamp between 0.5 and 1
+      } else {
+        setScale(1);
+      }
+    };
+
+    calculateScale();
+
+    const resizeObserver = new ResizeObserver(calculateScale);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [viewport, isPreviewMode]);
 
   // Droppable for the canvas
   const { setNodeRef, isOver } = useDroppable({
@@ -109,6 +147,8 @@ export function BuilderCanvas({
     }
   };
 
+  const targetWidth = viewportSizes[viewport].width;
+
   return (
     <div className="h-full flex flex-col">
       {/* Interact Mode Banner */}
@@ -141,13 +181,18 @@ export function BuilderCanvas({
               </button>
             )
           )}
+          {scale < 1 && (
+            <span className="ml-2 text-[10px] text-muted-foreground">
+              {Math.round(scale * 100)}%
+            </span>
+          )}
         </div>
       )}
 
       {/* Canvas Area */}
       <ScrollArea className="flex-1 bg-muted/50">
         <div 
-          ref={setNodeRef}
+          ref={containerRef}
           className={cn(
             "min-h-full p-3 flex justify-center",
             isOver && "bg-primary/5"
@@ -155,15 +200,17 @@ export function BuilderCanvas({
           onClick={handleCanvasClick}
         >
           <div
+            ref={setNodeRef}
             className={cn(
-              'bg-background transition-all duration-300',
+              'bg-background transition-all duration-300 origin-top',
               viewport !== 'desktop' && 'rounded-lg shadow-xl border',
               viewport === 'desktop' && 'shadow-sm'
             )}
             style={{ 
-              width: viewportSizes[viewport].width,
-              maxWidth: '100%',
+              width: `${targetWidth}px`,
               minHeight: 'calc(100vh - 180px)',
+              transform: scale < 1 ? `scale(${scale})` : undefined,
+              transformOrigin: 'top center',
             }}
           >
             <BlockRenderer
@@ -195,7 +242,7 @@ export function BuilderCanvas({
               'Arraste blocos ou clique para editar'
             )}
           </span>
-          <span className="opacity-50">{viewport}</span>
+          <span className="opacity-50">{viewport} {scale < 1 ? `(${Math.round(scale * 100)}%)` : ''}</span>
         </div>
       )}
     </div>
