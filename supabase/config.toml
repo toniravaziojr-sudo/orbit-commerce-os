@@ -1,5 +1,8 @@
 project_id = "ojssezfjhdvvncsqyhyq"
 
+[functions.platform-secrets-check]
+verify_jwt = true
+
 [functions.import-shopify-products]
 verify_jwt = false
 
