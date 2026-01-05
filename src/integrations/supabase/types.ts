@@ -7294,6 +7294,7 @@ export type Database = {
         }
       }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
+      get_auth_user_email: { Args: never; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_discount_usage: { Args: { p_discount_id: string }; Returns: number }
       get_discount_usage_by_customer: {
