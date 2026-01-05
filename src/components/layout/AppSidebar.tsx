@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -50,7 +51,8 @@ interface NavGroup {
   items: NavItem[];
 }
 
-const navigation: NavGroup[] = [
+// Full navigation for tenant users
+const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
     items: [
@@ -116,12 +118,58 @@ const navigation: NavGroup[] = [
   },
 ];
 
-// Platform admin only navigation
+// Navigation for Platform Admin WITHOUT tenant context
+// According to plan: CRM, ERP (sem Logística), Marketing (sem Avaliações/Aumentar Ticket), Sistema
+const platformAdminNavigation: NavGroup[] = [
+  {
+    label: "Plataforma",
+    items: [
+      { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
+      { title: "Integrações", href: "/platform/integrations", icon: Plug },
+      { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
+    ],
+  },
+  {
+    label: "CRM",
+    items: [
+      { title: "Notificações", href: "/notifications", icon: Bell },
+      { title: "Atendimento", href: "/support", icon: MessageSquare },
+      { title: "Emails", href: "/emails", icon: Mail },
+    ],
+  },
+  {
+    label: "ERP",
+    items: [
+      { title: "Fiscal", href: "/fiscal", icon: FileText },
+      { title: "Financeiro", href: "/finance", icon: DollarSign },
+      { title: "Compras", href: "/purchases", icon: ShoppingBag },
+      // Logística removed per plan
+    ],
+  },
+  {
+    label: "Marketing",
+    items: [
+      { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
+      { title: "Atribuição", href: "/marketing/atribuicao", icon: TrendingUp },
+      // Aumentar Ticket and Avaliações removed per plan
+    ],
+  },
+  {
+    label: "Sistema",
+    items: [
+      { title: "Integrações", href: "/integrations", icon: Plug },
+      { title: "Importar Dados", href: "/import", icon: Upload },
+      { title: "Configurações", href: "/settings", icon: Settings },
+    ],
+  },
+];
+
+// Platform section for users who have tenant AND are platform admins
 const platformNavigation: NavGroup = {
   label: "Plataforma",
   items: [
-    { title: "Integrações", href: "/platform/integrations", icon: Plug },
     { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
+    { title: "Integrações", href: "/platform/integrations", icon: Plug },
     { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
   ],
 };
@@ -130,7 +178,18 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
+  const { currentTenant } = useAuth();
 
+  // Determine which navigation to show based on user type and tenant context
+  const { navigation, showPlatformSection } = useMemo(() => {
+    // Platform admin WITHOUT tenant context: show reduced menu
+    if (isPlatformOperator && !currentTenant) {
+      return { navigation: platformAdminNavigation, showPlatformSection: false };
+    }
+    // User with tenant (either regular or platform admin): show full menu
+    // Platform admin with tenant also gets the platform section
+    return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
+  }, [isPlatformOperator, currentTenant]);
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
     
@@ -247,8 +306,8 @@ export function AppSidebar() {
           </div>
         ))}
 
-        {/* Platform admin navigation - only for platform operators */}
-        {isPlatformOperator && (
+        {/* Platform admin navigation - only for platform operators WITH tenant context */}
+        {showPlatformSection && (
           <div className="mb-4">
             {!collapsed && (
               <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-primary">
