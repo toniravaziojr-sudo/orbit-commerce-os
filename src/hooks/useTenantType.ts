@@ -20,7 +20,12 @@ export function useTenantType() {
   const { data: tenantType, isLoading } = useQuery({
     queryKey: ['tenant-type', currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) return null;
+      if (!currentTenant?.id) {
+        console.log('[useTenantType] No currentTenant.id available');
+        return null;
+      }
+      
+      console.log('[useTenantType] Fetching type for tenant:', currentTenant.id);
       
       const { data, error } = await supabase
         .from('tenants')
@@ -33,15 +38,22 @@ export function useTenantType() {
         return 'customer' as TenantType; // fallback seguro
       }
       
+      console.log('[useTenantType] Query result:', data);
+      
       // Cast necessário porque o tipo não está no types.ts ainda
-      return (data?.type as TenantType) || 'customer';
+      const type = (data?.type as TenantType) || 'customer';
+      console.log('[useTenantType] Resolved type:', type);
+      
+      return type;
     },
     enabled: !!currentTenant?.id,
     staleTime: 10 * 60 * 1000, // 10 minutos - raramente muda
   });
   
   const isPlatformTenant = useMemo(() => {
-    return tenantType === 'platform';
+    const result = tenantType === 'platform';
+    console.log('[useTenantType] isPlatformTenant:', result, 'tenantType:', tenantType);
+    return result;
   }, [tenantType]);
   
   const isCustomerTenant = useMemo(() => {
