@@ -107,7 +107,24 @@ Deno.serve(async (req) => {
     console.log(`[whatsapp-status] Status response:`, statusData);
 
     const isConnected = statusData.connected === true;
-    const phoneNumber = statusData.phoneNumber || statusData.phone || null;
+    
+    // Phone number is NOT in /status response - need to call /device
+    let phoneNumber: string | null = null;
+    if (isConnected) {
+      try {
+        const deviceRes = await fetch(`${baseUrl}/device`, {
+          method: 'GET',
+          headers: zapiHeaders
+        });
+        if (deviceRes.ok) {
+          const deviceData = await deviceRes.json();
+          phoneNumber = deviceData.phone || null;
+          console.log(`[whatsapp-status] Device info: phone=${phoneNumber}`);
+        }
+      } catch (deviceErr: any) {
+        console.warn(`[whatsapp-status] Failed to fetch device info:`, deviceErr.message);
+      }
+    }
 
     // Webhook URL for this tenant
     const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`;
@@ -136,6 +153,12 @@ Deno.serve(async (req) => {
         .update({
           connection_status: 'disconnected',
         })
+        .eq('id', config.id);
+    } else if (isConnected && phoneNumber && phoneNumber !== config.phone_number) {
+      // Update phone number if changed
+      await supabase
+        .from('whatsapp_configs')
+        .update({ phone_number: phoneNumber })
         .eq('id', config.id);
     }
 

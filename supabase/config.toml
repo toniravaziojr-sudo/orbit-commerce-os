@@ -307,5 +307,5 @@ verify_jwt = true
 [functions.loggi-test-connection]
 verify_jwt = true
 
-[functions.whatsapp-test-connection]
+[functions.whatsapp-admin-instances]
 verify_jwt = true
