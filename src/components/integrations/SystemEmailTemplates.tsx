@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { EmailRichTextEditor } from "./EmailRichTextEditor";
 import { 
   Mail, 
@@ -40,9 +41,6 @@ interface EmailTemplate {
   updated_at: string;
 }
 
-// Only this email can see this component
-const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
-
 const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   auth_confirm: <UserPlus className="h-4 w-4" />,
   welcome: <Mail className="h-4 w-4" />,
@@ -71,11 +69,11 @@ const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
 
 export function SystemEmailTemplates() {
   const { toast } = useToast();
+  const { isPlatformOperator, isLoading: authLoading } = usePlatformOperator();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [editedTemplate, setEditedTemplate] = useState<Partial<EmailTemplate>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -83,15 +81,12 @@ export function SystemEmailTemplates() {
   const [copiedVar, setCopiedVar] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setCurrentUserEmail(user?.email || null);
-      if (user?.email === PLATFORM_ADMIN_EMAIL) {
-        loadTemplates();
-      } else {
-        setIsLoading(false);
-      }
-    });
-  }, []);
+    if (!authLoading && isPlatformOperator) {
+      loadTemplates();
+    } else if (!authLoading) {
+      setIsLoading(false);
+    }
+  }, [authLoading, isPlatformOperator]);
 
   const loadTemplates = async () => {
     setIsLoading(true);
@@ -239,7 +234,7 @@ export function SystemEmailTemplates() {
   };
 
   // Don't render if not platform admin
-  if (currentUserEmail !== PLATFORM_ADMIN_EMAIL) {
+  if (!isPlatformOperator) {
     return null;
   }
 

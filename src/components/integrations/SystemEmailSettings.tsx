@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { 
   Mail, 
   CheckCircle, 
@@ -56,18 +57,15 @@ interface SystemEmailConfig {
   last_test_result: { success: boolean; message_id?: string; error?: string } | null;
 }
 
-// Only this email can see this component
-const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
-
 export function SystemEmailSettings() {
   const { toast } = useToast();
+  const { isPlatformOperator, isLoading: authLoading } = usePlatformOperator();
   const [config, setConfig] = useState<SystemEmailConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
-  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Form state
   const [sendingDomain, setSendingDomain] = useState("");
@@ -77,16 +75,12 @@ export function SystemEmailSettings() {
   const [testEmail, setTestEmail] = useState("");
 
   useEffect(() => {
-    // Check if current user is platform admin
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setCurrentUserEmail(user?.email || null);
-      if (user?.email === PLATFORM_ADMIN_EMAIL) {
-        loadConfig();
-      } else {
-        setIsLoading(false);
-      }
-    });
-  }, []);
+    if (!authLoading && isPlatformOperator) {
+      loadConfig();
+    } else if (!authLoading) {
+      setIsLoading(false);
+    }
+  }, [authLoading, isPlatformOperator]);
 
   const loadConfig = async () => {
     setIsLoading(true);
@@ -294,7 +288,7 @@ export function SystemEmailSettings() {
   };
 
   // Don't render if not platform admin
-  if (currentUserEmail !== PLATFORM_ADMIN_EMAIL) {
+  if (!isPlatformOperator) {
     return null;
   }
 

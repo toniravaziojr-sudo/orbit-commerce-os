@@ -1,18 +1,13 @@
 import { PageHeader } from "@/components/ui/page-header";
 import { SystemEmailSettings } from "@/components/integrations/SystemEmailSettings";
 import { SystemEmailTemplates } from "@/components/integrations/SystemEmailTemplates";
-import { useAuth } from "@/hooks/useAuth";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { Navigate } from "react-router-dom";
-import { Mail } from "lucide-react";
-
-// Only this email can access this page
-const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
 
 export default function SystemEmails() {
-  const { user, session } = useAuth();
-  const loading = session === undefined;
+  const { isPlatformOperator, isLoading } = usePlatformOperator();
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -21,7 +16,7 @@ export default function SystemEmails() {
   }
 
   // Redirect non-admin users
-  if (!user || user.email !== PLATFORM_ADMIN_EMAIL) {
+  if (!isPlatformOperator) {
     return <Navigate to="/" replace />;
   }
 

@@ -4,9 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-
-const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 
 const getSettingsSections = (isPlatformAdmin: boolean) => {
   const sections = [
@@ -59,9 +57,8 @@ const getSettingsSections = (isPlatformAdmin: boolean) => {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const isPlatformAdmin = user?.email === PLATFORM_ADMIN_EMAIL;
-  const settingsSections = getSettingsSections(isPlatformAdmin);
+  const { isPlatformOperator } = usePlatformOperator();
+  const settingsSections = getSettingsSections(isPlatformOperator);
 
   return (
     <div className="space-y-8 animate-fade-in">

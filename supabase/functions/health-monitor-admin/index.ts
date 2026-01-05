@@ -6,17 +6,28 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Strict allowlist of platform operator emails
-const PLATFORM_OPERATOR_EMAILS = [
-  "respeiteohomem@gmail.com",
-];
-
-function isPlatformOperator(email: string | undefined): boolean {
+/**
+ * Check if a user is a platform operator by querying the platform_admins table
+ */
+async function isPlatformOperator(
+  adminClient: any,
+  email: string | undefined
+): Promise<boolean> {
   if (!email) return false;
-  const normalizedEmail = email.trim().toLowerCase();
-  return PLATFORM_OPERATOR_EMAILS.some(
-    (operatorEmail) => operatorEmail.trim().toLowerCase() === normalizedEmail
-  );
+  
+  const { data, error } = await adminClient
+    .from("platform_admins")
+    .select("id")
+    .eq("email", email.trim().toLowerCase())
+    .eq("is_active", true)
+    .maybeSingle();
+  
+  if (error) {
+    console.error("[health-monitor-admin] Error checking platform admin:", error);
+    return false;
+  }
+  
+  return !!data;
 }
 
 serve(async (req) => {
@@ -56,8 +67,12 @@ serve(async (req) => {
       );
     }
 
-    // Check if user is platform operator
-    if (!isPlatformOperator(user.email)) {
+    // Use service role client for admin queries
+    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check if user is platform operator (query database)
+    const isOperator = await isPlatformOperator(adminClient, user.email);
+    if (!isOperator) {
       console.warn(`[health-monitor-admin] Access denied for user: ${user.email}`);
       return new Response(
         JSON.stringify({ error: "Forbidden - Access restricted to platform operators" }),
@@ -70,9 +85,6 @@ serve(async (req) => {
     // Parse request body
     const body = await req.json().catch(() => ({}));
     const { action = "stats", days = 7 } = body;
-
-    // Use service role client for admin queries
-    const adminClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const since = new Date();
     since.setDate(since.getDate() - days);

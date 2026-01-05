@@ -7,6 +7,30 @@ const corsHeaders = {
 
 const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
+/**
+ * Check if a user is a platform admin by querying the platform_admins table
+ */
+async function isPlatformAdmin(
+  adminClient: any,
+  email: string | undefined
+): Promise<boolean> {
+  if (!email) return false;
+  
+  const { data, error } = await adminClient
+    .from("platform_admins")
+    .select("id")
+    .eq("email", email.trim().toLowerCase())
+    .eq("is_active", true)
+    .maybeSingle();
+  
+  if (error) {
+    console.error("[system-email-domain-verify] Error checking platform admin:", error);
+    return false;
+  }
+  
+  return !!data;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -19,7 +43,7 @@ Deno.serve(async (req: Request) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    // Verify user is platform operator
+    // Verify user is platform admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       throw new Error("Missing authorization header");
@@ -33,15 +57,9 @@ Deno.serve(async (req: Request) => {
       throw new Error("Unauthorized");
     }
 
-    // Check if user is platform operator
-    const { data: roles } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "owner")
-      .limit(1);
-
-    if (!roles || roles.length === 0) {
+    // Check if user is platform admin (query database)
+    const isAdmin = await isPlatformAdmin(supabaseAdmin, user.email);
+    if (!isAdmin) {
       throw new Error("Apenas operadores da plataforma podem verificar o domínio do sistema");
     }
 
