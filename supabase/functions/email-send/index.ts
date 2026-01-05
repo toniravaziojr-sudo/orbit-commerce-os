@@ -6,6 +6,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Platform tenant ID (Comando Central)
+const PLATFORM_TENANT_ID = 'cc000000-0000-0000-0000-000000000001';
+
 interface EmailRecipient {
   email: string;
   name?: string;
@@ -43,6 +46,7 @@ serve(async (req: Request): Promise<Response> => {
     const sendgridApiKey = Deno.env.get('SENDGRID_API_KEY');
 
     if (!sendgridApiKey) {
+      console.error('SENDGRID_API_KEY not configured');
       throw new Error('SENDGRID_API_KEY not configured');
     }
 
@@ -51,6 +55,7 @@ serve(async (req: Request): Promise<Response> => {
     // Verify authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -62,16 +67,22 @@ serve(async (req: Request): Promise<Response> => {
     );
 
     if (authError || !user) {
+      console.error('Auth error:', authError);
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('User authenticated:', user.email);
+
     const body: SendEmailRequest = await req.json();
     const { mailbox_id, to_emails, cc_emails, bcc_emails, subject, body_html, body_text, in_reply_to, attachments } = body;
 
+    console.log('Request body:', { mailbox_id, to_emails, subject });
+
     if (!mailbox_id || !to_emails || to_emails.length === 0) {
+      console.error('Missing required fields');
       return new Response(
         JSON.stringify({ error: 'Missing required fields: mailbox_id, to_emails' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -86,11 +97,14 @@ serve(async (req: Request): Promise<Response> => {
       .single();
 
     if (mailboxError || !mailbox) {
+      console.error('Mailbox error:', mailboxError);
       return new Response(
         JSON.stringify({ error: 'Mailbox not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log('Mailbox found:', mailbox.email_address, 'tenant:', mailbox.tenant_id);
 
     // Verify user has access to tenant
     const { data: userRole } = await supabase
@@ -101,6 +115,7 @@ serve(async (req: Request): Promise<Response> => {
       .single();
 
     if (!userRole) {
+      console.error('Access denied - no role found');
       return new Response(
         JSON.stringify({ error: 'Access denied' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -117,27 +132,45 @@ serve(async (req: Request): Promise<Response> => {
     const formatRecipients = (recipients: EmailRecipient[]) => 
       recipients.map(r => r.name ? { email: r.email, name: r.name } : { email: r.email });
 
-    // Get email config to find the verified sending domain
-    const { data: emailConfig } = await supabase
-      .from('email_provider_configs')
-      .select('sending_domain, from_email, from_name')
-      .eq('tenant_id', mailbox.tenant_id)
-      .single();
+    // Determine email configuration based on tenant
+    // For platform tenant, use system_email_config (global SendGrid config)
+    // For other tenants, use email_provider_configs (tenant-specific)
+    let sendingDomain: string | null = null;
+    
+    if (mailbox.tenant_id === PLATFORM_TENANT_ID) {
+      // Platform tenant - use global system_email_config
+      const { data: systemConfig } = await supabase
+        .from('system_email_config')
+        .select('sending_domain, from_email, from_name, verification_status')
+        .single();
+      
+      console.log('Platform tenant - using system_email_config:', systemConfig);
+      
+      if (systemConfig?.sending_domain && systemConfig.verification_status === 'verified') {
+        sendingDomain = systemConfig.sending_domain;
+      }
+    } else {
+      // Other tenants - use email_provider_configs
+      const { data: emailConfig } = await supabase
+        .from('email_provider_configs')
+        .select('sending_domain, from_email, from_name, is_verified')
+        .eq('tenant_id', mailbox.tenant_id)
+        .single();
+      
+      console.log('Customer tenant - using email_provider_configs:', emailConfig);
+      
+      if (emailConfig?.sending_domain && emailConfig.is_verified) {
+        sendingDomain = emailConfig.sending_domain;
+      }
+    }
 
-    // Determine the from address - use verified subdomain format if needed
-    // The SendGrid authenticated domain uses em3683.comandocentral.com.br subdomain
-    let fromEmail = mailbox.email_address;
-    const domainPart = mailbox.email_address.split('@')[1];
-    const localPart = mailbox.email_address.split('@')[0];
+    // The mailbox email should be used as-is since domain is verified
+    const fromEmail = mailbox.email_address;
     
-    // Check if we need to use the sendgrid subdomain for sending
-    // If the domain isn't receiving emails, use a noreply format with reply-to
-    const useSubdomain = emailConfig?.sending_domain && domainPart === emailConfig.sending_domain;
-    
-    console.log('Email config:', { 
-      mailboxEmail: mailbox.email_address, 
-      sendingDomain: emailConfig?.sending_domain,
-      useSubdomain 
+    console.log('Email config resolved:', { 
+      fromEmail,
+      sendingDomain,
+      mailboxEmail: mailbox.email_address
     });
 
     // Prepare SendGrid payload
@@ -209,7 +242,11 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    console.log('Sending email via SendGrid:', { to: to_emails, subject });
+    console.log('Sending email via SendGrid:', JSON.stringify({ 
+      to: to_emails, 
+      from: sendgridPayload.from,
+      subject 
+    }));
 
     // Send via SendGrid
     const sendgridResponse = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -223,8 +260,8 @@ serve(async (req: Request): Promise<Response> => {
 
     if (!sendgridResponse.ok) {
       const errorText = await sendgridResponse.text();
-      console.error('SendGrid error:', errorText);
-      throw new Error(`SendGrid error: ${sendgridResponse.status}`);
+      console.error('SendGrid error response:', sendgridResponse.status, errorText);
+      throw new Error(`SendGrid error: ${sendgridResponse.status} - ${errorText}`);
     }
 
     // Get message ID from SendGrid response header
@@ -306,7 +343,7 @@ serve(async (req: Request): Promise<Response> => {
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Internal server error';
-    console.error('Error:', error);
+    console.error('Error in email-send:', error);
     return new Response(
       JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
