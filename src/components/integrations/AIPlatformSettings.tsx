@@ -126,9 +126,9 @@ export function AIPlatformSettings() {
           </div>
 
           <Button variant="outline" size="sm" asChild>
-            <a href="https://docs.firecrawl.dev/" target="_blank" rel="noopener noreferrer">
+            <a href="https://www.firecrawl.dev/" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
-              Documentação Firecrawl
+              Site Firecrawl
             </a>
           </Button>
         </CardContent>

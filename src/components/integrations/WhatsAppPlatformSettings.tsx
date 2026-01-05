@@ -3,12 +3,54 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquare, CheckCircle2, AlertCircle, ExternalLink, Info, Shield } from "lucide-react";
+import { MessageSquare, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2, Users } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export function WhatsAppPlatformSettings() {
-  // Z-API credentials are stored as environment variables in the edge functions
-  // The platform operator has already configured the master Z-API account
-  const isConfigured = true; // Z-API is configured at platform level
+  const queryClient = useQueryClient();
+  
+  const { data: connectionData, isLoading } = useQuery({
+    queryKey: ['whatsapp-platform-status'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('whatsapp-test-connection');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const refreshMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('whatsapp-test-connection');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast.success('Status atualizado', { description: data.message });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-platform-status'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao atualizar status', { description: error.message });
+    },
+  });
+
+  const stats = connectionData?.stats || {
+    totalInstances: 0,
+    connected: 0,
+    disconnected: 0,
+    pending: 0,
+  };
+
+  const hasActiveInstances = stats.connected > 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -35,43 +77,62 @@ export function WhatsAppPlatformSettings() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Shield className="h-4 w-4" />
-                Conta Gerenciadora Z-API
-              </CardTitle>
-              <CardDescription>
-                Credenciais da conta principal que gerencia todas as instâncias
-              </CardDescription>
+            <div className="flex items-center gap-3">
+              <Users className="h-5 w-5" />
+              <div>
+                <CardTitle className="text-base">Panorama de Instâncias</CardTitle>
+                <CardDescription>
+                  Status de todas as instâncias WhatsApp dos tenants
+                </CardDescription>
+              </div>
             </div>
-            {isConfigured ? (
+            {hasActiveInstances ? (
               <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
-                Configurado
+                {stats.connected} Conectada(s)
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground">
                 <AlertCircle className="h-3 w-3 mr-1" />
-                Pendente
+                Nenhuma Conectada
               </Badge>
             )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Client Token</p>
-              <p className="text-sm font-mono">••••••••••••••••</p>
-              <p className="text-xs text-muted-foreground mt-1">Configurado via variável de ambiente</p>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="p-4 rounded-lg border bg-muted/30 text-center">
+              <p className="text-2xl font-bold">{stats.totalInstances}</p>
+              <p className="text-xs text-muted-foreground">Total</p>
             </div>
-            <div className="p-4 rounded-lg border bg-muted/30">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Status</p>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
-                <p className="text-sm">Operacional</p>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">Última verificação: agora</p>
+            <div className="p-4 rounded-lg border bg-green-500/10 text-center">
+              <p className="text-2xl font-bold text-green-600">{stats.connected}</p>
+              <p className="text-xs text-muted-foreground">Conectadas</p>
             </div>
+            <div className="p-4 rounded-lg border bg-destructive/10 text-center">
+              <p className="text-2xl font-bold text-destructive">{stats.disconnected}</p>
+              <p className="text-xs text-muted-foreground">Desconectadas</p>
+            </div>
+            <div className="p-4 rounded-lg border bg-yellow-500/10 text-center">
+              <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+              <p className="text-xs text-muted-foreground">Pendentes</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshMutation.mutate()}
+              disabled={refreshMutation.isPending}
+            >
+              {refreshMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Atualizar Status
+            </Button>
           </div>
 
           <Separator />
@@ -81,7 +142,7 @@ export function WhatsAppPlatformSettings() {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-start gap-2">
                 <span className="text-primary">1.</span>
-                Você configurou a conta gerenciadora Z-API com o Client Token
+                Z-API usa tokens por instância (cada tenant tem seu próprio)
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">2.</span>

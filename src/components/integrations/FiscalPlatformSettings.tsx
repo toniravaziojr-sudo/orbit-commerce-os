@@ -1,14 +1,17 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { FileText, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export function FiscalPlatformSettings() {
+  const queryClient = useQueryClient();
+  
   const { data: secretStatus, isLoading } = useQuery({
     queryKey: ['platform-secrets-status', 'focus_nfe'],
     queryFn: async () => {
@@ -26,6 +29,27 @@ export function FiscalPlatformSettings() {
       
       const focusNfe = response.data.integrations?.find((i: any) => i.key === 'focus_nfe');
       return focusNfe || null;
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('fiscal-test-connection');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success('Conexão estabelecida com sucesso', {
+          description: `Ambiente: ${data.environment === 'production' ? 'Produção' : 'Homologação'}`
+        });
+      } else {
+        toast.error('Falha na conexão', { description: data.error });
+      }
+      queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao testar conexão', { description: error.message });
     },
   });
 
@@ -94,7 +118,7 @@ export function FiscalPlatformSettings() {
                 {isConfigured ? '••••••••••••••••' : 'Não configurado'}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {isConfigured ? 'Configurado via variável de ambiente' : 'Configure nas variáveis de ambiente'}
+                {isConfigured ? 'Configurado via Lovable Cloud Secrets' : 'Configure via Lovable Cloud > Secrets'}
               </p>
             </div>
             <div className="p-4 rounded-lg border bg-muted/30">
@@ -106,6 +130,22 @@ export function FiscalPlatformSettings() {
             </div>
           </div>
 
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testConnectionMutation.mutate()}
+              disabled={!isConfigured || testConnectionMutation.isPending}
+            >
+              {testConnectionMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Testar Conexão
+            </Button>
+          </div>
+
           <Separator />
 
           <div>
@@ -113,7 +153,7 @@ export function FiscalPlatformSettings() {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-start gap-2">
                 <span className="text-primary">1.</span>
-                Você configurou o token Focus NFe como variável de ambiente
+                Você configurou o token Focus NFe via Lovable Cloud Secrets
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">2.</span>

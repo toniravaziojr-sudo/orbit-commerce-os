@@ -3,12 +3,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Truck, CheckCircle2, AlertCircle, ExternalLink, Info, Shield } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Truck, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2 } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export function LogisticsPlatformSettings() {
+  const queryClient = useQueryClient();
+  
   const { data: secretStatus, isLoading } = useQuery({
     queryKey: ['platform-secrets-status', 'loggi'],
     queryFn: async () => {
@@ -26,6 +28,27 @@ export function LogisticsPlatformSettings() {
       
       const loggi = response.data.integrations?.find((i: any) => i.key === 'loggi');
       return loggi || null;
+    },
+  });
+
+  const testConnectionMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('loggi-test-connection');
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success('Autenticação OAuth bem sucedida', {
+          description: `Token expira em ${data.expiresIn}s`
+        });
+      } else {
+        toast.error('Falha na autenticação OAuth', { description: data.error });
+      }
+      queryClient.invalidateQueries({ queryKey: ['platform-secrets-status'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao testar conexão', { description: error.message });
     },
   });
 
@@ -138,6 +161,22 @@ export function LogisticsPlatformSettings() {
             </div>
           </div>
 
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => testConnectionMutation.mutate()}
+              disabled={!clientIdConfigured || !clientSecretConfigured || testConnectionMutation.isPending}
+            >
+              {testConnectionMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Testar Autenticação OAuth
+            </Button>
+          </div>
+
           <Separator />
 
           <div>
@@ -145,7 +184,7 @@ export function LogisticsPlatformSettings() {
             <ul className="text-sm text-muted-foreground space-y-1">
               <li className="flex items-start gap-2">
                 <span className="text-primary">1.</span>
-                Você configurou as credenciais OAuth do aplicativo Loggi
+                Você configurou as credenciais OAuth via Lovable Cloud Secrets
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">2.</span>
@@ -206,9 +245,9 @@ export function LogisticsPlatformSettings() {
           </a>
         </Button>
         <Button variant="outline" asChild>
-          <a href="https://www.loggi.com/entrar/" target="_blank" rel="noopener noreferrer">
+          <a href="https://www.loggi.com/para-empresas/" target="_blank" rel="noopener noreferrer">
             <ExternalLink className="h-4 w-4 mr-2" />
-            Painel Loggi
+            Loggi para Empresas
           </a>
         </Button>
       </div>
