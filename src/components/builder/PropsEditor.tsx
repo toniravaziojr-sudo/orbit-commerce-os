@@ -83,9 +83,9 @@ export function PropsEditor({
   return (
     <div className="h-full flex flex-col border-l">
       {/* Header */}
-      <div className="p-3 border-b bg-muted/30">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">{definition.icon}</span>
+      <div className="p-2 border-b bg-muted/30">
+        <div className="flex items-center gap-1.5">
+          <span className="text-base">{definition.icon}</span>
           <div>
             <h3 className="font-semibold text-xs">{definition.label}</h3>
             <p className="text-[10px] text-muted-foreground">Propriedades</p>
@@ -95,7 +95,7 @@ export function PropsEditor({
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-3 space-y-3">
+        <div className="p-2 space-y-2.5">
           {/* Header Notice Accordion - FIRST, collapsed by default */}
           {isHeaderBlock && noticePropsEntries.length > 0 && (
             <>
@@ -159,8 +159,8 @@ export function PropsEditor({
       </ScrollArea>
 
       {/* Actions */}
-      <div className="p-3 border-t bg-muted/30">
-        <div className="flex gap-1.5">
+      <div className="p-2 border-t bg-muted/30">
+        <div className="flex gap-1">
           {onDuplicate && (
             <Button variant="outline" size="sm" className="flex-1 gap-1 h-7 text-xs" onClick={onDuplicate}>
               <Copy className="h-3.5 w-3.5" />
