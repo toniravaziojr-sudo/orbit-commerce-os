@@ -24,27 +24,37 @@ interface PlatformAdmin {
 export function usePlatformOperator() {
   const { user, isLoading: authLoading } = useAuth();
   
+  const normalizedEmail = user?.email?.trim().toLowerCase();
+  
   const { data: platformAdmin, isLoading: queryLoading } = useQuery({
-    queryKey: ['platform-admin-check', user?.email],
+    queryKey: ['platform-admin-check', normalizedEmail],
     queryFn: async () => {
-      if (!user?.email) return null;
+      if (!normalizedEmail) {
+        console.log('[usePlatformOperator] No email available');
+        return null;
+      }
+      
+      console.log('[usePlatformOperator] Checking admin status for:', normalizedEmail);
       
       const { data, error } = await supabase
         .from('platform_admins')
         .select('id, email, name, role, permissions, is_active')
-        .eq('email', user.email.trim().toLowerCase())
+        .eq('email', normalizedEmail)
         .eq('is_active', true)
         .maybeSingle();
       
       if (error) {
         console.error('[usePlatformOperator] Error checking platform admin:', error);
+        console.error('[usePlatformOperator] Error details:', JSON.stringify(error));
         return null;
       }
       
+      console.log('[usePlatformOperator] Query result:', data);
+      
       return data as PlatformAdmin | null;
     },
-    enabled: !!user?.email,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    enabled: !!normalizedEmail && !authLoading,
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
   
