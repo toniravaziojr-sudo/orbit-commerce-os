@@ -15,6 +15,41 @@ interface IntegrationConfig {
   secrets: Record<string, boolean>;
 }
 
+// Helper para verificar se credencial existe (banco OU env var)
+async function checkCredential(
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+  key: string
+): Promise<{ exists: boolean; source: 'db' | 'env' | null; preview?: string }> {
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Primeiro verificar no banco
+  const { data, error } = await supabase
+    .from('platform_credentials')
+    .select('credential_value, is_active')
+    .eq('credential_key', key)
+    .single();
+  
+  if (!error && data && data.is_active && data.credential_value) {
+    const value = data.credential_value as string;
+    const preview = value.length > 8 
+      ? `${value.substring(0, 4)}...${value.substring(value.length - 4)}`
+      : '••••••••';
+    return { exists: true, source: 'db', preview };
+  }
+  
+  // Fallback para env var
+  const envValue = Deno.env.get(key);
+  if (envValue) {
+    const preview = envValue.length > 8 
+      ? `${envValue.substring(0, 4)}...${envValue.substring(envValue.length - 4)}`
+      : '••••••••';
+    return { exists: true, source: 'env', preview };
+  }
+  
+  return { exists: false, source: null };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -32,6 +67,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
@@ -54,16 +90,32 @@ serve(async (req) => {
       );
     }
 
-    // Check which secrets are configured (without exposing values)
-    const secrets: Record<string, IntegrationConfig> = {
+    // Check which secrets are configured (database OR env vars)
+    const focusNfeToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'FOCUS_NFE_TOKEN');
+    const sendgridApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'SENDGRID_API_KEY');
+    const cloudflareApiToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'CLOUDFLARE_API_TOKEN');
+    const cloudflareZoneId = await checkCredential(supabaseUrl, supabaseServiceKey, 'CLOUDFLARE_ZONE_ID');
+    const loggiClientId = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_CLIENT_ID');
+    const loggiClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_CLIENT_SECRET');
+    const loggiExternalServiceId = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOGGI_EXTERNAL_SERVICE_ID');
+    const firecrawlApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FIRECRAWL_API_KEY');
+    const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
+
+    const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
         name: 'Focus NFe',
         description: 'Emissão de NF-e para todos os tenants',
         icon: 'FileText',
         docs: 'https://focusnfe.com.br/doc/',
         secrets: {
-          FOCUS_NFE_TOKEN: !!Deno.env.get('FOCUS_NFE_TOKEN'),
-        }
+          FOCUS_NFE_TOKEN: focusNfeToken.exists,
+        },
+        previews: {
+          FOCUS_NFE_TOKEN: focusNfeToken.preview || '',
+        },
+        sources: {
+          FOCUS_NFE_TOKEN: focusNfeToken.source || '',
+        },
       },
       sendgrid: {
         name: 'SendGrid',
@@ -71,8 +123,14 @@ serve(async (req) => {
         icon: 'Mail',
         docs: 'https://docs.sendgrid.com/',
         secrets: {
-          SENDGRID_API_KEY: !!Deno.env.get('SENDGRID_API_KEY'),
-        }
+          SENDGRID_API_KEY: sendgridApiKey.exists,
+        },
+        previews: {
+          SENDGRID_API_KEY: sendgridApiKey.preview || '',
+        },
+        sources: {
+          SENDGRID_API_KEY: sendgridApiKey.source || '',
+        },
       },
       cloudflare: {
         name: 'Cloudflare',
@@ -80,9 +138,17 @@ serve(async (req) => {
         icon: 'Cloud',
         docs: 'https://developers.cloudflare.com/',
         secrets: {
-          CLOUDFLARE_API_TOKEN: !!Deno.env.get('CLOUDFLARE_API_TOKEN'),
-          CLOUDFLARE_ZONE_ID: !!Deno.env.get('CLOUDFLARE_ZONE_ID'),
-        }
+          CLOUDFLARE_API_TOKEN: cloudflareApiToken.exists,
+          CLOUDFLARE_ZONE_ID: cloudflareZoneId.exists,
+        },
+        previews: {
+          CLOUDFLARE_API_TOKEN: cloudflareApiToken.preview || '',
+          CLOUDFLARE_ZONE_ID: cloudflareZoneId.preview || '',
+        },
+        sources: {
+          CLOUDFLARE_API_TOKEN: cloudflareApiToken.source || '',
+          CLOUDFLARE_ZONE_ID: cloudflareZoneId.source || '',
+        },
       },
       loggi: {
         name: 'Loggi',
@@ -90,19 +156,35 @@ serve(async (req) => {
         icon: 'Truck',
         docs: 'https://docs.loggi.com/',
         secrets: {
-          LOGGI_CLIENT_ID: !!Deno.env.get('LOGGI_CLIENT_ID'),
-          LOGGI_CLIENT_SECRET: !!Deno.env.get('LOGGI_CLIENT_SECRET'),
-          LOGGI_EXTERNAL_SERVICE_ID: !!Deno.env.get('LOGGI_EXTERNAL_SERVICE_ID'),
-        }
+          LOGGI_CLIENT_ID: loggiClientId.exists,
+          LOGGI_CLIENT_SECRET: loggiClientSecret.exists,
+          LOGGI_EXTERNAL_SERVICE_ID: loggiExternalServiceId.exists,
+        },
+        previews: {
+          LOGGI_CLIENT_ID: loggiClientId.preview || '',
+          LOGGI_CLIENT_SECRET: loggiClientSecret.preview || '',
+          LOGGI_EXTERNAL_SERVICE_ID: loggiExternalServiceId.preview || '',
+        },
+        sources: {
+          LOGGI_CLIENT_ID: loggiClientId.source || '',
+          LOGGI_CLIENT_SECRET: loggiClientSecret.source || '',
+          LOGGI_EXTERNAL_SERVICE_ID: loggiExternalServiceId.source || '',
+        },
       },
       firecrawl: {
         name: 'Firecrawl',
         description: 'Web scraping para importação de lojas',
         icon: 'Flame',
-        docs: 'https://docs.firecrawl.dev/',
+        docs: 'https://www.firecrawl.dev/',
         secrets: {
-          FIRECRAWL_API_KEY: !!Deno.env.get('FIRECRAWL_API_KEY'),
-        }
+          FIRECRAWL_API_KEY: firecrawlApiKey.exists,
+        },
+        previews: {
+          FIRECRAWL_API_KEY: firecrawlApiKey.preview || '',
+        },
+        sources: {
+          FIRECRAWL_API_KEY: firecrawlApiKey.source || '',
+        },
       },
       lovable_ai: {
         name: 'Lovable AI',
@@ -111,8 +193,14 @@ serve(async (req) => {
         docs: 'https://docs.lovable.dev/',
         isSystem: true,
         secrets: {
-          LOVABLE_API_KEY: !!Deno.env.get('LOVABLE_API_KEY'),
-        }
+          LOVABLE_API_KEY: lovableApiKey.exists,
+        },
+        previews: {
+          LOVABLE_API_KEY: lovableApiKey.preview || '',
+        },
+        sources: {
+          LOVABLE_API_KEY: lovableApiKey.source || '',
+        },
       },
     };
 
