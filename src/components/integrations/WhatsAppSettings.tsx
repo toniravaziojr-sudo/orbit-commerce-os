@@ -221,31 +221,94 @@ export function WhatsAppSettings() {
     );
   }
 
+  // Format phone number for display
+  const formatPhone = (phone: string | null) => {
+    if (!phone) return null;
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 13) {
+      return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 9)}-${digits.slice(9)}`;
+    }
+    if (digits.length === 12) {
+      return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 8)}-${digits.slice(8)}`;
+    }
+    return phone;
+  };
+
   if (isConnected) {
+    const formattedPhone = formatPhone(config?.phone_number);
+    
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30"><MessageCircle className="h-5 w-5 text-green-600" /></div>
-            <div><CardTitle className="flex items-center gap-2">WhatsApp<StatusBadge variant="success"><CheckCircle className="h-3 w-3 mr-1" />Conectado</StatusBadge></CardTitle><CardDescription>Notificações ativas - IA pronta para atender</CardDescription></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+              <MessageCircle className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                WhatsApp
+                <StatusBadge variant="success">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Conectado
+                </StatusBadge>
+              </CardTitle>
+              <CardDescription>Notificações ativas - IA pronta para atender</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-muted/50 rounded-lg p-4"><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Número:</span><span className="font-medium flex items-center gap-2"><Smartphone className="h-4 w-4" />{config.phone_number || "—"}</span></div></div>
+          <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Número conectado:</span>
+              <span className="font-medium flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-green-600" />
+                {formattedPhone || <span className="text-muted-foreground italic">Número não disponível</span>}
+                {formattedPhone && <CheckCircle className="h-4 w-4 text-green-600" />}
+              </span>
+            </div>
+            {config?.last_connected_at && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Conectado desde:</span>
+                <span>{new Date(config.last_connected_at).toLocaleString('pt-BR')}</span>
+              </div>
+            )}
+          </div>
           
           {showTestInput && (
             <div className="bg-muted/50 rounded-lg p-4 space-y-3">
               <Label>Enviar teste para:</Label>
               <div className="flex gap-2">
-                <Input type="tel" placeholder="5511999999999" value={testPhoneInput} onChange={(e) => setTestPhoneInput(e.target.value)} className="flex-1" />
-                <Button onClick={handleTest} disabled={isTesting}>{isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button>
+                <Input 
+                  type="tel" 
+                  placeholder="5511999999999" 
+                  value={testPhoneInput} 
+                  onChange={(e) => setTestPhoneInput(e.target.value)} 
+                  className="flex-1" 
+                />
+                <Button onClick={handleTest} disabled={isTesting}>
+                  {isTesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
                 <Button variant="ghost" onClick={() => setShowTestInput(false)}>Cancelar</Button>
               </div>
             </div>
           )}
+          
           <div className="flex gap-2">
-            {!showTestInput && <Button variant="outline" onClick={() => setShowTestInput(true)}><Send className="h-4 w-4 mr-2" />Enviar teste</Button>}
-            <Button variant="ghost" className="text-destructive" onClick={handleDisconnect} disabled={isDisconnecting}>{isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4 mr-2" />}Desconectar</Button>
+            {!showTestInput && (
+              <Button variant="outline" onClick={() => setShowTestInput(true)}>
+                <Send className="h-4 w-4 mr-2" />
+                Enviar teste
+              </Button>
+            )}
+            <Button 
+              variant="ghost" 
+              className="text-destructive" 
+              onClick={handleDisconnect} 
+              disabled={isDisconnecting}
+            >
+              {isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Unplug className="h-4 w-4 mr-2" />}
+              Desconectar
+            </Button>
           </div>
         </CardContent>
       </Card>

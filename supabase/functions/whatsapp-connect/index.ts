@@ -237,11 +237,27 @@ Deno.serve(async (req) => {
           // Already connected - configure webhook automatically
           await configureZapiWebhook(baseUrl, zapiHeaders, webhookUrl, traceId);
           
+          // Fetch phone number from /device endpoint (not available in /status)
+          let phoneNumber: string | null = null;
+          try {
+            const deviceRes = await fetch(`${baseUrl}/device`, {
+              method: 'GET',
+              headers: zapiHeaders
+            });
+            if (deviceRes.ok) {
+              const deviceData = await deviceRes.json();
+              phoneNumber = deviceData.phone || null;
+              console.log(`[whatsapp-connect][${traceId}] Device info: phone=${phoneNumber}`);
+            }
+          } catch (deviceErr: any) {
+            console.warn(`[whatsapp-connect][${traceId}] Failed to fetch device info:`, deviceErr.message);
+          }
+          
           await supabase
             .from('whatsapp_configs')
             .update({
               connection_status: 'connected',
-              phone_number: statusData.phoneNumber || statusData.phone || statusData.smartphoneConnected?.phoneNumber,
+              phone_number: phoneNumber,
               last_connected_at: new Date().toISOString(),
               qr_code: null,
               last_error: null,
@@ -254,7 +270,7 @@ Deno.serve(async (req) => {
             JSON.stringify({ 
               success: true, 
               status: 'connected',
-              phone_number: statusData.phoneNumber || statusData.phone,
+              phone_number: phoneNumber,
               trace_id: traceId
             }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -22,8 +22,7 @@ const EDITABLE_CREDENTIALS = [
   'FRENET_PASSWORD',
   'FRENET_KEY',
   'FIRECRAWL_API_KEY',
-  'ZAPI_INSTANCE_ID',
-  'ZAPI_TOKEN',
+  'ZAPI_CLIENT_TOKEN',
 ];
 
 serve(async (req) => {

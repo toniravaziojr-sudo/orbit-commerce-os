@@ -1,26 +1,86 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { MessageSquare, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, RefreshCw, Loader2, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle 
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { 
+  MessageSquare, 
+  CheckCircle2, 
+  AlertCircle, 
+  ExternalLink, 
+  Info, 
+  Shield, 
+  RefreshCw, 
+  Loader2, 
+  Users,
+  Plus,
+  Pencil,
+  Trash2,
+  Phone
+} from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CredentialEditor } from "./CredentialEditor";
 
+interface WhatsAppInstance {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  tenant_slug: string;
+  instance_id_preview: string | null;
+  has_credentials: boolean;
+  connection_status: string;
+  phone_number: string | null;
+  is_enabled: boolean;
+  last_connected_at: string | null;
+  last_error: string | null;
+}
+
+interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export function WhatsAppPlatformSettings() {
   const queryClient = useQueryClient();
-  
-  const { data: connectionData, isLoading } = useQuery({
-    queryKey: ['whatsapp-platform-status'],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('whatsapp-test-connection');
-      if (error) throw error;
-      return data;
-    },
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingInstance, setEditingInstance] = useState<WhatsAppInstance | null>(null);
+  const [formData, setFormData] = useState({
+    tenant_id: '',
+    instance_id: '',
+    instance_token: '',
+    client_token: '',
   });
 
+  // Fetch platform secret status
   const { data: secretStatus, isLoading: isLoadingSecrets } = useQuery({
     queryKey: ['platform-secrets-status', 'zapi'],
     queryFn: async () => {
@@ -41,29 +101,156 @@ export function WhatsAppPlatformSettings() {
     },
   });
 
-  const refreshMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('whatsapp-test-connection');
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      toast.success('Status atualizado', { description: data.message });
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-platform-status'] });
-    },
-    onError: (error: Error) => {
-      toast.error('Erro ao atualizar status', { description: error.message });
+  // Fetch all instances
+  const { data: instancesData, isLoading: isLoadingInstances } = useQuery({
+    queryKey: ['whatsapp-admin-instances'],
+    queryFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('whatsapp-admin-instances', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      return response.data.instances as WhatsAppInstance[];
     },
   });
 
-  const stats = connectionData?.stats || {
-    totalInstances: 0,
-    connected: 0,
-    disconnected: 0,
-    pending: 0,
+  // Fetch all tenants for dropdown
+  const { data: tenants } = useQuery({
+    queryKey: ['tenants-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('id, name, slug')
+        .order('name');
+      
+      if (error) throw error;
+      return data as Tenant[];
+    },
+  });
+
+  // Save instance mutation
+  const saveMutation = useMutation({
+    mutationFn: async (data: typeof formData) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('whatsapp-admin-instances', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: data,
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Instância salva com sucesso');
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-admin-instances'] });
+      setIsDialogOpen(false);
+      setEditingInstance(null);
+      setFormData({ tenant_id: '', instance_id: '', instance_token: '', client_token: '' });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao salvar instância', { description: error.message });
+    },
+  });
+
+  // Delete instance mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (tenantId: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('whatsapp-admin-instances', {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: { tenant_id: tenantId },
+      });
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      return response.data;
+    },
+    onSuccess: () => {
+      toast.success('Instância removida');
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-admin-instances'] });
+    },
+    onError: (error: Error) => {
+      toast.error('Erro ao remover instância', { description: error.message });
+    },
+  });
+
+  const handleOpenDialog = (instance?: WhatsAppInstance) => {
+    if (instance) {
+      setEditingInstance(instance);
+      setFormData({
+        tenant_id: instance.tenant_id,
+        instance_id: '', // Don't prefill for security
+        instance_token: '',
+        client_token: '',
+      });
+    } else {
+      setEditingInstance(null);
+      setFormData({ tenant_id: '', instance_id: '', instance_token: '', client_token: '' });
+    }
+    setIsDialogOpen(true);
   };
 
-  const hasActiveInstances = stats.connected > 0;
+  const handleDelete = (instance: WhatsAppInstance) => {
+    if (confirm(`Remover instância WhatsApp de "${instance.tenant_name}"?`)) {
+      deleteMutation.mutate(instance.tenant_id);
+    }
+  };
+
+  const instances = instancesData || [];
+  const stats = {
+    totalInstances: instances.length,
+    connected: instances.filter(i => i.connection_status === 'connected').length,
+    disconnected: instances.filter(i => i.connection_status === 'disconnected').length,
+    pending: instances.filter(i => i.connection_status === 'qr_pending').length,
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'connected':
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20"><CheckCircle2 className="h-3 w-3 mr-1" />Conectado</Badge>;
+      case 'qr_pending':
+        return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Aguardando QR</Badge>;
+      default:
+        return <Badge variant="outline" className="text-muted-foreground"><AlertCircle className="h-3 w-3 mr-1" />Desconectado</Badge>;
+    }
+  };
+
+  // Format phone number for display
+  const formatPhone = (phone: string | null) => {
+    if (!phone) return '—';
+    // Simple formatting: +55 11 99999-9999
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 13) {
+      return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 9)}-${digits.slice(9)}`;
+    }
+    if (digits.length === 12) {
+      return `+${digits.slice(0, 2)} ${digits.slice(2, 4)} ${digits.slice(4, 8)}-${digits.slice(8)}`;
+    }
+    return phone;
+  };
+
+  const isLoading = isLoadingSecrets || isLoadingInstances;
 
   if (isLoading) {
     return (
@@ -82,7 +269,7 @@ export function WhatsAppPlatformSettings() {
         <div>
           <h2 className="text-xl font-semibold">WhatsApp (Z-API)</h2>
           <p className="text-sm text-muted-foreground">
-            Conta gerenciadora para envio de mensagens WhatsApp
+            Conta gerenciadora centralizada para todos os tenants
           </p>
         </div>
       </div>
@@ -90,21 +277,20 @@ export function WhatsAppPlatformSettings() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          A integração Z-API permite que cada tenant conecte seu próprio WhatsApp via QR Code.
-          A conta gerenciadora da plataforma coordena todas as instâncias.
+          Você gerencia a conta Z-API central. Cada tenant conecta seu próprio WhatsApp via QR Code usando a instância que você provisionar aqui.
         </AlertDescription>
       </Alert>
 
-      {/* Credenciais Z-API */}
+      {/* Credencial da Plataforma - Client Token */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Shield className="h-5 w-5" />
               <div>
-                <CardTitle className="text-base">Credenciais Z-API (Plataforma)</CardTitle>
+                <CardTitle className="text-base">Credencial Z-API (Plataforma)</CardTitle>
                 <CardDescription>
-                  Tokens de acesso para a conta gerenciadora
+                  Client Token da sua conta Z-API gerenciadora
                 </CardDescription>
               </div>
             </div>
@@ -112,11 +298,6 @@ export function WhatsAppPlatformSettings() {
               <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Configurado
-              </Badge>
-            ) : secretStatus?.status === 'partial' ? (
-              <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                Parcial
               </Badge>
             ) : (
               <Badge variant="outline" className="text-muted-foreground">
@@ -126,56 +307,40 @@ export function WhatsAppPlatformSettings() {
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <CredentialEditor
-              credentialKey="ZAPI_INSTANCE_ID"
-              label="Instance ID"
-              description="ID da instância gerenciadora da Z-API"
-              isConfigured={secretStatus?.secrets?.ZAPI_INSTANCE_ID || false}
-              preview={secretStatus?.previews?.ZAPI_INSTANCE_ID}
-              source={secretStatus?.sources?.ZAPI_INSTANCE_ID as 'db' | 'env' | null}
-              placeholder="Cole o Instance ID aqui..."
-            />
-            <CredentialEditor
-              credentialKey="ZAPI_TOKEN"
-              label="Token"
-              description="Token de autenticação da instância"
-              isConfigured={secretStatus?.secrets?.ZAPI_TOKEN || false}
-              preview={secretStatus?.previews?.ZAPI_TOKEN}
-              source={secretStatus?.sources?.ZAPI_TOKEN as 'db' | 'env' | null}
-              placeholder="Cole o Token aqui..."
-            />
-          </div>
+        <CardContent>
+          <CredentialEditor
+            credentialKey="ZAPI_CLIENT_TOKEN"
+            label="Client Token"
+            description="Token de autenticação da sua conta Z-API (comum a todas as instâncias)"
+            isConfigured={secretStatus?.secrets?.ZAPI_CLIENT_TOKEN || false}
+            preview={secretStatus?.previews?.ZAPI_CLIENT_TOKEN}
+            source={secretStatus?.sources?.ZAPI_CLIENT_TOKEN as 'db' | 'env' | null}
+            placeholder="Cole o Client Token aqui..."
+          />
         </CardContent>
       </Card>
 
+      {/* Gerenciamento de Instâncias */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5" />
               <div>
-                <CardTitle className="text-base">Panorama de Instâncias</CardTitle>
+                <CardTitle className="text-base">Instâncias de Tenants</CardTitle>
                 <CardDescription>
-                  Status de todas as instâncias WhatsApp dos tenants
+                  Gerencie as instâncias Z-API de cada tenant
                 </CardDescription>
               </div>
             </div>
-            {hasActiveInstances ? (
-              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                {stats.connected} Conectada(s)
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-muted-foreground">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                Nenhuma Conectada
-              </Badge>
-            )}
+            <Button size="sm" onClick={() => handleOpenDialog()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Instância
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Stats */}
           <div className="grid gap-4 md:grid-cols-4">
             <div className="p-4 rounded-lg border bg-muted/30 text-center">
               <p className="text-2xl font-bold">{stats.totalInstances}</p>
@@ -191,86 +356,115 @@ export function WhatsAppPlatformSettings() {
             </div>
             <div className="p-4 rounded-lg border bg-yellow-500/10 text-center">
               <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
-              <p className="text-xs text-muted-foreground">Pendentes</p>
+              <p className="text-xs text-muted-foreground">Aguardando QR</p>
             </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refreshMutation.mutate()}
-              disabled={refreshMutation.isPending}
-            >
-              {refreshMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Atualizar Status
-            </Button>
           </div>
 
           <Separator />
 
-          <div>
-            <h4 className="text-sm font-medium mb-2">Como funciona</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li className="flex items-start gap-2">
-                <span className="text-primary">1.</span>
-                Z-API usa tokens por instância (cada tenant tem seu próprio)
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary">2.</span>
-                Cada tenant cria sua própria instância no painel deles
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary">3.</span>
-                O tenant escaneia o QR Code para conectar seu WhatsApp
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-primary">4.</span>
-                Mensagens são enviadas via API usando a instância do tenant
-              </li>
-            </ul>
-          </div>
+          {/* Instances Table */}
+          {instances.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p>Nenhuma instância configurada</p>
+              <p className="text-sm">Clique em "Nova Instância" para adicionar</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Instance ID</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {instances.map((instance) => (
+                  <TableRow key={instance.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{instance.tenant_name}</p>
+                        <p className="text-xs text-muted-foreground">{instance.tenant_slug}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <code className="text-xs bg-muted px-2 py-1 rounded">
+                        {instance.instance_id_preview || '—'}
+                      </code>
+                    </TableCell>
+                    <TableCell>{getStatusBadge(instance.connection_status)}</TableCell>
+                    <TableCell>
+                      {instance.phone_number ? (
+                        <span className="flex items-center gap-1 text-sm">
+                          <Phone className="h-3 w-3" />
+                          {formatPhone(instance.phone_number)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleOpenDialog(instance)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleDelete(instance)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
+      {/* Como funciona */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recursos da Integração</CardTitle>
+          <CardTitle className="text-base">Como funciona</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Envio de mensagens de texto</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Envio de imagens e arquivos</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Recebimento de webhooks</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Múltiplas instâncias por tenant</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Notificações automáticas</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span>Suporte a atendimento</span>
-            </div>
-          </div>
+          <ul className="text-sm text-muted-foreground space-y-2">
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">1.</span>
+              Configure o Client Token da sua conta Z-API acima
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">2.</span>
+              Crie uma instância no painel Z-API para cada tenant que contratar WhatsApp
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">3.</span>
+              Registre o Instance ID e Token da instância aqui
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">4.</span>
+              O tenant acessa Integrações → WhatsApp e escaneia o QR Code
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-primary font-bold">5.</span>
+              Pronto! O WhatsApp do tenant está conectado e recebendo mensagens
+            </li>
+          </ul>
         </CardContent>
       </Card>
 
+      {/* Links */}
       <div className="flex gap-3">
         <Button variant="outline" asChild>
           <a href="https://developer.z-api.io/" target="_blank" rel="noopener noreferrer">
@@ -285,6 +479,99 @@ export function WhatsAppPlatformSettings() {
           </a>
         </Button>
       </div>
+
+      {/* Dialog para criar/editar instância */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingInstance ? 'Editar Instância' : 'Nova Instância WhatsApp'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingInstance 
+                ? 'Atualize as credenciais da instância Z-API deste tenant'
+                : 'Cadastre uma nova instância Z-API para um tenant'
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Tenant</Label>
+              {editingInstance ? (
+                <Input value={editingInstance.tenant_name} disabled />
+              ) : (
+                <Select
+                  value={formData.tenant_id}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, tenant_id: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tenant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants?.map((tenant) => (
+                      <SelectItem key={tenant.id} value={tenant.id}>
+                        {tenant.name} ({tenant.slug})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Instance ID</Label>
+              <Input
+                value={formData.instance_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, instance_id: e.target.value }))}
+                placeholder="Ex: 3CBA1234567890ABCDEF"
+              />
+              <p className="text-xs text-muted-foreground">
+                ID da instância criada no painel Z-API
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Instance Token</Label>
+              <Input
+                type="password"
+                value={formData.instance_token}
+                onChange={(e) => setFormData(prev => ({ ...prev, instance_token: e.target.value }))}
+                placeholder="Token da instância"
+              />
+              <p className="text-xs text-muted-foreground">
+                Token de autenticação da instância
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Client Token (opcional)</Label>
+              <Input
+                type="password"
+                value={formData.client_token}
+                onChange={(e) => setFormData(prev => ({ ...prev, client_token: e.target.value }))}
+                placeholder="Deixe vazio para usar o global"
+              />
+              <p className="text-xs text-muted-foreground">
+                Se vazio, usará o Client Token da plataforma configurado acima
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => saveMutation.mutate(formData)}
+              disabled={saveMutation.isPending || (!editingInstance && !formData.tenant_id) || !formData.instance_id || !formData.instance_token}
+            >
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
