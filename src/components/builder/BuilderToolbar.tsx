@@ -257,25 +257,25 @@ export function BuilderToolbar({
   const landingPages = storePages?.filter(p => p.type === 'landing_page') || [];
 
   return (
-    <div className="h-14 flex items-center justify-between px-4 bg-background border-b shadow-sm">
+    <div className="h-11 flex items-center justify-between px-3 bg-background border-b shadow-sm">
       {/* Left: Breadcrumb & Page Selector */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1">
-          <ArrowLeft className="h-4 w-4" />
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" onClick={onBack} className="gap-1 h-7 px-2 text-xs">
+          <ArrowLeft className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Sair</span>
         </Button>
         
-        <Separator orientation="vertical" className="h-6" />
+        <Separator orientation="vertical" className="h-5" />
         
         {/* Breadcrumb */}
-        <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+        <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground">
           <span>Builder</span>
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-3.5 w-3.5" />
         </div>
         
         {/* Page Selector */}
         <Select value={resolvedSelectorValue} onValueChange={handlePageChange}>
-          <SelectTrigger className="w-[200px] h-9 font-medium">
+          <SelectTrigger className="w-[180px] h-7 text-xs font-medium">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="max-h-[400px]">
@@ -315,17 +315,17 @@ export function BuilderToolbar({
         {/* Example Category Selector - Only for Category template */}
         {pageType === 'category' && onExampleCategoryChange && (
           <>
-            <Separator orientation="vertical" className="h-6" />
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            <Separator orientation="vertical" className="h-5" />
+            <div className="flex items-center gap-1.5">
+              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
               {isLoadingCategories ? (
-                <Skeleton className="h-9 w-[180px]" />
+                <Skeleton className="h-7 w-[160px]" />
               ) : (
                 <Select 
                   value={effectiveCategoryId || ''} 
                   onValueChange={onExampleCategoryChange}
                 >
-                  <SelectTrigger className="w-[180px] h-9">
+                  <SelectTrigger className="w-[160px] h-7 text-xs">
                     <SelectValue placeholder="Categoria exemplo" />
                   </SelectTrigger>
                   <SelectContent>
@@ -355,16 +355,16 @@ export function BuilderToolbar({
       </div>
 
       {/* Center: Undo/Redo */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-0.5">
         <Button
           variant="ghost"
           size="icon"
           onClick={onUndo}
           disabled={!canUndo || isPreviewMode}
           title="Desfazer (Ctrl+Z)"
-          className="h-8 w-8"
+          className="h-7 w-7"
         >
-          <Undo2 className="h-4 w-4" />
+          <Undo2 className="h-3.5 w-3.5" />
         </Button>
         <Button
           variant="ghost"
@@ -372,24 +372,24 @@ export function BuilderToolbar({
           onClick={onRedo}
           disabled={!canRedo || isPreviewMode}
           title="Refazer (Ctrl+Y)"
-          className="h-8 w-8"
+          className="h-7 w-7"
         >
-          <Redo2 className="h-4 w-4" />
+          <Redo2 className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         {/* Interact Mode Toggle - Only when not in preview */}
         {!isPreviewMode && (
           <Button
             variant={isInteractMode ? 'default' : 'outline'}
             size="sm"
             onClick={onToggleInteract}
-            className="gap-1"
+            className="gap-1 h-7 px-2 text-xs"
             title="Modo Interagir: clique e teste os botões no canvas"
           >
-            <MousePointer2 className="h-4 w-4" />
+            <MousePointer2 className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">
               {isInteractMode ? 'Editar' : 'Testar'}
             </span>
@@ -401,9 +401,9 @@ export function BuilderToolbar({
           variant={isPreviewMode ? 'default' : 'outline'}
           size="sm"
           onClick={onTogglePreview}
-          className="gap-1"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Eye className="h-4 w-4" />
+          <Eye className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">
             {isPreviewMode ? 'Sair Preview' : 'Preview'}
           </span>
@@ -420,9 +420,9 @@ export function BuilderToolbar({
               ? "Abrir preview em nova aba" 
               : previewResult.reason || "Não é possível visualizar"
             }
-            className="h-9 w-9"
+            className="h-7 w-7"
           >
-            <ExternalLink className="h-4 w-4" />
+            <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         )}
 
@@ -432,9 +432,9 @@ export function BuilderToolbar({
           size="sm"
           onClick={onSave}
           disabled={!isDirty || isSaving}
-          className="gap-1"
+          className="gap-1 h-7 px-2 text-xs"
         >
-          <Save className="h-4 w-4" />
+          <Save className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">
             {isSaving ? 'Salvando...' : 'Salvar'}
           </span>
@@ -446,9 +446,9 @@ export function BuilderToolbar({
             <Button 
               size="sm" 
               disabled={isPublishing || (pageType === 'category' && !effectiveCategoryId)} 
-              className="gap-1"
+              className="gap-1 h-7 px-2 text-xs"
             >
-              <Upload className="h-4 w-4" />
+              <Upload className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">
                 {isPublishing ? 'Publicando...' : 'Publicar'}
               </span>
@@ -474,8 +474,8 @@ export function BuilderToolbar({
         {/* More options */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9">
-              <MoreVertical className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-7 w-7">
+              <MoreVertical className="h-3.5 w-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

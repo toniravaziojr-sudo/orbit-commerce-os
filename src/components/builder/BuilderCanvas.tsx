@@ -113,31 +113,31 @@ export function BuilderCanvas({
     <div className="h-full flex flex-col">
       {/* Interact Mode Banner */}
       {isInteractMode && !isPreviewMode && (
-        <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 text-center">
-          <span className="text-sm font-medium text-primary">
-            🖱️ Modo Testar ativo — clique nos botões para testar. Pressione ESC ou clique em "Editar" para voltar.
+        <div className="bg-primary/10 border-b border-primary/20 px-3 py-1 text-center">
+          <span className="text-xs font-medium text-primary">
+            🖱️ Modo Testar ativo — ESC ou "Editar" para voltar
           </span>
         </div>
       )}
 
       {/* Viewport Controls */}
       {!isPreviewMode && (
-        <div className="flex items-center justify-center gap-1 py-2 px-4 bg-background border-b">
+        <div className="flex items-center justify-center gap-1 py-1.5 px-3 bg-background border-b">
           {(Object.entries(viewportSizes) as [ViewportSize, typeof viewportSizes.desktop][]).map(
             ([size, { icon: Icon, label }]) => (
               <button
                 key={size}
                 onClick={() => handleViewportChange(size)}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
+                  'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
                   viewport === size
                     ? 'bg-primary text-primary-foreground'
                     : 'hover:bg-muted text-muted-foreground'
                 )}
                 title={label}
               >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline text-xs">{label}</span>
+                <Icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{label}</span>
               </button>
             )
           )}
@@ -149,7 +149,7 @@ export function BuilderCanvas({
         <div 
           ref={setNodeRef}
           className={cn(
-            "min-h-full p-4 sm:p-6 flex justify-center",
+            "min-h-full p-3 flex justify-center",
             isOver && "bg-primary/5"
           )}
           onClick={handleCanvasClick}
@@ -185,21 +185,17 @@ export function BuilderCanvas({
 
       {/* Status Bar */}
       {!isPreviewMode && (
-        <div className="flex items-center justify-between px-4 py-2 bg-background border-t text-xs text-muted-foreground">
+        <div className="flex items-center justify-between px-3 py-1 bg-background border-t text-[10px] text-muted-foreground">
           <span className="truncate">
             {isInteractMode ? (
               <span className="text-primary font-medium">Modo Testar — interaja com os elementos</span>
             ) : selectedBlockId ? (
-              <>Bloco selecionado: <code className="bg-muted px-1 py-0.5 rounded">{selectedBlockId}</code></>
+              <>Bloco: <code className="bg-muted px-1 py-0.5 rounded">{selectedBlockId.slice(0, 8)}</code></>
             ) : (
-              'Arraste blocos do menu ou clique para editar'
+              'Arraste blocos ou clique para editar'
             )}
           </span>
-          <span className="flex items-center gap-1">
-            {viewportSizes[viewport].icon && (
-              <span className="opacity-50">{viewport}</span>
-            )}
-          </span>
+          <span className="opacity-50">{viewport}</span>
         </div>
       )}
     </div>
