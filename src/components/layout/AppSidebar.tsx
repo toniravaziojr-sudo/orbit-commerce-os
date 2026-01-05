@@ -159,7 +159,7 @@ export function AppSidebar() {
     <aside
       className={cn(
         "relative flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
-        collapsed ? "w-[72px]" : "w-64"
+        collapsed ? "w-[64px]" : "w-56"
       )}
     >
       {/* Logo & Tenant Switcher */}
@@ -185,16 +185,16 @@ export function AppSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto p-3 scrollbar-thin">
+      <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin">
         {/* Regular navigation */}
         {navigation.map((group) => (
-          <div key={group.label} className="mb-6">
+          <div key={group.label} className="mb-4">
             {!collapsed && (
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-sidebar-muted">
+              <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-sidebar-muted">
                 {group.label}
               </p>
             )}
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
@@ -203,7 +203,7 @@ export function AppSidebar() {
                   <NavLink
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
                       active
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
                         : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
@@ -211,15 +211,15 @@ export function AppSidebar() {
                   >
                     <Icon
                       className={cn(
-                        "h-5 w-5 flex-shrink-0",
+                        "h-4 w-4 flex-shrink-0",
                         active ? "text-sidebar-primary" : ""
                       )}
                     />
                     {!collapsed && (
                       <>
-                        <span className="flex-1">{item.title}</span>
+                        <span className="flex-1 truncate">{item.title}</span>
                         {item.badge && (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
                             {item.badge}
                           </span>
                         )}
@@ -249,13 +249,13 @@ export function AppSidebar() {
 
         {/* Platform admin navigation - only for platform operators */}
         {isPlatformOperator && (
-          <div className="mb-6">
+          <div className="mb-4">
             {!collapsed && (
-              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-primary">
                 {platformNavigation.label}
               </p>
             )}
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {platformNavigation.items.map((item) => {
                 const Icon = item.icon;
                 const active = location.pathname.startsWith(item.href);
@@ -264,7 +264,7 @@ export function AppSidebar() {
                   <NavLink
                     to={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all border border-primary/20",
+                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all border border-primary/20",
                       active
                         ? "bg-primary/10 text-primary"
                         : "text-sidebar-foreground hover:bg-primary/5 hover:text-primary"
@@ -272,12 +272,12 @@ export function AppSidebar() {
                   >
                     <Icon
                       className={cn(
-                        "h-5 w-5 flex-shrink-0",
+                        "h-4 w-4 flex-shrink-0",
                         active ? "text-primary" : "text-primary/70"
                       )}
                     />
                     {!collapsed && (
-                      <span className="flex-1">{item.title}</span>
+                      <span className="flex-1 truncate">{item.title}</span>
                     )}
                   </NavLink>
                 );

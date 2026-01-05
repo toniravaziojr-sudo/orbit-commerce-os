@@ -83,19 +83,19 @@ export function PropsEditor({
   return (
     <div className="h-full flex flex-col border-l">
       {/* Header */}
-      <div className="p-4 border-b bg-muted/30">
+      <div className="p-3 border-b bg-muted/30">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{definition.icon}</span>
+          <span className="text-lg">{definition.icon}</span>
           <div>
-            <h3 className="font-semibold text-sm">{definition.label}</h3>
-            <p className="text-xs text-muted-foreground">Propriedades do bloco</p>
+            <h3 className="font-semibold text-xs">{definition.label}</h3>
+            <p className="text-[10px] text-muted-foreground">Propriedades</p>
           </div>
         </div>
       </div>
 
       {/* Props */}
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-3 space-y-3">
           {/* Header Notice Accordion - FIRST, collapsed by default */}
           {isHeaderBlock && noticePropsEntries.length > 0 && (
             <>
@@ -159,23 +159,23 @@ export function PropsEditor({
       </ScrollArea>
 
       {/* Actions */}
-      <div className="p-4 border-t bg-muted/30">
-        <div className="flex gap-2">
+      <div className="p-3 border-t bg-muted/30">
+        <div className="flex gap-1.5">
           {onDuplicate && (
-            <Button variant="outline" size="sm" className="flex-1 gap-1" onClick={onDuplicate}>
-              <Copy className="h-4 w-4" />
+            <Button variant="outline" size="sm" className="flex-1 gap-1 h-7 text-xs" onClick={onDuplicate}>
+              <Copy className="h-3.5 w-3.5" />
               Duplicar
             </Button>
           )}
           {onDelete && canDelete && definition.isRemovable !== false && (
-            <Button variant="destructive" size="sm" className="flex-1 gap-1" onClick={onDelete}>
-              <Trash2 className="h-4 w-4" />
+            <Button variant="destructive" size="sm" className="flex-1 gap-1 h-7 text-xs" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
               Remover
             </Button>
           )}
         </div>
         {definition.isRemovable === false && (
-          <p className="text-xs text-muted-foreground mt-2 text-center">
+          <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
             Este bloco não pode ser removido
           </p>
         )}

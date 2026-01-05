@@ -171,18 +171,18 @@ function DraggableBlockItem({
       {...attributes}
       onClick={() => onAddBlock(block.type)}
       className={cn(
-        'flex items-center gap-2 px-3 py-2.5 rounded-lg border bg-background cursor-grab',
+        'flex items-center gap-1.5 px-2 py-1.5 rounded-md border bg-background cursor-grab text-xs',
         'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
         'transition-all duration-150 group active:cursor-grabbing',
         isDragging && 'opacity-50 border-primary shadow-lg z-50'
       )}
       title={`Arraste para adicionar "${block.label}" ou clique`}
     >
-      <GripVertical className="h-4 w-4 text-muted-foreground/50 group-hover:text-muted-foreground" />
-      <span className="text-sm font-medium flex-1 truncate">
+      <GripVertical className="h-3.5 w-3.5 text-muted-foreground/50 group-hover:text-muted-foreground flex-shrink-0" />
+      <span className="font-medium flex-1 truncate">
         {block.label}
       </span>
-      <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Plus className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </div>
   );
 }
@@ -257,14 +257,14 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Search */}
-      <div className="p-3 border-b">
+      <div className="p-2 border-b">
         <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Buscar blocos..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-9"
+            className="pl-7 h-8 text-xs"
           />
         </div>
       </div>
@@ -275,7 +275,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
           type="multiple" 
           value={effectiveExpandedCategories}
           onValueChange={setExpandedCategories}
-          className="px-2 py-1"
+          className="px-1.5 py-1"
         >
           {categoryOrder.map((category) => {
             const blocks = filterBlocks(blocksByCategory[category] || []);
@@ -284,16 +284,16 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
 
             return (
               <AccordionItem key={category} value={category} className="border-b-0">
-                <AccordionTrigger className="py-2 px-2 text-sm font-medium hover:bg-muted/50 rounded-md [&[data-state=open]>svg]:rotate-180">
-                  <div className="flex items-center justify-between flex-1 mr-2">
+                <AccordionTrigger className="py-1.5 px-1.5 text-xs font-medium hover:bg-muted/50 rounded-md [&[data-state=open]>svg]:rotate-180">
+                  <div className="flex items-center justify-between flex-1 mr-1.5">
                     <span>{essentialCategoryLabels[category]}</span>
-                    <span className="text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                    <span className="text-[10px] bg-muted px-1 py-0.5 rounded text-muted-foreground">
                       {blocks.length}
                     </span>
                   </div>
                 </AccordionTrigger>
-                <AccordionContent className="pt-1 pb-2">
-                  <div className="space-y-1">
+                <AccordionContent className="pt-0.5 pb-1.5">
+                  <div className="space-y-0.5">
                     {blocks.map((block) => (
                       <DraggableBlockItem
                         key={block.type}
@@ -317,10 +317,10 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
       </ScrollArea>
 
       {/* Help text */}
-      <div className="p-3 border-t bg-muted/30">
-        <p className="text-xs text-muted-foreground text-center">
-          <GripVertical className="h-3 w-3 inline mr-1" />
-          Arraste para o canvas ou clique para adicionar
+      <div className="p-2 border-t bg-muted/30">
+        <p className="text-[10px] text-muted-foreground text-center">
+          <GripVertical className="h-2.5 w-2.5 inline mr-0.5" />
+          Arraste ou clique para adicionar
         </p>
       </div>
     </div>
