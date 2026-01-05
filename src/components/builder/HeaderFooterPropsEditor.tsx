@@ -140,24 +140,23 @@ function PromotionsSection({
   return (
     <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
       <CollapsibleTrigger asChild>
-        <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-          <div className="flex items-center gap-2">
-            <Tag className="h-4 w-4 text-amber-500" />
+        <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+          <div className="flex items-center gap-1.5">
+            <Tag className="h-3.5 w-3.5 text-amber-500" />
             <span className="font-medium">Promoções em Destaque</span>
             {props.featuredPromosEnabled && (
-              <Badge variant="secondary" className="text-xs">Ativo</Badge>
+              <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
             )}
           </div>
-          <ChevronDown className={`h-4 w-4 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="px-3 pb-4 space-y-4">
+      <CollapsibleContent className="px-2 pb-3 space-y-2.5">
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-xs">Exibir link de Promoções</Label>
-            <p className="text-xs text-muted-foreground">Link destacado no menu</p>
+          <div className="space-y-0">
+            <Label className="text-[11px]">Exibir link de Promoções</Label>
           </div>
-          <Switch
+          <Switch className="scale-90"
             checked={Boolean(props.featuredPromosEnabled)}
             onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
           />
@@ -165,13 +164,13 @@ function PromotionsSection({
         
         {Boolean(props.featuredPromosEnabled) && (
           <>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Texto do link</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Texto do link</Label>
               <Input
                 value={(props.featuredPromosLabel as string) || 'Promoções'}
                 onChange={(e) => updateProp('featuredPromosLabel', e.target.value)}
                 placeholder="Ex: Promoções"
-                className="h-9 text-sm"
+                className="h-7 text-xs"
               />
             </div>
             
@@ -182,10 +181,10 @@ function PromotionsSection({
               placeholder="Ex: #d97706 (dourado)"
             />
             
-            <div className="space-y-1.5">
-              <Label className="text-xs">Página de destino</Label>
+            <div className="space-y-1">
+              <Label className="text-[10px]">Página de destino</Label>
               {isLoading ? (
-                <p className="text-xs text-muted-foreground">Carregando páginas...</p>
+                <p className="text-[10px] text-muted-foreground">Carregando páginas...</p>
               ) : pages && pages.length > 0 ? (
                 <Select
                   value={effectivePageId}
@@ -197,7 +196,7 @@ function PromotionsSection({
                     }
                   }}
                 >
-                  <SelectTrigger className="w-full h-9 text-sm">
+                  <SelectTrigger className="w-full h-7 text-xs">
                     <SelectValue placeholder="Selecione uma página" />
                   </SelectTrigger>
                   <SelectContent>
@@ -743,17 +742,17 @@ export function HeaderFooterPropsEditor({
     return (
       <div className="h-full flex flex-col border-l">
         {/* Header with Global indicator */}
-        <div className="p-4 border-b bg-primary/5">
-          <div className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-primary" />
+        <div className="p-2 border-b bg-primary/5">
+          <div className="flex items-center gap-1.5">
+            <Globe className="h-4 w-4 text-primary" />
             <div>
-              <h3 className="font-semibold text-sm flex items-center gap-2">
+              <h3 className="font-medium text-xs flex items-center gap-1.5">
                 {definition.label}
-                <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">
+                <Badge variant="outline" className="text-[10px] px-1 py-0 bg-primary/10 text-primary border-primary/30">
                   Configuração Global
                 </Badge>
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-muted-foreground">
                 Afeta todas as páginas (exceto Checkout)
               </p>
             </div>
@@ -761,7 +760,7 @@ export function HeaderFooterPropsEditor({
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-4 space-y-2">
+          <div className="p-2 space-y-1.5">
             {/* 
               REMOVIDO: Estilo do Cabeçalho (headerStyle, menuId)
               Motivo: StorefrontHeader.tsx usa layout fixo, não implementa variações de estilo.
@@ -772,15 +771,15 @@ export function HeaderFooterPropsEditor({
             {/* === CORES DO CABEÇALHO === */}
             <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-primary" />
+                <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Palette className="h-3.5 w-3.5 text-primary" />
                     <span className="font-medium">Cores do Cabeçalho</span>
                   </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
+              <CollapsibleContent className="px-2 pb-3 space-y-3">
                 <ColorInput
                   label="Cor de Fundo"
                   value={(props.headerBgColor as string) || ''}
@@ -810,49 +809,47 @@ export function HeaderFooterPropsEditor({
             {/* === CONFIGURAÇÕES GERAIS === */}
             <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="h-4 w-4 text-primary" />
+                <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Smartphone className="h-3.5 w-3.5 text-primary" />
                     <span className="font-medium">Configurações Gerais</span>
                   </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
+              <CollapsibleContent className="px-2 pb-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Fixar ao rolar (Mobile)</Label>
-                    <p className="text-xs text-muted-foreground">Mantém o cabeçalho visível no celular</p>
+                  <div className="space-y-0">
+                    <Label className="text-[11px]">Fixar ao rolar (Mobile)</Label>
                   </div>
-                  <Switch
+                  <Switch className="scale-90"
                     checked={Boolean(props.stickyOnMobile ?? true)}
                     onCheckedChange={(v) => updateProp('stickyOnMobile', v)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Fixo no Topo (Desktop)</Label>
-                    <p className="text-xs text-muted-foreground">Mantém o cabeçalho visível no desktop</p>
+                  <div className="space-y-0">
+                    <Label className="text-[11px]">Fixo no Topo (Desktop)</Label>
                   </div>
-                  <Switch
+                  <Switch className="scale-90"
                     checked={Boolean(props.sticky ?? true)}
                     onCheckedChange={(v) => updateProp('sticky', v)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Mostrar Busca</Label>
+                  <div className="space-y-0">
+                    <Label className="text-[11px]">Mostrar Busca</Label>
                   </div>
-                  <Switch
+                  <Switch className="scale-90"
                     checked={Boolean(props.showSearch ?? true)}
                     onCheckedChange={(v) => updateProp('showSearch', v)}
                   />
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Mostrar Carrinho</Label>
+                  <div className="space-y-0">
+                    <Label className="text-[11px]">Mostrar Carrinho</Label>
                   </div>
-                  <Switch
+                  <Switch className="scale-90"
                     checked={Boolean(props.showCart ?? true)}
                     onCheckedChange={(v) => updateProp('showCart', v)}
                   />
@@ -867,26 +864,26 @@ export function HeaderFooterPropsEditor({
             {/* === CONTATO NO CABEÇALHO === */}
             <Collapsible open={openSections.contact} onOpenChange={() => toggleSection('contact')}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-primary" />
+                <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-primary" />
                     <span className="font-medium">Contato no Cabeçalho</span>
                     {(props.showWhatsApp || props.showPhone) && (
-                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
                     )}
                   </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.contact ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.contact ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
+              <CollapsibleContent className="px-2 pb-3 space-y-2.5">
                 {/* WhatsApp */}
-                <div className="rounded-lg border p-3 space-y-3">
+                <div className="rounded-md border p-2 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <MessageCircle className="h-4 w-4 text-green-600" />
-                      <Label className="text-xs font-medium">WhatsApp</Label>
+                    <div className="flex items-center gap-1.5">
+                      <MessageCircle className="h-3.5 w-3.5 text-green-600" />
+                      <Label className="text-[11px] font-medium">WhatsApp</Label>
                     </div>
-                    <Switch
+                    <Switch className="scale-90"
                       checked={Boolean(props.showWhatsApp)}
                       onCheckedChange={(v) => updateProp('showWhatsApp', v)}
                     />
@@ -894,25 +891,25 @@ export function HeaderFooterPropsEditor({
                   
                   {props.showWhatsApp && (
                     <>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Número (apenas dígitos)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Número (apenas dígitos)</Label>
                         <Input
                           value={(props.whatsAppNumber as string) || ''}
                           onChange={(e) => updateProp('whatsAppNumber', e.target.value)}
                           placeholder="Ex: 5511999999999"
-                          className="h-9 text-sm"
+                          className="h-7 text-xs"
                         />
                         {props.showWhatsApp && !(props.whatsAppNumber as string)?.replace(/\D/g, '').length && (
                           <p className="text-xs text-amber-600">⚠️ Informe o número para exibir</p>
                         )}
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Texto (opcional)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Texto (opcional)</Label>
                         <Input
                           value={(props.whatsAppLabel as string) || ''}
                           onChange={(e) => updateProp('whatsAppLabel', e.target.value)}
                           placeholder="Ex: WhatsApp"
-                          className="h-9 text-sm"
+                          className="h-7 text-xs"
                         />
                       </div>
                     </>
@@ -920,13 +917,13 @@ export function HeaderFooterPropsEditor({
                 </div>
 
                 {/* Telefone */}
-                <div className="rounded-lg border p-3 space-y-3">
+                <div className="rounded-md border p-2 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4 text-blue-600" />
-                      <Label className="text-xs font-medium">Telefone/Celular</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5 text-blue-600" />
+                      <Label className="text-[11px] font-medium">Telefone/Celular</Label>
                     </div>
-                    <Switch
+                    <Switch className="scale-90"
                       checked={Boolean(props.showPhone)}
                       onCheckedChange={(v) => updateProp('showPhone', v)}
                     />
@@ -934,25 +931,25 @@ export function HeaderFooterPropsEditor({
                   
                   {props.showPhone && (
                     <>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Número</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Número</Label>
                         <Input
                           value={(props.phoneNumber as string) || ''}
                           onChange={(e) => updateProp('phoneNumber', e.target.value)}
                           placeholder="Ex: +55 (11) 99999-9999"
-                          className="h-9 text-sm"
+                          className="h-7 text-xs"
                         />
                         {props.showPhone && !(props.phoneNumber as string)?.replace(/[^\d+]/g, '').length && (
-                          <p className="text-xs text-amber-600">⚠️ Informe o número para exibir</p>
+                          <p className="text-[10px] text-amber-600">⚠️ Informe o número para exibir</p>
                         )}
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Texto (opcional)</Label>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Texto (opcional)</Label>
                         <Input
                           value={(props.phoneLabel as string) || ''}
                           onChange={(e) => updateProp('phoneLabel', e.target.value)}
                           placeholder="Ex: Atendimento"
-                          className="h-9 text-sm"
+                          className="h-7 text-xs"
                         />
                       </div>
                     </>
@@ -966,24 +963,23 @@ export function HeaderFooterPropsEditor({
             {/* === MINHA CONTA === */}
             <Collapsible open={openSections.customerArea} onOpenChange={() => toggleSection('customerArea')}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4 text-primary" />
+                <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-primary" />
                     <span className="font-medium">Minha Conta</span>
                     {props.customerAreaEnabled && (
-                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
                     )}
                   </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.customerArea ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.customerArea ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
+              <CollapsibleContent className="px-2 pb-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label className="text-xs">Exibir "Minha Conta"</Label>
-                    <p className="text-xs text-muted-foreground">Ícone no mobile, "Minha Conta" no desktop</p>
+                  <div className="space-y-0">
+                    <Label className="text-[11px]">Exibir "Minha Conta"</Label>
                   </div>
-                  <Switch
+                  <Switch className="scale-90"
                     checked={Boolean(props.customerAreaEnabled)}
                     onCheckedChange={(v) => updateProp('customerAreaEnabled', v)}
                   />
@@ -1007,21 +1003,21 @@ export function HeaderFooterPropsEditor({
             {/* === BARRA SUPERIOR (AVISO GERAL) === */}
             <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3 h-auto">
-                  <div className="flex items-center gap-2">
-                    <Bell className="h-4 w-4 text-primary" />
+                <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <Bell className="h-3.5 w-3.5 text-primary" />
                     <span className="font-medium">Barra Superior</span>
                     {props.noticeEnabled && (
-                      <Badge variant="secondary" className="text-xs">Ativo</Badge>
+                      <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
                     )}
                   </div>
-                  <ChevronDown className={`h-4 w-4 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="px-3 pb-4 space-y-4">
+              <CollapsibleContent className="px-2 pb-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs">Exibir Barra Superior</Label>
-                  <Switch
+                  <Label className="text-[11px]">Exibir Barra Superior</Label>
+                  <Switch className="scale-90"
                     checked={Boolean(props.noticeEnabled)}
                     onCheckedChange={(v) => updateProp('noticeEnabled', v)}
                   />
@@ -1029,13 +1025,13 @@ export function HeaderFooterPropsEditor({
                 
                 {props.noticeEnabled && (
                   <>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Texto do Aviso</Label>
+                    <div className="space-y-1">
+                      <Label className="text-[10px]">Texto do Aviso</Label>
                       <Input
                         value={(props.noticeText as string) || ''}
                         onChange={(e) => updateProp('noticeText', e.target.value)}
                         placeholder="Ex: Frete grátis em compras acima de R$199!"
-                        className="h-9 text-sm"
+                        className="h-7 text-xs"
                       />
                     </div>
                     <ColorInput
