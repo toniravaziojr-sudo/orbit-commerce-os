@@ -5,10 +5,16 @@
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { Monitor, Smartphone } from 'lucide-react';
+import { Monitor, Smartphone, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
+
+// Zoom constants
+const ZOOM_MIN = 25;
+const ZOOM_MAX = 150;
+const ZOOM_STEP = 5;
 
 interface BuilderCanvasProps {
   content: BlockNode;
@@ -53,6 +59,7 @@ export function BuilderCanvas({
   onViewportChange,
 }: BuilderCanvasProps) {
   const [internalViewport, setInternalViewport] = useState<ViewportSize>('desktop');
+  const [zoom, setZoom] = useState<number>(100);
   const viewport = controlledViewport ?? internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
@@ -128,25 +135,69 @@ export function BuilderCanvas({
 
       {/* Viewport Controls */}
       {!isPreviewMode && (
-        <div className="flex items-center justify-center gap-1 py-1.5 px-3 bg-background border-b">
-          {(Object.entries(viewportSizes) as [ViewportSize, typeof viewportSizes.desktop][]).map(
-            ([size, { icon: Icon, label }]) => (
-              <button
-                key={size}
-                onClick={() => handleViewportChange(size)}
-                className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
-                  viewport === size
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-muted text-muted-foreground'
-                )}
-                title={label}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">{label}</span>
-              </button>
-            )
-          )}
+        <div className="flex flex-col border-b bg-background">
+          {/* Viewport Controls */}
+          <div className="flex items-center justify-center gap-1 py-1.5 px-3">
+            {(Object.entries(viewportSizes) as [ViewportSize, typeof viewportSizes.desktop][]).map(
+              ([size, { icon: Icon, label }]) => (
+                <button
+                  key={size}
+                  onClick={() => handleViewportChange(size)}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
+                    viewport === size
+                      ? 'bg-primary text-primary-foreground'
+                      : 'hover:bg-muted text-muted-foreground'
+                  )}
+                  title={label}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              )
+            )}
+          </div>
+          
+          {/* Zoom Controls */}
+          <div className="flex items-center justify-center gap-2 py-1.5 px-3 border-t border-border/50">
+            <button
+              onClick={() => setZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))}
+              className="p-1 rounded hover:bg-muted text-muted-foreground"
+              title="Diminuir zoom"
+              disabled={zoom <= ZOOM_MIN}
+            >
+              <ZoomOut className="h-3.5 w-3.5" />
+            </button>
+            <Slider 
+              value={[zoom]} 
+              onValueChange={([val]) => setZoom(val)}
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={ZOOM_STEP}
+              className="w-28"
+            />
+            <button
+              onClick={() => setZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))}
+              className="p-1 rounded hover:bg-muted text-muted-foreground"
+              title="Aumentar zoom"
+              disabled={zoom >= ZOOM_MAX}
+            >
+              <ZoomIn className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-xs text-muted-foreground w-10 text-center font-mono">{zoom}%</span>
+            <button 
+              onClick={() => setZoom(100)} 
+              className={cn(
+                "text-xs px-2 py-0.5 rounded transition-colors",
+                zoom === 100 
+                  ? "bg-primary/10 text-primary" 
+                  : "hover:bg-muted text-muted-foreground"
+              )}
+              title="Resetar zoom para 100%"
+            >
+              100%
+            </button>
+          </div>
         </div>
       )}
 
@@ -162,13 +213,15 @@ export function BuilderCanvas({
           <div
             ref={setNodeRef}
             className={cn(
-              'bg-background transition-all duration-300',
+              'bg-background transition-all duration-300 origin-top',
               viewport !== 'desktop' && 'rounded-lg shadow-xl border',
               viewport === 'desktop' && 'shadow-sm'
             )}
             style={{ 
               width: `${targetWidth}px`,
-              minHeight: 'calc(100vh - 180px)',
+              minHeight: 'calc(100vh - 220px)',
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
             }}
           >
             <BlockRenderer
