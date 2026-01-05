@@ -7,8 +7,29 @@ const corsHeaders = {
 
 const SENDGRID_API_URL = "https://api.sendgrid.com/v3";
 
-// Only this email can manage system email settings
-const PLATFORM_ADMIN_EMAIL = "respeiteohomem@gmail.com";
+/**
+ * Check if a user is a platform admin by querying the platform_admins table
+ */
+async function isPlatformAdmin(
+  adminClient: any,
+  email: string | undefined
+): Promise<boolean> {
+  if (!email) return false;
+  
+  const { data, error } = await adminClient
+    .from("platform_admins")
+    .select("id")
+    .eq("email", email.trim().toLowerCase())
+    .eq("is_active", true)
+    .maybeSingle();
+  
+  if (error) {
+    console.error("[system-email-domain-upsert] Error checking platform admin:", error);
+    return false;
+  }
+  
+  return !!data;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -44,8 +65,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check if user is the platform admin
-    if (user.email !== PLATFORM_ADMIN_EMAIL) {
+    // Check if user is platform admin (query database)
+    const isAdmin = await isPlatformAdmin(supabaseAdmin, user.email);
+    if (!isAdmin) {
       console.error("Access denied for user:", user.email);
       return new Response(
         JSON.stringify({ success: false, error: "Apenas o administrador da plataforma pode configurar o email do sistema" }),

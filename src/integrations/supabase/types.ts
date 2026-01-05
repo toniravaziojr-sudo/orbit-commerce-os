@@ -4778,6 +4778,39 @@ export type Database = {
           },
         ]
       }
+      platform_admins: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          name: string | null
+          permissions: Json | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          permissions?: Json | null
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          permissions?: Json | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_credentials: {
         Row: {
           created_at: string
@@ -5920,6 +5953,44 @@ export type Database = {
             foreignKeyName: "shipping_providers_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      special_tenants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          notes: string | null
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          reason: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_tenants_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
