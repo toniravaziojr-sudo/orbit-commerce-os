@@ -45,25 +45,33 @@ async function autoProvisionInstance(
   let clientToken: string | null = null;
   
   // First try database
-  const { data: credData } = await supabase
+  const { data: credData, error: credError } = await supabase
     .from("platform_credentials")
     .select("credential_value, is_active")
     .eq("credential_key", "ZAPI_CLIENT_TOKEN")
     .single();
 
+  console.log(`[whatsapp-connect][${traceId}] Credential query result:`, {
+    hasData: !!credData,
+    isActive: credData?.is_active,
+    valueLength: credData?.credential_value?.length || 0,
+    error: credError?.message || null
+  });
+
   if (credData?.is_active && credData?.credential_value) {
-    clientToken = credData.credential_value;
-    console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from database`);
+    clientToken = credData.credential_value.trim(); // Trim any whitespace
+    console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from database (${clientToken!.length} chars)`);
   } else {
     // Fallback to env var
     clientToken = Deno.env.get("ZAPI_CLIENT_TOKEN") || null;
     if (clientToken) {
-      console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from env var`);
+      clientToken = clientToken.trim();
+      console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from env var (${clientToken.length} chars)`);
     }
   }
 
-  if (!clientToken) {
-    console.error(`[whatsapp-connect][${traceId}] ZAPI_CLIENT_TOKEN not configured`);
+  if (!clientToken || clientToken.length === 0) {
+    console.error(`[whatsapp-connect][${traceId}] ZAPI_CLIENT_TOKEN not configured or empty`);
     return { success: false, error: "Credenciais Z-API da plataforma não configuradas. Contate o administrador." };
   }
 
