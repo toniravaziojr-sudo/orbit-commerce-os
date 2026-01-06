@@ -56,6 +56,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Handle action-based routing for POST
+    if (req.method === 'POST' && body.action === 'delete') {
+      const { tenant_id } = body;
+
+      if (!tenant_id) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'tenant_id é obrigatório' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error } = await supabaseAdmin
+        .from('whatsapp_configs')
+        .delete()
+        .eq('tenant_id', tenant_id);
+
+      if (error) {
+        console.error('[whatsapp-admin-instances] Error deleting:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[whatsapp-admin-instances] Deleted instance for tenant ${tenant_id}`);
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // GET - List all instances
     // Also support POST with no action as GET
     if (req.method === 'GET' || (req.method === 'POST' && !body.action)) {
