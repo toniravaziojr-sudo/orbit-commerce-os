@@ -58,11 +58,13 @@ async function createZapiInstance(
     const shortId = tenantId.replace(/-/g, '').substring(0, 8);
     const instanceName = `CC${safeName}${shortId}`;
     
+    console.log(`[whatsapp-enable][${traceId}] Calling Z-API create instance: name=${instanceName}`);
+    
     const response = await fetch('https://api.z-api.io/instances/integrator/on-demand', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${clientToken}`,
+        'Client-Token': clientToken,
       },
       body: JSON.stringify({
         name: instanceName,
