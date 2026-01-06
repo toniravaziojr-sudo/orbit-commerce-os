@@ -329,14 +329,11 @@ export function WhatsAppPlatformSettings() {
               <div>
                 <CardTitle className="text-base">Instâncias de Tenants</CardTitle>
                 <CardDescription>
-                  Gerencie as instâncias Z-API de cada tenant
+                  Instâncias Z-API criadas automaticamente quando os tenants habilitam WhatsApp
                 </CardDescription>
               </div>
             </div>
-            <Button size="sm" onClick={() => handleOpenDialog()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Instância
-            </Button>
+            {/* Removed manual creation button - instances are auto-provisioned */}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -366,8 +363,8 @@ export function WhatsAppPlatformSettings() {
           {instances.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>Nenhuma instância configurada</p>
-              <p className="text-sm">Clique em "Nova Instância" para adicionar</p>
+              <p>Nenhuma instância provisionada</p>
+              <p className="text-sm">As instâncias são criadas automaticamente quando os tenants habilitam WhatsApp em Integrações</p>
             </div>
           ) : (
             <Table>
@@ -406,24 +403,16 @@ export function WhatsAppPlatformSettings() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleOpenDialog(instance)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => handleDelete(instance)}
-                          disabled={deleteMutation.isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(instance)}
+                        disabled={deleteMutation.isPending}
+                        title="Remover instância"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -446,15 +435,15 @@ export function WhatsAppPlatformSettings() {
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">2.</span>
-              Crie uma instância no painel Z-API para cada tenant que contratar WhatsApp
+              O tenant acessa Integrações → WhatsApp e clica em "Habilitar WhatsApp"
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">3.</span>
-              Registre o Instance ID e Token da instância aqui
+              O sistema cria automaticamente uma instância Z-API para o tenant
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">4.</span>
-              O tenant acessa Integrações → WhatsApp e escaneia o QR Code
+              O tenant escaneia o QR Code com seu WhatsApp
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold">5.</span>
@@ -480,98 +469,6 @@ export function WhatsAppPlatformSettings() {
         </Button>
       </div>
 
-      {/* Dialog para criar/editar instância */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingInstance ? 'Editar Instância' : 'Nova Instância WhatsApp'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingInstance 
-                ? 'Atualize as credenciais da instância Z-API deste tenant'
-                : 'Cadastre uma nova instância Z-API para um tenant'
-              }
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Tenant</Label>
-              {editingInstance ? (
-                <Input value={editingInstance.tenant_name} disabled />
-              ) : (
-                <Select
-                  value={formData.tenant_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, tenant_id: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o tenant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tenants?.map((tenant) => (
-                      <SelectItem key={tenant.id} value={tenant.id}>
-                        {tenant.name} ({tenant.slug})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Instance ID</Label>
-              <Input
-                value={formData.instance_id}
-                onChange={(e) => setFormData(prev => ({ ...prev, instance_id: e.target.value }))}
-                placeholder="Ex: 3CBA1234567890ABCDEF"
-              />
-              <p className="text-xs text-muted-foreground">
-                ID da instância criada no painel Z-API
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Instance Token</Label>
-              <Input
-                type="password"
-                value={formData.instance_token}
-                onChange={(e) => setFormData(prev => ({ ...prev, instance_token: e.target.value }))}
-                placeholder="Token da instância"
-              />
-              <p className="text-xs text-muted-foreground">
-                Token de autenticação da instância
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Client Token (opcional)</Label>
-              <Input
-                type="password"
-                value={formData.client_token}
-                onChange={(e) => setFormData(prev => ({ ...prev, client_token: e.target.value }))}
-                placeholder="Deixe vazio para usar o global"
-              />
-              <p className="text-xs text-muted-foreground">
-                Se vazio, usará o Client Token da plataforma configurado acima
-              </p>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button 
-              onClick={() => saveMutation.mutate(formData)}
-              disabled={saveMutation.isPending || (!editingInstance && !formData.tenant_id) || !formData.instance_id || !formData.instance_token}
-            >
-              {saveMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
