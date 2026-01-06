@@ -93,12 +93,18 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     return diff >= 7;
   }, [dateRange]);
 
+  // Tomorrow's date (minimum selectable date)
+  const tomorrow = addDays(new Date(), 1);
+  
   // Shortcuts for quick date selection
   const setCurrentMonth = () => {
     const now = new Date();
+    const endOfCurrentMonth = endOfMonth(now);
+    // Start from tomorrow if we're in the current month
+    const fromDate = tomorrow > endOfCurrentMonth ? startOfMonth(addMonths(now, 1)) : tomorrow;
     form.setValue("dateRange", {
-      from: startOfMonth(now),
-      to: endOfMonth(now),
+      from: fromDate,
+      to: endOfCurrentMonth > tomorrow ? endOfCurrentMonth : endOfMonth(addMonths(now, 1)),
     });
   };
 
@@ -247,7 +253,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                       <Calendar
                         initialFocus
                         mode="range"
-                        defaultMonth={field.value?.from || new Date()}
+                        defaultMonth={field.value?.from || tomorrow}
                         selected={field.value?.from && field.value?.to ? { from: field.value.from, to: field.value.to } : undefined}
                         onSelect={(range) => {
                           if (range?.from && range?.to) {
@@ -260,6 +266,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                         }}
                         numberOfMonths={2}
                         locale={ptBR}
+                        disabled={(date) => date < tomorrow}
                         className="pointer-events-auto"
                       />
                     </PopoverContent>
