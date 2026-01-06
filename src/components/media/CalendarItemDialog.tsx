@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +21,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,6 +35,8 @@ import {
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
 import { Database } from "@/integrations/supabase/types";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 type MediaContentType = Database["public"]["Enums"]["media_content_type"];
 type MediaItemStatus = Database["public"]["Enums"]["media_item_status"];
@@ -44,6 +48,9 @@ const formSchema = z.object({
   content_type: z.string(),
   status: z.string(),
   hashtags: z.string().optional(),
+  generation_prompt: z.string().optional(),
+  scheduled_time: z.string().optional(),
+  target_platforms: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -62,7 +69,18 @@ const itemStatuses: { value: MediaItemStatus; label: string }[] = [
   { value: "suggested", label: "Sugerido" },
   { value: "review", label: "Em revisão" },
   { value: "approved", label: "Aprovado" },
+  { value: "generating_asset", label: "Gerando asset" },
+  { value: "asset_review", label: "Revisar asset" },
+  { value: "scheduled", label: "Agendado" },
   { value: "skipped", label: "Ignorar" },
+];
+
+const platformOptions = [
+  { value: "instagram", label: "Instagram" },
+  { value: "facebook", label: "Facebook" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "linkedin", label: "LinkedIn" },
+  { value: "youtube", label: "YouTube" },
 ];
 
 interface CalendarItemDialogProps {
@@ -81,7 +99,7 @@ export function CalendarItemDialog({
   campaignId,
 }: CalendarItemDialogProps) {
   const { currentTenant, user } = useAuth();
-  const { createItem, updateItem } = useMediaCalendarItems(campaignId);
+  const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
   const isEditing = !!item;
 
   const form = useForm<FormValues>({
@@ -93,6 +111,9 @@ export function CalendarItemDialog({
       content_type: "image",
       status: "draft",
       hashtags: "",
+      generation_prompt: "",
+      scheduled_time: "10:00",
+      target_platforms: "instagram",
     },
   });
 
@@ -105,6 +126,9 @@ export function CalendarItemDialog({
         content_type: item.content_type,
         status: item.status,
         hashtags: item.hashtags?.join(", ") || "",
+        generation_prompt: item.generation_prompt || "",
+        scheduled_time: item.scheduled_time?.slice(0, 5) || "10:00",
+        target_platforms: item.target_platforms?.join(", ") || "instagram",
       });
     } else {
       form.reset({
@@ -114,6 +138,9 @@ export function CalendarItemDialog({
         content_type: "image",
         status: "draft",
         hashtags: "",
+        generation_prompt: "",
+        scheduled_time: "10:00",
+        target_platforms: "instagram",
       });
     }
   }, [item, form]);
@@ -121,6 +148,9 @@ export function CalendarItemDialog({
   const onSubmit = async (values: FormValues) => {
     const hashtags = values.hashtags
       ? values.hashtags.split(",").map((h) => h.trim()).filter(Boolean)
+      : [];
+    const platforms = values.target_platforms
+      ? values.target_platforms.split(",").map((p) => p.trim()).filter(Boolean)
       : [];
 
     if (isEditing && item) {
@@ -132,25 +162,26 @@ export function CalendarItemDialog({
         content_type: values.content_type as MediaContentType,
         status: values.status as MediaItemStatus,
         hashtags,
+        target_platforms: platforms,
       });
     } else if (date && currentTenant) {
       await createItem.mutateAsync({
         tenant_id: currentTenant.id,
         campaign_id: campaignId,
         scheduled_date: format(date, "yyyy-MM-dd"),
-        scheduled_time: null,
+        scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
         content_type: values.content_type as MediaContentType,
         title: values.title,
         copy: values.copy || null,
         cta: values.cta || null,
         hashtags,
-        generation_prompt: null,
+        generation_prompt: values.generation_prompt || null,
         reference_urls: null,
         asset_url: null,
         asset_thumbnail_url: null,
         asset_metadata: {},
         status: values.status as MediaItemStatus,
-        target_platforms: [],
+        target_platforms: platforms,
         published_at: null,
         publish_results: {},
         version: 1,
@@ -163,6 +194,12 @@ export function CalendarItemDialog({
     onOpenChange(false);
   };
 
+  const handleDelete = async () => {
+    if (!item) return;
+    await deleteItem.mutateAsync(item.id);
+    onOpenChange(false);
+  };
+
   const displayDate = item?.scheduled_date 
     ? format(new Date(item.scheduled_date), "EEEE, dd 'de' MMMM", { locale: ptBR })
     : date 
@@ -171,13 +208,33 @@ export function CalendarItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Editar Item" : "Novo Item"}</DialogTitle>
           <DialogDescription className="capitalize">
             {displayDate}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Asset Preview */}
+        {item?.asset_url && (
+          <div className="rounded-lg border overflow-hidden bg-muted/50">
+            <img 
+              src={item.asset_url} 
+              alt={item.title || "Asset"} 
+              className="w-full h-48 object-cover"
+            />
+            <div className="p-2 flex items-center justify-between">
+              <Badge variant="outline">Asset anexado</Badge>
+              <Button variant="ghost" size="sm" asChild>
+                <a href={item.asset_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Abrir
+                </a>
+              </Button>
+            </div>
+          </div>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -227,6 +284,39 @@ export function CalendarItemDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="scheduled_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Horário de publicação</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="target_platforms"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Plataformas</FormLabel>
+                    <FormControl>
+                      <Input placeholder="instagram, facebook" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Separadas por vírgula
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -293,7 +383,39 @@ export function CalendarItemDialog({
               )}
             />
 
-            <DialogFooter>
+            <FormField
+              control={form.control}
+              name="generation_prompt"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Prompt para gerar imagem/vídeo</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Descreva detalhadamente o visual que você quer para este conteúdo..."
+                      className="min-h-[60px]"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormDescription className="text-xs">
+                    Este prompt será usado pela IA para gerar o criativo
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              {isEditing && (
+                <Button 
+                  type="button" 
+                  variant="destructive" 
+                  onClick={handleDelete}
+                  disabled={deleteItem.isPending}
+                  className="mr-auto"
+                >
+                  Excluir
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>

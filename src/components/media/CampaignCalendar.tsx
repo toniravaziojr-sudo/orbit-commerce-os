@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Calendar as CalendarIcon, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,9 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useMediaCampaigns, useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { CalendarItemDialog } from "./CalendarItemDialog";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -17,11 +20,26 @@ const statusColors: Record<string, string> = {
   review: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
   generating_asset: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+  asset_review: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
   scheduled: "bg-primary/10 text-primary",
   publishing: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
   published: "bg-green-600 text-white",
   failed: "bg-destructive/10 text-destructive",
   skipped: "bg-muted text-muted-foreground line-through",
+};
+
+const statusLabels: Record<string, string> = {
+  draft: "Rascunho",
+  suggested: "Sugerido",
+  review: "Revisão",
+  approved: "Aprovado",
+  generating_asset: "Gerando",
+  asset_review: "Revisar Asset",
+  scheduled: "Agendado",
+  publishing: "Publicando",
+  published: "Publicado",
+  failed: "Falha",
+  skipped: "Ignorado",
 };
 
 const contentTypeIcons: Record<string, string> = {
@@ -36,7 +54,8 @@ const contentTypeIcons: Record<string, string> = {
 export function CampaignCalendar() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
-  const { campaigns } = useMediaCampaigns();
+  const { currentTenant } = useAuth();
+  const { campaigns, updateCampaign } = useMediaCampaigns();
   const { items, isLoading } = useMediaCalendarItems(campaignId);
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
@@ -50,6 +69,7 @@ export function CampaignCalendar() {
   const [selectedItem, setSelectedItem] = useState<MediaCalendarItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -75,6 +95,16 @@ export function CampaignCalendar() {
     return map;
   }, [items]);
 
+  const stats = useMemo(() => {
+    if (!items) return { total: 0, suggested: 0, approved: 0, withAsset: 0 };
+    return {
+      total: items.length,
+      suggested: items.filter(i => i.status === "suggested").length,
+      approved: items.filter(i => ["approved", "asset_review", "scheduled", "published"].includes(i.status)).length,
+      withAsset: items.filter(i => i.asset_url).length,
+    };
+  }, [items]);
+
   const isInCampaignPeriod = (date: Date) => {
     if (!campaignInterval) return false;
     return isWithinInterval(date, campaignInterval);
@@ -95,11 +125,82 @@ export function CampaignCalendar() {
       setSelectedItem(null);
       setSelectedDate(date);
     } else {
-      // Multiple items - show first one for now
       setSelectedItem(dayItems[0]);
       setSelectedDate(null);
     }
     setDialogOpen(true);
+  };
+
+  const handleGenerateSuggestions = async () => {
+    if (!currentTenant || !campaignId) return;
+    
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("media-generate-suggestions", {
+        body: { campaign_id: campaignId, tenant_id: currentTenant.id },
+      });
+
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast.success(data.message || "Sugestões geradas com sucesso!");
+        // Refresh will happen via react-query invalidation
+      } else {
+        toast.error(data?.error || "Erro ao gerar sugestões");
+      }
+    } catch (err) {
+      console.error("Error generating suggestions:", err);
+      toast.error("Erro ao gerar sugestões");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleApproveAll = async () => {
+    if (!items) return;
+    const suggestedItems = items.filter(i => i.status === "suggested" || i.status === "review");
+    if (suggestedItems.length === 0) {
+      toast.info("Nenhum item para aprovar");
+      return;
+    }
+    
+    try {
+      for (const item of suggestedItems) {
+        await supabase
+          .from("media_calendar_items")
+          .update({ status: "approved" })
+          .eq("id", item.id);
+      }
+      toast.success(`${suggestedItems.length} itens aprovados!`);
+    } catch (err) {
+      toast.error("Erro ao aprovar itens");
+    }
+  };
+
+  const handleGenerateAssets = async () => {
+    toast.info("Geração de assets será implementada em breve. Os itens aprovados serão processados quando a integração estiver disponível.");
+  };
+
+  const handleScheduleAll = async () => {
+    if (!items) return;
+    const approvedItems = items.filter(i => i.status === "approved" || i.status === "asset_review");
+    if (approvedItems.length === 0) {
+      toast.info("Nenhum item aprovado para agendar");
+      return;
+    }
+    
+    try {
+      for (const item of approvedItems) {
+        await supabase
+          .from("media_calendar_items")
+          .update({ status: "scheduled" })
+          .eq("id", item.id);
+      }
+      toast.success(`${approvedItems.length} itens agendados!`);
+      toast.info("A publicação real será feita quando as integrações com redes sociais estiverem conectadas.");
+    } catch (err) {
+      toast.error("Erro ao agendar itens");
+    }
   };
 
   if (!campaign) {
@@ -111,6 +212,8 @@ export function CampaignCalendar() {
   }
 
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const hasSuggestions = items && items.length > 0;
+  const hasApproved = stats.approved > 0;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -118,23 +221,78 @@ export function CampaignCalendar() {
         title={campaign.name}
         description={campaign.prompt}
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" onClick={() => navigate("/media")}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Voltar
-            </Button>
-            <Button disabled className="gap-2">
-              <Sparkles className="h-4 w-4" />
-              Gerar Sugestões com IA
             </Button>
           </div>
         }
       />
 
+      {/* Action Buttons */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="pt-4">
+          <div className="flex flex-wrap gap-3 items-center">
+            <Button 
+              onClick={handleGenerateSuggestions}
+              disabled={isGenerating}
+              className="gap-2"
+            >
+              {isGenerating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {isGenerating ? "Gerando..." : "Gerar Sugestões com IA"}
+            </Button>
+
+            {hasSuggestions && (
+              <>
+                <Button 
+                  variant="outline"
+                  onClick={handleApproveAll}
+                  className="gap-2"
+                >
+                  <Check className="h-4 w-4" />
+                  Aprovar Todos ({stats.suggested})
+                </Button>
+
+                <Button 
+                  variant="outline"
+                  onClick={handleGenerateAssets}
+                  disabled={stats.approved === 0}
+                  className="gap-2"
+                >
+                  <Image className="h-4 w-4" />
+                  Gerar Criativos
+                </Button>
+
+                <Button 
+                  variant="outline"
+                  onClick={handleScheduleAll}
+                  disabled={stats.approved === 0}
+                  className="gap-2"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                  Agendar Publicações
+                </Button>
+              </>
+            )}
+
+            <div className="ml-auto flex gap-4 text-sm text-muted-foreground">
+              <span>{stats.total} itens</span>
+              <span>{stats.approved} aprovados</span>
+              <span>{stats.withAsset} com asset</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">
+            <CardTitle className="text-lg capitalize">
               {format(currentMonth, "MMMM yyyy", { locale: ptBR })}
             </CardTitle>
             <div className="flex gap-1">
@@ -150,23 +308,20 @@ export function CampaignCalendar() {
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
             <div className="grid grid-cols-7 gap-1">
-              {/* Week day headers */}
               {weekDayHeaders.map((day) => (
                 <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">
                   {day}
                 </div>
               ))}
               
-              {/* Empty cells for days before month start */}
               {Array.from({ length: days[0].getDay() }).map((_, i) => (
                 <div key={`empty-${i}`} className="min-h-[100px] bg-muted/30 rounded-md" />
               ))}
               
-              {/* Calendar days */}
               {days.map((date) => {
                 const dateKey = format(date, "yyyy-MM-dd");
                 const dayItems = itemsByDate.get(dateKey) || [];
@@ -194,18 +349,18 @@ export function CampaignCalendar() {
                       {format(date, "d")}
                     </div>
                     
-                    {/* Items for this day */}
                     <div className="space-y-1">
                       {dayItems.slice(0, 2).map((item) => (
                         <div
                           key={item.id}
                           className={cn(
-                            "text-xs px-1.5 py-0.5 rounded truncate",
+                            "text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1",
                             statusColors[item.status]
                           )}
                         >
-                          <span className="mr-1">{contentTypeIcons[item.content_type]}</span>
-                          {item.title || "Sem título"}
+                          <span>{contentTypeIcons[item.content_type]}</span>
+                          <span className="truncate">{item.title || "Sem título"}</span>
+                          {item.asset_url && <span className="ml-auto">📎</span>}
                         </div>
                       ))}
                       {dayItems.length > 2 && (
@@ -230,9 +385,9 @@ export function CampaignCalendar() {
 
       <div className="flex flex-wrap gap-2">
         <div className="text-xs text-muted-foreground">Legenda:</div>
-        {Object.entries(statusColors).slice(0, 6).map(([status, color]) => (
-          <Badge key={status} className={cn("text-xs", color)}>
-            {status.replace("_", " ")}
+        {Object.entries(statusLabels).slice(0, 8).map(([status, label]) => (
+          <Badge key={status} className={cn("text-xs", statusColors[status])}>
+            {label}
           </Badge>
         ))}
       </div>

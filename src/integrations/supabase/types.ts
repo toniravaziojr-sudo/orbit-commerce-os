@@ -3414,10 +3414,13 @@ export type Database = {
       }
       media_campaigns: {
         Row: {
+          ai_generated_context: Json | null
           approved_count: number | null
+          business_context: string | null
           created_at: string
           created_by: string | null
           days_of_week: number[] | null
+          default_time: string | null
           description: string | null
           end_date: string
           excluded_dates: string[] | null
@@ -3434,10 +3437,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_generated_context?: Json | null
           approved_count?: number | null
+          business_context?: string | null
           created_at?: string
           created_by?: string | null
           days_of_week?: number[] | null
+          default_time?: string | null
           description?: string | null
           end_date: string
           excluded_dates?: string[] | null
@@ -3454,10 +3460,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_generated_context?: Json | null
           approved_count?: number | null
+          business_context?: string | null
           created_at?: string
           created_by?: string | null
           days_of_week?: number[] | null
+          default_time?: string | null
           description?: string | null
           end_date?: string
           excluded_dates?: string[] | null
@@ -7829,6 +7838,7 @@ export type Database = {
         | "review"
         | "approved"
         | "generating_asset"
+        | "asset_review"
         | "scheduled"
         | "publishing"
         | "published"
@@ -8073,6 +8083,7 @@ export const Constants = {
         "review",
         "approved",
         "generating_asset",
+        "asset_review",
         "scheduled",
         "publishing",
         "published",
