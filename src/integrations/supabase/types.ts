@@ -3658,6 +3658,44 @@ export type Database = {
           },
         ]
       }
+      meta_whatsapp_onboarding_states: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          state_token: string
+          tenant_id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          state_token: string
+          tenant_id: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          state_token?: string
+          tenant_id?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_whatsapp_onboarding_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_attempts: {
         Row: {
           attempt_no: number
@@ -7175,9 +7213,12 @@ export type Database = {
       }
       whatsapp_configs: {
         Row: {
+          access_token: string | null
+          business_id: string | null
           client_token: string | null
           connection_status: string | null
           created_at: string
+          display_phone_number: string | null
           id: string
           instance_id: string | null
           instance_token: string | null
@@ -7186,17 +7227,24 @@ export type Database = {
           last_disconnected_at: string | null
           last_error: string | null
           phone_number: string | null
+          phone_number_id: string | null
           provider: string
           qr_code: string | null
           qr_expires_at: string | null
           tenant_id: string
+          token_expires_at: string | null
           updated_at: string
+          verified_name: string | null
+          waba_id: string | null
           webhook_url: string | null
         }
         Insert: {
+          access_token?: string | null
+          business_id?: string | null
           client_token?: string | null
           connection_status?: string | null
           created_at?: string
+          display_phone_number?: string | null
           id?: string
           instance_id?: string | null
           instance_token?: string | null
@@ -7205,17 +7253,24 @@ export type Database = {
           last_disconnected_at?: string | null
           last_error?: string | null
           phone_number?: string | null
+          phone_number_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null
           tenant_id: string
+          token_expires_at?: string | null
           updated_at?: string
+          verified_name?: string | null
+          waba_id?: string | null
           webhook_url?: string | null
         }
         Update: {
+          access_token?: string | null
+          business_id?: string | null
           client_token?: string | null
           connection_status?: string | null
           created_at?: string
+          display_phone_number?: string | null
           id?: string
           instance_id?: string | null
           instance_token?: string | null
@@ -7224,11 +7279,15 @@ export type Database = {
           last_disconnected_at?: string | null
           last_error?: string | null
           phone_number?: string | null
+          phone_number_id?: string | null
           provider?: string
           qr_code?: string | null
           qr_expires_at?: string | null
           tenant_id?: string
+          token_expires_at?: string | null
           updated_at?: string
+          verified_name?: string | null
+          waba_id?: string | null
           webhook_url?: string | null
         }
         Relationships: [
@@ -7236,6 +7295,68 @@ export type Database = {
             foreignKeyName: "whatsapp_configs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_inbound_messages: {
+        Row: {
+          conversation_id: string | null
+          created_at: string | null
+          external_message_id: string | null
+          from_phone: string
+          id: string
+          media_url: string | null
+          message_content: string | null
+          message_type: string | null
+          processed_at: string | null
+          processed_by: string | null
+          provider: string
+          raw_payload: Json | null
+          tenant_id: string
+          timestamp: string
+          to_phone: string | null
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string | null
+          external_message_id?: string | null
+          from_phone: string
+          id?: string
+          media_url?: string | null
+          message_content?: string | null
+          message_type?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          tenant_id: string
+          timestamp: string
+          to_phone?: string | null
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string | null
+          external_message_id?: string | null
+          from_phone?: string
+          id?: string
+          media_url?: string | null
+          message_content?: string | null
+          message_type?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          tenant_id?: string
+          timestamp?: string
+          to_phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_inbound_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
