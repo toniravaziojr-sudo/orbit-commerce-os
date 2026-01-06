@@ -72,6 +72,7 @@ export function CampaignCalendar() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -169,6 +170,7 @@ export function CampaignCalendar() {
       return;
     }
     
+    setIsApproving(true);
     try {
       for (const item of suggestedItems) {
         await supabase
@@ -182,6 +184,8 @@ export function CampaignCalendar() {
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
       toast.error("Erro ao aprovar itens");
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -263,10 +267,15 @@ export function CampaignCalendar() {
                 <Button 
                   variant="outline"
                   onClick={handleApproveAll}
+                  disabled={isApproving}
                   className="gap-2"
                 >
-                  <Check className="h-4 w-4" />
-                  Aprovar Todos ({stats.suggested})
+                  {isApproving ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  {isApproving ? "Aprovando..." : `Aprovar Todos (${stats.suggested})`}
                 </Button>
 
                 <Button 
