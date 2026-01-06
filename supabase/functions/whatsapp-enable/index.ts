@@ -113,22 +113,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get platform Z-API client token from secrets
-    const { data: secretData, error: secretError } = await supabase
-      .from("platform_secrets")
-      .select("value")
-      .eq("key", "ZAPI_CLIENT_TOKEN")
-      .maybeSingle();
+    // Get platform Z-API client token from platform_credentials table or env var
+    let clientToken: string | null = null;
+    
+    // First try database
+    const { data: credData } = await supabase
+      .from("platform_credentials")
+      .select("credential_value, is_active")
+      .eq("credential_key", "ZAPI_CLIENT_TOKEN")
+      .single();
 
-    if (secretError || !secretData?.value) {
+    if (credData?.is_active && credData?.credential_value) {
+      clientToken = credData.credential_value;
+      console.log(`[whatsapp-enable][${traceId}] Using ZAPI_CLIENT_TOKEN from database`);
+    } else {
+      // Fallback to env var
+      clientToken = Deno.env.get("ZAPI_CLIENT_TOKEN") || null;
+      if (clientToken) {
+        console.log(`[whatsapp-enable][${traceId}] Using ZAPI_CLIENT_TOKEN from env var`);
+      }
+    }
+
+    if (!clientToken) {
       console.error(`[whatsapp-enable][${traceId}] ZAPI_CLIENT_TOKEN not configured`);
       return new Response(
         JSON.stringify({ success: false, error: "Credenciais Z-API da plataforma não configuradas. Contate o administrador." }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const clientToken = secretData.value;
 
     // Get tenant info for instance name
     const { data: tenantData } = await supabase
