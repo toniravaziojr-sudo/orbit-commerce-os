@@ -86,12 +86,14 @@ async function autoProvisionInstance(
 
   // Create instance via Z-API Integrator API
   console.log(`[whatsapp-connect][${traceId}] Creating Z-API instance for tenant ${instanceName}`);
+  console.log(`[whatsapp-connect][${traceId}] Client token length: ${clientToken.length}, first 4 chars: ${clientToken.substring(0, 4)}`);
   
   const zapiResponse = await fetch("https://api.z-api.io/instances/integrator/on-demand", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "Client-Token": clientToken,
+      "Authorization": clientToken, // Z-API may expect this header
     },
     body: JSON.stringify({
       name: `cc-${instanceName}`,
