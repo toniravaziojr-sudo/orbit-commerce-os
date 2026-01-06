@@ -1,14 +1,14 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, MessageCircle, CheckCircle, XCircle, AlertCircle, ExternalLink, Phone, Send, RefreshCw, Unplug } from "lucide-react";
+import { Loader2, MessageCircle, CheckCircle, XCircle, AlertCircle, ExternalLink, Send, RefreshCw, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useTenantContext } from "@/contexts/TenantContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface MetaWhatsAppConfig {
@@ -25,7 +25,7 @@ interface MetaWhatsAppConfig {
 }
 
 export function WhatsAppMetaSettings() {
-  const { currentTenant } = useTenantContext();
+  const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
   const queryClient = useQueryClient();
   
@@ -49,7 +49,6 @@ export function WhatsAppMetaSettings() {
       return data as MetaWhatsAppConfig | null;
     },
     enabled: !!tenantId,
-    refetchInterval: config?.connection_status === "connecting" ? 3000 : false,
   });
 
   // Check for URL params (redirect from OAuth)

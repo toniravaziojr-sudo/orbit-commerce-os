@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageCircle } from "lucide-react";
-import { useTenantContext } from "@/contexts/TenantContext";
+import { useAuth } from "@/hooks/useAuth";
 import { isRespeiteOHomemTenant } from "@/config/tenant-anchors";
 import { WhatsAppSettings } from "./WhatsAppSettings";
 import { WhatsAppMetaSettings } from "./WhatsAppMetaSettings";
@@ -14,7 +14,7 @@ import { WhatsAppMetaSettings } from "./WhatsAppMetaSettings";
  * - Meta Oficial tab: Visible for ALL customers (including respeiteohomem)
  */
 export function WhatsAppProviderTabs() {
-  const { currentTenant } = useTenantContext();
+  const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
   
   // Check if this is the special tenant that uses Z-API

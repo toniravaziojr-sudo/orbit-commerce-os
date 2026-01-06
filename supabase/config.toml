@@ -312,3 +312,15 @@ verify_jwt = true
 
 [functions.whatsapp-enable]
 verify_jwt = true
+
+[functions.meta-whatsapp-webhook]
+verify_jwt = false
+
+[functions.meta-whatsapp-onboarding-start]
+verify_jwt = false
+
+[functions.meta-whatsapp-onboarding-callback]
+verify_jwt = false
+
+[functions.meta-whatsapp-send]
+verify_jwt = false
