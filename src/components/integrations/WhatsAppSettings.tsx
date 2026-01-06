@@ -6,10 +6,7 @@ import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformOperator } from "@/hooks/usePlatformOperator";
-import { useTenantType } from "@/hooks/useTenantType";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
 import { 
   MessageCircle, 
   CheckCircle, 
@@ -19,9 +16,7 @@ import {
   RefreshCw, 
   QrCode,
   Unplug,
-  AlertCircle,
-  Smartphone,
-  ExternalLink
+  Smartphone
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -31,14 +26,11 @@ interface WhatsAppConfig {
   qr_code: string | null;
   phone_number: string | null;
   last_connected_at: string | null;
-  hasCredentials: boolean;
 }
 
 export function WhatsAppSettings() {
   const { currentTenant, profile, hasRole } = useAuth();
   const { toast } = useToast();
-  const { isPlatformOperator } = usePlatformOperator();
-  const { isPlatformTenant } = useTenantType();
   const tenantId = currentTenant?.id || profile?.current_tenant_id;
   
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +38,6 @@ export function WhatsAppSettings() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isRefreshingQr, setIsRefreshingQr] = useState(false);
-  const [isEnablingChannel, setIsEnablingChannel] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [testPhoneInput, setTestPhoneInput] = useState("");
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
@@ -55,14 +46,11 @@ export function WhatsAppSettings() {
     if (!tenantId) return;
     setIsLoading(true);
     try {
-      // SECURITY: Use RPC function that only returns non-sensitive fields
-      // This function enforces tenant access control server-side
       const { data, error } = await supabase
         .rpc("get_whatsapp_config_for_tenant", { p_tenant_id: tenantId });
 
       if (error) throw error;
 
-      // RPC returns array, get first item
       const configData = Array.isArray(data) && data.length > 0 ? data[0] : null;
 
       if (configData) {
@@ -72,15 +60,24 @@ export function WhatsAppSettings() {
           qr_code: configData.qr_code,
           phone_number: configData.phone_number,
           last_connected_at: configData.last_connected_at,
-          // hasCredentials requires both is_enabled AND instance_id (credentials provisioned)
-          hasCredentials: configData.is_enabled === true && !!configData.instance_id,
         });
       } else {
-        setConfig(null);
+        // No config yet - will be auto-created on first connect
+        setConfig({
+          connection_status: "disconnected",
+          qr_code: null,
+          phone_number: null,
+          last_connected_at: null,
+        });
       }
     } catch (error) {
       console.error("Error fetching WhatsApp config:", error);
-      setConfig(null);
+      setConfig({
+        connection_status: "disconnected",
+        qr_code: null,
+        phone_number: null,
+        last_connected_at: null,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -90,7 +87,7 @@ export function WhatsAppSettings() {
     if (tenantId) fetchConfig();
   }, [tenantId, fetchConfig]);
 
-  // Polling de status - NÃO limpa o QR enquanto estiver em qr_pending
+  // Polling for status updates
   useEffect(() => {
     if (config?.connection_status !== "qr_pending" && config?.connection_status !== "connecting") return;
 
@@ -99,71 +96,70 @@ export function WhatsAppSettings() {
       try {
         const { data, error } = await supabase.functions.invoke("whatsapp-status", { body: { tenant_id: tenantId } });
         if (!error && data?.status) {
-          // IMPORTANTE: Manter o QR code existente enquanto polling
-          // Só limpar se conectou com sucesso
           if (data.status === "connected") {
             toast({ title: "Conectado!", description: `WhatsApp conectado: ${data.phone_number}` });
             clearInterval(interval);
             await fetchConfig();
           } else {
-            // Atualiza status mas PRESERVA o qr_code atual
             setConfig(prev => prev ? { 
               ...prev, 
               connection_status: data.status === "connected" ? "connected" : prev.connection_status,
               phone_number: data.phone_number || prev.phone_number,
-              // NÃO sobrescreve qr_code aqui - mantém o existente
             } : prev);
           }
         }
       } catch (err) {
         console.error("Error polling status:", err);
       }
-    }, 5000); // Aumenta para 5 segundos para dar mais tempo
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [config?.connection_status, tenantId, toast, fetchConfig]);
 
+  // UNIFIED: Single connect button that auto-provisions if needed
   const handleConnect = async () => {
-    if (!tenantId) return;
+    if (!tenantId) {
+      toast({ title: "Erro", description: "Tenant não identificado", variant: "destructive" });
+      return;
+    }
+    
     setIsConnecting(true);
     try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-connect", { body: { tenant_id: tenantId } });
+      console.log("[WhatsApp] Connecting for tenant:", tenantId);
+      
+      // Single call to whatsapp-connect - it will auto-provision if needed
+      const { data, error } = await supabase.functions.invoke("whatsapp-connect", { 
+        body: { tenant_id: tenantId } 
+      });
+      
+      console.log("[WhatsApp] Connect response:", { data, error });
       
       if (error) {
         console.error("WhatsApp connect error:", error);
-        // Handle 412 specifically - credentials not configured
-        const errorMessage = error.message || "Erro ao conectar. Tente novamente.";
-        const is412 = errorMessage.includes("412") || errorMessage.includes("credenciais");
-        
         toast({ 
-          title: is412 ? "Credenciais não configuradas" : "Erro de conexão", 
-          description: is412 
-            ? "As credenciais Z-API não foram configuradas. Configure em Integrações da Plataforma." 
-            : errorMessage, 
+          title: "Erro de conexão", 
+          description: error.message || "Erro ao conectar. Tente novamente.", 
           variant: "destructive" 
         });
         return;
       }
       
       if (data?.success === false) {
-        // Handle 412 from backend response
-        const is412 = data.error?.includes("412") || data.error?.includes("credenciais") || data.error?.includes("Precondition");
-        
         toast({ 
-          title: is412 ? "Credenciais não configuradas" : "Erro", 
-          description: is412 
-            ? "As credenciais Z-API não foram configuradas. Configure em Integrações da Plataforma."
-            : (data.error || "Erro ao conectar WhatsApp"), 
+          title: "Erro", 
+          description: data.error || "Erro ao conectar WhatsApp", 
           variant: "destructive" 
         });
-        if (data.trace_id) {
-          console.log("Trace ID:", data.trace_id);
-        }
         return;
       }
       
       if (data?.qr_code) {
-        setConfig(prev => prev ? { ...prev, qr_code: data.qr_code, connection_status: "qr_pending" } : prev);
+        setConfig(prev => prev ? { ...prev, qr_code: data.qr_code, connection_status: "qr_pending" } : {
+          connection_status: "qr_pending",
+          qr_code: data.qr_code,
+          phone_number: null,
+          last_connected_at: null,
+        });
         toast({ title: "QR Code gerado", description: "Escaneie o QR Code com seu WhatsApp" });
       } else if (data?.status === "connected") {
         toast({ title: "Já conectado!", description: `WhatsApp: ${data.phone_number}` });
@@ -215,84 +211,13 @@ export function WhatsAppSettings() {
     }
   };
 
-  const handleEnableWhatsApp = async () => {
-    if (!tenantId) return;
-    setIsEnablingChannel(true);
-    try {
-      // Create whatsapp_configs entry for this tenant via edge function
-      const { data, error } = await supabase.functions.invoke("whatsapp-enable", {
-        body: { tenant_id: tenantId },
-      });
-      
-      if (error) throw error;
-      
-      if (data?.success) {
-        toast({ title: "WhatsApp habilitado", description: "Agora você pode conectar seu WhatsApp" });
-        await fetchConfig();
-      } else {
-        throw new Error(data?.error || "Erro ao habilitar canal");
-      }
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } finally {
-      setIsEnablingChannel(false);
-    }
-  };
-
   if (isLoading) {
     return <Card><CardContent className="pt-6 flex items-center justify-center min-h-[200px]"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></CardContent></Card>;
   }
 
   const isConnected = config?.connection_status === "connected";
   const isQrPending = config?.connection_status === "qr_pending";
-
-  if (!config?.hasCredentials) {
-    const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
-    
-    // All tenants (including platform admin) use the same flow
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-              <MessageCircle className="h-5 w-5 text-muted-foreground" />
-            </div>
-            <div>
-              <CardTitle>WhatsApp</CardTitle>
-              <CardDescription>Envie notificações via WhatsApp</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isOwnerOrAdmin ? (
-            <div className="space-y-4">
-              <Alert>
-                <MessageCircle className="h-4 w-4" />
-                <AlertDescription>
-                  O canal WhatsApp ainda não foi habilitado para esta loja.
-                </AlertDescription>
-              </Alert>
-              <Button onClick={handleEnableWhatsApp} disabled={isEnablingChannel}>
-                {isEnablingChannel ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <MessageCircle className="h-4 w-4 mr-2" />
-                )}
-                Habilitar WhatsApp
-              </Button>
-            </div>
-          ) : (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                O canal WhatsApp ainda não foi habilitado para sua loja. Entre em contato com o suporte.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
+  const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
 
   // Format phone number for display
   const formatPhone = (phone: string | null) => {
@@ -406,6 +331,7 @@ export function WhatsAppSettings() {
     );
   }
 
+  // UNIFIED: Single "Connect via QR Code" button for ALL tenants
   return (
     <Card>
       <CardHeader>
@@ -415,8 +341,19 @@ export function WhatsAppSettings() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Alert><MessageCircle className="h-4 w-4" /><AlertDescription>Clique abaixo e escaneie o QR Code com seu celular.</AlertDescription></Alert>
-        <Button onClick={handleConnect} disabled={isConnecting} className="w-full">{isConnecting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}Conectar WhatsApp</Button>
+        <Alert><MessageCircle className="h-4 w-4" /><AlertDescription>Clique abaixo e escaneie o QR Code com seu celular para conectar o WhatsApp.</AlertDescription></Alert>
+        {isOwnerOrAdmin ? (
+          <Button onClick={handleConnect} disabled={isConnecting} className="w-full">
+            {isConnecting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <QrCode className="h-4 w-4 mr-2" />}
+            Conectar via QR Code
+          </Button>
+        ) : (
+          <Alert>
+            <AlertDescription>
+              Apenas administradores podem conectar o WhatsApp. Entre em contato com o suporte.
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );

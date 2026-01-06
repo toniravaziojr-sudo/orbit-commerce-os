@@ -6,12 +6,10 @@ const corsHeaders = {
 };
 
 // Helper function to configure Z-API webhooks automatically
-// Uses PUT /update-every-webhooks with { value: "URL" } as per Z-API docs
 async function configureZapiWebhook(baseUrl: string, headers: Record<string, string>, webhookUrl: string, traceId: string): Promise<boolean> {
   try {
     console.log(`[whatsapp-connect][${traceId}] Configuring Z-API webhook: ${webhookUrl}`);
     
-    // Z-API requires PUT method with { value: "url" } body
     const response = await fetch(`${baseUrl}/update-every-webhooks`, {
       method: 'PUT',
       headers,
@@ -30,9 +28,121 @@ async function configureZapiWebhook(baseUrl: string, headers: Record<string, str
     return true;
   } catch (error: any) {
     console.error(`[whatsapp-connect][${traceId}] Webhook configuration error:`, error.message);
-    // Don't fail the whole connection for webhook config error
     return false;
   }
+}
+
+// Helper function to auto-provision Z-API instance if not exists
+async function autoProvisionInstance(
+  supabase: any, 
+  tenantId: string, 
+  supabaseUrl: string,
+  traceId: string
+): Promise<{ success: boolean; config?: any; error?: string }> {
+  console.log(`[whatsapp-connect][${traceId}] Auto-provisioning instance for tenant ${tenantId}`);
+  
+  // Get platform Z-API client token
+  let clientToken: string | null = null;
+  
+  // First try database
+  const { data: credData } = await supabase
+    .from("platform_credentials")
+    .select("credential_value, is_active")
+    .eq("credential_key", "ZAPI_CLIENT_TOKEN")
+    .single();
+
+  if (credData?.is_active && credData?.credential_value) {
+    clientToken = credData.credential_value;
+    console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from database`);
+  } else {
+    // Fallback to env var
+    clientToken = Deno.env.get("ZAPI_CLIENT_TOKEN") || null;
+    if (clientToken) {
+      console.log(`[whatsapp-connect][${traceId}] Using ZAPI_CLIENT_TOKEN from env var`);
+    }
+  }
+
+  if (!clientToken) {
+    console.error(`[whatsapp-connect][${traceId}] ZAPI_CLIENT_TOKEN not configured`);
+    return { success: false, error: "Credenciais Z-API da plataforma não configuradas. Contate o administrador." };
+  }
+
+  // Get tenant info for instance name
+  const { data: tenantData } = await supabase
+    .from("tenants")
+    .select("name, slug")
+    .eq("id", tenantId)
+    .single();
+
+  const instanceName = tenantData?.slug || tenantId.substring(0, 8);
+
+  // Create instance via Z-API Integrator API
+  console.log(`[whatsapp-connect][${traceId}] Creating Z-API instance for tenant ${instanceName}`);
+  
+  const zapiResponse = await fetch("https://api.z-api.io/instances/integrator/on-demand", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Client-Token": clientToken,
+    },
+    body: JSON.stringify({
+      name: `cc-${instanceName}`,
+    }),
+  });
+
+  if (!zapiResponse.ok) {
+    const errorText = await zapiResponse.text();
+    console.error(`[whatsapp-connect][${traceId}] Z-API create instance error:`, zapiResponse.status, errorText);
+    return { success: false, error: `Erro ao criar instância Z-API: ${zapiResponse.status}` };
+  }
+
+  const zapiData = await zapiResponse.json();
+  console.log(`[whatsapp-connect][${traceId}] Z-API create response:`, JSON.stringify(zapiData));
+
+  const instanceId = zapiData.id || zapiData.instanceId;
+  const instanceToken = zapiData.token || zapiData.instanceToken;
+
+  if (!instanceId || !instanceToken) {
+    console.error(`[whatsapp-connect][${traceId}] Invalid Z-API response:`, zapiData);
+    return { success: false, error: "Resposta inválida da Z-API" };
+  }
+
+  // Save to whatsapp_configs
+  const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenantId}`;
+
+  const { data: newConfig, error: upsertError } = await supabase
+    .from("whatsapp_configs")
+    .upsert(
+      {
+        tenant_id: tenantId,
+        instance_id: instanceId,
+        instance_token: instanceToken,
+        client_token: clientToken,
+        is_enabled: true,
+        connection_status: "disconnected",
+        webhook_url: webhookUrl,
+      },
+      { onConflict: "tenant_id" }
+    )
+    .select()
+    .single();
+
+  if (upsertError) {
+    console.error(`[whatsapp-connect][${traceId}] Upsert error:`, upsertError);
+    return { success: false, error: "Erro ao salvar configuração WhatsApp" };
+  }
+
+  console.log(`[whatsapp-connect][${traceId}] Successfully created instance ${instanceId} for tenant ${tenantId}`);
+  
+  return { 
+    success: true, 
+    config: {
+      ...newConfig,
+      instance_id: instanceId,
+      instance_token: instanceToken,
+      client_token: clientToken,
+    }
+  };
 }
 
 Deno.serve(async (req) => {
@@ -136,7 +246,7 @@ Deno.serve(async (req) => {
     console.log(`[whatsapp-connect][${traceId}] User role: ${roleData.role}`);
 
     // Get WhatsApp config for tenant using service role (can read secrets)
-    const { data: config, error: configError } = await supabase
+    let { data: config, error: configError } = await supabase
       .from('whatsapp_configs')
       .select('*')
       .eq('tenant_id', tenant_id)
@@ -150,33 +260,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!config) {
-      console.log(`[whatsapp-connect][${traceId}] No config found for tenant`);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'WhatsApp não está disponível para esta loja. Entre em contato com o suporte.',
-          code: 'NO_CONFIG',
-          trace_id: traceId
-        }),
-        { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // === AUTO-PROVISION: If no config or no credentials, create instance automatically ===
+    if (!config || !config.instance_id || !config.instance_token) {
+      console.log(`[whatsapp-connect][${traceId}] No config/credentials found, auto-provisioning...`);
+      
+      const provisionResult = await autoProvisionInstance(supabase, tenant_id, supabaseUrl, traceId);
+      
+      if (!provisionResult.success) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: provisionResult.error,
+            code: 'PROVISION_ERROR',
+            trace_id: traceId
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      config = provisionResult.config;
+      console.log(`[whatsapp-connect][${traceId}] Auto-provision successful, proceeding to QR code`);
     }
 
-    if (!config.instance_id || !config.instance_token) {
-      console.log(`[whatsapp-connect][${traceId}] Config exists but credentials missing`);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'WhatsApp não está configurado. Entre em contato com o suporte.',
-          code: 'NO_CREDENTIALS',
-          trace_id: traceId
-        }),
-        { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Check if client_token is configured (required by Z-API)
+    // Check if client_token is configured
     if (!config.client_token) {
       console.log(`[whatsapp-connect][${traceId}] Config exists but client_token missing`);
       await supabase
@@ -193,7 +299,7 @@ Deno.serve(async (req) => {
           code: 'NO_CLIENT_TOKEN',
           trace_id: traceId
         }),
-        { status: 412, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -237,7 +343,7 @@ Deno.serve(async (req) => {
           // Already connected - configure webhook automatically
           await configureZapiWebhook(baseUrl, zapiHeaders, webhookUrl, traceId);
           
-          // Fetch phone number from /device endpoint (not available in /status)
+          // Fetch phone number from /device endpoint
           let phoneNumber: string | null = null;
           try {
             const deviceRes = await fetch(`${baseUrl}/device`, {
@@ -294,7 +400,7 @@ Deno.serve(async (req) => {
             provider_status: statusRes.status,
             trace_id: traceId
           }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } catch (statusError: any) {
@@ -332,7 +438,7 @@ Deno.serve(async (req) => {
               provider_status: qrRes.status,
               trace_id: traceId
             }),
-            { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
         
@@ -351,7 +457,7 @@ Deno.serve(async (req) => {
             provider_status: qrRes.status,
             trace_id: traceId
           }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -367,7 +473,7 @@ Deno.serve(async (req) => {
             code: 'INVALID_RESPONSE',
             trace_id: traceId
           }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -380,7 +486,7 @@ Deno.serve(async (req) => {
             code: 'QR_NOT_READY',
             trace_id: traceId
           }),
-          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -422,7 +528,7 @@ Deno.serve(async (req) => {
           code: 'SERVICE_UNAVAILABLE',
           trace_id: traceId
         }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -434,7 +540,7 @@ Deno.serve(async (req) => {
         error: 'Erro interno. Tente novamente.',
         code: 'INTERNAL_ERROR'
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
