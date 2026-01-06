@@ -6,104 +6,15 @@ const corsHeaders = {
 };
 
 /**
- * Busca uma credencial da plataforma (banco ou env var fallback).
+ * whatsapp-enable: Habilita o canal WhatsApp para um tenant.
+ * 
+ * Este endpoint NÃO cria instâncias Z-API automaticamente.
+ * O fluxo correto é:
+ * 1. Admin cria a instância no painel Z-API manualmente
+ * 2. Admin configura as credenciais em Integrações da Plataforma (whatsapp-admin-instances)
+ * 3. Tenant clica em "Habilitar WhatsApp" → este endpoint cria o registro básico
+ * 4. Tenant clica em "Conectar" → whatsapp-connect busca QR code
  */
-async function getCredential(
-  supabaseUrl: string,
-  supabaseServiceKey: string,
-  credentialKey: string
-): Promise<string | null> {
-  try {
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { data, error } = await supabase
-      .from('platform_credentials')
-      .select('credential_value, is_active')
-      .eq('credential_key', credentialKey)
-      .single();
-    
-    if (!error && data?.is_active && data?.credential_value) {
-      console.log(`[whatsapp-enable] Using DB value for ${credentialKey}`);
-      return data.credential_value;
-    }
-  } catch (err) {
-    console.log(`[whatsapp-enable] DB lookup failed for ${credentialKey}, using env var fallback`);
-  }
-  
-  const envValue = Deno.env.get(credentialKey);
-  return envValue || null;
-}
-
-/**
- * Cria uma instância Z-API automaticamente via API de parceiros.
- * Retorna { instanceId, instanceToken } se sucesso, null se falha.
- */
-async function createZapiInstance(
-  clientToken: string,
-  tenantName: string,
-  tenantId: string,
-  webhookBaseUrl: string
-): Promise<{ instanceId: string; instanceToken: string } | null> {
-  const traceId = crypto.randomUUID().substring(0, 8);
-  
-  try {
-    console.log(`[whatsapp-enable][${traceId}] Creating Z-API instance for tenant: ${tenantName}`);
-    
-    // Webhook URLs seguindo padrão Z-API
-    const webhookUrl = `${webhookBaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenantId}`;
-    
-    // Gerar nome seguro: apenas alfanuméricos, max 30 chars
-    const safeName = (tenantName || 'tenant')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .substring(0, 20);
-    const shortId = tenantId.replace(/-/g, '').substring(0, 8);
-    const instanceName = `CC${safeName}${shortId}`;
-    
-    console.log(`[whatsapp-enable][${traceId}] Calling Z-API create instance: name=${instanceName}`);
-    
-    const response = await fetch('https://api.z-api.io/instances/integrator/on-demand', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Client-Token': clientToken,
-      },
-      body: JSON.stringify({
-        name: instanceName,
-        receivedCallbackUrl: webhookUrl,
-        deliveryCallbackUrl: webhookUrl,
-        disconnectedCallbackUrl: webhookUrl,
-        connectedCallbackUrl: webhookUrl,
-        messageStatusCallbackUrl: webhookUrl,
-        isDevice: false,
-        businessDevice: true,
-      }),
-    });
-    
-    const responseText = await response.text();
-    console.log(`[whatsapp-enable][${traceId}] Z-API response (${response.status}): ${responseText.substring(0, 300)}`);
-    
-    if (!response.ok) {
-      console.error(`[whatsapp-enable][${traceId}] Z-API create instance failed: ${response.status}`);
-      return null;
-    }
-    
-    const data = JSON.parse(responseText);
-    
-    if (!data.id || !data.token) {
-      console.error(`[whatsapp-enable][${traceId}] Z-API response missing id or token`);
-      return null;
-    }
-    
-    console.log(`[whatsapp-enable][${traceId}] Instance created: id=${data.id.substring(0, 8)}...`);
-    
-    return {
-      instanceId: data.id,
-      instanceToken: data.token,
-    };
-  } catch (error: any) {
-    console.error(`[whatsapp-enable][${traceId}] Error creating Z-API instance:`, error.message);
-    return null;
-  }
-}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -181,31 +92,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Fetch tenant info
-    const { data: tenant, error: tenantError } = await supabase
-      .from("tenants")
-      .select("id, name, slug")
-      .eq("id", tenant_id)
-      .single();
-
-    if (tenantError || !tenant) {
-      console.error(`[whatsapp-enable][${traceId}] Tenant fetch error:`, tenantError);
-      return new Response(
-        JSON.stringify({ success: false, error: "Tenant not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Check if instance already exists
+    // Check if config already exists
     const { data: existingConfig } = await supabase
       .from("whatsapp_configs")
       .select("id, instance_id, is_enabled")
       .eq("tenant_id", tenant_id)
       .maybeSingle();
 
-    // If already has instance_id, just enable and return
+    // If already has instance_id and is enabled, just return success
+    if (existingConfig?.instance_id && existingConfig?.is_enabled) {
+      console.log(`[whatsapp-enable][${traceId}] WhatsApp already enabled for tenant`);
+      return new Response(
+        JSON.stringify({ success: true, message: "WhatsApp já habilitado" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // If config exists but not enabled, just enable it
     if (existingConfig?.instance_id) {
-      console.log(`[whatsapp-enable][${traceId}] Instance already exists for tenant, just enabling`);
+      console.log(`[whatsapp-enable][${traceId}] Enabling existing config`);
       
       await supabase
         .from("whatsapp_configs")
@@ -213,58 +118,29 @@ Deno.serve(async (req) => {
         .eq("id", existingConfig.id);
 
       return new Response(
-        JSON.stringify({ success: true, message: "WhatsApp já configurado" }),
+        JSON.stringify({ success: true, message: "WhatsApp habilitado" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Get platform ZAPI_CLIENT_TOKEN
-    const clientToken = await getCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_CLIENT_TOKEN');
-    
-    if (!clientToken) {
-      console.error(`[whatsapp-enable][${traceId}] ZAPI_CLIENT_TOKEN not configured`);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "WhatsApp não está disponível. Contate o suporte.",
-          code: "NO_PLATFORM_CREDENTIALS"
-        }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // No config exists or no instance_id - create/update basic config
+    // The instance_id, instance_token, client_token will be set later via:
+    // - Platform admin in whatsapp-admin-instances (for platform tenant)
+    // - Or manually configured
+    console.log(`[whatsapp-enable][${traceId}] Creating basic config for tenant (credentials pending)`);
 
-    // Auto-provision Z-API instance
-    const instanceData = await createZapiInstance(
-      clientToken,
-      tenant.name || tenant.slug,
-      tenant_id,
-      supabaseUrl
-    );
+    const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`;
 
-    if (!instanceData) {
-      console.error(`[whatsapp-enable][${traceId}] Failed to create Z-API instance`);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Erro ao provisionar WhatsApp. Tente novamente ou contate o suporte.",
-          code: "PROVISION_FAILED"
-        }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Upsert whatsapp_configs with the new instance credentials
     const { error: upsertError } = await supabase
       .from("whatsapp_configs")
       .upsert(
         {
           tenant_id,
-          instance_id: instanceData.instanceId,
-          instance_token: instanceData.instanceToken,
-          client_token: clientToken, // Use platform client token
           is_enabled: true,
           connection_status: "disconnected",
-          webhook_url: `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`,
+          webhook_url: webhookUrl,
+          // instance_id, instance_token, client_token ficam NULL
+          // Serão preenchidos pelo admin ou via outro fluxo
         },
         { onConflict: "tenant_id" }
       );
@@ -277,13 +153,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[whatsapp-enable][${traceId}] Successfully enabled and provisioned WhatsApp for tenant ${tenant_id}`);
+    console.log(`[whatsapp-enable][${traceId}] Successfully enabled WhatsApp for tenant ${tenant_id} (credentials pending)`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "WhatsApp habilitado com sucesso",
-        provisioned: true 
+        message: "WhatsApp habilitado. Configure as credenciais para conectar.",
+        credentials_pending: true
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
