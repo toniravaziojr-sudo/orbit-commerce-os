@@ -15,6 +15,7 @@ import { ChannelConfigDialog } from "./ChannelConfigDialog";
 import { AIChannelConfigDialog } from "./AIChannelConfigDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useTenantType } from "@/hooks/useTenantType";
 import { useNavigate } from "react-router-dom";
 
 interface IntegrationStatus {
@@ -70,8 +71,12 @@ const channelInfo: Record<SupportChannelType, { name: string; icon: string; desc
 // Canais que usam integrações existentes (não precisam de config própria)
 const linkedChannels: SupportChannelType[] = ['whatsapp', 'email'];
 
+// Canais disponíveis para o tenant plataforma (admin) - sem marketplaces
+const PLATFORM_TENANT_CHANNELS: SupportChannelType[] = ['whatsapp', 'email', 'facebook_messenger', 'instagram_dm'];
+
 export function ChannelIntegrations() {
   const { currentTenant } = useAuth();
+  const { isPlatformTenant } = useTenantType();
   const navigate = useNavigate();
   const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -204,7 +209,9 @@ export function ChannelIntegrations() {
 
       {/* Channels Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {(Object.keys(channelInfo) as SupportChannelType[]).map((type) => {
+        {(Object.keys(channelInfo) as SupportChannelType[])
+          .filter((type) => isPlatformTenant ? PLATFORM_TENANT_CHANNELS.includes(type) : true)
+          .map((type) => {
           const info = channelInfo[type];
           const channel = channels.find(c => c.channel_type === type);
           const isLinkedChannel = linkedChannels.includes(type);

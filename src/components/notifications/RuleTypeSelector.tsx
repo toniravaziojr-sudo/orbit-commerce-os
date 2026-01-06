@@ -1,6 +1,7 @@
 import { CreditCard, Truck, ShoppingCart, Users } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useTenantType } from "@/hooks/useTenantType";
 import type { RuleType } from "@/hooks/useNotificationRulesV2";
 
 interface RuleTypeSelectorProps {
@@ -37,11 +38,18 @@ const ruleTypes: { value: RuleType; label: string; description: string; icon: ty
 ];
 
 export function RuleTypeSelector({ value, onChange, disabled }: RuleTypeSelectorProps) {
+  const { isPlatformTenant } = useTenantType();
+  
+  // Platform tenant (admin) doesn't see "Rastreio" option - only in creation selector
+  const visibleRuleTypes = isPlatformTenant 
+    ? ruleTypes.filter(t => t.value !== 'shipping')
+    : ruleTypes;
+
   return (
     <div className="space-y-2">
       <Label>Tipo de Regra *</Label>
       <div className="grid grid-cols-2 gap-3">
-        {ruleTypes.map((type) => {
+        {visibleRuleTypes.map((type) => {
           const Icon = type.icon;
           const isSelected = value === type.value;
           
