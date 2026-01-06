@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -55,8 +56,9 @@ export function CampaignCalendar() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
   const { campaigns, updateCampaign } = useMediaCampaigns();
-  const { items, isLoading } = useMediaCalendarItems(campaignId);
+  const { items, isLoading, refetch: refetchItems } = useMediaCalendarItems(campaignId);
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
   
@@ -144,7 +146,10 @@ export function CampaignCalendar() {
       
       if (data?.success) {
         toast.success(data.message || "Sugestões geradas com sucesso!");
-        // Refresh will happen via react-query invalidation
+        // Force refetch to update UI immediately
+        await refetchItems();
+        queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+        queryClient.invalidateQueries({ queryKey: ["media-campaigns", currentTenant?.id] });
       } else {
         toast.error(data?.error || "Erro ao gerar sugestões");
       }
@@ -172,6 +177,9 @@ export function CampaignCalendar() {
           .eq("id", item.id);
       }
       toast.success(`${suggestedItems.length} itens aprovados!`);
+      // Force refetch to update UI immediately
+      await refetchItems();
+      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
       toast.error("Erro ao aprovar itens");
     }
@@ -198,6 +206,9 @@ export function CampaignCalendar() {
       }
       toast.success(`${approvedItems.length} itens agendados!`);
       toast.info("A publicação real será feita quando as integrações com redes sociais estiverem conectadas.");
+      // Force refetch to update UI immediately
+      await refetchItems();
+      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
       toast.error("Erro ao agendar itens");
     }
