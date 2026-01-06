@@ -46,8 +46,19 @@ Deno.serve(async (req) => {
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Parse body for POST requests (which includes action-based routing)
+    let body: any = {};
+    if (req.method === 'POST') {
+      try {
+        body = await req.json();
+      } catch {
+        body = {};
+      }
+    }
+
     // GET - List all instances
-    if (req.method === 'GET') {
+    // Also support POST with no action as GET
+    if (req.method === 'GET' || (req.method === 'POST' && !body.action)) {
       const { data, error } = await supabaseAdmin
         .from('whatsapp_configs')
         .select(`

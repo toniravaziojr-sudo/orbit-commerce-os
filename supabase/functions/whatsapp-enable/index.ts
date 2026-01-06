@@ -51,6 +51,13 @@ async function createZapiInstance(
     // Webhook URLs seguindo padrão Z-API
     const webhookUrl = `${webhookBaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenantId}`;
     
+    // Gerar nome seguro: apenas alfanuméricos, max 30 chars
+    const safeName = (tenantName || 'tenant')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .substring(0, 20);
+    const shortId = tenantId.replace(/-/g, '').substring(0, 8);
+    const instanceName = `CC${safeName}${shortId}`;
+    
     const response = await fetch('https://api.z-api.io/instances/integrator/on-demand', {
       method: 'POST',
       headers: {
@@ -58,7 +65,7 @@ async function createZapiInstance(
         'Authorization': `Bearer ${clientToken}`,
       },
       body: JSON.stringify({
-        name: `CC-${tenantName.substring(0, 30)}-${tenantId.substring(0, 8)}`,
+        name: instanceName,
         receivedCallbackUrl: webhookUrl,
         deliveryCallbackUrl: webhookUrl,
         disconnectedCallbackUrl: webhookUrl,
