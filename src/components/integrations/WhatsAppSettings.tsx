@@ -6,7 +6,10 @@ import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { useTenantType } from "@/hooks/useTenantType";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 import { 
   MessageCircle, 
   CheckCircle, 
@@ -17,7 +20,8 @@ import {
   QrCode,
   Unplug,
   AlertCircle,
-  Smartphone
+  Smartphone,
+  ExternalLink
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -33,6 +37,8 @@ interface WhatsAppConfig {
 export function WhatsAppSettings() {
   const { currentTenant, profile, hasRole } = useAuth();
   const { toast } = useToast();
+  const { isPlatformOperator } = usePlatformOperator();
+  const { isPlatformTenant } = useTenantType();
   const tenantId = currentTenant?.id || profile?.current_tenant_id;
   
   const [isLoading, setIsLoading] = useState(true);
@@ -66,8 +72,8 @@ export function WhatsAppSettings() {
           qr_code: configData.qr_code,
           phone_number: configData.phone_number,
           last_connected_at: configData.last_connected_at,
-          // hasCredentials is inferred from record existence + is_enabled
-          hasCredentials: configData.is_enabled === true,
+          // hasCredentials requires both is_enabled AND instance_id (credentials provisioned)
+          hasCredentials: configData.is_enabled === true && !!configData.instance_id,
         });
       } else {
         setConfig(null);
@@ -125,19 +131,29 @@ export function WhatsAppSettings() {
       
       if (error) {
         console.error("WhatsApp connect error:", error);
+        // Handle 412 specifically - credentials not configured
+        const errorMessage = error.message || "Erro ao conectar. Tente novamente.";
+        const is412 = errorMessage.includes("412") || errorMessage.includes("credenciais");
+        
         toast({ 
-          title: "Erro de conexão", 
-          description: error.message || "Erro ao conectar. Tente novamente.", 
+          title: is412 ? "Credenciais não configuradas" : "Erro de conexão", 
+          description: is412 
+            ? "As credenciais Z-API não foram configuradas. Configure em Integrações da Plataforma." 
+            : errorMessage, 
           variant: "destructive" 
         });
         return;
       }
       
       if (data?.success === false) {
-        // Show specific error message from backend
+        // Handle 412 from backend response
+        const is412 = data.error?.includes("412") || data.error?.includes("credenciais") || data.error?.includes("Precondition");
+        
         toast({ 
-          title: "Erro", 
-          description: data.error || "Erro ao conectar WhatsApp", 
+          title: is412 ? "Credenciais não configuradas" : "Erro", 
+          description: is412 
+            ? "As credenciais Z-API não foram configuradas. Configure em Integrações da Plataforma."
+            : (data.error || "Erro ao conectar WhatsApp"), 
           variant: "destructive" 
         });
         if (data.trace_id) {
@@ -232,6 +248,41 @@ export function WhatsAppSettings() {
 
   if (!config?.hasCredentials) {
     const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
+    
+    // Platform tenant + platform operator: redirect to /platform/integrations
+    if (isPlatformTenant && isPlatformOperator) {
+      return (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+              </div>
+              <div>
+                <CardTitle>WhatsApp</CardTitle>
+                <CardDescription>Credenciais Z-API não configuradas</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <AlertCircle className="h-4 w-4 text-amber-600" />
+                <AlertDescription className="text-amber-800 dark:text-amber-200">
+                  As credenciais Z-API (Instance ID, Instance Token e Client Token) ainda não foram provisionadas para este tenant.
+                </AlertDescription>
+              </Alert>
+              <Button asChild>
+                <Link to="/platform/integrations">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Configurar em Integrações da Plataforma
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
     
     return (
       <Card>
