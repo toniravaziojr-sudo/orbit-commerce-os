@@ -309,3 +309,6 @@ verify_jwt = true
 
 [functions.whatsapp-admin-instances]
 verify_jwt = true
+
+[functions.whatsapp-enable]
+verify_jwt = true
