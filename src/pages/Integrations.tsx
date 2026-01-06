@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
-import { WhatsAppSettings } from "@/components/integrations/WhatsAppSettings";
+import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 
 // Future integrations
@@ -90,8 +90,8 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="others" className="space-y-6">
-          {/* WhatsApp Settings - for tenants */}
-          <WhatsAppSettings />
+          {/* WhatsApp Settings - provider-agnostic tabs */}
+          <WhatsAppProviderTabs />
 
           {/* Future Integrations */}
           <Card>
