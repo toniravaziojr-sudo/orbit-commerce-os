@@ -188,7 +188,7 @@ export function useMediaCalendarItems(campaignId: string | undefined) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: items, isLoading, error } = useQuery({
+  const { data: items, isLoading, error, refetch } = useQuery({
     queryKey: ["media-calendar-items", campaignId],
     queryFn: async () => {
       if (!campaignId) return [];
@@ -280,6 +280,7 @@ export function useMediaCalendarItems(campaignId: string | undefined) {
     items,
     isLoading,
     error,
+    refetch,
     createItem,
     updateItem,
     deleteItem,

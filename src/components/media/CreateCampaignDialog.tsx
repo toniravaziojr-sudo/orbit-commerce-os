@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useMemo } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, addDays } from "date-fns";
+import { format, addDays, differenceInDays, startOfMonth, endOfMonth, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -40,10 +40,12 @@ const formSchema = z.object({
   prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   description: z.string().optional(),
   dateRange: z.object({
-    from: z.date(),
-    to: z.date(),
+    from: z.date().nullable(),
+    to: z.date().nullable(),
+  }).refine((data) => data.from && data.to, {
+    message: "Selecione o período da campanha",
   }),
-  daysOfWeek: z.array(z.number()).min(1, "Selecione pelo menos um dia da semana"),
+  daysOfWeek: z.array(z.number()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,23 +77,58 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       prompt: "",
       description: "",
       dateRange: {
-        from: new Date(),
-        to: addDays(new Date(), 30),
+        from: null,
+        to: null,
       },
-      daysOfWeek: [1, 2, 3, 4, 5], // Segunda a sexta por padrão
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Todos os dias por padrão
     },
   });
 
+  // Watch dateRange to determine if we should show days of week selector
+  const dateRange = useWatch({ control: form.control, name: "dateRange" });
+  
+  const showDaysOfWeek = useMemo(() => {
+    if (!dateRange?.from || !dateRange?.to) return false;
+    const diff = differenceInDays(dateRange.to, dateRange.from);
+    return diff >= 7;
+  }, [dateRange]);
+
+  // Shortcuts for quick date selection
+  const setCurrentMonth = () => {
+    const now = new Date();
+    form.setValue("dateRange", {
+      from: startOfMonth(now),
+      to: endOfMonth(now),
+    });
+  };
+
+  const setNextMonth = () => {
+    const next = addMonths(new Date(), 1);
+    form.setValue("dateRange", {
+      from: startOfMonth(next),
+      to: endOfMonth(next),
+    });
+  };
+
+  const clearSelection = () => {
+    form.setValue("dateRange", { from: null, to: null });
+  };
+
   const onSubmit = async (values: FormValues) => {
+    if (!values.dateRange.from || !values.dateRange.to) return;
+    
     setIsSubmitting(true);
     try {
+      // If range is less than 7 days, use all days of week
+      const daysOfWeek = showDaysOfWeek ? values.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
+      
       const result = await createCampaign.mutateAsync({
         name: values.name,
         prompt: values.prompt,
         description: values.description,
         start_date: format(values.dateRange.from, "yyyy-MM-dd"),
         end_date: format(values.dateRange.to, "yyyy-MM-dd"),
-        days_of_week: values.daysOfWeek,
+        days_of_week: daysOfWeek,
       });
       form.reset();
       onOpenChange(false);
@@ -154,6 +191,32 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Período da campanha</FormLabel>
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={setCurrentMonth}
+                    >
+                      Mês atual
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={setNextMonth}
+                    >
+                      Próximo mês
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearSelection}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
                   <Popover>
                     <PopoverTrigger asChild>
                       <FormControl>
@@ -161,7 +224,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                           variant="outline"
                           className={cn(
                             "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
+                            !field.value?.from && "text-muted-foreground"
                           )}
                         >
                           {field.value?.from ? (
@@ -184,17 +247,20 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                       <Calendar
                         initialFocus
                         mode="range"
-                        defaultMonth={field.value?.from}
+                        defaultMonth={field.value?.from || new Date()}
                         selected={field.value?.from && field.value?.to ? { from: field.value.from, to: field.value.to } : undefined}
                         onSelect={(range) => {
                           if (range?.from && range?.to) {
                             field.onChange({ from: range.from, to: range.to });
                           } else if (range?.from) {
-                            field.onChange({ from: range.from, to: range.from });
+                            field.onChange({ from: range.from, to: null });
+                          } else {
+                            field.onChange({ from: null, to: null });
                           }
                         }}
                         numberOfMonths={2}
                         locale={ptBR}
+                        className="pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
@@ -203,45 +269,47 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="daysOfWeek"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Dias da semana</FormLabel>
-                  <FormDescription>
-                    Em quais dias você quer publicar conteúdo?
-                  </FormDescription>
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {weekDays.map((day) => (
-                      <label
-                        key={day.value}
-                        className={cn(
-                          "flex items-center justify-center w-12 h-10 rounded-md border cursor-pointer transition-colors",
-                          field.value.includes(day.value)
-                            ? "bg-primary text-primary-foreground border-primary"
-                            : "bg-background border-input hover:bg-accent"
-                        )}
-                      >
-                        <Checkbox
-                          checked={field.value.includes(day.value)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              field.onChange([...field.value, day.value].sort());
-                            } else {
-                              field.onChange(field.value.filter((v) => v !== day.value));
-                            }
-                          }}
-                          className="sr-only"
-                        />
-                        <span className="text-sm font-medium">{day.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {showDaysOfWeek && (
+              <FormField
+                control={form.control}
+                name="daysOfWeek"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Dias da semana</FormLabel>
+                    <FormDescription>
+                      Em quais dias você quer publicar conteúdo?
+                    </FormDescription>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {weekDays.map((day) => (
+                        <label
+                          key={day.value}
+                          className={cn(
+                            "flex items-center justify-center w-12 h-10 rounded-md border cursor-pointer transition-colors",
+                            field.value.includes(day.value)
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background border-input hover:bg-accent"
+                          )}
+                        >
+                          <Checkbox
+                            checked={field.value.includes(day.value)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                field.onChange([...field.value, day.value].sort());
+                              } else {
+                                field.onChange(field.value.filter((v) => v !== day.value));
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <span className="text-sm font-medium">{day.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
