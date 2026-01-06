@@ -80,14 +80,11 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
   const selectedDates = useWatch({ control: form.control, name: "selectedDates" });
   
   const showDaysOfWeek = useMemo(() => {
-    if (!selectedDates || selectedDates.length < 7) return false;
-    // Check if dates span 7+ days
-    if (selectedDates.length >= 7) {
-      const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
-      const diff = differenceInDays(sorted[sorted.length - 1], sorted[0]);
-      return diff >= 6; // 7 days = diff of 6
-    }
-    return false;
+    if (!selectedDates || selectedDates.length < 15) return false;
+    // Check if dates span 15+ consecutive days
+    const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+    const diff = differenceInDays(sorted[sorted.length - 1], sorted[0]);
+    return diff >= 14; // 15 days = diff of 14
   }, [selectedDates]);
 
   // Today at start of day (for comparison)
