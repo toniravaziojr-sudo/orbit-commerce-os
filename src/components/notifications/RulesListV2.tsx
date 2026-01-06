@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { NotificationRuleV2, RuleType } from "@/hooks/useNotificationRulesV2";
+import { useTenantType } from "@/hooks/useTenantType";
 
 interface RulesListV2Props {
   rules: NotificationRuleV2[];
@@ -77,6 +78,12 @@ export function RulesListV2({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { isPlatformTenant } = useTenantType();
+
+  // Platform tenant (admin) doesn't see "Envios" tab - filter it out
+  const visibleRuleTypes: RuleType[] = isPlatformTenant 
+    ? ['payment', 'abandoned_checkout', 'post_sale']
+    : ['payment', 'shipping', 'abandoned_checkout', 'post_sale'];
 
   const rulesByType = (type: RuleType) => rules.filter((r) => r.rule_type === type);
 
@@ -213,13 +220,15 @@ export function RulesListV2({
       </div>
 
       <Tabs defaultValue="payment" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={`grid w-full ${isPlatformTenant ? 'grid-cols-3' : 'grid-cols-4'}`}>
           <TabsTrigger value="payment" className="text-xs sm:text-sm">
             Pagamentos ({rulesByType('payment').length})
           </TabsTrigger>
-          <TabsTrigger value="shipping" className="text-xs sm:text-sm">
-            Envios ({rulesByType('shipping').length})
-          </TabsTrigger>
+          {!isPlatformTenant && (
+            <TabsTrigger value="shipping" className="text-xs sm:text-sm">
+              Envios ({rulesByType('shipping').length})
+            </TabsTrigger>
+          )}
           <TabsTrigger value="abandoned_checkout" className="text-xs sm:text-sm">
             Abandonado ({rulesByType('abandoned_checkout').length})
           </TabsTrigger>
@@ -229,7 +238,9 @@ export function RulesListV2({
         </TabsList>
 
         <TabsContent value="payment">{renderTabContent('payment')}</TabsContent>
-        <TabsContent value="shipping">{renderTabContent('shipping')}</TabsContent>
+        {!isPlatformTenant && (
+          <TabsContent value="shipping">{renderTabContent('shipping')}</TabsContent>
+        )}
         <TabsContent value="abandoned_checkout">{renderTabContent('abandoned_checkout')}</TabsContent>
         <TabsContent value="post_sale">{renderTabContent('post_sale')}</TabsContent>
       </Tabs>
