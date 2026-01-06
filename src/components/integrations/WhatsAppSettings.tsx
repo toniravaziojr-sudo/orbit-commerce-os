@@ -249,41 +249,7 @@ export function WhatsAppSettings() {
   if (!config?.hasCredentials) {
     const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
     
-    // Platform tenant + platform operator: redirect to /platform/integrations
-    if (isPlatformTenant && isPlatformOperator) {
-      return (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30">
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-              </div>
-              <div>
-                <CardTitle>WhatsApp</CardTitle>
-                <CardDescription>Credenciais Z-API não configuradas</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-                <AlertCircle className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  As credenciais Z-API (Instance ID, Instance Token e Client Token) ainda não foram provisionadas para este tenant.
-                </AlertDescription>
-              </Alert>
-              <Button asChild>
-                <Link to="/platform/integrations">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Configurar em Integrações da Plataforma
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      );
-    }
-    
+    // All tenants (including platform admin) use the same flow
     return (
       <Card>
         <CardHeader>
