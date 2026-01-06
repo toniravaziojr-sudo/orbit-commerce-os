@@ -167,22 +167,21 @@ export function WhatsAppPlatformSettings() {
     },
   });
 
-  // Delete instance mutation
+  // Delete instance mutation - using POST with action since invoke doesn't support DELETE properly
   const deleteMutation = useMutation({
     mutationFn: async (tenantId: string) => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Não autenticado');
 
       const response = await supabase.functions.invoke('whatsapp-admin-instances', {
-        method: 'DELETE',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: { tenant_id: tenantId },
+        body: { action: 'delete', tenant_id: tenantId },
       });
 
       if (response.error) throw response.error;
-      if (!response.data.success) throw new Error(response.data.error);
+      if (!response.data?.success) throw new Error(response.data?.error || 'Erro desconhecido');
       
       return response.data;
     },
