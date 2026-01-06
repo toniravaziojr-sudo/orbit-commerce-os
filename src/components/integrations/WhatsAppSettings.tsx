@@ -31,7 +31,7 @@ interface WhatsAppConfig {
 }
 
 export function WhatsAppSettings() {
-  const { currentTenant, profile } = useAuth();
+  const { currentTenant, profile, hasRole } = useAuth();
   const { toast } = useToast();
   const tenantId = currentTenant?.id || profile?.current_tenant_id;
   
@@ -40,6 +40,7 @@ export function WhatsAppSettings() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isRefreshingQr, setIsRefreshingQr] = useState(false);
+  const [isEnablingChannel, setIsEnablingChannel] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [testPhoneInput, setTestPhoneInput] = useState("");
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
@@ -195,6 +196,30 @@ export function WhatsAppSettings() {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleEnableWhatsApp = async () => {
+    if (!tenantId) return;
+    setIsEnablingChannel(true);
+    try {
+      // Create whatsapp_configs entry for this tenant via edge function
+      const { data, error } = await supabase.functions.invoke("whatsapp-enable", {
+        body: { tenant_id: tenantId },
+      });
+      
+      if (error) throw error;
+      
+      if (data?.success) {
+        toast({ title: "WhatsApp habilitado", description: "Agora você pode conectar seu WhatsApp" });
+        await fetchConfig();
+      } else {
+        throw new Error(data?.error || "Erro ao habilitar canal");
+      }
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } finally {
+      setIsEnablingChannel(false);
     }
   };
 
