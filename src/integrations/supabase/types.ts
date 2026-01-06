@@ -3313,6 +3313,176 @@ export type Database = {
           },
         ]
       }
+      media_calendar_items: {
+        Row: {
+          asset_metadata: Json | null
+          asset_thumbnail_url: string | null
+          asset_url: string | null
+          campaign_id: string
+          content_type: Database["public"]["Enums"]["media_content_type"]
+          copy: string | null
+          created_at: string
+          cta: string | null
+          edited_at: string | null
+          edited_by: string | null
+          generation_prompt: string | null
+          hashtags: string[] | null
+          id: string
+          metadata: Json | null
+          publish_results: Json | null
+          published_at: string | null
+          reference_urls: string[] | null
+          scheduled_date: string
+          scheduled_time: string | null
+          status: Database["public"]["Enums"]["media_item_status"]
+          target_platforms: string[] | null
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          version: number | null
+        }
+        Insert: {
+          asset_metadata?: Json | null
+          asset_thumbnail_url?: string | null
+          asset_url?: string | null
+          campaign_id: string
+          content_type?: Database["public"]["Enums"]["media_content_type"]
+          copy?: string | null
+          created_at?: string
+          cta?: string | null
+          edited_at?: string | null
+          edited_by?: string | null
+          generation_prompt?: string | null
+          hashtags?: string[] | null
+          id?: string
+          metadata?: Json | null
+          publish_results?: Json | null
+          published_at?: string | null
+          reference_urls?: string[] | null
+          scheduled_date: string
+          scheduled_time?: string | null
+          status?: Database["public"]["Enums"]["media_item_status"]
+          target_platforms?: string[] | null
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+          version?: number | null
+        }
+        Update: {
+          asset_metadata?: Json | null
+          asset_thumbnail_url?: string | null
+          asset_url?: string | null
+          campaign_id?: string
+          content_type?: Database["public"]["Enums"]["media_content_type"]
+          copy?: string | null
+          created_at?: string
+          cta?: string | null
+          edited_at?: string | null
+          edited_by?: string | null
+          generation_prompt?: string | null
+          hashtags?: string[] | null
+          id?: string
+          metadata?: Json | null
+          publish_results?: Json | null
+          published_at?: string | null
+          reference_urls?: string[] | null
+          scheduled_date?: string
+          scheduled_time?: string | null
+          status?: Database["public"]["Enums"]["media_item_status"]
+          target_platforms?: string[] | null
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_calendar_items_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "media_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_calendar_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_campaigns: {
+        Row: {
+          approved_count: number | null
+          created_at: string
+          created_by: string | null
+          days_of_week: number[] | null
+          description: string | null
+          end_date: string
+          excluded_dates: string[] | null
+          id: string
+          items_count: number | null
+          metadata: Json | null
+          months: number[] | null
+          name: string
+          prompt: string
+          published_count: number | null
+          start_date: string
+          status: Database["public"]["Enums"]["media_campaign_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          days_of_week?: number[] | null
+          description?: string | null
+          end_date: string
+          excluded_dates?: string[] | null
+          id?: string
+          items_count?: number | null
+          metadata?: Json | null
+          months?: number[] | null
+          name: string
+          prompt: string
+          published_count?: number | null
+          start_date: string
+          status?: Database["public"]["Enums"]["media_campaign_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          days_of_week?: number[] | null
+          description?: string | null
+          end_date?: string
+          excluded_dates?: string[] | null
+          id?: string
+          items_count?: number | null
+          metadata?: Json | null
+          months?: number[] | null
+          name?: string
+          prompt?: string
+          published_count?: number | null
+          start_date?: string
+          status?: Database["public"]["Enums"]["media_campaign_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_library: {
         Row: {
           created_at: string
@@ -5996,6 +6166,77 @@ export type Database = {
           },
         ]
       }
+      social_connections: {
+        Row: {
+          access_token: string | null
+          connected_by: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          last_sync_at: string | null
+          metadata: Json | null
+          profile_data: Json | null
+          provider: Database["public"]["Enums"]["social_provider"]
+          provider_account_id: string | null
+          provider_account_name: string | null
+          provider_page_id: string | null
+          refresh_token: string | null
+          scopes: string[] | null
+          status: Database["public"]["Enums"]["social_connection_status"]
+          tenant_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connected_by?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          profile_data?: Json | null
+          provider: Database["public"]["Enums"]["social_provider"]
+          provider_account_id?: string | null
+          provider_account_name?: string | null
+          provider_page_id?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          status?: Database["public"]["Enums"]["social_connection_status"]
+          tenant_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connected_by?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          last_sync_at?: string | null
+          metadata?: Json | null
+          profile_data?: Json | null
+          provider?: Database["public"]["Enums"]["social_provider"]
+          provider_account_id?: string | null
+          provider_account_name?: string | null
+          provider_page_id?: string | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          status?: Database["public"]["Enums"]["social_connection_status"]
+          tenant_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       special_tenants: {
         Row: {
           created_at: string
@@ -7566,6 +7807,33 @@ export type Database = {
         | "unknown"
       email_purpose: "notifications" | "support" | "manual"
       mailbox_status: "pending_dns" | "active" | "error" | "disabled"
+      media_campaign_status:
+        | "draft"
+        | "planning"
+        | "generating"
+        | "ready"
+        | "active"
+        | "paused"
+        | "completed"
+        | "archived"
+      media_content_type:
+        | "image"
+        | "video"
+        | "carousel"
+        | "story"
+        | "reel"
+        | "text"
+      media_item_status:
+        | "draft"
+        | "suggested"
+        | "review"
+        | "approved"
+        | "generating_asset"
+        | "scheduled"
+        | "publishing"
+        | "published"
+        | "failed"
+        | "skipped"
       message_delivery_status:
         | "queued"
         | "sent"
@@ -7607,6 +7875,20 @@ export type Database = {
         | "delivered"
         | "returned"
         | "failed"
+      social_connection_status:
+        | "disconnected"
+        | "connecting"
+        | "connected"
+        | "error"
+        | "expired"
+      social_provider:
+        | "instagram"
+        | "facebook"
+        | "tiktok"
+        | "youtube"
+        | "linkedin"
+        | "twitter"
+        | "pinterest"
       support_channel_type:
         | "whatsapp"
         | "email"
@@ -7767,6 +8049,36 @@ export const Constants = {
       ],
       email_purpose: ["notifications", "support", "manual"],
       mailbox_status: ["pending_dns", "active", "error", "disabled"],
+      media_campaign_status: [
+        "draft",
+        "planning",
+        "generating",
+        "ready",
+        "active",
+        "paused",
+        "completed",
+        "archived",
+      ],
+      media_content_type: [
+        "image",
+        "video",
+        "carousel",
+        "story",
+        "reel",
+        "text",
+      ],
+      media_item_status: [
+        "draft",
+        "suggested",
+        "review",
+        "approved",
+        "generating_asset",
+        "scheduled",
+        "publishing",
+        "published",
+        "failed",
+        "skipped",
+      ],
       message_delivery_status: [
         "queued",
         "sent",
@@ -7812,6 +8124,22 @@ export const Constants = {
         "delivered",
         "returned",
         "failed",
+      ],
+      social_connection_status: [
+        "disconnected",
+        "connecting",
+        "connected",
+        "error",
+        "expired",
+      ],
+      social_provider: [
+        "instagram",
+        "facebook",
+        "tiktok",
+        "youtube",
+        "linkedin",
+        "twitter",
+        "pinterest",
       ],
       support_channel_type: [
         "whatsapp",
