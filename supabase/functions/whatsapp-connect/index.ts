@@ -85,15 +85,15 @@ async function autoProvisionInstance(
   const instanceName = tenantData?.slug || tenantId.substring(0, 8);
 
   // Create instance via Z-API Integrator API
+  // IMPORTANT: The integrator endpoint uses "Authorization: Bearer {token}" not "Client-Token"
   console.log(`[whatsapp-connect][${traceId}] Creating Z-API instance for tenant ${instanceName}`);
   console.log(`[whatsapp-connect][${traceId}] Client token length: ${clientToken.length}, first 4 chars: ${clientToken.substring(0, 4)}`);
   
-  // Try only Client-Token header (official Z-API format)
   const zapiResponse = await fetch("https://api.z-api.io/instances/integrator/on-demand", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Client-Token": clientToken,
+      "Authorization": `Bearer ${clientToken}`,
     },
     body: JSON.stringify({
       name: `${instanceName}`,
