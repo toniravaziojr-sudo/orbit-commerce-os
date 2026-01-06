@@ -8,16 +8,16 @@ const corsHeaders = {
 /**
  * whatsapp-enable: Habilita o canal WhatsApp para um tenant.
  * 
- * Este endpoint NÃO cria instâncias Z-API automaticamente.
- * O fluxo correto é:
- * 1. Admin cria a instância no painel Z-API manualmente
- * 2. Admin configura as credenciais em Integrações da Plataforma (whatsapp-admin-instances)
- * 3. Tenant clica em "Habilitar WhatsApp" → este endpoint cria o registro básico
- * 4. Tenant clica em "Conectar" → whatsapp-connect busca QR code
+ * Este endpoint CRIA automaticamente uma instância Z-API usando a API de integrador.
+ * O fluxo:
+ * 1. Tenant clica em "Habilitar WhatsApp"
+ * 2. Este endpoint busca o ZAPI_CLIENT_TOKEN (credencial da plataforma)
+ * 3. Cria uma nova instância no Z-API via API de integrador
+ * 4. Salva instance_id e instance_token no whatsapp_configs
+ * 5. Tenant pode então clicar em "Conectar" para gerar QR code
  */
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -29,45 +29,40 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Get auth header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing authorization header" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create client with user's token to verify auth
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Get user from token
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
     if (authError || !user) {
       console.error(`[whatsapp-enable][${traceId}] Auth error:`, authError);
       return new Response(
         JSON.stringify({ success: false, error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Parse body
     const { tenant_id } = await req.json();
     if (!tenant_id) {
       return new Response(
         JSON.stringify({ success: false, error: "tenant_id is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log(`[whatsapp-enable][${traceId}] User ${user.id} requesting enable for tenant ${tenant_id}`);
 
-    // Create service role client for DB operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Check if user has owner/admin role for this tenant
+    // Check permission
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
@@ -80,26 +75,24 @@ Deno.serve(async (req) => {
       console.error(`[whatsapp-enable][${traceId}] Role check error:`, roleError);
       return new Response(
         JSON.stringify({ success: false, error: "Error checking permissions" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     if (!roleData) {
-      console.log(`[whatsapp-enable][${traceId}] User ${user.id} lacks owner/admin role for tenant ${tenant_id}`);
       return new Response(
         JSON.stringify({ success: false, error: "Permission denied - requires owner or admin role" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check if config already exists
+    // Check if already has instance
     const { data: existingConfig } = await supabase
       .from("whatsapp_configs")
       .select("id, instance_id, is_enabled")
       .eq("tenant_id", tenant_id)
       .maybeSingle();
 
-    // If already has instance_id and is enabled, just return success
     if (existingConfig?.instance_id && existingConfig?.is_enabled) {
       console.log(`[whatsapp-enable][${traceId}] WhatsApp already enabled for tenant`);
       return new Response(
@@ -108,10 +101,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // If config exists but not enabled, just enable it
     if (existingConfig?.instance_id) {
-      console.log(`[whatsapp-enable][${traceId}] Enabling existing config`);
-      
       await supabase
         .from("whatsapp_configs")
         .update({ is_enabled: true })
@@ -123,12 +113,71 @@ Deno.serve(async (req) => {
       );
     }
 
-    // No config exists or no instance_id - create/update basic config
-    // The instance_id, instance_token, client_token will be set later via:
-    // - Platform admin in whatsapp-admin-instances (for platform tenant)
-    // - Or manually configured
-    console.log(`[whatsapp-enable][${traceId}] Creating basic config for tenant (credentials pending)`);
+    // Get platform Z-API client token from secrets
+    const { data: secretData, error: secretError } = await supabase
+      .from("platform_secrets")
+      .select("value")
+      .eq("key", "ZAPI_CLIENT_TOKEN")
+      .maybeSingle();
 
+    if (secretError || !secretData?.value) {
+      console.error(`[whatsapp-enable][${traceId}] ZAPI_CLIENT_TOKEN not configured`);
+      return new Response(
+        JSON.stringify({ success: false, error: "Credenciais Z-API da plataforma não configuradas. Contate o administrador." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const clientToken = secretData.value;
+
+    // Get tenant info for instance name
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("name, slug")
+      .eq("id", tenant_id)
+      .single();
+
+    const instanceName = tenantData?.slug || tenant_id.substring(0, 8);
+
+    // Create instance via Z-API Integrator API
+    console.log(`[whatsapp-enable][${traceId}] Creating Z-API instance for tenant ${instanceName}`);
+    
+    const zapiResponse = await fetch("https://api.z-api.io/instances/integrator/on-demand", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Client-Token": clientToken,
+      },
+      body: JSON.stringify({
+        name: `cc-${instanceName}`,
+      }),
+    });
+
+    if (!zapiResponse.ok) {
+      const errorText = await zapiResponse.text();
+      console.error(`[whatsapp-enable][${traceId}] Z-API error:`, zapiResponse.status, errorText);
+      return new Response(
+        JSON.stringify({ success: false, error: `Erro ao criar instância Z-API: ${zapiResponse.status}` }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const zapiData = await zapiResponse.json();
+    console.log(`[whatsapp-enable][${traceId}] Z-API response:`, JSON.stringify(zapiData));
+
+    // Z-API returns: { id, token } or similar structure
+    const instanceId = zapiData.id || zapiData.instanceId;
+    const instanceToken = zapiData.token || zapiData.instanceToken;
+
+    if (!instanceId || !instanceToken) {
+      console.error(`[whatsapp-enable][${traceId}] Invalid Z-API response:`, zapiData);
+      return new Response(
+        JSON.stringify({ success: false, error: "Resposta inválida da Z-API" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Save to whatsapp_configs
     const webhookUrl = `${supabaseUrl}/functions/v1/support-webhook?channel=whatsapp&tenant=${tenant_id}`;
 
     const { error: upsertError } = await supabase
@@ -136,11 +185,12 @@ Deno.serve(async (req) => {
       .upsert(
         {
           tenant_id,
+          instance_id: instanceId,
+          instance_token: instanceToken,
+          client_token: clientToken,
           is_enabled: true,
           connection_status: "disconnected",
           webhook_url: webhookUrl,
-          // instance_id, instance_token, client_token ficam NULL
-          // Serão preenchidos pelo admin ou via outro fluxo
         },
         { onConflict: "tenant_id" }
       );
@@ -148,18 +198,18 @@ Deno.serve(async (req) => {
     if (upsertError) {
       console.error(`[whatsapp-enable][${traceId}] Upsert error:`, upsertError);
       return new Response(
-        JSON.stringify({ success: false, error: "Error enabling WhatsApp" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: false, error: "Error saving WhatsApp config" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[whatsapp-enable][${traceId}] Successfully enabled WhatsApp for tenant ${tenant_id} (credentials pending)`);
+    console.log(`[whatsapp-enable][${traceId}] Successfully created instance ${instanceId} for tenant ${tenant_id}`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: "WhatsApp habilitado. Configure as credenciais para conectar.",
-        credentials_pending: true
+        message: "WhatsApp habilitado! Clique em Conectar para gerar o QR Code.",
+        instance_id: instanceId,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -167,7 +217,7 @@ Deno.serve(async (req) => {
     console.error(`[whatsapp-enable][${traceId}] Unexpected error:`, error);
     return new Response(
       JSON.stringify({ success: false, error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
