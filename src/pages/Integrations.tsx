@@ -1,3 +1,4 @@
+import { Navigate } from "react-router-dom";
 import { 
   Plug, 
   CreditCard, 
@@ -11,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { WhatsAppSettings } from "@/components/integrations/WhatsAppSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
+import { useTenantType } from "@/hooks/useTenantType";
 
 // Future integrations
 const FUTURE_INTEGRATIONS = [
@@ -25,7 +27,13 @@ const FUTURE_INTEGRATIONS = [
 ];
 
 export default function Integrations() {
+  const { isPlatformTenant, isLoading } = useTenantType();
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
+
+  // Platform tenant: redirect to platform integrations page
+  if (!isLoading && isPlatformTenant) {
+    return <Navigate to="/platform/integrations" replace />;
+  }
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
 

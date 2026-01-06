@@ -129,7 +129,7 @@ const fullNavigation: NavGroup[] = [
 ];
 
 // Navigation for Platform Admin WITHOUT tenant context
-// According to plan: CRM, ERP (sem Logística), Marketing (sem Avaliações/Aumentar Ticket), Sistema
+// Simplified: only platform-specific + emails + settings (customer-only modules removed)
 const platformAdminNavigation: NavGroup[] = [
   {
     label: "Plataforma",
@@ -140,35 +140,14 @@ const platformAdminNavigation: NavGroup[] = [
     ],
   },
   {
-    label: "CRM",
+    label: "Comunicação",
     items: [
-      { title: "Notificações", href: "/notifications", icon: Bell },
-      { title: "Atendimento", href: "/support", icon: MessageSquare },
       { title: "Emails", href: "/emails", icon: Mail },
-    ],
-  },
-  {
-    label: "ERP",
-    items: [
-      { title: "Fiscal", href: "/fiscal", icon: FileText },
-      { title: "Financeiro", href: "/finance", icon: DollarSign },
-      { title: "Compras", href: "/purchases", icon: ShoppingBag },
-      // Logística removed per plan
-    ],
-  },
-  {
-    label: "Marketing",
-    items: [
-      { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
-      { title: "Atribuição", href: "/marketing/atribuicao", icon: TrendingUp },
-      // Aumentar Ticket and Avaliações removed per plan
     ],
   },
   {
     label: "Sistema",
     items: [
-      { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Importar Dados", href: "/import", icon: Upload },
       { title: "Configurações", href: "/settings", icon: Settings },
     ],
   },
