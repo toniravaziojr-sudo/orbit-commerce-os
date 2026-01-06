@@ -324,3 +324,6 @@ verify_jwt = false
 
 [functions.meta-whatsapp-send]
 verify_jwt = false
+
+[functions.media-generate-suggestions]
+verify_jwt = true

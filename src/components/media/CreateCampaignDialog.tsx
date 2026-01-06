@@ -132,16 +132,16 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
               name="prompt"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Objetivo / Briefing</FormLabel>
+                  <FormLabel>Direcionamento da campanha</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Descreva o que você quer comunicar, o tom, o público-alvo, produtos ou serviços a destacar..."
+                      placeholder="Ex: Campanha de Natal com foco em presentes masculinos, tom premium, vídeos curtos para Reels, destacar produtos X e Y, CTA para WhatsApp..."
                       className="min-h-[100px]"
                       {...field} 
                     />
                   </FormControl>
                   <FormDescription>
-                    Quanto mais detalhes, melhores serão as sugestões da IA.
+                    A IA vai usar as informações da sua loja (produtos, categorias, promoções) automaticamente. Aqui você define apenas o direcionamento específico desta campanha.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
