@@ -128,8 +128,8 @@ const fullNavigation: NavGroup[] = [
   },
 ];
 
-// Navigation for Platform Admin WITH tenant context (Comando Central operates as hybrid)
-// Full modules + Plataforma group at top
+// Navigation for Platform Admin (Comando Central) - REDUCED MENU
+// Only the 13 modules defined for admin operation
 const platformAdminNavigation: NavGroup[] = [
   {
     label: "Plataforma",
@@ -140,41 +140,10 @@ const platformAdminNavigation: NavGroup[] = [
     ],
   },
   {
-    label: "Principal",
-    items: [
-      { title: "Dashboard", href: "/", icon: LayoutDashboard },
-      { title: "Central de Execuções", href: "/executions", icon: Activity },
-    ],
-  },
-  {
-    label: "E-commerce",
-    items: [
-      { title: "Pedidos", href: "/orders", icon: ShoppingCart },
-      { title: "Produtos", href: "/products", icon: Package },
-      { title: "Categorias", href: "/categories", icon: FolderTree },
-      { title: "Clientes", href: "/customers", icon: Users },
-      { title: "Descontos", href: "/discounts", icon: Percent },
-    ],
-  },
-  {
-    label: "Loja Online",
-    items: [
-      { title: "Loja Virtual", href: "/storefront", icon: Store },
-      { title: "Carrinho e Checkout", href: "/cart-checkout", icon: ShoppingBag },
-      { title: "Menus", href: "/menus", icon: Menu },
-      { title: "Páginas da Loja", href: "/pages", icon: FileText },
-      { title: "Blog", href: "/blog", icon: BookOpen },
-    ],
-  },
-  {
     label: "Marketing",
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição", href: "/marketing/atribuicao", icon: TrendingUp },
-      { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
-      { title: "Avaliações", href: "/reviews", icon: Star },
-      { title: "Mídias", href: "/media", icon: Image },
-      { title: "Campanhas", href: "/campaigns", icon: Megaphone },
     ],
   },
   {
@@ -190,16 +159,19 @@ const platformAdminNavigation: NavGroup[] = [
     items: [
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
-      { title: "Compras", href: "/purchases", icon: ShoppingBag },
-      { title: "Logística", href: "/shipping", icon: Truck },
     ],
   },
   {
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Importar Dados", href: "/import", icon: Upload },
       { title: "Configurações", href: "/settings", icon: Settings },
+    ],
+  },
+  {
+    label: "Negócio",
+    items: [
+      { title: "Clientes", href: "/customers", icon: Users },
     ],
   },
 ];
