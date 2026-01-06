@@ -206,16 +206,47 @@ export function WhatsAppSettings() {
   const isQrPending = config?.connection_status === "qr_pending";
 
   if (!config?.hasCredentials) {
+    const isOwnerOrAdmin = hasRole('owner') || hasRole('admin');
+    
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted"><MessageCircle className="h-5 w-5 text-muted-foreground" /></div>
-            <div><CardTitle>WhatsApp</CardTitle><CardDescription>Envie notificações via WhatsApp</CardDescription></div>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+              <MessageCircle className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <CardTitle>WhatsApp</CardTitle>
+              <CardDescription>Envie notificações via WhatsApp</CardDescription>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>O canal WhatsApp ainda não foi habilitado para sua loja. Entre em contato com o suporte.</AlertDescription></Alert>
+          {isOwnerOrAdmin ? (
+            <div className="space-y-4">
+              <Alert>
+                <MessageCircle className="h-4 w-4" />
+                <AlertDescription>
+                  O canal WhatsApp ainda não foi habilitado para esta loja.
+                </AlertDescription>
+              </Alert>
+              <Button onClick={handleEnableWhatsApp} disabled={isEnablingChannel}>
+                {isEnablingChannel ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4 mr-2" />
+                )}
+                Habilitar WhatsApp
+              </Button>
+            </div>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                O canal WhatsApp ainda não foi habilitado para sua loja. Entre em contato com o suporte.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
     );
