@@ -2,9 +2,9 @@ import { useState, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, addDays, differenceInDays, startOfMonth, endOfMonth, addMonths } from "date-fns";
+import { format, differenceInDays, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,12 +39,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   description: z.string().optional(),
-  dateRange: z.object({
-    from: z.date().nullable(),
-    to: z.date().nullable(),
-  }).refine((data) => data.from && data.to, {
-    message: "Selecione o período da campanha",
-  }),
+  selectedDates: z.array(z.date()).min(1, "Selecione pelo menos uma data"),
   daysOfWeek: z.array(z.number()),
 });
 
@@ -76,55 +71,75 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       name: "",
       prompt: "",
       description: "",
-      dateRange: {
-        from: null,
-        to: null,
-      },
+      selectedDates: [],
       daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Todos os dias por padrão
     },
   });
 
-  // Watch dateRange to determine if we should show days of week selector
-  const dateRange = useWatch({ control: form.control, name: "dateRange" });
+  // Watch selectedDates to determine if we should show days of week selector
+  const selectedDates = useWatch({ control: form.control, name: "selectedDates" });
   
   const showDaysOfWeek = useMemo(() => {
-    if (!dateRange?.from || !dateRange?.to) return false;
-    const diff = differenceInDays(dateRange.to, dateRange.from);
-    return diff >= 7;
-  }, [dateRange]);
+    if (!selectedDates || selectedDates.length < 7) return false;
+    // Check if dates span 7+ days
+    if (selectedDates.length >= 7) {
+      const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+      const diff = differenceInDays(sorted[sorted.length - 1], sorted[0]);
+      return diff >= 6; // 7 days = diff of 6
+    }
+    return false;
+  }, [selectedDates]);
 
-  // Tomorrow's date (minimum selectable date)
-  const tomorrow = addDays(new Date(), 1);
+  // Today at start of day (for comparison)
+  const today = startOfDay(new Date());
   
   // Shortcuts for quick date selection
   const setCurrentMonth = () => {
     const now = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
     const endOfCurrentMonth = endOfMonth(now);
-    // Start from tomorrow if we're in the current month
-    const fromDate = tomorrow > endOfCurrentMonth ? startOfMonth(addMonths(now, 1)) : tomorrow;
-    form.setValue("dateRange", {
-      from: fromDate,
-      to: endOfCurrentMonth > tomorrow ? endOfCurrentMonth : endOfMonth(addMonths(now, 1)),
-    });
+    
+    // Get all days from tomorrow to end of month
+    if (tomorrow <= endOfCurrentMonth) {
+      const dates = eachDayOfInterval({ start: tomorrow, end: endOfCurrentMonth });
+      form.setValue("selectedDates", dates);
+    } else {
+      // If today is the last day of month, select next month
+      const next = addMonths(now, 1);
+      const dates = eachDayOfInterval({ start: startOfMonth(next), end: endOfMonth(next) });
+      form.setValue("selectedDates", dates);
+    }
   };
 
   const setNextMonth = () => {
     const next = addMonths(new Date(), 1);
-    form.setValue("dateRange", {
-      from: startOfMonth(next),
-      to: endOfMonth(next),
-    });
+    const dates = eachDayOfInterval({ start: startOfMonth(next), end: endOfMonth(next) });
+    form.setValue("selectedDates", dates);
   };
 
   const clearSelection = () => {
-    form.setValue("dateRange", { from: null, to: null });
+    form.setValue("selectedDates", []);
+  };
+
+  const removeDate = (dateToRemove: Date) => {
+    const current = form.getValues("selectedDates");
+    form.setValue(
+      "selectedDates",
+      current.filter((d) => d.getTime() !== dateToRemove.getTime())
+    );
   };
 
   const onSubmit = async (values: FormValues) => {
-    if (!values.dateRange.from || !values.dateRange.to) return;
+    if (!values.selectedDates || values.selectedDates.length === 0) return;
     
     setIsSubmitting(true);
     try {
+      // Sort dates and get start/end
+      const sortedDates = [...values.selectedDates].sort((a, b) => a.getTime() - b.getTime());
+      const startDate = sortedDates[0];
+      const endDate = sortedDates[sortedDates.length - 1];
+      
       // If range is less than 7 days, use all days of week
       const daysOfWeek = showDaysOfWeek ? values.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
       
@@ -132,8 +147,8 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
         name: values.name,
         prompt: values.prompt,
         description: values.description,
-        start_date: format(values.dateRange.from, "yyyy-MM-dd"),
-        end_date: format(values.dateRange.to, "yyyy-MM-dd"),
+        start_date: format(startDate, "yyyy-MM-dd"),
+        end_date: format(endDate, "yyyy-MM-dd"),
         days_of_week: daysOfWeek,
       });
       form.reset();
@@ -193,10 +208,10 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
 
             <FormField
               control={form.control}
-              name="dateRange"
+              name="selectedDates"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
-                  <FormLabel>Período da campanha</FormLabel>
+                  <FormLabel>Datas da campanha</FormLabel>
                   <div className="flex flex-wrap gap-2 mb-2">
                     <Button
                       type="button"
@@ -229,21 +244,14 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                         <Button
                           variant="outline"
                           className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value?.from && "text-muted-foreground"
+                            "w-full pl-3 text-left font-normal min-h-[40px]",
+                            field.value.length === 0 && "text-muted-foreground"
                           )}
                         >
-                          {field.value?.from ? (
-                            field.value.to ? (
-                              <>
-                                {format(field.value.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
-                                {format(field.value.to, "dd/MM/yyyy", { locale: ptBR })}
-                              </>
-                            ) : (
-                              format(field.value.from, "dd/MM/yyyy", { locale: ptBR })
-                            )
+                          {field.value.length > 0 ? (
+                            <span>{field.value.length} data(s) selecionada(s)</span>
                           ) : (
-                            <span>Selecione o período</span>
+                            <span>Clique para selecionar datas</span>
                           )}
                           <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -252,25 +260,41 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                     <PopoverContent className="w-auto p-0" align="start">
                       <Calendar
                         initialFocus
-                        mode="range"
-                        defaultMonth={field.value?.from || tomorrow}
-                        selected={field.value?.from && field.value?.to ? { from: field.value.from, to: field.value.to } : undefined}
-                        onSelect={(range) => {
-                          if (range?.from && range?.to) {
-                            field.onChange({ from: range.from, to: range.to });
-                          } else if (range?.from) {
-                            field.onChange({ from: range.from, to: null });
-                          } else {
-                            field.onChange({ from: null, to: null });
-                          }
+                        mode="multiple"
+                        defaultMonth={new Date()}
+                        selected={field.value}
+                        onSelect={(dates) => {
+                          field.onChange(dates || []);
                         }}
                         numberOfMonths={2}
                         locale={ptBR}
-                        disabled={(date) => date < tomorrow}
+                        disabled={(date) => startOfDay(date) <= today}
                         className="pointer-events-auto"
                       />
                     </PopoverContent>
                   </Popover>
+                  {/* Show selected dates as chips */}
+                  {field.value.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2 max-h-[100px] overflow-y-auto">
+                      {[...field.value]
+                        .sort((a, b) => a.getTime() - b.getTime())
+                        .map((date) => (
+                          <span
+                            key={date.getTime()}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary/10 text-primary"
+                          >
+                            {format(date, "dd/MM", { locale: ptBR })}
+                            <button
+                              type="button"
+                              onClick={() => removeDate(date)}
+                              className="hover:text-destructive"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
