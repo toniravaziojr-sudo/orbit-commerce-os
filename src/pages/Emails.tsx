@@ -1,18 +1,29 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Inbox, Send, Headphones, Settings } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Mail, Inbox, Send, Headphones, Settings, Info, ExternalLink } from "lucide-react";
 import { MailboxList } from "@/components/emails/MailboxList";
 import { MailboxInbox } from "@/components/emails/MailboxInbox";
 import { EmailDnsSettings } from "@/components/emails/EmailDnsSettings";
 import { EmailNotificationsSettings } from "@/components/emails/EmailNotificationsSettings";
 import { EmailSupportSettings } from "@/components/emails/EmailSupportSettings";
 import { useMailboxes } from "@/hooks/useMailboxes";
+import { useTenantType } from "@/hooks/useTenantType";
 
 export default function Emails() {
   const [activeTab, setActiveTab] = useState("config");
   const [selectedMailboxId, setSelectedMailboxId] = useState<string | null>(null);
   const { mailboxes } = useMailboxes();
+  const { isPlatformTenant } = useTenantType();
+
+  // Proteção: forçar aba válida para tenant plataforma
+  useEffect(() => {
+    if (isPlatformTenant && activeTab === "config") {
+      setActiveTab("mailboxes");
+    }
+  }, [isPlatformTenant, activeTab]);
 
   const handleOpenInbox = (mailboxId: string) => {
     setSelectedMailboxId(mailboxId);
@@ -29,12 +40,14 @@ export default function Emails() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid lg:grid-cols-5">
-          <TabsTrigger value="config" className="gap-2">
-            <Settings className="h-4 w-4" />
-            <span className="hidden sm:inline">Configurações</span>
-            <span className="sm:hidden">Config</span>
-          </TabsTrigger>
+        <TabsList className={`grid w-full ${isPlatformTenant ? 'grid-cols-3' : 'grid-cols-4'} lg:w-auto lg:inline-grid ${isPlatformTenant ? 'lg:grid-cols-4' : 'lg:grid-cols-5'}`}>
+          {!isPlatformTenant && (
+            <TabsTrigger value="config" className="gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Configurações</span>
+              <span className="sm:hidden">Config</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="mailboxes" className="gap-2">
             <Mail className="h-4 w-4" />
             <span className="hidden sm:inline">Caixas</span>
@@ -60,7 +73,25 @@ export default function Emails() {
         </TabsList>
 
         <TabsContent value="config" className="mt-6">
-          <EmailDnsSettings />
+          {isPlatformTenant ? (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <span>
+                  A configuração de domínio do sistema fica em{" "}
+                  <strong>Integrações da Plataforma</strong>.
+                </span>
+                <Link 
+                  to="/platform-integrations" 
+                  className="flex items-center gap-1 text-primary hover:underline ml-4"
+                >
+                  Ir para Integrações <ExternalLink className="h-3 w-3" />
+                </Link>
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <EmailDnsSettings />
+          )}
         </TabsContent>
 
         <TabsContent value="mailboxes" className="mt-6">

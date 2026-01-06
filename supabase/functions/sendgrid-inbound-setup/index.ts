@@ -130,7 +130,7 @@ serve(async (req: Request): Promise<Response> => {
           },
           body: JSON.stringify({
             url: webhookUrl,
-            spam_check: false,
+            spam_check: true,
             send_raw: false,
           }),
         });
@@ -153,7 +153,7 @@ serve(async (req: Request): Promise<Response> => {
           body: JSON.stringify({
             hostname,
             url: webhookUrl,
-            spam_check: false,
+            spam_check: true,
             send_raw: false,
           }),
         });
