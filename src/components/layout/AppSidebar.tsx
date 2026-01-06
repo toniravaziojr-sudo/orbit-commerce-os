@@ -94,11 +94,11 @@ const fullNavigation: NavGroup[] = [
     label: "Marketing",
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
-      { title: "Atribuição", href: "/marketing/atribuicao", icon: TrendingUp },
+      { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
       { title: "Aumentar Ticket", href: "/offers", icon: TrendingUp },
       { title: "Avaliações", href: "/reviews", icon: Star },
-      { title: "Mídias", href: "/media", icon: Image },
-      { title: "Campanhas", href: "/campaigns", icon: Megaphone },
+      { title: "Gestão de Mídias", href: "/media", icon: Image },
+      { title: "Criador de campanhas", href: "/campaigns", icon: Megaphone },
     ],
   },
   {
@@ -143,7 +143,7 @@ const platformAdminNavigation: NavGroup[] = [
     label: "Marketing",
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
-      { title: "Atribuição", href: "/marketing/atribuicao", icon: TrendingUp },
+      { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
     ],
   },
   {
