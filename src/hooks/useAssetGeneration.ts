@@ -219,7 +219,7 @@ export function useGenerateImage() {
   return useMutation({
     mutationFn: async ({
       calendarItemId,
-      variantCount = 4,
+      variantCount = 1,
       usePackshot = false,
     }: {
       calendarItemId: string;

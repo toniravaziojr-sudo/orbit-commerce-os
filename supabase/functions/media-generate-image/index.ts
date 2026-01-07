@@ -12,6 +12,81 @@ interface GenerateRequest {
   use_packshot?: boolean;
 }
 
+interface ProductMatch {
+  id: string;
+  name: string;
+  image_url: string | null;
+}
+
+// Extract product references from text and search for matches
+async function findProductsInText(
+  supabase: any,
+  tenantId: string,
+  text: string
+): Promise<ProductMatch[]> {
+  const matches: ProductMatch[] = [];
+  
+  // Get all products for this tenant with their images
+  const { data: products, error } = await supabase
+    .from("products")
+    .select(`
+      id,
+      name,
+      sku,
+      product_images!inner(url, is_primary, sort_order)
+    `)
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error || !products || products.length === 0) {
+    console.log("No products found for tenant:", tenantId);
+    return matches;
+  }
+
+  const textLower = text.toLowerCase();
+
+  for (const product of products) {
+    const productNameLower = product.name.toLowerCase();
+    
+    // Check if the product name (or significant parts) appears in the text
+    // Split product name into words and check for matches
+    const productWords = productNameLower
+      .replace(/[()]/g, " ")
+      .split(/\s+/)
+      .filter((w: string) => w.length > 3); // Ignore small words like "de", "com", etc.
+    
+    // Calculate how many significant words match
+    let matchCount = 0;
+    for (const word of productWords) {
+      if (textLower.includes(word)) {
+        matchCount++;
+      }
+    }
+    
+    // If at least 2 significant words match OR if product name is short and matches
+    const matchThreshold = productWords.length <= 2 ? 1 : 2;
+    
+    if (matchCount >= matchThreshold) {
+      // Get the primary image or the first image
+      const images = product.product_images || [];
+      const primaryImage = images.find((img: any) => img.is_primary);
+      const firstImage = images.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
+      const imageUrl = primaryImage?.url || firstImage?.url || null;
+      
+      matches.push({
+        id: product.id,
+        name: product.name,
+        image_url: imageUrl,
+      });
+      
+      console.log(`Product match found: "${product.name}" (${matchCount}/${productWords.length} words matched)`);
+    }
+  }
+
+  return matches;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -41,7 +116,7 @@ serve(async (req) => {
       );
     }
 
-    const { calendar_item_id, variant_count = 4, use_packshot = false }: GenerateRequest = await req.json();
+    const { calendar_item_id, variant_count = 1, use_packshot = false }: GenerateRequest = await req.json();
 
     if (!calendar_item_id) {
       return new Response(
@@ -97,6 +172,24 @@ serve(async (req) => {
       .eq("tenant_id", tenantId)
       .single();
 
+    // ============ PRODUCT DETECTION ============
+    // Combine all text sources to search for product references
+    const searchText = [
+      calendarItem.campaign.prompt || "",
+      calendarItem.generation_prompt || "",
+      calendarItem.copy || "",
+      calendarItem.campaign.name || "",
+    ].join(" ");
+
+    console.log("Searching for products in:", searchText);
+    
+    const matchedProducts = await findProductsInText(supabase, tenantId, searchText);
+    console.log(`Found ${matchedProducts.length} product matches`);
+
+    // Get the primary product image if we found matches
+    const productImageUrl = matchedProducts.length > 0 ? matchedProducts[0].image_url : null;
+    const productNames = matchedProducts.map(p => p.name);
+
     // Build the final prompt
     const promptParts: string[] = [];
 
@@ -113,6 +206,12 @@ serve(async (req) => {
       "Evite qualquer claim médico, antes/depois ou promessa de resultado",
       "Estilo editorial limpo, moderno e premium",
     ];
+
+    // Add matched products context
+    if (productNames.length > 0) {
+      promptParts.push(`PRODUTOS REAIS DA LOJA (usar imagem de referência fornecida): ${productNames.join(", ")}`);
+      promptParts.push("IMPORTANTE: A imagem de referência mostra o produto REAL. Preserve EXATAMENTE o rótulo, cores, design e identidade visual do produto.");
+    }
 
     // Add brand context if available
     if (brandContext) {
@@ -162,10 +261,20 @@ serve(async (req) => {
       ...baseRules,
     ].join("\n");
 
-    // Determine if we should use packshot
-    const packshotUrl = use_packshot && brandContext?.packshot_url 
-      ? brandContext.packshot_url 
-      : null;
+    // Determine which reference image to use
+    // Priority: 1) Matched product image, 2) Brand packshot (if enabled), 3) None
+    let referenceImageUrl: string | null = null;
+    let referenceSource: string | null = null;
+
+    if (productImageUrl) {
+      referenceImageUrl = productImageUrl;
+      referenceSource = "product";
+      console.log("Using product image as reference:", productImageUrl);
+    } else if (use_packshot && brandContext?.packshot_url) {
+      referenceImageUrl = brandContext.packshot_url;
+      referenceSource = "packshot";
+      console.log("Using brand packshot as reference:", brandContext.packshot_url);
+    }
 
     // Create generation record with status 'queued'
     const { data: generation, error: genError } = await supabase
@@ -173,13 +282,15 @@ serve(async (req) => {
       .insert({
         tenant_id: tenantId,
         calendar_item_id: calendar_item_id,
-        provider: "openai",
-        model: "gpt-image-1",
+        provider: "lovable",
+        model: "gemini-2.5-flash-image-preview",
         prompt_final: promptFinal,
         brand_context_snapshot: brandContext || null,
         settings: {
           use_packshot,
-          packshot_url: packshotUrl,
+          packshot_url: referenceImageUrl,
+          reference_source: referenceSource,
+          matched_products: matchedProducts,
           content_type: calendarItem.content_type,
         },
         status: "queued",
@@ -197,7 +308,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generation queued: ${generation.id}`);
+    console.log(`Generation queued: ${generation.id}, reference: ${referenceSource || "none"}`);
 
     // Trigger the processing function immediately (fire and forget)
     try {
@@ -218,7 +329,10 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         generation_id: generation.id,
-        message: "Geração iniciada" 
+        matched_products: matchedProducts.map(p => p.name),
+        message: matchedProducts.length > 0 
+          ? `Geração iniciada com produto real: ${matchedProducts[0].name}` 
+          : "Geração iniciada" 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

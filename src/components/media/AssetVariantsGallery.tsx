@@ -15,6 +15,7 @@ import {
   ImageIcon,
   Sparkles,
   Package,
+  Expand,
 } from "lucide-react";
 import {
   useAssetGenerations,
@@ -25,6 +26,7 @@ import {
   type AssetVariant,
 } from "@/hooks/useAssetGeneration";
 import { RegenerateFeedbackModal } from "./RegenerateFeedbackModal";
+import { ImageLightbox } from "./ImageLightbox";
 
 interface AssetVariantsGalleryProps {
   calendarItemId: string;
@@ -41,6 +43,8 @@ export function AssetVariantsGallery({
   const [regenerateModalOpen, setRegenerateModalOpen] = useState(false);
   const [variantToRegenerate, setVariantToRegenerate] = useState<string | null>(null);
   const [usePackshot, setUsePackshot] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
 
   const { data: generations, isLoading: loadingGenerations } = useAssetGenerations(calendarItemId);
   const { data: variants, isLoading: loadingVariants } = useAllVariantsForItem(calendarItemId);
@@ -94,7 +98,7 @@ export function AssetVariantsGallery({
   const handleGenerate = () => {
     generateImage.mutate({ 
       calendarItemId, 
-      variantCount: 4,
+      variantCount: 1,
       usePackshot: usePackshot && hasPackshot,
     });
   };
@@ -109,6 +113,11 @@ export function AssetVariantsGallery({
   const handleRegenerate = (variantId: string) => {
     setVariantToRegenerate(variantId);
     setRegenerateModalOpen(true);
+  };
+
+  const handleOpenLightbox = (imageUrl: string) => {
+    setLightboxImageUrl(imageUrl);
+    setLightboxOpen(true);
   };
 
   const isGenerating = generations?.some(
@@ -154,7 +163,7 @@ export function AssetVariantsGallery({
             ) : (
               <>
                 <ImageIcon className="h-4 w-4 mr-2" />
-                Gerar 4 variações
+                Gerar imagem
               </>
             )}
           </Button>
@@ -171,7 +180,7 @@ export function AssetVariantsGallery({
       {/* Loading state */}
       {(loadingGenerations || loadingVariants) && (
         <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2].map((i) => (
             <Skeleton key={i} className="aspect-square rounded-lg" />
           ))}
         </div>
@@ -180,17 +189,12 @@ export function AssetVariantsGallery({
       {/* Generating state */}
       {isGenerating && !hasVariants && (
         <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <Card
-              key={i}
-              className="aspect-square flex items-center justify-center bg-muted/50"
-            >
-              <div className="text-center space-y-2">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Gerando...</span>
-              </div>
-            </Card>
-          ))}
+          <Card className="aspect-square flex items-center justify-center bg-muted/50">
+            <div className="text-center space-y-2">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Gerando...</span>
+            </div>
+          </Card>
         </div>
       )}
 
@@ -229,9 +233,25 @@ export function AssetVariantsGallery({
                   </Badge>
                 )}
 
+                {/* Expand button - always visible on hover */}
+                {imageUrl && (
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenLightbox(imageUrl);
+                    }}
+                  >
+                    <Expand className="h-4 w-4" />
+                  </Button>
+                )}
+
                 {/* Hover actions */}
                 {!isApproved && imageUrl && (
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                  <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-center gap-2">
                     <Button
                       type="button"
                       size="sm"
@@ -268,19 +288,15 @@ export function AssetVariantsGallery({
             );
           })}
 
-          {/* Generating placeholders when adding more */}
-          {isGenerating &&
-            Array.from({ length: Math.max(0, 4 - variants.length) }).map((_, i) => (
-              <Card
-                key={`generating-${i}`}
-                className="aspect-square flex items-center justify-center bg-muted/50"
-              >
-                <div className="text-center space-y-2">
-                  <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Gerando...</span>
-                </div>
-              </Card>
-            ))}
+          {/* Generating placeholder when adding more */}
+          {isGenerating && (
+            <Card className="aspect-square flex items-center justify-center bg-muted/50">
+              <div className="text-center space-y-2">
+                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Gerando...</span>
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -293,7 +309,7 @@ export function AssetVariantsGallery({
           </p>
           <Button type="button" onClick={handleGenerate} disabled={generateImage.isPending}>
             <Sparkles className="h-4 w-4 mr-2" />
-            Gerar criativos com IA
+            Gerar criativo com IA
           </Button>
         </Card>
       )}
@@ -307,6 +323,14 @@ export function AssetVariantsGallery({
           setRegenerateModalOpen(false);
           setVariantToRegenerate(null);
         }}
+      />
+
+      {/* Image lightbox */}
+      <ImageLightbox
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        imageUrl={lightboxImageUrl}
+        alt="Criativo gerado"
       />
     </div>
   );
