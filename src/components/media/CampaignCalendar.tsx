@@ -126,7 +126,8 @@ export function CampaignCalendar() {
   };
 
   const handleDayClick = (date: Date, dayItems: MediaCalendarItem[]) => {
-    if (!isInCampaignPeriod(date) || !isActiveDay(date)) return;
+    // Allow clicking any day within campaign period (ignore days_of_week restriction for manual actions)
+    if (!isInCampaignPeriod(date)) return;
     
     // Se tem mais de 1 item, abre lista de posts do dia
     if (dayItems.length > 1) {
@@ -482,7 +483,8 @@ export function CampaignCalendar() {
                   const dayItems = itemsByDate.get(dateKey) || [];
                   const inPeriod = isInCampaignPeriod(date);
                   const activeDay = isActiveDay(date);
-                  const isClickable = inPeriod && activeDay;
+                  // Allow clicking any day within campaign period (including today)
+                  const isClickable = inPeriod;
                   const holiday = getHolidayForDate(date);
 
                   return (
@@ -491,17 +493,17 @@ export function CampaignCalendar() {
                       onClick={() => isClickable && handleDayClick(date, dayItems)}
                       className={cn(
                         "min-h-[100px] p-1 rounded-md border transition-colors relative",
-                        inPeriod && activeDay 
+                        inPeriod
                           ? "bg-background border-border cursor-pointer hover:border-primary/50" 
                           : "bg-muted/30 border-transparent",
-                        !activeDay && inPeriod && "bg-muted/10",
+                        !activeDay && inPeriod && "bg-muted/5 border-dashed",
                         holiday && inPeriod && "ring-1 ring-amber-400/50"
                       )}
                     >
                       <div className={cn(
                         "text-xs font-medium p-1 flex items-center gap-1",
                         !inPeriod && "text-muted-foreground/50",
-                        !activeDay && "text-muted-foreground/30"
+                        !activeDay && inPeriod && "text-muted-foreground/70"
                       )}>
                         {format(date, "d")}
                         {holiday && (
