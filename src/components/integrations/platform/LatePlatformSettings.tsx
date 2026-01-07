@@ -84,7 +84,6 @@ export function LatePlatformSettings() {
     }
   };
 
-  const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-auth-callback`;
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-webhook`;
 
   if (isLoading) {
@@ -139,19 +138,10 @@ export function LatePlatformSettings() {
             <div className="space-y-3">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">
-                  <strong>Webhook URL</strong> - Configure esta URL no painel da Late para receber eventos:
+                  <strong>Webhook URL</strong> - Configure esta URL no painel da Late em "API Keys" → Webhook:
                 </p>
                 <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
                   {webhookUrl}
-                </code>
-              </div>
-
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  <strong>Redirect URL</strong> - Configure para o OAuth de contas sociais:
-                </p>
-                <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
-                  {callbackUrl}
                 </code>
               </div>
             </div>

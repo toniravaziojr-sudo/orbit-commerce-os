@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -24,6 +24,8 @@ const EDITABLE_CREDENTIALS = [
   'FIRECRAWL_API_KEY',
   'ZAPI_CLIENT_TOKEN',
   'OPENAI_API_KEY',
+  'LATE_API_KEY',
+  'LATE_WEBHOOK_SECRET',
 ];
 
 serve(async (req) => {
