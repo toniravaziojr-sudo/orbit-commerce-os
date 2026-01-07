@@ -350,3 +350,21 @@ verify_jwt = true
 [functions.media-auto-publish-scheduler]
 verify_jwt = false
 schedule = "*/5 * * * *"
+
+[functions.late-auth-start]
+verify_jwt = true
+
+[functions.late-auth-callback]
+verify_jwt = false
+
+[functions.late-disconnect]
+verify_jwt = true
+
+[functions.late-schedule-post]
+verify_jwt = true
+
+[functions.late-sync-status]
+verify_jwt = true
+
+[functions.late-test-connection]
+verify_jwt = true

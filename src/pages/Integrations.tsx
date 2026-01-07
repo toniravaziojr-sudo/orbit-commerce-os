@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
+import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 
 // Future integrations
@@ -92,6 +93,9 @@ export default function Integrations() {
         <TabsContent value="others" className="space-y-6">
           {/* WhatsApp Settings - provider-agnostic tabs */}
           <WhatsAppProviderTabs />
+
+          {/* Late - Social Publishing */}
+          <LateConnectionSettings />
 
           {/* Future Integrations */}
           <Card>

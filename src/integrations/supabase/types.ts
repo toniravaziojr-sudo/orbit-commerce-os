@@ -3105,6 +3105,160 @@ export type Database = {
           },
         ]
       }
+      late_connections: {
+        Row: {
+          connected_accounts: Json | null
+          connected_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          late_profile_id: string | null
+          late_profile_name: string | null
+          scopes: string[] | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          connected_accounts?: Json | null
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          late_profile_id?: string | null
+          late_profile_name?: string | null
+          scopes?: string[] | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          connected_accounts?: Json | null
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          late_profile_id?: string | null
+          late_profile_name?: string | null
+          scopes?: string[] | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "late_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      late_onboarding_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          redirect_url: string | null
+          state_token: string
+          tenant_id: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          redirect_url?: string | null
+          state_token: string
+          tenant_id: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          redirect_url?: string | null
+          state_token?: string
+          tenant_id?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "late_onboarding_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      late_scheduled_posts: {
+        Row: {
+          calendar_item_id: string
+          created_at: string
+          external_post_id: string | null
+          external_post_ids: Json | null
+          id: string
+          last_error: string | null
+          provider: string
+          published_at: string | null
+          raw_response: Json | null
+          scheduled_for: string | null
+          status: string
+          target_platforms: string[]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_item_id: string
+          created_at?: string
+          external_post_id?: string | null
+          external_post_ids?: Json | null
+          id?: string
+          last_error?: string | null
+          provider?: string
+          published_at?: string | null
+          raw_response?: Json | null
+          scheduled_for?: string | null
+          status?: string
+          target_platforms?: string[]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_item_id?: string
+          created_at?: string
+          external_post_id?: string | null
+          external_post_ids?: Json | null
+          id?: string
+          last_error?: string | null
+          provider?: string
+          published_at?: string | null
+          raw_response?: Json | null
+          scheduled_for?: string | null
+          status?: string
+          target_platforms?: string[]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "late_scheduled_posts_calendar_item_id_fkey"
+            columns: ["calendar_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "late_scheduled_posts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mailboxes: {
         Row: {
           auto_reply_enabled: boolean | null

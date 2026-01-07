@@ -6,8 +6,9 @@ import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlat
 import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
+import { LatePlatformSettings } from "@/components/integrations/platform/LatePlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, FileText, Globe, Truck, Bot, LayoutGrid, Send } from "lucide-react";
+import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,10 @@ export default function PlatformIntegrations() {
             <Bot className="h-4 w-4" />
             <span className="hidden sm:inline">IA</span>
           </TabsTrigger>
+          <TabsTrigger value="late" className="gap-2">
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Late</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -115,6 +120,10 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="ai">
           <AIPlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="late">
+          <LatePlatformSettings />
         </TabsContent>
       </Tabs>
 
