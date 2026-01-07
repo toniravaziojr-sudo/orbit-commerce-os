@@ -104,7 +104,7 @@ serve(async (req) => {
 
     let lateProfileId = existingConnection?.late_profile_id;
 
-    // If no profile exists, create one
+    // If no profile exists, find or create one
     if (!lateProfileId) {
       // Get tenant name for profile
       const { data: tenant } = await supabaseAdmin
@@ -129,17 +129,28 @@ serve(async (req) => {
         });
 
         if (listProfilesRes.ok) {
-          const profiles = await listProfilesRes.json();
-          // Look for a profile matching our tenant
-          const existingProfile = profiles.find((p: { name: string; id: string }) => 
-            p.name === profileName || 
-            p.name.includes(tenant_id.substring(0, 8))
-          );
+          const response = await listProfilesRes.json();
+          // API may return { data: [...] } or just [...]
+          const profiles = Array.isArray(response) ? response : (response.data || response.profiles || []);
           
-          if (existingProfile) {
-            lateProfileId = existingProfile.id;
-            foundExistingProfile = true;
-            console.log("[late-auth-start] Found existing Late profile:", lateProfileId);
+          if (Array.isArray(profiles) && profiles.length > 0) {
+            // Look for a profile matching our tenant
+            const existingProfile = profiles.find((p: { name: string; id: string }) => 
+              p.name === profileName || 
+              p.name.includes(tenant_id.substring(0, 8)) ||
+              (tenant?.slug && p.name.toLowerCase().includes(tenant.slug.toLowerCase()))
+            );
+            
+            if (existingProfile) {
+              lateProfileId = existingProfile.id;
+              foundExistingProfile = true;
+              console.log("[late-auth-start] Found existing Late profile:", lateProfileId);
+            } else {
+              // Use first available profile if limit is reached
+              console.log("[late-auth-start] Using first available profile");
+              lateProfileId = profiles[0].id;
+              foundExistingProfile = true;
+            }
           }
         }
       } catch (listError) {
@@ -161,10 +172,17 @@ serve(async (req) => {
           const errorData = await createProfileRes.text();
           console.error("[late-auth-start] Error creating Late profile:", errorData);
           
-          // If profile exists error, try listing again with tenant name
+          // If profile limit or exists error, provide better message
+          if (errorData.includes("limit reached")) {
+            return new Response(
+              JSON.stringify({ success: false, error: "Limite de perfis atingido no Late. Entre em contato com o suporte." }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          
           if (errorData.includes("already exists")) {
             return new Response(
-              JSON.stringify({ success: false, error: "Profile já existe no Late. Tente desconectar e reconectar." }),
+              JSON.stringify({ success: false, error: "Perfil já existe. Tente novamente." }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
