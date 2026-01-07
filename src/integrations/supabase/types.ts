@@ -64,6 +64,39 @@ export type Database = {
           },
         ]
       }
+      ai_model_pricing: {
+        Row: {
+          cost_per_1k_tokens: number | null
+          cost_per_image: number | null
+          created_at: string | null
+          effective_from: string
+          effective_until: string | null
+          id: string
+          model: string
+          provider: string
+        }
+        Insert: {
+          cost_per_1k_tokens?: number | null
+          cost_per_image?: number | null
+          created_at?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          model: string
+          provider: string
+        }
+        Update: {
+          cost_per_1k_tokens?: number | null
+          cost_per_image?: number | null
+          created_at?: string | null
+          effective_from?: string
+          effective_until?: string | null
+          id?: string
+          model?: string
+          provider?: string
+        }
+        Relationships: []
+      }
       ai_support_config: {
         Row: {
           ai_model: string | null
@@ -3309,6 +3342,134 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: true
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_asset_generations: {
+        Row: {
+          brand_context_snapshot: Json | null
+          calendar_item_id: string
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          error_message: string | null
+          id: string
+          model: string
+          prompt_final: string
+          provider: string
+          settings: Json | null
+          status: string
+          tenant_id: string
+          variant_count: number | null
+        }
+        Insert: {
+          brand_context_snapshot?: Json | null
+          calendar_item_id: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          model?: string
+          prompt_final: string
+          provider?: string
+          settings?: Json | null
+          status?: string
+          tenant_id: string
+          variant_count?: number | null
+        }
+        Update: {
+          brand_context_snapshot?: Json | null
+          calendar_item_id?: string
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          model?: string
+          prompt_final?: string
+          provider?: string
+          settings?: Json | null
+          status?: string
+          tenant_id?: string
+          variant_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_generations_calendar_item_id_fkey"
+            columns: ["calendar_item_id"]
+            isOneToOne: false
+            referencedRelation: "media_calendar_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "media_asset_generations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      media_asset_variants: {
+        Row: {
+          approved_at: string | null
+          created_at: string | null
+          feedback: string | null
+          file_size: number | null
+          generation_id: string
+          height: number | null
+          id: string
+          mime_type: string | null
+          public_url: string | null
+          rejected_at: string | null
+          rejected_reason: string | null
+          storage_path: string | null
+          thumb_url: string | null
+          variant_index: number
+          width: number | null
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string | null
+          feedback?: string | null
+          file_size?: number | null
+          generation_id: string
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          public_url?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          storage_path?: string | null
+          thumb_url?: string | null
+          variant_index?: number
+          width?: number | null
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string | null
+          feedback?: string | null
+          file_size?: number | null
+          generation_id?: string
+          height?: number | null
+          id?: string
+          mime_type?: string | null
+          public_url?: string | null
+          rejected_at?: string | null
+          rejected_reason?: string | null
+          storage_path?: string | null
+          thumb_url?: string | null
+          variant_index?: number
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "media_asset_variants_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "media_asset_generations"
             referencedColumns: ["id"]
           },
         ]
@@ -7156,6 +7317,62 @@ export type Database = {
             foreignKeyName: "system_health_checks_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_brand_context: {
+        Row: {
+          auto_generated_at: string | null
+          banned_claims: string[] | null
+          brand_summary: string | null
+          created_at: string | null
+          do_not_do: string[] | null
+          id: string
+          manually_edited_at: string | null
+          packshot_url: string | null
+          products_focus: Json | null
+          tenant_id: string
+          tone_of_voice: string | null
+          updated_at: string | null
+          visual_style_guidelines: string | null
+        }
+        Insert: {
+          auto_generated_at?: string | null
+          banned_claims?: string[] | null
+          brand_summary?: string | null
+          created_at?: string | null
+          do_not_do?: string[] | null
+          id?: string
+          manually_edited_at?: string | null
+          packshot_url?: string | null
+          products_focus?: Json | null
+          tenant_id: string
+          tone_of_voice?: string | null
+          updated_at?: string | null
+          visual_style_guidelines?: string | null
+        }
+        Update: {
+          auto_generated_at?: string | null
+          banned_claims?: string[] | null
+          brand_summary?: string | null
+          created_at?: string | null
+          do_not_do?: string[] | null
+          id?: string
+          manually_edited_at?: string | null
+          packshot_url?: string | null
+          products_focus?: Json | null
+          tenant_id?: string
+          tone_of_voice?: string | null
+          updated_at?: string | null
+          visual_style_guidelines?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_brand_context_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
