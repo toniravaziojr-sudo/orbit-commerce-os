@@ -123,8 +123,12 @@ serve(async (req) => {
 });
 
 function getBaseUrl(): string {
-  // Use environment variable if available, otherwise use preview URL pattern
-  return Deno.env.get("APP_BASE_URL") || "https://preview--ojssezfjhdvvncsqyhyq.lovable.app";
+  // Priority: APP_BASE_URL env var > production URL > preview URL
+  if (Deno.env.get("APP_BASE_URL")) {
+    return Deno.env.get("APP_BASE_URL")!;
+  }
+  // Default to production domain
+  return "https://app.comandocentral.com.br";
 }
 
 function redirectWithError(errorMessage: string, redirectPath = "/integrations"): Response {
