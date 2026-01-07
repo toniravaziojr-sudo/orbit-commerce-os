@@ -85,6 +85,7 @@ export function LatePlatformSettings() {
   };
 
   const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-auth-callback`;
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-webhook`;
 
   if (isLoading) {
     return (
@@ -133,13 +134,40 @@ export function LatePlatformSettings() {
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-sm font-medium">Callback URL</h4>
-            <p className="text-sm text-muted-foreground">
-              Configure esta URL no painel da Late como Redirect URL (se necessário):
-            </p>
-            <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
-              {callbackUrl}
-            </code>
+            <h4 className="text-sm font-medium">URLs de Configuração</h4>
+            
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  <strong>Webhook URL</strong> - Configure esta URL no painel da Late para receber eventos:
+                </p>
+                <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
+                  {webhookUrl}
+                </code>
+              </div>
+
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">
+                  <strong>Redirect URL</strong> - Configure para o OAuth de contas sociais:
+                </p>
+                <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
+                  {callbackUrl}
+                </code>
+              </div>
+            </div>
+
+            <Alert variant="default" className="bg-muted/50">
+              <AlertDescription className="text-sm">
+                <strong>Eventos a habilitar no Webhook:</strong>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>post.scheduled</li>
+                  <li>post.published</li>
+                  <li>post.failed</li>
+                  <li>post.partial</li>
+                  <li>account.disconnected</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
           </div>
 
           <div className="flex items-center gap-4">
