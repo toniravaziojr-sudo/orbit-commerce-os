@@ -12,100 +12,115 @@ interface GenerationSettings {
   packshot_url?: string;
 }
 
-// Download image and convert to base64
-async function downloadImageAsBase64(url: string): Promise<string | null> {
+// Download image and convert to base64 data URL
+async function downloadImageAsDataUrl(url: string): Promise<string | null> {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
     
+    const contentType = response.headers.get("content-type") || "image/png";
     const arrayBuffer = await response.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     let binary = '';
     for (let i = 0; i < uint8Array.length; i++) {
       binary += String.fromCharCode(uint8Array[i]);
     }
-    return btoa(binary);
+    const base64 = btoa(binary);
+    return `data:${contentType};base64,${base64}`;
   } catch (error) {
     console.error("Error downloading image:", error);
     return null;
   }
 }
 
-// Generate image using text-to-image (standard)
-async function generateTextToImage(
-  openaiApiKey: string,
+// Generate image using Lovable AI (Gemini model)
+async function generateImageWithLovableAI(
+  lovableApiKey: string,
   prompt: string,
-  size: string
+  referenceImageDataUrl?: string
 ): Promise<string | null> {
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${openaiApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-image-1",
-      prompt: prompt,
-      n: 1,
-      size: size,
-      response_format: "b64_json",
-    }),
-  });
+  try {
+    // Build message content
+    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
+    
+    // If we have a reference image, include it
+    if (referenceImageDataUrl) {
+      content.push({
+        type: "text",
+        text: prompt,
+      });
+      content.push({
+        type: "image_url",
+        image_url: {
+          url: referenceImageDataUrl,
+        },
+      });
+    } else {
+      content.push({
+        type: "text",
+        text: prompt,
+      });
+    }
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("OpenAI text-to-image error:", errorText);
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-image-preview",
+        messages: [
+          {
+            role: "user",
+            content: referenceImageDataUrl ? content : prompt,
+          },
+        ],
+        modalities: ["image", "text"],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Lovable AI image generation error:", errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Extract the generated image from the response
+    const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    
+    if (!imageUrl) {
+      console.error("No image in Lovable AI response:", JSON.stringify(data).substring(0, 500));
+      return null;
+    }
+
+    return imageUrl;
+  } catch (error) {
+    console.error("Error calling Lovable AI:", error);
     return null;
   }
-
-  const data = await response.json();
-  return data.data?.[0]?.b64_json || null;
 }
 
-// Generate image using image-to-image (with reference)
-async function generateImageToImage(
-  openaiApiKey: string,
-  prompt: string,
-  referenceImageBase64: string,
-  size: string
-): Promise<string | null> {
-  // OpenAI's gpt-image-1 supports image editing via the images/edits endpoint
-  // We need to send the image as a file in multipart/form-data
-  
-  // Convert base64 to Blob
-  const binaryString = atob(referenceImageBase64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  const imageBlob = new Blob([bytes], { type: 'image/png' });
-
-  const formData = new FormData();
-  formData.append('model', 'gpt-image-1');
-  formData.append('image', imageBlob, 'reference.png');
-  formData.append('prompt', prompt);
-  formData.append('n', '1');
-  formData.append('size', size);
-  formData.append('response_format', 'b64_json');
-
-  const response = await fetch("https://api.openai.com/v1/images/edits", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${openaiApiKey}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error("OpenAI image-to-image error:", errorText);
-    // Fallback to text-to-image if edit fails
-    console.log("Falling back to text-to-image...");
+// Convert data URL to binary
+function dataUrlToUint8Array(dataUrl: string): Uint8Array | null {
+  try {
+    // Extract base64 part from data URL
+    const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!matches) return null;
+    
+    const base64 = matches[2];
+    const binaryString = atob(base64);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  } catch (error) {
+    console.error("Error converting data URL to binary:", error);
     return null;
   }
-
-  const data = await response.json();
-  return data.data?.[0]?.b64_json || null;
 }
 
 serve(async (req) => {
@@ -115,12 +130,12 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
-  if (!openaiApiKey) {
-    console.error("OPENAI_API_KEY not configured");
+  if (!lovableApiKey) {
+    console.error("LOVABLE_API_KEY not configured");
     return new Response(
-      JSON.stringify({ success: false, error: "OpenAI API key não configurada" }),
+      JSON.stringify({ success: false, error: "Lovable API key não configurada" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -172,18 +187,12 @@ serve(async (req) => {
         const usePackshot = settings.use_packshot || false;
         const packshotUrl = settings.packshot_url;
 
-        // Determine image size based on content type
-        let size = "1024x1024";
-        if (contentType === "reel" || contentType === "story") {
-          size = "1024x1792"; // Vertical for reels/stories
-        }
-
         // Check if we should use image-to-image with packshot
-        let packshotBase64: string | null = null;
+        let packshotDataUrl: string | null = null;
         if (usePackshot && packshotUrl) {
           console.log(`Downloading packshot from: ${packshotUrl}`);
-          packshotBase64 = await downloadImageAsBase64(packshotUrl);
-          if (packshotBase64) {
+          packshotDataUrl = await downloadImageAsDataUrl(packshotUrl);
+          if (packshotDataUrl) {
             console.log("Packshot downloaded successfully, using image-to-image mode");
           } else {
             console.log("Failed to download packshot, falling back to text-to-image");
@@ -192,11 +201,11 @@ serve(async (req) => {
 
         // Generate variants
         const variantCount = Math.min(generation.variant_count || 4, 4);
-        const variants: Array<{ index: number; base64: string }> = [];
+        const variants: Array<{ index: number; dataUrl: string }> = [];
 
         // Enhanced prompt for packshot mode
         let finalPrompt = generation.prompt_final;
-        if (packshotBase64) {
+        if (packshotDataUrl) {
           finalPrompt = `${generation.prompt_final}
 
 IMPORTANTE: A imagem de referência contém o produto real. 
@@ -206,34 +215,31 @@ IMPORTANTE: A imagem de referência contém o produto real.
 - Mantenha o produto como elemento central e inalterado`;
         }
 
+        // Add content type context to prompt
+        if (contentType === "reel" || contentType === "story") {
+          finalPrompt = `${finalPrompt}\n\nFormato: Imagem vertical (9:16) otimizada para Stories/Reels.`;
+        } else if (contentType === "carrossel") {
+          finalPrompt = `${finalPrompt}\n\nFormato: Imagem quadrada (1:1) otimizada para carrossel.`;
+        }
+
         for (let i = 0; i < variantCount; i++) {
           try {
-            let imageBase64: string | null = null;
+            console.log(`Generating variant ${i + 1} of ${variantCount}...`);
+            
+            const imageDataUrl = await generateImageWithLovableAI(
+              lovableApiKey,
+              finalPrompt,
+              packshotDataUrl || undefined
+            );
 
-            // Try image-to-image if packshot is available
-            if (packshotBase64) {
-              imageBase64 = await generateImageToImage(
-                openaiApiKey,
-                finalPrompt,
-                packshotBase64,
-                size
-              );
-            }
-
-            // Fallback to text-to-image
-            if (!imageBase64) {
-              imageBase64 = await generateTextToImage(
-                openaiApiKey,
-                generation.prompt_final,
-                size
-              );
-            }
-
-            if (imageBase64) {
-              variants.push({ index: i + 1, base64: imageBase64 });
+            if (imageDataUrl) {
+              variants.push({ index: i + 1, dataUrl: imageDataUrl });
+              console.log(`Variant ${i + 1} generated successfully`);
+            } else {
+              console.log(`Variant ${i + 1} failed to generate`);
             }
           } catch (variantError) {
-            console.error(`Error generating variant ${i}:`, variantError);
+            console.error(`Error generating variant ${i + 1}:`, variantError);
           }
         }
 
@@ -245,19 +251,24 @@ IMPORTANTE: A imagem de referência contém o produto real.
         const { data: pricing } = await supabase
           .from("ai_model_pricing")
           .select("cost_per_image")
-          .eq("provider", "openai")
-          .eq("model", "gpt-image-1")
+          .eq("provider", "google")
+          .eq("model", "gemini-2.5-flash-image-preview")
           .is("effective_until", null)
           .single();
 
-        const costPerImage = pricing?.cost_per_image || 0.04;
+        const costPerImage = pricing?.cost_per_image || 0.01; // Gemini is typically cheaper
         const totalCost = variants.length * costPerImage;
 
         // Upload variants to storage
         for (const variant of variants) {
           try {
-            // Decode base64 to binary
-            const binaryData = Uint8Array.from(atob(variant.base64), c => c.charCodeAt(0));
+            // Convert data URL to binary
+            const binaryData = dataUrlToUint8Array(variant.dataUrl);
+            
+            if (!binaryData) {
+              console.error(`Failed to convert variant ${variant.index} to binary`);
+              continue;
+            }
             
             // Generate storage path
             const storagePath = `${generation.tenant_id}/${generation.id}/variant_${variant.index}.png`;
@@ -284,8 +295,8 @@ IMPORTANTE: A imagem de referência contém o produto real.
                 storage_path: storagePath,
                 mime_type: "image/png",
                 file_size: binaryData.length,
-                width: size === "1024x1792" ? 1024 : 1024,
-                height: size === "1024x1792" ? 1792 : 1024,
+                width: 1024,
+                height: contentType === "reel" || contentType === "story" ? 1792 : 1024,
               });
 
             if (variantError) {
@@ -306,7 +317,7 @@ IMPORTANTE: A imagem de referência contém o produto real.
               ...settings,
               actual_variant_count: variants.length,
               cost_estimate: totalCost,
-              used_packshot: !!packshotBase64,
+              used_packshot: !!packshotDataUrl,
             },
           })
           .eq("id", generation.id);
