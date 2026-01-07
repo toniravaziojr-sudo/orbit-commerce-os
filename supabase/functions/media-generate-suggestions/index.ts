@@ -159,6 +159,93 @@ serve(async (req) => {
       .eq("id", campaign_id);
 
     // ====================================
+    // BRAZILIAN HOLIDAYS (inline for edge function)
+    // ====================================
+    const BRAZILIAN_HOLIDAYS: Record<string, { name: string; emoji: string; type: string }> = {
+      "01-01": { name: "Ano Novo", emoji: "🎆", type: "national" },
+      "03-08": { name: "Dia da Mulher", emoji: "💜", type: "commemorative" },
+      "03-15": { name: "Dia do Consumidor", emoji: "🛒", type: "commercial" },
+      "04-21": { name: "Tiradentes", emoji: "🇧🇷", type: "national" },
+      "05-01": { name: "Dia do Trabalho", emoji: "👷", type: "national" },
+      "06-12": { name: "Dia dos Namorados", emoji: "❤️", type: "commercial" },
+      "07-26": { name: "Dia dos Avós", emoji: "👴👵", type: "commemorative" },
+      "09-07": { name: "Independência do Brasil", emoji: "🇧🇷", type: "national" },
+      "10-12": { name: "Dia das Crianças", emoji: "🧒", type: "national" },
+      "10-15": { name: "Dia do Professor", emoji: "📖", type: "commemorative" },
+      "10-31": { name: "Halloween", emoji: "🎃", type: "commercial" },
+      "11-02": { name: "Finados", emoji: "🕯️", type: "national" },
+      "11-15": { name: "Proclamação da República", emoji: "🇧🇷", type: "national" },
+      "11-20": { name: "Consciência Negra", emoji: "✊🏿", type: "commemorative" },
+      "12-24": { name: "Véspera de Natal", emoji: "🎄", type: "commemorative" },
+      "12-25": { name: "Natal", emoji: "🎅", type: "national" },
+      "12-31": { name: "Véspera de Ano Novo", emoji: "🎊", type: "commemorative" },
+    };
+
+    // Calculate Easter and movable holidays
+    function calculateEaster(year: number): Date {
+      const a = year % 19;
+      const b = Math.floor(year / 100);
+      const c = year % 100;
+      const d = Math.floor(b / 4);
+      const e = b % 4;
+      const f = Math.floor((b + 8) / 25);
+      const g = Math.floor((b - f + 1) / 3);
+      const h = (19 * a + b - d - g + 15) % 30;
+      const i = Math.floor(c / 4);
+      const k = c % 4;
+      const l = (32 + 2 * e + 2 * i - h - k) % 7;
+      const m = Math.floor((a + 11 * h + 22 * l) / 451);
+      const month = Math.floor((h + l - 7 * m + 114) / 31);
+      const day = ((h + l - 7 * m + 114) % 31) + 1;
+      return new Date(year, month - 1, day);
+    }
+
+    function getNthSunday(year: number, month: number, n: number): Date {
+      const firstDay = new Date(year, month, 1);
+      const firstSunday = new Date(year, month, 1 + (7 - firstDay.getDay()) % 7);
+      return new Date(year, month, firstSunday.getDate() + (n - 1) * 7);
+    }
+
+    function getNthFriday(year: number, month: number, n: number): Date {
+      const firstDay = new Date(year, month, 1);
+      let firstFriday = 1 + (5 - firstDay.getDay() + 7) % 7;
+      if (firstFriday > 7) firstFriday -= 7;
+      return new Date(year, month, firstFriday + (n - 1) * 7);
+    }
+
+    function getMovableHolidays(year: number): Record<string, { name: string; emoji: string; type: string }> {
+      const result: Record<string, { name: string; emoji: string; type: string }> = {};
+      const easter = calculateEaster(year);
+      
+      // Carnaval (47 dias antes da Páscoa)
+      const carnival = new Date(easter);
+      carnival.setDate(easter.getDate() - 47);
+      const carnivalKey = `${String(carnival.getMonth() + 1).padStart(2, "0")}-${String(carnival.getDate()).padStart(2, "0")}`;
+      result[carnivalKey] = { name: "Carnaval", emoji: "🎭", type: "national" };
+      
+      // Páscoa
+      const easterKey = `${String(easter.getMonth() + 1).padStart(2, "0")}-${String(easter.getDate()).padStart(2, "0")}`;
+      result[easterKey] = { name: "Páscoa", emoji: "🐰", type: "national" };
+      
+      // Dia das Mães (2º domingo de maio)
+      const mothersDay = getNthSunday(year, 4, 2);
+      const mothersDayKey = `${String(mothersDay.getMonth() + 1).padStart(2, "0")}-${String(mothersDay.getDate()).padStart(2, "0")}`;
+      result[mothersDayKey] = { name: "Dia das Mães", emoji: "💐", type: "commercial" };
+      
+      // Dia dos Pais (2º domingo de agosto)
+      const fathersDay = getNthSunday(year, 7, 2);
+      const fathersDayKey = `${String(fathersDay.getMonth() + 1).padStart(2, "0")}-${String(fathersDay.getDate()).padStart(2, "0")}`;
+      result[fathersDayKey] = { name: "Dia dos Pais", emoji: "👔", type: "commercial" };
+      
+      // Black Friday (4ª sexta de novembro)
+      const blackFriday = getNthFriday(year, 10, 4);
+      const blackFridayKey = `${String(blackFriday.getMonth() + 1).padStart(2, "0")}-${String(blackFriday.getDate()).padStart(2, "0")}`;
+      result[blackFridayKey] = { name: "Black Friday", emoji: "🏷️", type: "commercial" };
+      
+      return result;
+    }
+
+    // ====================================
     // CALCULATE DATES FOR CALENDAR
     // ====================================
     const startDate = new Date(campaign.start_date);
@@ -168,14 +255,31 @@ serve(async (req) => {
     const defaultTime = campaign.default_time || "10:00:00";
 
     const validDates: string[] = [];
+    const datesWithHolidays: Array<{ date: string; holiday?: { name: string; emoji: string; type: string } }> = [];
     const currentDate = new Date(startDate);
+    
+    // Get movable holidays for all years in the campaign period
+    const startYear = startDate.getFullYear();
+    const endYear = endDate.getFullYear();
+    const allMovableHolidays: Record<string, { name: string; emoji: string; type: string }> = {};
+    for (let year = startYear; year <= endYear; year++) {
+      Object.assign(allMovableHolidays, getMovableHolidays(year));
+    }
     
     while (currentDate <= endDate) {
       const dayOfWeek = currentDate.getDay();
       const dateStr = currentDate.toISOString().split("T")[0];
+      const monthDay = `${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
       
       if (daysOfWeek.includes(dayOfWeek) && !excludedDates.includes(dateStr)) {
         validDates.push(dateStr);
+        
+        // Check for holidays
+        const fixedHoliday = BRAZILIAN_HOLIDAYS[monthDay];
+        const movableHoliday = allMovableHolidays[monthDay];
+        const holiday = fixedHoliday || movableHoliday;
+        
+        datesWithHolidays.push({ date: dateStr, holiday });
       }
       currentDate.setDate(currentDate.getDate() + 1);
     }
@@ -186,6 +290,12 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Build special dates context for AI
+    const specialDatesContext = datesWithHolidays
+      .filter(d => d.holiday)
+      .map(d => `- ${d.date}: ${d.holiday!.emoji} ${d.holiday!.name} (${d.holiday!.type})`)
+      .join("\n");
 
     // ====================================
     // BUILD SYSTEM PROMPT BASED ON CHANNEL
@@ -254,8 +364,12 @@ Regras importantes:
     // ====================================
     // GENERATE SUGGESTIONS WITH AI
     // ====================================
-    const userPrompt = `${businessContext}
+    const holidaysSection = specialDatesContext 
+      ? `\n## Datas comemorativas no período (APROVEITE-AS!):\n${specialDatesContext}\n` 
+      : "";
 
+    const userPrompt = `${businessContext}
+${holidaysSection}
 ## Direcionamento da campanha:
 ${campaign.prompt}
 

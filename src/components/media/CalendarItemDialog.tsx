@@ -153,6 +153,15 @@ export function CalendarItemDialog({
       ? values.target_platforms.split(",").map((p) => p.trim()).filter(Boolean)
       : [];
 
+    // Aprovação automática: se é conteúdo manual (não sugerido pela IA), aprova ao salvar
+    // Exceto se o status já é "suggested" (veio da IA e precisa revisão)
+    let finalStatus = values.status as MediaItemStatus;
+    const isManualContent = !isEditing || (item && item.status === "draft");
+    if (isManualContent && finalStatus === "draft") {
+      // Conteúdo manual vai direto para aprovado
+      finalStatus = "approved";
+    }
+
     if (isEditing && item) {
       await updateItem.mutateAsync({
         id: item.id,
@@ -160,7 +169,7 @@ export function CalendarItemDialog({
         copy: values.copy,
         cta: values.cta,
         content_type: values.content_type as MediaContentType,
-        status: values.status as MediaItemStatus,
+        status: finalStatus,
         hashtags,
         target_platforms: platforms,
       });
@@ -180,7 +189,7 @@ export function CalendarItemDialog({
         asset_url: null,
         asset_thumbnail_url: null,
         asset_metadata: {},
-        status: values.status as MediaItemStatus,
+        status: finalStatus,
         target_channel: null,
         blog_post_id: null,
         published_blog_at: null,
