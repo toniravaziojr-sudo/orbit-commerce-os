@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Calendar as CalendarIcon, Check, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Calendar as CalendarIcon, Check, Loader2, Send, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLateConnection } from "@/hooks/useLateConnection";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -57,6 +59,7 @@ export function CampaignCalendar() {
   const queryClient = useQueryClient();
   const { campaigns, updateCampaign } = useMediaCampaigns();
   const { items, isLoading, refetch: refetchItems } = useMediaCalendarItems(campaignId);
+  const { connection: lateConnection, isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
   
@@ -71,6 +74,7 @@ export function CampaignCalendar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -192,27 +196,61 @@ export function CampaignCalendar() {
   };
 
   const handleScheduleAll = async () => {
-    if (!items) return;
+    if (!items || !currentTenant) return;
+    
+    // Check Late connection first
+    if (!lateConnected) {
+      toast.error("Conecte o Late primeiro para agendar publicações", {
+        action: {
+          label: "Conectar",
+          onClick: () => navigate("/integrations"),
+        },
+      });
+      return;
+    }
+    
     const approvedItems = items.filter(i => i.status === "approved" || i.status === "asset_review");
     if (approvedItems.length === 0) {
       toast.info("Nenhum item aprovado para agendar");
       return;
     }
     
+    setIsScheduling(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
     try {
       for (const item of approvedItems) {
-        await supabase
-          .from("media_calendar_items")
-          .update({ status: "scheduled" })
-          .eq("id", item.id);
+        const { data, error } = await supabase.functions.invoke("late-schedule-post", {
+          body: { 
+            calendar_item_id: item.id,
+            tenant_id: currentTenant.id,
+          },
+        });
+
+        if (error || !data?.success) {
+          console.error("Error scheduling item:", item.id, error || data?.error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
       }
-      toast.success(`${approvedItems.length} itens agendados!`);
-      toast.info("A publicação real será feita quando as integrações com redes sociais estiverem conectadas.");
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} item(s) agendado(s) com sucesso!`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} item(s) falharam ao agendar`);
+      }
+      
       // Force refetch to update UI immediately
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
+      console.error("Error scheduling items:", err);
       toast.error("Erro ao agendar itens");
+    } finally {
+      setIsScheduling(false);
     }
   };
 
@@ -287,13 +325,19 @@ export function CampaignCalendar() {
                 </Button>
 
                 <Button 
-                  variant="outline"
+                  variant={lateConnected ? "outline" : "secondary"}
                   onClick={handleScheduleAll}
-                  disabled={stats.approved === 0}
+                  disabled={stats.approved === 0 || isScheduling}
                   className="gap-2"
                 >
-                  <CalendarIcon className="h-4 w-4" />
-                  Agendar Publicações
+                  {isScheduling ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : lateConnected ? (
+                    <Send className="h-4 w-4" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  {isScheduling ? "Agendando..." : lateConnected ? "Agendar Publicações" : "Conectar Late"}
                 </Button>
               </>
             )}
@@ -306,6 +350,26 @@ export function CampaignCalendar() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Late Connection Alert */}
+      {!lateLoading && !lateConnected && hasSuggestions && stats.approved > 0 && (
+        <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-amber-800 dark:text-amber-200">
+              Para publicar nas redes sociais, conecte sua conta no Late.
+            </span>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => navigate("/integrations")}
+              className="ml-4"
+            >
+              Conectar Late
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
