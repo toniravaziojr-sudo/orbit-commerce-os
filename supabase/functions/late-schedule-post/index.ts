@@ -242,11 +242,11 @@ serve(async (req) => {
           platforms,
           scheduled_for: scheduledFor,
         });
-      } catch (e) {
+      } catch (e: unknown) {
         console.error("[late-schedule-post] Error scheduling item:", item.id, e);
         errors.push({
           item_id: item.id,
-          error: e.message || "Unknown error",
+          error: e instanceof Error ? e.message : "Unknown error",
         });
       }
     }
@@ -261,10 +261,10 @@ serve(async (req) => {
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[late-schedule-post] Error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Internal server error" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
