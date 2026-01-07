@@ -1,14 +1,15 @@
 import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO, isBefore, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Calendar as CalendarIcon, Check, Loader2, Send, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { useMediaCampaigns, useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { CalendarItemDialog } from "./CalendarItemDialog";
+import { DayPostsList } from "./DayPostsList";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -16,6 +17,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLateConnection } from "@/hooks/useLateConnection";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { getHolidayForDate } from "@/lib/brazilian-holidays";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -57,9 +60,9 @@ export function CampaignCalendar() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
-  const { campaigns, updateCampaign } = useMediaCampaigns();
-  const { items, isLoading, refetch: refetchItems } = useMediaCalendarItems(campaignId);
-  const { connection: lateConnection, isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
+  const { campaigns } = useMediaCampaigns();
+  const { items, isLoading, refetch: refetchItems, deleteItem } = useMediaCalendarItems(campaignId);
+  const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
   
@@ -72,6 +75,8 @@ export function CampaignCalendar() {
   const [selectedItem, setSelectedItem] = useState<MediaCalendarItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dayListOpen, setDayListOpen] = useState(false);
+  const [dayListDate, setDayListDate] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
@@ -123,17 +128,37 @@ export function CampaignCalendar() {
   const handleDayClick = (date: Date, dayItems: MediaCalendarItem[]) => {
     if (!isInCampaignPeriod(date) || !isActiveDay(date)) return;
     
-    if (dayItems.length === 1) {
+    // Se tem mais de 1 item, abre lista de posts do dia
+    if (dayItems.length > 1) {
+      setDayListDate(date);
+      setDayListOpen(true);
+    } else if (dayItems.length === 1) {
+      // Se tem 1 item, edita direto
       setSelectedItem(dayItems[0]);
       setSelectedDate(null);
-    } else if (dayItems.length === 0) {
+      setDialogOpen(true);
+    } else {
+      // Se não tem item, cria novo
       setSelectedItem(null);
       setSelectedDate(date);
-    } else {
-      setSelectedItem(dayItems[0]);
-      setSelectedDate(null);
+      setDialogOpen(true);
     }
+  };
+
+  const handleAddItem = (date: Date) => {
+    setSelectedItem(null);
+    setSelectedDate(date);
     setDialogOpen(true);
+  };
+
+  const handleEditItem = (item: MediaCalendarItem) => {
+    setSelectedItem(item);
+    setSelectedDate(null);
+    setDialogOpen(true);
+  };
+
+  const handleDeleteItem = async (id: string) => {
+    await deleteItem.mutateAsync(id);
   };
 
   const handleGenerateSuggestions = async () => {
@@ -149,7 +174,6 @@ export function CampaignCalendar() {
       
       if (data?.success) {
         toast.success(data.message || "Sugestões geradas com sucesso!");
-        // Force refetch to update UI immediately
         await refetchItems();
         queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
         queryClient.invalidateQueries({ queryKey: ["media-campaigns", currentTenant?.id] });
@@ -158,7 +182,7 @@ export function CampaignCalendar() {
       }
     } catch (err) {
       console.error("Error generating suggestions:", err);
-      toast.error("Erro ao gerar sugestões");
+      toast.error("Erro ao gerar sugestões. Tente novamente.");
     } finally {
       setIsGenerating(false);
     }
@@ -181,7 +205,6 @@ export function CampaignCalendar() {
           .eq("id", item.id);
       }
       toast.success(`${suggestedItems.length} itens aprovados!`);
-      // Force refetch to update UI immediately
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
@@ -192,15 +215,14 @@ export function CampaignCalendar() {
   };
 
   const handleGenerateAssets = async () => {
-    toast.info("Geração de assets será implementada em breve. Os itens aprovados serão processados quando a integração estiver disponível.");
+    toast.info("Geração de criativos com IA será implementada em breve.");
   };
 
   const handleScheduleAll = async () => {
     if (!items || !currentTenant) return;
     
-    // Check Late connection first
     if (!lateConnected) {
-      toast.error("Conecte o Late primeiro para agendar publicações", {
+      toast.error("Conecte suas redes sociais primeiro", {
         action: {
           label: "Conectar",
           onClick: () => navigate("/integrations"),
@@ -243,7 +265,6 @@ export function CampaignCalendar() {
         toast.error(`${errorCount} item(s) falharam ao agendar`);
       }
       
-      // Force refetch to update UI immediately
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
@@ -264,7 +285,7 @@ export function CampaignCalendar() {
 
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const hasSuggestions = items && items.length > 0;
-  const hasApproved = stats.approved > 0;
+  const dayListItems = dayListDate ? itemsByDate.get(format(dayListDate, "yyyy-MM-dd")) || [] : [];
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -393,74 +414,89 @@ export function CampaignCalendar() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <div className="grid grid-cols-7 gap-1">
-              {weekDayHeaders.map((day) => (
-                <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">
-                  {day}
-                </div>
-              ))}
-              
-              {Array.from({ length: days[0].getDay() }).map((_, i) => (
-                <div key={`empty-${i}`} className="min-h-[100px] bg-muted/30 rounded-md" />
-              ))}
-              
-              {days.map((date) => {
-                const dateKey = format(date, "yyyy-MM-dd");
-                const dayItems = itemsByDate.get(dateKey) || [];
-                const inPeriod = isInCampaignPeriod(date);
-                const activeDay = isActiveDay(date);
-                const isClickable = inPeriod && activeDay;
-
-                return (
-                  <div
-                    key={dateKey}
-                    onClick={() => isClickable && handleDayClick(date, dayItems)}
-                    className={cn(
-                      "min-h-[100px] p-1 rounded-md border transition-colors",
-                      inPeriod && activeDay 
-                        ? "bg-background border-border cursor-pointer hover:border-primary/50" 
-                        : "bg-muted/30 border-transparent",
-                      !activeDay && inPeriod && "bg-muted/10"
-                    )}
-                  >
-                    <div className={cn(
-                      "text-xs font-medium p-1",
-                      !inPeriod && "text-muted-foreground/50",
-                      !activeDay && "text-muted-foreground/30"
-                    )}>
-                      {format(date, "d")}
-                    </div>
-                    
-                    <div className="space-y-1">
-                      {dayItems.slice(0, 2).map((item) => (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1",
-                            statusColors[item.status]
-                          )}
-                        >
-                          <span>{contentTypeIcons[item.content_type]}</span>
-                          <span className="truncate">{item.title || "Sem título"}</span>
-                          {item.asset_url && <span className="ml-auto">📎</span>}
-                        </div>
-                      ))}
-                      {dayItems.length > 2 && (
-                        <div className="text-xs text-muted-foreground px-1">
-                          +{dayItems.length - 2} mais
-                        </div>
-                      )}
-                      {dayItems.length === 0 && isClickable && (
-                        <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1">
-                          <Plus className="h-3 w-3" />
-                          Adicionar
-                        </div>
-                      )}
-                    </div>
+            <TooltipProvider>
+              <div className="grid grid-cols-7 gap-1">
+                {weekDayHeaders.map((day) => (
+                  <div key={day} className="p-2 text-center text-xs font-medium text-muted-foreground">
+                    {day}
                   </div>
-                );
-              })}
-            </div>
+                ))}
+                
+                {Array.from({ length: days[0].getDay() }).map((_, i) => (
+                  <div key={`empty-${i}`} className="min-h-[100px] bg-muted/30 rounded-md" />
+                ))}
+                
+                {days.map((date) => {
+                  const dateKey = format(date, "yyyy-MM-dd");
+                  const dayItems = itemsByDate.get(dateKey) || [];
+                  const inPeriod = isInCampaignPeriod(date);
+                  const activeDay = isActiveDay(date);
+                  const isClickable = inPeriod && activeDay;
+                  const holiday = getHolidayForDate(date);
+
+                  return (
+                    <div
+                      key={dateKey}
+                      onClick={() => isClickable && handleDayClick(date, dayItems)}
+                      className={cn(
+                        "min-h-[100px] p-1 rounded-md border transition-colors relative",
+                        inPeriod && activeDay 
+                          ? "bg-background border-border cursor-pointer hover:border-primary/50" 
+                          : "bg-muted/30 border-transparent",
+                        !activeDay && inPeriod && "bg-muted/10",
+                        holiday && inPeriod && "ring-1 ring-amber-400/50"
+                      )}
+                    >
+                      <div className={cn(
+                        "text-xs font-medium p-1 flex items-center gap-1",
+                        !inPeriod && "text-muted-foreground/50",
+                        !activeDay && "text-muted-foreground/30"
+                      )}>
+                        {format(date, "d")}
+                        {holiday && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{holiday.emoji}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="font-medium">{holiday.name}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{holiday.type}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-1">
+                        {dayItems.slice(0, 2).map((item) => (
+                          <div
+                            key={item.id}
+                            className={cn(
+                              "text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1",
+                              statusColors[item.status]
+                            )}
+                          >
+                            <span>{contentTypeIcons[item.content_type]}</span>
+                            <span className="truncate">{item.title || "Sem título"}</span>
+                            {item.asset_url && <span className="ml-auto">📎</span>}
+                          </div>
+                        ))}
+                        {dayItems.length > 2 && (
+                          <div className="text-xs text-muted-foreground px-1">
+                            +{dayItems.length - 2} mais
+                          </div>
+                        )}
+                        {dayItems.length === 0 && isClickable && (
+                          <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1">
+                            <Plus className="h-3 w-3" />
+                            Adicionar
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </TooltipProvider>
           )}
         </CardContent>
       </Card>
@@ -474,6 +510,7 @@ export function CampaignCalendar() {
         ))}
       </div>
 
+      {/* Dialog para editar/criar item individual */}
       <CalendarItemDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -481,6 +518,19 @@ export function CampaignCalendar() {
         date={selectedDate}
         campaignId={campaignId!}
       />
+
+      {/* Dialog para listar posts de um dia (múltiplas postagens) */}
+      {dayListDate && (
+        <DayPostsList
+          open={dayListOpen}
+          onOpenChange={setDayListOpen}
+          date={dayListDate}
+          items={dayListItems}
+          onEditItem={handleEditItem}
+          onAddItem={handleAddItem}
+          onDeleteItem={handleDeleteItem}
+        />
+      )}
     </div>
   );
 }
