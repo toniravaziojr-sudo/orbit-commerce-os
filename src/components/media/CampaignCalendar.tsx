@@ -517,6 +517,7 @@ export function CampaignCalendar() {
         item={selectedItem}
         date={selectedDate}
         campaignId={campaignId!}
+        selectedChannels={(campaign?.metadata as any)?.selected_channels || []}
       />
 
       {/* Dialog para listar posts de um dia (múltiplas postagens) */}

@@ -89,6 +89,7 @@ interface CalendarItemDialogProps {
   item: MediaCalendarItem | null;
   date: Date | null;
   campaignId: string;
+  selectedChannels?: string[];
 }
 
 export function CalendarItemDialog({
@@ -97,10 +98,16 @@ export function CalendarItemDialog({
   item,
   date,
   campaignId,
+  selectedChannels = [],
 }: CalendarItemDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
   const isEditing = !!item;
+
+  // Determina se é campanha apenas para blog
+  const isBlogOnly = selectedChannels.length === 1 && selectedChannels[0] === "blog";
+  // Verifica se tem canais de redes sociais (não-blog)
+  const hasSocialChannels = selectedChannels.some(c => ["instagram", "facebook", "tiktok", "linkedin", "youtube"].includes(c));
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -317,47 +324,50 @@ export function CalendarItemDialog({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="scheduled_time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Horário de publicação</FormLabel>
-                    <FormControl>
-                      <Input type="time" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Horário e Plataformas - só mostrar se não for blog-only */}
+            {!isBlogOnly && (
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="scheduled_time"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Horário de publicação</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="target_platforms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Plataformas</FormLabel>
-                    <FormControl>
-                      <Input placeholder="instagram, facebook" {...field} />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      Separadas por vírgula
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                <FormField
+                  control={form.control}
+                  name="target_platforms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Plataformas</FormLabel>
+                      <FormControl>
+                        <Input placeholder="instagram, facebook" {...field} />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Separadas por vírgula
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
 
             <FormField
               control={form.control}
               name="title"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Título / Tema</FormLabel>
+                  <FormLabel>{isBlogOnly ? "Título do Artigo" : "Título / Tema"}</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ex: Lançamento de produto" {...field} />
+                    <Input placeholder={isBlogOnly ? "Ex: 10 dicas para..." : "Ex: Lançamento de produto"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -369,10 +379,10 @@ export function CalendarItemDialog({
               name="copy"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Legenda / Copy</FormLabel>
+                  <FormLabel>{isBlogOnly ? "Conteúdo / Resumo" : "Legenda / Copy"}</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Escreva a legenda do post..."
+                      placeholder={isBlogOnly ? "Escreva o conteúdo ou resumo do artigo..." : "Escreva a legenda do post..."}
                       className="min-h-[80px]"
                       {...field} 
                     />
@@ -382,54 +392,62 @@ export function CalendarItemDialog({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="cta"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Call to Action (opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: Link na bio!" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* CTA e Hashtags - só mostrar se tem redes sociais */}
+            {hasSocialChannels && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="cta"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Call to Action (opcional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex: Link na bio!" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <FormField
-              control={form.control}
-              name="hashtags"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Hashtags (separadas por vírgula)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="#marketing, #vendas, #ecommerce" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                <FormField
+                  control={form.control}
+                  name="hashtags"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hashtags (separadas por vírgula)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="#marketing, #vendas, #ecommerce" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
 
-            <FormField
-              control={form.control}
-              name="generation_prompt"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prompt para gerar imagem/vídeo</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Descreva detalhadamente o visual que você quer para este conteúdo..."
-                      className="min-h-[60px]"
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormDescription className="text-xs">
-                    Este prompt será usado pela IA para gerar o criativo
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Prompt para criativo - só mostrar se NÃO for blog-only */}
+            {!isBlogOnly && (
+              <FormField
+                control={form.control}
+                name="generation_prompt"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prompt para gerar imagem/vídeo</FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        placeholder="Descreva detalhadamente o visual que você quer para este conteúdo..."
+                        className="min-h-[60px]"
+                        {...field} 
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Este prompt será usado pela IA para gerar o criativo
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <DialogFooter className="gap-2 sm:gap-0">
               {isEditing && (

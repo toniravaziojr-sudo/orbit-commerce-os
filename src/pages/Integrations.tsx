@@ -1,7 +1,9 @@
 import { 
   Plug, 
   CreditCard, 
-  Globe
+  Share2,
+  Boxes,
+  MessageSquare
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -12,6 +14,7 @@ import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySett
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
+import { useLateConnection } from "@/hooks/useLateConnection";
 
 // Future integrations
 const FUTURE_INTEGRATIONS = [
@@ -27,8 +30,10 @@ const FUTURE_INTEGRATIONS = [
 
 export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
+  const { isConnected: lateConnected } = useLateConnection();
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
+  const socialAccountsCount = lateConnected ? 1 : 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -38,7 +43,7 @@ export default function Integrations() {
       />
 
       {/* Quick Stats */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -59,11 +64,45 @@ export default function Integrations() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                <Globe className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <Share2 className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Outros</p>
+                <p className="text-sm text-muted-foreground">Redes Sociais</p>
+                <p className="text-2xl font-bold">
+                  {socialAccountsCount}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">{lateConnected ? "conectado" : "pendente"}</span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                <MessageSquare className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Comunicação</p>
+                <p className="text-2xl font-bold">
+                  0
+                  <span className="text-sm font-normal text-muted-foreground ml-1">ativos</span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                <Boxes className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">ERP</p>
                 <p className="text-2xl font-bold">
                   0
                   <span className="text-sm font-normal text-muted-foreground ml-1">em breve</span>
@@ -75,14 +114,22 @@ export default function Integrations() {
       </div>
 
       <Tabs defaultValue="payments" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="payments" className="gap-2">
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">Pagamentos</span>
           </TabsTrigger>
-          <TabsTrigger value="others" className="gap-2">
-            <Plug className="h-4 w-4" />
-            <span className="hidden sm:inline">Outros</span>
+          <TabsTrigger value="social" className="gap-2">
+            <Share2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Redes Sociais</span>
+          </TabsTrigger>
+          <TabsTrigger value="communication" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">Comunicação</span>
+          </TabsTrigger>
+          <TabsTrigger value="erp" className="gap-2">
+            <Boxes className="h-4 w-4" />
+            <span className="hidden sm:inline">ERP</span>
           </TabsTrigger>
         </TabsList>
 
@@ -90,19 +137,23 @@ export default function Integrations() {
           <PaymentGatewaySettings />
         </TabsContent>
 
-        <TabsContent value="others" className="space-y-6">
-          {/* WhatsApp Settings - provider-agnostic tabs */}
-          <WhatsAppProviderTabs />
-
+        <TabsContent value="social" className="space-y-6">
           {/* Late - Social Publishing */}
           <LateConnectionSettings />
+        </TabsContent>
 
+        <TabsContent value="communication" className="space-y-6">
+          {/* WhatsApp Settings - provider-agnostic tabs */}
+          <WhatsAppProviderTabs />
+        </TabsContent>
+
+        <TabsContent value="erp" className="space-y-6">
           {/* Future Integrations */}
           <Card>
             <CardHeader>
-              <CardTitle>Outras Integrações</CardTitle>
+              <CardTitle>Integrações ERP</CardTitle>
               <CardDescription>
-                Em breve você poderá conectar mais serviços
+                Em breve você poderá conectar seu ERP
               </CardDescription>
             </CardHeader>
           </Card>

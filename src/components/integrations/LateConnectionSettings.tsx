@@ -89,6 +89,13 @@ export function LateConnectionSettings() {
     if (!tenantId) return;
 
     setIsConnecting(true);
+    
+    // Timeout de 30 segundos para evitar loading eterno
+    const timeout = setTimeout(() => {
+      setIsConnecting(false);
+      toast.error("Tempo limite excedido. Tente novamente.");
+    }, 30000);
+    
     try {
       const { data, error } = await supabase.functions.invoke("late-auth-start", {
         body: {
@@ -97,8 +104,18 @@ export function LateConnectionSettings() {
         },
       });
 
-      if (error || !data?.success) {
+      clearTimeout(timeout);
+
+      if (error) {
+        console.error("Late auth start error:", error);
+        toast.error("Erro ao iniciar conexão. Tente novamente.");
+        setIsConnecting(false);
+        return;
+      }
+      
+      if (!data?.success) {
         toast.error(data?.error || "Erro ao iniciar conexão");
+        setIsConnecting(false);
         return;
       }
 
@@ -107,10 +124,12 @@ export function LateConnectionSettings() {
         window.location.href = data.oauth_url;
       } else {
         toast.error("URL de autorização não recebida");
+        setIsConnecting(false);
       }
     } catch (e: any) {
+      clearTimeout(timeout);
+      console.error("Late connect error:", e);
       toast.error(e.message || "Erro ao conectar");
-    } finally {
       setIsConnecting(false);
     }
   };
@@ -286,10 +305,30 @@ export function LateConnectionSettings() {
               </Button>
             </div>
           </>
+        ) : connection?.status === "connecting" ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">Processando conexão...</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Se a janela de autorização não abriu, clique para tentar novamente.
+            </p>
+            <Button variant="outline" size="sm" onClick={handleConnect} disabled={isConnecting}>
+              {isConnecting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Tentar novamente
+            </Button>
+          </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="text-sm text-muted-foreground">Processando conexão...</span>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">Processando conexão...</span>
+            </div>
           </div>
         )}
       </CardContent>
