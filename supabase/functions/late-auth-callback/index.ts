@@ -146,14 +146,19 @@ serve(async (req) => {
       })
       .eq("tenant_id", tenantId);
 
-    log(ctx, "Connection successful, redirecting to app");
+    log(ctx, "Connection successful, redirecting to frontend callback page");
 
-    // Redirect to success page
+    // Get platform from state metadata
+    const platform = stateData.metadata?.platform || connected || "facebook";
+
+    // Redirect to FRONTEND callback page (which will close the popup)
     const baseUrl = getBaseUrl();
+    const frontendCallbackUrl = `${baseUrl}/integrations/late/callback?late_connected=true&platform=${platform}`;
+    
     return new Response(null, {
       status: 302,
       headers: {
-        Location: `${baseUrl}${redirectUrl}?late_connected=true`,
+        Location: frontendCallbackUrl,
       },
     });
 
@@ -171,13 +176,14 @@ function getBaseUrl(): string {
   return "https://app.comandocentral.com.br";
 }
 
-function redirectWithError(errorMessage: string, redirectPath = "/integrations"): Response {
+function redirectWithError(errorMessage: string, redirectPath = "/integrations", platform = "facebook"): Response {
   const baseUrl = getBaseUrl();
   const encodedError = encodeURIComponent(errorMessage);
+  // Redirect to frontend callback page so it can close the popup
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${baseUrl}${redirectPath}?late_error=${encodedError}`,
+      Location: `${baseUrl}/integrations/late/callback?late_error=${encodedError}&platform=${platform}`,
     },
   });
 }
