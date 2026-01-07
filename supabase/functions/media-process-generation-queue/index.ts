@@ -10,6 +10,8 @@ interface GenerationSettings {
   use_packshot?: boolean;
   content_type?: string;
   packshot_url?: string;
+  reference_source?: string;
+  matched_products?: Array<{ id: string; name: string; image_url: string | null }>;
 }
 
 // Download image and convert to base64 data URL
@@ -184,33 +186,34 @@ serve(async (req) => {
         // Parse settings
         const settings = (generation.settings || {}) as GenerationSettings;
         const contentType = settings.content_type || "image";
-        const usePackshot = settings.use_packshot || false;
+        const referenceSource = settings.reference_source;
         const packshotUrl = settings.packshot_url;
 
-        // Check if we should use image-to-image with packshot
-        let packshotDataUrl: string | null = null;
-        if (usePackshot && packshotUrl) {
-          console.log(`Downloading packshot from: ${packshotUrl}`);
-          packshotDataUrl = await downloadImageAsDataUrl(packshotUrl);
-          if (packshotDataUrl) {
-            console.log("Packshot downloaded successfully, using image-to-image mode");
+        // Check if we should use image-to-image with reference image
+        let referenceDataUrl: string | null = null;
+        if (packshotUrl) {
+          console.log(`Downloading reference image (${referenceSource}) from: ${packshotUrl}`);
+          referenceDataUrl = await downloadImageAsDataUrl(packshotUrl);
+          if (referenceDataUrl) {
+            console.log(`Reference image downloaded successfully (source: ${referenceSource}), using image-to-image mode`);
           } else {
-            console.log("Failed to download packshot, falling back to text-to-image");
+            console.log("Failed to download reference image, falling back to text-to-image");
           }
         }
 
         // Generate variants
-        const variantCount = Math.min(generation.variant_count || 4, 4);
+        const variantCount = Math.min(generation.variant_count || 1, 4);
         const variants: Array<{ index: number; dataUrl: string }> = [];
 
-        // Enhanced prompt for packshot mode
+        // Enhanced prompt for reference image mode
         let finalPrompt = generation.prompt_final;
-        if (packshotDataUrl) {
+        if (referenceDataUrl) {
           finalPrompt = `${generation.prompt_final}
 
-IMPORTANTE: A imagem de referência contém o produto real. 
-- PRESERVE exatamente o rótulo, cores e design do produto
+IMPORTANTE: A imagem de referência contém o produto REAL da loja do cliente. 
+- PRESERVE exatamente o rótulo, cores, logo e design do produto
 - NÃO altere texto, logos ou elementos da embalagem
+- NÃO invente um produto diferente - USE o produto mostrado na referência
 - Apenas crie um cenário/contexto ao redor do produto
 - Mantenha o produto como elemento central e inalterado`;
         }
@@ -229,7 +232,7 @@ IMPORTANTE: A imagem de referência contém o produto real.
             const imageDataUrl = await generateImageWithLovableAI(
               lovableApiKey,
               finalPrompt,
-              packshotDataUrl || undefined
+              referenceDataUrl || undefined
             );
 
             if (imageDataUrl) {
@@ -317,7 +320,8 @@ IMPORTANTE: A imagem de referência contém o produto real.
               ...settings,
               actual_variant_count: variants.length,
               cost_estimate: totalCost,
-              used_packshot: !!packshotDataUrl,
+              used_reference: !!referenceDataUrl,
+              reference_source: referenceSource,
             },
           })
           .eq("id", generation.id);
