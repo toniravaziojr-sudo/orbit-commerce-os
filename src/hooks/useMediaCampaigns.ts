@@ -8,6 +8,8 @@ type MediaCampaignStatus = Database["public"]["Enums"]["media_campaign_status"];
 type MediaItemStatus = Database["public"]["Enums"]["media_item_status"];
 type MediaContentType = Database["public"]["Enums"]["media_content_type"];
 
+export type TargetChannel = "all" | "blog" | "facebook" | "instagram";
+
 export interface MediaCampaign {
   id: string;
   tenant_id: string;
@@ -24,6 +26,8 @@ export interface MediaCampaign {
   approved_count: number | null;
   published_count: number | null;
   metadata: Json | null;
+  target_channel: TargetChannel | null;
+  auto_publish: boolean | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
@@ -47,6 +51,9 @@ export interface MediaCalendarItem {
   asset_metadata: Json | null;
   status: MediaItemStatus;
   target_platforms: string[] | null;
+  target_channel: TargetChannel | null;
+  blog_post_id: string | null;
+  published_blog_at: string | null;
   published_at: string | null;
   publish_results: Json | null;
   version: number | null;
@@ -65,6 +72,7 @@ export interface CreateCampaignInput {
   end_date: string;
   days_of_week?: number[];
   months?: number[];
+  target_channel?: TargetChannel;
 }
 
 export interface UpdateCalendarItemInput {
@@ -76,6 +84,7 @@ export interface UpdateCalendarItemInput {
   hashtags?: string[];
   status?: MediaItemStatus;
   target_platforms?: string[];
+  target_channel?: TargetChannel;
 }
 
 export function useMediaCampaigns() {
@@ -114,6 +123,7 @@ export function useMediaCampaigns() {
           end_date: input.end_date,
           days_of_week: input.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
           months: input.months,
+          target_channel: input.target_channel ?? "all",
           status: "draft" as MediaCampaignStatus,
           created_by: user?.id,
         })
