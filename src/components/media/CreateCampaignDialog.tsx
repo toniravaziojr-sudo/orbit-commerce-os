@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, X, Newspaper, Instagram, Facebook, Check } from "lucide-react";
+import { Newspaper, Instagram, Facebook, Check, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,12 +25,6 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 
@@ -47,7 +41,7 @@ const formSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   description: z.string().optional(),
-  selectedDates: z.array(z.date()).min(1, "Selecione pelo menos uma data"),
+  selectedPeriod: z.enum(["current", "next"]),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -70,48 +64,32 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       name: "",
       prompt: "",
       description: "",
-      selectedDates: [],
+      selectedPeriod: "current",
     },
   });
 
   const selectedChannels = form.watch("selected_channels");
+  const selectedPeriod = form.watch("selectedPeriod");
 
-  // Today at start of day (for comparison)
-  const today = startOfDay(new Date());
-  
-  // Shortcuts for quick date selection
-  const setCurrentMonth = () => {
+  // Compute period dates based on selection
+  const getPeriodDates = (period: "current" | "next") => {
     const now = new Date();
+    const today = startOfDay(now);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const endOfCurrentMonth = endOfMonth(now);
     
-    if (tomorrow <= endOfCurrentMonth) {
-      const dates = eachDayOfInterval({ start: tomorrow, end: endOfCurrentMonth });
-      form.setValue("selectedDates", dates);
+    if (period === "current") {
+      const endOfCurrentMonth = endOfMonth(now);
+      if (tomorrow <= endOfCurrentMonth) {
+        return { start: tomorrow, end: endOfCurrentMonth };
+      } else {
+        const next = addMonths(now, 1);
+        return { start: startOfMonth(next), end: endOfMonth(next) };
+      }
     } else {
       const next = addMonths(now, 1);
-      const dates = eachDayOfInterval({ start: startOfMonth(next), end: endOfMonth(next) });
-      form.setValue("selectedDates", dates);
+      return { start: startOfMonth(next), end: endOfMonth(next) };
     }
-  };
-
-  const setNextMonth = () => {
-    const next = addMonths(new Date(), 1);
-    const dates = eachDayOfInterval({ start: startOfMonth(next), end: endOfMonth(next) });
-    form.setValue("selectedDates", dates);
-  };
-
-  const clearSelection = () => {
-    form.setValue("selectedDates", []);
-  };
-
-  const removeDate = (dateToRemove: Date) => {
-    const current = form.getValues("selectedDates");
-    form.setValue(
-      "selectedDates",
-      current.filter((d) => d.getTime() !== dateToRemove.getTime())
-    );
   };
 
   const toggleChannel = (channelId: ChannelId) => {
@@ -138,13 +116,9 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
   };
 
   const onSubmit = async (values: FormValues) => {
-    if (!values.selectedDates || values.selectedDates.length === 0) return;
-    
     setIsSubmitting(true);
     try {
-      const sortedDates = [...values.selectedDates].sort((a, b) => a.getTime() - b.getTime());
-      const startDate = sortedDates[0];
-      const endDate = sortedDates[sortedDates.length - 1];
+      const { start, end } = getPeriodDates(values.selectedPeriod);
       
       // Convert selected channels to target_channel format
       const targetChannel = values.selected_channels.length === 3 ? "all" : 
@@ -154,8 +128,8 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
         name: values.name,
         prompt: values.prompt,
         description: values.description,
-        start_date: format(startDate, "yyyy-MM-dd"),
-        end_date: format(endDate, "yyyy-MM-dd"),
+        start_date: format(start, "yyyy-MM-dd"),
+        end_date: format(end, "yyyy-MM-dd"),
         days_of_week: [0, 1, 2, 3, 4, 5, 6],
         target_channel: targetChannel,
         // Store selected channels in metadata for later use
@@ -313,95 +287,52 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
 
                 <FormField
                   control={form.control}
-                  name="selectedDates"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Datas da campanha</FormLabel>
-                      <div className="flex flex-wrap gap-2 mb-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={setCurrentMonth}
-                        >
-                          Mês atual
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={setNextMonth}
-                        >
-                          Próximo mês
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={clearSelection}
-                        >
-                          Limpar
-                        </Button>
-                      </div>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              className={cn(
-                                "w-full pl-3 text-left font-normal min-h-[40px]",
-                                field.value.length === 0 && "text-muted-foreground"
-                              )}
-                            >
-                              {field.value.length > 0 ? (
-                                <span>{field.value.length} data(s) selecionada(s)</span>
-                              ) : (
-                                <span>Clique para selecionar datas</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            initialFocus
-                            mode="multiple"
-                            defaultMonth={new Date()}
-                            selected={field.value}
-                            onSelect={(dates) => {
-                              field.onChange(dates || []);
-                            }}
-                            numberOfMonths={2}
-                            locale={ptBR}
-                            disabled={(date) => startOfDay(date) <= today}
-                            className="pointer-events-auto"
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      {field.value.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-2 max-h-[100px] overflow-y-auto">
-                          {[...field.value]
-                            .sort((a, b) => a.getTime() - b.getTime())
-                            .map((date) => (
-                              <span
-                                key={date.getTime()}
-                                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary/10 text-primary"
-                              >
-                                {format(date, "dd/MM", { locale: ptBR })}
-                                <button
-                                  type="button"
-                                  onClick={() => removeDate(date)}
-                                  className="hover:text-destructive"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </span>
-                            ))}
+                  name="selectedPeriod"
+                  render={({ field }) => {
+                    const periodInfo = getPeriodDates(field.value);
+                    return (
+                      <FormItem>
+                        <FormLabel>Período da campanha</FormLabel>
+                        <div className="grid grid-cols-2 gap-3">
+                          <button
+                            type="button"
+                            onClick={() => field.onChange("current")}
+                            className={cn(
+                              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                              "hover:border-primary hover:bg-primary/5",
+                              field.value === "current" && "border-primary bg-primary/10"
+                            )}
+                          >
+                            <CalendarDays className={cn("h-6 w-6", field.value === "current" ? "text-primary" : "text-muted-foreground")} />
+                            <span className={cn("font-medium", field.value === "current" && "text-primary")}>Este mês</span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(startOfMonth(new Date()), "MMMM yyyy", { locale: ptBR })}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => field.onChange("next")}
+                            className={cn(
+                              "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                              "hover:border-primary hover:bg-primary/5",
+                              field.value === "next" && "border-primary bg-primary/10"
+                            )}
+                          >
+                            <CalendarDays className={cn("h-6 w-6", field.value === "next" ? "text-primary" : "text-muted-foreground")} />
+                            <span className={cn("font-medium", field.value === "next" && "text-primary")}>Próximo mês</span>
+                            <span className="text-xs text-muted-foreground">
+                              {format(addMonths(new Date(), 1), "MMMM yyyy", { locale: ptBR })}
+                            </span>
+                          </button>
                         </div>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                        <FormDescription>
+                          Período: {format(periodInfo.start, "dd/MM", { locale: ptBR })} até {format(periodInfo.end, "dd/MM/yyyy", { locale: ptBR })}. 
+                          Você poderá ajustar os dias individualmente no calendário após criar a campanha.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <DialogFooter className="gap-2">
