@@ -59,7 +59,9 @@ export function PlatformIntegrationsDashboard({ onNavigateToTab }: PlatformInteg
     loggi: 'logistics',
     firecrawl: 'ai',
     lovable_ai: 'ai',
+    openai: 'ai',
     zapi: 'whatsapp',
+    whatsapp_meta: 'whatsapp',
   };
 
   const getStatusBadge = (status: string) => {

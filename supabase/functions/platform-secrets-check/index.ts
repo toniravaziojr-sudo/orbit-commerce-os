@@ -102,6 +102,8 @@ serve(async (req) => {
     const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
     const zapiClientToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_CLIENT_TOKEN');
     const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
+    const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
+    const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
         name: 'Focus NFe',
@@ -231,6 +233,24 @@ serve(async (req) => {
         },
         sources: {
           ZAPI_CLIENT_TOKEN: zapiClientToken.source || '',
+        },
+      },
+      whatsapp_meta: {
+        name: 'WhatsApp Meta',
+        description: 'WhatsApp Cloud API Oficial (Integrador)',
+        icon: 'MessageSquare',
+        docs: 'https://developers.facebook.com/docs/whatsapp/cloud-api',
+        secrets: {
+          META_APP_ID: metaAppId.exists,
+          META_APP_SECRET: metaAppSecret.exists,
+        },
+        previews: {
+          META_APP_ID: metaAppId.preview || '',
+          META_APP_SECRET: metaAppSecret.preview || '',
+        },
+        sources: {
+          META_APP_ID: metaAppId.source || '',
+          META_APP_SECRET: metaAppSecret.source || '',
         },
       },
     };
