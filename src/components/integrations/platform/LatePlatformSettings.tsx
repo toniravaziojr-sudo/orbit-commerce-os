@@ -1,0 +1,160 @@
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Loader2, CheckCircle, XCircle, Calendar, ExternalLink } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { CredentialEditor } from "../CredentialEditor";
+import { useQuery } from "@tanstack/react-query";
+
+export function LatePlatformSettings() {
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    configured: boolean;
+    valid?: boolean;
+  } | null>(null);
+
+  // Check if LATE_API_KEY is configured
+  const { data: credentialStatus, refetch: refetchCredential } = useQuery({
+    queryKey: ["platform-credential", "LATE_API_KEY"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("get-platform-credential-status", {
+        body: { credential_key: "LATE_API_KEY" },
+      });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("late-test-connection", {
+        body: {},
+      });
+
+      if (error) {
+        setTestResult({
+          success: false,
+          message: error.message || "Erro ao testar conexão",
+          configured: false,
+        });
+        return;
+      }
+
+      setTestResult({
+        success: data.success,
+        message: data.message || data.error || "Teste realizado",
+        configured: data.configured ?? false,
+        valid: data.valid,
+      });
+
+      if (data.success) {
+        toast.success("Late API funcionando!");
+      } else {
+        toast.error(data.error || "Falha no teste");
+      }
+    } catch (e: any) {
+      setTestResult({
+        success: false,
+        message: e.message || "Erro interno",
+        configured: false,
+      });
+      toast.error("Erro ao testar");
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-auth-callback`;
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
+              <Calendar className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <CardTitle>Late - Agendamento de Publicações</CardTitle>
+              <CardDescription>
+                Configure a API Late para permitir que tenants agendem posts em redes sociais.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Alert>
+            <AlertDescription>
+              <strong>Fluxo:</strong> Você configura a API Key aqui (global). 
+              Cada tenant conecta suas próprias contas de Facebook/Instagram em Integrações.
+            </AlertDescription>
+          </Alert>
+
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Credenciais da API</h4>
+            
+            <CredentialEditor
+              credentialKey="LATE_API_KEY"
+              label="Late API Key"
+              description="Chave de API obtida em getlate.dev"
+              isConfigured={credentialStatus?.configured ?? false}
+              preview={credentialStatus?.preview || ""}
+              source={credentialStatus?.source}
+              placeholder="late_..."
+            />
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-sm font-medium">Callback URL</h4>
+            <p className="text-sm text-muted-foreground">
+              Configure esta URL no painel da Late como Redirect URL (se necessário):
+            </p>
+            <code className="block rounded-md bg-muted px-3 py-2 text-sm break-all">
+              {callbackUrl}
+            </code>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <Button onClick={handleTestConnection} disabled={isTesting}>
+              {isTesting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Testando...
+                </>
+              ) : (
+                "Testar Conexão"
+              )}
+            </Button>
+
+            <Button variant="outline" asChild>
+              <a href="https://getlate.dev" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Documentação Late
+              </a>
+            </Button>
+          </div>
+
+          {testResult && (
+            <Alert variant={testResult.success ? "default" : "destructive"}>
+              <div className="flex items-center gap-2">
+                {testResult.success ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                <AlertDescription>{testResult.message}</AlertDescription>
+              </div>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
