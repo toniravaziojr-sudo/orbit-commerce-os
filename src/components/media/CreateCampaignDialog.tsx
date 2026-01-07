@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { format, differenceInDays, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfDay } from "date-fns";
+import { format, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 
@@ -40,20 +39,9 @@ const formSchema = z.object({
   prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   description: z.string().optional(),
   selectedDates: z.array(z.date()).min(1, "Selecione pelo menos uma data"),
-  daysOfWeek: z.array(z.number()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
-
-const weekDays = [
-  { value: 0, label: "Dom" },
-  { value: 1, label: "Seg" },
-  { value: 2, label: "Ter" },
-  { value: 3, label: "Qua" },
-  { value: 4, label: "Qui" },
-  { value: 5, label: "Sex" },
-  { value: 6, label: "Sáb" },
-];
 
 interface CreateCampaignDialogProps {
   open: boolean;
@@ -72,20 +60,8 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       prompt: "",
       description: "",
       selectedDates: [],
-      daysOfWeek: [0, 1, 2, 3, 4, 5, 6], // Todos os dias por padrão
     },
   });
-
-  // Watch selectedDates to determine if we should show days of week selector
-  const selectedDates = useWatch({ control: form.control, name: "selectedDates" });
-  
-  const showDaysOfWeek = useMemo(() => {
-    if (!selectedDates || selectedDates.length < 15) return false;
-    // Check if dates span 15+ consecutive days
-    const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
-    const diff = differenceInDays(sorted[sorted.length - 1], sorted[0]);
-    return diff >= 14; // 15 days = diff of 14
-  }, [selectedDates]);
 
   // Today at start of day (for comparison)
   const today = startOfDay(new Date());
@@ -137,16 +113,13 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       const startDate = sortedDates[0];
       const endDate = sortedDates[sortedDates.length - 1];
       
-      // If range is less than 7 days, use all days of week
-      const daysOfWeek = showDaysOfWeek ? values.daysOfWeek : [0, 1, 2, 3, 4, 5, 6];
-      
       const result = await createCampaign.mutateAsync({
         name: values.name,
         prompt: values.prompt,
         description: values.description,
         start_date: format(startDate, "yyyy-MM-dd"),
         end_date: format(endDate, "yyyy-MM-dd"),
-        days_of_week: daysOfWeek,
+        days_of_week: [0, 1, 2, 3, 4, 5, 6], // Todos os dias
       });
       form.reset();
       onOpenChange(false);
@@ -296,48 +269,6 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                 </FormItem>
               )}
             />
-
-            {showDaysOfWeek && (
-              <FormField
-                control={form.control}
-                name="daysOfWeek"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Dias da semana</FormLabel>
-                    <FormDescription>
-                      Em quais dias você quer publicar conteúdo?
-                    </FormDescription>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {weekDays.map((day) => (
-                        <label
-                          key={day.value}
-                          className={cn(
-                            "flex items-center justify-center w-12 h-10 rounded-md border cursor-pointer transition-colors",
-                            field.value.includes(day.value)
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-background border-input hover:bg-accent"
-                          )}
-                        >
-                          <Checkbox
-                            checked={field.value.includes(day.value)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                field.onChange([...field.value, day.value].sort());
-                              } else {
-                                field.onChange(field.value.filter((v) => v !== day.value));
-                              }
-                            }}
-                            className="sr-only"
-                          />
-                          <span className="text-sm font-medium">{day.label}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
