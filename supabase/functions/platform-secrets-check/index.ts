@@ -104,6 +104,7 @@ serve(async (req) => {
     const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
     const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
+    const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
         name: 'Focus NFe',
@@ -251,6 +252,21 @@ serve(async (req) => {
         sources: {
           META_APP_ID: metaAppId.source || '',
           META_APP_SECRET: metaAppSecret.source || '',
+        },
+      },
+      late: {
+        name: 'Late',
+        description: 'Agendamento de publicações em redes sociais (Facebook/Instagram)',
+        icon: 'Calendar',
+        docs: 'https://getlate.dev/docs',
+        secrets: {
+          LATE_API_KEY: lateApiKey.exists,
+        },
+        previews: {
+          LATE_API_KEY: lateApiKey.preview || '',
+        },
+        sources: {
+          LATE_API_KEY: lateApiKey.source || '',
         },
       },
     };

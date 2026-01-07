@@ -17,17 +17,30 @@ export function LatePlatformSettings() {
     valid?: boolean;
   } | null>(null);
 
-  // Check if LATE_API_KEY is configured
-  const { data: credentialStatus, refetch: refetchCredential } = useQuery({
-    queryKey: ["platform-credential", "LATE_API_KEY"],
+  // Check Late status using platform-secrets-check
+  const { data: secretStatus, isLoading } = useQuery({
+    queryKey: ['platform-secrets-status', 'late'],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("get-platform-credential-status", {
-        body: { credential_key: "LATE_API_KEY" },
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Não autenticado');
+
+      const response = await supabase.functions.invoke('platform-secrets-check', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
-      if (error) throw error;
-      return data;
+
+      if (response.error) throw response.error;
+      if (!response.data.success) throw new Error(response.data.error);
+      
+      const late = response.data.integrations?.find((i: any) => i.key === 'late');
+      return late || null;
     },
   });
+
+  const isConfigured = secretStatus?.status === 'configured';
+  const apiKeyPreview = secretStatus?.previews?.LATE_API_KEY || '';
+  const apiKeySource = secretStatus?.sources?.LATE_API_KEY;
 
   const handleTestConnection = async () => {
     setIsTesting(true);
@@ -73,6 +86,14 @@ export function LatePlatformSettings() {
 
   const callbackUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/late-auth-callback`;
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -104,9 +125,9 @@ export function LatePlatformSettings() {
               credentialKey="LATE_API_KEY"
               label="Late API Key"
               description="Chave de API obtida em getlate.dev"
-              isConfigured={credentialStatus?.configured ?? false}
-              preview={credentialStatus?.preview || ""}
-              source={credentialStatus?.source}
+              isConfigured={isConfigured}
+              preview={apiKeyPreview}
+              source={apiKeySource as 'db' | 'env' | null}
               placeholder="late_..."
             />
           </div>
