@@ -27,16 +27,17 @@ async function findProductsInText(
   const matches: ProductMatch[] = [];
   
   // Get all products for this tenant with their images
+  // Get products that have images (using left join to also get products without images)
   const { data: products, error } = await supabase
     .from("products")
     .select(`
       id,
       name,
       sku,
-      product_images!inner(url, is_primary, sort_order)
+      product_images(url, is_primary, sort_order)
     `)
     .eq("tenant_id", tenantId)
-    .eq("is_active", true)
+    .eq("status", "active")
     .order("name");
 
   if (error || !products || products.length === 0) {
