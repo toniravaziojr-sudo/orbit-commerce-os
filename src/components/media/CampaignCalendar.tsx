@@ -45,10 +45,8 @@ const statusLabels: Record<string, string> = {
 
 const contentTypeIcons: Record<string, string> = {
   image: "🖼️",
-  video: "🎬",
   carousel: "📸",
   story: "📱",
-  reel: "🎞️",
   text: "📝",
 };
 

@@ -59,11 +59,9 @@ type FormValues = z.infer<typeof formSchema>;
 
 const contentTypes: { value: MediaContentType; label: string }[] = [
   { value: "image", label: "🖼️ Imagem" },
-  { value: "video", label: "🎬 Vídeo" },
   { value: "carousel", label: "📸 Carrossel" },
   { value: "story", label: "📱 Story" },
-  { value: "reel", label: "🎞️ Reel" },
-  { value: "text", label: "📝 Texto" },
+  { value: "text", label: "📝 Texto (Blog)" },
 ];
 
 const itemStatuses: { value: MediaItemStatus; label: string }[] = [
