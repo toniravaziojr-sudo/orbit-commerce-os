@@ -113,29 +113,71 @@ serve(async (req) => {
         .eq("id", tenant_id)
         .single();
 
-      const profileName = tenant?.name || `Tenant ${tenant_id.substring(0, 8)}`;
+      // Use slug + short tenant_id to ensure uniqueness
+      const profileName = tenant?.slug 
+        ? `${tenant.slug}-${tenant_id.substring(0, 8)}`
+        : `tenant-${tenant_id.substring(0, 8)}`;
 
-      // Create profile in Late
-      const createProfileRes = await fetch("https://getlate.dev/api/v1/profiles", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${lateApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name: profileName }),
-      });
+      // First, try to find existing profile by listing profiles
+      let foundExistingProfile = false;
+      try {
+        const listProfilesRes = await fetch("https://getlate.dev/api/v1/profiles", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${lateApiKey}`,
+          },
+        });
 
-      if (!createProfileRes.ok) {
-        const errorData = await createProfileRes.text();
-        console.error("[late-auth-start] Error creating Late profile:", errorData);
-        return new Response(
-          JSON.stringify({ success: false, error: "Failed to create Late profile" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        if (listProfilesRes.ok) {
+          const profiles = await listProfilesRes.json();
+          // Look for a profile matching our tenant
+          const existingProfile = profiles.find((p: { name: string; id: string }) => 
+            p.name === profileName || 
+            p.name.includes(tenant_id.substring(0, 8))
+          );
+          
+          if (existingProfile) {
+            lateProfileId = existingProfile.id;
+            foundExistingProfile = true;
+            console.log("[late-auth-start] Found existing Late profile:", lateProfileId);
+          }
+        }
+      } catch (listError) {
+        console.warn("[late-auth-start] Could not list profiles:", listError);
       }
 
-      const profileData = await createProfileRes.json();
-      lateProfileId = profileData.id;
+      // Create profile in Late only if not found
+      if (!foundExistingProfile) {
+        const createProfileRes = await fetch("https://getlate.dev/api/v1/profiles", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${lateApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name: profileName }),
+        });
+
+        if (!createProfileRes.ok) {
+          const errorData = await createProfileRes.text();
+          console.error("[late-auth-start] Error creating Late profile:", errorData);
+          
+          // If profile exists error, try listing again with tenant name
+          if (errorData.includes("already exists")) {
+            return new Response(
+              JSON.stringify({ success: false, error: "Profile já existe no Late. Tente desconectar e reconectar." }),
+              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          }
+          
+          return new Response(
+            JSON.stringify({ success: false, error: "Failed to create Late profile" }),
+            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const profileData = await createProfileRes.json();
+        lateProfileId = profileData.id;
+      }
 
       // Upsert connection record
       await supabaseAdmin
