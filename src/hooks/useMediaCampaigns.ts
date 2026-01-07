@@ -73,6 +73,7 @@ export interface CreateCampaignInput {
   days_of_week?: number[];
   months?: number[];
   target_channel?: TargetChannel;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateCalendarItemInput {
@@ -112,21 +113,27 @@ export function useMediaCampaigns() {
     mutationFn: async (input: CreateCampaignInput) => {
       if (!currentTenant?.id) throw new Error("Tenant não selecionado");
 
+      const insertData: Record<string, unknown> = {
+        tenant_id: currentTenant.id,
+        name: input.name,
+        description: input.description,
+        prompt: input.prompt,
+        start_date: input.start_date,
+        end_date: input.end_date,
+        days_of_week: input.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
+        months: input.months,
+        target_channel: input.target_channel ?? "all",
+        status: "draft" as MediaCampaignStatus,
+        created_by: user?.id,
+      };
+
+      if (input.metadata) {
+        insertData.metadata = input.metadata;
+      }
+
       const { data, error } = await supabase
         .from("media_campaigns")
-        .insert({
-          tenant_id: currentTenant.id,
-          name: input.name,
-          description: input.description,
-          prompt: input.prompt,
-          start_date: input.start_date,
-          end_date: input.end_date,
-          days_of_week: input.days_of_week ?? [0, 1, 2, 3, 4, 5, 6],
-          months: input.months,
-          target_channel: input.target_channel ?? "all",
-          status: "draft" as MediaCampaignStatus,
-          created_by: user?.id,
-        })
+        .insert(insertData as any)
         .select()
         .single();
 

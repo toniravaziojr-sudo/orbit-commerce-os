@@ -177,7 +177,7 @@ serve(async (req) => {
         }
 
         const scheduleRes = await fetch(
-          `https://api.getlate.dev/v1/profiles/${connection.late_profile_id}/posts`,
+          `https://getlate.dev/api/v1/profiles/${connection.late_profile_id}/posts`,
           {
             method: "POST",
             headers: {

@@ -87,7 +87,7 @@ serve(async (req) => {
     if (lateApiKey && connection.late_profile_id) {
       try {
         // Delete the profile from Late (this disconnects all accounts)
-        await fetch(`https://api.getlate.dev/v1/profiles/${connection.late_profile_id}`, {
+        await fetch(`https://getlate.dev/api/v1/profiles/${connection.late_profile_id}`, {
           method: "DELETE",
           headers: {
             "Authorization": `Bearer ${lateApiKey}`,

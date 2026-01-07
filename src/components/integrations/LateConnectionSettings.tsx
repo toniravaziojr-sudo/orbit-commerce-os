@@ -38,13 +38,13 @@ export function LateConnectionSettings() {
     const lateError = searchParams.get("late_error");
 
     if (lateConnected === "true") {
-      toast.success("Late conectado com sucesso!");
+      toast.success("Canais conectados com sucesso!");
       // Clean up URL
       searchParams.delete("late_connected");
       setSearchParams(searchParams);
       loadConnection();
     } else if (lateError) {
-      toast.error(`Erro ao conectar Late: ${lateError}`);
+      toast.error(`Erro ao conectar: ${lateError}`);
       searchParams.delete("late_error");
       setSearchParams(searchParams);
       loadConnection();
@@ -129,7 +129,7 @@ export function LateConnectionSettings() {
         return;
       }
 
-      toast.success("Late desconectado");
+      toast.success("Contas desconectadas");
       loadConnection();
     } catch (e: any) {
       toast.error(e.message || "Erro ao desconectar");
@@ -181,7 +181,7 @@ export function LateConnectionSettings() {
               <Calendar className="h-5 w-5 text-white" />
             </div>
             <div>
-              <CardTitle className="text-lg">Publicação Social (Late)</CardTitle>
+              <CardTitle className="text-lg">Publicação Social</CardTitle>
               <CardDescription>Agende posts para Facebook e Instagram</CardDescription>
             </div>
           </div>

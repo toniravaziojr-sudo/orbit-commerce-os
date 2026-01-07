@@ -112,7 +112,7 @@ serve(async (req) => {
       try {
         // Fetch post status from Late
         const postRes = await fetch(
-          `https://api.getlate.dev/v1/profiles/${connection.late_profile_id}/posts/${post.external_post_id}`,
+          `https://getlate.dev/api/v1/profiles/${connection.late_profile_id}/posts/${post.external_post_id}`,
           {
             headers: {
               "Authorization": `Bearer ${lateApiKey}`,
