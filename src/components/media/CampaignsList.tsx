@@ -25,6 +25,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 import { CreateCampaignDialog } from "./CreateCampaignDialog";
+import { EditCampaignDialog } from "./EditCampaignDialog";
 
 const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   draft: { label: "Rascunho", variant: "secondary" },
@@ -41,6 +42,8 @@ export function CampaignsList() {
   const navigate = useNavigate();
   const { campaigns, isLoading, deleteCampaign } = useMediaCampaigns();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [campaignToEdit, setCampaignToEdit] = useState<MediaCampaign | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<MediaCampaign | null>(null);
 
@@ -126,7 +129,11 @@ export function CampaignsList() {
                         <Eye className="h-4 w-4 mr-2" />
                         Ver calendário
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenuItem onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setCampaignToEdit(campaign);
+                        setEditDialogOpen(true);
+                      }}>
                         <Pencil className="h-4 w-4 mr-2" />
                         Editar
                       </DropdownMenuItem>
@@ -170,6 +177,13 @@ export function CampaignsList() {
         open={createDialogOpen} 
         onOpenChange={setCreateDialogOpen}
         onSuccess={(campaign) => openCampaign(campaign)}
+      />
+
+      <EditCampaignDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        campaign={campaignToEdit}
+        onSuccess={() => setCampaignToEdit(null)}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
