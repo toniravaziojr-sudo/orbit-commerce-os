@@ -327,3 +327,19 @@ verify_jwt = false
 
 [functions.media-generate-suggestions]
 verify_jwt = true
+
+[functions.media-generate-image]
+verify_jwt = true
+
+[functions.media-process-generation-queue]
+verify_jwt = false
+schedule = "*/30 * * * * *"
+
+[functions.media-get-signed-url]
+verify_jwt = true
+
+[functions.media-approve-variant]
+verify_jwt = true
+
+[functions.media-regenerate-variant]
+verify_jwt = true

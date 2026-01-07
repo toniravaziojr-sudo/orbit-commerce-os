@@ -37,6 +37,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Database } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { AssetVariantsGallery } from "./AssetVariantsGallery";
+import { Separator } from "@/components/ui/separator";
 
 type MediaContentType = Database["public"]["Enums"]["media_content_type"];
 type MediaItemStatus = Database["public"]["Enums"]["media_item_status"];
@@ -216,7 +218,20 @@ export function CalendarItemDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Asset Preview */}
+        {/* Asset Variants Gallery */}
+        {isEditing && item && (
+          <>
+            <AssetVariantsGallery 
+              calendarItemId={item.id}
+              onAssetApproved={(url) => {
+                form.setValue("status", "asset_review");
+              }}
+            />
+            <Separator />
+          </>
+        )}
+
+        {/* Asset Preview (se já tem aprovado) */}
         {item?.asset_url && (
           <div className="rounded-lg border overflow-hidden bg-muted/50">
             <img 
@@ -225,7 +240,9 @@ export function CalendarItemDialog({
               className="w-full h-48 object-cover"
             />
             <div className="p-2 flex items-center justify-between">
-              <Badge variant="outline">Asset anexado</Badge>
+              <Badge variant="outline" className="bg-green-500/10 text-green-600">
+                ✓ Criativo aprovado
+              </Badge>
               <Button variant="ghost" size="sm" asChild>
                 <a href={item.asset_url} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4 mr-1" />
