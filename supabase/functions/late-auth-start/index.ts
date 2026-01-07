@@ -116,7 +116,7 @@ serve(async (req) => {
       const profileName = tenant?.name || `Tenant ${tenant_id.substring(0, 8)}`;
 
       // Create profile in Late
-      const createProfileRes = await fetch("https://api.getlate.dev/v1/profiles", {
+      const createProfileRes = await fetch("https://getlate.dev/api/v1/profiles", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${lateApiKey}`,
@@ -158,7 +158,7 @@ serve(async (req) => {
     // Late uses profile-based OAuth - we need to get the connect URL
     const callbackUrl = `${supabaseUrl}/functions/v1/late-auth-callback`;
     
-    const oauthRes = await fetch(`https://api.getlate.dev/v1/profiles/${lateProfileId}/social-accounts/connect`, {
+    const oauthRes = await fetch(`https://getlate.dev/api/v1/profiles/${lateProfileId}/social-accounts/connect`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${lateApiKey}`,

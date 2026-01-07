@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format, startOfMonth, endOfMonth, addMonths, eachDayOfInterval, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, X, Newspaper, Instagram, Facebook, Globe } from "lucide-react";
+import { CalendarIcon, X, Newspaper, Instagram, Facebook, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,7 +35,6 @@ import { cn } from "@/lib/utils";
 import { useMediaCampaigns, MediaCampaign } from "@/hooks/useMediaCampaigns";
 
 const CHANNELS = [
-  { id: "all", label: "Todos os canais", icon: Globe, description: "Blog, Facebook e Instagram" },
   { id: "blog", label: "Blog", icon: Newspaper, description: "Artigos e posts para o blog" },
   { id: "facebook", label: "Facebook", icon: Facebook, description: "Posts para Facebook" },
   { id: "instagram", label: "Instagram", icon: Instagram, description: "Posts para Instagram" },
@@ -44,7 +43,7 @@ const CHANNELS = [
 type ChannelId = typeof CHANNELS[number]["id"];
 
 const formSchema = z.object({
-  target_channel: z.enum(["all", "blog", "facebook", "instagram"]),
+  selected_channels: z.array(z.enum(["blog", "facebook", "instagram"])).min(1, "Selecione pelo menos um canal"),
   name: z.string().min(1, "Nome é obrigatório"),
   prompt: z.string().min(10, "Descreva o objetivo da campanha com pelo menos 10 caracteres"),
   description: z.string().optional(),
@@ -67,7 +66,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      target_channel: "all",
+      selected_channels: [],
       name: "",
       prompt: "",
       description: "",
@@ -75,7 +74,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     },
   });
 
-  const selectedChannel = form.watch("target_channel");
+  const selectedChannels = form.watch("selected_channels");
 
   // Today at start of day (for comparison)
   const today = startOfDay(new Date());
@@ -115,9 +114,23 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     );
   };
 
-  const handleChannelSelect = (channelId: ChannelId) => {
-    form.setValue("target_channel", channelId);
-    setStep("details");
+  const toggleChannel = (channelId: ChannelId) => {
+    const current = form.getValues("selected_channels");
+    if (current.includes(channelId)) {
+      form.setValue("selected_channels", current.filter((c) => c !== channelId));
+    } else {
+      form.setValue("selected_channels", [...current, channelId]);
+    }
+  };
+
+  const selectAllChannels = () => {
+    form.setValue("selected_channels", ["blog", "facebook", "instagram"]);
+  };
+
+  const handleContinue = () => {
+    if (selectedChannels.length > 0) {
+      setStep("details");
+    }
   };
 
   const handleBack = () => {
@@ -133,6 +146,10 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
       const startDate = sortedDates[0];
       const endDate = sortedDates[sortedDates.length - 1];
       
+      // Convert selected channels to target_channel format
+      const targetChannel = values.selected_channels.length === 3 ? "all" : 
+        values.selected_channels.length === 1 ? values.selected_channels[0] : "all";
+      
       const result = await createCampaign.mutateAsync({
         name: values.name,
         prompt: values.prompt,
@@ -140,7 +157,9 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
         start_date: format(startDate, "yyyy-MM-dd"),
         end_date: format(endDate, "yyyy-MM-dd"),
         days_of_week: [0, 1, 2, 3, 4, 5, 6],
-        target_channel: values.target_channel,
+        target_channel: targetChannel,
+        // Store selected channels in metadata for later use
+        metadata: { selected_channels: values.selected_channels },
       });
       form.reset();
       setStep("channel");
@@ -159,8 +178,8 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
     onOpenChange(open);
   };
 
-  const getChannelInfo = (channelId: ChannelId) => {
-    return CHANNELS.find(c => c.id === channelId);
+  const getSelectedChannelLabels = () => {
+    return selectedChannels.map(id => CHANNELS.find(c => c.id === id)?.label).filter(Boolean).join(", ");
   };
 
   return (
@@ -171,53 +190,80 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
             <DialogHeader>
               <DialogTitle>Nova Campanha de Conteúdo</DialogTitle>
               <DialogDescription>
-                Primeiro, escolha para qual canal você quer criar a campanha.
+                Selecione os canais para sua campanha. Você pode escolher um ou mais.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="grid grid-cols-2 gap-4 py-4">
-              {CHANNELS.map((channel) => {
-                const Icon = channel.icon;
-                return (
-                  <button
-                    key={channel.id}
-                    type="button"
-                    onClick={() => handleChannelSelect(channel.id)}
-                    className={cn(
-                      "flex flex-col items-center gap-3 p-6 rounded-lg border-2 transition-all",
-                      "hover:border-primary hover:bg-primary/5",
-                      "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                    )}
-                  >
-                    <Icon className="h-10 w-10 text-primary" />
-                    <div className="text-center">
-                      <p className="font-medium">{channel.label}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {channel.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="space-y-4 py-4">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAllChannels}
+                >
+                  Selecionar todos
+                </Button>
+              </div>
+              
+              <div className="grid grid-cols-3 gap-4">
+                {CHANNELS.map((channel) => {
+                  const Icon = channel.icon;
+                  const isSelected = selectedChannels.includes(channel.id);
+                  return (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => toggleChannel(channel.id)}
+                      className={cn(
+                        "relative flex flex-col items-center gap-3 p-6 rounded-lg border-2 transition-all",
+                        "hover:border-primary hover:bg-primary/5",
+                        "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+                        isSelected && "border-primary bg-primary/10"
+                      )}
+                    >
+                      {isSelected && (
+                        <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        </div>
+                      )}
+                      <Icon className={cn("h-10 w-10", isSelected ? "text-primary" : "text-muted-foreground")} />
+                      <div className="text-center">
+                        <p className={cn("font-medium", isSelected && "text-primary")}>{channel.label}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {channel.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedChannels.length > 0 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Selecionados: <span className="font-medium text-foreground">{getSelectedChannelLabels()}</span>
+                </p>
+              )}
             </div>
+
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                type="button" 
+                onClick={handleContinue}
+                disabled={selectedChannels.length === 0}
+              >
+                Continuar
+              </Button>
+            </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                {(() => {
-                  const info = getChannelInfo(selectedChannel);
-                  if (info) {
-                    const Icon = info.icon;
-                    return (
-                      <>
-                        <Icon className="h-5 w-5" />
-                        Nova Campanha - {info.label}
-                      </>
-                    );
-                  }
-                  return "Nova Campanha";
-                })()}
+                Nova Campanha - {getSelectedChannelLabels()}
               </DialogTitle>
               <DialogDescription>
                 Defina o objetivo da sua campanha e o período. A IA vai gerar sugestões de conteúdo para cada dia.
@@ -249,7 +295,7 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
                       <FormControl>
                         <Textarea 
                           placeholder={
-                            selectedChannel === "blog"
+                            selectedChannels.includes("blog")
                               ? "Ex: Série de artigos sobre cuidados masculinos, tom informativo e profissional, destacar benefícios dos produtos..."
                               : "Ex: Campanha de Natal com foco em presentes masculinos, tom premium, destacar produtos X e Y, CTA para WhatsApp..."
                           }

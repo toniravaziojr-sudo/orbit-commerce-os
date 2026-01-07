@@ -295,7 +295,7 @@ export function CampaignCalendar() {
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {isGenerating ? "Gerando..." : "Gerar Sugestões com IA"}
+              {isGenerating ? "Gerando..." : "Gerar Copy com IA"}
             </Button>
 
             {hasSuggestions && (
@@ -303,7 +303,7 @@ export function CampaignCalendar() {
                 <Button 
                   variant="outline"
                   onClick={handleApproveAll}
-                  disabled={isApproving}
+                  disabled={isApproving || stats.suggested === 0}
                   className="gap-2"
                 >
                   {isApproving ? (
@@ -321,7 +321,7 @@ export function CampaignCalendar() {
                   className="gap-2"
                 >
                   <Image className="h-4 w-4" />
-                  Gerar Criativos
+                  Gerar Criativos com IA
                 </Button>
 
                 <Button 
@@ -337,7 +337,7 @@ export function CampaignCalendar() {
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
-                  {isScheduling ? "Agendando..." : lateConnected ? "Agendar Publicações" : "Conectar Late"}
+                  {isScheduling ? "Agendando..." : lateConnected ? "Agendar Publicações" : "Conectar Canais"}
                 </Button>
               </>
             )}
@@ -351,13 +351,13 @@ export function CampaignCalendar() {
         </CardContent>
       </Card>
 
-      {/* Late Connection Alert */}
+      {/* Channel Connection Alert */}
       {!lateLoading && !lateConnected && hasSuggestions && stats.approved > 0 && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
             <span className="text-amber-800 dark:text-amber-200">
-              Para publicar nas redes sociais, conecte sua conta no Late.
+              Para publicar nas redes sociais, conecte suas contas de Facebook e Instagram.
             </span>
             <Button 
               size="sm" 
@@ -365,7 +365,7 @@ export function CampaignCalendar() {
               onClick={() => navigate("/integrations")}
               className="ml-4"
             >
-              Conectar Late
+              Conectar Canais
             </Button>
           </AlertDescription>
         </Alert>

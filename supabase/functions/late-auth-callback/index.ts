@@ -73,7 +73,7 @@ serve(async (req) => {
 
     // Fetch connected accounts from Late
     const accountsRes = await fetch(
-      `https://api.getlate.dev/v1/profiles/${connection.late_profile_id}/social-accounts`,
+      `https://getlate.dev/api/v1/profiles/${connection.late_profile_id}/social-accounts`,
       {
         headers: {
           "Authorization": `Bearer ${lateApiKey}`,
