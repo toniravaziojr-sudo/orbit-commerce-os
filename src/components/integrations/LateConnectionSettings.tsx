@@ -333,6 +333,8 @@ export function LateConnectionSettings() {
     }
   };
 
+  const [disconnectingPlatform, setDisconnectingPlatform] = useState<Platform | null>(null);
+
   // Helper functions
   const connectedAccounts = connection?.connected_accounts || [];
   
@@ -354,9 +356,60 @@ export function LateConnectionSettings() {
   const hasError = connection?.status === "error" || connection?.status === "expired";
   const isConnectingState = connection?.status === "connecting" || connectingPlatform !== null;
 
+  // Check if both accounts are linked (connected via same authorization)
+  const areBothLinked = isFacebookConnected && isInstagramConnected;
+
   // Stale check (> 10 minutes)
   const isStaleConnecting = connection?.status === "connecting" && connection.updated_at 
     && new Date(connection.updated_at) < new Date(Date.now() - 10 * 60 * 1000);
+
+  // Disconnect a specific platform
+  const handleDisconnectPlatform = async (platform: Platform) => {
+    if (!tenantId || !connection) return;
+
+    setDisconnectingPlatform(platform);
+    try {
+      // Filter out the disconnected platform
+      const remainingAccounts = connectedAccounts.filter((a: any) => {
+        const accountPlatform = a.platform || a.type;
+        return accountPlatform !== platform;
+      });
+
+      // If no accounts remain, fully disconnect
+      if (remainingAccounts.length === 0) {
+        const { data, error } = await supabase.functions.invoke("late-disconnect", {
+          body: { tenant_id: tenantId },
+        });
+
+        if (error || !data?.success) {
+          toast.error(data?.error || "Erro ao desconectar");
+          return;
+        }
+        toast.success("Conta desconectada");
+      } else {
+        // Update connection with remaining accounts
+        const { error } = await supabase
+          .from("late_connections")
+          .update({
+            connected_accounts: remainingAccounts,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("tenant_id", tenantId);
+
+        if (error) {
+          toast.error("Erro ao desconectar");
+          return;
+        }
+        toast.success(`${platform === 'instagram' ? 'Instagram' : 'Facebook'} desconectado`);
+      }
+
+      loadConnection();
+    } catch (e: any) {
+      toast.error(e.message || "Erro ao desconectar");
+    } finally {
+      setDisconnectingPlatform(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -405,6 +458,15 @@ export function LateConnectionSettings() {
           </Alert>
         )}
 
+        {/* Linked accounts notice */}
+        {areBothLinked && (
+          <Alert className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+            <AlertDescription className="text-sm text-blue-800 dark:text-blue-300">
+              Facebook e Instagram estão vinculados pela mesma autorização (Business Manager).
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Platform Connection Status Cards */}
         <div className="grid gap-3">
           {/* Facebook Card */}
@@ -413,10 +475,10 @@ export function LateConnectionSettings() {
               <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
                 isFacebookConnected 
                   ? 'bg-blue-100 dark:bg-blue-900/30' 
-                  : 'bg-gray-100 dark:bg-gray-800'
+                  : 'bg-muted'
               }`}>
                 <Facebook className={`h-5 w-5 ${
-                  isFacebookConnected ? 'text-blue-600' : 'text-gray-400'
+                  isFacebookConnected ? 'text-blue-600' : 'text-muted-foreground'
                 }`} />
               </div>
               <div>
@@ -432,10 +494,25 @@ export function LateConnectionSettings() {
             </div>
             <div className="flex items-center gap-2">
               {isFacebookConnected ? (
-                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20">
-                  <Check className="h-3 w-3 mr-1" />
-                  Conectado
-                </Badge>
+                <>
+                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20">
+                    <Check className="h-3 w-3 mr-1" />
+                    Conectado
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDisconnectPlatform("facebook")}
+                    disabled={disconnectingPlatform !== null}
+                    className="text-destructive hover:text-destructive h-8 px-2"
+                  >
+                    {disconnectingPlatform === "facebook" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Unlink className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
               ) : (
                 <Button
                   size="sm"
@@ -464,10 +541,10 @@ export function LateConnectionSettings() {
               <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
                 isInstagramConnected 
                   ? 'bg-pink-100 dark:bg-pink-900/30' 
-                  : 'bg-gray-100 dark:bg-gray-800'
+                  : 'bg-muted'
               }`}>
                 <Instagram className={`h-5 w-5 ${
-                  isInstagramConnected ? 'text-pink-600' : 'text-gray-400'
+                  isInstagramConnected ? 'text-pink-600' : 'text-muted-foreground'
                 }`} />
               </div>
               <div>
@@ -483,10 +560,25 @@ export function LateConnectionSettings() {
             </div>
             <div className="flex items-center gap-2">
               {isInstagramConnected ? (
-                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20">
-                  <Check className="h-3 w-3 mr-1" />
-                  Conectado
-                </Badge>
+                <>
+                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 dark:bg-green-900/20">
+                    <Check className="h-3 w-3 mr-1" />
+                    Conectado
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDisconnectPlatform("instagram")}
+                    disabled={disconnectingPlatform !== null}
+                    className="text-destructive hover:text-destructive h-8 px-2"
+                  >
+                    {disconnectingPlatform === "instagram" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Unlink className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
               ) : (
                 <Button
                   size="sm"
@@ -523,28 +615,12 @@ export function LateConnectionSettings() {
           </div>
         )}
 
-        {/* Connected State Actions */}
-        {isConnected && (isFacebookConnected || isInstagramConnected) && (
-          <div className="flex gap-2 pt-2 border-t">
-            {connection?.connected_at && (
-              <p className="text-xs text-muted-foreground flex-1">
-                Conectado em: {new Date(connection.connected_at).toLocaleDateString("pt-BR")}
-              </p>
-            )}
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleDisconnect} 
-              disabled={isDisconnecting}
-              className="text-destructive hover:text-destructive"
-            >
-              {isDisconnecting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Unlink className="mr-2 h-4 w-4" />
-              )}
-              Desconectar tudo
-            </Button>
+        {/* Connected State Info */}
+        {isConnected && (isFacebookConnected || isInstagramConnected) && connection?.connected_at && (
+          <div className="pt-2 border-t">
+            <p className="text-xs text-muted-foreground">
+              Conectado em: {new Date(connection.connected_at).toLocaleDateString("pt-BR")}
+            </p>
           </div>
         )}
 
