@@ -23,6 +23,7 @@ const EDITABLE_CREDENTIALS = [
   'FRENET_KEY',
   'FIRECRAWL_API_KEY',
   'ZAPI_CLIENT_TOKEN',
+  'OPENAI_API_KEY',
 ];
 
 serve(async (req) => {

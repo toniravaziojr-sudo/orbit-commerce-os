@@ -101,7 +101,7 @@ serve(async (req) => {
     const firecrawlApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'FIRECRAWL_API_KEY');
     const lovableApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LOVABLE_API_KEY');
     const zapiClientToken = await checkCredential(supabaseUrl, supabaseServiceKey, 'ZAPI_CLIENT_TOKEN');
-
+    const openaiApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'OPENAI_API_KEY');
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
         name: 'Focus NFe',
@@ -201,6 +201,21 @@ serve(async (req) => {
         },
         sources: {
           LOVABLE_API_KEY: lovableApiKey.source || '',
+        },
+      },
+      openai: {
+        name: 'OpenAI',
+        description: 'Geração de imagens e criativos (DALL-E / GPT Image)',
+        icon: 'Sparkles',
+        docs: 'https://platform.openai.com/docs',
+        secrets: {
+          OPENAI_API_KEY: openaiApiKey.exists,
+        },
+        previews: {
+          OPENAI_API_KEY: openaiApiKey.preview || '',
+        },
+        sources: {
+          OPENAI_API_KEY: openaiApiKey.source || '',
         },
       },
       zapi: {
