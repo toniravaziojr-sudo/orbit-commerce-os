@@ -6,6 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+type TargetChannel = "all" | "blog" | "facebook" | "instagram";
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -48,6 +50,8 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const targetChannel: TargetChannel = campaign.target_channel || "all";
 
     // ====================================
     // BUILD TENANT BUSINESS CONTEXT
@@ -102,7 +106,7 @@ serve(async (req) => {
       .from("products")
       .select("name, price, description, slug, is_featured")
       .eq("tenant_id", tenant_id)
-      .eq("is_active", true)
+      .eq("status", "active")
       .order("is_featured", { ascending: false })
       .limit(50);
 
@@ -184,24 +188,78 @@ serve(async (req) => {
     }
 
     // ====================================
-    // GENERATE SUGGESTIONS WITH AI
+    // BUILD SYSTEM PROMPT BASED ON CHANNEL
     // ====================================
-    const systemPrompt = `Você é um especialista em marketing digital e criação de conteúdo para redes sociais.
-Sua tarefa é criar um calendário editorial completo baseado no direcionamento do cliente e no contexto do negócio.
+    let systemPrompt = "";
+    let contentTypes = "";
+    let targetPlatformsDefault: string[] = [];
+
+    if (targetChannel === "blog") {
+      systemPrompt = `Você é um especialista em marketing de conteúdo e SEO para blogs.
+Sua tarefa é criar um calendário editorial de artigos para blog baseado no direcionamento do cliente.
 
 Regras importantes:
-1. Cada sugestão deve ser prática e executável
-2. Varie os tipos de conteúdo (imagem, vídeo, carousel, reel, story)
-3. As copies devem ser engajadoras e com CTAs claros
-4. Use hashtags relevantes para o nicho
-5. O generation_prompt deve ser detalhado para gerar imagens/vídeos
-6. Considere datas comemorativas e tendências quando relevante
-7. Mantenha consistência com a marca e tom do negócio`;
+1. Cada artigo deve ser educativo, informativo e bem estruturado
+2. Os títulos devem ser atrativos e otimizados para SEO
+3. O copy deve ser o CONTEÚDO COMPLETO do artigo em formato markdown
+4. Inclua H2 e H3 para estruturar o conteúdo
+5. O generation_prompt deve descrever a imagem de capa do artigo (sem produtos, apenas cenário/conceito)
+6. Use hashtags como tags/categorias do artigo
+7. O CTA deve direcionar para produtos ou contato da loja`;
+      contentTypes = '"image" (artigo de blog com imagem de capa)';
+      targetPlatformsDefault = ["blog"];
+    } else if (targetChannel === "facebook") {
+      systemPrompt = `Você é um especialista em marketing para Facebook.
+Sua tarefa é criar um calendário de posts para Facebook baseado no direcionamento do cliente.
 
+Regras importantes:
+1. Posts engajadores com tom adequado para Facebook
+2. Copies mais longas são bem-vindas (Facebook aceita textos maiores)
+3. CTAs claros para vendas ou WhatsApp
+4. Use imagens atraentes (descreva no generation_prompt)
+5. Varie entre posts informativos, promocionais e de engajamento
+6. Inclua perguntas para gerar comentários`;
+      contentTypes = '"image" (post com imagem) ou "carousel" (carrossel de imagens)';
+      targetPlatformsDefault = ["facebook"];
+    } else if (targetChannel === "instagram") {
+      systemPrompt = `Você é um especialista em marketing para Instagram.
+Sua tarefa é criar um calendário de posts para Instagram baseado no direcionamento do cliente.
+
+Regras importantes:
+1. Copies curtas e impactantes (limite de 2200 caracteres)
+2. Hashtags relevantes para o nicho (máximo 30)
+3. CTAs claros (link na bio, DM, etc.)
+4. O generation_prompt deve ser detalhado para gerar imagens atraentes
+5. Varie entre posts de produto, estilo de vida e educativos
+6. Use emojis com moderação`;
+      contentTypes = '"image" (post 1:1) ou "carousel" (carrossel)';
+      targetPlatformsDefault = ["instagram"];
+    } else {
+      // "all" - Generate for all channels
+      systemPrompt = `Você é um especialista em marketing digital multiplataforma.
+Sua tarefa é criar um calendário editorial para Blog, Facebook e Instagram baseado no direcionamento do cliente.
+
+Regras importantes:
+1. Distribua os conteúdos entre os 3 canais de forma equilibrada
+2. Para Blog: conteúdo educativo e informativo, copy em markdown, generation_prompt para imagem de capa (sem produto)
+3. Para Facebook: posts mais longos e engajadores, com perguntas
+4. Para Instagram: posts curtos e impactantes, com hashtags
+5. O generation_prompt deve ser detalhado para gerar imagens
+6. Varie os tipos de conteúdo dentro de cada plataforma
+7. Mantenha consistência de marca entre as plataformas`;
+      contentTypes = '"image" ou "carousel" para redes sociais, "image" para blog';
+      targetPlatformsDefault = ["instagram", "facebook", "blog"];
+    }
+
+    // ====================================
+    // GENERATE SUGGESTIONS WITH AI
+    // ====================================
     const userPrompt = `${businessContext}
 
 ## Direcionamento da campanha:
 ${campaign.prompt}
+
+## Canal alvo: ${targetChannel === "all" ? "Blog, Facebook e Instagram" : targetChannel}
 
 ## Período: ${campaign.start_date} até ${campaign.end_date}
 
@@ -211,14 +269,20 @@ ${validDates.join(", ")}
 Responda APENAS com um array JSON válido (sem markdown, sem \`\`\`), onde cada item tem:
 {
   "scheduled_date": "YYYY-MM-DD",
-  "content_type": "image" | "video" | "carousel" | "reel" | "story",
-  "title": "Título/tema do post",
-  "copy": "Legenda completa com emojis e CTAs",
+  "content_type": ${contentTypes},
+  "target_channel": "${targetChannel === "all" ? "blog" : targetChannel}" | "facebook" | "instagram" | "blog",
+  "title": "Título/tema do post ou artigo",
+  "copy": "Legenda/conteúdo completo (para blog, use markdown)",
   "cta": "Call to action principal",
   "hashtags": ["hashtag1", "hashtag2", ...],
-  "generation_prompt": "Prompt detalhado para gerar o visual do conteúdo",
-  "target_platforms": ["instagram", "facebook"]
-}`;
+  "generation_prompt": "Prompt detalhado para gerar a imagem${targetChannel === "blog" ? " de capa (NÃO inclua produtos na imagem, apenas cenário/conceito)" : " do post"}",
+  "target_platforms": ${JSON.stringify(targetPlatformsDefault)},
+  "needs_product_image": true/false
+}
+
+IMPORTANTE sobre needs_product_image:
+- true = o post precisa mostrar um produto da loja (ex: promoção de produto, destaque de produto)
+- false = o post NÃO precisa de produto (ex: dica, artigo educativo, lifestyle, etc.)`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -258,7 +322,6 @@ Responda APENAS com um array JSON válido (sem markdown, sem \`\`\`), onde cada 
     // Parse JSON from AI response
     let suggestions;
     try {
-      // Clean the response if it has markdown code blocks
       let cleanContent = content.trim();
       if (cleanContent.startsWith("```json")) {
         cleanContent = cleanContent.slice(7);
@@ -303,15 +366,18 @@ Responda APENAS com um array JSON válido (sem markdown, sem \`\`\`), onde cada 
       scheduled_date: s.scheduled_date,
       scheduled_time: defaultTime,
       content_type: s.content_type || "image",
+      target_channel: s.target_channel || targetChannel,
       title: s.title,
       copy: s.copy,
       cta: s.cta,
       hashtags: s.hashtags || [],
       generation_prompt: s.generation_prompt,
-      target_platforms: s.target_platforms || ["instagram"],
+      target_platforms: s.target_platforms || targetPlatformsDefault,
       status: "suggested",
       version: 1,
-      metadata: {},
+      metadata: {
+        needs_product_image: s.needs_product_image ?? false,
+      },
     }));
 
     const { data: insertedItems, error: insertError } = await supabase

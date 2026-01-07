@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import OpenAI from "https://esm.sh/openai@4.20.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,7 @@ interface GenerationSettings {
   packshot_url?: string;
   reference_source?: string;
   matched_products?: Array<{ id: string; name: string; image_url: string | null }>;
+  needs_product_image?: boolean;
 }
 
 // Download image and convert to base64 data URL
@@ -35,35 +37,44 @@ async function downloadImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
-// Generate image using Lovable AI (Gemini model)
-async function generateImageWithLovableAI(
-  lovableApiKey: string,
+// Generate image using OpenAI DALL-E (for product images)
+async function generateImageWithOpenAI(
+  openai: OpenAI,
   prompt: string,
-  referenceImageDataUrl?: string
+  _referenceImageDataUrl?: string
 ): Promise<string | null> {
   try {
-    // Build message content
-    const content: Array<{ type: string; text?: string; image_url?: { url: string } }> = [];
-    
-    // If we have a reference image, include it
-    if (referenceImageDataUrl) {
-      content.push({
-        type: "text",
-        text: prompt,
-      });
-      content.push({
-        type: "image_url",
-        image_url: {
-          url: referenceImageDataUrl,
-        },
-      });
-    } else {
-      content.push({
-        type: "text",
-        text: prompt,
-      });
+    // OpenAI DALL-E 3 for high quality product images
+    const response = await openai.images.generate({
+      model: "dall-e-3",
+      prompt: prompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "hd",
+      style: "natural",
+    });
+
+    const imageUrl = response.data[0]?.url;
+    if (!imageUrl) {
+      console.error("No image URL in OpenAI response");
+      return null;
     }
 
+    // Download and convert to data URL
+    const dataUrl = await downloadImageAsDataUrl(imageUrl);
+    return dataUrl;
+  } catch (error) {
+    console.error("Error calling OpenAI:", error);
+    return null;
+  }
+}
+
+// Generate image using Lovable AI (Gemini model) - for non-product images
+async function generateImageWithLovableAI(
+  lovableApiKey: string,
+  prompt: string
+): Promise<string | null> {
+  try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -75,7 +86,7 @@ async function generateImageWithLovableAI(
         messages: [
           {
             role: "user",
-            content: referenceImageDataUrl ? content : prompt,
+            content: prompt,
           },
         ],
         modalities: ["image", "text"],
@@ -89,8 +100,6 @@ async function generateImageWithLovableAI(
     }
 
     const data = await response.json();
-    
-    // Extract the generated image from the response
     const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
     
     if (!imageUrl) {
@@ -108,7 +117,6 @@ async function generateImageWithLovableAI(
 // Convert data URL to binary
 function dataUrlToUint8Array(dataUrl: string): Uint8Array | null {
   try {
-    // Extract base64 part from data URL
     const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
     if (!matches) return null;
     
@@ -133,6 +141,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  const openaiApiKey = Deno.env.get("OPENAI_API_KEY");
 
   if (!lovableApiKey) {
     console.error("LOVABLE_API_KEY not configured");
@@ -143,6 +152,12 @@ serve(async (req) => {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  
+  // Initialize OpenAI client if key is available
+  let openai: OpenAI | null = null;
+  if (openaiApiKey) {
+    openai = new OpenAI({ apiKey: openaiApiKey });
+  }
 
   try {
     // Fetch queued generations (limit 3 for concurrency control)
@@ -186,128 +201,109 @@ serve(async (req) => {
         // Parse settings
         const settings = (generation.settings || {}) as GenerationSettings;
         const contentType = settings.content_type || "image";
-        const referenceSource = settings.reference_source;
+        const needsProductImage = settings.needs_product_image ?? false;
+        const matchedProducts = settings.matched_products || [];
         const packshotUrl = settings.packshot_url;
 
-        // Check if we should use image-to-image with reference image
-        let referenceDataUrl: string | null = null;
-        if (packshotUrl) {
-          console.log(`Downloading reference image (${referenceSource}) from: ${packshotUrl}`);
-          referenceDataUrl = await downloadImageAsDataUrl(packshotUrl);
-          if (referenceDataUrl) {
-            console.log(`Reference image downloaded successfully (source: ${referenceSource}), using image-to-image mode`);
-          } else {
-            console.log("Failed to download reference image, falling back to text-to-image");
-          }
-        }
+        // Determine which AI to use based on whether we need product images
+        // OpenAI for product images (higher quality for products)
+        // Lovable AI for non-product images (landscapes, concepts, etc.)
+        const useOpenAI = needsProductImage && openai && matchedProducts.length > 0;
+        
+        console.log(`Using ${useOpenAI ? "OpenAI" : "Lovable AI"} for generation (needsProduct: ${needsProductImage})`);
 
-        // Generate variants
-        const variantCount = Math.min(generation.variant_count || 1, 4);
-        const variants: Array<{ index: number; dataUrl: string }> = [];
-
-        // Enhanced prompt for reference image mode
+        // Build the final prompt
         let finalPrompt = generation.prompt_final;
-        if (referenceDataUrl) {
+
+        if (useOpenAI && matchedProducts.length > 0) {
+          // Enhanced prompt for OpenAI with product context
+          const productNames = matchedProducts.map(p => p.name).join(", ");
           finalPrompt = `${generation.prompt_final}
 
-IMPORTANTE: A imagem de referência contém o produto REAL da loja do cliente. 
-- PRESERVE exatamente o rótulo, cores, logo e design do produto
-- NÃO altere texto, logos ou elementos da embalagem
-- NÃO invente um produto diferente - USE o produto mostrado na referência
-- Apenas crie um cenário/contexto ao redor do produto
-- Mantenha o produto como elemento central e inalterado`;
+PRODUTOS DA LOJA: ${productNames}
+
+ESTILO OBRIGATÓRIO:
+- Fotografia profissional de produto em alta resolução
+- Iluminação de estúdio premium
+- Fundo limpo ou cenário elegante
+- Produto em destaque centralizado
+- SEM texto sobreposto
+- SEM logos inventados
+- SEM rótulos modificados
+- Estilo editorial de revista de alto padrão`;
         }
 
         // Add content type context to prompt
-        if (contentType === "reel" || contentType === "story") {
-          finalPrompt = `${finalPrompt}\n\nFormato: Imagem vertical (9:16) otimizada para Stories/Reels.`;
-        } else if (contentType === "carrossel") {
+        if (contentType === "carousel") {
           finalPrompt = `${finalPrompt}\n\nFormato: Imagem quadrada (1:1) otimizada para carrossel.`;
         }
 
-        for (let i = 0; i < variantCount; i++) {
-          try {
-            console.log(`Generating variant ${i + 1} of ${variantCount}...`);
-            
-            const imageDataUrl = await generateImageWithLovableAI(
-              lovableApiKey,
-              finalPrompt,
-              referenceDataUrl || undefined
-            );
-
-            if (imageDataUrl) {
-              variants.push({ index: i + 1, dataUrl: imageDataUrl });
-              console.log(`Variant ${i + 1} generated successfully`);
-            } else {
-              console.log(`Variant ${i + 1} failed to generate`);
-            }
-          } catch (variantError) {
-            console.error(`Error generating variant ${i + 1}:`, variantError);
-          }
+        // Generate the image
+        let imageDataUrl: string | null = null;
+        
+        if (useOpenAI && openai) {
+          imageDataUrl = await generateImageWithOpenAI(openai, finalPrompt);
+        } else {
+          imageDataUrl = await generateImageWithLovableAI(lovableApiKey, finalPrompt);
         }
 
-        if (variants.length === 0) {
-          throw new Error("Nenhuma variante gerada com sucesso");
+        if (!imageDataUrl) {
+          throw new Error("Falha ao gerar imagem");
         }
+
+        console.log(`Image generated successfully using ${useOpenAI ? "OpenAI" : "Lovable AI"}`);
 
         // Get pricing for cost tracking
+        const provider = useOpenAI ? "openai" : "google";
+        const model = useOpenAI ? "dall-e-3" : "gemini-2.5-flash-image-preview";
+        
         const { data: pricing } = await supabase
           .from("ai_model_pricing")
           .select("cost_per_image")
-          .eq("provider", "google")
-          .eq("model", "gemini-2.5-flash-image-preview")
+          .eq("provider", provider)
+          .eq("model", model)
           .is("effective_until", null)
           .single();
 
-        const costPerImage = pricing?.cost_per_image || 0.01; // Gemini is typically cheaper
-        const totalCost = variants.length * costPerImage;
+        // OpenAI DALL-E 3 HD is about $0.08 per image, Gemini is ~$0.01
+        const costPerImage = pricing?.cost_per_image || (useOpenAI ? 0.08 : 0.01);
 
-        // Upload variants to storage
-        for (const variant of variants) {
-          try {
-            // Convert data URL to binary
-            const binaryData = dataUrlToUint8Array(variant.dataUrl);
-            
-            if (!binaryData) {
-              console.error(`Failed to convert variant ${variant.index} to binary`);
-              continue;
-            }
-            
-            // Generate storage path
-            const storagePath = `${generation.tenant_id}/${generation.id}/variant_${variant.index}.png`;
-            
-            // Upload to private bucket
-            const { error: uploadError } = await supabase.storage
-              .from("media-assets")
-              .upload(storagePath, binaryData, {
-                contentType: "image/png",
-                upsert: true,
-              });
+        // Upload to storage
+        const binaryData = dataUrlToUint8Array(imageDataUrl);
+        
+        if (!binaryData) {
+          throw new Error("Failed to convert image to binary");
+        }
+        
+        const storagePath = `${generation.tenant_id}/${generation.id}/variant_1.png`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from("media-assets")
+          .upload(storagePath, binaryData, {
+            contentType: "image/png",
+            upsert: true,
+          });
 
-            if (uploadError) {
-              console.error(`Upload error for variant ${variant.index}:`, uploadError);
-              continue;
-            }
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          throw new Error("Falha ao salvar imagem");
+        }
 
-            // Create variant record
-            const { error: variantError } = await supabase
-              .from("media_asset_variants")
-              .insert({
-                generation_id: generation.id,
-                variant_index: variant.index,
-                storage_path: storagePath,
-                mime_type: "image/png",
-                file_size: binaryData.length,
-                width: 1024,
-                height: contentType === "reel" || contentType === "story" ? 1792 : 1024,
-              });
+        // Create variant record
+        const { error: variantError } = await supabase
+          .from("media_asset_variants")
+          .insert({
+            generation_id: generation.id,
+            variant_index: 1,
+            storage_path: storagePath,
+            mime_type: "image/png",
+            file_size: binaryData.length,
+            width: 1024,
+            height: 1024,
+          });
 
-            if (variantError) {
-              console.error(`Variant record error for ${variant.index}:`, variantError);
-            }
-          } catch (uploadErr) {
-            console.error(`Error uploading variant ${variant.index}:`, uploadErr);
-          }
+        if (variantError) {
+          console.error("Variant record error:", variantError);
         }
 
         // Mark as succeeded with cost tracking
@@ -316,18 +312,19 @@ IMPORTANTE: A imagem de referência contém o produto REAL da loja do cliente.
           .update({ 
             status: "succeeded",
             completed_at: new Date().toISOString(),
+            provider: provider,
+            model: model,
             settings: {
               ...settings,
-              actual_variant_count: variants.length,
-              cost_estimate: totalCost,
-              used_reference: !!referenceDataUrl,
-              reference_source: referenceSource,
+              actual_variant_count: 1,
+              cost_estimate: costPerImage,
+              ai_provider_used: useOpenAI ? "openai" : "lovable",
             },
           })
           .eq("id", generation.id);
 
         processed++;
-        console.log(`Generation ${generation.id} completed with ${variants.length} variants (cost: $${totalCost.toFixed(4)})`);
+        console.log(`Generation ${generation.id} completed (cost: $${costPerImage.toFixed(4)})`);
 
       } catch (genError) {
         console.error(`Error processing generation ${generation.id}:`, genError);

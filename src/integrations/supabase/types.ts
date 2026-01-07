@@ -3479,6 +3479,7 @@ export type Database = {
           asset_metadata: Json | null
           asset_thumbnail_url: string | null
           asset_url: string | null
+          blog_post_id: string | null
           campaign_id: string
           content_type: Database["public"]["Enums"]["media_content_type"]
           copy: string | null
@@ -3492,10 +3493,12 @@ export type Database = {
           metadata: Json | null
           publish_results: Json | null
           published_at: string | null
+          published_blog_at: string | null
           reference_urls: string[] | null
           scheduled_date: string
           scheduled_time: string | null
           status: Database["public"]["Enums"]["media_item_status"]
+          target_channel: string | null
           target_platforms: string[] | null
           tenant_id: string
           title: string | null
@@ -3506,6 +3509,7 @@ export type Database = {
           asset_metadata?: Json | null
           asset_thumbnail_url?: string | null
           asset_url?: string | null
+          blog_post_id?: string | null
           campaign_id: string
           content_type?: Database["public"]["Enums"]["media_content_type"]
           copy?: string | null
@@ -3519,10 +3523,12 @@ export type Database = {
           metadata?: Json | null
           publish_results?: Json | null
           published_at?: string | null
+          published_blog_at?: string | null
           reference_urls?: string[] | null
           scheduled_date: string
           scheduled_time?: string | null
           status?: Database["public"]["Enums"]["media_item_status"]
+          target_channel?: string | null
           target_platforms?: string[] | null
           tenant_id: string
           title?: string | null
@@ -3533,6 +3539,7 @@ export type Database = {
           asset_metadata?: Json | null
           asset_thumbnail_url?: string | null
           asset_url?: string | null
+          blog_post_id?: string | null
           campaign_id?: string
           content_type?: Database["public"]["Enums"]["media_content_type"]
           copy?: string | null
@@ -3546,10 +3553,12 @@ export type Database = {
           metadata?: Json | null
           publish_results?: Json | null
           published_at?: string | null
+          published_blog_at?: string | null
           reference_urls?: string[] | null
           scheduled_date?: string
           scheduled_time?: string | null
           status?: Database["public"]["Enums"]["media_item_status"]
+          target_channel?: string | null
           target_platforms?: string[] | null
           tenant_id?: string
           title?: string | null
@@ -3557,6 +3566,13 @@ export type Database = {
           version?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "media_calendar_items_blog_post_id_fkey"
+            columns: ["blog_post_id"]
+            isOneToOne: false
+            referencedRelation: "blog_posts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "media_calendar_items_campaign_id_fkey"
             columns: ["campaign_id"]
@@ -3577,6 +3593,7 @@ export type Database = {
         Row: {
           ai_generated_context: Json | null
           approved_count: number | null
+          auto_publish: boolean | null
           business_context: string | null
           created_at: string
           created_by: string | null
@@ -3594,12 +3611,14 @@ export type Database = {
           published_count: number | null
           start_date: string
           status: Database["public"]["Enums"]["media_campaign_status"]
+          target_channel: string | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
           ai_generated_context?: Json | null
           approved_count?: number | null
+          auto_publish?: boolean | null
           business_context?: string | null
           created_at?: string
           created_by?: string | null
@@ -3617,12 +3636,14 @@ export type Database = {
           published_count?: number | null
           start_date: string
           status?: Database["public"]["Enums"]["media_campaign_status"]
+          target_channel?: string | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
           ai_generated_context?: Json | null
           approved_count?: number | null
+          auto_publish?: boolean | null
           business_context?: string | null
           created_at?: string
           created_by?: string | null
@@ -3640,6 +3661,7 @@ export type Database = {
           published_count?: number | null
           start_date?: string
           status?: Database["public"]["Enums"]["media_campaign_status"]
+          target_channel?: string | null
           tenant_id?: string
           updated_at?: string
         }
