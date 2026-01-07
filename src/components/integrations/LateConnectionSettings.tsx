@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ExternalLink, RefreshCw, Unlink, Facebook, Instagram, Calendar, X, Check } from "lucide-react";
+import { Loader2, ExternalLink, Unlink, Facebook, Instagram, Calendar, X, Check } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -510,27 +510,16 @@ export function LateConnectionSettings() {
           </div>
         </div>
 
-        {/* Connecting State Actions */}
-        {isConnectingState && (
-          <div className="flex items-center gap-2 pt-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>
-                {isStaleConnecting 
-                  ? "A conexão parece estar travada." 
-                  : "Complete a autorização na janela que foi aberta."}
-              </span>
-            </div>
-            <div className="flex gap-2 ml-auto">
-              <Button variant="outline" size="sm" onClick={() => handleConnect(connectingPlatform || "facebook")}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Tentar novamente
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleCancelConnecting}>
-                <X className="h-4 w-4 mr-2" />
-                Cancelar
-              </Button>
-            </div>
+        {/* Connecting State Actions - only show if actively connecting a platform */}
+        {connectingPlatform && (
+          <div className="flex items-center justify-between gap-2 pt-2 border-t">
+            <p className="text-sm text-muted-foreground">
+              Aguardando autorização do {connectingPlatform === 'instagram' ? 'Instagram' : 'Facebook'}...
+            </p>
+            <Button variant="ghost" size="sm" onClick={handleCancelConnecting}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
           </div>
         )}
 

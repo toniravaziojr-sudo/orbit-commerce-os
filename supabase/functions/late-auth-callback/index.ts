@@ -33,44 +33,56 @@ serve(async (req) => {
     const error = url.searchParams.get("error");
 
     ctx.step = "parse_params";
-    log(ctx, `Callback received: state=${state}, connected=${connected}, error=${error}`);
+    log(ctx, `Callback received: state=${state?.substring(0, 8)}..., connected=${connected}, error=${error}`);
 
     if (!state) {
-      return redirectWithError("Missing state parameter");
+      return redirectToFrontend({ success: false, error: "Missing state parameter" });
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate state token
+    // Validate state token - check expiration but allow reuse within session
     ctx.step = "validate_state";
     const { data: stateData, error: stateError } = await supabaseAdmin
       .from("late_onboarding_states")
       .select("*")
       .eq("state_token", state)
       .gt("expires_at", new Date().toISOString())
-      .is("used_at", null)
       .maybeSingle();
 
-    if (stateError || !stateData) {
-      log({ ...ctx, error: stateError?.message || "State not found" }, "Invalid state");
-      return redirectWithError("Estado de conexão inválido ou expirado");
+    if (stateError) {
+      log({ ...ctx, error: stateError.message }, "Database error fetching state");
+      return redirectToFrontend({ success: false, error: "Erro interno ao validar estado" });
+    }
+
+    if (!stateData) {
+      log(ctx, "State not found or expired");
+      return redirectToFrontend({ success: false, error: "Estado de conexão inválido ou expirado" });
+    }
+
+    // Check if already used
+    if (stateData.used_at) {
+      log(ctx, "State already used");
+      return redirectToFrontend({ success: false, error: "Esta conexão já foi processada" });
     }
 
     const tenantId = stateData.tenant_id;
-    const redirectUrl = stateData.redirect_url || "/integrations";
+    const platform = stateData.metadata?.platform || connected || "facebook";
     ctx.tenant_id = tenantId;
 
-    // Mark state as used
-    await supabaseAdmin
-      .from("late_onboarding_states")
-      .update({ used_at: new Date().toISOString() })
-      .eq("id", stateData.id);
+    log(ctx, `Valid state for tenant, platform=${platform}`);
 
     // Handle error from Late
     if (error) {
       ctx.step = "handle_error";
       log({ ...ctx, error }, "OAuth error from Late");
       
+      // Mark state as used
+      await supabaseAdmin
+        .from("late_onboarding_states")
+        .update({ used_at: new Date().toISOString() })
+        .eq("id", stateData.id);
+
       await supabaseAdmin
         .from("late_connections")
         .update({
@@ -80,7 +92,7 @@ serve(async (req) => {
         })
         .eq("tenant_id", tenantId);
 
-      return redirectWithError(error, redirectUrl);
+      return redirectToFrontend({ success: false, error, platform });
     }
 
     // Get connection and profile ID
@@ -92,18 +104,18 @@ serve(async (req) => {
       .single();
 
     if (!connection?.late_profile_id) {
-      log(ctx, "Connection not found");
-      return redirectWithError("Conexão não encontrada", redirectUrl);
+      log(ctx, "Connection or profile not found");
+      return redirectToFrontend({ success: false, error: "Conexão não encontrada", platform });
     }
 
     // Get Late API Key
     ctx.step = "get_api_key";
     const lateApiKey = await getCredential(supabaseUrl, supabaseServiceKey, "LATE_API_KEY");
     if (!lateApiKey) {
-      return redirectWithError("Configuração de plataforma inválida", redirectUrl);
+      return redirectToFrontend({ success: false, error: "Configuração de plataforma inválida", platform });
     }
 
-    // Fetch connected accounts from Late using correct endpoint
+    // Fetch connected accounts from Late
     ctx.step = "fetch_accounts";
     const { accounts, error: accountsError } = await listAccounts(lateApiKey, connection.late_profile_id);
 
@@ -118,7 +130,7 @@ serve(async (req) => {
         })
         .eq("tenant_id", tenantId);
 
-      return redirectWithError("Erro ao verificar conexão", redirectUrl);
+      return redirectToFrontend({ success: false, error: "Erro ao verificar conexão", platform });
     }
 
     log(ctx, `Found ${accounts.length} connected accounts`);
@@ -133,57 +145,63 @@ serve(async (req) => {
       is_active: acc.isActive,
     }));
 
+    // Mark state as used NOW (only after successful processing)
+    await supabaseAdmin
+      .from("late_onboarding_states")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", stateData.id);
+
     // Update connection as successful
     ctx.step = "update_connection";
+    const newStatus = connectedAccounts.length > 0 ? "connected" : "disconnected";
+    
     await supabaseAdmin
       .from("late_connections")
       .update({
-        status: "connected",
+        status: newStatus,
         connected_accounts: connectedAccounts,
-        connected_at: new Date().toISOString(),
+        connected_at: connectedAccounts.length > 0 ? new Date().toISOString() : null,
         last_error: null,
         updated_at: new Date().toISOString(),
       })
       .eq("tenant_id", tenantId);
 
-    log(ctx, "Connection successful, redirecting to frontend callback page");
+    log(ctx, `Connection updated to ${newStatus}, redirecting to frontend`);
 
-    // Get platform from state metadata
-    const platform = stateData.metadata?.platform || connected || "facebook";
-
-    // Redirect to FRONTEND callback page (which will close the popup)
-    const baseUrl = getBaseUrl();
-    const frontendCallbackUrl = `${baseUrl}/integrations/late/callback?late_connected=true&platform=${platform}`;
-    
-    return new Response(null, {
-      status: 302,
-      headers: {
-        Location: frontendCallbackUrl,
-      },
+    return redirectToFrontend({ 
+      success: connectedAccounts.length > 0, 
+      platform,
+      error: connectedAccounts.length === 0 ? "Nenhuma conta foi conectada" : undefined
     });
 
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal error";
     log({ ...ctx, error: message }, "Unhandled exception");
-    return redirectWithError(message);
+    return redirectToFrontend({ success: false, error: message });
   }
 });
 
 function getBaseUrl(): string {
-  if (Deno.env.get("APP_BASE_URL")) {
-    return Deno.env.get("APP_BASE_URL")!;
-  }
-  return "https://app.comandocentral.com.br";
+  return Deno.env.get("APP_BASE_URL") || "https://app.comandocentral.com.br";
 }
 
-function redirectWithError(errorMessage: string, redirectPath = "/integrations", platform = "facebook"): Response {
+function redirectToFrontend(params: { success: boolean; error?: string; platform?: string }): Response {
   const baseUrl = getBaseUrl();
-  const encodedError = encodeURIComponent(errorMessage);
-  // Redirect to frontend callback page so it can close the popup
+  const { success, error, platform = "facebook" } = params;
+  
+  const callbackUrl = new URL(`${baseUrl}/integrations/late/callback`);
+  
+  if (success) {
+    callbackUrl.searchParams.set("late_connected", "true");
+  } else if (error) {
+    callbackUrl.searchParams.set("late_error", error);
+  }
+  callbackUrl.searchParams.set("platform", platform);
+  
   return new Response(null, {
     status: 302,
     headers: {
-      Location: `${baseUrl}/integrations/late/callback?late_error=${encodedError}&platform=${platform}`,
+      Location: callbackUrl.toString(),
     },
   });
 }
