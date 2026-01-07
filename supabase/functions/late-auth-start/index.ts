@@ -59,11 +59,15 @@ serve(async (req) => {
 
     // Parse request
     ctx.step = "parse";
-    const { tenant_id, redirect_url } = await req.json();
+    const { tenant_id, redirect_url, platform = "facebook" } = await req.json();
     if (!tenant_id) {
       return jsonResponse({ success: false, error: "tenant_id is required" });
     }
     ctx.tenant_id = tenant_id;
+    
+    // Validate platform
+    const validPlatforms = ["facebook", "instagram"];
+    const selectedPlatform = validPlatforms.includes(platform) ? platform : "facebook";
     log(ctx, "Request received");
 
     // Verify user role
@@ -224,13 +228,14 @@ serve(async (req) => {
     // Our callback will then redirect to the app's redirect_url
     const lateRedirectUrl = `${functionUrl}?state=${stateToken}`;
 
-    // Save state
+    // Save state with platform info
     const { error: stateError } = await supabaseAdmin
       .from("late_onboarding_states")
       .insert({
         tenant_id,
         state_token: stateToken,
         redirect_url: redirect_url || "/integrations",
+        metadata: { platform: selectedPlatform },
       });
 
     if (stateError) {
@@ -238,13 +243,13 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: "Erro ao iniciar conexão" });
     }
 
-    // Get OAuth URL from Late
-    // Using facebook platform since Instagram requires Facebook Page selection first
-    // Late's hosted UI handles the Facebook → Instagram flow
+    // Get OAuth URL from Late for the selected platform
     ctx.step = "get_connect_url";
+    log(ctx, `Getting connect URL for platform: ${selectedPlatform}`);
+    
     const { authUrl, error: connectError } = await getConnectUrl(
       lateApiKey,
-      "facebook", // Use facebook for FB+IG flow with Late's hosted page selector
+      selectedPlatform,
       lateProfileId,
       lateRedirectUrl
     );

@@ -64,6 +64,7 @@ import Blog from "@/pages/Blog";
 import BlogPostEditor from "@/pages/BlogPostEditor";
 import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
+import LateCallback from "@/pages/integrations/LateCallback";
 import NotFound from "@/pages/NotFound";
 
 // Storefront Pages
@@ -136,6 +137,8 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/aguardando-confirmacao" element={<AwaitingConfirmation />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
+              {/* Late OAuth callback - opened in popup, handles close */}
+              <Route path="/integrations/late/callback" element={<LateCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
 
               {/* 
