@@ -70,7 +70,7 @@ serve(async (req) => {
     }
 
     // Test the API key by fetching profiles list
-    const testRes = await fetch("https://api.getlate.dev/v1/profiles", {
+    const testRes = await fetch("https://getlate.dev/api/v1/profiles", {
       headers: {
         "Authorization": `Bearer ${lateApiKey}`,
       },
