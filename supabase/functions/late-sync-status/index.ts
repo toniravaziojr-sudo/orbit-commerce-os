@@ -181,9 +181,9 @@ serve(async (req) => {
 
           updated++;
         }
-      } catch (e) {
+      } catch (e: unknown) {
         console.error("[late-sync-status] Error syncing post:", post.id, e);
-        errors.push({ post_id: post.id, error: e.message });
+        errors.push({ post_id: post.id, error: e instanceof Error ? e.message : "Unknown error" });
       }
     }
 
@@ -196,10 +196,10 @@ serve(async (req) => {
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[late-sync-status] Error:", error);
     return new Response(
-      JSON.stringify({ success: false, error: error.message || "Internal server error" }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : "Internal server error" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

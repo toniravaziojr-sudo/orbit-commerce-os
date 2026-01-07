@@ -116,9 +116,9 @@ serve(async (req) => {
         Location: `${baseUrl}${redirectUrl}?late_connected=true`,
       },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("[late-auth-callback] Error:", error);
-    return redirectWithError(error.message || "Internal error");
+    return redirectWithError(error instanceof Error ? error.message : "Internal error");
   }
 });
 

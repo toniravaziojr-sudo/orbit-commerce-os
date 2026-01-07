@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { Webhook } from "https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm";
+// deno-lint-ignore-file no-explicit-any
+const { Webhook } = await import("https://cdn.jsdelivr.net/npm/standardwebhooks@1.0.0/+esm") as any;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
