@@ -129,29 +129,45 @@ serve(async (req) => {
         });
 
         if (listProfilesRes.ok) {
-          const response = await listProfilesRes.json();
-          // API may return { data: [...] } or just [...]
-          const profiles = Array.isArray(response) ? response : (response.data || response.profiles || []);
+          const profilesData = await listProfilesRes.json();
+          console.log("[late-auth-start] Profiles response:", JSON.stringify(profilesData));
           
-          if (Array.isArray(profiles) && profiles.length > 0) {
-            // Look for a profile matching our tenant
-            const existingProfile = profiles.find((p: { name: string; id: string }) => 
+          // API returns array directly or wrapped in object
+          let profiles: any[] = [];
+          if (Array.isArray(profilesData)) {
+            profiles = profilesData;
+          } else if (profilesData.profiles && Array.isArray(profilesData.profiles)) {
+            profiles = profilesData.profiles;
+          } else if (profilesData.data && Array.isArray(profilesData.data)) {
+            profiles = profilesData.data;
+          }
+          
+          console.log("[late-auth-start] Parsed profiles:", profiles.length);
+          
+          if (profiles.length > 0) {
+            // Late API uses _id as the identifier
+            const existingProfile = profiles.find((p: any) => 
               p.name === profileName || 
-              p.name.includes(tenant_id.substring(0, 8)) ||
-              (tenant?.slug && p.name.toLowerCase().includes(tenant.slug.toLowerCase()))
+              p.name?.includes(tenant_id.substring(0, 8)) ||
+              (tenant?.slug && p.name?.toLowerCase().includes(tenant.slug.toLowerCase()))
             );
             
             if (existingProfile) {
-              lateProfileId = existingProfile.id;
+              // Late uses _id, not id
+              lateProfileId = existingProfile._id || existingProfile.id;
               foundExistingProfile = true;
-              console.log("[late-auth-start] Found existing Late profile:", lateProfileId);
+              console.log("[late-auth-start] Found matching Late profile:", lateProfileId);
             } else {
-              // Use first available profile if limit is reached
-              console.log("[late-auth-start] Using first available profile");
-              lateProfileId = profiles[0].id;
+              // Use first available profile if limit is reached (Free plan = 2 profiles)
+              const firstProfile = profiles[0];
+              lateProfileId = firstProfile._id || firstProfile.id;
               foundExistingProfile = true;
+              console.log("[late-auth-start] Using first available Late profile:", lateProfileId, firstProfile.name);
             }
           }
+        } else {
+          const errorText = await listProfilesRes.text();
+          console.warn("[late-auth-start] Error listing profiles:", errorText);
         }
       } catch (listError) {
         console.warn("[late-auth-start] Could not list profiles:", listError);
@@ -159,6 +175,7 @@ serve(async (req) => {
 
       // Create profile in Late only if not found
       if (!foundExistingProfile) {
+        console.log("[late-auth-start] Creating new profile:", profileName);
         const createProfileRes = await fetch("https://getlate.dev/api/v1/profiles", {
           method: "POST",
           headers: {
@@ -173,14 +190,14 @@ serve(async (req) => {
           console.error("[late-auth-start] Error creating Late profile:", errorData);
           
           // If profile limit or exists error, provide better message
-          if (errorData.includes("limit reached")) {
+          if (errorData.toLowerCase().includes("limit")) {
             return new Response(
               JSON.stringify({ success: false, error: "Limite de perfis atingido no Late. Entre em contato com o suporte." }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
           }
           
-          if (errorData.includes("already exists")) {
+          if (errorData.toLowerCase().includes("exist")) {
             return new Response(
               JSON.stringify({ success: false, error: "Perfil já existe. Tente novamente." }),
               { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -194,7 +211,16 @@ serve(async (req) => {
         }
 
         const profileData = await createProfileRes.json();
-        lateProfileId = profileData.id;
+        // Late uses _id, not id
+        lateProfileId = profileData._id || profileData.id;
+        console.log("[late-auth-start] Created new profile:", lateProfileId);
+      }
+
+      if (!lateProfileId) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Não foi possível obter um perfil do Late" }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // Upsert connection record
@@ -214,21 +240,18 @@ serve(async (req) => {
         .eq("tenant_id", tenant_id);
     }
 
-    // Generate OAuth URL for Late
-    // Late uses profile-based OAuth - we need to get the connect URL
-    const callbackUrl = `${supabaseUrl}/functions/v1/late-auth-callback`;
+    // Generate OAuth URL for Late using correct endpoint
+    // Late uses GET /api/v1/connect/{platform}?profileId=xxx
+    // For Facebook/Instagram, we need to connect to Instagram (which includes Facebook Page access)
+    const connectUrl = `https://getlate.dev/api/v1/connect/instagram?profileId=${lateProfileId}`;
     
-    const oauthRes = await fetch(`https://getlate.dev/api/v1/profiles/${lateProfileId}/social-accounts/connect`, {
-      method: "POST",
+    console.log("[late-auth-start] Getting connect URL for profile:", lateProfileId);
+    
+    const oauthRes = await fetch(connectUrl, {
+      method: "GET",
       headers: {
         "Authorization": `Bearer ${lateApiKey}`,
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        platforms: ["facebook", "instagram"],
-        callback_url: callbackUrl,
-        state: stateToken,
-      }),
     });
 
     if (!oauthRes.ok) {
@@ -241,11 +264,23 @@ serve(async (req) => {
     }
 
     const oauthData = await oauthRes.json();
+    console.log("[late-auth-start] OAuth response:", JSON.stringify(oauthData));
+    
+    // Late returns { url: "..." }
+    const oauthUrl = oauthData.url || oauthData.connect_url || oauthData.oauth_url;
+    
+    if (!oauthUrl) {
+      console.error("[late-auth-start] No URL in response:", oauthData);
+      return new Response(
+        JSON.stringify({ success: false, error: "URL de autorização não recebida do Late" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     
     return new Response(
       JSON.stringify({
         success: true,
-        oauth_url: oauthData.connect_url || oauthData.url,
+        oauth_url: oauthUrl,
         state: stateToken,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
