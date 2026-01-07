@@ -6,11 +6,21 @@ import { listAccounts, LateAccount } from "../_shared/late-api.ts";
 interface LogContext {
   tenant_id: string;
   step: string;
+  platform?: string;
+  state_token?: string;
   error?: string;
 }
 
 function log(ctx: LogContext, message: string) {
-  console.log(`[late-auth-callback] [${ctx.step}] tenant=${ctx.tenant_id}: ${message}`);
+  const parts = [
+    `[late-auth-callback]`,
+    `[${ctx.step}]`,
+    `tenant=${ctx.tenant_id}`,
+    ctx.platform ? `platform=${ctx.platform}` : null,
+    ctx.state_token ? `state=${ctx.state_token.substring(0, 8)}...` : null,
+    message,
+  ].filter(Boolean);
+  console.log(parts.join(" "));
   if (ctx.error) {
     console.error(`[late-auth-callback] [${ctx.step}] ERROR: ${ctx.error}`);
   }
@@ -25,29 +35,70 @@ serve(async (req) => {
 
     const url = new URL(req.url);
     
-    // Late OAuth callback params
-    const state = url.searchParams.get("state");
-    const connected = url.searchParams.get("connected"); // Platform that was connected (e.g., "facebook")
+    // Log full URL for debugging
+    ctx.step = "parse_url";
+    log(ctx, `Full URL: ${req.url}`);
+    log(ctx, `Pathname: ${url.pathname}`);
+    
+    // Extract state from PATH first (new format: /late-auth-callback/{platform}/{stateToken})
+    // This is more reliable because Late/Facebook can rewrite query params
+    const pathParts = url.pathname.split("/").filter(Boolean);
+    // Expected: ["functions", "v1", "late-auth-callback", "{platform}", "{stateToken}"]
+    // or legacy: ["functions", "v1", "late-auth-callback"]
+    
+    let stateToken: string | null = null;
+    let platformFromPath: string | null = null;
+    
+    // Find late-auth-callback in path and extract following segments
+    const callbackIndex = pathParts.indexOf("late-auth-callback");
+    if (callbackIndex !== -1) {
+      // New format: /late-auth-callback/{platform}/{stateToken}
+      if (pathParts[callbackIndex + 1] && pathParts[callbackIndex + 2]) {
+        platformFromPath = pathParts[callbackIndex + 1];
+        stateToken = pathParts[callbackIndex + 2];
+        log(ctx, `Extracted from path: platform=${platformFromPath}, state=${stateToken?.substring(0, 8)}...`);
+      }
+      // Alternative format: /late-auth-callback/{stateToken} (no platform)
+      else if (pathParts[callbackIndex + 1] && !pathParts[callbackIndex + 1].includes("-")) {
+        // Likely just a state token if it looks like a UUID
+        const potentialState = pathParts[callbackIndex + 1];
+        if (potentialState.length === 36 && potentialState.includes("-")) {
+          stateToken = potentialState;
+          log(ctx, `Extracted state from path (no platform): ${stateToken?.substring(0, 8)}...`);
+        }
+      }
+    }
+    
+    // Fallback: try query params (legacy support)
+    if (!stateToken) {
+      stateToken = url.searchParams.get("cc_state") || url.searchParams.get("state");
+      if (stateToken) {
+        log(ctx, `Using state from query param: ${stateToken.substring(0, 8)}...`);
+      }
+    }
+    
+    // Other query params from Late
+    const connected = url.searchParams.get("connected");
     const profileId = url.searchParams.get("profileId");
-    const username = url.searchParams.get("username");
     const error = url.searchParams.get("error");
 
     ctx.step = "parse_params";
-    log(ctx, `Callback received: state=${state?.substring(0, 8)}..., connected=${connected}, error=${error}`);
+    ctx.state_token = stateToken || undefined;
+    log(ctx, `Callback params: connected=${connected}, profileId=${profileId}, error=${error}`);
 
-    if (!state) {
-      return redirectToFrontend({ success: false, error: "Missing state parameter" });
+    if (!stateToken) {
+      log(ctx, "No state token found in path or query params");
+      return redirectToFrontend({ success: false, error: "Token de estado não encontrado" });
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Validate state token - check expiration but allow reuse within session
+    // Validate state token
     ctx.step = "validate_state";
     const { data: stateData, error: stateError } = await supabaseAdmin
       .from("late_onboarding_states")
       .select("*")
-      .eq("state_token", state)
-      .gt("expires_at", new Date().toISOString())
+      .eq("state_token", stateToken)
       .maybeSingle();
 
     if (stateError) {
@@ -56,19 +107,43 @@ serve(async (req) => {
     }
 
     if (!stateData) {
-      log(ctx, "State not found or expired");
-      return redirectToFrontend({ success: false, error: "Estado de conexão inválido ou expirado" });
+      log(ctx, "State not found in database");
+      return redirectToFrontend({ success: false, error: "Estado de conexão não encontrado" });
     }
 
-    // Check if already used
+    // Check if expired
+    if (new Date(stateData.expires_at) < new Date()) {
+      log(ctx, "State token expired");
+      return redirectToFrontend({ success: false, error: "Estado de conexão expirado" });
+    }
+
+    // IDEMPOTENCY: If state was already used successfully, return success again
+    // This handles multiple redirects from Facebook
     if (stateData.used_at) {
-      log(ctx, "State already used");
-      return redirectToFrontend({ success: false, error: "Esta conexão já foi processada" });
+      ctx.step = "idempotency_check";
+      log(ctx, "State already used, checking if successful");
+      
+      // Check if connection was successful
+      const { data: existingConnection } = await supabaseAdmin
+        .from("late_connections")
+        .select("status, connected_accounts")
+        .eq("tenant_id", stateData.tenant_id)
+        .single();
+      
+      if (existingConnection?.status === "connected") {
+        log(ctx, "Connection already successful, returning success (idempotent)");
+        const platform = platformFromPath || stateData.metadata?.platform || "facebook";
+        return redirectToFrontend({ success: true, platform });
+      }
+      
+      // State was used but connection failed - allow retry
+      log(ctx, "State was used but connection not successful, allowing retry");
     }
 
     const tenantId = stateData.tenant_id;
-    const platform = stateData.metadata?.platform || connected || "facebook";
+    const platform = platformFromPath || stateData.metadata?.platform || connected || "facebook";
     ctx.tenant_id = tenantId;
+    ctx.platform = platform;
 
     log(ctx, `Valid state for tenant, platform=${platform}`);
 

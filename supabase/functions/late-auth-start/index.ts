@@ -221,12 +221,11 @@ serve(async (req) => {
     const stateToken = crypto.randomUUID();
 
     // Determine callback URL
-    const appBaseUrl = Deno.env.get("APP_BASE_URL") || "https://app.comandocentral.com.br";
+    // CRITICAL: Pass state in PATH, not query string!
+    // Late/Facebook rewrites query params, losing the state.
+    // Format: /late-auth-callback/{platform}/{stateToken}
     const functionUrl = `${supabaseUrl}/functions/v1/late-auth-callback`;
-    
-    // The redirect_url for Late is our callback function
-    // Our callback will then redirect to the app's redirect_url
-    const lateRedirectUrl = `${functionUrl}?state=${stateToken}`;
+    const lateRedirectUrl = `${functionUrl}/${selectedPlatform}/${stateToken}`;
 
     // Save state with platform info
     const { error: stateError } = await supabaseAdmin
