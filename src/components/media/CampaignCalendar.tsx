@@ -214,8 +214,57 @@ export function CampaignCalendar() {
     }
   };
 
+  const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
+
   const handleGenerateAssets = async () => {
-    toast.info("Geração de criativos com IA será implementada em breve.");
+    if (!items || !currentTenant) return;
+    
+    const eligibleItems = items.filter(i => 
+      i.status === "approved" && !i.asset_url
+    );
+    
+    if (eligibleItems.length === 0) {
+      toast.info("Nenhum item aprovado sem criativo para gerar");
+      return;
+    }
+    
+    setIsGeneratingAssets(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    try {
+      for (const item of eligibleItems) {
+        const { data, error } = await supabase.functions.invoke("media-generate-image", {
+          body: { 
+            calendar_item_id: item.id,
+            variant_count: 1,
+            use_packshot: false,
+          },
+        });
+
+        if (error || !data?.success) {
+          console.error("Error generating asset:", item.id, error || data?.error);
+          errorCount++;
+        } else {
+          successCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} criativo(s) sendo gerado(s) pela IA!`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} item(ns) falharam ao iniciar geração`);
+      }
+      
+      await refetchItems();
+      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+    } catch (err) {
+      console.error("Error generating assets:", err);
+      toast.error("Erro ao gerar criativos");
+    } finally {
+      setIsGeneratingAssets(false);
+    }
   };
 
   const handleScheduleAll = async () => {
@@ -238,31 +287,29 @@ export function CampaignCalendar() {
     }
     
     setIsScheduling(true);
-    let successCount = 0;
-    let errorCount = 0;
     
     try {
-      for (const item of approvedItems) {
-        const { data, error } = await supabase.functions.invoke("late-schedule-post", {
-          body: { 
-            calendar_item_id: item.id,
-            tenant_id: currentTenant.id,
-          },
-        });
-
-        if (error || !data?.success) {
-          console.error("Error scheduling item:", item.id, error || data?.error);
-          errorCount++;
-        } else {
-          successCount++;
-        }
-      }
+      const itemIds = approvedItems.map(i => i.id);
       
-      if (successCount > 0) {
-        toast.success(`${successCount} item(s) agendado(s) com sucesso!`);
-      }
-      if (errorCount > 0) {
-        toast.error(`${errorCount} item(s) falharam ao agendar`);
+      const { data, error } = await supabase.functions.invoke("late-schedule-post", {
+        body: { 
+          calendar_item_ids: itemIds,
+          tenant_id: currentTenant.id,
+        },
+      });
+
+      if (error) {
+        console.error("Error scheduling items:", error);
+        toast.error("Erro ao agendar publicações");
+      } else if (data?.success) {
+        if (data.scheduled > 0) {
+          toast.success(`${data.scheduled} publicação(ões) agendada(s) com sucesso!`);
+        }
+        if (data.failed > 0) {
+          toast.error(`${data.failed} item(ns) falharam ao agendar`);
+        }
+      } else {
+        toast.error(data?.error || "Erro ao agendar publicações");
       }
       
       await refetchItems();
@@ -338,11 +385,15 @@ export function CampaignCalendar() {
                 <Button 
                   variant="outline"
                   onClick={handleGenerateAssets}
-                  disabled={stats.approved === 0}
+                  disabled={stats.approved === 0 || isGeneratingAssets}
                   className="gap-2"
                 >
-                  <Image className="h-4 w-4" />
-                  Gerar Criativos com IA
+                  {isGeneratingAssets ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Image className="h-4 w-4" />
+                  )}
+                  {isGeneratingAssets ? "Gerando..." : "Gerar Criativos com IA"}
                 </Button>
 
                 <Button 

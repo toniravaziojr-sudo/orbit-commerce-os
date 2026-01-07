@@ -156,12 +156,12 @@ serve(async (req) => {
           ? new Date(item.scheduled_date).toISOString()
           : new Date(Date.now() + 60000).toISOString(); // Default to 1 min from now
 
-        // Build media array if we have generated image
+        // Build media array if we have generated image (asset_url field)
         const media: any[] = [];
-        if (item.generated_image_url) {
+        if (item.asset_url) {
           media.push({
             type: "image",
-            url: item.generated_image_url,
+            url: item.asset_url,
           });
         }
 
