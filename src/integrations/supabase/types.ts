@@ -3160,6 +3160,7 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          metadata: Json | null
           redirect_url: string | null
           state_token: string
           tenant_id: string
@@ -3169,6 +3170,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          metadata?: Json | null
           redirect_url?: string | null
           state_token: string
           tenant_id: string
@@ -3178,6 +3180,7 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          metadata?: Json | null
           redirect_url?: string | null
           state_token?: string
           tenant_id?: string
