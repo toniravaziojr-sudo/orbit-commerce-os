@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { campaign_id, tenant_id } = await req.json();
+    const { campaign_id, tenant_id, target_dates } = await req.json();
 
     if (!campaign_id || !tenant_id) {
       return new Response(
@@ -22,6 +22,9 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    // target_dates é opcional - array de strings "YYYY-MM-DD"
+    const selectedDates: string[] | undefined = target_dates;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -254,9 +257,8 @@ serve(async (req) => {
     const excludedDates = campaign.excluded_dates || [];
     const defaultTime = campaign.default_time || "10:00:00";
 
-    const validDates: string[] = [];
+    let validDates: string[] = [];
     const datesWithHolidays: Array<{ date: string; holiday?: { name: string; emoji: string; type: string } }> = [];
-    const currentDate = new Date(startDate);
     
     // Get movable holidays for all years in the campaign period
     const startYear = startDate.getFullYear();
@@ -266,27 +268,50 @@ serve(async (req) => {
       Object.assign(allMovableHolidays, getMovableHolidays(year));
     }
     
-    while (currentDate <= endDate) {
-      const dayOfWeek = currentDate.getDay();
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const monthDay = `${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
-      
-      if (daysOfWeek.includes(dayOfWeek) && !excludedDates.includes(dateStr)) {
-        validDates.push(dateStr);
-        
-        // Check for holidays
-        const fixedHoliday = BRAZILIAN_HOLIDAYS[monthDay];
-        const movableHoliday = allMovableHolidays[monthDay];
-        const holiday = fixedHoliday || movableHoliday;
-        
-        datesWithHolidays.push({ date: dateStr, holiday });
+    // Se target_dates foi especificado, usar essas datas (seleção manual do usuário)
+    if (selectedDates && selectedDates.length > 0) {
+      // Usar as datas selecionadas manualmente, filtrando apenas as que estão no período da campanha
+      for (const dateStr of selectedDates) {
+        const date = new Date(dateStr);
+        if (date >= startDate && date <= endDate && !excludedDates.includes(dateStr)) {
+          validDates.push(dateStr);
+          
+          // Check for holidays
+          const monthDay = `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+          const fixedHoliday = BRAZILIAN_HOLIDAYS[monthDay];
+          const movableHoliday = allMovableHolidays[monthDay];
+          const holiday = fixedHoliday || movableHoliday;
+          
+          datesWithHolidays.push({ date: dateStr, holiday });
+        }
       }
-      currentDate.setDate(currentDate.getDate() + 1);
+      // Ordenar as datas
+      validDates.sort();
+    } else {
+      // Comportamento padrão: gerar para todos os dias ativos
+      const currentDate = new Date(startDate);
+      while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay();
+        const dateStr = currentDate.toISOString().split("T")[0];
+        const monthDay = `${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
+        
+        if (daysOfWeek.includes(dayOfWeek) && !excludedDates.includes(dateStr)) {
+          validDates.push(dateStr);
+          
+          // Check for holidays
+          const fixedHoliday = BRAZILIAN_HOLIDAYS[monthDay];
+          const movableHoliday = allMovableHolidays[monthDay];
+          const holiday = fixedHoliday || movableHoliday;
+          
+          datesWithHolidays.push({ date: dateStr, holiday });
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
     }
 
     if (validDates.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, error: "Nenhuma data válida no período da campanha" }),
+        JSON.stringify({ success: false, error: "Nenhuma data válida selecionada" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

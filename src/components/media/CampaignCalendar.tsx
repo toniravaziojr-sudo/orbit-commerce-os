@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +80,9 @@ export function CampaignCalendar() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  // Dias selecionados para geração de conteúdo pela IA (Set de strings "yyyy-MM-dd")
+  const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
@@ -125,9 +128,37 @@ export function CampaignCalendar() {
     return campaign.days_of_week.includes(date.getDay());
   };
 
+  // Verifica se um dia está selecionado (para geração IA ou tem conteúdo)
+  const isDaySelected = (dateKey: string) => {
+    const dayItems = itemsByDate.get(dateKey) || [];
+    // Dia está "selecionado" se tem conteúdo OU se foi marcado manualmente
+    return dayItems.length > 0 || selectedDays.has(dateKey);
+  };
+
+  // Toggle seleção de um dia para IA
+  const toggleDaySelection = (dateKey: string) => {
+    setSelectedDays(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(dateKey)) {
+        newSet.delete(dateKey);
+      } else {
+        newSet.add(dateKey);
+      }
+      return newSet;
+    });
+  };
+
   const handleDayClick = (date: Date, dayItems: MediaCalendarItem[]) => {
     // Allow clicking any day within campaign period (ignore days_of_week restriction for manual actions)
     if (!isInCampaignPeriod(date)) return;
+    
+    const dateKey = format(date, "yyyy-MM-dd");
+    
+    // Se estamos no modo de seleção, apenas toggle a seleção
+    if (isSelectMode) {
+      toggleDaySelection(dateKey);
+      return;
+    }
     
     // Se tem mais de 1 item, abre lista de posts do dia
     if (dayItems.length > 1) {
@@ -165,16 +196,32 @@ export function CampaignCalendar() {
   const handleGenerateSuggestions = async () => {
     if (!currentTenant || !campaignId) return;
     
+    // Usa os dias selecionados manualmente, se houver
+    const targetDates = selectedDays.size > 0 ? Array.from(selectedDays) : undefined;
+    
+    if (selectedDays.size === 0) {
+      toast.info("Selecione os dias no calendário antes de gerar conteúdo");
+      setIsSelectMode(true);
+      return;
+    }
+    
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke("media-generate-suggestions", {
-        body: { campaign_id: campaignId, tenant_id: currentTenant.id },
+        body: { 
+          campaign_id: campaignId, 
+          tenant_id: currentTenant.id,
+          target_dates: targetDates,
+        },
       });
 
       if (error) throw error;
       
       if (data?.success) {
         toast.success(data.message || "Sugestões geradas com sucesso!");
+        // Limpa a seleção após gerar
+        setSelectedDays(new Set());
+        setIsSelectMode(false);
         await refetchItems();
         queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
         queryClient.invalidateQueries({ queryKey: ["media-campaigns", currentTenant?.id] });
@@ -354,6 +401,29 @@ export function CampaignCalendar() {
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="pt-4">
           <div className="flex flex-wrap gap-3 items-center">
+            {/* Botão de seleção de dias */}
+            <Button 
+              variant={isSelectMode ? "default" : "outline"}
+              onClick={() => setIsSelectMode(!isSelectMode)}
+              className="gap-2"
+            >
+              <MousePointer2 className="h-4 w-4" />
+              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias"}
+            </Button>
+
+            {selectedDays.size > 0 && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => {
+                  setSelectedDays(new Set());
+                  setIsSelectMode(false);
+                }}
+              >
+                Limpar seleção
+              </Button>
+            )}
+
             <Button 
               onClick={handleGenerateSuggestions}
               disabled={isGenerating}
@@ -364,7 +434,7 @@ export function CampaignCalendar() {
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {isGenerating ? "Gerando..." : "Gerar Copy com IA"}
+              {isGenerating ? "Gerando..." : selectedDays.size > 0 ? `Gerar Copy (${selectedDays.size} dias)` : "Gerar Copy com IA"}
             </Button>
 
             {hasSuggestions && (
@@ -486,26 +556,46 @@ export function CampaignCalendar() {
                   // Allow clicking any day within campaign period (including today)
                   const isClickable = inPeriod;
                   const holiday = getHolidayForDate(date);
+                  // Verifica se o dia está selecionado (marcado para IA ou tem conteúdo)
+                  const isSelected = isDaySelected(dateKey);
+                  const isManuallySelected = selectedDays.has(dateKey);
 
                   return (
                     <div
                       key={dateKey}
                       onClick={() => isClickable && handleDayClick(date, dayItems)}
                       className={cn(
-                        "min-h-[100px] p-1 rounded-md border transition-colors relative",
+                        "min-h-[100px] p-1 rounded-md border-2 transition-all relative",
+                        // Base style
                         inPeriod
-                          ? "bg-background border-border cursor-pointer hover:border-primary/50" 
+                          ? "cursor-pointer hover:shadow-md" 
                           : "bg-muted/30 border-transparent",
-                        !activeDay && inPeriod && "bg-muted/5 border-dashed",
-                        holiday && inPeriod && "ring-1 ring-amber-400/50"
+                        // Selected state - azul
+                        isSelected && inPeriod && "bg-primary/10 border-primary",
+                        // Manually selected (sem conteúdo, apenas marcado para IA)
+                        isManuallySelected && dayItems.length === 0 && "bg-primary/20 border-primary border-dashed",
+                        // Com conteúdo - borda sólida
+                        dayItems.length > 0 && inPeriod && "border-primary border-solid",
+                        // Não selecionado
+                        !isSelected && inPeriod && "bg-background border-border",
+                        // Não é dia ativo mas está no período
+                        !activeDay && inPeriod && !isSelected && "bg-muted/5 border-dashed border-muted-foreground/30",
+                        // Holiday
+                        holiday && inPeriod && "ring-1 ring-amber-400/50",
+                        // Select mode cursor
+                        isSelectMode && inPeriod && "cursor-cell"
                       )}
                     >
                       <div className={cn(
                         "text-xs font-medium p-1 flex items-center gap-1",
                         !inPeriod && "text-muted-foreground/50",
-                        !activeDay && inPeriod && "text-muted-foreground/70"
+                        !activeDay && inPeriod && !isSelected && "text-muted-foreground/70",
+                        isSelected && "text-primary font-semibold"
                       )}>
                         {format(date, "d")}
+                        {isManuallySelected && dayItems.length === 0 && (
+                          <Check className="h-3 w-3 text-primary" />
+                        )}
                         {holiday && (
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -538,10 +628,16 @@ export function CampaignCalendar() {
                             +{dayItems.length - 2} mais
                           </div>
                         )}
-                        {dayItems.length === 0 && isClickable && (
+                        {dayItems.length === 0 && isClickable && !isManuallySelected && (
                           <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1">
                             <Plus className="h-3 w-3" />
-                            Adicionar
+                            {isSelectMode ? "Clique para selecionar" : "Adicionar"}
+                          </div>
+                        )}
+                        {dayItems.length === 0 && isManuallySelected && (
+                          <div className="text-xs text-primary/70 px-1 flex items-center gap-1">
+                            <Sparkles className="h-3 w-3" />
+                            Selecionado para IA
                           </div>
                         )}
                       </div>
