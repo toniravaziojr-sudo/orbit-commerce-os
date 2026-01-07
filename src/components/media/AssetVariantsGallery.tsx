@@ -1,15 +1,20 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Check,
   RefreshCw,
   Loader2,
   ImageIcon,
   Sparkles,
-  X,
+  Package,
 } from "lucide-react";
 import {
   useAssetGenerations,
@@ -30,13 +35,32 @@ export function AssetVariantsGallery({
   calendarItemId,
   onAssetApproved,
 }: AssetVariantsGalleryProps) {
+  const { currentTenant } = useAuth();
   const [selectedVariant, setSelectedVariant] = useState<AssetVariant | null>(null);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [regenerateModalOpen, setRegenerateModalOpen] = useState(false);
   const [variantToRegenerate, setVariantToRegenerate] = useState<string | null>(null);
+  const [usePackshot, setUsePackshot] = useState(false);
 
   const { data: generations, isLoading: loadingGenerations } = useAssetGenerations(calendarItemId);
   const { data: variants, isLoading: loadingVariants } = useAllVariantsForItem(calendarItemId);
+  
+  // Check if tenant has packshot configured
+  const { data: brandContext } = useQuery({
+    queryKey: ["brand-context", currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return null;
+      const { data } = await supabase
+        .from("tenant_brand_context")
+        .select("packshot_url")
+        .eq("tenant_id", currentTenant.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!currentTenant?.id,
+  });
+
+  const hasPackshot = !!brandContext?.packshot_url;
   
   const generateImage = useGenerateImage();
   const approveVariant = useApproveVariant();
@@ -68,7 +92,11 @@ export function AssetVariantsGallery({
   }, [variants]);
 
   const handleGenerate = () => {
-    generateImage.mutate({ calendarItemId, variantCount: 4 });
+    generateImage.mutate({ 
+      calendarItemId, 
+      variantCount: 4,
+      usePackshot: usePackshot && hasPackshot,
+    });
   };
 
   const handleApprove = async (variant: AssetVariant) => {
@@ -91,31 +119,54 @@ export function AssetVariantsGallery({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <h4 className="text-sm font-medium flex items-center gap-2">
           <Sparkles className="h-4 w-4" />
           Criativos Gerados
         </h4>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleGenerate}
-          disabled={generateImage.isPending || isGenerating}
-        >
-          {generateImage.isPending || isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Gerando...
-            </>
-          ) : (
-            <>
-              <ImageIcon className="h-4 w-4 mr-2" />
-              Gerar 4 variações
-            </>
+        <div className="flex items-center gap-4">
+          {/* Packshot toggle */}
+          {hasPackshot && (
+            <div className="flex items-center gap-2">
+              <Switch
+                id="use-packshot"
+                checked={usePackshot}
+                onCheckedChange={setUsePackshot}
+              />
+              <Label htmlFor="use-packshot" className="text-sm flex items-center gap-1.5">
+                <Package className="h-4 w-4" />
+                Usar packshot
+              </Label>
+            </div>
           )}
-        </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleGenerate}
+            disabled={generateImage.isPending || isGenerating}
+          >
+            {generateImage.isPending || isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Gerar 4 variações
+              </>
+            )}
+          </Button>
+        </div>
       </div>
+
+      {/* Packshot info */}
+      {!hasPackshot && (
+        <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+          💡 Configure um packshot em "Contexto de Marca" para preservar rótulos e embalagens
+        </div>
+      )}
 
       {/* Loading state */}
       {(loadingGenerations || loadingVariants) && (

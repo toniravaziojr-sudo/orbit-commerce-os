@@ -6,6 +6,108 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface GenerationSettings {
+  use_packshot?: boolean;
+  content_type?: string;
+  packshot_url?: string;
+}
+
+// Download image and convert to base64
+async function downloadImageAsBase64(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binary);
+  } catch (error) {
+    console.error("Error downloading image:", error);
+    return null;
+  }
+}
+
+// Generate image using text-to-image (standard)
+async function generateTextToImage(
+  openaiApiKey: string,
+  prompt: string,
+  size: string
+): Promise<string | null> {
+  const response = await fetch("https://api.openai.com/v1/images/generations", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${openaiApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-image-1",
+      prompt: prompt,
+      n: 1,
+      size: size,
+      response_format: "b64_json",
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("OpenAI text-to-image error:", errorText);
+    return null;
+  }
+
+  const data = await response.json();
+  return data.data?.[0]?.b64_json || null;
+}
+
+// Generate image using image-to-image (with reference)
+async function generateImageToImage(
+  openaiApiKey: string,
+  prompt: string,
+  referenceImageBase64: string,
+  size: string
+): Promise<string | null> {
+  // OpenAI's gpt-image-1 supports image editing via the images/edits endpoint
+  // We need to send the image as a file in multipart/form-data
+  
+  // Convert base64 to Blob
+  const binaryString = atob(referenceImageBase64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  const imageBlob = new Blob([bytes], { type: 'image/png' });
+
+  const formData = new FormData();
+  formData.append('model', 'gpt-image-1');
+  formData.append('image', imageBlob, 'reference.png');
+  formData.append('prompt', prompt);
+  formData.append('n', '1');
+  formData.append('size', size);
+  formData.append('response_format', 'b64_json');
+
+  const response = await fetch("https://api.openai.com/v1/images/edits", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${openaiApiKey}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("OpenAI image-to-image error:", errorText);
+    // Fallback to text-to-image if edit fails
+    console.log("Falling back to text-to-image...");
+    return null;
+  }
+
+  const data = await response.json();
+  return data.data?.[0]?.b64_json || null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -64,46 +166,71 @@ serve(async (req) => {
 
         console.log(`Processing generation ${generation.id}`);
 
+        // Parse settings
+        const settings = (generation.settings || {}) as GenerationSettings;
+        const contentType = settings.content_type || "image";
+        const usePackshot = settings.use_packshot || false;
+        const packshotUrl = settings.packshot_url;
+
         // Determine image size based on content type
-        const settings = generation.settings as Record<string, unknown> || {};
-        const contentType = settings.content_type as string || "image";
-        
         let size = "1024x1024";
         if (contentType === "reel" || contentType === "story") {
           size = "1024x1792"; // Vertical for reels/stories
         }
 
-        // Generate images using OpenAI
-        const variantCount = Math.min(generation.variant_count || 4, 4); // Max 4 per request
+        // Check if we should use image-to-image with packshot
+        let packshotBase64: string | null = null;
+        if (usePackshot && packshotUrl) {
+          console.log(`Downloading packshot from: ${packshotUrl}`);
+          packshotBase64 = await downloadImageAsBase64(packshotUrl);
+          if (packshotBase64) {
+            console.log("Packshot downloaded successfully, using image-to-image mode");
+          } else {
+            console.log("Failed to download packshot, falling back to text-to-image");
+          }
+        }
+
+        // Generate variants
+        const variantCount = Math.min(generation.variant_count || 4, 4);
         const variants: Array<{ index: number; base64: string }> = [];
 
-        // OpenAI gpt-image-1 generates one image at a time, so we loop
+        // Enhanced prompt for packshot mode
+        let finalPrompt = generation.prompt_final;
+        if (packshotBase64) {
+          finalPrompt = `${generation.prompt_final}
+
+IMPORTANTE: A imagem de referência contém o produto real. 
+- PRESERVE exatamente o rótulo, cores e design do produto
+- NÃO altere texto, logos ou elementos da embalagem
+- Apenas crie um cenário/contexto ao redor do produto
+- Mantenha o produto como elemento central e inalterado`;
+        }
+
         for (let i = 0; i < variantCount; i++) {
           try {
-            const response = await fetch("https://api.openai.com/v1/images/generations", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${openaiApiKey}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "gpt-image-1",
-                prompt: generation.prompt_final,
-                n: 1,
-                size: size,
-                response_format: "b64_json",
-              }),
-            });
+            let imageBase64: string | null = null;
 
-            if (!response.ok) {
-              const errorText = await response.text();
-              console.error(`OpenAI error for variant ${i}:`, errorText);
-              continue;
+            // Try image-to-image if packshot is available
+            if (packshotBase64) {
+              imageBase64 = await generateImageToImage(
+                openaiApiKey,
+                finalPrompt,
+                packshotBase64,
+                size
+              );
             }
 
-            const data = await response.json();
-            if (data.data && data.data[0] && data.data[0].b64_json) {
-              variants.push({ index: i + 1, base64: data.data[0].b64_json });
+            // Fallback to text-to-image
+            if (!imageBase64) {
+              imageBase64 = await generateTextToImage(
+                openaiApiKey,
+                generation.prompt_final,
+                size
+              );
+            }
+
+            if (imageBase64) {
+              variants.push({ index: i + 1, base64: imageBase64 });
             }
           } catch (variantError) {
             console.error(`Error generating variant ${i}:`, variantError);
@@ -113,6 +240,18 @@ serve(async (req) => {
         if (variants.length === 0) {
           throw new Error("Nenhuma variante gerada com sucesso");
         }
+
+        // Get pricing for cost tracking
+        const { data: pricing } = await supabase
+          .from("ai_model_pricing")
+          .select("cost_per_image")
+          .eq("provider", "openai")
+          .eq("model", "gpt-image-1")
+          .is("effective_until", null)
+          .single();
+
+        const costPerImage = pricing?.cost_per_image || 0.04;
+        const totalCost = variants.length * costPerImage;
 
         // Upload variants to storage
         for (const variant of variants) {
@@ -157,17 +296,23 @@ serve(async (req) => {
           }
         }
 
-        // Mark as succeeded
+        // Mark as succeeded with cost tracking
         await supabase
           .from("media_asset_generations")
           .update({ 
             status: "succeeded",
             completed_at: new Date().toISOString(),
+            settings: {
+              ...settings,
+              actual_variant_count: variants.length,
+              cost_estimate: totalCost,
+              used_packshot: !!packshotBase64,
+            },
           })
           .eq("id", generation.id);
 
         processed++;
-        console.log(`Generation ${generation.id} completed with ${variants.length} variants`);
+        console.log(`Generation ${generation.id} completed with ${variants.length} variants (cost: $${totalCost.toFixed(4)})`);
 
       } catch (genError) {
         console.error(`Error processing generation ${generation.id}:`, genError);
