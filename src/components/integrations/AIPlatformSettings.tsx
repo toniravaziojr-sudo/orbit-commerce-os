@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles } from "lucide-react";
+import { Bot, CheckCircle2, AlertCircle, ExternalLink, Info, Shield, Flame, Sparkles, Cpu } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -27,13 +27,15 @@ export function AIPlatformSettings() {
       
       const firecrawl = response.data.integrations?.find((i: any) => i.key === 'firecrawl');
       const lovableAi = response.data.integrations?.find((i: any) => i.key === 'lovable_ai');
+      const openai = response.data.integrations?.find((i: any) => i.key === 'openai');
       
-      return { firecrawl, lovableAi };
+      return { firecrawl, lovableAi, openai };
     },
   });
 
   const firecrawlConfigured = secretsStatus?.firecrawl?.status === 'configured';
   const lovableAiConfigured = secretsStatus?.lovableAi?.status === 'configured' || secretsStatus?.lovableAi?.status === 'system';
+  const openaiConfigured = secretsStatus?.openai?.status === 'configured';
 
   if (isLoading) {
     return (
@@ -123,6 +125,69 @@ export function AIPlatformSettings() {
             <a href="https://www.firecrawl.dev/" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Site Firecrawl
+            </a>
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* OpenAI */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-emerald-500/10">
+                <Cpu className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">OpenAI</CardTitle>
+                <CardDescription>
+                  Geração de imagens e criativos (DALL-E / GPT Image)
+                </CardDescription>
+              </div>
+            </div>
+            {openaiConfigured ? (
+              <Badge className="bg-green-500/10 text-green-600 border-green-500/20">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Configurado
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-muted-foreground">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                Pendente
+              </Badge>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <CredentialEditor
+            credentialKey="OPENAI_API_KEY"
+            label="API Key"
+            description="Usado para geração de criativos de mídia (imagens, variações, edição)"
+            isConfigured={openaiConfigured}
+            preview={secretsStatus?.openai?.previews?.OPENAI_API_KEY}
+            source={secretsStatus?.openai?.sources?.OPENAI_API_KEY as 'db' | 'env' | null}
+            placeholder="Cole a API Key da OpenAI aqui..."
+          />
+
+          <div className="grid gap-2 md:grid-cols-3">
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Geração de imagens</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Edição com referência</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <span>Variações de criativos</span>
+            </div>
+          </div>
+
+          <Button variant="outline" size="sm" asChild>
+            <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Gerenciar API Keys
             </a>
           </Button>
         </CardContent>
