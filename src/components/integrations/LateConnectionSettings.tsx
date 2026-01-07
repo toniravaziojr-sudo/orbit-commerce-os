@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ExternalLink, RefreshCw, Unlink, Facebook, Instagram, Calendar } from "lucide-react";
+import { Loader2, ExternalLink, RefreshCw, Unlink, Facebook, Instagram, Calendar, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 interface LateConnection {
   id: string;
@@ -18,17 +18,21 @@ interface LateConnection {
   connected_accounts: any[] | null;
   connected_at: string | null;
   last_error: string | null;
+  updated_at: string | null;
 }
 
 export function LateConnectionSettings() {
   const { currentTenant } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   
   const [connection, setConnection] = useState<LateConnection | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+
+  // Ref para popup window
+  const popupRef = useRef<Window | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const tenantId = currentTenant?.id;
 
@@ -39,7 +43,6 @@ export function LateConnectionSettings() {
 
     if (lateConnected === "true") {
       toast.success("Canais conectados com sucesso!");
-      // Clean up URL
       searchParams.delete("late_connected");
       setSearchParams(searchParams);
       loadConnection();
@@ -49,7 +52,16 @@ export function LateConnectionSettings() {
       setSearchParams(searchParams);
       loadConnection();
     }
-  }, [searchParams]);
+  }, [searchParams, setSearchParams]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   const loadConnection = async () => {
     if (!tenantId) return;
@@ -71,6 +83,11 @@ export function LateConnectionSettings() {
           ...data,
           connected_accounts: Array.isArray(data.connected_accounts) ? data.connected_accounts : [],
         });
+        
+        // Reset connecting state if connection is done
+        if (data.status !== "connecting") {
+          setIsConnecting(false);
+        }
       } else {
         setConnection(null);
       }
@@ -85,18 +102,72 @@ export function LateConnectionSettings() {
     loadConnection();
   }, [tenantId]);
 
+  /**
+   * CRITICAL: Open popup FIRST in click handler, THEN fetch URL
+   * This prevents browser popup blockers from blocking the window
+   */
   const handleConnect = async () => {
     if (!tenantId) return;
 
     setIsConnecting(true);
-    
-    // Timeout de 30 segundos para evitar loading eterno
-    const timeout = setTimeout(() => {
+
+    // STEP 1: Open popup immediately in click handler (before any async)
+    // This is critical to avoid popup blockers
+    const popup = window.open(
+      "about:blank",
+      "late_oauth",
+      "width=600,height=700,scrollbars=yes,resizable=yes"
+    );
+
+    if (!popup) {
+      toast.error("Popup bloqueado. Por favor, permita popups para este site.");
       setIsConnecting(false);
-      toast.error("Tempo limite excedido. Tente novamente.");
-    }, 30000);
-    
+      return;
+    }
+
+    popupRef.current = popup;
+
+    // Show loading in popup
+    popup.document.write(`
+      <html>
+        <head>
+          <title>Conectando...</title>
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+              margin: 0;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              color: white;
+            }
+            .container { text-align: center; }
+            .spinner {
+              width: 50px;
+              height: 50px;
+              border: 4px solid rgba(255,255,255,0.3);
+              border-top-color: white;
+              border-radius: 50%;
+              animation: spin 1s linear infinite;
+              margin: 0 auto 20px;
+            }
+            @keyframes spin { to { transform: rotate(360deg); } }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="spinner"></div>
+            <h2>Conectando...</h2>
+            <p>Aguarde enquanto preparamos a conexão</p>
+          </div>
+        </body>
+      </html>
+    `);
+
     try {
+      // STEP 2: Call edge function to get OAuth URL
       const { data, error } = await supabase.functions.invoke("late-auth-start", {
         body: {
           tenant_id: tenantId,
@@ -104,34 +175,98 @@ export function LateConnectionSettings() {
         },
       });
 
-      clearTimeout(timeout);
-
       if (error) {
         console.error("Late auth start error:", error);
+        popup.close();
         toast.error("Erro ao iniciar conexão. Tente novamente.");
         setIsConnecting(false);
         return;
       }
-      
+
       if (!data?.success) {
+        popup.close();
         toast.error(data?.error || "Erro ao iniciar conexão");
         setIsConnecting(false);
         return;
       }
 
-      // Redirect to Late OAuth
-      if (data.oauth_url) {
-        window.location.href = data.oauth_url;
+      // STEP 3: Redirect popup to OAuth URL
+      const connectUrl = data.connect_url || data.oauth_url;
+      if (connectUrl) {
+        popup.location.href = connectUrl;
+
+        // Poll for popup close or connection complete
+        pollIntervalRef.current = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            // Reload connection status
+            setTimeout(() => {
+              loadConnection();
+              setIsConnecting(false);
+            }, 1000);
+          }
+        }, 500);
+
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+          }
+          if (!popup.closed) {
+            popup.close();
+          }
+          loadConnection();
+          setIsConnecting(false);
+        }, 5 * 60 * 1000);
+
       } else {
+        popup.close();
         toast.error("URL de autorização não recebida");
         setIsConnecting(false);
       }
+
     } catch (e: any) {
-      clearTimeout(timeout);
       console.error("Late connect error:", e);
+      if (popup && !popup.closed) {
+        popup.close();
+      }
       toast.error(e.message || "Erro ao conectar");
       setIsConnecting(false);
     }
+  };
+
+  const handleCancelConnecting = async () => {
+    if (!tenantId) return;
+
+    // Close popup if open
+    if (popupRef.current && !popupRef.current.closed) {
+      popupRef.current.close();
+    }
+
+    // Clear interval
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    // Reset status in DB
+    try {
+      await supabase
+        .from("late_connections")
+        .update({ 
+          status: "disconnected", 
+          last_error: "Conexão cancelada pelo usuário",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("tenant_id", tenantId);
+    } catch (e) {
+      console.error("Error resetting connection:", e);
+    }
+
+    setIsConnecting(false);
+    loadConnection();
   };
 
   const handleDisconnect = async () => {
@@ -160,21 +295,29 @@ export function LateConnectionSettings() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "connected":
-        return <Badge className="bg-green-100 text-green-800">Conectado</Badge>;
+        return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">Conectado</Badge>;
       case "connecting":
-        return <Badge className="bg-yellow-100 text-yellow-800">Conectando...</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">Conectando...</Badge>;
       case "error":
         return <Badge variant="destructive">Erro</Badge>;
       case "expired":
-        return <Badge className="bg-orange-100 text-orange-800">Expirado</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400">Expirado</Badge>;
       default:
         return <Badge variant="secondary">Desconectado</Badge>;
     }
   };
 
   const connectedAccounts = connection?.connected_accounts || [];
-  const fbAccount = connectedAccounts.find((a: any) => a.platform === "facebook" || a.type === "facebook");
-  const igAccount = connectedAccounts.find((a: any) => a.platform === "instagram" || a.type === "instagram");
+  const fbAccount = connectedAccounts.find((a: any) => 
+    a.platform === "facebook" || a.type === "facebook"
+  );
+  const igAccount = connectedAccounts.find((a: any) => 
+    a.platform === "instagram" || a.type === "instagram"
+  );
+
+  // Check if connecting is stale (> 10 minutes)
+  const isStaleConnecting = connection?.status === "connecting" && connection.updated_at 
+    && new Date(connection.updated_at) < new Date(Date.now() - 10 * 60 * 1000);
 
   if (isLoading) {
     return (
@@ -190,6 +333,7 @@ export function LateConnectionSettings() {
 
   const isConnected = connection?.status === "connected";
   const hasError = connection?.status === "error" || connection?.status === "expired";
+  const isConnectingState = connection?.status === "connecting" || isConnecting;
 
   return (
     <Card>
@@ -217,7 +361,7 @@ export function LateConnectionSettings() {
               {isConnecting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Conectando...
+                  Abrindo janela...
                 </>
               ) : (
                 <>
@@ -238,7 +382,7 @@ export function LateConnectionSettings() {
               {isConnecting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Reconectando...
+                  Abrindo janela...
                 </>
               ) : (
                 <>
@@ -305,29 +449,42 @@ export function LateConnectionSettings() {
               </Button>
             </div>
           </>
-        ) : connection?.status === "connecting" ? (
+        ) : isConnectingState ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Processando conexão...</span>
+              <span className="text-sm text-muted-foreground">
+                {isStaleConnecting 
+                  ? "A conexão parece estar travada." 
+                  : "Processando conexão..."}
+              </span>
             </div>
             <p className="text-xs text-muted-foreground">
-              Se a janela de autorização não abriu, clique para tentar novamente.
+              {isStaleConnecting 
+                ? "A janela de autorização pode ter sido fechada ou ocorreu um erro."
+                : "Complete a autorização na janela que foi aberta."}
             </p>
-            <Button variant="outline" size="sm" onClick={handleConnect} disabled={isConnecting}>
-              {isConnecting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleConnect} disabled={isConnecting && !isStaleConnecting}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-              )}
-              Tentar novamente
-            </Button>
+                Tentar novamente
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={handleCancelConnecting}
+                className="text-muted-foreground"
+              >
+                <X className="mr-2 h-4 w-4" />
+                Cancelar
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">Processando conexão...</span>
+              <span className="text-sm text-muted-foreground">Processando...</span>
             </div>
           </div>
         )}
