@@ -199,11 +199,26 @@ serve(async (req) => {
 
     console.log(`Generation queued: ${generation.id}`);
 
+    // Trigger the processing function immediately (fire and forget)
+    try {
+      const processUrl = `${supabaseUrl}/functions/v1/media-process-generation-queue`;
+      fetch(processUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      }).catch(err => console.error("Error triggering process queue:", err));
+    } catch (triggerError) {
+      console.error("Error triggering queue processing:", triggerError);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 
         generation_id: generation.id,
-        message: "Geração adicionada à fila" 
+        message: "Geração iniciada" 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
