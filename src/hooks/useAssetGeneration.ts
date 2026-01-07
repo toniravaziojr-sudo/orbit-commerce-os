@@ -220,9 +220,11 @@ export function useGenerateImage() {
     mutationFn: async ({
       calendarItemId,
       variantCount = 4,
+      usePackshot = false,
     }: {
       calendarItemId: string;
       variantCount?: number;
+      usePackshot?: boolean;
     }) => {
       const { data: session } = await supabase.auth.getSession();
       if (!session?.session?.access_token) {
@@ -233,6 +235,7 @@ export function useGenerateImage() {
         body: {
           calendar_item_id: calendarItemId,
           variant_count: variantCount,
+          use_packshot: usePackshot,
         },
       });
 
@@ -246,7 +249,11 @@ export function useGenerateImage() {
       return data;
     },
     onSuccess: (_, variables) => {
-      toast.success("Geração adicionada à fila");
+      toast.success(
+        variables.usePackshot 
+          ? "Geração com packshot adicionada à fila" 
+          : "Geração adicionada à fila"
+      );
       queryClient.invalidateQueries({
         queryKey: ["asset-generations", variables.calendarItemId],
       });

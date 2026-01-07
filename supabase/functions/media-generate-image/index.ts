@@ -100,15 +100,18 @@ serve(async (req) => {
     // Build the final prompt
     const promptParts: string[] = [];
 
-    // Base rules (anti-error)
+    // Base rules (anti-error) - mais rígidas
     const baseRules = [
-      "Fotografia profissional em alta resolução",
-      "NÃO inclua texto sobreposto na imagem",
-      "NÃO invente rótulos, logos ou embalagens",
-      "NÃO mostre mãos segurando produtos",
+      "Fotografia profissional em alta resolução, estilo editorial",
+      "NÃO inclua NENHUM texto sobreposto na imagem",
+      "NÃO invente, altere ou crie rótulos, logos ou embalagens",
+      "NÃO mostre mãos segurando produtos diretamente",
+      "NÃO distorça proporções ou cores do produto",
+      "NÃO adicione selos, certificações ou claims",
+      "PRESERVE exatamente a identidade visual do produto se fornecido",
       "Mantenha iluminação profissional de estúdio",
-      "Evite qualquer claim médico ou antes/depois",
-      "Estilo editorial limpo e moderno",
+      "Evite qualquer claim médico, antes/depois ou promessa de resultado",
+      "Estilo editorial limpo, moderno e premium",
     ];
 
     // Add brand context if available
@@ -118,6 +121,9 @@ serve(async (req) => {
       }
       if (brandContext.visual_style_guidelines) {
         promptParts.push(`Estilo visual: ${brandContext.visual_style_guidelines}`);
+      }
+      if (brandContext.banned_claims && brandContext.banned_claims.length > 0) {
+        baseRules.push(`PROIBIDO mencionar: ${brandContext.banned_claims.join(", ")}`);
       }
       if (brandContext.do_not_do && brandContext.do_not_do.length > 0) {
         baseRules.push(...brandContext.do_not_do.map((r: string) => `NÃO ${r}`));
@@ -138,8 +144,8 @@ serve(async (req) => {
 
     // Content type specific adjustments
     const contentTypePrompts: Record<string, string> = {
-      image: "Imagem única para post de feed",
-      carousel: "Imagem para carrossel, composição limpa",
+      image: "Imagem única para post de feed, proporção 1:1",
+      carousel: "Imagem para carrossel, composição limpa, proporção 1:1",
       reel: "Imagem vertical 9:16 para Reels/Stories",
       story: "Imagem vertical 9:16 para Stories",
     };
@@ -152,9 +158,14 @@ serve(async (req) => {
     const promptFinal = [
       ...promptParts,
       "",
-      "Regras obrigatórias:",
+      "REGRAS OBRIGATÓRIAS (seguir rigorosamente):",
       ...baseRules,
     ].join("\n");
+
+    // Determine if we should use packshot
+    const packshotUrl = use_packshot && brandContext?.packshot_url 
+      ? brandContext.packshot_url 
+      : null;
 
     // Create generation record with status 'queued'
     const { data: generation, error: genError } = await supabase
@@ -168,6 +179,7 @@ serve(async (req) => {
         brand_context_snapshot: brandContext || null,
         settings: {
           use_packshot,
+          packshot_url: packshotUrl,
           content_type: calendarItem.content_type,
         },
         status: "queued",
