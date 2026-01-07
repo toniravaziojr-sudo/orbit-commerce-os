@@ -75,17 +75,10 @@ export function CreateCampaignDialog({ open, onOpenChange, onSuccess }: CreateCa
   const getPeriodDates = (period: "current" | "next") => {
     const now = new Date();
     const today = startOfDay(now);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
     
     if (period === "current") {
       const endOfCurrentMonth = endOfMonth(now);
-      if (tomorrow <= endOfCurrentMonth) {
-        return { start: tomorrow, end: endOfCurrentMonth };
-      } else {
-        const next = addMonths(now, 1);
-        return { start: startOfMonth(next), end: endOfMonth(next) };
-      }
+      return { start: today, end: endOfCurrentMonth };
     } else {
       const next = addMonths(now, 1);
       return { start: startOfMonth(next), end: endOfMonth(next) };
