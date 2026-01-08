@@ -218,6 +218,12 @@ export function PublicationDialog({
   };
 
   const handleBack = () => {
+    // Se está editando, fecha o diálogo ao clicar em "Voltar"
+    if (isEditing) {
+      onOpenChange(false);
+      return;
+    }
+    
     if (step === "details") {
       if (selectedType === "blog") {
         setStep("type");
@@ -475,6 +481,33 @@ export function PublicationDialog({
 
             <Form {...feedForm}>
               <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="space-y-4">
+                {/* Seletor de Canais */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Canais de publicação</label>
+                  <div className="flex gap-3">
+                    {CHANNELS.map((channel) => {
+                      const Icon = channel.icon;
+                      const isSelected = selectedChannels.includes(channel.id);
+                      return (
+                        <button
+                          key={channel.id}
+                          type="button"
+                          onClick={() => handleChannelToggle(channel.id)}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
+                            "hover:border-primary hover:bg-primary/5",
+                            isSelected && "border-primary bg-primary/10"
+                          )}
+                        >
+                          <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
+                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label}</span>
+                          {isSelected && <Check className="h-3 w-3 text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <FormField
                   control={feedForm.control}
                   name="title"
@@ -585,6 +618,33 @@ export function PublicationDialog({
 
             <Form {...storyForm}>
               <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="space-y-4">
+                {/* Seletor de Canais */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Canais de publicação</label>
+                  <div className="flex gap-3">
+                    {CHANNELS.map((channel) => {
+                      const Icon = channel.icon;
+                      const isSelected = selectedChannels.includes(channel.id);
+                      return (
+                        <button
+                          key={channel.id}
+                          type="button"
+                          onClick={() => handleChannelToggle(channel.id)}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
+                            "hover:border-primary hover:bg-primary/5",
+                            isSelected && "border-primary bg-primary/10"
+                          )}
+                        >
+                          <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
+                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label}</span>
+                          {isSelected && <Check className="h-3 w-3 text-primary" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <FormField
                   control={storyForm.control}
                   name="title"
