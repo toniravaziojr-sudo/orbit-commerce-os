@@ -512,7 +512,7 @@ IMPORTANTE sobre needs_product_image:
       hashtags: s.hashtags || [],
       generation_prompt: s.generation_prompt,
       target_platforms: s.target_platforms || targetPlatformsDefault,
-      status: "suggested",
+      status: "draft",
       version: 1,
       metadata: {
         needs_product_image: s.needs_product_image ?? false,

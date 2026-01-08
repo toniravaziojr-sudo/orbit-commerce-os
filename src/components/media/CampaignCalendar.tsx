@@ -37,7 +37,9 @@ const statusColors: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
-  draft: "Rascunho",
+  draft: "Em Construção",
+  suggested: "Em Construção",
+  review: "Em Construção",
   approved: "Aprovado",
   scheduled: "Agendado",
   published: "Publicado",
@@ -98,6 +100,7 @@ export function CampaignCalendar() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
 
@@ -236,12 +239,15 @@ export function CampaignCalendar() {
   const handleGenerateCreatives = async () => {
     if (!items || !currentTenant) return;
     
+    // Itens elegíveis: status draft/suggested e com copy preenchida, sem asset ainda
     const eligibleItems = items.filter(i => 
-      (i.status === "draft" || i.status === "approved") && !i.asset_url
+      ["draft", "suggested", "review"].includes(i.status) && 
+      i.copy && // tem copy preenchida
+      !i.asset_url // não tem criativo ainda
     );
     
     if (eligibleItems.length === 0) {
-      toast.info("Nenhum item sem criativo para gerar");
+      toast.info("Nenhum item elegível para gerar criativo. Certifique-se que os itens tenham copy e não tenham criativo ainda.");
       return;
     }
     
@@ -282,6 +288,50 @@ export function CampaignCalendar() {
     }
   };
 
+  // Aprovar Campanha
+  const handleApproveCampaign = async () => {
+    if (!items || !currentTenant) return;
+    
+    // Itens com copy + criativo que ainda não estão aprovados
+    const readyItems = items.filter(i => 
+      ["draft", "suggested", "review"].includes(i.status) && 
+      i.copy && 
+      i.asset_url
+    );
+    
+    if (readyItems.length === 0) {
+      toast.info("Nenhum item pronto para aprovar. Certifique-se que os itens tenham copy e criativo.");
+      return;
+    }
+    
+    setIsApproving(true);
+    try {
+      for (const item of readyItems) {
+        await supabase
+          .from("media_calendar_items")
+          .update({ status: "approved" })
+          .eq("id", item.id);
+      }
+      toast.success(`${readyItems.length} item(ns) aprovado(s)!`);
+      await refetchItems();
+      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+    } catch (err) {
+      toast.error("Erro ao aprovar itens");
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  // Verifica se há itens prontos para aprovar (com copy + criativo)
+  const itemsReadyToApprove = useMemo(() => {
+    if (!items) return 0;
+    return items.filter(i => 
+      ["draft", "suggested", "review"].includes(i.status) && 
+      i.copy && 
+      i.asset_url
+    ).length;
+  }, [items]);
+
   // Agendar Publicações
   const handleScheduleAll = async () => {
     if (!items || !currentTenant) return;
@@ -296,9 +346,10 @@ export function CampaignCalendar() {
       return;
     }
     
-    const approvedItems = items.filter(i => i.status === "approved" || i.status === "draft");
+    // Somente itens aprovados podem ser agendados
+    const approvedItems = items.filter(i => i.status === "approved");
     if (approvedItems.length === 0) {
-      toast.info("Nenhum item para agendar");
+      toast.info("Nenhum item aprovado para agendar. Aprove os itens primeiro.");
       return;
     }
     
@@ -451,22 +502,41 @@ export function CampaignCalendar() {
                   Gerar Criativos
                 </Button>
 
-                {/* Agendar Publicações */}
-                <Button 
-                  variant={lateConnected ? "outline" : "secondary"}
-                  onClick={handleScheduleAll}
-                  disabled={isScheduling}
-                  className="gap-2"
-                >
-                  {isScheduling ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : lateConnected ? (
-                    <Send className="h-4 w-4" />
-                  ) : (
-                    <AlertCircle className="h-4 w-4" />
-                  )}
-                  Agendar Publicações
-                </Button>
+                {/* Aprovar Campanha - só aparece quando há itens prontos */}
+                {itemsReadyToApprove > 0 && (
+                  <Button 
+                    variant="default"
+                    onClick={handleApproveCampaign}
+                    disabled={isApproving}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    {isApproving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Aprovar ({itemsReadyToApprove})
+                  </Button>
+                )}
+
+                {/* Agendar Publicações - só para itens aprovados */}
+                {stats.approved > 0 && (
+                  <Button 
+                    variant={lateConnected ? "outline" : "secondary"}
+                    onClick={handleScheduleAll}
+                    disabled={isScheduling}
+                    className="gap-2"
+                  >
+                    {isScheduling ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : lateConnected ? (
+                      <Send className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    Agendar Publicações
+                  </Button>
+                )}
               </>
             )}
 
