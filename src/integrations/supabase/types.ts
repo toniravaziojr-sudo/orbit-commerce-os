@@ -204,6 +204,36 @@ export type Database = {
           },
         ]
       }
+      billing_feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          flag_key: string
+          id: string
+          is_enabled: boolean
+          metadata: Json | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          flag_key: string
+          id?: string
+          is_enabled?: boolean
+          metadata?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          flag_key?: string
+          id?: string
+          is_enabled?: boolean
+          metadata?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       block_implementation_requests: {
         Row: {
           created_at: string | null
@@ -2965,6 +2995,71 @@ export type Database = {
           },
         ]
       }
+      free_pix_validations: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          paid_at: string | null
+          payment_provider: string | null
+          pix_code: string | null
+          pix_qr_code: string | null
+          provider_charge_id: string | null
+          refund_requested_at: string | null
+          refundable_until: string | null
+          refunded_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount_cents?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_provider?: string | null
+          pix_code?: string | null
+          pix_qr_code?: string | null
+          provider_charge_id?: string | null
+          refund_requested_at?: string | null
+          refundable_until?: string | null
+          refunded_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_provider?: string | null
+          pix_code?: string | null
+          pix_qr_code?: string | null
+          provider_charge_id?: string | null
+          refund_requested_at?: string | null
+          refundable_until?: string | null
+          refunded_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_pix_validations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ibge_municipios: {
         Row: {
           codigo: string
@@ -5335,6 +5430,54 @@ export type Database = {
           },
         ]
       }
+      plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          features: Json | null
+          fee_bps: number
+          is_active: boolean
+          is_custom: boolean
+          monthly_fee_cents: number
+          name: string
+          order_limit: number | null
+          plan_key: string
+          sort_order: number
+          support_level: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          fee_bps?: number
+          is_active?: boolean
+          is_custom?: boolean
+          monthly_fee_cents?: number
+          name: string
+          order_limit?: number | null
+          plan_key: string
+          sort_order?: number
+          support_level?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          fee_bps?: number
+          is_active?: boolean
+          is_custom?: boolean
+          monthly_fee_cents?: number
+          name?: string
+          order_limit?: number | null
+          plan_key?: string
+          sort_order?: number
+          support_level?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_admins: {
         Row: {
           created_at: string
@@ -7501,6 +7644,53 @@ export type Database = {
           },
         ]
       }
+      tenant_addons: {
+        Row: {
+          addon_key: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          name: string
+          notes: string | null
+          price_cents: number
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          addon_key: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          name: string
+          notes?: string | null
+          price_cents?: number
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          addon_key?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          name?: string
+          notes?: string | null
+          price_cents?: number
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_addons_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_brand_context: {
         Row: {
           auto_generated_at: string | null
@@ -7701,6 +7891,130 @@ export type Database = {
           },
         ]
       }
+      tenant_invoices: {
+        Row: {
+          addons_cents: number
+          ai_fee_cents: number
+          base_fee_cents: number
+          created_at: string
+          discount_cents: number
+          due_date: string | null
+          id: string
+          line_items: Json | null
+          metadata: Json | null
+          paid_at: string | null
+          payment_method: string | null
+          payment_provider_id: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          tenant_id: string
+          total_cents: number
+          updated_at: string
+          variable_fee_cents: number
+          year_month: string
+        }
+        Insert: {
+          addons_cents?: number
+          ai_fee_cents?: number
+          base_fee_cents?: number
+          created_at?: string
+          discount_cents?: number
+          due_date?: string | null
+          id?: string
+          line_items?: Json | null
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_provider_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          tenant_id: string
+          total_cents?: number
+          updated_at?: string
+          variable_fee_cents?: number
+          year_month: string
+        }
+        Update: {
+          addons_cents?: number
+          ai_fee_cents?: number
+          base_fee_cents?: number
+          created_at?: string
+          discount_cents?: number
+          due_date?: string | null
+          id?: string
+          line_items?: Json | null
+          metadata?: Json | null
+          paid_at?: string | null
+          payment_method?: string | null
+          payment_provider_id?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          tenant_id?: string
+          total_cents?: number
+          updated_at?: string
+          variable_fee_cents?: number
+          year_month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_monthly_usage: {
+        Row: {
+          ai_usage_cents: number
+          created_at: string
+          gmv_cents: number
+          id: string
+          limit_blocked_at: string | null
+          limit_warning_shown_at: string | null
+          metadata: Json | null
+          orders_count: number
+          over_limit: boolean
+          tenant_id: string
+          updated_at: string
+          year_month: string
+        }
+        Insert: {
+          ai_usage_cents?: number
+          created_at?: string
+          gmv_cents?: number
+          id?: string
+          limit_blocked_at?: string | null
+          limit_warning_shown_at?: string | null
+          metadata?: Json | null
+          orders_count?: number
+          over_limit?: boolean
+          tenant_id: string
+          updated_at?: string
+          year_month: string
+        }
+        Update: {
+          ai_usage_cents?: number
+          created_at?: string
+          gmv_cents?: number
+          id?: string
+          limit_blocked_at?: string | null
+          limit_warning_shown_at?: string | null
+          metadata?: Json | null
+          orders_count?: number
+          over_limit?: boolean
+          tenant_id?: string
+          updated_at?: string
+          year_month?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_monthly_usage_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_shipping_integrations: {
         Row: {
           carrier: string
@@ -7737,6 +8051,93 @@ export type Database = {
             foreignKeyName: "tenant_shipping_integrations_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_subscriptions: {
+        Row: {
+          activated_at: string | null
+          cancelled_at: string | null
+          card_brand: string | null
+          card_last_four: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          payment_method_type: string | null
+          payment_provider: string | null
+          plan_key: string
+          provider_customer_id: string | null
+          provider_subscription_id: string | null
+          status: Database["public"]["Enums"]["subscription_status"]
+          suspended_at: string | null
+          tenant_id: string
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          activated_at?: string | null
+          cancelled_at?: string | null
+          card_brand?: string | null
+          card_last_four?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          payment_method_type?: string | null
+          payment_provider?: string | null
+          plan_key: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["subscription_status"]
+          suspended_at?: string | null
+          tenant_id: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          activated_at?: string | null
+          cancelled_at?: string | null
+          card_brand?: string | null
+          card_last_four?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          payment_method_type?: string | null
+          payment_provider?: string | null
+          plan_key?: string
+          provider_customer_id?: string | null
+          provider_subscription_id?: string | null
+          status?: Database["public"]["Enums"]["subscription_status"]
+          suspended_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_subscriptions_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["plan_key"]
+          },
+          {
+            foreignKeyName: "tenant_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -8088,6 +8489,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_tenant_order_limit: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          current_count: number
+          hard_enforcement_enabled: boolean
+          is_over_limit: boolean
+          order_limit: number
+          plan_key: string
+        }[]
+      }
       create_tenant_for_user: {
         Args: { p_name: string; p_slug: string }
         Returns: {
@@ -8111,8 +8522,13 @@ export type Database = {
         }
       }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
+      generate_tenant_invoice: {
+        Args: { p_tenant_id: string; p_year_month: string }
+        Returns: string
+      }
       get_auth_user_email: { Args: never; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
+      get_current_year_month: { Args: never; Returns: string }
       get_discount_usage: { Args: { p_discount_id: string }; Returns: number }
       get_discount_usage_by_customer: {
         Args: { p_discount_id: string; p_email: string }
@@ -8166,6 +8582,10 @@ export type Database = {
         Args: { post_id: string }
         Returns: undefined
       }
+      increment_tenant_order_usage: {
+        Args: { p_order_total_cents: number; p_tenant_id: string }
+        Returns: undefined
+      }
       initialize_default_page_template: {
         Args: { p_tenant_id: string }
         Returns: string
@@ -8179,6 +8599,10 @@ export type Database = {
         Returns: undefined
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      record_ai_usage: {
+        Args: { p_tenant_id: string; p_usage_cents: number }
+        Returns: undefined
+      }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
@@ -8211,6 +8635,7 @@ export type Database = {
         | "canceled"
         | "unknown"
       email_purpose: "notifications" | "support" | "manual"
+      invoice_status: "draft" | "open" | "paid" | "failed" | "cancelled"
       mailbox_status: "pending_dns" | "active" | "error" | "disabled"
       media_campaign_status:
         | "draft"
@@ -8295,6 +8720,11 @@ export type Database = {
         | "linkedin"
         | "twitter"
         | "pinterest"
+      subscription_status:
+        | "pending_payment_method"
+        | "active"
+        | "suspended"
+        | "cancelled"
       support_channel_type:
         | "whatsapp"
         | "email"
@@ -8454,6 +8884,7 @@ export const Constants = {
         "unknown",
       ],
       email_purpose: ["notifications", "support", "manual"],
+      invoice_status: ["draft", "open", "paid", "failed", "cancelled"],
       mailbox_status: ["pending_dns", "active", "error", "disabled"],
       media_campaign_status: [
         "draft",
@@ -8547,6 +8978,12 @@ export const Constants = {
         "linkedin",
         "twitter",
         "pinterest",
+      ],
+      subscription_status: [
+        "pending_payment_method",
+        "active",
+        "suspended",
+        "cancelled",
       ],
       support_channel_type: [
         "whatsapp",

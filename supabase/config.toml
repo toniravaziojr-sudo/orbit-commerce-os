@@ -377,3 +377,12 @@ verify_jwt = true
 
 [functions.import-data]
 verify_jwt = false
+
+[functions.billing-activate-subscription]
+verify_jwt = false
+
+[functions.billing-check-pix-validation]
+verify_jwt = false
+
+[functions.billing-generate-invoice]
+verify_jwt = false
