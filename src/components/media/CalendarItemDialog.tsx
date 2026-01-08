@@ -32,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
 import { useAuth } from "@/hooks/useAuth";
 import { Database } from "@/integrations/supabase/types";
@@ -52,14 +53,14 @@ const formSchema = z.object({
   hashtags: z.string().optional(),
   generation_prompt: z.string().optional(),
   scheduled_time: z.string().optional(),
-  target_platforms: z.string().optional(),
+  target_platforms: z.array(z.string()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 const contentTypes: { value: MediaContentType; label: string }[] = [
-  { value: "image", label: "🖼️ Imagem" },
-  { value: "carousel", label: "📸 Carrossel" },
+  { value: "image", label: "🖼️ Imagem (Feed)" },
+  { value: "carousel", label: "📸 Carrossel (Feed)" },
   { value: "story", label: "📱 Story" },
   { value: "text", label: "📝 Texto (Blog)" },
 ];
@@ -76,11 +77,12 @@ const itemStatuses: { value: MediaItemStatus; label: string }[] = [
 ];
 
 const platformOptions = [
-  { value: "instagram", label: "Instagram" },
-  { value: "facebook", label: "Facebook" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "youtube", label: "YouTube" },
+  { value: "instagram", label: "Instagram", icon: "🟠" },
+  { value: "facebook", label: "Facebook", icon: "🔵" },
+  { value: "blog", label: "Blog", icon: "📝" },
+  { value: "tiktok", label: "TikTok", icon: "⚫" },
+  { value: "linkedin", label: "LinkedIn", icon: "🔷" },
+  { value: "youtube", label: "YouTube", icon: "🔴" },
 ];
 
 interface CalendarItemDialogProps {
@@ -120,7 +122,7 @@ export function CalendarItemDialog({
       hashtags: "",
       generation_prompt: "",
       scheduled_time: "10:00",
-      target_platforms: "instagram",
+      target_platforms: ["instagram"],
     },
   });
 
@@ -135,7 +137,7 @@ export function CalendarItemDialog({
         hashtags: item.hashtags?.join(", ") || "",
         generation_prompt: item.generation_prompt || "",
         scheduled_time: item.scheduled_time?.slice(0, 5) || "10:00",
-        target_platforms: item.target_platforms?.join(", ") || "instagram",
+        target_platforms: item.target_platforms || ["instagram"],
       });
     } else {
       form.reset({
@@ -147,7 +149,7 @@ export function CalendarItemDialog({
         hashtags: "",
         generation_prompt: "",
         scheduled_time: "10:00",
-        target_platforms: "instagram",
+        target_platforms: ["instagram"],
       });
     }
   }, [item, form]);
@@ -156,9 +158,7 @@ export function CalendarItemDialog({
     const hashtags = values.hashtags
       ? values.hashtags.split(",").map((h) => h.trim()).filter(Boolean)
       : [];
-    const platforms = values.target_platforms
-      ? values.target_platforms.split(",").map((p) => p.trim()).filter(Boolean)
-      : [];
+    const platforms = values.target_platforms || [];
 
     // Aprovação automática: se é conteúdo manual (não sugerido pela IA), aprova ao salvar
     // Exceto se o status já é "suggested" (veio da IA e precisa revisão)
@@ -324,40 +324,67 @@ export function CalendarItemDialog({
               />
             </div>
 
-            {/* Horário e Plataformas - só mostrar se não for blog-only */}
-            {!isBlogOnly && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="scheduled_time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Horário de publicação</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            {/* Plataformas/Canais - sempre mostrar para poder alterar */}
+            <FormField
+              control={form.control}
+              name="target_platforms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Canais de publicação</FormLabel>
+                  <div className="flex flex-wrap gap-3">
+                    {platformOptions.map((platform) => {
+                      const isChecked = field.value?.includes(platform.value) || false;
+                      return (
+                        <label
+                          key={platform.value}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all",
+                            isChecked
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border hover:border-primary/50"
+                          )}
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => {
+                              const currentPlatforms = field.value || [];
+                              if (checked) {
+                                field.onChange([...currentPlatforms, platform.value]);
+                              } else {
+                                field.onChange(currentPlatforms.filter((p) => p !== platform.value));
+                              }
+                            }}
+                          />
+                          <span className="text-sm">
+                            {platform.icon} {platform.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <FormDescription className="text-xs">
+                    Selecione onde esta publicação será postada
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-                <FormField
-                  control={form.control}
-                  name="target_platforms"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Plataformas</FormLabel>
-                      <FormControl>
-                        <Input placeholder="instagram, facebook" {...field} />
-                      </FormControl>
-                      <FormDescription className="text-xs">
-                        Separadas por vírgula
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+            {/* Horário de publicação - só mostrar se não for blog-only */}
+            {!isBlogOnly && (
+              <FormField
+                control={form.control}
+                name="scheduled_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Horário de publicação</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} className="w-40" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
 
             <FormField

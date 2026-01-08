@@ -81,7 +81,7 @@ export function CampaignCalendar() {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const { campaigns } = useMediaCampaigns();
-  const { items, isLoading, refetch: refetchItems, deleteItem } = useMediaCalendarItems(campaignId);
+  const { items, isLoading, refetch: refetchItems, deleteItem, createItem } = useMediaCalendarItems(campaignId);
   const { isConnected: lateConnected, isLoading: lateLoading } = useLateConnection();
   
   const campaign = campaigns?.find((c) => c.id === campaignId);
@@ -192,6 +192,43 @@ export function CampaignCalendar() {
 
   const handleDeleteItem = async (id: string) => {
     await deleteItem.mutateAsync(id);
+  };
+
+  const handleDuplicateItem = async (item: MediaCalendarItem) => {
+    if (!currentTenant) return;
+    try {
+      await createItem.mutateAsync({
+        tenant_id: currentTenant.id,
+        campaign_id: item.campaign_id,
+        scheduled_date: item.scheduled_date,
+        scheduled_time: item.scheduled_time,
+        content_type: item.content_type,
+        title: item.title ? `${item.title} (cópia)` : null,
+        copy: item.copy,
+        cta: item.cta,
+        hashtags: item.hashtags,
+        generation_prompt: item.generation_prompt,
+        reference_urls: item.reference_urls,
+        asset_url: null,
+        asset_thumbnail_url: null,
+        asset_metadata: {},
+        status: "draft",
+        target_channel: item.target_channel,
+        blog_post_id: null,
+        published_blog_at: null,
+        target_platforms: item.target_platforms,
+        published_at: null,
+        publish_results: {},
+        version: 1,
+        edited_by: null,
+        edited_at: null,
+        metadata: {},
+      });
+      toast.success("Publicação duplicada!");
+    } catch (err) {
+      console.error("Error duplicating item:", err);
+      toast.error("Erro ao duplicar publicação");
+    }
   };
 
   // Criar Estratégia IA
@@ -857,6 +894,7 @@ export function CampaignCalendar() {
           onEditItem={handleEditItem}
           onAddItem={handleAddItem}
           onDeleteItem={handleDeleteItem}
+          onDuplicateItem={handleDuplicateItem}
         />
       )}
     </div>
