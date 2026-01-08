@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import OpenAI from "https://esm.sh/openai@4.20.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,34 +36,167 @@ async function downloadImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
-// Generate image using OpenAI DALL-E (for product images)
+// Generate image using OpenAI GPT-Image-1 (supports image input for product reference)
 async function generateImageWithOpenAI(
-  openai: OpenAI,
+  openaiApiKey: string,
   prompt: string,
-  _referenceImageDataUrl?: string
+  referenceImageDataUrl?: string
 ): Promise<string | null> {
   try {
-    // OpenAI DALL-E 3 for high quality product images
-    const response = await openai.images.generate({
-      model: "dall-e-3",
-      prompt: prompt,
-      n: 1,
-      size: "1024x1024",
-      quality: "hd",
-      style: "natural",
-    });
+    // If we have a reference image, use the images/edits endpoint with gpt-image-1
+    if (referenceImageDataUrl) {
+      console.log("Using GPT-Image-1 with product reference image");
+      
+      // Convert data URL to base64 (remove the data:image/xxx;base64, prefix)
+      const base64Match = referenceImageDataUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!base64Match) {
+        console.error("Invalid data URL format");
+        return null;
+      }
+      const base64Data = base64Match[1];
+      
+      // Use the OpenAI images API with gpt-image-1
+      // This endpoint accepts image input and generates based on it
+      const response = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openaiApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-image-1",
+          image: base64Data,
+          prompt: prompt,
+          n: 1,
+          size: "1024x1024",
+        }),
+      });
 
-    const imageUrl = response.data[0]?.url;
-    if (!imageUrl) {
-      console.error("No image URL in OpenAI response");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("GPT-Image-1 API error:", response.status, errorText);
+        
+        // Try alternative approach using chat completions with image modality
+        console.log("Trying chat completions approach...");
+        return await generateWithChatCompletions(openaiApiKey, prompt, referenceImageDataUrl);
+      }
+
+      const data = await response.json();
+      const imageB64 = data.data?.[0]?.b64_json;
+      if (imageB64) {
+        return `data:image/png;base64,${imageB64}`;
+      }
+      
+      const imageUrl = data.data?.[0]?.url;
+      if (imageUrl) {
+        return await downloadImageAsDataUrl(imageUrl);
+      }
+      
+      console.error("No image in GPT-Image-1 response");
       return null;
     }
 
-    // Download and convert to data URL
-    const dataUrl = await downloadImageAsDataUrl(imageUrl);
-    return dataUrl;
+    // Without reference image, use DALL-E 3 for best quality
+    console.log("Using DALL-E 3 without reference image");
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "hd",
+        style: "natural",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("DALL-E 3 API error:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const imageUrl = data.data?.[0]?.url;
+    if (imageUrl) {
+      return await downloadImageAsDataUrl(imageUrl);
+    }
+
+    return null;
   } catch (error) {
-    console.error("Error calling OpenAI:", error);
+    console.error("Error in generateImageWithOpenAI:", error);
+    return null;
+  }
+}
+
+// Alternative: Use GPT-4o chat completions with image generation
+async function generateWithChatCompletions(
+  openaiApiKey: string,
+  prompt: string,
+  referenceImageDataUrl: string
+): Promise<string | null> {
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: referenceImageDataUrl,
+                },
+              },
+            ],
+          },
+        ],
+        modalities: ["text", "image"],
+        max_tokens: 4096,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("GPT-4o chat completions error:", response.status, errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    
+    // Check for image in response
+    const message = data.choices?.[0]?.message;
+    if (message?.images?.[0]?.image_url?.url) {
+      return message.images[0].image_url.url;
+    }
+    
+    // Some responses may have the image in content array
+    if (Array.isArray(message?.content)) {
+      for (const part of message.content) {
+        if (part.type === "image_url" && part.image_url?.url) {
+          return part.image_url.url;
+        }
+      }
+    }
+
+    console.error("No image in GPT-4o response:", JSON.stringify(data).substring(0, 500));
+    return null;
+  } catch (error) {
+    console.error("Error in generateWithChatCompletions:", error);
     return null;
   }
 }
@@ -152,12 +284,6 @@ serve(async (req) => {
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
-  
-  // Initialize OpenAI client if key is available
-  let openai: OpenAI | null = null;
-  if (openaiApiKey) {
-    openai = new OpenAI({ apiKey: openaiApiKey });
-  }
 
   try {
     // Fetch queued generations (limit 3 for concurrency control)
@@ -206,31 +332,45 @@ serve(async (req) => {
         const packshotUrl = settings.packshot_url;
 
         // Determine which AI to use based on whether we need product images
-        // OpenAI for product images (higher quality for products)
+        // OpenAI for product images (uses real product image as reference)
         // Lovable AI for non-product images (landscapes, concepts, etc.)
-        const useOpenAI = needsProductImage && openai && matchedProducts.length > 0;
+        const hasProductWithImage = matchedProducts.some(p => p.image_url);
+        const useOpenAI = openaiApiKey && hasProductWithImage;
         
-        console.log(`Using ${useOpenAI ? "OpenAI" : "Lovable AI"} for generation (needsProduct: ${needsProductImage})`);
+        console.log(`Using ${useOpenAI ? "OpenAI GPT-Image" : "Lovable AI"} for generation (hasProductWithImage: ${hasProductWithImage})`);
 
         // Build the final prompt
         let finalPrompt = generation.prompt_final;
 
-        if (useOpenAI && matchedProducts.length > 0) {
-          // Enhanced prompt for OpenAI with product context
-          const productNames = matchedProducts.map(p => p.name).join(", ");
-          finalPrompt = `${generation.prompt_final}
+        // Download product reference image if available
+        let productReferenceDataUrl: string | null = null;
+        
+        if (useOpenAI && hasProductWithImage) {
+          const productWithImage = matchedProducts.find(p => p.image_url);
+          if (productWithImage?.image_url) {
+            console.log(`Downloading product image for reference: ${productWithImage.name}`);
+            productReferenceDataUrl = await downloadImageAsDataUrl(productWithImage.image_url);
+            
+            if (productReferenceDataUrl) {
+              console.log("Product reference image downloaded successfully");
+              // Enhanced prompt for OpenAI with product context
+              finalPrompt = `INSTRUÇÃO CRÍTICA: A imagem anexada é a foto REAL do produto "${productWithImage.name}". 
+Você DEVE usar exatamente este produto na imagem gerada, preservando:
+- O rótulo/embalagem EXATAMENTE como mostrado
+- As cores e design do produto EXATAMENTE como mostrado  
+- A forma e proporções do produto EXATAMENTE como mostradas
 
-PRODUTOS DA LOJA: ${productNames}
+${generation.prompt_final}
 
-ESTILO OBRIGATÓRIO:
-- Fotografia profissional de produto em alta resolução
-- Iluminação de estúdio premium
-- Fundo limpo ou cenário elegante
-- Produto em destaque centralizado
-- SEM texto sobreposto
-- SEM logos inventados
-- SEM rótulos modificados
-- Estilo editorial de revista de alto padrão`;
+REGRAS ABSOLUTAS:
+- O produto na imagem gerada deve ser IDÊNTICO ao produto da foto de referência
+- NÃO invente, modifique ou redesenhe o rótulo/embalagem
+- NÃO altere as cores do produto
+- Mantenha o produto em destaque, bem iluminado
+- Estilo: fotografia profissional de produto, qualidade editorial
+- SEM texto adicional sobreposto na imagem`;
+            }
+          }
         }
 
         // Add content type context to prompt
@@ -241,21 +381,26 @@ ESTILO OBRIGATÓRIO:
         // Generate the image
         let imageDataUrl: string | null = null;
         
-        if (useOpenAI && openai) {
-          imageDataUrl = await generateImageWithOpenAI(openai, finalPrompt);
+        if (useOpenAI && openaiApiKey && productReferenceDataUrl) {
+          // Use OpenAI GPT-Image with the actual product image as reference
+          imageDataUrl = await generateImageWithOpenAI(openaiApiKey, finalPrompt, productReferenceDataUrl);
+        } else if (useOpenAI && openaiApiKey) {
+          // OpenAI without reference (fallback)
+          imageDataUrl = await generateImageWithOpenAI(openaiApiKey, finalPrompt);
         } else {
-          imageDataUrl = await generateImageWithLovableAI(lovableApiKey, finalPrompt);
+          imageDataUrl = await generateImageWithLovableAI(lovableApiKey!, finalPrompt);
         }
 
         if (!imageDataUrl) {
           throw new Error("Falha ao gerar imagem");
         }
 
-        console.log(`Image generated successfully using ${useOpenAI ? "OpenAI" : "Lovable AI"}`);
+        const usedOpenAI = useOpenAI;
+        console.log(`Image generated successfully using ${usedOpenAI ? "OpenAI GPT-Image" : "Lovable AI"}${productReferenceDataUrl ? " with product reference" : ""}`);
 
         // Get pricing for cost tracking
-        const provider = useOpenAI ? "openai" : "google";
-        const model = useOpenAI ? "dall-e-3" : "gemini-2.5-flash-image-preview";
+        const provider = usedOpenAI ? "openai" : "google";
+        const model = usedOpenAI ? "gpt-image-1" : "gemini-2.5-flash-image-preview";
         
         const { data: pricing } = await supabase
           .from("ai_model_pricing")
