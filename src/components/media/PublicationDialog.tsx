@@ -301,6 +301,8 @@ export function PublicationDialog({
     }
 
     onOpenChange(false);
+    // Após salvar, reabre a lista do dia
+    onBackToList?.();
   };
 
   const handleSubmitStory = async (values: z.infer<typeof storyFormSchema>) => {
@@ -343,6 +345,8 @@ export function PublicationDialog({
     }
 
     onOpenChange(false);
+    // Após salvar, reabre a lista do dia
+    onBackToList?.();
   };
 
   const handleSubmitBlog = async (values: z.infer<typeof blogFormSchema>) => {
@@ -385,6 +389,8 @@ export function PublicationDialog({
     }
 
     onOpenChange(false);
+    // Após salvar, reabre a lista do dia
+    onBackToList?.();
   };
 
   const handleDelete = async () => {

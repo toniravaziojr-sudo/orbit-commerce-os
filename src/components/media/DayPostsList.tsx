@@ -86,12 +86,18 @@ const getCountsByType = (items: MediaCalendarItem[]) => {
   };
 };
 
-// Ícone do canal/tipo
+// Ícone do canal/tipo - agora usa formato novo (feed_instagram, story_facebook, etc)
 const getChannelIcon = (item: MediaCalendarItem) => {
   const platforms = item.target_platforms || [];
   const type = item.content_type as string;
-  const isStory = type === "story" || type === "stories";
-  const isBlog = type === "text" || type === "blog" || platforms.includes("blog");
+  const platform = platforms[0] || ""; // Pega apenas o primeiro canal (nova lógica: 1 canal por publicação)
+  
+  const isBlog = type === "text" || type === "blog" || platform === "blog";
+  const isStory = type === "story" || type === "stories" || platform.startsWith("story_");
+  
+  // Detecta a rede social baseado no novo formato ou legado
+  const isInstagram = platform.includes("instagram") || platform === "instagram";
+  const isFacebook = platform.includes("facebook") || platform === "facebook";
 
   if (isBlog) {
     return (
@@ -105,12 +111,8 @@ const getChannelIcon = (item: MediaCalendarItem) => {
   if (isStory) {
     return (
       <div className="flex items-center gap-1">
-        {platforms.includes("instagram") && (
-          <span className="font-bold text-orange-500 text-sm">S</span>
-        )}
-        {platforms.includes("facebook") && (
-          <span className="font-bold text-blue-600 text-sm">S</span>
-        )}
+        {isInstagram && <Instagram className="h-4 w-4 text-orange-500" />}
+        {isFacebook && <Facebook className="h-4 w-4 text-blue-600" />}
         <span className="text-xs text-muted-foreground">Story</span>
       </div>
     );
@@ -119,12 +121,8 @@ const getChannelIcon = (item: MediaCalendarItem) => {
   // Feed
   return (
     <div className="flex items-center gap-1">
-      {platforms.includes("instagram") && (
-        <Instagram className="h-4 w-4 text-orange-500" />
-      )}
-      {platforms.includes("facebook") && (
-        <Facebook className="h-4 w-4 text-blue-600" />
-      )}
+      {isInstagram && <Instagram className="h-4 w-4 text-orange-500" />}
+      {isFacebook && <Facebook className="h-4 w-4 text-blue-600" />}
       <span className="text-xs text-muted-foreground">Feed</span>
     </div>
   );
