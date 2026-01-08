@@ -38,12 +38,12 @@ const statusColors: Record<string, string> = {
 };
 
 const statusLabels: Record<string, string> = {
-  draft: "Rascunho",
-  suggested: "Sugerido",
-  review: "Revisão",
-  approved: "Aprovado",
+  draft: "Em Construção",
+  suggested: "Em Construção",
+  review: "Em Construção",
   generating_asset: "Gerando",
   asset_review: "Revisar Asset",
+  approved: "Aprovado",
   scheduled: "Agendado",
   publishing: "Publicando",
   published: "Publicado",
