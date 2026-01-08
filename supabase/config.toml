@@ -1,5 +1,11 @@
 project_id = "ojssezfjhdvvncsqyhyq"
 
+[functions.import-data-health]
+verify_jwt = false
+
+[functions.import-batch]
+verify_jwt = false
+
 [functions.platform-secrets-check]
 verify_jwt = true
 

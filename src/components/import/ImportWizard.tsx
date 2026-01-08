@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
@@ -7,9 +7,12 @@ import { ModuleSelector } from './ModuleSelector';
 import { DataUploader } from './DataUploader';
 import { DataPreview } from './DataPreview';
 import { ImportProgress } from './ImportProgress';
-import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
+import { ImportServiceStatus } from './ImportServiceStatus';
+import { useImportJobs } from '@/hooks/useImportJobs';
+import { useImportService } from '@/hooks/useImportService';
 import { getAdapter } from '@/lib/import/platforms';
 import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ImportWizardProps {
   onComplete?: () => void;
@@ -27,9 +30,18 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
   const [stats, setStats] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [serviceOnline, setServiceOnline] = useState(false);
 
+  const { currentTenant } = useAuth();
   const { createJob, updateJobStatus } = useImportJobs();
-  const { importData } = useImportData();
+  const { checkHealth, importWithBatches, health } = useImportService();
+
+  // Check service health when entering preview step
+  useEffect(() => {
+    if (step === 'preview') {
+      checkHealth();
+    }
+  }, [step, checkHealth]);
 
   const handleModuleToggle = useCallback((module: string) => {
     setModules(prev => 
@@ -71,7 +83,14 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
   }, [platform]);
 
   const handleStartImport = useCallback(async () => {
-    if (!platform) return;
+    if (!platform || !currentTenant?.id) return;
+
+    // Double-check service is online
+    const isOnline = await checkHealth();
+    if (!isOnline) {
+      toast.error('Serviço de importação indisponível. Tente novamente.');
+      return;
+    }
 
     setStep('importing');
     setIsProcessing(true);
@@ -84,6 +103,13 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       const allStats: Record<string, any> = {};
       const importProgress: Record<string, any> = {};
 
+      // Build category map if importing products with categories
+      let categoryMap: Record<string, string> | undefined;
+      if (modules.includes('products') && normalizedData.categories?.length > 0) {
+        // First import categories and build the map
+        // This would require fetching categories after import to get IDs
+      }
+
       for (const module of modules) {
         const data = normalizedData[module];
         if (!data?.length) continue;
@@ -92,15 +118,48 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
         setProgress({ ...importProgress });
 
         try {
-          const result = await importData(platform, module as any, data);
-          
-          allStats[module] = result.results;
-          importProgress[module] = { current: data.length, total: data.length, status: 'completed' };
-          
-          if (result.results.errors?.length > 0) {
-            allErrors.push(...result.results.errors);
-          }
+          const result = await importWithBatches(
+            currentTenant.id,
+            platform,
+            module as any,
+            data,
+            job.id,
+            categoryMap,
+            (batchProgress) => {
+              importProgress[module] = {
+                current: batchProgress.processedItems,
+                total: batchProgress.totalItems,
+                status: batchProgress.status === 'completed' ? 'completed' : 
+                        batchProgress.status === 'failed' ? 'failed' : 'processing',
+                batch: `${batchProgress.currentBatch}/${batchProgress.totalBatches}`,
+              };
+              setProgress({ ...importProgress });
+              
+              // Collect errors as they come in
+              if (batchProgress.errors.length > 0) {
+                allErrors.push(...batchProgress.errors.filter(e => 
+                  !allErrors.some(existing => 
+                    existing.identifier === e.identifier && existing.error === e.error
+                  )
+                ));
+                setErrors([...allErrors]);
+              }
+            }
+          );
+
+          allStats[module] = {
+            imported: result.results.reduce((sum, r) => sum + r.imported + r.updated, 0),
+            skipped: result.results.reduce((sum, r) => sum + r.skipped, 0),
+            failed: result.results.reduce((sum, r) => sum + r.failed, 0),
+          };
+
+          importProgress[module] = { 
+            current: data.length, 
+            total: data.length, 
+            status: result.success ? 'completed' : 'completed_with_errors' 
+          };
         } catch (error: any) {
+          console.error(`[ImportWizard] Module ${module} failed:`, error);
           importProgress[module] = { current: 0, total: data.length, status: 'failed' };
           allErrors.push({ item: module, error: error.message });
         }
@@ -119,21 +178,25 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       });
 
       setStep('complete');
-      toast.success('Importação concluída!');
+      
+      const totalImported = Object.values(allStats).reduce((sum: number, s: any) => 
+        sum + (s.imported || 0), 0
+      );
+      toast.success(`Importação concluída! ${totalImported} itens importados.`);
     } catch (error: any) {
       toast.error('Erro na importação: ' + error.message);
       setStep('complete');
     } finally {
       setIsProcessing(false);
     }
-  }, [platform, modules, normalizedData, createJob, updateJobStatus, importData]);
+  }, [platform, modules, normalizedData, currentTenant?.id, createJob, updateJobStatus, checkHealth, importWithBatches]);
 
   const canProceed = () => {
     switch (step) {
       case 'platform': return !!platform;
       case 'modules': return modules.length > 0;
       case 'upload': return Object.keys(normalizedData).length > 0;
-      case 'preview': return true;
+      case 'preview': return serviceOnline;
       default: return false;
     }
   };
@@ -187,7 +250,13 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
         )}
 
         {step === 'preview' && (
-          <DataPreview data={normalizedData} modules={modules} />
+          <div className="space-y-4">
+            <ImportServiceStatus 
+              onStatusChange={setServiceOnline} 
+              autoCheck={true}
+            />
+            <DataPreview data={normalizedData} modules={modules} />
+          </div>
         )}
 
         {(step === 'importing' || step === 'complete') && (
