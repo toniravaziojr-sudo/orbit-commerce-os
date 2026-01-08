@@ -2,13 +2,13 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { useMediaCampaigns, useMediaCalendarItems, MediaCalendarItem } from "@/hooks/useMediaCampaigns";
-import { CalendarItemDialog } from "./CalendarItemDialog";
+import { PublicationDialog } from "./PublicationDialog";
 import { DayPostsList } from "./DayPostsList";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,39 +20,57 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getHolidayForDate } from "@/lib/brazilian-holidays";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// Status simplificados conforme solicitado
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
-  suggested: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  review: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
   approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  generating_asset: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-  asset_review: "bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300",
-  scheduled: "bg-primary/10 text-primary",
-  publishing: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+  scheduled: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   published: "bg-green-600 text-white",
   failed: "bg-destructive/10 text-destructive",
+  // Mapear status antigos para novos
+  suggested: "bg-muted text-muted-foreground",
+  review: "bg-muted text-muted-foreground",
+  generating_asset: "bg-muted text-muted-foreground",
+  asset_review: "bg-muted text-muted-foreground",
+  publishing: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   skipped: "bg-muted text-muted-foreground line-through",
 };
 
 const statusLabels: Record<string, string> = {
   draft: "Rascunho",
-  suggested: "Sugerido",
-  review: "Revisão",
   approved: "Aprovado",
-  generating_asset: "Gerando",
-  asset_review: "Revisar Asset",
   scheduled: "Agendado",
-  publishing: "Publicando",
   published: "Publicado",
-  failed: "Falha",
-  skipped: "Ignorado",
+  failed: "Com Erros",
 };
 
-const contentTypeIcons: Record<string, string> = {
-  image: "🖼️",
-  carousel: "📸",
-  story: "📱",
-  text: "📝",
+// Ícones de publicação por tipo e canal
+const getPublicationIcon = (item: MediaCalendarItem) => {
+  const platforms = item.target_platforms || [];
+  const type = item.content_type;
+
+  // Blog
+  if (type === "text" || platforms.includes("blog")) {
+    return { icon: Newspaper, color: "text-emerald-600", label: "Blog" };
+  }
+
+  // Story
+  if (type === "story") {
+    return { icon: () => <span className="font-bold text-orange-500 text-xs">S</span>, color: "text-orange-500", label: "Story" };
+  }
+
+  // Feed Instagram
+  if (platforms.includes("instagram")) {
+    return { icon: Instagram, color: "text-pink-600", label: "Instagram" };
+  }
+
+  // Feed Facebook
+  if (platforms.includes("facebook")) {
+    return { icon: Facebook, color: "text-blue-600", label: "Facebook" };
+  }
+
+  // Default
+  return { icon: Image, color: "text-muted-foreground", label: "Post" };
 };
 
 export function CampaignCalendar() {
@@ -72,15 +90,14 @@ export function CampaignCalendar() {
     }
     return startOfMonth(new Date());
   });
-  const [selectedItem, setSelectedItem] = useState<MediaCalendarItem | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<MediaCalendarItem | null>(null);
   const [dayListOpen, setDayListOpen] = useState(false);
   const [dayListDate, setDayListDate] = useState<Date | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isApproving, setIsApproving] = useState(false);
+  const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
   const [isScheduling, setIsScheduling] = useState(false);
-  // Dias selecionados para geração de conteúdo pela IA (Set de strings "yyyy-MM-dd")
   const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
   const [isSelectMode, setIsSelectMode] = useState(false);
 
@@ -109,12 +126,12 @@ export function CampaignCalendar() {
   }, [items]);
 
   const stats = useMemo(() => {
-    if (!items) return { total: 0, suggested: 0, approved: 0, withAsset: 0 };
+    if (!items) return { total: 0, draft: 0, approved: 0, scheduled: 0 };
     return {
       total: items.length,
-      suggested: items.filter(i => i.status === "suggested").length,
-      approved: items.filter(i => ["approved", "asset_review", "scheduled", "published"].includes(i.status)).length,
-      withAsset: items.filter(i => i.asset_url).length,
+      draft: items.filter(i => ["draft", "suggested", "review"].includes(i.status)).length,
+      approved: items.filter(i => i.status === "approved").length,
+      scheduled: items.filter(i => ["scheduled", "published"].includes(i.status)).length,
     };
   }, [items]);
 
@@ -123,19 +140,6 @@ export function CampaignCalendar() {
     return isWithinInterval(date, campaignInterval);
   };
 
-  const isActiveDay = (date: Date) => {
-    if (!campaign?.days_of_week) return true;
-    return campaign.days_of_week.includes(date.getDay());
-  };
-
-  // Verifica se um dia está selecionado (para geração IA ou tem conteúdo)
-  const isDaySelected = (dateKey: string) => {
-    const dayItems = itemsByDate.get(dateKey) || [];
-    // Dia está "selecionado" se tem conteúdo OU se foi marcado manualmente
-    return dayItems.length > 0 || selectedDays.has(dateKey);
-  };
-
-  // Toggle seleção de um dia para IA
   const toggleDaySelection = (dateKey: string) => {
     setSelectedDays(prev => {
       const newSet = new Set(prev);
@@ -149,43 +153,37 @@ export function CampaignCalendar() {
   };
 
   const handleDayClick = (date: Date, dayItems: MediaCalendarItem[]) => {
-    // Allow clicking any day within campaign period (ignore days_of_week restriction for manual actions)
     if (!isInCampaignPeriod(date)) return;
     
     const dateKey = format(date, "yyyy-MM-dd");
     
-    // Se estamos no modo de seleção, apenas toggle a seleção
     if (isSelectMode) {
       toggleDaySelection(dateKey);
       return;
     }
     
-    // Se tem mais de 1 item, abre lista de posts do dia
-    if (dayItems.length > 1) {
+    // Se tem itens, abre lista para ver/editar
+    if (dayItems.length > 0) {
       setDayListDate(date);
       setDayListOpen(true);
-    } else if (dayItems.length === 1) {
-      // Se tem 1 item, edita direto
-      setSelectedItem(dayItems[0]);
-      setSelectedDate(null);
-      setDialogOpen(true);
     } else {
-      // Se não tem item, cria novo
-      setSelectedItem(null);
+      // Se não tem, abre dialog para criar
       setSelectedDate(date);
+      setEditItem(null);
       setDialogOpen(true);
     }
   };
 
   const handleAddItem = (date: Date) => {
-    setSelectedItem(null);
     setSelectedDate(date);
+    setEditItem(null);
     setDialogOpen(true);
   };
 
   const handleEditItem = (item: MediaCalendarItem) => {
-    setSelectedItem(item);
-    setSelectedDate(null);
+    const itemDate = parseISO(item.scheduled_date);
+    setSelectedDate(itemDate);
+    setEditItem(item);
     setDialogOpen(true);
   };
 
@@ -193,17 +191,17 @@ export function CampaignCalendar() {
     await deleteItem.mutateAsync(id);
   };
 
-  const handleGenerateSuggestions = async () => {
+  // Criar Estratégia IA
+  const handleGenerateStrategy = async () => {
     if (!currentTenant || !campaignId) return;
-    
-    // Usa os dias selecionados manualmente, se houver
-    const targetDates = selectedDays.size > 0 ? Array.from(selectedDays) : undefined;
     
     if (selectedDays.size === 0) {
       toast.info("Selecione os dias no calendário antes de gerar conteúdo");
       setIsSelectMode(true);
       return;
     }
+    
+    const targetDates = Array.from(selectedDays);
     
     setIsGenerating(true);
     try {
@@ -218,61 +216,32 @@ export function CampaignCalendar() {
       if (error) throw error;
       
       if (data?.success) {
-        toast.success(data.message || "Sugestões geradas com sucesso!");
-        // Limpa a seleção após gerar
+        toast.success(data.message || "Estratégia gerada com sucesso!");
         setSelectedDays(new Set());
         setIsSelectMode(false);
         await refetchItems();
         queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-        queryClient.invalidateQueries({ queryKey: ["media-campaigns", currentTenant?.id] });
       } else {
-        toast.error(data?.error || "Erro ao gerar sugestões");
+        toast.error(data?.error || "Erro ao gerar estratégia");
       }
     } catch (err) {
-      console.error("Error generating suggestions:", err);
-      toast.error("Erro ao gerar sugestões. Tente novamente.");
+      console.error("Error generating strategy:", err);
+      toast.error("Erro ao gerar estratégia. Tente novamente.");
     } finally {
       setIsGenerating(false);
     }
   };
 
-  const handleApproveAll = async () => {
-    if (!items) return;
-    const suggestedItems = items.filter(i => i.status === "suggested" || i.status === "review");
-    if (suggestedItems.length === 0) {
-      toast.info("Nenhum item para aprovar");
-      return;
-    }
-    
-    setIsApproving(true);
-    try {
-      for (const item of suggestedItems) {
-        await supabase
-          .from("media_calendar_items")
-          .update({ status: "approved" })
-          .eq("id", item.id);
-      }
-      toast.success(`${suggestedItems.length} itens aprovados!`);
-      await refetchItems();
-      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
-    } catch (err) {
-      toast.error("Erro ao aprovar itens");
-    } finally {
-      setIsApproving(false);
-    }
-  };
-
-  const [isGeneratingAssets, setIsGeneratingAssets] = useState(false);
-
-  const handleGenerateAssets = async () => {
+  // Gerar Criativos
+  const handleGenerateCreatives = async () => {
     if (!items || !currentTenant) return;
     
     const eligibleItems = items.filter(i => 
-      i.status === "approved" && !i.asset_url
+      (i.status === "draft" || i.status === "approved") && !i.asset_url
     );
     
     if (eligibleItems.length === 0) {
-      toast.info("Nenhum item aprovado sem criativo para gerar");
+      toast.info("Nenhum item sem criativo para gerar");
       return;
     }
     
@@ -291,7 +260,6 @@ export function CampaignCalendar() {
         });
 
         if (error || !data?.success) {
-          console.error("Error generating asset:", item.id, error || data?.error);
           errorCount++;
         } else {
           successCount++;
@@ -299,22 +267,22 @@ export function CampaignCalendar() {
       }
       
       if (successCount > 0) {
-        toast.success(`${successCount} criativo(s) sendo gerado(s) pela IA!`);
+        toast.success(`${successCount} criativo(s) sendo gerado(s)!`);
       }
       if (errorCount > 0) {
-        toast.error(`${errorCount} item(ns) falharam ao iniciar geração`);
+        toast.error(`${errorCount} item(ns) falharam`);
       }
       
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
-      console.error("Error generating assets:", err);
       toast.error("Erro ao gerar criativos");
     } finally {
       setIsGeneratingAssets(false);
     }
   };
 
+  // Agendar Publicações
   const handleScheduleAll = async () => {
     if (!items || !currentTenant) return;
     
@@ -328,9 +296,9 @@ export function CampaignCalendar() {
       return;
     }
     
-    const approvedItems = items.filter(i => i.status === "approved" || i.status === "asset_review");
+    const approvedItems = items.filter(i => i.status === "approved" || i.status === "draft");
     if (approvedItems.length === 0) {
-      toast.info("Nenhum item aprovado para agendar");
+      toast.info("Nenhum item para agendar");
       return;
     }
     
@@ -347,24 +315,22 @@ export function CampaignCalendar() {
       });
 
       if (error) {
-        console.error("Error scheduling items:", error);
         toast.error("Erro ao agendar publicações");
       } else if (data?.success) {
         if (data.scheduled > 0) {
-          toast.success(`${data.scheduled} publicação(ões) agendada(s) com sucesso!`);
+          toast.success(`${data.scheduled} publicação(ões) agendada(s)!`);
         }
         if (data.failed > 0) {
-          toast.error(`${data.failed} item(ns) falharam ao agendar`);
+          toast.error(`${data.failed} item(ns) falharam`);
         }
       } else {
-        toast.error(data?.error || "Erro ao agendar publicações");
+        toast.error(data?.error || "Erro ao agendar");
       }
       
       await refetchItems();
       queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
     } catch (err) {
-      console.error("Error scheduling items:", err);
-      toast.error("Erro ao agendar itens");
+      toast.error("Erro ao agendar");
     } finally {
       setIsScheduling(false);
     }
@@ -381,6 +347,31 @@ export function CampaignCalendar() {
   const weekDayHeaders = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   const hasSuggestions = items && items.length > 0;
   const dayListItems = dayListDate ? itemsByDate.get(format(dayListDate, "yyyy-MM-dd")) || [] : [];
+  const currentDateItems = selectedDate ? itemsByDate.get(format(selectedDate, "yyyy-MM-dd")) || [] : [];
+
+  // Função para agrupar e contar publicações por tipo/canal
+  const getPublicationCounts = (dayItems: MediaCalendarItem[]) => {
+    const counts = {
+      instagram: 0,
+      facebook: 0,
+      story: 0,
+      blog: 0,
+    };
+
+    dayItems.forEach(item => {
+      const platforms = item.target_platforms || [];
+      if (item.content_type === "story") {
+        counts.story++;
+      } else if (item.content_type === "text" || platforms.includes("blog")) {
+        counts.blog++;
+      } else {
+        if (platforms.includes("instagram")) counts.instagram++;
+        if (platforms.includes("facebook")) counts.facebook++;
+      }
+    });
+
+    return counts;
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -388,12 +379,10 @@ export function CampaignCalendar() {
         title={campaign.name}
         description={campaign.prompt}
         actions={
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" onClick={() => navigate("/media")}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => navigate("/media")}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Voltar
+          </Button>
         }
       />
 
@@ -401,14 +390,14 @@ export function CampaignCalendar() {
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="pt-4">
           <div className="flex flex-wrap gap-3 items-center">
-            {/* Botão de seleção de dias */}
+            {/* Selecionar Dias */}
             <Button 
               variant={isSelectMode ? "default" : "outline"}
               onClick={() => setIsSelectMode(!isSelectMode)}
               className="gap-2"
             >
               <MousePointer2 className="h-4 w-4" />
-              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias"}
+              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Cards"}
             </Button>
 
             {selectedDays.size > 0 && (
@@ -420,12 +409,13 @@ export function CampaignCalendar() {
                   setIsSelectMode(false);
                 }}
               >
-                Limpar seleção
+                Limpar
               </Button>
             )}
 
+            {/* Criar Estratégia IA */}
             <Button 
-              onClick={handleGenerateSuggestions}
+              onClick={handleGenerateStrategy}
               disabled={isGenerating}
               className="gap-2"
             >
@@ -434,29 +424,16 @@ export function CampaignCalendar() {
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {isGenerating ? "Gerando..." : selectedDays.size > 0 ? `Gerar Copy (${selectedDays.size} dias)` : "Gerar Copy com IA"}
+              {isGenerating ? "Gerando..." : "Criar Estratégia IA"}
             </Button>
 
+            {/* Gerar Criativos */}
             {hasSuggestions && (
               <>
                 <Button 
                   variant="outline"
-                  onClick={handleApproveAll}
-                  disabled={isApproving || stats.suggested === 0}
-                  className="gap-2"
-                >
-                  {isApproving ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  {isApproving ? "Aprovando..." : `Aprovar Todos (${stats.suggested})`}
-                </Button>
-
-                <Button 
-                  variant="outline"
-                  onClick={handleGenerateAssets}
-                  disabled={stats.approved === 0 || isGeneratingAssets}
+                  onClick={handleGenerateCreatives}
+                  disabled={isGeneratingAssets}
                   className="gap-2"
                 >
                   {isGeneratingAssets ? (
@@ -464,13 +441,14 @@ export function CampaignCalendar() {
                   ) : (
                     <Image className="h-4 w-4" />
                   )}
-                  {isGeneratingAssets ? "Gerando..." : "Gerar Criativos com IA"}
+                  Gerar Criativos
                 </Button>
 
+                {/* Agendar Publicações */}
                 <Button 
                   variant={lateConnected ? "outline" : "secondary"}
                   onClick={handleScheduleAll}
-                  disabled={stats.approved === 0 || isScheduling}
+                  disabled={isScheduling}
                   className="gap-2"
                 >
                   {isScheduling ? (
@@ -480,7 +458,7 @@ export function CampaignCalendar() {
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
-                  {isScheduling ? "Agendando..." : lateConnected ? "Agendar Publicações" : "Conectar Canais"}
+                  Agendar Publicações
                 </Button>
               </>
             )}
@@ -488,26 +466,21 @@ export function CampaignCalendar() {
             <div className="ml-auto flex gap-4 text-sm text-muted-foreground">
               <span>{stats.total} itens</span>
               <span>{stats.approved} aprovados</span>
-              <span>{stats.withAsset} com asset</span>
+              <span>{stats.scheduled} agendados</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Channel Connection Alert */}
-      {!lateLoading && !lateConnected && hasSuggestions && stats.approved > 0 && (
+      {!lateLoading && !lateConnected && hasSuggestions && (
         <Alert variant="default" className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
           <AlertCircle className="h-4 w-4 text-amber-600" />
           <AlertDescription className="flex items-center justify-between">
             <span className="text-amber-800 dark:text-amber-200">
-              Para publicar nas redes sociais, conecte suas contas de Facebook e Instagram.
+              Para publicar nas redes sociais, conecte suas contas.
             </span>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => navigate("/integrations")}
-              className="ml-4"
-            >
+            <Button size="sm" variant="outline" onClick={() => navigate("/integrations")} className="ml-4">
               Conectar Canais
             </Button>
           </AlertDescription>
@@ -552,13 +525,11 @@ export function CampaignCalendar() {
                   const dateKey = format(date, "yyyy-MM-dd");
                   const dayItems = itemsByDate.get(dateKey) || [];
                   const inPeriod = isInCampaignPeriod(date);
-                  const activeDay = isActiveDay(date);
-                  // Allow clicking any day within campaign period (including today)
                   const isClickable = inPeriod;
                   const holiday = getHolidayForDate(date);
-                  // Verifica se o dia está selecionado (marcado para IA ou tem conteúdo)
-                  const isSelected = isDaySelected(dateKey);
-                  const isManuallySelected = selectedDays.has(dateKey);
+                  const isSelected = selectedDays.has(dateKey);
+                  const hasContent = dayItems.length > 0;
+                  const counts = getPublicationCounts(dayItems);
 
                   return (
                     <div
@@ -566,34 +537,26 @@ export function CampaignCalendar() {
                       onClick={() => isClickable && handleDayClick(date, dayItems)}
                       className={cn(
                         "min-h-[100px] p-1 rounded-md border-2 transition-all relative",
-                        // Base style
-                        inPeriod
-                          ? "cursor-pointer hover:shadow-md" 
-                          : "bg-muted/30 border-transparent",
-                        // Selected state - azul
-                        isSelected && inPeriod && "bg-primary/10 border-primary",
-                        // Manually selected (sem conteúdo, apenas marcado para IA)
-                        isManuallySelected && dayItems.length === 0 && "bg-primary/20 border-primary border-dashed",
-                        // Com conteúdo - borda sólida
-                        dayItems.length > 0 && inPeriod && "border-primary border-solid",
-                        // Não selecionado
-                        !isSelected && inPeriod && "bg-background border-border",
-                        // Não é dia ativo mas está no período
-                        !activeDay && inPeriod && !isSelected && "bg-muted/5 border-dashed border-muted-foreground/30",
-                        // Holiday
-                        holiday && inPeriod && "ring-1 ring-amber-400/50",
-                        // Select mode cursor
+                        inPeriod ? "cursor-pointer hover:shadow-md" : "bg-muted/30 border-transparent",
+                        // Selecionado para IA
+                        isSelected && "bg-primary/20 border-primary border-dashed",
+                        // Com conteúdo
+                        hasContent && inPeriod && !isSelected && "bg-primary/10 border-primary",
+                        // Normal
+                        !isSelected && !hasContent && inPeriod && "bg-background border-border",
+                        // Feriado
+                        holiday && inPeriod && "ring-2 ring-red-400/50",
+                        // Select mode
                         isSelectMode && inPeriod && "cursor-cell"
                       )}
                     >
                       <div className={cn(
                         "text-xs font-medium p-1 flex items-center gap-1",
                         !inPeriod && "text-muted-foreground/50",
-                        !activeDay && inPeriod && !isSelected && "text-muted-foreground/70",
-                        isSelected && "text-primary font-semibold"
+                        (isSelected || hasContent) && "text-primary font-semibold"
                       )}>
                         {format(date, "d")}
-                        {isManuallySelected && dayItems.length === 0 && (
+                        {isSelected && !hasContent && (
                           <Check className="h-3 w-3 text-primary" />
                         )}
                         {holiday && (
@@ -603,44 +566,54 @@ export function CampaignCalendar() {
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="font-medium">{holiday.name}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{holiday.type}</p>
                             </TooltipContent>
                           </Tooltip>
                         )}
                       </div>
                       
-                      <div className="space-y-1">
-                        {dayItems.slice(0, 2).map((item) => (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "text-xs px-1.5 py-0.5 rounded truncate flex items-center gap-1",
-                              statusColors[item.status]
-                            )}
-                          >
-                            <span>{contentTypeIcons[item.content_type]}</span>
-                            <span className="truncate">{item.title || "Sem título"}</span>
-                            {item.asset_url && <span className="ml-auto">📎</span>}
-                          </div>
-                        ))}
-                        {dayItems.length > 2 && (
-                          <div className="text-xs text-muted-foreground px-1">
-                            +{dayItems.length - 2} mais
-                          </div>
-                        )}
-                        {dayItems.length === 0 && isClickable && !isManuallySelected && (
-                          <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1">
-                            <Plus className="h-3 w-3" />
-                            {isSelectMode ? "Clique para selecionar" : "Adicionar"}
-                          </div>
-                        )}
-                        {dayItems.length === 0 && isManuallySelected && (
-                          <div className="text-xs text-primary/70 px-1 flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" />
-                            Selecionado para IA
-                          </div>
-                        )}
-                      </div>
+                      {/* Ícones de publicações */}
+                      {hasContent && (
+                        <div className="flex flex-wrap gap-1 mt-1 px-1">
+                          {counts.instagram > 0 && (
+                            <div className="flex items-center gap-0.5 bg-pink-100 dark:bg-pink-900/30 rounded px-1">
+                              <Instagram className="h-3 w-3 text-pink-600" />
+                              <span className="text-xs font-medium text-pink-700 dark:text-pink-300">{counts.instagram}</span>
+                            </div>
+                          )}
+                          {counts.facebook > 0 && (
+                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1">
+                              <Facebook className="h-3 w-3 text-blue-600" />
+                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook}</span>
+                            </div>
+                          )}
+                          {counts.story > 0 && (
+                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
+                              <span className="text-xs font-bold text-orange-600">S</span>
+                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.story}</span>
+                            </div>
+                          )}
+                          {counts.blog > 0 && (
+                            <div className="flex items-center gap-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded px-1">
+                              <Newspaper className="h-3 w-3 text-emerald-600" />
+                              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{counts.blog}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Placeholder para dias vazios */}
+                      {!hasContent && isClickable && !isSelected && (
+                        <div className="text-xs text-muted-foreground/50 px-1 flex items-center gap-1 mt-2">
+                          <Plus className="h-3 w-3" />
+                          {isSelectMode ? "Selecionar" : "Adicionar"}
+                        </div>
+                      )}
+                      {!hasContent && isSelected && (
+                        <div className="text-xs text-primary/70 px-1 flex items-center gap-1 mt-2">
+                          <Sparkles className="h-3 w-3" />
+                          Para IA
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -650,26 +623,27 @@ export function CampaignCalendar() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap gap-2">
-        <div className="text-xs text-muted-foreground">Legenda:</div>
-        {Object.entries(statusLabels).slice(0, 8).map(([status, label]) => (
+      {/* Legenda simplificada */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-muted-foreground">Legenda:</span>
+        {Object.entries(statusLabels).map(([status, label]) => (
           <Badge key={status} className={cn("text-xs", statusColors[status])}>
             {label}
           </Badge>
         ))}
       </div>
 
-      {/* Dialog para editar/criar item individual */}
-      <CalendarItemDialog
+      {/* Dialog de criação/edição de publicação */}
+      <PublicationDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        item={selectedItem}
         date={selectedDate}
         campaignId={campaignId!}
-        selectedChannels={(campaign?.metadata as any)?.selected_channels || []}
+        existingItems={currentDateItems}
+        editItem={editItem}
       />
 
-      {/* Dialog para listar posts de um dia (múltiplas postagens) */}
+      {/* Dialog de lista de posts do dia */}
       {dayListDate && (
         <DayPostsList
           open={dayListOpen}
