@@ -171,29 +171,37 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
   // Try multiple field variations for handle/slug
   const handle = raw.handle || raw['Handle'] || (raw as any).slug || (raw as any)['Slug'] || '';
   
-  // Try multiple field variations for title/name
-  const title = raw.title || raw['Title'] || 
-                (raw as any).name || (raw as any)['Name'] || 
-                (raw as any).product_name || (raw as any)['Produto'] || 
-                (raw as any)['Nome do Produto'] || (raw as any)['Nome'] || 
-                'Produto sem nome';
+  // Try multiple field variations for title/name (case-insensitive lookup)
+  const titleCandidates = [
+    raw.title, 
+    raw['Title'], 
+    (raw as any).name, 
+    (raw as any)['Name'],
+    (raw as any)['Nome'],
+    (raw as any)['Produto'],
+    (raw as any)['Nome do Produto'],
+    (raw as any).product_name,
+  ];
+  const title = titleCandidates.find(t => t && typeof t === 'string' && t.trim()) || '';
   
   const description = raw.body_html || raw['Body (HTML)'] || (raw as any).description || (raw as any)['Descrição'] || null;
   
-  // Try multiple field variations for price
-  const price = parseFloat(
+  // Try multiple field variations for price - with Brazilian format support
+  const rawPrice = 
     raw.variants?.[0]?.price?.toString() || 
     raw['Variant Price'] || 
     (raw as any).price || (raw as any)['Price'] || (raw as any)['Preço'] || 
-    '0'
-  );
-  const compareAtPrice = parseFloat(
+    '0';
+  const price = parsePrice(rawPrice);
+  
+  const rawComparePrice = 
     raw.variants?.[0]?.compare_at_price?.toString() || 
     raw['Variant Compare At Price'] || 
     (raw as any).compare_at_price || (raw as any)['Compare At Price'] || 
-    '0'
-  ) || null;
-  const costPrice = parseFloat(raw['Cost per item'] || (raw as any).cost_price || '0') || null;
+    '0';
+  const compareAtPrice = parsePrice(rawComparePrice) || null;
+  
+  const costPrice = parsePrice(raw['Cost per item'] || (raw as any).cost_price || '0') || null;
   
   // Try multiple field variations for SKU
   const sku = raw.variants?.[0]?.sku || raw['Variant SKU'] || 
@@ -258,9 +266,12 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
   const productType = raw.product_type || raw['Type'] || raw['Product Category'] || '';
   const categories = productType ? [slugify(productType)] : [];
   
+  // Ensure name is never empty - this is critical for import
+  const effectiveName = title.trim() || handle || 'Produto sem nome';
+  
   return {
-    name: title,
-    slug: handle || slugify(title),
+    name: effectiveName,
+    slug: handle || slugify(effectiveName),
     description,
     short_description: null,
     price,
@@ -446,12 +457,60 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
 
 // Helpers
 function slugify(text: string): string {
+  if (!text) return '';
   return text
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+}
+
+/**
+ * Parse price string, supporting Brazilian format (R$ 49,90) and international (49.90)
+ */
+function parsePrice(value: string | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return value;
+  
+  let str = value.toString().trim();
+  if (!str) return 0;
+  
+  // Remove currency symbols and spaces
+  str = str.replace(/R\$\s*/gi, '').replace(/\s/g, '');
+  
+  // Handle Brazilian format: "1.234,56" or "49,90"
+  // vs International format: "1,234.56" or "49.90"
+  const hasComma = str.includes(',');
+  const hasDot = str.includes('.');
+  
+  if (hasComma && hasDot) {
+    // Both present - determine which is decimal separator
+    const lastComma = str.lastIndexOf(',');
+    const lastDot = str.lastIndexOf('.');
+    
+    if (lastComma > lastDot) {
+      // Brazilian: 1.234,56 -> 1234.56
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // International: 1,234.56 -> 1234.56
+      str = str.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    // Only comma - check if it's decimal separator
+    const parts = str.split(',');
+    if (parts.length === 2 && parts[1].length <= 2) {
+      // Likely decimal: 49,90 -> 49.90
+      str = str.replace(',', '.');
+    } else {
+      // Thousand separator: 1,234 -> 1234
+      str = str.replace(/,/g, '');
+    }
+  }
+  // If only dot, parseFloat handles it correctly
+  
+  const result = parseFloat(str);
+  return isNaN(result) ? 0 : result;
 }
 
 function normalizePhone(phone: string | null): string | null {
