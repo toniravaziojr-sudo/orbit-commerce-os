@@ -70,11 +70,20 @@ export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
   const canConfirm = (selectedModules.size > 0 || selectAll) && confirmText === 'CONFIRMAR';
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog open={open} onOpenChange={(value) => !isClearing && setOpen(value)}>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive hover:text-destructive">
-          <Trash2 className="h-4 w-4 mr-2" />
-          Limpar Dados
+        <Button variant="outline" className="text-destructive hover:text-destructive" disabled={isClearing}>
+          {isClearing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Limpando...
+            </>
+          ) : (
+            <>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Limpar Dados
+            </>
+          )}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent className="max-w-md">
