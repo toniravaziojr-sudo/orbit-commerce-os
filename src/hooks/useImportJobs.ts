@@ -140,6 +140,33 @@ export function useImportJobs() {
     },
   });
 
+  const clearTenantData = useMutation({
+    mutationFn: async (modules: ('products' | 'categories' | 'customers' | 'orders' | 'all')[]) => {
+      if (!tenantId) throw new Error('Tenant ID required');
+
+      const { data, error } = await supabase.functions.invoke('tenant-clear-data', {
+        body: { tenantId, modules },
+      });
+
+      if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Erro ao limpar dados');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['products', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['categories', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['customers', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['orders', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['import-jobs', tenantId] });
+      
+      const totalDeleted = Object.values(data.deleted as Record<string, number>).reduce((a, b) => a + b, 0);
+      toast.success(`${totalDeleted} registros removidos com sucesso`);
+    },
+    onError: (error) => {
+      toast.error('Erro ao limpar dados: ' + error.message);
+    },
+  });
+
   return {
     jobs,
     isLoading,
@@ -147,6 +174,7 @@ export function useImportJobs() {
     createJob,
     updateJobStatus,
     deleteJob,
+    clearTenantData,
   };
 }
 

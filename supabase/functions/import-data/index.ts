@@ -117,19 +117,22 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
 
   let productId: string;
 
+  // Generate SKU if not provided - NEVER fail due to null SKU
+  const effectiveSku = product.sku || `SKU-${product.slug || Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
   if (existing) {
     productId = existing.id;
     // Update existing product
     const { error } = await supabase
       .from('products')
       .update({
-        name: product.name,
+        name: product.name || 'Produto sem nome',
         description: product.description,
         short_description: product.short_description,
-        price: product.price,
+        price: product.price || 0,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
-        sku: product.sku,
+        sku: effectiveSku,
         barcode: product.barcode,
         weight: product.weight,
         width: product.width,
@@ -137,7 +140,7 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
         depth: product.depth,
         stock_quantity: product.stock_quantity,
         is_featured: product.is_featured,
-        status: product.status,
+        status: product.status || 'active',
         seo_title: product.seo_title,
         seo_description: product.seo_description,
         updated_at: new Date().toISOString(),
@@ -152,14 +155,14 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       .from('products')
       .insert({
         tenant_id: tenantId,
-        name: product.name,
-        slug: product.slug,
+        name: product.name || 'Produto sem nome',
+        slug: product.slug || `produto-${Date.now()}`,
         description: product.description,
         short_description: product.short_description,
-        price: product.price,
+        price: product.price || 0,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
-        sku: product.sku,
+        sku: effectiveSku,
         barcode: product.barcode,
         weight: product.weight,
         width: product.width,
@@ -167,7 +170,7 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
         depth: product.depth,
         stock_quantity: product.stock_quantity,
         is_featured: product.is_featured,
-        status: product.status,
+        status: product.status || 'active',
         seo_title: product.seo_title,
         seo_description: product.seo_description,
       })
