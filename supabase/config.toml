@@ -368,3 +368,6 @@ verify_jwt = true
 
 [functions.late-test-connection]
 verify_jwt = true
+
+[functions.correios-test-connection]
+verify_jwt = true

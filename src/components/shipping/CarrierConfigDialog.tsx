@@ -9,7 +9,11 @@ import {
   Key,
   AlertTriangle,
   ShieldCheck,
-  ShieldAlert
+  ShieldAlert,
+  Loader2,
+  Plug,
+  CheckCircle2,
+  XCircle
 } from 'lucide-react';
 import {
   Dialog,
@@ -26,7 +30,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useShippingProviders, ShippingProviderInput } from '@/hooks/useShippingProviders';
+import { useShippingProviders, ShippingProviderInput, TestConnectionResult } from '@/hooks/useShippingProviders';
 
 interface CarrierField {
   key: string;
@@ -113,8 +117,9 @@ interface CarrierConfigDialogProps {
 }
 
 export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierConfigDialogProps) {
-  const { getProvider, upsertProvider } = useShippingProviders();
+  const { getProvider, upsertProvider, testConnection } = useShippingProviders();
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [testResult, setTestResult] = useState<TestConnectionResult | null>(null);
   const [formData, setFormData] = useState<{
     enabled: boolean;
     supportsQuote: boolean;
@@ -153,13 +158,12 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
       fields,
     });
     setShowSecrets({});
+    setTestResult(null);
   }, [carrier, saved, open]);
 
-  const toggleSecret = (fieldKey: string) => {
-    setShowSecrets(prev => ({ ...prev, [fieldKey]: !prev[fieldKey] }));
-  };
-
+  // Clear test result when credentials change
   const updateField = (fieldKey: string, value: string) => {
+    setTestResult(null);
     setFormData(prev => ({
       ...prev,
       fields: {
@@ -167,6 +171,52 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
         [fieldKey]: value,
       },
     }));
+  };
+
+  const toggleSecret = (fieldKey: string) => {
+    setShowSecrets(prev => ({ ...prev, [fieldKey]: !prev[fieldKey] }));
+  };
+
+  const handleTestConnection = async () => {
+    if (!carrierId) return;
+    
+    setTestResult(null);
+    
+    try {
+      const result = await testConnection.mutateAsync({
+        provider: carrierId,
+        credentials: formData.fields,
+      });
+      setTestResult(result);
+    } catch (error) {
+      setTestResult({
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro ao testar conexão',
+      });
+    }
+  };
+
+  const canTestConnection = (): boolean => {
+    if (!carrier) return false;
+    
+    // Check if this carrier supports test connection
+    if (!['correios', 'loggi'].includes(carrier.id)) return false;
+    
+    // Check required fields based on auth mode
+    if (carrier.id === 'correios') {
+      const authMode = formData.fields['auth_mode'] || 'oauth';
+      if (authMode === 'oauth') {
+        return !!(formData.fields['usuario'] && formData.fields['senha'] && formData.fields['cartao_postagem']);
+      } else {
+        return !!formData.fields['token'];
+      }
+    }
+    
+    if (carrier.id === 'loggi') {
+      return !!(formData.fields['integration_code'] && formData.fields['company_id']);
+    }
+    
+    return true;
   };
 
   const handleSave = async () => {
@@ -352,6 +402,59 @@ export function CarrierConfigDialog({ carrierId, open, onOpenChange }: CarrierCo
               </div>
             ))}
           </div>
+
+          {/* Test Connection Button */}
+          {['correios', 'loggi'].includes(carrier.id) && (
+            <div className="space-y-3">
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={handleTestConnection}
+                disabled={testConnection.isPending || !canTestConnection()}
+                className="w-full gap-2"
+              >
+                {testConnection.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Testando conexão...
+                  </>
+                ) : (
+                  <>
+                    <Plug className="h-4 w-4" />
+                    Testar Conexão
+                  </>
+                )}
+              </Button>
+
+              {/* Test Result Feedback */}
+              {testResult && (
+                <Alert variant={testResult.success ? 'default' : 'destructive'}>
+                  {testResult.success ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <XCircle className="h-4 w-4" />
+                  )}
+                  <AlertTitle>
+                    {testResult.success ? 'Conexão bem-sucedida!' : 'Falha na conexão'}
+                  </AlertTitle>
+                  <AlertDescription className="text-sm">
+                    {testResult.success ? (
+                      <>
+                        {testResult.token_expires_at && (
+                          <span>Token válido até: {new Date(testResult.token_expires_at).toLocaleString('pt-BR')}</span>
+                        )}
+                        {testResult.cep_lookup_works && (
+                          <span className="block text-xs mt-1">✓ Consulta de CEP funcionando</span>
+                        )}
+                      </>
+                    ) : (
+                      testResult.error
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
 
           {/* Docs Link */}
           <Button variant="link" className="p-0 h-auto" asChild>
