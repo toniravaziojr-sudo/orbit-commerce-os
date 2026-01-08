@@ -370,35 +370,39 @@ Regras importantes:
       contentTypes = '"image" (post 1:1) ou "carousel" (carrossel)';
       targetPlatformsDefault = ["instagram"];
     } else {
-      // "all" - Generate for all channels
+      // "all" - Generate for all channels with DEFAULT rules
       systemPrompt = `Você é um especialista em marketing digital multiplataforma.
 Sua tarefa é criar um calendário editorial para Blog, Facebook, Instagram e Stories baseado no direcionamento do cliente.
 
-## REGRAS DE FREQUÊNCIA OBRIGATÓRIAS:
+## REGRAS DE FREQUÊNCIA PADRÃO (SEMPRE APLICAR, exceto se o cliente especificar diferente):
 
-### Stories (Instagram e/ou Facebook):
-- Gere de 2 a 6 stories POR DIA (content_type: "story")
-- Stories são conteúdos rápidos, dinâmicos e do dia-a-dia
-- Podem ser enquetes, bastidores, dicas rápidas, promoções relâmpago
+### 1. STORIES (Instagram e/ou Facebook) - OBRIGATÓRIO TODOS OS DIAS:
+- Gere SEMPRE de 2 a 6 stories POR DIA (content_type: "story")
+- target_platforms: ["instagram"] ou ["facebook"] ou ["instagram", "facebook"]
+- Stories são conteúdos rápidos: enquetes, bastidores, dicas rápidas, promoções relâmpago
+- NUNCA deixe um dia sem stories
 
-### Feed (Instagram + Facebook JUNTOS):
+### 2. FEED (Instagram + Facebook SIMULTANEAMENTE):
 - Gere posts de feed a cada 2-3 dias OU 3 vezes por semana
-- IMPORTANTE: Todo post de feed deve ir para Instagram E Facebook simultaneamente
-- target_platforms deve ser ["instagram", "facebook"] para posts de feed
-- Posts de feed são mais elaborados, com copywriting forte
+- REGRA CRÍTICA: Todo post de feed DEVE ir para Instagram E Facebook AO MESMO TEMPO
+- target_platforms SEMPRE deve ser ["instagram", "facebook"] para posts de feed
+- content_type: "image" ou "carousel"
+- Posts de feed são mais elaborados, com copywriting forte e CTA claro
 
-### Blog:
-- Gere 1 artigo de blog POR DIA
-- Conteúdo educativo e informativo
-- Copy em markdown completo
+### 3. BLOG - OBRIGATÓRIO TODOS OS DIAS:
+- Gere 1 artigo de blog POR DIA (content_type: "image", target_channel: "blog")
+- target_platforms: ["blog"]
+- Conteúdo educativo e informativo em formato markdown
 - generation_prompt para imagem de capa (NÃO inclua produtos, apenas cenário/conceito)
 
-## OUTRAS REGRAS:
-1. Para Facebook/Instagram: posts mais engajadores, com perguntas e CTAs claros
-2. O generation_prompt deve ser detalhado para gerar imagens atraentes
-3. Varie os tipos de conteúdo dentro de cada plataforma
-4. Mantenha consistência de marca entre as plataformas
-5. Use hashtags relevantes para o nicho`;
+## REGRAS GERAIS:
+1. SEMPRE use TODOS os canais: Instagram, Facebook, Blog e Stories
+2. Para Facebook/Instagram: posts engajadores, com perguntas e CTAs claros
+3. O generation_prompt deve ser detalhado para gerar imagens atraentes
+4. Varie os tipos de conteúdo dentro de cada plataforma
+5. Mantenha consistência de marca entre as plataformas
+6. Use hashtags relevantes para o nicho
+7. Se o cliente especificar quantidades diferentes no prompt, use as dele; caso contrário, use as regras padrão acima`;
       contentTypes = '"image" ou "carousel" para feed, "story" para stories, "image" para blog';
       targetPlatformsDefault = ["instagram", "facebook"];
     }
