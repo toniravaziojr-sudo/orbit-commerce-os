@@ -188,7 +188,7 @@ function parseCSV(content: string): any[] {
   if (lines.length < 2) return [];
 
   const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-  const data: any[] = [];
+  const rawRows: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
@@ -197,11 +197,109 @@ function parseCSV(content: string): any[] {
       headers.forEach((header, index) => {
         obj[header] = values[index];
       });
-      data.push(obj);
+      rawRows.push(obj);
     }
   }
 
-  return data;
+  // Check if this is a Shopify product export (has Handle column and multiple rows per product)
+  const hasHandle = headers.includes('Handle');
+  const hasTitle = headers.includes('Title');
+  const hasVariantSKU = headers.includes('Variant SKU');
+  
+  if (hasHandle && hasTitle && hasVariantSKU) {
+    // Group rows by Handle and merge variant data
+    return groupShopifyProductRows(rawRows);
+  }
+
+  return rawRows;
+}
+
+// Group Shopify CSV rows by Handle (products with variants have multiple rows)
+function groupShopifyProductRows(rows: any[]): any[] {
+  const productMap = new Map<string, any>();
+
+  for (const row of rows) {
+    const handle = row['Handle'] || '';
+    if (!handle) continue;
+
+    if (!productMap.has(handle)) {
+      // First row for this product - use as base (has the title and main info)
+      productMap.set(handle, {
+        ...row,
+        variants: [],
+        images: [],
+      });
+    }
+
+    const product = productMap.get(handle)!;
+    
+    // Fill in missing fields from the first row (Shopify only puts Title on first row)
+    if (!product['Title'] && row['Title']) {
+      product['Title'] = row['Title'];
+    }
+    if (!product['Body (HTML)'] && row['Body (HTML)']) {
+      product['Body (HTML)'] = row['Body (HTML)'];
+    }
+    if (!product['Vendor'] && row['Vendor']) {
+      product['Vendor'] = row['Vendor'];
+    }
+    if (!product['Type'] && row['Type']) {
+      product['Type'] = row['Type'];
+    }
+    if (!product['Tags'] && row['Tags']) {
+      product['Tags'] = row['Tags'];
+    }
+    if (!product['Published'] && row['Published']) {
+      product['Published'] = row['Published'];
+    }
+    if (!product['SEO Title'] && row['SEO Title']) {
+      product['SEO Title'] = row['SEO Title'];
+    }
+    if (!product['SEO Description'] && row['SEO Description']) {
+      product['SEO Description'] = row['SEO Description'];
+    }
+
+    // Add variant data if present
+    const variantSKU = row['Variant SKU'];
+    const variantPrice = row['Variant Price'];
+    if (variantSKU || variantPrice) {
+      product.variants.push({
+        sku: variantSKU || null,
+        price: variantPrice || '0',
+        compare_at_price: row['Variant Compare At Price'] || null,
+        inventory_quantity: parseInt(row['Variant Inventory Qty'] || '0', 10),
+        weight: parseFloat(row['Variant Weight'] || '0') || null,
+        option1: row['Option1 Value'] || null,
+        option2: row['Option2 Value'] || null,
+        option3: row['Option3 Value'] || null,
+        title: row['Variant Title'] || 'Default',
+      });
+    }
+
+    // Add image if present and not duplicate
+    const imageSrc = row['Image Src'];
+    if (imageSrc && !product.images.some((img: any) => img.src === imageSrc)) {
+      product.images.push({
+        src: imageSrc,
+        alt: row['Image Alt Text'] || null,
+        position: product.images.length,
+      });
+    }
+  }
+
+  // Convert Map to array and set first variant as main product data if no direct price
+  return Array.from(productMap.values()).map(product => {
+    // If product doesn't have direct price/sku, use first variant
+    if (!product['Variant Price'] && product.variants.length > 0) {
+      const firstVariant = product.variants[0];
+      product['Variant Price'] = firstVariant.price;
+      product['Variant SKU'] = firstVariant.sku;
+      product['Variant Compare At Price'] = firstVariant.compare_at_price;
+      product['Variant Inventory Qty'] = firstVariant.inventory_quantity?.toString() || '0';
+      product['Variant Weight'] = firstVariant.weight?.toString() || '';
+    }
+    return product;
+  });
 }
 
 function parseCSVLine(line: string): string[] {
