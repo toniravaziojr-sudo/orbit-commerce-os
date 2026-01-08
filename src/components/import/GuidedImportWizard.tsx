@@ -1355,7 +1355,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
       }
 
-      const result = await importData(platform, stepId as any, normalizedData, categoryMap);
+      const result = await importData(platform, stepId as any, validData, categoryMap);
       const importedCount = result?.results?.imported || validData.length;
 
       setFileStepStatuses(prev => ({
