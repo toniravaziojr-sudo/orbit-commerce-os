@@ -40,8 +40,9 @@ export const platformBranding = {
   
   // Cores principais da marca (para referência)
   colors: {
-    primary: "#3B82F6", // Azul
-    secondary: "#F97316", // Laranja
+    primary: "#6366F1", // Azul-índigo (base do gradiente)
+    secondary: "#A855F7", // Roxo (final do gradiente)
+    gradient: "linear-gradient(135deg, #3B82F6 0%, #9333EA 100%)",
     dark: "#0F172A", // Fundo escuro
   },
   
