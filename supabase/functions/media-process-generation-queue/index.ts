@@ -306,6 +306,30 @@ ESTILO OBRIGATÓRIO:
           console.error("Variant record error:", variantError);
         }
 
+        // Get public URL for the uploaded image
+        const { data: publicUrlData } = supabase.storage
+          .from("media-assets")
+          .getPublicUrl(storagePath);
+
+        const publicUrl = publicUrlData?.publicUrl;
+
+        // Update the calendar item with the generated asset URL
+        if (publicUrl && generation.calendar_item_id) {
+          const { error: updateItemError } = await supabase
+            .from("media_calendar_items")
+            .update({ 
+              asset_url: publicUrl,
+              asset_thumbnail_url: publicUrl 
+            })
+            .eq("id", generation.calendar_item_id);
+
+          if (updateItemError) {
+            console.error("Error updating calendar item with asset URL:", updateItemError);
+          } else {
+            console.log(`Updated calendar item ${generation.calendar_item_id} with asset URL`);
+          }
+        }
+
         // Mark as succeeded with cost tracking
         await supabase
           .from("media_asset_generations")
