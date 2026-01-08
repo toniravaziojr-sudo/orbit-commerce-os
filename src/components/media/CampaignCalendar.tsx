@@ -352,21 +352,28 @@ export function CampaignCalendar() {
   // Função para agrupar e contar publicações por tipo/canal
   const getPublicationCounts = (dayItems: MediaCalendarItem[]) => {
     const counts = {
-      instagram: 0,
-      facebook: 0,
-      story: 0,
+      instagram_feed: 0,
+      instagram_story: 0,
+      facebook_feed: 0,
+      facebook_story: 0,
       blog: 0,
     };
 
     dayItems.forEach(item => {
       const platforms = item.target_platforms || [];
-      if (item.content_type === "story") {
-        counts.story++;
-      } else if (item.content_type === "text" || platforms.includes("blog")) {
+      const contentType = item.content_type as string;
+      const isStory = contentType === "story" || contentType === "stories";
+      const isBlog = contentType === "text" || contentType === "blog" || platforms.includes("blog");
+      
+      if (isBlog) {
         counts.blog++;
+      } else if (isStory) {
+        if (platforms.includes("instagram")) counts.instagram_story++;
+        if (platforms.includes("facebook")) counts.facebook_story++;
       } else {
-        if (platforms.includes("instagram")) counts.instagram++;
-        if (platforms.includes("facebook")) counts.facebook++;
+        // Feed
+        if (platforms.includes("instagram")) counts.instagram_feed++;
+        if (platforms.includes("facebook")) counts.facebook_feed++;
       }
     });
 
@@ -574,24 +581,35 @@ export function CampaignCalendar() {
                       {/* Ícones de publicações */}
                       {hasContent && (
                         <div className="flex flex-wrap gap-1 mt-1 px-1">
-                          {counts.instagram > 0 && (
-                            <div className="flex items-center gap-0.5 bg-pink-100 dark:bg-pink-900/30 rounded px-1">
-                              <Instagram className="h-3 w-3 text-pink-600" />
-                              <span className="text-xs font-medium text-pink-700 dark:text-pink-300">{counts.instagram}</span>
+                          {/* Instagram Feed - Logo laranja */}
+                          {counts.instagram_feed > 0 && (
+                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
+                              <Instagram className="h-3 w-3 text-orange-500" />
+                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.instagram_feed}</span>
                             </div>
                           )}
-                          {counts.facebook > 0 && (
+                          {/* Instagram Story - S laranja */}
+                          {counts.instagram_story > 0 && (
+                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
+                              <span className="text-xs font-bold text-orange-500">S</span>
+                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.instagram_story}</span>
+                            </div>
+                          )}
+                          {/* Facebook Feed - Logo azul */}
+                          {counts.facebook_feed > 0 && (
                             <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1">
                               <Facebook className="h-3 w-3 text-blue-600" />
-                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook}</span>
+                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook_feed}</span>
                             </div>
                           )}
-                          {counts.story > 0 && (
-                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
-                              <span className="text-xs font-bold text-orange-600">S</span>
-                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.story}</span>
+                          {/* Facebook Story - S azul */}
+                          {counts.facebook_story > 0 && (
+                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1">
+                              <span className="text-xs font-bold text-blue-600">S</span>
+                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook_story}</span>
                             </div>
                           )}
+                          {/* Blog */}
                           {counts.blog > 0 && (
                             <div className="flex items-center gap-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded px-1">
                               <Newspaper className="h-3 w-3 text-emerald-600" />
