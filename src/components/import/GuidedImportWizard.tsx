@@ -97,8 +97,8 @@ interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
 
-// Wizard steps: url -> visual-import -> file-import -> complete
-type WizardStep = 'url' | 'visual-import' | 'file-import' | 'complete';
+// Wizard steps: url -> file-import -> visual-import -> complete
+type WizardStep = 'url' | 'file-import' | 'visual-import' | 'complete';
 
 // Sub-steps within visual import (Etapa 2)
 interface VisualImportProgress {
@@ -1351,14 +1351,14 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         <CardTitle className="flex items-center gap-2">
           <Globe className="h-5 w-5" />
           {wizardStep === 'url' && 'Etapa 1: Análise da Loja'}
-          {wizardStep === 'visual-import' && 'Etapa 2: Importação Visual'}
-          {wizardStep === 'file-import' && 'Etapa 3: Importação de Dados (Opcional)'}
+          {wizardStep === 'file-import' && 'Etapa 2: Importação de Dados'}
+          {wizardStep === 'visual-import' && 'Etapa 3: Importação Visual'}
           {wizardStep === 'complete' && 'Importação Concluída'}
         </CardTitle>
         <CardDescription>
           {wizardStep === 'url' && 'Informe o link da sua loja para identificar a plataforma'}
-          {wizardStep === 'visual-import' && 'Importar páginas, categorias, menus e visual da loja em um clique'}
-          {wizardStep === 'file-import' && 'Importar produtos, clientes e pedidos via arquivo (opcional)'}
+          {wizardStep === 'file-import' && 'Importar produtos, clientes e pedidos via arquivo'}
+          {wizardStep === 'visual-import' && 'Importar páginas, categorias, menus e visual da loja'}
           {wizardStep === 'complete' && 'Sua loja foi importada com sucesso!'}
         </CardDescription>
       </CardHeader>
@@ -1375,7 +1375,43 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           />
         )}
 
-        {/* ETAPA 2: Visual Import (1 click) */}
+        {/* ETAPA 2: File Import */}
+        {wizardStep === 'file-import' && (
+          <div className="space-y-4">
+            <div className="bg-muted/50 rounded-lg p-3 mb-6">
+              <p className="text-sm">
+                <span className="font-medium">Loja:</span>{' '}
+                <span className="text-muted-foreground">{storeUrl}</span>
+                {analysisResult?.platform && (
+                  <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                    {analysisResult.platform} ({analysisResult.confidence})
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 mb-6">
+              <p className="text-sm text-muted-foreground">
+                Importe produtos, clientes e pedidos via arquivo JSON ou CSV exportado da sua plataforma. Esta etapa é <strong>opcional</strong>.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {FILE_IMPORT_STEPS.map((step) => (
+                <ImportStep
+                  key={step.id}
+                  step={step}
+                  status={fileStepStatuses[step.id]?.status || 'pending'}
+                  onImport={(file) => handleFileImportStep(step.id, file)}
+                  onSkip={() => handleSkipFileStep(step.id)}
+                  isDisabled={false}
+                  importedCount={fileStepStatuses[step.id]?.importedCount}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ETAPA 3: Visual Import */}
         {wizardStep === 'visual-import' && (
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-3">
@@ -1486,37 +1522,12 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   <div className="text-center pt-4">
                     <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">
-                      Estrutura visual importada! Você pode continuar para importar produtos, clientes e pedidos via arquivo.
+                      Estrutura visual importada com sucesso!
                     </p>
                   </div>
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* ETAPA 3: File Import (optional) */}
-        {wizardStep === 'file-import' && (
-          <div className="space-y-4">
-            <div className="bg-muted/50 rounded-lg p-3 mb-6">
-              <p className="text-sm text-muted-foreground">
-                Esta etapa é <strong>opcional</strong>. Importe produtos, clientes e pedidos via arquivo JSON ou CSV exportado da sua plataforma.
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {FILE_IMPORT_STEPS.map((step) => (
-                <ImportStep
-                  key={step.id}
-                  step={step}
-                  status={fileStepStatuses[step.id]?.status || 'pending'}
-                  onImport={(file) => handleFileImportStep(step.id, file)}
-                  onSkip={() => handleSkipFileStep(step.id)}
-                  isDisabled={false}
-                  importedCount={fileStepStatuses[step.id]?.importedCount}
-                />
-              ))}
-            </div>
           </div>
         )}
 
@@ -1583,24 +1594,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           <>
             <div />
             <Button 
-              onClick={() => setWizardStep('visual-import')} 
+              onClick={() => setWizardStep('file-import')} 
               disabled={!canProceedFromUrl}
-            >
-              Continuar
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </>
-        )}
-
-        {wizardStep === 'visual-import' && (
-          <>
-            <Button variant="outline" onClick={() => setWizardStep('url')}>
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Voltar
-            </Button>
-            <Button 
-              onClick={() => setWizardStep('file-import')}
-              disabled={!isVisualImportComplete}
             >
               Continuar
               <ChevronRight className="h-4 w-4 ml-2" />
@@ -1610,11 +1605,27 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
         {wizardStep === 'file-import' && (
           <>
-            <Button variant="outline" onClick={() => setWizardStep('visual-import')}>
+            <Button variant="outline" onClick={() => setWizardStep('url')}>
               <ChevronLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
-            <Button onClick={() => setWizardStep('complete')}>
+            <Button onClick={() => setWizardStep('visual-import')}>
+              Continuar
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </>
+        )}
+
+        {wizardStep === 'visual-import' && (
+          <>
+            <Button variant="outline" onClick={() => setWizardStep('file-import')}>
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              Voltar
+            </Button>
+            <Button 
+              onClick={() => setWizardStep('complete')}
+              disabled={!isVisualImportComplete}
+            >
               Concluir
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
