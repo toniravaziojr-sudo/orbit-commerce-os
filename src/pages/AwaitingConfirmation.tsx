@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { platformBranding } from '@/lib/branding';
+import { LogoFull } from '@/components/branding/Logo';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -58,11 +59,7 @@ export default function AwaitingConfirmation() {
         <Card className="shadow-lg border-border/50">
           <CardHeader className="text-center">
             <div className="mx-auto mb-4">
-              <img 
-                src={platformBranding.logos.full} 
-                alt={platformBranding.productName}
-                className="h-24 object-contain mx-auto"
-              />
+              <LogoFull iconSize={56} layout="vertical" />
             </div>
             <CardTitle className="text-xl">Confirme seu email</CardTitle>
             <CardDescription className="text-base">

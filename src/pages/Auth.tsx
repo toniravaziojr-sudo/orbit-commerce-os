@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { platformBranding } from '@/lib/branding';
+import { LogoFull } from '@/components/branding/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -258,11 +258,7 @@ export default function Auth() {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo centralizada */}
         <div className="flex flex-col items-center mb-8">
-          <img 
-            src={platformBranding.logos.full} 
-            alt={platformBranding.productName}
-            className="h-32 object-contain"
-          />
+          <LogoFull iconSize={64} layout="vertical" />
         </div>
 
         <Card className="shadow-lg border-border/50">

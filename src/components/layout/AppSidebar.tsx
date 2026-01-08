@@ -2,6 +2,7 @@ import { useState, useMemo, ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
+import { LogoIcon } from "@/components/branding/Logo";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
@@ -243,12 +244,8 @@ export function AppSidebar() {
         {collapsed ? (
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg overflow-hidden">
-                <img 
-                  src={platformBranding.logos.icon} 
-                  alt={platformBranding.productName}
-                  className="h-9 w-9 object-contain"
-                />
+              <div className="flex h-9 w-9 items-center justify-center">
+                <LogoIcon size={36} />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="font-medium">

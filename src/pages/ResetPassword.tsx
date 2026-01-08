@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/hooks/useAuth';
 import { platformBranding } from '@/lib/branding';
+import { LogoFull } from '@/components/branding/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,11 +71,7 @@ export default function ResetPassword() {
       <div className="w-full max-w-md animate-fade-in">
         {/* Logo + Slogan */}
         <div className="flex flex-col items-center mb-8">
-          <img 
-            src={platformBranding.logos.full} 
-            alt={platformBranding.productName}
-            className="h-24 object-contain mb-4"
-          />
+          <LogoFull iconSize={56} layout="vertical" className="mb-4" />
           <p className="text-muted-foreground text-sm text-center">
             {platformBranding.slogan}
           </p>

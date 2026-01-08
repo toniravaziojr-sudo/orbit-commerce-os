@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { platformBranding } from '@/lib/branding';
+import { LogoHorizontal } from '@/components/branding/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -138,11 +138,7 @@ export default function CreateStore() {
       <div className="w-full max-w-lg animate-fade-in">
         {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <img 
-            src={platformBranding.logos.horizontal} 
-            alt={platformBranding.productName}
-            className="h-12 object-contain"
-          />
+          <LogoHorizontal iconSize={40} />
         </div>
 
         <Card className="shadow-lg border-border/50">
