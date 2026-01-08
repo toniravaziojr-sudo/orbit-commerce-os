@@ -184,27 +184,53 @@ export function DataUploader({ platform, modules, onDataLoaded }: DataUploaderPr
 }
 
 function parseCSV(content: string): any[] {
-  const lines = content.trim().split('\n');
+  // Remove BOM if present
+  let cleanContent = content.trim();
+  if (cleanContent.charCodeAt(0) === 0xFEFF) {
+    cleanContent = cleanContent.substring(1);
+  }
+  
+  const lines = cleanContent.split('\n');
   if (lines.length < 2) return [];
 
-  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  // Detect delimiter: check first line for ; vs ,
+  const firstLine = lines[0];
+  const semicolonCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = semicolonCount > commaCount ? ';' : ',';
+
+  // Parse headers - normalize them
+  const rawHeaders = parseCSVLine(firstLine, delimiter);
+  const headers = rawHeaders.map(h => {
+    let clean = h.trim()
+      .replace(/^"|"$/g, '')    // Remove quotes
+      .replace(/^\ufeff/, '')   // Remove BOM from individual cells
+      .replace(/\s+/g, ' ');    // Normalize spaces
+    return clean;
+  });
+  
   const rawRows: any[] = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
-    if (values.length === headers.length) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    const values = parseCSVLine(line, delimiter);
+    if (values.length >= headers.length - 1) { // Allow slight mismatch
       const obj: any = {};
       headers.forEach((header, index) => {
-        obj[header] = values[index];
+        if (index < values.length) {
+          obj[header] = values[index];
+        }
       });
       rawRows.push(obj);
     }
   }
 
   // Check if this is a Shopify product export (has Handle column and multiple rows per product)
-  const hasHandle = headers.includes('Handle');
-  const hasTitle = headers.includes('Title');
-  const hasVariantSKU = headers.includes('Variant SKU');
+  const hasHandle = headers.some(h => h.toLowerCase() === 'handle');
+  const hasTitle = headers.some(h => h.toLowerCase() === 'title');
+  const hasVariantSKU = headers.some(h => h.toLowerCase().includes('variant') && h.toLowerCase().includes('sku'));
   
   if (hasHandle && hasTitle && hasVariantSKU) {
     // Group rows by Handle and merge variant data
@@ -302,7 +328,7 @@ function groupShopifyProductRows(rows: any[]): any[] {
   });
 }
 
-function parseCSVLine(line: string): string[] {
+function parseCSVLine(line: string, delimiter: string = ','): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
@@ -311,15 +337,21 @@ function parseCSVLine(line: string): string[] {
     const char = line[i];
     
     if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
+      if (inQuotes && line[i + 1] === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === delimiter && !inQuotes) {
+      result.push(current.trim().replace(/^"|"$/g, ''));
       current = '';
     } else {
       current += char;
     }
   }
   
-  result.push(current.trim());
+  result.push(current.trim().replace(/^"|"$/g, ''));
   return result;
 }

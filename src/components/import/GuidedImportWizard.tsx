@@ -115,12 +115,12 @@ interface ImportStats {
   banners: number;
 }
 
-// File import steps (Etapa 3 - opcional)
+// File import steps (Etapa 2 - arquivos)
 const FILE_IMPORT_STEPS: ImportStepConfig[] = [
   {
     id: 'products',
     title: 'Produtos',
-    description: 'Importar produtos e vincular às categorias importadas via arquivo JSON ou CSV',
+    description: 'Importar catálogo de produtos via arquivo JSON ou CSV',
     icon: <Package className="h-5 w-5" />,
     canSkip: true,
     importMethod: 'file',
