@@ -8603,6 +8603,17 @@ export type Database = {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
       }
+      update_import_job_batch: {
+        Args: {
+          p_batch_failed: number
+          p_batch_imported: number
+          p_batch_processed: number
+          p_batch_skipped: number
+          p_errors?: Json
+          p_job_id: string
+        }
+        Returns: undefined
+      }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
