@@ -278,15 +278,17 @@ export function CampaignCalendar() {
   const handleGenerateCreatives = async () => {
     if (!items || !currentTenant) return;
     
-    // Itens elegíveis: status draft/suggested e com copy preenchida, sem asset ainda
+    // Itens elegíveis: status draft/suggested, com copy preenchida, sem asset ainda
+    // EXCLUIR Blog (content_type === "text") - não precisa de imagem
     const eligibleItems = items.filter(i => 
       ["draft", "suggested", "review"].includes(i.status) && 
       i.copy && // tem copy preenchida
-      !i.asset_url // não tem criativo ainda
+      !i.asset_url && // não tem criativo ainda
+      i.content_type !== "text" // Blog não precisa de imagem
     );
     
     if (eligibleItems.length === 0) {
-      toast.info("Nenhum item elegível para gerar criativo. Certifique-se que os itens tenham copy e não tenham criativo ainda.");
+      toast.info("Nenhum item elegível para gerar criativo. Itens de Blog não geram imagem.");
       return;
     }
     
@@ -512,31 +514,31 @@ export function CampaignCalendar() {
   const dayListItems = dayListDate ? itemsByDate.get(format(dayListDate, "yyyy-MM-dd")) || [] : [];
   const currentDateItems = selectedDate ? itemsByDate.get(format(selectedDate, "yyyy-MM-dd")) || [] : [];
 
-  // Função para agrupar e contar publicações por tipo/canal
+  // Função para agrupar e contar publicações por tipo/canal - usando novos formatos
   const getPublicationCounts = (dayItems: MediaCalendarItem[]) => {
     const counts = {
-      instagram_feed: 0,
-      instagram_story: 0,
-      facebook_feed: 0,
-      facebook_story: 0,
+      feed_instagram: 0,
+      feed_facebook: 0,
+      story_instagram: 0,
+      story_facebook: 0,
       blog: 0,
     };
 
     dayItems.forEach(item => {
       const platforms = item.target_platforms || [];
       const contentType = item.content_type as string;
-      const isStory = contentType === "story" || contentType === "stories";
       const isBlog = contentType === "text" || contentType === "blog" || platforms.includes("blog");
       
       if (isBlog) {
         counts.blog++;
-      } else if (isStory) {
-        if (platforms.includes("instagram")) counts.instagram_story++;
-        if (platforms.includes("facebook")) counts.facebook_story++;
       } else {
-        // Feed
-        if (platforms.includes("instagram")) counts.instagram_feed++;
-        if (platforms.includes("facebook")) counts.facebook_feed++;
+        // Conta diretamente pelos novos formatos OU formato legado
+        platforms.forEach(p => {
+          if (p === "feed_instagram" || (p === "instagram" && contentType !== "story")) counts.feed_instagram++;
+          if (p === "feed_facebook" || (p === "facebook" && contentType !== "story")) counts.feed_facebook++;
+          if (p === "story_instagram" || (p === "instagram" && contentType === "story")) counts.story_instagram++;
+          if (p === "story_facebook" || (p === "facebook" && contentType === "story")) counts.story_facebook++;
+        });
       }
     });
 
@@ -582,42 +584,49 @@ export function CampaignCalendar() {
                 >
                   Limpar seleção
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  className="gap-1"
-                  onClick={async () => {
-                    // Get all item IDs from selected days
-                    const itemsToDelete: string[] = [];
-                    selectedDays.forEach(dateKey => {
-                      const dayItems = itemsByDate.get(dateKey) || [];
-                      dayItems.forEach(item => itemsToDelete.push(item.id));
-                    });
-                    
-                    if (itemsToDelete.length === 0) {
-                      toast.info("Nenhuma publicação nos dias selecionados");
-                      return;
-                    }
-                    
-                    if (!confirm(`Excluir ${itemsToDelete.length} publicação(ões) dos dias selecionados?`)) {
-                      return;
-                    }
-                    
-                    try {
-                      for (const id of itemsToDelete) {
-                        await deleteItem.mutateAsync(id);
-                      }
-                      toast.success(`${itemsToDelete.length} publicação(ões) excluída(s)`);
-                      setSelectedDays(new Set());
-                      setIsSelectMode(false);
-                    } catch (err) {
-                      toast.error("Erro ao excluir publicações");
-                    }
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Excluir selecionados
-                </Button>
+                {/* Só mostrar botão excluir se há publicações reais nos dias selecionados */}
+                {(() => {
+                  let totalItemsInSelectedDays = 0;
+                  selectedDays.forEach(dateKey => {
+                    const dayItems = itemsByDate.get(dateKey) || [];
+                    totalItemsInSelectedDays += dayItems.length;
+                  });
+                  
+                  if (totalItemsInSelectedDays === 0) return null;
+                  
+                  return (
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      className="gap-1"
+                      onClick={async () => {
+                        const itemsToDelete: string[] = [];
+                        selectedDays.forEach(dateKey => {
+                          const dayItems = itemsByDate.get(dateKey) || [];
+                          dayItems.forEach(item => itemsToDelete.push(item.id));
+                        });
+                        
+                        if (!confirm(`Excluir ${itemsToDelete.length} publicação(ões) dos dias selecionados?`)) {
+                          return;
+                        }
+                        
+                        try {
+                          for (const id of itemsToDelete) {
+                            await deleteItem.mutateAsync(id);
+                          }
+                          toast.success(`${itemsToDelete.length} publicação(ões) excluída(s)`);
+                          setSelectedDays(new Set());
+                          setIsSelectMode(false);
+                        } catch (err) {
+                          toast.error("Erro ao excluir publicações");
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Excluir selecionados ({totalItemsInSelectedDays})
+                    </Button>
+                  );
+                })()}
               </>
             )}
 
@@ -801,42 +810,42 @@ export function CampaignCalendar() {
                         )}
                       </div>
                       
-                      {/* Ícones de publicações */}
+                      {/* Ícones de publicações - Badges compactos */}
                       {hasContent && (
                         <div className="flex flex-wrap gap-1 mt-1 px-1">
-                          {/* Instagram Feed - Logo laranja */}
-                          {counts.instagram_feed > 0 && (
-                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
-                              <Instagram className="h-3 w-3 text-orange-500" />
-                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.instagram_feed}</span>
+                          {/* FI = Feed Instagram */}
+                          {counts.feed_instagram > 0 && (
+                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">FI</span>
+                              <span className="text-[10px] font-medium text-orange-700 dark:text-orange-300">{counts.feed_instagram}</span>
                             </div>
                           )}
-                          {/* Instagram Story - S laranja */}
-                          {counts.instagram_story > 0 && (
-                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1">
-                              <span className="text-xs font-bold text-orange-500">S</span>
-                              <span className="text-xs font-medium text-orange-700 dark:text-orange-300">{counts.instagram_story}</span>
+                          {/* FF = Feed Facebook */}
+                          {counts.feed_facebook > 0 && (
+                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">FF</span>
+                              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">{counts.feed_facebook}</span>
                             </div>
                           )}
-                          {/* Facebook Feed - Logo azul */}
-                          {counts.facebook_feed > 0 && (
-                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1">
-                              <Facebook className="h-3 w-3 text-blue-600" />
-                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook_feed}</span>
+                          {/* SI = Story Instagram */}
+                          {counts.story_instagram > 0 && (
+                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold text-orange-500">SI</span>
+                              <span className="text-[10px] font-medium text-orange-700 dark:text-orange-300">{counts.story_instagram}</span>
                             </div>
                           )}
-                          {/* Facebook Story - S azul */}
-                          {counts.facebook_story > 0 && (
-                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1">
-                              <span className="text-xs font-bold text-blue-600">S</span>
-                              <span className="text-xs font-medium text-blue-700 dark:text-blue-300">{counts.facebook_story}</span>
+                          {/* SF = Story Facebook */}
+                          {counts.story_facebook > 0 && (
+                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold text-blue-600">SF</span>
+                              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">{counts.story_facebook}</span>
                             </div>
                           )}
-                          {/* Blog */}
+                          {/* B = Blog */}
                           {counts.blog > 0 && (
-                            <div className="flex items-center gap-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded px-1">
-                              <Newspaper className="h-3 w-3 text-emerald-600" />
-                              <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">{counts.blog}</span>
+                            <div className="flex items-center gap-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded px-1.5 py-0.5">
+                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">B</span>
+                              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{counts.blog}</span>
                             </div>
                           )}
                         </div>
