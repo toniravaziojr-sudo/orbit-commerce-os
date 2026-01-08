@@ -16,6 +16,8 @@ interface ProductMatch {
   id: string;
   name: string;
   image_url: string | null;
+  is_kit: boolean;
+  sku: string | null;
 }
 
 // Extract product references from text and search for matches
@@ -27,7 +29,6 @@ async function findProductsInText(
   const matches: ProductMatch[] = [];
   
   // Get all products for this tenant with their images
-  // Get products that have images (using left join to also get products without images)
   const { data: products, error } = await supabase
     .from("products")
     .select(`
@@ -51,13 +52,11 @@ async function findProductsInText(
     const productNameLower = product.name.toLowerCase();
     
     // Check if the product name (or significant parts) appears in the text
-    // Split product name into words and check for matches
     const productWords = productNameLower
       .replace(/[()]/g, " ")
       .split(/\s+/)
-      .filter((w: string) => w.length > 3); // Ignore small words like "de", "com", etc.
+      .filter((w: string) => w.length > 3);
     
-    // Calculate how many significant words match
     let matchCount = 0;
     for (const word of productWords) {
       if (textLower.includes(word)) {
@@ -65,27 +64,39 @@ async function findProductsInText(
       }
     }
     
-    // If at least 2 significant words match OR if product name is short and matches
     const matchThreshold = productWords.length <= 2 ? 1 : 2;
     
     if (matchCount >= matchThreshold) {
-      // Get the primary image or the first image
       const images = product.product_images || [];
       const primaryImage = images.find((img: any) => img.is_primary);
       const firstImage = images.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0))[0];
       const imageUrl = primaryImage?.url || firstImage?.url || null;
       
+      // Detecta se é um kit (contém "kit" no nome)
+      const isKit = productNameLower.includes("kit");
+      
       matches.push({
         id: product.id,
         name: product.name,
         image_url: imageUrl,
+        is_kit: isKit,
+        sku: product.sku,
       });
       
-      console.log(`Product match found: "${product.name}" (${matchCount}/${productWords.length} words matched)`);
+      console.log(`Product match: "${product.name}" (kit: ${isKit}, ${matchCount}/${productWords.length} words)`);
     }
   }
 
   return matches;
+}
+
+// Detecta se o prompt envolve múltiplos produtos (kit)
+function detectKitScenario(matchedProducts: ProductMatch[]): boolean {
+  // Se algum produto é explicitamente um kit
+  if (matchedProducts.some(p => p.is_kit)) return true;
+  // Se há mais de 1 produto diferente mencionado
+  if (matchedProducts.length > 1) return true;
+  return false;
 }
 
 serve(async (req) => {
@@ -149,6 +160,14 @@ serve(async (req) => {
       );
     }
 
+    // REGRA: Blog não gera imagem
+    if (calendarItem.content_type === "text") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Blog não precisa de imagem" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const tenantId = calendarItem.campaign.tenant_id;
 
     // Verify user belongs to tenant
@@ -174,85 +193,120 @@ serve(async (req) => {
       .single();
 
     // ============ PRODUCT DETECTION ============
-    // Combine all text sources to search for product references
     const searchText = [
       calendarItem.campaign.prompt || "",
       calendarItem.generation_prompt || "",
       calendarItem.copy || "",
       calendarItem.campaign.name || "",
+      calendarItem.title || "",
     ].join(" ");
 
-    console.log("Searching for products in:", searchText);
+    console.log("Searching for products in:", searchText.substring(0, 200));
     
     const matchedProducts = await findProductsInText(supabase, tenantId, searchText);
     console.log(`Found ${matchedProducts.length} product matches`);
 
-    // Get the primary product image if we found matches
-    const productImageUrl = matchedProducts.length > 0 ? matchedProducts[0].image_url : null;
-    const productNames = matchedProducts.map(p => p.name);
+    // REGRA: Se não encontrou produto com imagem, bloqueia geração
+    const productWithImage = matchedProducts.find(p => p.image_url);
+    if (!productWithImage && matchedProducts.length > 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Produto "${matchedProducts[0].name}" encontrado, mas não tem imagem cadastrada. Cadastre a imagem primeiro.` 
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Detecta cenário de kit
+    const isKitScenario = detectKitScenario(matchedProducts);
+    console.log(`Kit scenario detected: ${isKitScenario}`);
 
     // Build the final prompt
     const promptParts: string[] = [];
 
-    // Base rules (anti-error) - mais rígidas
+    // Base rules - CRÍTICAS para qualidade
     const baseRules = [
-      "Fotografia profissional em alta resolução, estilo editorial",
-      "NÃO inclua NENHUM texto sobreposto na imagem",
-      "NÃO invente, altere ou crie rótulos, logos ou embalagens",
-      "NÃO mostre mãos segurando produtos diretamente",
-      "NÃO distorça proporções ou cores do produto",
-      "NÃO adicione selos, certificações ou claims",
-      "PRESERVE exatamente a identidade visual do produto se fornecido",
-      "Mantenha iluminação profissional de estúdio",
-      "Evite qualquer claim médico, antes/depois ou promessa de resultado",
-      "Estilo editorial limpo, moderno e premium",
+      "Fotografia profissional em alta resolução, qualidade editorial de revista",
+      "NÃO inclua NENHUM texto, letras, números ou logotipos sobrepostos na imagem",
+      "NÃO invente, altere ou recrie rótulos, embalagens ou designs de produtos",
+      "NÃO distorça cores, proporções ou identidade visual do produto",
+      "NÃO adicione selos, certificações, claims ou promessas",
+      "PRESERVE exatamente a identidade visual do produto da imagem de referência",
+      "Iluminação profissional de estúdio, suave e premium",
+      "Evite claims médicos, antes/depois ou promessas de resultado",
+      "Fundo limpo ou contextualizado conforme briefing",
     ];
 
-    // Add matched products context
-    if (productNames.length > 0) {
-      promptParts.push(`PRODUTOS REAIS DA LOJA (usar imagem de referência fornecida): ${productNames.join(", ")}`);
-      promptParts.push("IMPORTANTE: A imagem de referência mostra o produto REAL. Preserve EXATAMENTE o rótulo, cores, design e identidade visual do produto.");
+    // REGRA CRÍTICA: Kit não pode ser segurado na mão
+    if (isKitScenario) {
+      baseRules.push("PROIBIDO: pessoa segurando múltiplos produtos ou kit na mão");
+      baseRules.push("Para kit/múltiplos produtos: use composição flatlay, bancada, prateleira ou ambiente lifestyle");
+      baseRules.push("Apresente os produtos organizados em superfície, NÃO em mãos");
+      promptParts.push("CENÁRIO: Kit de produtos. Apresentar em bancada de banheiro elegante, flatlay minimalista ou prateleira lifestyle. NÃO colocar na mão de modelo.");
+    } else if (productWithImage) {
+      // Produto único pode ser segurado
+      promptParts.push("CENÁRIO: Pode mostrar modelo segurando o produto (apenas 1 produto por mão, máximo 2 produtos se um em cada mão).");
+      baseRules.push("Se mostrar mãos: apenas 1 produto por mão, pose natural e elegante");
     }
 
-    // Add brand context if available
+    // Product context - FUNDAMENTAL
+    if (productWithImage) {
+      promptParts.push(`PRODUTO REAL (OBRIGATÓRIO USAR A IMAGEM DE REFERÊNCIA): ${productWithImage.name}`);
+      promptParts.push("INSTRUÇÃO CRÍTICA: A imagem de referência mostra o produto REAL. Você DEVE usar EXATAMENTE este produto, preservando rótulo, cores, formato e design. NÃO invente um produto diferente.");
+      
+      if (matchedProducts.length > 1) {
+        const otherProducts = matchedProducts.filter(p => p.id !== productWithImage.id).map(p => p.name);
+        promptParts.push(`Outros produtos do kit/campanha: ${otherProducts.join(", ")}`);
+      }
+    }
+
+    // Brand context
     if (brandContext) {
       if (brandContext.tone_of_voice) {
-        promptParts.push(`Tom de voz: ${brandContext.tone_of_voice}`);
+        promptParts.push(`Tom de voz da marca: ${brandContext.tone_of_voice}`);
       }
       if (brandContext.visual_style_guidelines) {
         promptParts.push(`Estilo visual: ${brandContext.visual_style_guidelines}`);
       }
       if (brandContext.banned_claims && brandContext.banned_claims.length > 0) {
-        baseRules.push(`PROIBIDO mencionar: ${brandContext.banned_claims.join(", ")}`);
+        baseRules.push(`PROIBIDO mencionar/mostrar: ${brandContext.banned_claims.join(", ")}`);
       }
       if (brandContext.do_not_do && brandContext.do_not_do.length > 0) {
         baseRules.push(...brandContext.do_not_do.map((r: string) => `NÃO ${r}`));
       }
     }
 
-    // Add campaign context
+    // Campaign context
     if (calendarItem.campaign.prompt) {
-      promptParts.push(`Contexto da campanha: ${calendarItem.campaign.prompt}`);
+      promptParts.push(`Briefing da campanha: ${calendarItem.campaign.prompt}`);
     }
 
-    // Add item specific prompt
+    // Item specific prompt
     if (calendarItem.generation_prompt) {
-      promptParts.push(calendarItem.generation_prompt);
+      promptParts.push(`Briefing específico: ${calendarItem.generation_prompt}`);
     } else if (calendarItem.copy) {
-      promptParts.push(`Tema: ${calendarItem.copy}`);
+      promptParts.push(`Contexto do post: ${calendarItem.copy.substring(0, 300)}`);
     }
 
-    // Content type specific adjustments
-    const contentTypePrompts: Record<string, string> = {
-      image: "Imagem única para post de feed, proporção 1:1",
-      carousel: "Imagem para carrossel, composição limpa, proporção 1:1",
-      reel: "Imagem vertical 9:16 para Reels/Stories",
-      story: "Imagem vertical 9:16 para Stories",
+    // Content type adjustments
+    const contentTypeConfig: Record<string, { prompt: string; size: string }> = {
+      image: { prompt: "Imagem quadrada 1:1 para feed", size: "1024x1024" },
+      carousel: { prompt: "Imagem quadrada 1:1 para carrossel", size: "1024x1024" },
+      reel: { prompt: "Imagem vertical 9:16 para Reels", size: "1024x1792" },
+      story: { prompt: "Imagem vertical 9:16 para Stories", size: "1024x1792" },
     };
 
-    if (calendarItem.content_type && contentTypePrompts[calendarItem.content_type]) {
-      promptParts.push(contentTypePrompts[calendarItem.content_type]);
-    }
+    const contentConfig = contentTypeConfig[calendarItem.content_type] || contentTypeConfig.image;
+    promptParts.push(`Formato: ${contentConfig.prompt}`);
+
+    // Negatives - O que NÃO fazer
+    const negatives = [
+      "Evitar: caixas genéricas, rótulos inventados, texto ilegível",
+      "Evitar: produto diferente do de referência",
+      "Evitar: qualidade baixa, blur, distorções",
+      "Evitar: múltiplos produtos em uma mão",
+    ];
 
     // Build final prompt
     const promptFinal = [
@@ -260,31 +314,33 @@ serve(async (req) => {
       "",
       "REGRAS OBRIGATÓRIAS (seguir rigorosamente):",
       ...baseRules,
+      "",
+      "EVITAR:",
+      ...negatives,
     ].join("\n");
 
-    // Determine which reference image to use
-    // Priority: 1) Matched product image, 2) Brand packshot (if enabled), 3) None
+    // Determine reference image
     let referenceImageUrl: string | null = null;
     let referenceSource: string | null = null;
 
-    if (productImageUrl) {
-      referenceImageUrl = productImageUrl;
+    if (productWithImage?.image_url) {
+      referenceImageUrl = productWithImage.image_url;
       referenceSource = "product";
-      console.log("Using product image as reference:", productImageUrl);
+      console.log("Using product image as reference:", productWithImage.name);
     } else if (use_packshot && brandContext?.packshot_url) {
       referenceImageUrl = brandContext.packshot_url;
       referenceSource = "packshot";
-      console.log("Using brand packshot as reference:", brandContext.packshot_url);
+      console.log("Using brand packshot as reference");
     }
 
-    // Create generation record with status 'queued'
+    // Create generation record
     const { data: generation, error: genError } = await supabase
       .from("media_asset_generations")
       .insert({
         tenant_id: tenantId,
         calendar_item_id: calendar_item_id,
-        provider: "lovable",
-        model: "gemini-2.5-flash-image-preview",
+        provider: referenceImageUrl ? "openai" : "lovable",
+        model: referenceImageUrl ? "gpt-image-1" : "gemini-2.5-flash-image-preview",
         prompt_final: promptFinal,
         brand_context_snapshot: brandContext || null,
         settings: {
@@ -293,6 +349,9 @@ serve(async (req) => {
           reference_source: referenceSource,
           matched_products: matchedProducts,
           content_type: calendarItem.content_type,
+          is_kit_scenario: isKitScenario,
+          needs_product_image: !!referenceImageUrl,
+          image_size: contentConfig.size,
         },
         status: "queued",
         variant_count,
@@ -309,9 +368,9 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Generation queued: ${generation.id}, reference: ${referenceSource || "none"}`);
+    console.log(`Generation queued: ${generation.id}, provider: ${referenceImageUrl ? "openai" : "lovable"}, kit: ${isKitScenario}`);
 
-    // Trigger the processing function immediately (fire and forget)
+    // Trigger processing
     try {
       const processUrl = `${supabaseUrl}/functions/v1/media-process-generation-queue`;
       fetch(processUrl, {
@@ -331,8 +390,10 @@ serve(async (req) => {
         success: true, 
         generation_id: generation.id,
         matched_products: matchedProducts.map(p => p.name),
-        message: matchedProducts.length > 0 
-          ? `Geração iniciada com produto real: ${matchedProducts[0].name}` 
+        is_kit_scenario: isKitScenario,
+        provider: referenceImageUrl ? "openai" : "lovable",
+        message: productWithImage 
+          ? `Geração iniciada com produto real: ${productWithImage.name}${isKitScenario ? " (kit)" : ""}` 
           : "Geração iniciada" 
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }

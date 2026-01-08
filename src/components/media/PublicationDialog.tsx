@@ -772,7 +772,7 @@ export function PublicationDialog({
           </>
         )}
 
-        {/* Step 3: Detalhes - Blog */}
+        {/* Step 3: Detalhes - Blog (SEM campo de imagem/criativo) */}
         {step === "details" && selectedType === "blog" && (
           <>
             <DialogHeader>
@@ -782,6 +782,11 @@ export function PublicationDialog({
 
             <Form {...blogForm}>
               <form onSubmit={blogForm.handleSubmit(handleSubmitBlog)} className="space-y-4">
+                {/* Aviso: Blog não gera imagem */}
+                <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
+                  📝 Artigos de Blog são apenas texto. Não há geração de imagem para este tipo de publicação.
+                </div>
+
                 <FormField
                   control={blogForm.control}
                   name="title"
