@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Newspaper, Instagram, Facebook, Image, Check, Clock } from "lucide-react";
+import { Newspaper, Instagram, Facebook, Image, Check, Clock, Square, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -103,7 +103,8 @@ export function PublicationDialog({
 
   const [step, setStep] = useState<"type" | "channels" | "details">("type");
   const [selectedType, setSelectedType] = useState<PublicationType | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<ChannelType | null>(null);
+  // Agora suporta múltiplos canais do MESMO formato (feed_instagram + feed_facebook OU story_instagram + story_facebook)
+  const [selectedChannels, setSelectedChannels] = useState<ChannelType[]>([]);
 
   const isEditing = !!editItem;
 
@@ -163,26 +164,27 @@ export function PublicationDialog({
           : "feed";
         setSelectedType(type);
         
-        // Converte formatos legados para novos formatos - pega apenas o primeiro canal
+        // Converte formatos legados para novos formatos - suporta múltiplos canais
         const platforms = editItem.target_platforms as string[] || [];
-        if (platforms.length > 0) {
-          const p = platforms[0];
+        const convertedChannels: ChannelType[] = [];
+        
+        platforms.forEach(p => {
           // Se já está no novo formato, mantém
           if (p.includes("_") || p === "blog") {
-            setSelectedChannel(p as ChannelType);
+            convertedChannels.push(p as ChannelType);
           } else {
             // Converte formato legado baseado no tipo de conteúdo
             if (type === "stories") {
-              setSelectedChannel(`story_${p}` as ChannelType);
+              convertedChannels.push(`story_${p}` as ChannelType);
             } else if (type === "feed") {
-              setSelectedChannel(`feed_${p}` as ChannelType);
+              convertedChannels.push(`feed_${p}` as ChannelType);
             } else {
-              setSelectedChannel(p as ChannelType);
+              convertedChannels.push(p as ChannelType);
             }
           }
-        } else {
-          setSelectedChannel(null);
-        }
+        });
+        
+        setSelectedChannels(convertedChannels);
         setStep("details");
 
         if (type === "feed") {
@@ -210,7 +212,7 @@ export function PublicationDialog({
         // Modo criação: reset
         setStep("type");
         setSelectedType(null);
-        setSelectedChannel(null);
+        setSelectedChannels([]);
         feedForm.reset();
         storyForm.reset();
         blogForm.reset();
@@ -232,8 +234,25 @@ export function PublicationDialog({
     }
   };
 
-  const handleChannelSelect = (channel: ChannelType) => {
-    setSelectedChannel(channel);
+  // Toggle de canal - permite múltipla seleção do mesmo formato
+  const handleChannelToggle = (network: "instagram" | "facebook") => {
+    const prefix = selectedType === "stories" ? "story_" : "feed_";
+    const channelId = `${prefix}${network}` as ChannelType;
+    
+    setSelectedChannels(prev => {
+      if (prev.includes(channelId)) {
+        return prev.filter(c => c !== channelId);
+      } else {
+        return [...prev, channelId];
+      }
+    });
+  };
+
+  const handleProceedToDetails = () => {
+    if (selectedChannels.length === 0) {
+      toast.error("Selecione pelo menos um canal");
+      return;
+    }
     setStep("details");
   };
 
@@ -272,7 +291,7 @@ export function PublicationDialog({
       scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
       generation_prompt: values.generation_prompt || null,
       content_type: "image" as const,
-      target_platforms: selectedChannel ? [selectedChannel] : [],
+      target_platforms: selectedChannels,
       status: "draft" as const,
     };
 
@@ -313,7 +332,7 @@ export function PublicationDialog({
       scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
       generation_prompt: values.generation_prompt || null,
       content_type: "story" as const,
-      target_platforms: selectedChannel ? [selectedChannel] : [],
+      target_platforms: selectedChannels,
       status: "draft" as const,
     };
 
@@ -455,22 +474,27 @@ export function PublicationDialog({
         {step === "channels" && (
           <>
             <DialogHeader>
-              <DialogTitle>Selecionar Canal</DialogTitle>
+              <DialogTitle>Selecionar Canais</DialogTitle>
               <DialogDescription>
-                Para qual rede será essa publicação?
+                Selecione os canais para essa publicação (pode marcar ambos)
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
+              <p className="text-sm text-muted-foreground text-center">
+                {selectedType === "stories" ? "Stories" : "Feed"} pode ir para Instagram e/ou Facebook
+              </p>
               <div className="flex gap-4 justify-center">
                 {CHANNELS.map((channel) => {
                   const Icon = channel.icon;
-                  const isSelected = selectedChannel === channel.id;
+                  const prefix = selectedType === "stories" ? "story_" : "feed_";
+                  const channelId = `${prefix}${channel.id}` as ChannelType;
+                  const isSelected = selectedChannels.includes(channelId);
                   return (
                     <button
                       key={channel.id}
                       type="button"
-                      onClick={() => handleChannelSelect(channel.id)}
+                      onClick={() => handleChannelToggle(channel.id as "instagram" | "facebook")}
                       className={cn(
                         "relative flex flex-col items-center gap-2 p-6 rounded-lg border-2 transition-all",
                         "hover:border-primary hover:bg-primary/5",
@@ -488,10 +512,18 @@ export function PublicationDialog({
                   );
                 })}
               </div>
+              {selectedChannels.length > 0 && (
+                <p className="text-xs text-center text-muted-foreground">
+                  Selecionados: {selectedChannels.length} canal(is)
+                </p>
+              )}
             </div>
 
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={handleBack}>Voltar</Button>
+              <Button onClick={handleProceedToDetails} disabled={selectedChannels.length === 0}>
+                Continuar
+              </Button>
             </DialogFooter>
           </>
         )}
@@ -506,27 +538,34 @@ export function PublicationDialog({
 
             <Form {...feedForm}>
               <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="space-y-4">
-                {/* Seletor de Canal */}
+                {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Canal de publicação</label>
+                  <label className="text-sm font-medium">Canais de publicação</label>
                   <div className="flex flex-wrap gap-2">
                     {ALL_CHANNELS.filter(c => c.id.startsWith("feed_")).map((channel) => {
                       const Icon = channel.icon;
-                      const isSelected = selectedChannel === channel.id;
+                      const isSelected = selectedChannels.includes(channel.id);
+                      const CheckIcon = isSelected ? CheckSquare : Square;
                       return (
                         <button
                           key={channel.id}
                           type="button"
-                          onClick={() => setSelectedChannel(channel.id)}
+                          onClick={() => {
+                            setSelectedChannels(prev => 
+                              prev.includes(channel.id) 
+                                ? prev.filter(c => c !== channel.id)
+                                : [...prev, channel.id]
+                            );
+                          }}
                           className={cn(
                             "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
                             "hover:border-primary hover:bg-primary/5",
                             isSelected && "border-primary bg-primary/10"
                           )}
                         >
+                          <CheckIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
                           <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label}</span>
-                          {isSelected && <Check className="h-3 w-3 text-primary" />}
+                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label.replace("Feed ", "")}</span>
                         </button>
                       );
                     })}
@@ -643,27 +682,34 @@ export function PublicationDialog({
 
             <Form {...storyForm}>
               <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="space-y-4">
-                {/* Seletor de Canal */}
+                {/* Seletor de Canais - Múltipla seleção */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Canal de publicação</label>
+                  <label className="text-sm font-medium">Canais de publicação</label>
                   <div className="flex flex-wrap gap-2">
                     {ALL_CHANNELS.filter(c => c.id.startsWith("story_")).map((channel) => {
                       const Icon = channel.icon;
-                      const isSelected = selectedChannel === channel.id;
+                      const isSelected = selectedChannels.includes(channel.id);
+                      const CheckIcon = isSelected ? CheckSquare : Square;
                       return (
                         <button
                           key={channel.id}
                           type="button"
-                          onClick={() => setSelectedChannel(channel.id)}
+                          onClick={() => {
+                            setSelectedChannels(prev => 
+                              prev.includes(channel.id) 
+                                ? prev.filter(c => c !== channel.id)
+                                : [...prev, channel.id]
+                            );
+                          }}
                           className={cn(
                             "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
                             "hover:border-primary hover:bg-primary/5",
                             isSelected && "border-primary bg-primary/10"
                           )}
                         >
+                          <CheckIcon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
                           <Icon className={cn("h-4 w-4", isSelected ? "text-primary" : "text-muted-foreground")} />
-                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label}</span>
-                          {isSelected && <Check className="h-3 w-3 text-primary" />}
+                          <span className={cn("text-sm", isSelected && "text-primary")}>{channel.label.replace("Story ", "")}</span>
                         </button>
                       );
                     })}

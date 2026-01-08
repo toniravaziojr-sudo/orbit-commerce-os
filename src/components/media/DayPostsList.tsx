@@ -86,18 +86,18 @@ const getCountsByType = (items: MediaCalendarItem[]) => {
   };
 };
 
-// Ícone do canal/tipo - agora usa formato novo (feed_instagram, story_facebook, etc)
+// Ícone do canal/tipo - suporta múltiplos canais do mesmo formato
 const getChannelIcon = (item: MediaCalendarItem) => {
   const platforms = item.target_platforms || [];
   const type = item.content_type as string;
-  const platform = platforms[0] || ""; // Pega apenas o primeiro canal (nova lógica: 1 canal por publicação)
   
-  const isBlog = type === "text" || type === "blog" || platform === "blog";
-  const isStory = type === "story" || type === "stories" || platform.startsWith("story_");
+  const isBlog = type === "text" || type === "blog" || platforms.includes("blog");
+  const isStory = type === "story" || type === "stories" || platforms.some(p => p.startsWith("story_"));
   
-  // Detecta a rede social baseado no novo formato ou legado
-  const isInstagram = platform.includes("instagram") || platform === "instagram";
-  const isFacebook = platform.includes("facebook") || platform === "facebook";
+  // Detecta quais redes estão presentes
+  const hasInstagram = platforms.some(p => p.includes("instagram"));
+  const hasFacebook = platforms.some(p => p.includes("facebook"));
+  const hasBoth = hasInstagram && hasFacebook;
 
   if (isBlog) {
     return (
@@ -111,8 +111,16 @@ const getChannelIcon = (item: MediaCalendarItem) => {
   if (isStory) {
     return (
       <div className="flex items-center gap-1">
-        {isInstagram && <Instagram className="h-4 w-4 text-orange-500" />}
-        {isFacebook && <Facebook className="h-4 w-4 text-blue-600" />}
+        {hasBoth ? (
+          // S bicolor - metade laranja, metade azul
+          <span className="font-bold text-sm bg-gradient-to-r from-orange-500 to-blue-600 bg-clip-text text-transparent">S</span>
+        ) : hasInstagram ? (
+          <span className="font-bold text-sm text-orange-500">S</span>
+        ) : hasFacebook ? (
+          <span className="font-bold text-sm text-blue-600">S</span>
+        ) : (
+          <span className="font-bold text-sm text-muted-foreground">S</span>
+        )}
         <span className="text-xs text-muted-foreground">Story</span>
       </div>
     );
@@ -121,8 +129,17 @@ const getChannelIcon = (item: MediaCalendarItem) => {
   // Feed
   return (
     <div className="flex items-center gap-1">
-      {isInstagram && <Instagram className="h-4 w-4 text-orange-500" />}
-      {isFacebook && <Facebook className="h-4 w-4 text-blue-600" />}
+      {hasBoth ? (
+        // Ícones combinados para ambos
+        <>
+          <Instagram className="h-4 w-4 text-orange-500" />
+          <Facebook className="h-4 w-4 text-blue-600" />
+        </>
+      ) : hasInstagram ? (
+        <Instagram className="h-4 w-4 text-orange-500" />
+      ) : hasFacebook ? (
+        <Facebook className="h-4 w-4 text-blue-600" />
+      ) : null}
       <span className="text-xs text-muted-foreground">Feed</span>
     </div>
   );

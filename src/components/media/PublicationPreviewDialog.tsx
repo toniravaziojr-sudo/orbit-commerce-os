@@ -76,16 +76,37 @@ const getPublicationType = (item: MediaCalendarItem): "feed" | "stories" | "blog
 const getChannelInfo = (item: MediaCalendarItem) => {
   const platforms = item.target_platforms || [];
   const type = item.content_type as string;
-  const isStory = type === "story" || type === "stories";
+  const isStory = type === "story" || type === "stories" || platforms.some(p => p.startsWith("story_"));
   const isBlog = type === "text" || type === "blog" || platforms.includes("blog");
+  
+  // Detecta quais redes estão presentes
+  const hasInstagram = platforms.some(p => p.includes("instagram"));
+  const hasFacebook = platforms.some(p => p.includes("facebook"));
+  const hasBoth = hasInstagram && hasFacebook;
 
   if (isBlog) {
-    return { icon: Newspaper, label: "Blog", color: "text-emerald-600" };
+    return { icon: Newspaper, label: "Blog", color: "text-emerald-600", hasBoth: false, hasInstagram: false, hasFacebook: false };
   }
   if (isStory) {
-    return { icon: Instagram, label: "Story", color: "text-orange-500" };
+    return { 
+      icon: null, 
+      label: "Story", 
+      color: hasBoth ? "bg-gradient-to-r from-orange-500 to-blue-600" : hasInstagram ? "text-orange-500" : "text-blue-600",
+      hasBoth,
+      hasInstagram,
+      hasFacebook,
+      isStory: true
+    };
   }
-  return { icon: Instagram, label: "Feed", color: "text-orange-500" };
+  return { 
+    icon: Instagram, 
+    label: "Feed", 
+    color: "text-orange-500",
+    hasBoth,
+    hasInstagram,
+    hasFacebook,
+    isStory: false
+  };
 };
 
 export function PublicationPreviewDialog({
@@ -119,16 +140,30 @@ export function PublicationPreviewDialog({
             </div>
             <div className="flex items-center gap-3 text-sm text-muted-foreground">
               <div className="flex items-center gap-1.5">
-                <channelInfo.icon className={cn("h-4 w-4", channelInfo.color)} />
+                {/* Renderiza ícone baseado no tipo */}
+                {channelInfo.isStory ? (
+                  channelInfo.hasBoth ? (
+                    <span className="font-bold text-sm bg-gradient-to-r from-orange-500 to-blue-600 bg-clip-text text-transparent">S</span>
+                  ) : channelInfo.hasInstagram ? (
+                    <span className="font-bold text-sm text-orange-500">S</span>
+                  ) : channelInfo.hasFacebook ? (
+                    <span className="font-bold text-sm text-blue-600">S</span>
+                  ) : (
+                    <span className="font-bold text-sm text-muted-foreground">S</span>
+                  )
+                ) : channelInfo.icon ? (
+                  <channelInfo.icon className={cn("h-4 w-4", channelInfo.color)} />
+                ) : null}
                 <span>{channelInfo.label}</span>
               </div>
-              {platforms.includes("instagram") && (
+              {/* Mostra redes sociais selecionadas */}
+              {channelInfo.hasInstagram && (
                 <div className="flex items-center gap-1">
                   <Instagram className="h-4 w-4 text-orange-500" />
                   <span>Instagram</span>
                 </div>
               )}
-              {platforms.includes("facebook") && (
+              {channelInfo.hasFacebook && (
                 <div className="flex items-center gap-1">
                   <Facebook className="h-4 w-4 text-blue-600" />
                   <span>Facebook</span>
