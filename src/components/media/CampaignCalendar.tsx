@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -236,6 +236,8 @@ export function CampaignCalendar() {
   };
 
   // Gerar Criativos
+  const [generationProgress, setGenerationProgress] = useState<{ total: number; completed: number } | null>(null);
+  
   const handleGenerateCreatives = async () => {
     if (!items || !currentTenant) return;
     
@@ -252,10 +254,13 @@ export function CampaignCalendar() {
     }
     
     setIsGeneratingAssets(true);
+    setGenerationProgress({ total: eligibleItems.length, completed: 0 });
     let successCount = 0;
     let errorCount = 0;
+    const generationIds: string[] = [];
     
     try {
+      // Start all generations
       for (const item of eligibleItems) {
         const { data, error } = await supabase.functions.invoke("media-generate-image", {
           body: { 
@@ -269,22 +274,92 @@ export function CampaignCalendar() {
           errorCount++;
         } else {
           successCount++;
+          if (data.generation_id) {
+            generationIds.push(data.generation_id);
+          }
         }
       }
       
-      if (successCount > 0) {
-        toast.success(`${successCount} criativo(s) sendo gerado(s)!`);
-      }
-      if (errorCount > 0) {
-        toast.error(`${errorCount} item(ns) falharam`);
+      if (successCount === 0) {
+        toast.error("Falha ao iniciar geração de criativos");
+        setIsGeneratingAssets(false);
+        setGenerationProgress(null);
+        return;
       }
       
-      await refetchItems();
-      queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+      toast.info(`Gerando ${successCount} criativo(s)... Aguarde.`);
+      
+      // Poll for completion - check every 3 seconds
+      const pollInterval = setInterval(async () => {
+        // Check items for asset_url updates
+        const { data: updatedItems, error: fetchError } = await supabase
+          .from("media_calendar_items")
+          .select("id, asset_url")
+          .in("id", eligibleItems.map(i => i.id));
+        
+        if (fetchError) {
+          console.error("Error polling items:", fetchError);
+          return;
+        }
+        
+        const completedCount = updatedItems?.filter(i => i.asset_url).length || 0;
+        setGenerationProgress({ total: eligibleItems.length, completed: completedCount });
+        
+        // Also check generation status
+        if (generationIds.length > 0) {
+          const { data: generations } = await supabase
+            .from("media_asset_generations")
+            .select("id, status")
+            .in("id", generationIds);
+          
+          const pending = generations?.filter(g => g.status === "queued" || g.status === "generating").length || 0;
+          const failed = generations?.filter(g => g.status === "failed").length || 0;
+          const succeeded = generations?.filter(g => g.status === "succeeded").length || 0;
+          
+          // All done?
+          if (pending === 0) {
+            clearInterval(pollInterval);
+            setGenerationProgress(null);
+            setIsGeneratingAssets(false);
+            
+            if (succeeded > 0) {
+              toast.success(`${succeeded} criativo(s) gerado(s) com sucesso!`);
+            }
+            if (failed > 0) {
+              toast.error(`${failed} criativo(s) falharam na geração`);
+            }
+            
+            await refetchItems();
+            queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+          }
+        } else {
+          // No generation IDs, check by asset_url
+          if (completedCount >= eligibleItems.length) {
+            clearInterval(pollInterval);
+            setGenerationProgress(null);
+            setIsGeneratingAssets(false);
+            toast.success("Criativos gerados com sucesso!");
+            await refetchItems();
+            queryClient.invalidateQueries({ queryKey: ["media-calendar-items", campaignId] });
+          }
+        }
+      }, 3000);
+      
+      // Safety timeout after 5 minutes
+      setTimeout(() => {
+        if (isGeneratingAssets) {
+          clearInterval(pollInterval);
+          setGenerationProgress(null);
+          setIsGeneratingAssets(false);
+          toast.info("Geração em andamento. Atualize a página para ver o progresso.");
+          refetchItems();
+        }
+      }, 5 * 60 * 1000);
+      
     } catch (err) {
       toast.error("Erro ao gerar criativos");
-    } finally {
       setIsGeneratingAssets(false);
+      setGenerationProgress(null);
     }
   };
 
@@ -459,16 +534,54 @@ export function CampaignCalendar() {
             </Button>
 
             {selectedDays.size > 0 && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => {
-                  setSelectedDays(new Set());
-                  setIsSelectMode(false);
-                }}
-              >
-                Limpar
-              </Button>
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => {
+                    setSelectedDays(new Set());
+                    setIsSelectMode(false);
+                  }}
+                >
+                  Limpar seleção
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  className="gap-1"
+                  onClick={async () => {
+                    // Get all item IDs from selected days
+                    const itemsToDelete: string[] = [];
+                    selectedDays.forEach(dateKey => {
+                      const dayItems = itemsByDate.get(dateKey) || [];
+                      dayItems.forEach(item => itemsToDelete.push(item.id));
+                    });
+                    
+                    if (itemsToDelete.length === 0) {
+                      toast.info("Nenhuma publicação nos dias selecionados");
+                      return;
+                    }
+                    
+                    if (!confirm(`Excluir ${itemsToDelete.length} publicação(ões) dos dias selecionados?`)) {
+                      return;
+                    }
+                    
+                    try {
+                      for (const id of itemsToDelete) {
+                        await deleteItem.mutateAsync(id);
+                      }
+                      toast.success(`${itemsToDelete.length} publicação(ões) excluída(s)`);
+                      setSelectedDays(new Set());
+                      setIsSelectMode(false);
+                    } catch (err) {
+                      toast.error("Erro ao excluir publicações");
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Excluir selecionados
+                </Button>
+              </>
             )}
 
             {/* Criar Estratégia IA */}
@@ -499,7 +612,10 @@ export function CampaignCalendar() {
                   ) : (
                     <Image className="h-4 w-4" />
                   )}
-                  Gerar Criativos
+                  {generationProgress 
+                    ? `Gerando... ${generationProgress.completed}/${generationProgress.total}`
+                    : "Gerar Criativos"
+                  }
                 </Button>
 
                 {/* Aprovar Campanha - só aparece quando há itens prontos */}

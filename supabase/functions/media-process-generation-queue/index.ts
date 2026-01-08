@@ -43,61 +43,86 @@ async function generateImageWithOpenAI(
   referenceImageDataUrl?: string
 ): Promise<string | null> {
   try {
-    // If we have a reference image, use the images/edits endpoint with gpt-image-1
+    // If we have a reference image, use gpt-image-1 with multipart/form-data
     if (referenceImageDataUrl) {
-      console.log("Using GPT-Image-1 with product reference image");
+      console.log("Using GPT-Image-1 with product reference image (multipart/form-data)");
       
-      // Convert data URL to base64 (remove the data:image/xxx;base64, prefix)
-      const base64Match = referenceImageDataUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      // Convert data URL to binary blob
+      const base64Match = referenceImageDataUrl.match(/^data:image\/([^;]+);base64,(.+)$/);
       if (!base64Match) {
         console.error("Invalid data URL format");
-        return null;
+        return await generateWithDallE3(openaiApiKey, prompt);
       }
-      const base64Data = base64Match[1];
       
-      // Use the OpenAI images API with gpt-image-1
-      // This endpoint accepts image input and generates based on it
+      const mimeType = base64Match[1];
+      const base64Data = base64Match[2];
+      
+      // Decode base64 to binary
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const imageBlob = new Blob([bytes], { type: `image/${mimeType}` });
+      
+      // Build multipart/form-data
+      const formData = new FormData();
+      formData.append("model", "gpt-image-1");
+      formData.append("image", imageBlob, `product.${mimeType === 'jpeg' ? 'jpg' : mimeType}`);
+      formData.append("prompt", prompt);
+      formData.append("n", "1");
+      formData.append("size", "1024x1024");
+      
       const response = await fetch("https://api.openai.com/v1/images/edits", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${openaiApiKey}`,
-          "Content-Type": "application/json",
+          // DO NOT set Content-Type - fetch will set it automatically with boundary for FormData
         },
-        body: JSON.stringify({
-          model: "gpt-image-1",
-          image: base64Data,
-          prompt: prompt,
-          n: 1,
-          size: "1024x1024",
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
         const errorText = await response.text();
         console.error("GPT-Image-1 API error:", response.status, errorText);
         
-        // Try alternative approach using chat completions with image modality
-        console.log("Trying chat completions approach...");
-        return await generateWithChatCompletions(openaiApiKey, prompt, referenceImageDataUrl);
+        // Fallback to DALL-E 3 without reference
+        console.log("Falling back to DALL-E 3 without product reference...");
+        return await generateWithDallE3(openaiApiKey, prompt);
       }
 
       const data = await response.json();
       const imageB64 = data.data?.[0]?.b64_json;
       if (imageB64) {
+        console.log("GPT-Image-1 returned base64 image successfully");
         return `data:image/png;base64,${imageB64}`;
       }
       
       const imageUrl = data.data?.[0]?.url;
       if (imageUrl) {
+        console.log("GPT-Image-1 returned URL, downloading...");
         return await downloadImageAsDataUrl(imageUrl);
       }
       
-      console.error("No image in GPT-Image-1 response");
-      return null;
+      console.error("No image in GPT-Image-1 response, falling back to DALL-E 3");
+      return await generateWithDallE3(openaiApiKey, prompt);
     }
 
     // Without reference image, use DALL-E 3 for best quality
-    console.log("Using DALL-E 3 without reference image");
+    return await generateWithDallE3(openaiApiKey, prompt);
+  } catch (error) {
+    console.error("Error in generateImageWithOpenAI:", error);
+    return null;
+  }
+}
+
+// Generate image using DALL-E 3 (no reference image support)
+async function generateWithDallE3(
+  openaiApiKey: string,
+  prompt: string
+): Promise<string | null> {
+  try {
+    console.log("Using DALL-E 3 for image generation");
     const response = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -123,80 +148,13 @@ async function generateImageWithOpenAI(
     const data = await response.json();
     const imageUrl = data.data?.[0]?.url;
     if (imageUrl) {
+      console.log("DALL-E 3 returned URL, downloading...");
       return await downloadImageAsDataUrl(imageUrl);
     }
 
     return null;
   } catch (error) {
-    console.error("Error in generateImageWithOpenAI:", error);
-    return null;
-  }
-}
-
-// Alternative: Use GPT-4o chat completions with image generation
-async function generateWithChatCompletions(
-  openaiApiKey: string,
-  prompt: string,
-  referenceImageDataUrl: string
-): Promise<string | null> {
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openaiApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: prompt,
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: referenceImageDataUrl,
-                },
-              },
-            ],
-          },
-        ],
-        modalities: ["text", "image"],
-        max_tokens: 4096,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("GPT-4o chat completions error:", response.status, errorText);
-      return null;
-    }
-
-    const data = await response.json();
-    
-    // Check for image in response
-    const message = data.choices?.[0]?.message;
-    if (message?.images?.[0]?.image_url?.url) {
-      return message.images[0].image_url.url;
-    }
-    
-    // Some responses may have the image in content array
-    if (Array.isArray(message?.content)) {
-      for (const part of message.content) {
-        if (part.type === "image_url" && part.image_url?.url) {
-          return part.image_url.url;
-        }
-      }
-    }
-
-    console.error("No image in GPT-4o response:", JSON.stringify(data).substring(0, 500));
-    return null;
-  } catch (error) {
-    console.error("Error in generateWithChatCompletions:", error);
+    console.error("Error in generateWithDallE3:", error);
     return null;
   }
 }

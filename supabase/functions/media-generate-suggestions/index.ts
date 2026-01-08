@@ -415,16 +415,20 @@ Sua tarefa é criar um calendário editorial para Blog, Facebook, Instagram e St
       : "";
 
     const frequencyInstructions = targetChannel === "all" ? `
-## QUANTIDADE OBRIGATÓRIA POR DIA:
-- Stories: 2 a 6 por dia (content_type: "story", target_platforms: ["instagram"] ou ["facebook"] ou ambos)
-- Feed: a cada 2-3 dias OU 3x por semana (content_type: "image" ou "carousel", target_platforms: ["instagram", "facebook"])
-- Blog: 1 artigo por dia (target_channel: "blog", target_platforms: ["blog"])
+## QUANTIDADE OBRIGATÓRIA POR DIA - SIGA RIGOROSAMENTE:
+Para CADA dia listado, você DEVE gerar:
+- 1 a 3 STORIES por dia (content_type: "story", target_platforms: ["instagram"] ou ["facebook"] ou ambos)
+- 1 POST DE FEED a cada 2 dias (content_type: "image" ou "carousel", target_platforms: ["instagram", "facebook"] - AMBOS SEMPRE)
+- 1 ARTIGO DE BLOG por dia (target_channel: "blog", target_platforms: ["blog"])
 
-Para ${validDates.length} dias, gere aproximadamente:
-- ${validDates.length} artigos de blog
-- ${Math.ceil(validDates.length / 2)} a ${Math.ceil(validDates.length / 2) + 2} posts de feed (Instagram + Facebook juntos)
-- ${validDates.length * 3} a ${validDates.length * 4} stories (média de 3-4 por dia)
+Para ${validDates.length} dias, gere EXATAMENTE:
+- ${validDates.length} artigos de blog (1 por dia)
+- ${Math.max(1, Math.ceil(validDates.length / 2))} a ${Math.ceil(validDates.length / 2) + 2} posts de FEED (Instagram + Facebook juntos)
+- ${validDates.length * 2} a ${validDates.length * 3} stories (média de 2-3 por dia)
+
+⚠️ IMPORTANTE: NÃO esqueça os posts de FEED! Eles são obrigatórios e devem ir para ["instagram", "facebook"] simultaneamente.
 ` : "";
+
 
     const userPrompt = `${businessContext}
 ${holidaysSection}

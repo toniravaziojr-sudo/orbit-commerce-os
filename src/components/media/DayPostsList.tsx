@@ -237,8 +237,8 @@ export function DayPostsList({
                           {item.title || "Sem título"}
                         </p>
                         {item.copy && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
-                            {item.copy}
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5 max-w-[200px]">
+                            {item.copy.slice(0, 50)}...
                           </p>
                         )}
                         {item.scheduled_time && (
@@ -249,8 +249,8 @@ export function DayPostsList({
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                      {/* Actions - always visible */}
+                      <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                         {confirmDelete === item.id ? (
                           <div className="flex gap-1">
                             <Button
