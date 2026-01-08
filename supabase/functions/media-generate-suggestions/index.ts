@@ -379,7 +379,9 @@ Sua tarefa é criar um calendário editorial para Blog, Facebook, Instagram e St
 ### 1. STORIES (Instagram e/ou Facebook) - OBRIGATÓRIO TODOS OS DIAS:
 - Gere SEMPRE de 2 a 6 stories POR DIA (content_type: "story")
 - target_platforms: ["instagram"] ou ["facebook"] ou ["instagram", "facebook"]
-- Stories são conteúdos rápidos: enquetes, bastidores, dicas rápidas, promoções relâmpago
+- Stories são conteúdos visuais rápidos: bastidores, dicas rápidas, promoções relâmpago, antes/depois, depoimentos
+- **PROIBIDO**: NÃO gere stories com enquetes, perguntas interativas, quiz, contagem regressiva ou outros stickers interativos - nosso sistema NÃO suporta publicação de elementos interativos via API
+- Foque em stories estáticos: imagens com texto, frases motivacionais, tips, produtos em destaque
 - NUNCA deixe um dia sem stories
 
 ### 2. FEED (Instagram + Facebook SIMULTANEAMENTE):
