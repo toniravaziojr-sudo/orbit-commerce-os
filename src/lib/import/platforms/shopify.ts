@@ -168,20 +168,50 @@ export interface ShopifyLineItem {
 
 // Funções de normalização
 export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct {
-  const handle = raw.handle || raw['Handle'] || '';
-  const title = raw.title || raw['Title'] || 'Produto sem nome';
-  const description = raw.body_html || raw['Body (HTML)'] || null;
+  // Try multiple field variations for handle/slug
+  const handle = raw.handle || raw['Handle'] || (raw as any).slug || (raw as any)['Slug'] || '';
   
-  const price = parseFloat(raw.variants?.[0]?.price?.toString() || raw['Variant Price'] || '0');
-  const compareAtPrice = parseFloat(raw.variants?.[0]?.compare_at_price?.toString() || raw['Variant Compare At Price'] || '0') || null;
-  const costPrice = parseFloat(raw['Cost per item'] || '0') || null;
+  // Try multiple field variations for title/name
+  const title = raw.title || raw['Title'] || 
+                (raw as any).name || (raw as any)['Name'] || 
+                (raw as any).product_name || (raw as any)['Produto'] || 
+                (raw as any)['Nome do Produto'] || (raw as any)['Nome'] || 
+                'Produto sem nome';
   
-  const sku = raw.variants?.[0]?.sku || raw['Variant SKU'] || null;
-  const barcode = raw['Variant Barcode'] || null;
-  const weight = parseFloat(raw.variants?.[0]?.weight?.toString() || raw['Variant Weight'] || '0') || null;
-  const stockQuantity = parseInt(raw.variants?.[0]?.inventory_quantity?.toString() || raw['Variant Inventory Qty'] || '0', 10);
+  const description = raw.body_html || raw['Body (HTML)'] || (raw as any).description || (raw as any)['Descrição'] || null;
   
-  const published = raw.published ?? raw['Published']?.toLowerCase() === 'true';
+  // Try multiple field variations for price
+  const price = parseFloat(
+    raw.variants?.[0]?.price?.toString() || 
+    raw['Variant Price'] || 
+    (raw as any).price || (raw as any)['Price'] || (raw as any)['Preço'] || 
+    '0'
+  );
+  const compareAtPrice = parseFloat(
+    raw.variants?.[0]?.compare_at_price?.toString() || 
+    raw['Variant Compare At Price'] || 
+    (raw as any).compare_at_price || (raw as any)['Compare At Price'] || 
+    '0'
+  ) || null;
+  const costPrice = parseFloat(raw['Cost per item'] || (raw as any).cost_price || '0') || null;
+  
+  // Try multiple field variations for SKU
+  const sku = raw.variants?.[0]?.sku || raw['Variant SKU'] || 
+              (raw as any).sku || (raw as any)['SKU'] || (raw as any)['Sku'] ||
+              (raw as any).codigo || (raw as any)['Codigo'] || (raw as any)['Código'] ||
+              (raw as any).code || (raw as any)['Code'] || (raw as any).product_code ||
+              null;
+  
+  const barcode = raw['Variant Barcode'] || (raw as any).barcode || (raw as any)['Barcode'] || null;
+  const weight = parseFloat(raw.variants?.[0]?.weight?.toString() || raw['Variant Weight'] || (raw as any).weight || '0') || null;
+  const stockQuantity = parseInt(
+    raw.variants?.[0]?.inventory_quantity?.toString() || 
+    raw['Variant Inventory Qty'] || 
+    (raw as any).stock_quantity || (raw as any)['Stock'] || (raw as any)['Estoque'] ||
+    '0', 10
+  );
+  
+  const published = raw.published !== undefined ? raw.published : (raw['Published']?.toLowerCase() === 'true' || (raw as any).status === 'active');
   const tags = (raw.tags || raw['Tags'] || '').split(',').map(t => t.trim()).filter(Boolean);
   
   // Imagens

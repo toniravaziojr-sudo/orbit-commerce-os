@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { GuidedImportWizard } from '@/components/import/GuidedImportWizard';
+import { ClearDataDialog } from '@/components/import/ClearDataDialog';
 import { useImportJobs } from '@/hooks/useImportJobs';
 import { Upload, CheckCircle, XCircle, Clock, Loader2, Trash2, Globe } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -12,7 +13,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function Import() {
   const [wizardOpen, setWizardOpen] = useState(false);
-  const { jobs, isLoading, deleteJob } = useImportJobs();
+  const { jobs, isLoading, deleteJob, clearTenantData } = useImportJobs();
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -52,17 +53,25 @@ export default function Import() {
         title="Importar Dados"
         description="Migre seus dados de outras plataformas de e-commerce"
         actions={
-          <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Globe className="h-4 w-4 mr-2" />
-                Nova Importação
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-              <GuidedImportWizard onComplete={() => setWizardOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <ClearDataDialog 
+              onClear={async (modules) => {
+                await clearTenantData.mutateAsync(modules);
+              }}
+              isClearing={clearTenantData.isPending}
+            />
+            <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Globe className="h-4 w-4 mr-2" />
+                  Nova Importação
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+                <GuidedImportWizard onComplete={() => setWizardOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          </div>
         }
       />
 

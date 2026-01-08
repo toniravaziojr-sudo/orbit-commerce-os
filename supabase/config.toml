@@ -371,3 +371,9 @@ verify_jwt = true
 
 [functions.correios-test-connection]
 verify_jwt = true
+
+[functions.tenant-clear-data]
+verify_jwt = true
+
+[functions.import-data]
+verify_jwt = false
