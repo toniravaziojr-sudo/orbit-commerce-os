@@ -18,6 +18,7 @@ import { StorefrontHealthCard } from "@/components/health/StorefrontHealthCard";
 import { IntegrationAlerts } from "@/components/dashboard/IntegrationAlerts";
 import { CommunicationsWidget } from "@/components/dashboard/CommunicationsWidget";
 import { FiscalAlertsWidget } from "@/components/dashboard/FiscalAlertsWidget";
+import { OrderLimitWarning } from "@/components/billing/OrderLimitWarning";
 
 // Demo data - clearly marked
 const DEMO_RECENT_ORDERS = [
@@ -89,6 +90,9 @@ export default function Dashboard() {
         title="Dashboard"
         description="Visão geral da sua operação em tempo real"
       />
+      
+      {/* Order Limit Warning */}
+      <OrderLimitWarning />
 
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

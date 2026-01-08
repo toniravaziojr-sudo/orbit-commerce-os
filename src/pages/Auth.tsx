@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { toast } from 'sonner';
 import { Loader2, Mail, Lock, User, ArrowLeft, Building2 } from 'lucide-react';
 import { generateSlug } from '@/lib/slugPolicy';
+import { usePlanFromUrl, savePlanSelectionToStorage } from '@/hooks/usePlanFromUrl';
 
 // Schemas de validação
 const loginSchema = z.object({
@@ -49,12 +50,30 @@ export default function Auth() {
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('login');
   const [loginError, setLoginError] = useState<string | null>(null);
+  
+  // Capturar plano e UTMs da URL
+  const planParams = usePlanFromUrl();
+  
+  // Salvar plano e UTMs no storage quando presentes na URL
+  useEffect(() => {
+    if (planParams.plan) {
+      savePlanSelectionToStorage(planParams);
+      // Se tem plano selecionado, ir direto para signup
+      setActiveTab('signup');
+    }
+  }, [planParams.plan]);
 
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
-      const redirectTo = searchParams.get('redirect') || '/';
-      navigate(redirectTo, { replace: true });
+      // Se tem plano salvo, redirecionar para billing
+      const storedPlan = sessionStorage.getItem('selected_plan');
+      if (storedPlan) {
+        navigate('/settings/billing', { replace: true });
+      } else {
+        const redirectTo = searchParams.get('redirect') || '/';
+        navigate(redirectTo, { replace: true });
+      }
     }
   }, [user, authLoading, navigate, searchParams]);
 

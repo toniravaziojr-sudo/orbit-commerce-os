@@ -38,6 +38,7 @@ import StorefrontBuilder from "@/pages/StorefrontBuilder";
 import PageBuilder from "@/pages/PageBuilder";
 import PageTemplates from "@/pages/PageTemplates";
 import TemplateBuilder from "@/pages/TemplateBuilder";
+import BillingSettings from "@/pages/settings/BillingSettings";
 
 
 import Reviews from "@/pages/Reviews";
@@ -271,6 +272,7 @@ const App = () => {
                   <Route path="/purchases" element={<Purchases />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
+                  <Route path="/settings/billing" element={<BillingSettings />} />
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/conversao" element={<Navigate to="/cart-checkout" replace />} />
