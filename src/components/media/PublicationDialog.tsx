@@ -30,7 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 export type PublicationType = "feed" | "stories" | "blog";
-export type ChannelType = "instagram" | "facebook";
+export type ChannelType = "instagram" | "facebook" | "feed_instagram" | "feed_facebook" | "story_instagram" | "story_facebook" | "blog";
 
 interface PublicationDialogProps {
   open: boolean;
@@ -57,6 +57,15 @@ const PUBLICATION_TYPES = [
 const CHANNELS = [
   { id: "instagram" as ChannelType, label: "Instagram", icon: Instagram },
   { id: "facebook" as ChannelType, label: "Facebook", icon: Facebook },
+];
+
+// Canais completos para edição (inclui tipo + rede)
+const ALL_CHANNELS = [
+  { id: "feed_instagram" as ChannelType, label: "Feed Instagram", icon: Instagram },
+  { id: "feed_facebook" as ChannelType, label: "Feed Facebook", icon: Facebook },
+  { id: "story_instagram" as ChannelType, label: "Story Instagram", icon: Instagram },
+  { id: "story_facebook" as ChannelType, label: "Story Facebook", icon: Facebook },
+  { id: "blog" as ChannelType, label: "Blog", icon: Newspaper },
 ];
 
 const feedFormSchema = z.object({
@@ -151,7 +160,21 @@ export function PublicationDialog({
           : editItem.content_type === "text" ? "blog" 
           : "feed";
         setSelectedType(type);
-        setSelectedChannels(editItem.target_platforms as ChannelType[] || []);
+        
+        // Converte formatos legados para novos formatos
+        const platforms = editItem.target_platforms as string[] || [];
+        const convertedChannels: ChannelType[] = platforms.map(p => {
+          // Se já está no novo formato, mantém
+          if (p.includes("_") || p === "blog") return p as ChannelType;
+          // Converte formato legado baseado no tipo de conteúdo
+          if (type === "stories") {
+            return `story_${p}` as ChannelType;
+          } else if (type === "feed") {
+            return `feed_${p}` as ChannelType;
+          }
+          return p as ChannelType;
+        });
+        setSelectedChannels(convertedChannels);
         setStep("details");
 
         if (type === "feed") {
@@ -484,8 +507,8 @@ export function PublicationDialog({
                 {/* Seletor de Canais */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
-                  <div className="flex gap-3">
-                    {CHANNELS.map((channel) => {
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_CHANNELS.map((channel) => {
                       const Icon = channel.icon;
                       const isSelected = selectedChannels.includes(channel.id);
                       return (
@@ -621,8 +644,8 @@ export function PublicationDialog({
                 {/* Seletor de Canais */}
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Canais de publicação</label>
-                  <div className="flex gap-3">
-                    {CHANNELS.map((channel) => {
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_CHANNELS.map((channel) => {
                       const Icon = channel.icon;
                       const isSelected = selectedChannels.includes(channel.id);
                       return (
