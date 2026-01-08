@@ -372,18 +372,35 @@ Regras importantes:
     } else {
       // "all" - Generate for all channels
       systemPrompt = `Você é um especialista em marketing digital multiplataforma.
-Sua tarefa é criar um calendário editorial para Blog, Facebook e Instagram baseado no direcionamento do cliente.
+Sua tarefa é criar um calendário editorial para Blog, Facebook, Instagram e Stories baseado no direcionamento do cliente.
 
-Regras importantes:
-1. Distribua os conteúdos entre os 3 canais de forma equilibrada
-2. Para Blog: conteúdo educativo e informativo, copy em markdown, generation_prompt para imagem de capa (sem produto)
-3. Para Facebook: posts mais longos e engajadores, com perguntas
-4. Para Instagram: posts curtos e impactantes, com hashtags
-5. O generation_prompt deve ser detalhado para gerar imagens
-6. Varie os tipos de conteúdo dentro de cada plataforma
-7. Mantenha consistência de marca entre as plataformas`;
-      contentTypes = '"image" ou "carousel" para redes sociais, "image" para blog';
-      targetPlatformsDefault = ["instagram", "facebook", "blog"];
+## REGRAS DE FREQUÊNCIA OBRIGATÓRIAS:
+
+### Stories (Instagram e/ou Facebook):
+- Gere de 2 a 6 stories POR DIA (content_type: "story")
+- Stories são conteúdos rápidos, dinâmicos e do dia-a-dia
+- Podem ser enquetes, bastidores, dicas rápidas, promoções relâmpago
+
+### Feed (Instagram + Facebook JUNTOS):
+- Gere posts de feed a cada 2-3 dias OU 3 vezes por semana
+- IMPORTANTE: Todo post de feed deve ir para Instagram E Facebook simultaneamente
+- target_platforms deve ser ["instagram", "facebook"] para posts de feed
+- Posts de feed são mais elaborados, com copywriting forte
+
+### Blog:
+- Gere 1 artigo de blog POR DIA
+- Conteúdo educativo e informativo
+- Copy em markdown completo
+- generation_prompt para imagem de capa (NÃO inclua produtos, apenas cenário/conceito)
+
+## OUTRAS REGRAS:
+1. Para Facebook/Instagram: posts mais engajadores, com perguntas e CTAs claros
+2. O generation_prompt deve ser detalhado para gerar imagens atraentes
+3. Varie os tipos de conteúdo dentro de cada plataforma
+4. Mantenha consistência de marca entre as plataformas
+5. Use hashtags relevantes para o nicho`;
+      contentTypes = '"image" ou "carousel" para feed, "story" para stories, "image" para blog';
+      targetPlatformsDefault = ["instagram", "facebook"];
     }
 
     // ====================================
@@ -393,35 +410,49 @@ Regras importantes:
       ? `\n## Datas comemorativas no período (APROVEITE-AS!):\n${specialDatesContext}\n` 
       : "";
 
+    const frequencyInstructions = targetChannel === "all" ? `
+## QUANTIDADE OBRIGATÓRIA POR DIA:
+- Stories: 2 a 6 por dia (content_type: "story", target_platforms: ["instagram"] ou ["facebook"] ou ambos)
+- Feed: a cada 2-3 dias OU 3x por semana (content_type: "image" ou "carousel", target_platforms: ["instagram", "facebook"])
+- Blog: 1 artigo por dia (target_channel: "blog", target_platforms: ["blog"])
+
+Para ${validDates.length} dias, gere aproximadamente:
+- ${validDates.length} artigos de blog
+- ${Math.ceil(validDates.length / 2)} a ${Math.ceil(validDates.length / 2) + 2} posts de feed (Instagram + Facebook juntos)
+- ${validDates.length * 3} a ${validDates.length * 4} stories (média de 3-4 por dia)
+` : "";
+
     const userPrompt = `${businessContext}
 ${holidaysSection}
 ## Direcionamento da campanha:
 ${campaign.prompt}
 
-## Canal alvo: ${targetChannel === "all" ? "Blog, Facebook e Instagram" : targetChannel}
+## Canal alvo: ${targetChannel === "all" ? "Blog, Facebook, Instagram e Stories" : targetChannel}
 
 ## Período: ${campaign.start_date} até ${campaign.end_date}
 
-Gere exatamente ${validDates.length} sugestões de conteúdo para as seguintes datas:
+## Datas disponíveis:
 ${validDates.join(", ")}
-
+${frequencyInstructions}
 Responda APENAS com um array JSON válido (sem markdown, sem \`\`\`), onde cada item tem:
 {
   "scheduled_date": "YYYY-MM-DD",
   "content_type": ${contentTypes},
-  "target_channel": "${targetChannel === "all" ? "blog" : targetChannel}" | "facebook" | "instagram" | "blog",
+  "target_channel": "instagram" | "facebook" | "blog",
   "title": "Título/tema do post ou artigo",
   "copy": "Legenda/conteúdo completo (para blog, use markdown)",
   "cta": "Call to action principal",
   "hashtags": ["hashtag1", "hashtag2", ...],
   "generation_prompt": "Prompt detalhado para gerar a imagem${targetChannel === "blog" ? " de capa (NÃO inclua produtos na imagem, apenas cenário/conceito)" : " do post"}",
-  "target_platforms": ${JSON.stringify(targetPlatformsDefault)},
+  "target_platforms": ["instagram", "facebook"] para feed, ["instagram"] ou ["facebook"] para stories, ["blog"] para blog,
   "needs_product_image": true/false
 }
 
-IMPORTANTE sobre needs_product_image:
-- true = o post precisa mostrar um produto da loja (ex: promoção de produto, destaque de produto)
-- false = o post NÃO precisa de produto (ex: dica, artigo educativo, lifestyle, etc.)`;
+IMPORTANTE:
+- needs_product_image = true quando o post precisa mostrar um produto da loja
+- needs_product_image = false para dicas, artigos educativos, lifestyle, etc.
+- Para posts de FEED: target_platforms SEMPRE deve incluir ["instagram", "facebook"] (os mesmos posts vão para ambas redes)
+- Para STORIES: podem ser separados por plataforma ou ambos`;
 
     const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
