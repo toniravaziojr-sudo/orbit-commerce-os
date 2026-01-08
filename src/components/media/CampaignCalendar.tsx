@@ -567,7 +567,7 @@ export function CampaignCalendar() {
               className="gap-2"
             >
               <MousePointer2 className="h-4 w-4" />
-              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Cards"}
+              {isSelectMode ? `Selecionando (${selectedDays.size})` : "Selecionar Dias"}
             </Button>
 
             {selectedDays.size > 0 && (
@@ -882,6 +882,13 @@ export function CampaignCalendar() {
         campaignId={campaignId!}
         existingItems={currentDateItems}
         editItem={editItem}
+        onBackToList={() => {
+          // Reabrir o DayPostsList com o mesmo dia
+          if (selectedDate) {
+            setDayListDate(selectedDate);
+            setDayListOpen(true);
+          }
+        }}
       />
 
       {/* Dialog de lista de posts do dia */}

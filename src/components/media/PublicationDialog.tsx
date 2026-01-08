@@ -39,6 +39,7 @@ interface PublicationDialogProps {
   campaignId: string;
   existingItems: MediaCalendarItem[];
   editItem?: MediaCalendarItem | null;
+  onBackToList?: () => void;
 }
 
 // Limites por tipo de publicação por card/dia
@@ -95,13 +96,14 @@ export function PublicationDialog({
   campaignId,
   existingItems,
   editItem,
+  onBackToList,
 }: PublicationDialogProps) {
   const { currentTenant, user } = useAuth();
   const { createItem, updateItem, deleteItem } = useMediaCalendarItems(campaignId);
 
   const [step, setStep] = useState<"type" | "channels" | "details">("type");
   const [selectedType, setSelectedType] = useState<PublicationType | null>(null);
-  const [selectedChannels, setSelectedChannels] = useState<ChannelType[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<ChannelType | null>(null);
 
   const isEditing = !!editItem;
 
@@ -161,20 +163,26 @@ export function PublicationDialog({
           : "feed";
         setSelectedType(type);
         
-        // Converte formatos legados para novos formatos
+        // Converte formatos legados para novos formatos - pega apenas o primeiro canal
         const platforms = editItem.target_platforms as string[] || [];
-        const convertedChannels: ChannelType[] = platforms.map(p => {
+        if (platforms.length > 0) {
+          const p = platforms[0];
           // Se já está no novo formato, mantém
-          if (p.includes("_") || p === "blog") return p as ChannelType;
-          // Converte formato legado baseado no tipo de conteúdo
-          if (type === "stories") {
-            return `story_${p}` as ChannelType;
-          } else if (type === "feed") {
-            return `feed_${p}` as ChannelType;
+          if (p.includes("_") || p === "blog") {
+            setSelectedChannel(p as ChannelType);
+          } else {
+            // Converte formato legado baseado no tipo de conteúdo
+            if (type === "stories") {
+              setSelectedChannel(`story_${p}` as ChannelType);
+            } else if (type === "feed") {
+              setSelectedChannel(`feed_${p}` as ChannelType);
+            } else {
+              setSelectedChannel(p as ChannelType);
+            }
           }
-          return p as ChannelType;
-        });
-        setSelectedChannels(convertedChannels);
+        } else {
+          setSelectedChannel(null);
+        }
         setStep("details");
 
         if (type === "feed") {
@@ -202,7 +210,7 @@ export function PublicationDialog({
         // Modo criação: reset
         setStep("type");
         setSelectedType(null);
-        setSelectedChannels([]);
+        setSelectedChannel(null);
         feedForm.reset();
         storyForm.reset();
         blogForm.reset();
@@ -224,26 +232,16 @@ export function PublicationDialog({
     }
   };
 
-  const handleChannelToggle = (channel: ChannelType) => {
-    setSelectedChannels(prev => 
-      prev.includes(channel) 
-        ? prev.filter(c => c !== channel)
-        : [...prev, channel]
-    );
-  };
-
-  const handleChannelsContinue = () => {
-    if (selectedChannels.length === 0) {
-      toast.error("Selecione pelo menos um canal");
-      return;
-    }
+  const handleChannelSelect = (channel: ChannelType) => {
+    setSelectedChannel(channel);
     setStep("details");
   };
 
   const handleBack = () => {
-    // Se está editando, fecha o diálogo (volta para a lista DayPostsList)
+    // Se está editando, volta para a lista de publicações do dia
     if (isEditing) {
       onOpenChange(false);
+      onBackToList?.();
       return;
     }
     
@@ -274,7 +272,7 @@ export function PublicationDialog({
       scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
       generation_prompt: values.generation_prompt || null,
       content_type: "image" as const,
-      target_platforms: selectedChannels,
+      target_platforms: selectedChannel ? [selectedChannel] : [],
       status: "draft" as const,
     };
 
@@ -313,7 +311,7 @@ export function PublicationDialog({
       scheduled_time: values.scheduled_time ? `${values.scheduled_time}:00` : null,
       generation_prompt: values.generation_prompt || null,
       content_type: "story" as const,
-      target_platforms: selectedChannels,
+      target_platforms: selectedChannel ? [selectedChannel] : [],
       status: "draft" as const,
     };
 
@@ -447,13 +445,13 @@ export function PublicationDialog({
           </>
         )}
 
-        {/* Step 2: Canais (só para feed/stories) */}
+        {/* Step 2: Canal (só para feed/stories) */}
         {step === "channels" && (
           <>
             <DialogHeader>
-              <DialogTitle>Selecionar Canais</DialogTitle>
+              <DialogTitle>Selecionar Canal</DialogTitle>
               <DialogDescription>
-                Para qual(is) rede(s) será essa publicação?
+                Para qual rede será essa publicação?
               </DialogDescription>
             </DialogHeader>
 
@@ -461,12 +459,12 @@ export function PublicationDialog({
               <div className="flex gap-4 justify-center">
                 {CHANNELS.map((channel) => {
                   const Icon = channel.icon;
-                  const isSelected = selectedChannels.includes(channel.id);
+                  const isSelected = selectedChannel === channel.id;
                   return (
                     <button
                       key={channel.id}
                       type="button"
-                      onClick={() => handleChannelToggle(channel.id)}
+                      onClick={() => handleChannelSelect(channel.id)}
                       className={cn(
                         "relative flex flex-col items-center gap-2 p-6 rounded-lg border-2 transition-all",
                         "hover:border-primary hover:bg-primary/5",
@@ -488,9 +486,6 @@ export function PublicationDialog({
 
             <DialogFooter className="gap-2">
               <Button variant="outline" onClick={handleBack}>Voltar</Button>
-              <Button onClick={handleChannelsContinue} disabled={selectedChannels.length === 0}>
-                Continuar
-              </Button>
             </DialogFooter>
           </>
         )}
@@ -505,18 +500,18 @@ export function PublicationDialog({
 
             <Form {...feedForm}>
               <form onSubmit={feedForm.handleSubmit(handleSubmitFeed)} className="space-y-4">
-                {/* Seletor de Canais */}
+                {/* Seletor de Canal */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Canais de publicação</label>
+                  <label className="text-sm font-medium">Canal de publicação</label>
                   <div className="flex flex-wrap gap-2">
-                    {ALL_CHANNELS.map((channel) => {
+                    {ALL_CHANNELS.filter(c => c.id.startsWith("feed_")).map((channel) => {
                       const Icon = channel.icon;
-                      const isSelected = selectedChannels.includes(channel.id);
+                      const isSelected = selectedChannel === channel.id;
                       return (
                         <button
                           key={channel.id}
                           type="button"
-                          onClick={() => handleChannelToggle(channel.id)}
+                          onClick={() => setSelectedChannel(channel.id)}
                           className={cn(
                             "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
                             "hover:border-primary hover:bg-primary/5",
@@ -642,18 +637,18 @@ export function PublicationDialog({
 
             <Form {...storyForm}>
               <form onSubmit={storyForm.handleSubmit(handleSubmitStory)} className="space-y-4">
-                {/* Seletor de Canais */}
+                {/* Seletor de Canal */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Canais de publicação</label>
+                  <label className="text-sm font-medium">Canal de publicação</label>
                   <div className="flex flex-wrap gap-2">
-                    {ALL_CHANNELS.map((channel) => {
+                    {ALL_CHANNELS.filter(c => c.id.startsWith("story_")).map((channel) => {
                       const Icon = channel.icon;
-                      const isSelected = selectedChannels.includes(channel.id);
+                      const isSelected = selectedChannel === channel.id;
                       return (
                         <button
                           key={channel.id}
                           type="button"
-                          onClick={() => handleChannelToggle(channel.id)}
+                          onClick={() => setSelectedChannel(channel.id)}
                           className={cn(
                             "flex items-center gap-2 px-3 py-2 rounded-lg border transition-all",
                             "hover:border-primary hover:bg-primary/5",
