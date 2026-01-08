@@ -24,7 +24,23 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { tenantId, platform, module, data, categoryMap } = await req.json() as ImportRequest;
+    const body = await req.json() as ImportRequest;
+    const { tenantId, platform, module, data, categoryMap } = body;
+
+    // Validate required fields
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'tenantId é obrigatório' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Nenhum dado para importar' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log(`Starting import: ${module} from ${platform} for tenant ${tenantId}`);
     console.log(`Processing ${data.length} items`);
@@ -39,29 +55,40 @@ Deno.serve(async (req) => {
       errors: [] as any[],
     };
 
-    for (const item of data) {
-      try {
-        switch (module) {
-          case 'products':
-            await importProduct(supabase, tenantId, item, results, categoryMap);
-            break;
-          case 'categories':
-            await importCategory(supabase, tenantId, item, results);
-            break;
-          case 'customers':
-            await importCustomer(supabase, tenantId, item, results);
-            break;
-          case 'orders':
-            await importOrder(supabase, tenantId, item, results);
-            break;
+    // Process in batches of 50 to avoid timeouts
+    const batchSize = 50;
+    for (let i = 0; i < data.length; i += batchSize) {
+      const batch = data.slice(i, i + batchSize);
+      
+      for (const item of batch) {
+        try {
+          switch (module) {
+            case 'products':
+              await importProduct(supabase, tenantId, item, results, categoryMap);
+              break;
+            case 'categories':
+              await importCategory(supabase, tenantId, item, results);
+              break;
+            case 'customers':
+              await importCustomer(supabase, tenantId, item, results);
+              break;
+            case 'orders':
+              await importOrder(supabase, tenantId, item, results);
+              break;
+          }
+        } catch (error: any) {
+          results.failed++;
+          const itemIdentifier = item.name || item.email || item.order_number || item.slug || 'unknown';
+          const errorMessage = error?.message || String(error);
+          console.error(`Failed to import ${module} item "${itemIdentifier}":`, errorMessage);
+          results.errors.push({
+            item: itemIdentifier,
+            error: errorMessage,
+          });
         }
-      } catch (error: any) {
-        results.failed++;
-        results.errors.push({
-          item: item.name || item.email || item.order_number || 'unknown',
-          error: error?.message || String(error),
-        });
       }
+      
+      console.log(`Batch ${Math.floor(i / batchSize) + 1} processed: ${results.imported} imported so far`);
     }
 
     console.log(`Import completed: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed`);
@@ -284,25 +311,33 @@ async function importCategory(supabase: any, tenantId: string, category: any, re
 }
 
 async function importCustomer(supabase: any, tenantId: string, customer: any, results: any) {
+  // Validate email
+  const email = (customer.email || '').toString().trim().toLowerCase();
+  if (!email || !email.includes('@')) {
+    results.skipped++;
+    console.log(`Skipping customer without valid email: ${JSON.stringify(customer).slice(0, 100)}`);
+    return;
+  }
+
   // Check for duplicate by email
   const { data: existing } = await supabase
     .from('customers')
     .select('id')
     .eq('tenant_id', tenantId)
-    .eq('email', customer.email.toLowerCase())
+    .eq('email', email)
     .maybeSingle();
 
   if (existing) {
     const { error } = await supabase
       .from('customers')
       .update({
-        full_name: customer.full_name,
+        full_name: customer.full_name || 'Cliente',
         phone: customer.phone,
         cpf: customer.cpf,
         birth_date: customer.birth_date,
         gender: customer.gender,
-        accepts_marketing: customer.accepts_marketing,
-        status: customer.status,
+        accepts_marketing: customer.accepts_marketing ?? false,
+        status: customer.status || 'active',
         updated_at: new Date().toISOString(),
       })
       .eq('id', existing.id);
@@ -314,14 +349,14 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
       .from('customers')
       .insert({
         tenant_id: tenantId,
-        email: customer.email.toLowerCase(),
-        full_name: customer.full_name,
+        email: email,
+        full_name: customer.full_name || 'Cliente',
         phone: customer.phone,
         cpf: customer.cpf,
         birth_date: customer.birth_date,
         gender: customer.gender,
-        accepts_marketing: customer.accepts_marketing,
-        status: customer.status,
+        accepts_marketing: customer.accepts_marketing ?? false,
+        status: customer.status || 'active',
       })
       .select('id')
       .single();
@@ -330,22 +365,28 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
 
     // Import addresses if available
     if (customer.addresses?.length > 0) {
-      const addressInserts = customer.addresses.map((addr: any) => ({
-        customer_id: newCustomer.id,
-        label: addr.label,
-        recipient_name: addr.recipient_name,
-        street: addr.street,
-        number: addr.number,
-        complement: addr.complement,
-        neighborhood: addr.neighborhood,
-        city: addr.city,
-        state: addr.state,
-        postal_code: addr.postal_code,
-        country: addr.country,
-        is_default: addr.is_default,
-      }));
+      const validAddresses = customer.addresses.filter((addr: any) => 
+        addr.street && addr.city
+      );
+      
+      if (validAddresses.length > 0) {
+        const addressInserts = validAddresses.map((addr: any) => ({
+          customer_id: newCustomer.id,
+          label: addr.label || 'Endereço',
+          recipient_name: addr.recipient_name || customer.full_name || 'Destinatário',
+          street: addr.street || '',
+          number: addr.number || '',
+          complement: addr.complement,
+          neighborhood: addr.neighborhood || '',
+          city: addr.city || '',
+          state: addr.state || '',
+          postal_code: addr.postal_code || '',
+          country: addr.country || 'BR',
+          is_default: addr.is_default ?? false,
+        }));
 
-      await supabase.from('customer_addresses').insert(addressInserts);
+        await supabase.from('customer_addresses').insert(addressInserts);
+      }
     }
 
     results.imported++;
@@ -353,12 +394,20 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
 }
 
 async function importOrder(supabase: any, tenantId: string, order: any, results: any) {
+  // Validate order_number
+  const orderNumber = (order.order_number || '').toString().trim();
+  if (!orderNumber) {
+    results.skipped++;
+    console.log(`Skipping order without order number: ${JSON.stringify(order).slice(0, 100)}`);
+    return;
+  }
+
   // Check for duplicate by order_number
   const { data: existing } = await supabase
     .from('orders')
     .select('id')
     .eq('tenant_id', tenantId)
-    .eq('order_number', order.order_number)
+    .eq('order_number', orderNumber)
     .maybeSingle();
 
   if (existing) {
@@ -368,12 +417,14 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
 
   // Find or create customer
   let customerId = null;
-  if (order.customer_email) {
+  const customerEmail = (order.customer_email || '').toString().trim().toLowerCase();
+  
+  if (customerEmail && customerEmail.includes('@')) {
     const { data: customer } = await supabase
       .from('customers')
       .select('id')
       .eq('tenant_id', tenantId)
-      .eq('email', order.customer_email.toLowerCase())
+      .eq('email', customerEmail)
       .maybeSingle();
 
     if (customer) {
@@ -384,8 +435,8 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
         .from('customers')
         .insert({
           tenant_id: tenantId,
-          email: order.customer_email.toLowerCase(),
-          full_name: order.customer_name,
+          email: customerEmail,
+          full_name: order.customer_name || 'Cliente',
           phone: order.customer_phone,
         })
         .select('id')
@@ -400,17 +451,17 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     .insert({
       tenant_id: tenantId,
       customer_id: customerId,
-      order_number: order.order_number,
-      status: order.status,
-      payment_status: order.payment_status,
+      order_number: orderNumber,
+      status: order.status || 'pending',
+      payment_status: order.payment_status || 'pending',
       payment_method: order.payment_method,
       shipping_status: order.shipping_status,
-      subtotal: order.subtotal,
-      discount_total: order.discount_total,
-      shipping_total: order.shipping_total,
-      total: order.total,
-      currency: order.currency,
-      customer_email: order.customer_email,
+      subtotal: order.subtotal || 0,
+      discount_total: order.discount_total || 0,
+      shipping_total: order.shipping_total || 0,
+      total: order.total || 0,
+      currency: order.currency || 'BRL',
+      customer_email: customerEmail || null,
       customer_name: order.customer_name,
       customer_phone: order.customer_phone,
       shipping_street: order.shipping_address?.street,
@@ -420,12 +471,12 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
       shipping_city: order.shipping_address?.city,
       shipping_state: order.shipping_address?.state,
       shipping_postal_code: order.shipping_address?.postal_code,
-      shipping_country: order.shipping_address?.country,
+      shipping_country: order.shipping_address?.country || 'BR',
       notes: order.notes,
       paid_at: order.paid_at,
       shipped_at: order.shipped_at,
       delivered_at: order.delivered_at,
-      created_at: order.created_at,
+      created_at: order.created_at || new Date().toISOString(),
     })
     .select('id')
     .single();
@@ -434,17 +485,21 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
 
   // Import order items
   if (order.items?.length > 0) {
-    const itemInserts = order.items.map((item: any) => ({
-      order_id: newOrder.id,
-      product_name: item.product_name,
-      product_sku: item.product_sku,
-      variant_name: item.variant_name,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.total_price,
-    }));
+    const validItems = order.items.filter((item: any) => item.product_name);
+    
+    if (validItems.length > 0) {
+      const itemInserts = validItems.map((item: any) => ({
+        order_id: newOrder.id,
+        product_name: item.product_name || 'Produto',
+        product_sku: item.product_sku,
+        variant_name: item.variant_name,
+        quantity: item.quantity || 1,
+        unit_price: item.unit_price || 0,
+        total_price: item.total_price || (item.unit_price || 0) * (item.quantity || 1),
+      }));
 
-    await supabase.from('order_items').insert(itemInserts);
+      await supabase.from('order_items').insert(itemInserts);
+    }
   }
 
   results.imported++;
