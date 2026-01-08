@@ -8,6 +8,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
+export interface TestConnectionResult {
+  success: boolean;
+  auth_mode?: string;
+  token_expires_at?: string;
+  cep_lookup_works?: boolean;
+  error?: string;
+  error_code?: string;
+}
+
 export interface ShippingProvider {
   id: string;
   tenant_id: string;
@@ -126,6 +135,30 @@ export function useShippingProviders() {
     return providers.find(p => p.provider === providerName);
   };
 
+  const testConnection = useMutation({
+    mutationFn: async (params: { provider: string; credentials: Record<string, string> }): Promise<TestConnectionResult> => {
+      const { provider, credentials } = params;
+      
+      // Map provider to edge function
+      const endpointMap: Record<string, string> = {
+        'correios': 'correios-test-connection',
+        'loggi': 'loggi-test-connection',
+      };
+
+      const endpoint = endpointMap[provider];
+      if (!endpoint) {
+        throw new Error(`Teste de conexão não disponível para ${provider}`);
+      }
+
+      const { data, error } = await supabase.functions.invoke(endpoint, {
+        body: credentials,
+      });
+
+      if (error) throw error;
+      return data as TestConnectionResult;
+    },
+  });
+
   return {
     providers,
     isLoading,
@@ -133,5 +166,6 @@ export function useShippingProviders() {
     upsertProvider,
     deleteProvider,
     getProvider,
+    testConnection,
   };
 }
