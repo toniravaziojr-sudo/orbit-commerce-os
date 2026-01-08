@@ -178,9 +178,12 @@ export function useImportJobs() {
   };
 }
 
+const BATCH_SIZE = 30;
+
 export function useImportData() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
+  const { createJob } = useImportJobs();
 
   const importData = async (
     platform: string,
@@ -189,13 +192,81 @@ export function useImportData() {
     categoryMap?: Record<string, string> // slug -> id for linking products to categories
   ) => {
     if (!tenantId) throw new Error('Tenant ID required');
+    if (!data || data.length === 0) {
+      return { success: true, results: { imported: 0, failed: 0 } };
+    }
 
-    const { data: result, error } = await supabase.functions.invoke('import-data', {
-      body: { tenantId, platform, module, data, categoryMap },
+    // Create a job for tracking
+    const job = await createJob.mutateAsync({ 
+      platform, 
+      modules: [module] 
     });
 
-    if (error) throw error;
-    return result;
+    const totalBatches = Math.ceil(data.length / BATCH_SIZE);
+    let totalImported = 0;
+    let totalUpdated = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    const allErrors: any[] = [];
+
+    // Process in batches using import-batch function
+    for (let i = 0; i < totalBatches; i++) {
+      const batchItems = data.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+      
+      try {
+        console.log(`[useImportData] Sending batch ${i + 1}/${totalBatches} for ${module} (${batchItems.length} items)`);
+        
+        const { data: result, error } = await supabase.functions.invoke('import-batch', {
+          body: {
+            jobId: job.id,
+            tenantId,
+            platform,
+            module,
+            items: batchItems,
+            batchIndex: i,
+            categoryMap,
+          },
+        });
+
+        if (error) {
+          console.error(`[useImportData] Batch ${i} error:`, error);
+          totalFailed += batchItems.length;
+          allErrors.push({ batch: i, error: error.message });
+        } else if (result?.success && result.results) {
+          totalImported += result.results.imported || 0;
+          totalUpdated += result.results.updated || 0;
+          totalFailed += result.results.failed || 0;
+          totalSkipped += result.results.skipped || 0;
+          
+          if (result.results.itemErrors?.length > 0) {
+            allErrors.push(...result.results.itemErrors);
+          }
+        } else {
+          console.error(`[useImportData] Batch ${i} failed:`, result?.error);
+          totalFailed += batchItems.length;
+          allErrors.push({ batch: i, error: result?.error || 'Erro desconhecido' });
+        }
+      } catch (err: any) {
+        console.error(`[useImportData] Batch ${i} exception:`, err);
+        totalFailed += batchItems.length;
+        allErrors.push({ batch: i, error: err.message });
+      }
+
+      // Small delay between batches
+      if (i < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+
+    return {
+      success: totalFailed < data.length,
+      results: {
+        imported: totalImported + totalUpdated,
+        failed: totalFailed,
+        skipped: totalSkipped,
+        errors: allErrors,
+      },
+    };
   };
 
   return { importData };
