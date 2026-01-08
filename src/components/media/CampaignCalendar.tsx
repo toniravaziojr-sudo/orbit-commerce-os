@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWithinInterval, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Plus, Sparkles, Image, Check, Loader2, Send, AlertCircle, MousePointer2, Instagram, Facebook, Newspaper, Trash2, LayoutGrid, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -810,42 +810,56 @@ export function CampaignCalendar() {
                         )}
                       </div>
                       
-                      {/* Ícones de publicações - Badges compactos */}
+                      {/* Preview compacto com ícones */}
                       {hasContent && (
-                        <div className="flex flex-wrap gap-1 mt-1 px-1">
-                          {/* FI = Feed Instagram */}
-                          {counts.feed_instagram > 0 && (
-                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1.5 py-0.5">
-                              <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">FI</span>
-                              <span className="text-[10px] font-medium text-orange-700 dark:text-orange-300">{counts.feed_instagram}</span>
+                        <div className="flex items-center gap-1.5 mt-1 px-1">
+                          {/* Feed - ícone de grid com indicador de plataformas */}
+                          {(counts.feed_instagram > 0 || counts.feed_facebook > 0) && (
+                            <div className="relative">
+                              <div className={cn(
+                                "w-5 h-5 rounded flex items-center justify-center text-white text-[9px] font-bold",
+                                counts.feed_instagram > 0 && counts.feed_facebook > 0 
+                                  ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                                  : counts.feed_instagram > 0 
+                                    ? "bg-orange-500" 
+                                    : "bg-blue-500"
+                              )}>
+                                <LayoutGrid className="w-3 h-3" />
+                              </div>
+                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                {counts.feed_instagram + counts.feed_facebook}
+                              </span>
                             </div>
                           )}
-                          {/* FF = Feed Facebook */}
-                          {counts.feed_facebook > 0 && (
-                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1.5 py-0.5">
-                              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">FF</span>
-                              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">{counts.feed_facebook}</span>
+                          
+                          {/* Stories - S estilizado */}
+                          {(counts.story_instagram > 0 || counts.story_facebook > 0) && (
+                            <div className="relative">
+                              <div className={cn(
+                                "w-5 h-5 rounded flex items-center justify-center text-white text-[10px] font-bold",
+                                counts.story_instagram > 0 && counts.story_facebook > 0 
+                                  ? "bg-gradient-to-r from-orange-500 to-blue-500"
+                                  : counts.story_instagram > 0 
+                                    ? "bg-orange-500" 
+                                    : "bg-blue-500"
+                              )}>
+                                S
+                              </div>
+                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                {counts.story_instagram + counts.story_facebook}
+                              </span>
                             </div>
                           )}
-                          {/* SI = Story Instagram */}
-                          {counts.story_instagram > 0 && (
-                            <div className="flex items-center gap-0.5 bg-orange-100 dark:bg-orange-900/30 rounded px-1.5 py-0.5">
-                              <span className="text-[10px] font-bold text-orange-500">SI</span>
-                              <span className="text-[10px] font-medium text-orange-700 dark:text-orange-300">{counts.story_instagram}</span>
-                            </div>
-                          )}
-                          {/* SF = Story Facebook */}
-                          {counts.story_facebook > 0 && (
-                            <div className="flex items-center gap-0.5 bg-blue-100 dark:bg-blue-900/30 rounded px-1.5 py-0.5">
-                              <span className="text-[10px] font-bold text-blue-600">SF</span>
-                              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">{counts.story_facebook}</span>
-                            </div>
-                          )}
-                          {/* B = Blog */}
+                          
+                          {/* Blog - ícone de texto */}
                           {counts.blog > 0 && (
-                            <div className="flex items-center gap-0.5 bg-emerald-100 dark:bg-emerald-900/30 rounded px-1.5 py-0.5">
-                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">B</span>
-                              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">{counts.blog}</span>
+                            <div className="relative">
+                              <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center text-white">
+                                <FileText className="w-3 h-3" />
+                              </div>
+                              <span className="absolute -top-1 -right-1 bg-foreground text-background text-[8px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                                {counts.blog}
+                              </span>
                             </div>
                           )}
                         </div>
