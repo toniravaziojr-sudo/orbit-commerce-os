@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Plus, Trash2, Edit2, Clock, Instagram, Facebook, Newspaper, Eye } from "lucide-react";
+import { Plus, Trash2, Edit2, Clock, Instagram, Facebook, Newspaper, Eye, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -60,6 +60,7 @@ interface DayPostsListProps {
   onEditItem: (item: MediaCalendarItem) => void;
   onAddItem: (date: Date) => void;
   onDeleteItem: (id: string) => void;
+  onDuplicateItem?: (item: MediaCalendarItem) => void;
 }
 
 // Helper para obter o tipo da publicação
@@ -137,6 +138,7 @@ export function DayPostsList({
   onEditItem,
   onAddItem,
   onDeleteItem,
+  onDuplicateItem,
 }: DayPostsListProps) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [previewItem, setPreviewItem] = useState<MediaCalendarItem | null>(null);
@@ -294,6 +296,17 @@ export function DayPostsList({
                             <Edit2 className="h-3.5 w-3.5" />
                             Editar
                           </Button>
+                          {onDuplicateItem && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 gap-1 text-xs"
+                              onClick={() => onDuplicateItem(item)}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Duplicar
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="ghost"
