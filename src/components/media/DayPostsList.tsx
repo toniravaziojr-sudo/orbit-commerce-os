@@ -233,12 +233,12 @@ export function DayPostsList({
                             {statusLabels[item.status] || item.status}
                           </Badge>
                         </div>
-                        <p className="font-medium truncate text-sm">
+                        <p className="font-medium text-sm line-clamp-1">
                           {item.title || "Sem título"}
                         </p>
                         {item.copy && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5 max-w-[200px]">
-                            {item.copy.slice(0, 50)}...
+                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
+                            {item.copy.slice(0, 60)}...
                           </p>
                         )}
                         {item.scheduled_time && (
@@ -248,63 +248,63 @@ export function DayPostsList({
                           </div>
                         )}
                       </div>
+                    </div>
 
-                      {/* Actions - always visible */}
-                      <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                        {confirmDelete === item.id ? (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => handleDelete(item.id)}
-                            >
-                              Excluir
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 px-2 text-xs"
-                              onClick={() => setConfirmDelete(null)}
-                            >
-                              Não
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              title="Visualizar"
-                              onClick={() => setPreviewItem(item)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              title="Editar"
-                              onClick={() => {
-                                onEditItem(item);
-                                onOpenChange(false);
-                              }}
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              title="Excluir"
-                              onClick={() => setConfirmDelete(item.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
+                    {/* Actions - below content, always visible */}
+                    <div className="flex justify-end gap-1 mt-2 pt-2 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
+                      {confirmDelete === item.id ? (
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-3 text-xs"
+                            onClick={() => handleDelete(item.id)}
+                          >
+                            Excluir
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-3 text-xs"
+                            onClick={() => setConfirmDelete(null)}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 gap-1 text-xs"
+                            onClick={() => setPreviewItem(item)}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Ver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 gap-1 text-xs"
+                            onClick={() => {
+                              onEditItem(item);
+                              onOpenChange(false);
+                            }}
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            Editar
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 gap-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => setConfirmDelete(item.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Excluir
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
