@@ -241,13 +241,14 @@ export function PublicationDialog({
   };
 
   const handleBack = () => {
-    // Se está editando, fecha o diálogo ao clicar em "Voltar"
+    // Se está editando, fecha o diálogo (volta para a lista DayPostsList)
     if (isEditing) {
       onOpenChange(false);
       return;
     }
     
     if (step === "details") {
+      // Volta para seleção de canais (ou tipo se for blog)
       if (selectedType === "blog") {
         setStep("type");
       } else {
