@@ -173,8 +173,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   
   // File import state (Etapa 3)
   const [fileStepStatuses, setFileStepStatuses] = useState<Record<string, {
-    status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing';
+    status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing' | 'error';
     importedCount?: number;
+    errorMessage?: string;
   }>>(() => {
     const initial: Record<string, any> = {};
     FILE_IMPORT_STEPS.forEach((step, index) => {
@@ -1188,44 +1189,80 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   };
 
   const parseCSV = (content: string): any[] => {
-    const lines = content.trim().split('\n');
-    if (lines.length < 2) return [];
-
-    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    // Normalize line endings
+    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    
+    // Parse all fields including multi-line quoted values
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let currentField = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < normalizedContent.length; i++) {
+      const char = normalizedContent[i];
+      const nextChar = normalizedContent[i + 1];
+      
+      if (inQuotes) {
+        if (char === '"') {
+          if (nextChar === '"') {
+            // Escaped quote
+            currentField += '"';
+            i++;
+          } else {
+            // End of quoted field
+            inQuotes = false;
+          }
+        } else {
+          currentField += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          currentRow.push(currentField.trim());
+          currentField = '';
+        } else if (char === '\n') {
+          currentRow.push(currentField.trim());
+          if (currentRow.length > 0 && currentRow.some(f => f !== '')) {
+            rows.push(currentRow);
+          }
+          currentRow = [];
+          currentField = '';
+        } else {
+          currentField += char;
+        }
+      }
+    }
+    
+    // Push last field and row
+    if (currentField || currentRow.length > 0) {
+      currentRow.push(currentField.trim());
+      if (currentRow.some(f => f !== '')) {
+        rows.push(currentRow);
+      }
+    }
+    
+    if (rows.length < 2) return [];
+    
+    const headers = rows[0];
     const data: any[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = parseCSVLine(lines[i]);
-      if (values.length === headers.length) {
-        const obj: any = {};
-        headers.forEach((header, index) => {
-          obj[header] = values[index];
-        });
+    
+    for (let i = 1; i < rows.length; i++) {
+      const values = rows[i];
+      const obj: any = {};
+      
+      // Handle rows with different number of columns (be lenient)
+      headers.forEach((header, index) => {
+        obj[header] = values[index] !== undefined ? values[index] : '';
+      });
+      
+      // Only add rows that have at least one non-empty value
+      if (Object.values(obj).some(v => v !== '')) {
         data.push(obj);
       }
     }
-
+    
     return data;
-  };
-
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = [];
-    let current = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
   };
 
   const handleFileImportStep = useCallback(async (stepId: string, file?: File) => {
@@ -1260,12 +1297,45 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       let normalizedData = data;
       if (adapter) {
-        if (stepId === 'products' && adapter.normalizeProduct) {
-          normalizedData = data.map(item => adapter.normalizeProduct!(item));
-        } else if (stepId === 'customers' && adapter.normalizeCustomer) {
-          normalizedData = data.map(item => adapter.normalizeCustomer!(item));
-        } else if (stepId === 'orders' && adapter.normalizeOrder) {
-          normalizedData = data.map(item => adapter.normalizeOrder!(item));
+        try {
+          if (stepId === 'products' && adapter.normalizeProduct) {
+            normalizedData = data.map(item => adapter.normalizeProduct!(item)).filter(Boolean);
+          } else if (stepId === 'customers' && adapter.normalizeCustomer) {
+            normalizedData = data.map(item => adapter.normalizeCustomer!(item)).filter(Boolean);
+          } else if (stepId === 'orders' && adapter.normalizeOrder) {
+            normalizedData = data.map(item => adapter.normalizeOrder!(item)).filter(Boolean);
+          }
+        } catch (normError: any) {
+          console.error('Normalization error:', normError);
+          // Continue with raw data if normalization fails
+        }
+      }
+
+      // Filter out invalid entries
+      let validData = normalizedData;
+      if (stepId === 'customers') {
+        validData = normalizedData.filter((item: any) => {
+          const email = item.email || item.Email || item['Customer Email'] || item['E-mail'];
+          return email && typeof email === 'string' && email.includes('@');
+        });
+        if (validData.length === 0) {
+          throw new Error('Nenhum cliente com email válido encontrado no arquivo');
+        }
+      } else if (stepId === 'orders') {
+        validData = normalizedData.filter((item: any) => {
+          const orderNum = item.order_number || item.Name || item['Order Number'] || item['Pedido'];
+          return orderNum !== undefined && orderNum !== '';
+        });
+        if (validData.length === 0) {
+          throw new Error('Nenhum pedido válido encontrado no arquivo');
+        }
+      } else if (stepId === 'products') {
+        validData = normalizedData.filter((item: any) => {
+          const name = item.name || item.Title || item.Handle || item.title;
+          return name && typeof name === 'string' && name.trim() !== '';
+        });
+        if (validData.length === 0) {
+          throw new Error('Nenhum produto válido encontrado no arquivo');
         }
       }
 
@@ -1286,7 +1356,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       }
 
       const result = await importData(platform, stepId as any, normalizedData, categoryMap);
-      const importedCount = result?.results?.imported || data.length;
+      const importedCount = result?.results?.imported || validData.length;
 
       setFileStepStatuses(prev => ({
         ...prev,
@@ -1306,11 +1376,23 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       }
     } catch (error: any) {
       console.error('File import error:', error);
-      toast.error(`Erro ao importar: ${error.message}`);
+      const errorMsg = error.message || 'Erro desconhecido na importação';
+      toast.error(`Erro ao importar: ${errorMsg}`);
+      
       setFileStepStatuses(prev => ({
         ...prev,
-        [stepId]: { ...prev[stepId], status: 'active' },
+        [stepId]: { status: 'error', errorMessage: errorMsg },
       }));
+
+      // Still activate next step so user can continue
+      const currentIndex = FILE_IMPORT_STEPS.findIndex(s => s.id === stepId);
+      if (currentIndex < FILE_IMPORT_STEPS.length - 1) {
+        const nextStep = FILE_IMPORT_STEPS[currentIndex + 1];
+        setFileStepStatuses(prev => ({
+          ...prev,
+          [nextStep.id]: { status: 'active' },
+        }));
+      }
     }
   }, [analysisResult, importData, currentTenant]);
 
@@ -1405,6 +1487,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   onSkip={() => handleSkipFileStep(step.id)}
                   isDisabled={false}
                   importedCount={fileStepStatuses[step.id]?.importedCount}
+                  errorMessage={fileStepStatuses[step.id]?.errorMessage}
                 />
               ))}
             </div>

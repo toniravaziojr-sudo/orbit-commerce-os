@@ -81,7 +81,7 @@ export interface ShopifyCustomer {
   note?: string;
   default_address?: ShopifyAddress;
   addresses?: ShopifyAddress[];
-  // CSV fields
+  // CSV fields - Standard
   'Email'?: string;
   'First Name'?: string;
   'Last Name'?: string;
@@ -89,6 +89,13 @@ export interface ShopifyCustomer {
   'Accepts Marketing'?: string;
   'Tags'?: string;
   'Note'?: string;
+  // CSV fields - Alternative formats
+  'Customer Email'?: string;
+  'E-mail'?: string;
+  'Nome'?: string;
+  'Nome Completo'?: string;
+  'Telefone'?: string;
+  'Celular'?: string;
 }
 
 export interface ShopifyAddress {
@@ -126,7 +133,7 @@ export interface ShopifyOrder {
   shipping_address?: ShopifyAddress;
   billing_address?: ShopifyAddress;
   note?: string;
-  // CSV fields
+  // CSV fields - Standard
   'Name'?: string;
   'Email'?: string;
   'Financial Status'?: string;
@@ -136,6 +143,19 @@ export interface ShopifyOrder {
   'Shipping'?: string;
   'Total'?: string;
   'Created at'?: string;
+  // CSV fields - Alternative formats
+  'Order Number'?: string;
+  'Número do Pedido'?: string;
+  'Pedido'?: string;
+  'Customer Email'?: string;
+  'E-mail'?: string;
+  'Status'?: string;
+  'Payment Status'?: string;
+  'Status Pagamento'?: string;
+  'Lineitem name'?: string;
+  'Lineitem quantity'?: string;
+  'Lineitem price'?: string;
+  'Lineitem sku'?: string;
 }
 
 export interface ShopifyLineItem {
@@ -233,13 +253,37 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
   };
 }
 
-export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustomer {
-  const email = raw.email || raw['Email'] || '';
+export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustomer | null {
+  // Try multiple email field variations
+  const email = (
+    raw.email || 
+    raw['Email'] || 
+    raw['Customer Email'] || 
+    raw['E-mail'] || 
+    ''
+  ).toString().trim().toLowerCase();
+  
+  // Validate email
+  if (!email || !email.includes('@')) {
+    console.warn('Skipping customer without valid email:', raw);
+    return null;
+  }
+  
   const firstName = raw.first_name || raw['First Name'] || '';
   const lastName = raw.last_name || raw['Last Name'] || '';
-  const fullName = `${firstName} ${lastName}`.trim() || 'Cliente';
-  const phone = raw.phone || raw['Phone'] || null;
-  const acceptsMarketing = raw.accepts_marketing ?? raw['Accepts Marketing']?.toLowerCase() === 'yes';
+  let fullName = `${firstName} ${lastName}`.trim();
+  
+  // Try alternative name fields
+  if (!fullName) {
+    fullName = raw['Nome'] || raw['Nome Completo'] || 'Cliente';
+  }
+  
+  // Try multiple phone field variations
+  const phone = raw.phone || raw['Phone'] || raw['Telefone'] || raw['Celular'] || null;
+  
+  const acceptsMarketing = raw.accepts_marketing ?? 
+    (raw['Accepts Marketing']?.toLowerCase() === 'yes' || raw['Accepts Marketing']?.toLowerCase() === 'true');
+  
   const tags = (raw.tags || raw['Tags'] || '').split(',').map(t => t.trim()).filter(Boolean);
   const note = raw.note || raw['Note'] || null;
   
@@ -283,31 +327,68 @@ export function normalizeShopifyAddress(raw: ShopifyAddress, isDefault: boolean 
   };
 }
 
-export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder {
-  const orderNumber = raw.name || raw['Name'] || `#${raw.order_number || Date.now()}`;
-  const email = raw.email || raw['Email'] || '';
+export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null {
+  // Try multiple order number field variations
+  const orderNumber = (
+    raw.name || 
+    raw['Name'] || 
+    raw['Order Number'] || 
+    raw['Número do Pedido'] || 
+    raw['Pedido'] ||
+    (raw.order_number ? `#${raw.order_number}` : null) ||
+    ''
+  ).toString();
   
-  const financialStatus = raw.financial_status || raw['Financial Status'] || 'pending';
+  if (!orderNumber) {
+    console.warn('Skipping order without order number:', raw);
+    return null;
+  }
+  
+  // Try multiple email field variations
+  const email = (
+    raw.email || 
+    raw['Email'] || 
+    raw['Customer Email'] || 
+    raw['E-mail'] || 
+    ''
+  ).toString().trim().toLowerCase();
+  
+  const financialStatus = raw.financial_status || raw['Financial Status'] || raw['Payment Status'] || raw['Status Pagamento'] || 'pending';
   const fulfillmentStatus = raw.fulfillment_status || raw['Fulfillment Status'] || null;
   
-  const subtotal = parseFloat(raw.subtotal_price?.toString() || raw['Subtotal'] || '0');
-  const discountTotal = parseFloat(raw.total_discounts?.toString() || raw['Discount Amount'] || '0');
+  const subtotal = parseFloat(raw.subtotal_price?.toString() || raw['Subtotal'] || '0') || 0;
+  const discountTotal = parseFloat(raw.total_discounts?.toString() || raw['Discount Amount'] || '0') || 0;
   const shippingTotal = parseFloat(
     raw.total_shipping_price_set?.shop_money?.amount || raw['Shipping'] || '0'
-  );
-  const total = parseFloat(raw.total_price?.toString() || raw['Total'] || '0');
+  ) || 0;
+  const total = parseFloat(raw.total_price?.toString() || raw['Total'] || '0') || subtotal;
   
-  const items: NormalizedOrderItem[] = (raw.line_items || []).map(item => ({
-    product_name: item.title || 'Produto',
-    product_sku: item.sku || null,
-    variant_name: item.variant_title || null,
-    quantity: item.quantity || 1,
-    unit_price: parseFloat(item.price?.toString() || '0'),
-    total_price: parseFloat(item.price?.toString() || '0') * (item.quantity || 1),
-  }));
+  // Handle line items from CSV format (single line per item)
+  let items: NormalizedOrderItem[] = [];
+  
+  if (raw.line_items && Array.isArray(raw.line_items) && raw.line_items.length > 0) {
+    items = raw.line_items.map(item => ({
+      product_name: item.title || 'Produto',
+      product_sku: item.sku || null,
+      variant_name: item.variant_title || null,
+      quantity: item.quantity || 1,
+      unit_price: parseFloat(item.price?.toString() || '0'),
+      total_price: parseFloat(item.price?.toString() || '0') * (item.quantity || 1),
+    }));
+  } else if (raw['Lineitem name']) {
+    // CSV format with lineitem fields
+    items = [{
+      product_name: raw['Lineitem name'] || 'Produto',
+      product_sku: raw['Lineitem sku'] || null,
+      variant_name: null,
+      quantity: parseInt(raw['Lineitem quantity'] || '1', 10),
+      unit_price: parseFloat(raw['Lineitem price'] || '0'),
+      total_price: parseFloat(raw['Lineitem price'] || '0') * parseInt(raw['Lineitem quantity'] || '1', 10),
+    }];
+  }
   
   return {
-    order_number: orderNumber.replace('#', ''),
+    order_number: orderNumber.replace(/^#/, ''),
     status: mapShopifyStatus(financialStatus, fulfillmentStatus),
     payment_status: mapShopifyPaymentStatus(financialStatus),
     payment_method: null,

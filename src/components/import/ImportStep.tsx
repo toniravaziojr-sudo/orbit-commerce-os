@@ -2,7 +2,7 @@ import { useState, useCallback, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CheckCircle2, Circle, SkipForward, Loader2, Upload, Globe } from 'lucide-react';
+import { CheckCircle2, Circle, SkipForward, Loader2, Upload, Globe, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface ImportStepConfig {
@@ -18,11 +18,12 @@ export interface ImportStepConfig {
 
 interface ImportStepProps {
   step: ImportStepConfig;
-  status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing';
+  status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing' | 'error';
   onImport: (file?: File) => void;
   onSkip: () => void;
   isDisabled?: boolean;
   importedCount?: number;
+  errorMessage?: string;
   children?: ReactNode;
 }
 
@@ -33,6 +34,7 @@ export function ImportStep({
   onSkip, 
   isDisabled,
   importedCount,
+  errorMessage,
 }: ImportStepProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -44,6 +46,8 @@ export function ImportStep({
         return <SkipForward className="h-6 w-6 text-muted-foreground" />;
       case 'processing':
         return <Loader2 className="h-6 w-6 text-primary animate-spin" />;
+      case 'error':
+        return <AlertTriangle className="h-6 w-6 text-destructive" />;
       case 'active':
         return <Circle className="h-6 w-6 text-primary fill-primary/20" />;
       default:
@@ -61,6 +65,8 @@ export function ImportStep({
         return 'Pulado';
       case 'processing':
         return 'Importando...';
+      case 'error':
+        return errorMessage || 'Erro na importação';
       default:
         return '';
     }
@@ -87,6 +93,7 @@ export function ImportStep({
         "border rounded-lg p-4 transition-all",
         status === 'active' && "border-primary bg-primary/5",
         status === 'completed' && "border-primary/50 bg-primary/5",
+        status === 'error' && "border-destructive/50 bg-destructive/5",
         status === 'skipped' && "opacity-60",
         isDisabled && "opacity-50 cursor-not-allowed"
       )}
@@ -125,7 +132,12 @@ export function ImportStep({
           <p className="text-sm text-muted-foreground">{step.description}</p>
           
           {status !== 'pending' && status !== 'active' && (
-            <p className="text-xs text-muted-foreground mt-1">{getStatusText()}</p>
+            <p className={cn(
+              "text-xs mt-1",
+              status === 'error' ? "text-destructive" : "text-muted-foreground"
+            )}>
+              {getStatusText()}
+            </p>
           )}
 
           {status === 'active' && (
