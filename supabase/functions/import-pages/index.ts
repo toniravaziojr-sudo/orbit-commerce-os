@@ -744,11 +744,47 @@ async function handleMultiPageImport(request: MultiPageImport): Promise<Response
         continue;
       }
       
-      // Fetch the page content
+      // Fetch the page content and check if it's a simple text page
       let pageContent: any = { type: 'root', children: [] };
+      let shouldSkipPage = false;
       
       try {
         const { html, title } = await fetchHtml(fullUrl);
+        
+        // === FILTER: Skip pages with forms or complex functionality ===
+        const hasForm = /<form\s/i.test(html);
+        const hasIframe = /<iframe\s/i.test(html) && !/<iframe[^>]*youtube/i.test(html); // Allow YouTube
+        const hasComplexScript = /(?:payment|checkout|cart|login|register|signup|subscribe|newsletter)/i.test(html);
+        const hasFormInputs = (html.match(/<input\s/gi) || []).length > 3; // More than 3 inputs = likely a form
+        const hasTextarea = /<textarea\s/i.test(html);
+        const hasSelect = (html.match(/<select\s/gi) || []).length > 2; // More than 2 selects = complex form
+        
+        // Check if it's a functional page (contact form, login, etc)
+        const functionalPageKeywords = [
+          'formulario', 'form', 'contact-form', 'wpcf7', 'ninja-form', 'gravity-form',
+          'login', 'cadastro', 'register', 'signup', 'assinatura', 'subscription',
+          'checkout', 'carrinho', 'cart', 'payment', 'pagamento',
+          'minha-conta', 'my-account', 'account', 'dashboard',
+          'wishlist', 'lista-de-desejos', 'favoritos',
+          'compare', 'comparar', 'comparacao',
+          'tracking', 'rastreio', 'rastrear', 'rastreamento',
+        ];
+        
+        const hasFunctionalKeyword = functionalPageKeywords.some(kw => 
+          html.toLowerCase().includes(kw) || page.slug.toLowerCase().includes(kw)
+        );
+        
+        if (hasForm || hasIframe || (hasComplexScript && hasFormInputs) || hasTextarea || hasSelect || hasFunctionalKeyword) {
+          console.log(`[IMPORT] Skipping functional page ${page.title}: form=${hasForm}, iframe=${hasIframe}, complex=${hasComplexScript}`);
+          results.skipped++;
+          results.details.push({ 
+            title: page.title, 
+            status: 'skipped', 
+            reason: 'Página com formulário ou funcionalidade complexa' 
+          });
+          continue;
+        }
+        
         const adapter = detectAndGetAdapter(html, fullUrl);
         const cleanedHtml = deepCleanHtml(cleanHtmlWithAdapter(html, adapter));
         const mainContent = extractMainContent(cleanedHtml);
@@ -783,6 +819,8 @@ async function handleMultiPageImport(request: MultiPageImport): Promise<Response
         console.warn(`[IMPORT] Failed to fetch content for ${page.title}:`, fetchError);
         // Create empty page with just title
       }
+      
+      if (shouldSkipPage) continue;
       
       // Insert the page
       const { error: insertError } = await supabase

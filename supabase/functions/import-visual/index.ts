@@ -53,6 +53,26 @@ interface ExtractedInstitutionalPage {
   source: 'footer' | 'header' | 'sitemap' | 'global';
 }
 
+interface ContactInfo {
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  address?: string;
+  cnpj?: string;
+  legalName?: string;
+  supportHours?: string;
+}
+
+interface SocialLinks {
+  facebook?: string;
+  instagram?: string;
+  tiktok?: string;
+  youtube?: string;
+  twitter?: string;
+  linkedin?: string;
+  pinterest?: string;
+}
+
 interface VisualExtractionResult {
   success: boolean;
   heroBanners: ExtractedBanner[];
@@ -69,6 +89,8 @@ interface VisualExtractionResult {
     secondaryColor?: string;
     accentColor?: string;
   };
+  contactInfo: ContactInfo;
+  socialLinks: SocialLinks;
   unsupportedSections: string[];
   error?: string;
 }
@@ -754,6 +776,8 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     sections: [],
     institutionalPages: [],
     branding: {},
+    contactInfo: {},
+    socialLinks: {},
     unsupportedSections: [],
   };
 
@@ -793,6 +817,10 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
     // Extract branding
     result.branding = extractBranding(html, baseUrl);
     
+    // Extract contact info and social links
+    result.contactInfo = extractContactInfo(html);
+    result.socialLinks = extractSocialLinks(html);
+    
     // Extract institutional pages from footer
     result.institutionalPages = extractInstitutionalPages(html, baseUrl, platform);
 
@@ -805,6 +833,8 @@ function extractVisualElements(html: string, url: string, platform?: string): Vi
       videos: result.videos.length,
       sections: result.sections.length,
       institutionalPages: result.institutionalPages.length,
+      hasContactInfo: Object.keys(result.contactInfo).length > 0,
+      hasSocialLinks: Object.keys(result.socialLinks).length > 0,
     });
   } catch (error) {
     console.error('Error during extraction:', error);
@@ -1845,6 +1875,236 @@ function extractSections(html: string, platform?: string): ExtractedSection[] {
   return sections;
 }
 
+// =====================================================
+// EXTRACT CONTACT INFO (phone, email, address, CNPJ, etc)
+// =====================================================
+function extractContactInfo(html: string): ContactInfo {
+  const contact: ContactInfo = {};
+  
+  // === PHONE EXTRACTION ===
+  // Brazilian phone patterns
+  const phonePatterns = [
+    // With area code in parentheses: (11) 3000-0000 or (11) 99999-9999
+    /\(?0?(\d{2})\)?\s*(\d{4,5})[-.\s]?(\d{4})/g,
+    // WhatsApp links
+    /wa\.me\/(\d{10,13})/gi,
+    /api\.whatsapp\.com\/send\?phone=(\d{10,13})/gi,
+    // Tel links
+    /tel:[\s+]*([\d\s\-\(\)]+)/gi,
+    // Formatted with country code
+    /\+55\s*\(?(\d{2})\)?\s*(\d{4,5})[-.\s]?(\d{4})/g,
+  ];
+  
+  // Look for phone in footer or contact sections first
+  const footerHtml = extractFooterHtml(html);
+  const contactSectionHtml = extractContactSectionHtml(html);
+  const searchHtml = footerHtml + contactSectionHtml;
+  
+  for (const pattern of phonePatterns) {
+    const match = pattern.exec(searchHtml || html);
+    if (match) {
+      // Normalize phone number
+      const rawPhone = match[0].replace(/[^\d]/g, '');
+      if (rawPhone.length >= 10) {
+        if (!contact.phone) {
+          // Format as (XX) XXXXX-XXXX
+          if (rawPhone.length === 10) {
+            contact.phone = `(${rawPhone.slice(0,2)}) ${rawPhone.slice(2,6)}-${rawPhone.slice(6)}`;
+          } else if (rawPhone.length === 11) {
+            contact.phone = `(${rawPhone.slice(0,2)}) ${rawPhone.slice(2,7)}-${rawPhone.slice(7)}`;
+          } else if (rawPhone.length >= 12 && rawPhone.startsWith('55')) {
+            const phone = rawPhone.slice(2);
+            contact.phone = `(${phone.slice(0,2)}) ${phone.slice(2,7)}-${phone.slice(7)}`;
+          }
+        }
+      }
+    }
+  }
+  
+  // === WHATSAPP EXTRACTION ===
+  const whatsappPatterns = [
+    /wa\.me\/(\d{10,13})/gi,
+    /api\.whatsapp\.com\/send\?phone=(\d{10,13})/gi,
+    /whatsapp[^>]*href=["'][^"']*(\d{10,13})/gi,
+  ];
+  
+  for (const pattern of whatsappPatterns) {
+    const match = pattern.exec(html);
+    if (match && match[1]) {
+      contact.whatsapp = match[1];
+      break;
+    }
+  }
+  
+  // === EMAIL EXTRACTION ===
+  const emailPatterns = [
+    /mailto:([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/gi,
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(?:com|br|net|org|info|io)/gi,
+  ];
+  
+  for (const pattern of emailPatterns) {
+    const match = pattern.exec(searchHtml || html);
+    if (match) {
+      const email = match[1] || match[0];
+      // Skip common non-contact emails
+      if (!email.includes('noreply') && !email.includes('no-reply') && 
+          !email.includes('example') && !email.includes('teste')) {
+        contact.email = email.toLowerCase();
+        break;
+      }
+    }
+  }
+  
+  // === ADDRESS EXTRACTION ===
+  // Look for typical address patterns
+  const addressPatterns = [
+    // Street with number: Rua X, 123
+    /(?:Rua|Av\.?|Avenida|R\.)\s+[^,<]+,?\s*(?:n[º°]?\s*)?\d+[^<]{0,100}(?:CEP|cep)?[:\s]*\d{5}[-.]?\d{3}/gi,
+    // Just CEP with some context
+    /<[^>]*>\s*(?:CEP|Cep)[:\s]*(\d{5}[-.]?\d{3})\s*<\/[^>]*>/gi,
+  ];
+  
+  for (const pattern of addressPatterns) {
+    const match = pattern.exec(searchHtml || html);
+    if (match) {
+      let address = match[0].replace(/<[^>]*>/g, '').trim();
+      if (address.length > 10 && address.length < 200) {
+        contact.address = address;
+        break;
+      }
+    }
+  }
+  
+  // === CNPJ EXTRACTION ===
+  const cnpjPattern = /\d{2}[.\s]?\d{3}[.\s]?\d{3}[\/\s]?\d{4}[-.\s]?\d{2}/g;
+  const cnpjMatch = cnpjPattern.exec(searchHtml || html);
+  if (cnpjMatch) {
+    const cnpj = cnpjMatch[0].replace(/[^\d]/g, '');
+    if (cnpj.length === 14) {
+      contact.cnpj = cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    }
+  }
+  
+  // === SUPPORT HOURS EXTRACTION ===
+  const hoursPatterns = [
+    /(?:hor[aá]rio|atendimento)[^<]*?(\d{1,2}h?\s*[àa-]\s*\d{1,2}h?)/gi,
+    /(?:segunda|seg)[^<]*?(?:sexta|sex)[^<]*(\d{1,2}h?\s*[àa-]\s*\d{1,2}h?)/gi,
+    /(\d{1,2}h\s*[àa-]\s*\d{1,2}h)/gi,
+  ];
+  
+  for (const pattern of hoursPatterns) {
+    const match = pattern.exec(searchHtml || html);
+    if (match) {
+      contact.supportHours = match[0].replace(/<[^>]*>/g, '').trim().slice(0, 100);
+      break;
+    }
+  }
+  
+  console.log('Extracted contact info:', contact);
+  return contact;
+}
+
+// Helper to extract footer HTML
+function extractFooterHtml(html: string): string {
+  const footerMatch = /<footer[^>]*>([\s\S]*?)<\/footer>/gi.exec(html);
+  return footerMatch ? footerMatch[1] : '';
+}
+
+// Helper to extract contact section HTML
+function extractContactSectionHtml(html: string): string {
+  const patterns = [
+    /<(?:section|div)[^>]*class="[^"]*contact[^"]*"[^>]*>([\s\S]*?)<\/(?:section|div)>/gi,
+    /<(?:section|div)[^>]*id="[^"]*contact[^"]*"[^>]*>([\s\S]*?)<\/(?:section|div)>/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = pattern.exec(html);
+    if (match) return match[1];
+  }
+  return '';
+}
+
+// =====================================================
+// EXTRACT SOCIAL LINKS (Facebook, Instagram, TikTok, YouTube, etc)
+// =====================================================
+function extractSocialLinks(html: string): SocialLinks {
+  const social: SocialLinks = {};
+  
+  // Focus on footer and header for social links
+  const footerHtml = extractFooterHtml(html);
+  const searchHtml = footerHtml || html;
+  
+  // === FACEBOOK ===
+  const facebookPatterns = [
+    /href=["'](https?:\/\/(?:www\.)?facebook\.com\/[^"'?#]+)/gi,
+    /href=["'](https?:\/\/(?:www\.)?fb\.com\/[^"'?#]+)/gi,
+  ];
+  for (const pattern of facebookPatterns) {
+    const match = pattern.exec(searchHtml);
+    if (match && match[1]) {
+      social.facebook = match[1];
+      break;
+    }
+  }
+  
+  // === INSTAGRAM ===
+  const instagramPattern = /href=["'](https?:\/\/(?:www\.)?instagram\.com\/[^"'?#]+)/gi;
+  const igMatch = instagramPattern.exec(searchHtml);
+  if (igMatch && igMatch[1]) {
+    social.instagram = igMatch[1];
+  }
+  
+  // === TIKTOK ===
+  const tiktokPattern = /href=["'](https?:\/\/(?:www\.)?tiktok\.com\/@?[^"'?#]+)/gi;
+  const ttMatch = tiktokPattern.exec(searchHtml);
+  if (ttMatch && ttMatch[1]) {
+    social.tiktok = ttMatch[1];
+  }
+  
+  // === YOUTUBE ===
+  const youtubePatterns = [
+    /href=["'](https?:\/\/(?:www\.)?youtube\.com\/(?:c\/|channel\/|user\/|@)?[^"'?#]+)/gi,
+    /href=["'](https?:\/\/(?:www\.)?youtu\.be\/[^"'?#]+)/gi,
+  ];
+  for (const pattern of youtubePatterns) {
+    const match = pattern.exec(searchHtml);
+    if (match && match[1]) {
+      social.youtube = match[1];
+      break;
+    }
+  }
+  
+  // === TWITTER / X ===
+  const twitterPatterns = [
+    /href=["'](https?:\/\/(?:www\.)?twitter\.com\/[^"'?#]+)/gi,
+    /href=["'](https?:\/\/(?:www\.)?x\.com\/[^"'?#]+)/gi,
+  ];
+  for (const pattern of twitterPatterns) {
+    const match = pattern.exec(searchHtml);
+    if (match && match[1]) {
+      social.twitter = match[1];
+      break;
+    }
+  }
+  
+  // === LINKEDIN ===
+  const linkedinPattern = /href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company\/|in\/)?[^"'?#]+)/gi;
+  const liMatch = linkedinPattern.exec(searchHtml);
+  if (liMatch && liMatch[1]) {
+    social.linkedin = liMatch[1];
+  }
+  
+  // === PINTEREST ===
+  const pinterestPattern = /href=["'](https?:\/\/(?:www\.)?(?:br\.)?pinterest\.com\/[^"'?#]+)/gi;
+  const pinMatch = pinterestPattern.exec(searchHtml);
+  if (pinMatch && pinMatch[1]) {
+    social.pinterest = pinMatch[1];
+  }
+  
+  console.log('Extracted social links:', social);
+  return social;
+}
+
 function extractBranding(html: string, baseUrl: string): VisualExtractionResult['branding'] {
   const branding: VisualExtractionResult['branding'] = {};
 
@@ -2063,14 +2323,23 @@ function extractInstitutionalPages(html: string, baseUrl: string, platform?: str
   const addedSlugs = new Set<string>();
   const processedUrls = new Set<string>();
 
-  // Core routes to SKIP (not institutional pages)
+  // Core routes to SKIP (not institutional pages or pages with forms/functions)
   const skipPatterns = [
+    // E-commerce routes
     '/collections', '/products', '/cart', '/checkout', '/account', '/login',
-    '/search', '/register', '/wishlist', 
+    '/search', '/register', '/wishlist', '/compare', '/comparar',
+    // Tracking/functional routes
+    '/rastreio', '/rastrear', '/rastreamento', '/tracking', '/track',
+    // Auth routes
+    '/minha-conta', '/my-account', '/signin', '/signup', '/cadastro', '/newsletter',
+    // Contact forms (we want text pages, not forms)
+    '/contato', '/contact', '/fale-conosco', '/formulario',
+    // Technical/assets
     'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', '/cdn/', '/apps/',
+    '/assets/', '/files/', '.jpg', '.png', '.gif', '.webp', '.svg', '.pdf',
+    // Social media
     'facebook.com', 'instagram.com', 'twitter.com', 'youtube.com', 'linkedin.com', 
     'pinterest.com', 'tiktok.com', 'wa.me', 'api.whatsapp.com', '/blogs/',
-    '/assets/', '/files/', '.jpg', '.png', '.gif', '.webp', '.svg', '.pdf',
   ];
 
   const shouldSkip = (href: string): boolean => {
