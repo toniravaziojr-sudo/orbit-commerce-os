@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, FileText } from 'lucide-react';
 import { PlatformSelector } from './PlatformSelector';
 import { ModuleSelector } from './ModuleSelector';
 import { DataUploader } from './DataUploader';
 import { DataPreview } from './DataPreview';
 import { ImportProgress } from './ImportProgress';
 import { ImportServiceStatus } from './ImportServiceStatus';
+import { ImportReportDialog, ImportReportData, ImportReportItem } from './ImportReportDialog';
 import { useImportJobs } from '@/hooks/useImportJobs';
 import { useImportService } from '@/hooks/useImportService';
 import { getAdapter } from '@/lib/import/platforms';
@@ -30,6 +31,11 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
   const [stats, setStats] = useState<Record<string, any>>({});
   const [errors, setErrors] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Phase 2: Report tracking
+  const [importReports, setImportReports] = useState<Record<string, ImportReportData>>({});
+  const [selectedReportModule, setSelectedReportModule] = useState<string | null>(null);
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [serviceOnline, setServiceOnline] = useState(false);
 
   const { currentTenant } = useAuth();
@@ -95,6 +101,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
     setStep('importing');
     setIsProcessing(true);
     setErrors([]);
+    setImportReports({});
 
     try {
       const job = await createJob.mutateAsync({ platform, modules });
@@ -102,6 +109,7 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       const allErrors: any[] = [];
       const allStats: Record<string, any> = {};
       const importProgress: Record<string, any> = {};
+      const moduleReports: Record<string, ImportReportData> = {};
 
       // Build category map if importing products with categories
       let categoryMap: Record<string, string> | undefined;
@@ -116,6 +124,13 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
 
         importProgress[module] = { current: 0, total: data.length, status: 'processing' };
         setProgress({ ...importProgress });
+
+        // Initialize report for this module
+        const moduleItems: ImportReportItem[] = data.map((item, idx) => ({
+          index: idx,
+          identifier: item.name || item.email || item.order_number || item.slug || item.sku || `item-${idx}`,
+          status: 'imported' as const, // Will be updated as we process
+        }));
 
         try {
           const result = await importWithBatches(
@@ -135,8 +150,15 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
               };
               setProgress({ ...importProgress });
               
-              // Collect errors as they come in
+              // Update item statuses based on errors
               if (batchProgress.errors.length > 0) {
+                batchProgress.errors.forEach(err => {
+                  if (moduleItems[err.index]) {
+                    moduleItems[err.index].status = 'error';
+                    moduleItems[err.index].error = err.error;
+                  }
+                });
+                
                 allErrors.push(...batchProgress.errors.filter(e => 
                   !allErrors.some(existing => 
                     existing.identifier === e.identifier && existing.error === e.error
@@ -147,10 +169,28 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
             }
           );
 
-          allStats[module] = {
-            imported: result.results.reduce((sum, r) => sum + r.imported + r.updated, 0),
-            skipped: result.results.reduce((sum, r) => sum + r.skipped, 0),
-            failed: result.results.reduce((sum, r) => sum + r.failed, 0),
+          // Calculate stats from batch results
+          let imported = 0, updated = 0, skipped = 0, failed = 0;
+          result.results.forEach(r => {
+            imported += r.imported || 0;
+            updated += r.updated || 0;
+            skipped += r.skipped || 0;
+            failed += r.failed || 0;
+          });
+
+          allStats[module] = { imported: imported + updated, skipped, failed };
+
+          // Build final report for this module
+          moduleReports[module] = {
+            module,
+            platform,
+            totalItems: data.length,
+            imported,
+            updated,
+            skipped,
+            failed,
+            items: moduleItems,
+            completedAt: new Date(),
           };
 
           importProgress[module] = { 
@@ -162,10 +202,29 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
           console.error(`[ImportWizard] Module ${module} failed:`, error);
           importProgress[module] = { current: 0, total: data.length, status: 'failed' };
           allErrors.push({ item: module, error: error.message });
+          
+          // Mark all items as error
+          moduleItems.forEach(item => {
+            item.status = 'error';
+            item.error = error.message;
+          });
+          
+          moduleReports[module] = {
+            module,
+            platform,
+            totalItems: data.length,
+            imported: 0,
+            updated: 0,
+            skipped: 0,
+            failed: data.length,
+            items: moduleItems,
+            completedAt: new Date(),
+          };
         }
 
         setProgress({ ...importProgress });
         setStats({ ...allStats });
+        setImportReports({ ...moduleReports });
       }
 
       setErrors(allErrors);
@@ -190,6 +249,11 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
       setIsProcessing(false);
     }
   }, [platform, modules, normalizedData, currentTenant?.id, createJob, updateJobStatus, checkHealth, importWithBatches]);
+
+  const handleOpenReport = useCallback((module: string) => {
+    setSelectedReportModule(module);
+    setReportDialogOpen(true);
+  }, []);
 
   const canProceed = () => {
     switch (step) {
@@ -266,6 +330,8 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
             stats={stats}
             status={step === 'importing' ? 'processing' : 'completed'}
             errors={errors}
+            onViewReport={step === 'complete' ? handleOpenReport : undefined}
+            hasReports={Object.keys(importReports).length > 0}
           />
         )}
       </CardContent>
@@ -296,6 +362,13 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
           </Button>
         )}
       </CardFooter>
+
+      {/* Report Dialog */}
+      <ImportReportDialog
+        open={reportDialogOpen}
+        onOpenChange={setReportDialogOpen}
+        report={selectedReportModule ? importReports[selectedReportModule] : null}
+      />
     </Card>
   );
 }

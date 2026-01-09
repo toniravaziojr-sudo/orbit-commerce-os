@@ -1,7 +1,8 @@
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, AlertTriangle, FileText } from 'lucide-react';
 
 interface ImportProgressProps {
   modules: string[];
@@ -9,6 +10,8 @@ interface ImportProgressProps {
   stats: Record<string, { imported: number; skipped: number; failed: number }>;
   status: string;
   errors: any[];
+  onViewReport?: (module: string) => void;
+  hasReports?: boolean;
 }
 
 const moduleLabels: Record<string, string> = {
@@ -18,7 +21,7 @@ const moduleLabels: Record<string, string> = {
   orders: 'Pedidos',
 };
 
-export function ImportProgress({ modules, progress, stats, status, errors }: ImportProgressProps) {
+export function ImportProgress({ modules, progress, stats, status, errors, onViewReport, hasReports }: ImportProgressProps) {
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed';
   const isProcessing = status === 'processing';
@@ -68,19 +71,32 @@ export function ImportProgress({ modules, progress, stats, status, errors }: Imp
                 )}
 
                 {moduleStats && (
-                  <div className="flex gap-2 mt-2">
-                    <Badge variant="secondary" className="bg-green-500/10 text-green-600">
-                      {moduleStats.imported} importados
-                    </Badge>
-                    {moduleStats.skipped > 0 && (
-                      <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">
-                        {moduleStats.skipped} ignorados
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Badge variant="secondary" className="bg-green-500/10 text-green-600">
+                        {moduleStats.imported} importados
                       </Badge>
-                    )}
-                    {moduleStats.failed > 0 && (
-                      <Badge variant="secondary" className="bg-red-500/10 text-red-600">
-                        {moduleStats.failed} falhas
-                      </Badge>
+                      {moduleStats.skipped > 0 && (
+                        <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-600">
+                          {moduleStats.skipped} ignorados
+                        </Badge>
+                      )}
+                      {moduleStats.failed > 0 && (
+                        <Badge variant="secondary" className="bg-red-500/10 text-red-600">
+                          {moduleStats.failed} falhas
+                        </Badge>
+                      )}
+                    </div>
+                    {hasReports && onViewReport && moduleProgress?.status !== 'processing' && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => onViewReport(module)}
+                        className="text-xs"
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        Ver Relatório
+                      </Button>
                     )}
                   </div>
                 )}
