@@ -35,7 +35,8 @@ import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SL
 
 const productSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
-  sku: z.string().min(1, 'SKU é obrigatório').max(100),
+  sku: z.string().min(1, 'SKU é obrigatório').max(100)
+    .transform(val => val.replace(/['"]/g, '').trim()),
   slug: z.string().min(1, 'Slug é obrigatório').max(200)
     .refine(
       (slug) => validateSlugFormat(slug).isValid,
@@ -56,8 +57,10 @@ const productSchema = z.object({
   width: z.coerce.number().min(0).nullable().optional(),
   height: z.coerce.number().min(0).nullable().optional(),
   depth: z.coerce.number().min(0).nullable().optional(),
-  gtin: z.string().max(50).nullable().optional(),
-  ncm: z.string().max(20).nullable().optional(),
+  gtin: z.string().max(50).nullable().optional()
+    .transform(val => val ? val.replace(/[^\d]/g, '') : val),
+  ncm: z.string().max(20).nullable().optional()
+    .transform(val => val ? val.replace(/[^\d]/g, '') : val),
   seo_title: z.string().max(70).nullable().optional(),
   seo_description: z.string().max(160).nullable().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
@@ -272,7 +275,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormItem>
                           <FormLabel>SKU *</FormLabel>
                           <FormControl>
-                            <Input {...field} placeholder="Ex: CAM-BAS-001" />
+                            <Input 
+                              {...field} 
+                              placeholder="Ex: CAM-BAS-001"
+                              onChange={(e) => {
+                                // Remove special chars like quotes
+                                const cleaned = e.target.value.replace(/['"]/g, '');
+                                field.onChange(cleaned);
+                              }}
+                            />
                           </FormControl>
                           <FormDescription>Código único do produto</FormDescription>
                           <FormMessage />
@@ -514,10 +525,20 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormItem>
                           <FormLabel>GTIN/EAN (Código de Barras)</FormLabel>
                           <FormControl>
-                            <Input {...field} value={field.value ?? ''} />
+                            <Input 
+                              {...field} 
+                              value={field.value ?? ''} 
+                              placeholder="Apenas números"
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                // Allow only numbers
+                                const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                field.onChange(cleaned);
+                              }}
+                            />
                           </FormControl>
                           <FormDescription>
-                            Código de barras internacional do produto
+                            Código de barras internacional do produto (apenas números)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -531,10 +552,20 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormItem>
                           <FormLabel>NCM</FormLabel>
                           <FormControl>
-                            <Input {...field} value={field.value ?? ''} />
+                            <Input 
+                              {...field} 
+                              value={field.value ?? ''} 
+                              placeholder="Apenas números"
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                // Allow only numbers
+                                const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                field.onChange(cleaned);
+                              }}
+                            />
                           </FormControl>
                           <FormDescription>
-                            Nomenclatura Comum do Mercosul
+                            Nomenclatura Comum do Mercosul (apenas números)
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

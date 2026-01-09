@@ -13,6 +13,14 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
+import { 
+  stripHtmlToText, 
+  extractNumericOnly, 
+  normalizePhone, 
+  normalizeCpfCnpj, 
+  normalizeGender 
+} from '../utils';
+
 // Campos da Yampi (como vêm da API/CSV)
 export interface YampiProduct {
   id?: number;
@@ -205,14 +213,38 @@ export interface YampiOrderItem {
 export function normalizeYampiProduct(raw: YampiProduct): NormalizedProduct {
   const name = raw.name || raw['Nome'] || 'Produto sem nome';
   const slug = raw.slug || slugify(name);
-  const description = raw.description || raw['Descrição'] || null;
-  const shortDescription = raw.short_description || raw['Descrição Curta'] || null;
+  
+  // Get raw descriptions from source
+  const rawDescription = raw.description || raw['Descrição'] || null;
+  const rawShortDescription = raw.short_description || raw['Descrição Curta'] || null;
+  
+  // Convert HTML to plain text
+  // If there's no short_description, use the full description converted to plain text
+  // If there IS short_description, keep both (short as-is, full converted)
+  const descriptionPlain = stripHtmlToText(rawDescription);
+  const shortDescriptionPlain = stripHtmlToText(rawShortDescription);
+  
+  // Final description: if source only has one field, use it as the full description
+  const description = descriptionPlain;
+  const shortDescription = shortDescriptionPlain;
   
   const price = raw.price ?? parseFloat(raw['Preço']?.replace(',', '.') || '0');
   const priceCompare = raw.price_compare ?? parseFloat(raw['Preço Comparativo']?.replace(',', '.') || '0');
   const costPrice = raw.cost !== undefined ? raw.cost : (parseFloat(raw['Custo']?.replace(',', '.') || '0') || null);
   
-  const sku = raw.sku || raw['SKU'] || null;
+  // SKU can be alphanumeric, just clean special chars
+  const rawSku = raw.sku || raw['SKU'] || null;
+  const sku = rawSku ? rawSku.replace(/['"]/g, '').trim() : null;
+  
+  // Get barcode/GTIN from SKU data (Yampi stores EAN in SKU variants)
+  let barcode: string | null = null;
+  if (raw.skus && Array.isArray(raw.skus) && raw.skus.length > 0) {
+    const firstSkuEan = raw.skus[0]?.ean;
+    if (firstSkuEan) {
+      barcode = extractNumericOnly(firstSkuEan);
+    }
+  }
+  
   const weight = raw.weight !== undefined ? raw.weight : (parseFloat(raw['Peso']?.replace(',', '.') || '0') || null);
   const width = raw.width !== undefined ? raw.width : (parseFloat(raw['Largura']?.replace(',', '.') || '0') || null);
   const height = raw.height !== undefined ? raw.height : (parseFloat(raw['Altura']?.replace(',', '.') || '0') || null);
@@ -286,7 +318,7 @@ export function normalizeYampiProduct(raw: YampiProduct): NormalizedProduct {
     compare_at_price: priceCompare > price ? priceCompare : null,
     cost_price: costPrice,
     sku,
-    barcode: null,
+    barcode,
     weight,
     width,
     height,
@@ -431,27 +463,6 @@ function slugify(text: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-function normalizePhone(phone: string | null): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length < 10) return null;
-  return digits;
-}
-
-function normalizeCpfCnpj(value: string | null): string | null {
-  if (!value) return null;
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== 11 && digits.length !== 14) return null;
-  return digits;
-}
-
-function normalizeGender(gender: string | null): string | null {
-  if (!gender) return null;
-  const g = gender.toLowerCase();
-  if (g === 'm' || g === 'masculino' || g === 'male') return 'male';
-  if (g === 'f' || g === 'feminino' || g === 'female') return 'female';
-  return null;
-}
 
 function mapYampiStatus(status: string): NormalizedOrder['status'] {
   const s = status.toLowerCase();

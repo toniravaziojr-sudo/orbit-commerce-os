@@ -13,6 +13,8 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
+import { stripHtmlToText, cleanSku, extractNumericOnly } from '../utils';
+
 // Campos do Shopify (como vêm da API/CSV) - MAPEAMENTO COMPLETO
 export interface ShopifyProduct {
   // API fields
@@ -314,13 +316,14 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
     'Nome do Produto', 'Product Name', 'product_name'
   ) || '';
   
-  // ===== DESCRIÇÃO =====
-  const description = getField(raw, 
+  // ===== DESCRIÇÃO (converter HTML para texto puro) =====
+  const rawDescription = getField(raw, 
     'body_html', 'Body (HTML)', 
     'description', 'Description', 
     'descrição', 'Descrição',
     'Descrição do Produto'
   ) || null;
+  const description = stripHtmlToText(rawDescription);
   
   // ===== PREÇO (CRÍTICO) =====
   const rawPrice = getField(raw,
@@ -343,20 +346,22 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
     'Custo', 'custo'
   ) || '0') || null;
   
-  // ===== SKU =====
-  const sku = getField(raw,
+  // ===== SKU (remover caracteres especiais) =====
+  const rawSku = getField(raw,
     'sku', 'SKU', 'Sku',
     'Variant SKU', 'variant_sku',
     'codigo', 'Codigo', 'Código', 'código',
     'code', 'Code', 'product_code'
   ) || (raw.variants?.[0]?.sku) || null;
+  const sku = cleanSku(rawSku);
   
-  // ===== BARCODE/GTIN =====
-  const barcode = getField(raw,
+  // ===== BARCODE/GTIN (apenas números) =====
+  const rawBarcode = getField(raw,
     'barcode', 'Barcode', 
     'Variant Barcode', 'variant_barcode',
     'gtin', 'GTIN', 'EAN', 'ean'
   ) || null;
+  const barcode = extractNumericOnly(rawBarcode);
   
   // ===== PESO =====
   const rawWeight = getField(raw,
