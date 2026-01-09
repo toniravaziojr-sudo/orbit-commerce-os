@@ -378,19 +378,23 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
     .eq('email', email)
     .maybeSingle();
 
+  const customerData = {
+    full_name: customer.full_name || 'Cliente',
+    phone: customer.phone || null,
+    cpf: customer.cpf || null,
+    birth_date: customer.birth_date || null,
+    gender: customer.gender || null,
+    accepts_marketing: customer.accepts_marketing ?? false,
+    status: customer.status || 'active',
+    total_orders: customer.total_orders || null,
+    total_spent: customer.total_spent || null,
+    updated_at: new Date().toISOString(),
+  };
+
   if (existing) {
     const { error } = await supabase
       .from('customers')
-      .update({
-        full_name: customer.full_name || 'Cliente',
-        phone: customer.phone,
-        cpf: customer.cpf,
-        birth_date: customer.birth_date,
-        gender: customer.gender,
-        accepts_marketing: customer.accepts_marketing ?? false,
-        status: customer.status || 'active',
-        updated_at: new Date().toISOString(),
-      })
+      .update(customerData)
       .eq('id', existing.id);
 
     if (error) throw error;
@@ -401,13 +405,7 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
       .insert({
         tenant_id: tenantId,
         email: email,
-        full_name: customer.full_name || 'Cliente',
-        phone: customer.phone,
-        cpf: customer.cpf,
-        birth_date: customer.birth_date,
-        gender: customer.gender,
-        accepts_marketing: customer.accepts_marketing ?? false,
-        status: customer.status || 'active',
+        ...customerData,
       })
       .select('id')
       .single();
@@ -416,19 +414,19 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
 
     // Import addresses
     if (customer.addresses?.length > 0) {
-      const validAddresses = customer.addresses.filter((addr: any) => addr.street && addr.city);
+      const validAddresses = customer.addresses.filter((addr: any) => addr.street || addr.city);
       if (validAddresses.length > 0) {
         const addressInserts = validAddresses.map((addr: any) => ({
           customer_id: newCustomer.id,
           label: addr.label || 'Endereço',
           recipient_name: addr.recipient_name || customer.full_name || 'Destinatário',
-          street: addr.street || '',
-          number: addr.number || '',
-          complement: addr.complement,
-          neighborhood: addr.neighborhood || '',
-          city: addr.city || '',
-          state: addr.state || '',
-          postal_code: addr.postal_code || '',
+          street: addr.street || 'Não informado',
+          number: addr.number || 'S/N',
+          complement: addr.complement || null,
+          neighborhood: addr.neighborhood || 'Não informado',
+          city: addr.city || 'Não informado',
+          state: addr.state || 'XX',
+          postal_code: addr.postal_code || '00000000',
           country: addr.country || 'BR',
           is_default: addr.is_default ?? false,
         }));
@@ -479,7 +477,7 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
           tenant_id: tenantId,
           email: customerEmail,
           full_name: order.customer_name || 'Cliente',
-          phone: order.customer_phone,
+          phone: order.customer_phone || null,
         })
         .select('id')
         .single();
@@ -487,38 +485,67 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     }
   }
 
+  // Build order data with all supported fields
+  const orderData = {
+    tenant_id: tenantId,
+    customer_id: customerId,
+    order_number: orderNumber,
+    status: order.status || 'pending',
+    payment_status: order.payment_status || 'pending',
+    payment_method: order.payment_method || null,
+    payment_gateway: order.payment_gateway || null,
+    payment_gateway_id: order.payment_gateway_id || null,
+    shipping_status: order.shipping_status || 'pending',
+    subtotal: order.subtotal || 0,
+    discount_total: order.discount_total || 0,
+    shipping_total: order.shipping_total || 0,
+    tax_total: order.tax_total || 0,
+    total: order.total || 0,
+    customer_email: customerEmail || null,
+    customer_name: order.customer_name || null,
+    customer_phone: order.customer_phone || null,
+    // Shipping address
+    shipping_street: order.shipping_address?.street || null,
+    shipping_number: order.shipping_address?.number || null,
+    shipping_complement: order.shipping_address?.complement || null,
+    shipping_neighborhood: order.shipping_address?.neighborhood || null,
+    shipping_city: order.shipping_address?.city || null,
+    shipping_state: order.shipping_address?.state || null,
+    shipping_postal_code: order.shipping_address?.postal_code || null,
+    shipping_country: order.shipping_address?.country || 'BR',
+    // Billing address
+    billing_street: order.billing_address?.street || null,
+    billing_number: order.billing_address?.number || null,
+    billing_complement: order.billing_address?.complement || null,
+    billing_neighborhood: order.billing_address?.neighborhood || null,
+    billing_city: order.billing_address?.city || null,
+    billing_state: order.billing_address?.state || null,
+    billing_postal_code: order.billing_address?.postal_code || null,
+    billing_country: order.billing_address?.country || null,
+    // Discount info
+    discount_code: order.discount_code || null,
+    discount_name: order.discount_code || null,
+    discount_type: order.discount_type || null,
+    // Shipping service
+    shipping_service_code: order.shipping_service_code || null,
+    shipping_service_name: order.shipping_service_name || null,
+    // Notes
+    customer_notes: order.notes || null,
+    // Tracking
+    tracking_code: order.tracking_code || null,
+    shipping_carrier: order.tracking_carrier || null,
+    // Timestamps
+    paid_at: order.paid_at || null,
+    shipped_at: order.shipped_at || null,
+    delivered_at: order.delivered_at || null,
+    cancelled_at: order.cancelled_at || null,
+    cancellation_reason: order.cancellation_reason || null,
+    created_at: order.created_at || new Date().toISOString(),
+  };
+
   const { data: newOrder, error } = await supabase
     .from('orders')
-    .insert({
-      tenant_id: tenantId,
-      customer_id: customerId,
-      order_number: orderNumber,
-      status: order.status || 'pending',
-      payment_status: order.payment_status || 'pending',
-      payment_method: order.payment_method,
-      shipping_status: order.shipping_status,
-      subtotal: order.subtotal || 0,
-      discount_total: order.discount_total || 0,
-      shipping_total: order.shipping_total || 0,
-      total: order.total || 0,
-      currency: order.currency || 'BRL',
-      customer_email: customerEmail || null,
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      shipping_street: order.shipping_address?.street,
-      shipping_number: order.shipping_address?.number,
-      shipping_complement: order.shipping_address?.complement,
-      shipping_neighborhood: order.shipping_address?.neighborhood,
-      shipping_city: order.shipping_address?.city,
-      shipping_state: order.shipping_address?.state,
-      shipping_postal_code: order.shipping_address?.postal_code,
-      shipping_country: order.shipping_address?.country || 'BR',
-      notes: order.notes,
-      paid_at: order.paid_at,
-      shipped_at: order.shipped_at,
-      delivered_at: order.delivered_at,
-      created_at: order.created_at || new Date().toISOString(),
-    })
+    .insert(orderData)
     .select('id')
     .single();
 
@@ -530,11 +557,11 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     if (validItems.length > 0) {
       const itemInserts = validItems.map((item: any) => ({
         order_id: newOrder.id,
+        sku: item.product_sku || `SKU-${Date.now()}`,
         product_name: item.product_name || 'Produto',
-        product_sku: item.product_sku,
-        variant_name: item.variant_name,
         quantity: item.quantity || 1,
         unit_price: item.unit_price || 0,
+        discount_amount: 0,
         total_price: (item.quantity || 1) * (item.unit_price || 0),
       }));
       await supabase.from('order_items').insert(itemInserts);
