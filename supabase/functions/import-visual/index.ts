@@ -664,8 +664,8 @@ Deno.serve(async (req) => {
 
     if (!html && !url) {
       return new Response(
-        JSON.stringify({ success: false, error: 'URL ou HTML é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'URL ou HTML é obrigatório', code: 'MISSING_INPUT' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -735,9 +735,10 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
+        code: 'EXTRACTION_ERROR',
         error: error instanceof Error ? error.message : 'Erro ao extrair elementos visuais' 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
