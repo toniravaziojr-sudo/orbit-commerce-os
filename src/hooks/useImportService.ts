@@ -31,7 +31,7 @@ interface ImportProgress {
   errors: Array<{ index: number; identifier: string; error: string }>;
 }
 
-const BATCH_SIZE = 30;
+const BATCH_SIZE = 200;
 
 export function useImportService() {
   const [health, setHealth] = useState<HealthStatus>({

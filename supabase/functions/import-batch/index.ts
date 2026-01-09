@@ -82,36 +82,50 @@ Deno.serve(async (req) => {
       itemErrors: [] as ItemError[],
     };
 
-    // Process each item individually (don't abort on single item failure)
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
+    // Use batch processing for customers (much faster)
+    if (module === 'customers') {
       try {
-        switch (module) {
-          case 'products':
-            await importProduct(supabase, tenantId, item, results, categoryMap);
-            break;
-          case 'categories':
-            await importCategory(supabase, tenantId, item, results);
-            break;
-          case 'customers':
-            await importCustomer(supabase, tenantId, item, results);
-            break;
-          case 'orders':
-            await importOrder(supabase, tenantId, item, results);
-            break;
-        }
-        results.processed++;
+        await importCustomersBatch(supabase, tenantId, items, results);
+        results.processed = items.length;
       } catch (error: any) {
-        results.failed++;
-        results.processed++;
-        const identifier = item.name || item.email || item.order_number || item.slug || item.sku || `item-${i}`;
-        const errorMessage = error?.message || String(error);
-        console.error(`[import-batch] Item ${i} failed:`, identifier, errorMessage);
+        console.error('[import-batch] Batch customers error:', error);
+        results.failed += items.length;
+        results.processed = items.length;
         results.itemErrors.push({
-          index: i,
-          identifier,
-          error: errorMessage,
+          index: 0,
+          identifier: 'batch',
+          error: error?.message || String(error),
         });
+      }
+    } else {
+      // Process other modules individually (products, categories, orders)
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        try {
+          switch (module) {
+            case 'products':
+              await importProduct(supabase, tenantId, item, results, categoryMap);
+              break;
+            case 'categories':
+              await importCategory(supabase, tenantId, item, results);
+              break;
+            case 'orders':
+              await importOrder(supabase, tenantId, item, results);
+              break;
+          }
+          results.processed++;
+        } catch (error: any) {
+          results.failed++;
+          results.processed++;
+          const identifier = item.name || item.email || item.order_number || item.slug || item.sku || `item-${i}`;
+          const errorMessage = error?.message || String(error);
+          console.error(`[import-batch] Item ${i} failed:`, identifier, errorMessage);
+          results.itemErrors.push({
+            index: i,
+            identifier,
+            error: errorMessage,
+          });
+        }
       }
     }
 
@@ -390,7 +404,118 @@ async function importCategory(supabase: any, tenantId: string, category: any, re
   }
 }
 
+async function importCustomersBatch(supabase: any, tenantId: string, customers: any[], results: any) {
+  // Pre-fetch all existing emails in one query for this batch
+  const emails = customers
+    .map(c => (c.email || '').toString().trim().toLowerCase())
+    .filter(e => e && e.includes('@'));
+  
+  if (emails.length === 0) {
+    results.skipped += customers.length;
+    return;
+  }
+
+  const { data: existingCustomers } = await supabase
+    .from('customers')
+    .select('id, email')
+    .eq('tenant_id', tenantId)
+    .in('email', emails);
+
+  const existingMap = new Map((existingCustomers || []).map((c: any) => [c.email, c.id]));
+
+  const toInsert: any[] = [];
+  const toUpdate: { id: string; data: any }[] = [];
+
+  for (const customer of customers) {
+    const email = (customer.email || '').toString().trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      results.skipped++;
+      continue;
+    }
+
+    const customerData = {
+      full_name: customer.full_name || 'Cliente',
+      phone: customer.phone || null,
+      cpf: customer.cpf || null,
+      birth_date: customer.birth_date || null,
+      gender: customer.gender || null,
+      accepts_marketing: customer.accepts_marketing ?? false,
+      status: customer.status || 'active',
+      total_orders: customer.total_orders || null,
+      total_spent: customer.total_spent || null,
+    };
+
+    const existingId = existingMap.get(email) as string | undefined;
+    if (existingId) {
+      toUpdate.push({ id: existingId as string, data: { ...customerData, updated_at: new Date().toISOString() } });
+    } else {
+      toInsert.push({
+        tenant_id: tenantId,
+        email,
+        ...customerData,
+        _addresses: customer.addresses || [],
+      });
+    }
+  }
+
+  // Batch update existing customers
+  for (const upd of toUpdate) {
+    await supabase.from('customers').update(upd.data).eq('id', upd.id);
+    results.updated++;
+  }
+
+  // Batch insert new customers
+  if (toInsert.length > 0) {
+    const insertData = toInsert.map(({ _addresses, ...rest }) => rest);
+    const { data: inserted, error } = await supabase
+      .from('customers')
+      .insert(insertData)
+      .select('id, email');
+
+    if (error) {
+      console.error('[import-batch] Batch insert customers error:', error);
+      results.failed += toInsert.length;
+    } else if (inserted) {
+      results.imported += inserted.length;
+
+      // Map emails to new IDs for address insertion
+      const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
+
+      // Collect all addresses to insert
+      const allAddresses: any[] = [];
+      for (const cust of toInsert) {
+        const customerId = emailToId.get(cust.email);
+        if (customerId && cust._addresses?.length > 0) {
+          const validAddresses = cust._addresses.filter((addr: any) => addr.street || addr.city);
+          for (const addr of validAddresses) {
+            allAddresses.push({
+              customer_id: customerId,
+              label: addr.label || 'Endereço',
+              recipient_name: addr.recipient_name || cust.full_name || 'Destinatário',
+              street: addr.street || 'Não informado',
+              number: addr.number || 'S/N',
+              complement: addr.complement || null,
+              neighborhood: addr.neighborhood || 'Não informado',
+              city: addr.city || 'Não informado',
+              state: addr.state || 'XX',
+              postal_code: addr.postal_code || '00000000',
+              country: addr.country || 'BR',
+              is_default: addr.is_default ?? false,
+            });
+          }
+        }
+      }
+
+      // Batch insert all addresses
+      if (allAddresses.length > 0) {
+        await supabase.from('customer_addresses').insert(allAddresses);
+      }
+    }
+  }
+}
+
 async function importCustomer(supabase: any, tenantId: string, customer: any, results: any) {
+  // This function is now a wrapper - actual batch processing happens in importCustomersBatch
   const email = (customer.email || '').toString().trim().toLowerCase();
   if (!email || !email.includes('@')) {
     results.skipped++;
