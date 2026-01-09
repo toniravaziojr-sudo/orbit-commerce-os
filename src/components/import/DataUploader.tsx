@@ -294,11 +294,14 @@ function groupShopifyProductRows(rows: any[]): any[] {
         price: variantPrice || '0',
         compare_at_price: row['Variant Compare At Price'] || null,
         inventory_quantity: parseInt(row['Variant Inventory Qty'] || '0', 10),
-        weight: parseFloat(row['Variant Weight'] || '0') || null,
+        weight: parseFloat(row['Variant Grams'] || row['Variant Weight'] || '0') || null,
+        barcode: row['Variant Barcode'] || null,
         option1: row['Option1 Value'] || null,
         option2: row['Option2 Value'] || null,
         option3: row['Option3 Value'] || null,
-        title: row['Variant Title'] || 'Default',
+        title: [row['Option1 Value'], row['Option2 Value'], row['Option3 Value']]
+          .filter(Boolean)
+          .join(' / ') || 'Default',
       });
     }
 
@@ -322,8 +325,20 @@ function groupShopifyProductRows(rows: any[]): any[] {
       product['Variant SKU'] = firstVariant.sku;
       product['Variant Compare At Price'] = firstVariant.compare_at_price;
       product['Variant Inventory Qty'] = firstVariant.inventory_quantity?.toString() || '0';
-      product['Variant Weight'] = firstVariant.weight?.toString() || '';
+      product['Variant Grams'] = firstVariant.weight?.toString() || '';
+      product['Variant Barcode'] = firstVariant.barcode;
     }
+    
+    // Debug log para verificar dados
+    console.log('[DataUploader] Produto agrupado:', {
+      handle: product['Handle'],
+      title: product['Title'],
+      price: product['Variant Price'],
+      sku: product['Variant SKU'],
+      imagesCount: product.images?.length || 0,
+      variantsCount: product.variants?.length || 0,
+    });
+    
     return product;
   });
 }

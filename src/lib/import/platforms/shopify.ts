@@ -13,8 +13,9 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
-// Campos do Shopify (como vêm da API/CSV)
+// Campos do Shopify (como vêm da API/CSV) - MAPEAMENTO COMPLETO
 export interface ShopifyProduct {
+  // API fields
   id?: string | number;
   handle?: string;
   title?: string;
@@ -28,7 +29,7 @@ export interface ShopifyProduct {
   updated_at?: string;
   variants?: ShopifyVariant[];
   images?: ShopifyImage[];
-  // CSV fields
+  // CSV fields - Headers exatos do Shopify
   'Handle'?: string;
   'Title'?: string;
   'Body (HTML)'?: string;
@@ -38,16 +39,35 @@ export interface ShopifyProduct {
   'Tags'?: string;
   'Published'?: string;
   'Variant SKU'?: string;
+  'Variant Grams'?: string;
+  'Variant Inventory Tracker'?: string;
+  'Variant Inventory Qty'?: string;
+  'Variant Inventory Policy'?: string;
+  'Variant Fulfillment Service'?: string;
   'Variant Price'?: string;
   'Variant Compare At Price'?: string;
-  'Variant Inventory Qty'?: string;
-  'Variant Weight'?: string;
+  'Variant Requires Shipping'?: string;
+  'Variant Taxable'?: string;
+  'Variant Barcode'?: string;
   'Image Src'?: string;
+  'Image Position'?: string;
   'Image Alt Text'?: string;
+  'Gift Card'?: string;
   'SEO Title'?: string;
   'SEO Description'?: string;
+  'Google Shopping / Google Product Category'?: string;
   'Cost per item'?: string;
-  'Variant Barcode'?: string;
+  'Variant Weight Unit'?: string;
+  'Variant Tax Code'?: string;
+  'Status'?: string;
+  'Option1 Name'?: string;
+  'Option1 Value'?: string;
+  'Option2 Name'?: string;
+  'Option2 Value'?: string;
+  'Option3 Name'?: string;
+  'Option3 Value'?: string;
+  // Campos alternativos/normalizados (lowercase)
+  [key: string]: any;
 }
 
 export interface ShopifyVariant {
@@ -166,83 +186,143 @@ export interface ShopifyLineItem {
   price?: string | number;
 }
 
-// Funções de normalização
+// Funções de normalização - MAPEAMENTO COMPLETO
 export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct {
-  // Try multiple field variations for handle/slug
-  const handle = raw.handle || raw['Handle'] || (raw as any).slug || (raw as any)['Slug'] || '';
+  // Helper para buscar campo case-insensitive
+  const getField = (obj: any, ...keys: string[]): any => {
+    for (const key of keys) {
+      if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
+      // Try lowercase
+      const lowerKey = key.toLowerCase();
+      if (obj[lowerKey] !== undefined && obj[lowerKey] !== null && obj[lowerKey] !== '') return obj[lowerKey];
+    }
+    return undefined;
+  };
+
+  // ===== HANDLE/SLUG =====
+  const handle = getField(raw, 'handle', 'Handle', 'slug', 'Slug') || '';
   
-  // Try multiple field variations for title/name (case-insensitive lookup)
-  const titleCandidates = [
-    raw.title, 
-    raw['Title'], 
-    (raw as any).name, 
-    (raw as any)['Name'],
-    (raw as any)['Nome'],
-    (raw as any)['Produto'],
-    (raw as any)['Nome do Produto'],
-    (raw as any).product_name,
-  ];
-  const title = titleCandidates.find(t => t && typeof t === 'string' && t.trim()) || '';
+  // ===== TITLE/NAME (CRÍTICO) =====
+  const title = getField(raw, 
+    'title', 'Title', 
+    'name', 'Name', 
+    'nome', 'Nome',
+    'produto', 'Produto',
+    'Nome do Produto', 'Product Name', 'product_name'
+  ) || '';
   
-  const description = raw.body_html || raw['Body (HTML)'] || (raw as any).description || (raw as any)['Descrição'] || null;
+  // ===== DESCRIÇÃO =====
+  const description = getField(raw, 
+    'body_html', 'Body (HTML)', 
+    'description', 'Description', 
+    'descrição', 'Descrição',
+    'Descrição do Produto'
+  ) || null;
   
-  // Try multiple field variations for price - with Brazilian format support
-  const rawPrice = 
-    raw.variants?.[0]?.price?.toString() || 
-    raw['Variant Price'] || 
-    (raw as any).price || (raw as any)['Price'] || (raw as any)['Preço'] || 
-    '0';
+  // ===== PREÇO (CRÍTICO) =====
+  const rawPrice = getField(raw,
+    'price', 'Price', 'Preço', 'preço',
+    'Variant Price', 'variant_price'
+  ) || (raw.variants?.[0]?.price?.toString()) || '0';
   const price = parsePrice(rawPrice);
   
-  const rawComparePrice = 
-    raw.variants?.[0]?.compare_at_price?.toString() || 
-    raw['Variant Compare At Price'] || 
-    (raw as any).compare_at_price || (raw as any)['Compare At Price'] || 
-    '0';
+  // ===== PREÇO COMPARAÇÃO =====
+  const rawComparePrice = getField(raw,
+    'compare_at_price', 'Compare At Price', 
+    'Variant Compare At Price', 'variant_compare_at_price',
+    'Preço Comparativo', 'De', 'de'
+  ) || (raw.variants?.[0]?.compare_at_price?.toString()) || '0';
   const compareAtPrice = parsePrice(rawComparePrice) || null;
   
-  const costPrice = parsePrice(raw['Cost per item'] || (raw as any).cost_price || '0') || null;
+  // ===== CUSTO =====
+  const costPrice = parsePrice(getField(raw, 
+    'Cost per item', 'cost_per_item', 'cost_price',
+    'Custo', 'custo'
+  ) || '0') || null;
   
-  // Try multiple field variations for SKU
-  const sku = raw.variants?.[0]?.sku || raw['Variant SKU'] || 
-              (raw as any).sku || (raw as any)['SKU'] || (raw as any)['Sku'] ||
-              (raw as any).codigo || (raw as any)['Codigo'] || (raw as any)['Código'] ||
-              (raw as any).code || (raw as any)['Code'] || (raw as any).product_code ||
-              null;
+  // ===== SKU =====
+  const sku = getField(raw,
+    'sku', 'SKU', 'Sku',
+    'Variant SKU', 'variant_sku',
+    'codigo', 'Codigo', 'Código', 'código',
+    'code', 'Code', 'product_code'
+  ) || (raw.variants?.[0]?.sku) || null;
   
-  const barcode = raw['Variant Barcode'] || (raw as any).barcode || (raw as any)['Barcode'] || null;
-  const weight = parseFloat(raw.variants?.[0]?.weight?.toString() || raw['Variant Weight'] || (raw as any).weight || '0') || null;
+  // ===== BARCODE/GTIN =====
+  const barcode = getField(raw,
+    'barcode', 'Barcode', 
+    'Variant Barcode', 'variant_barcode',
+    'gtin', 'GTIN', 'EAN', 'ean'
+  ) || null;
+  
+  // ===== PESO =====
+  const rawWeight = getField(raw,
+    'weight', 'Weight', 'Peso', 'peso',
+    'Variant Grams', 'variant_grams',
+    'Variant Weight'
+  ) || (raw.variants?.[0]?.weight?.toString()) || '0';
+  // Shopify Variant Grams está em gramas, converter para kg
+  let weight = parseFloat(rawWeight) || null;
+  if (weight && (raw['Variant Grams'] || raw['variant_grams'])) {
+    weight = weight / 1000; // gramas -> kg
+  }
+  
+  // ===== ESTOQUE =====
   const stockQuantity = parseInt(
-    raw.variants?.[0]?.inventory_quantity?.toString() || 
-    raw['Variant Inventory Qty'] || 
-    (raw as any).stock_quantity || (raw as any)['Stock'] || (raw as any)['Estoque'] ||
-    '0', 10
+    getField(raw,
+      'stock_quantity', 'Stock', 'Estoque', 'estoque',
+      'Variant Inventory Qty', 'variant_inventory_qty',
+      'inventory_quantity', 'Inventory'
+    ) || (raw.variants?.[0]?.inventory_quantity?.toString()) || '0', 
+    10
   );
   
-  const published = raw.published !== undefined ? raw.published : (raw['Published']?.toLowerCase() === 'true' || (raw as any).status === 'active');
-  const tags = (raw.tags || raw['Tags'] || '').split(',').map(t => t.trim()).filter(Boolean);
+  // ===== STATUS =====
+  const publishedRaw = getField(raw, 'published', 'Published', 'Status', 'status');
+  const published = publishedRaw === true || 
+    publishedRaw?.toString().toLowerCase() === 'true' || 
+    publishedRaw?.toString().toLowerCase() === 'active' ||
+    publishedRaw?.toString().toLowerCase() === 'ativo';
   
-  // Imagens
+  // ===== TAGS =====
+  const tagsRaw = getField(raw, 'tags', 'Tags') || '';
+  const tags = tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean);
+  
+  // ===== SEO =====
+  const seoTitle = getField(raw, 'SEO Title', 'seo_title', 'SEO Titulo') || null;
+  const seoDescription = getField(raw, 'SEO Description', 'seo_description', 'SEO Descrição') || null;
+  
+  // ===== IMAGENS (CRÍTICO) =====
   const images: NormalizedProductImage[] = [];
+  
+  // Primeiro: imagens da API (array)
   if (raw.images && Array.isArray(raw.images)) {
     raw.images.forEach((img, idx) => {
-      images.push({
-        url: img.src || '',
-        alt: img.alt || null,
-        is_primary: idx === 0,
-        position: img.position || idx,
-      });
-    });
-  } else if (raw['Image Src']) {
-    images.push({
-      url: raw['Image Src'],
-      alt: raw['Image Alt Text'] || null,
-      is_primary: true,
-      position: 0,
+      if (img.src) {
+        images.push({
+          url: img.src,
+          alt: img.alt || null,
+          is_primary: idx === 0,
+          position: img.position || idx,
+        });
+      }
     });
   }
   
-  // Variantes
+  // Segundo: imagem do CSV (campo único)
+  const csvImageUrl = getField(raw, 'Image Src', 'image_src', 'Imagem', 'imagem', 'image_url');
+  if (csvImageUrl && !images.find(i => i.url === csvImageUrl)) {
+    const imageAlt = getField(raw, 'Image Alt Text', 'image_alt', 'Alt Imagem') || null;
+    const imagePosition = parseInt(getField(raw, 'Image Position', 'image_position') || '0', 10);
+    images.push({
+      url: csvImageUrl,
+      alt: imageAlt,
+      is_primary: images.length === 0,
+      position: imagePosition || images.length,
+    });
+  }
+  
+  // ===== VARIANTES =====
   const variants: NormalizedProductVariant[] = [];
   if (raw.variants && Array.isArray(raw.variants)) {
     raw.variants.forEach(v => {
@@ -262,11 +342,42 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
     });
   }
   
-  // Categorias
-  const productType = raw.product_type || raw['Type'] || raw['Product Category'] || '';
+  // Variante do CSV (Option1/2/3)
+  const opt1Name = getField(raw, 'Option1 Name', 'option1_name');
+  const opt1Value = getField(raw, 'Option1 Value', 'option1_value');
+  if (opt1Name && opt1Value) {
+    const options: Record<string, string> = {};
+    options[opt1Name] = opt1Value;
+    
+    const opt2Name = getField(raw, 'Option2 Name', 'option2_name');
+    const opt2Value = getField(raw, 'Option2 Value', 'option2_value');
+    if (opt2Name && opt2Value) options[opt2Name] = opt2Value;
+    
+    const opt3Name = getField(raw, 'Option3 Name', 'option3_name');
+    const opt3Value = getField(raw, 'Option3 Value', 'option3_value');
+    if (opt3Name && opt3Value) options[opt3Name] = opt3Value;
+    
+    // Só adiciona se não existir variante com mesmo SKU
+    if (!variants.find(v => v.sku === sku)) {
+      variants.push({
+        name: opt1Value,
+        sku: sku,
+        price: price,
+        compare_at_price: compareAtPrice,
+        stock_quantity: stockQuantity,
+        options,
+      });
+    }
+  }
+  
+  // ===== CATEGORIAS =====
+  const productType = getField(raw, 
+    'product_type', 'Type', 'Product Category',
+    'Categoria', 'categoria', 'Category', 'category'
+  ) || '';
   const categories = productType ? [slugify(productType)] : [];
   
-  // Ensure name is never empty - this is critical for import
+  // ===== NOME EFETIVO (nunca vazio) =====
   const effectiveName = title.trim() || handle || 'Produto sem nome';
   
   return {
@@ -286,8 +397,8 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
     stock_quantity: stockQuantity,
     is_featured: tags.includes('featured') || tags.includes('destaque'),
     status: published ? 'active' : 'draft',
-    seo_title: raw['SEO Title'] || null,
-    seo_description: raw['SEO Description'] || null,
+    seo_title: seoTitle,
+    seo_description: seoDescription,
     images,
     variants,
     categories,
