@@ -56,6 +56,11 @@ import Auth from "@/pages/Auth";
 import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
+import StartPlan from "@/pages/start/StartPlan";
+import StartInfo from "@/pages/start/StartInfo";
+import StartPending from "@/pages/start/StartPending";
+import CompleteSignup from "@/pages/start/CompleteSignup";
+import GettingStarted from "@/pages/GettingStarted";
 import SystemEmails from "@/pages/SystemEmails";
 import PlatformIntegrations from "@/pages/PlatformIntegrations";
 import Attribution from "@/pages/Attribution";
@@ -144,6 +149,11 @@ const App = () => {
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/aguardando-confirmacao" element={<AwaitingConfirmation />} />
               <Route path="/auth/reset-password" element={<ResetPassword />} />
+              {/* Billing checkout flow (public) */}
+              <Route path="/start" element={<StartPlan />} />
+              <Route path="/start/info" element={<StartInfo />} />
+              <Route path="/start/pending" element={<StartPending />} />
+              <Route path="/complete-signup" element={<CompleteSignup />} />
               {/* Late OAuth callback - opened in popup, handles close */}
               <Route path="/integrations/late/callback" element={<LateCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
@@ -237,6 +247,7 @@ const App = () => {
                   }
                 >
                   <Route path="/" element={<Dashboard />} />
+                  <Route path="/getting-started" element={<GettingStarted />} />
                   <Route path="/executions" element={<Executions />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/orders/new" element={<OrderNew />} />

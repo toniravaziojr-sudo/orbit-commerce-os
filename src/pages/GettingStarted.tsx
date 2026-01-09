@@ -78,16 +78,14 @@ export default function GettingStarted() {
 
   if (loading) {
     return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
-      </AppLayout>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
     );
   }
 
   return (
-    <AppLayout>
+    <>
       <div className="max-w-4xl mx-auto py-8 px-4">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Bem-vindo ao Comando Central! 🎉</h1>
@@ -168,11 +166,11 @@ export default function GettingStarted() {
 
         {/* Skip button */}
         <div className="mt-8 text-center">
-          <Button variant="ghost" onClick={() => navigate('/')}>
+        <Button variant="ghost" onClick={() => navigate('/')}>
             Pular e ir para o Dashboard
           </Button>
         </div>
       </div>
-    </AppLayout>
+    </>
   );
 }

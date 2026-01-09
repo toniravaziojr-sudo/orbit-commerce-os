@@ -392,3 +392,15 @@ verify_jwt = false
 
 [functions.billing-generate-invoice]
 verify_jwt = false
+
+[functions.billing-webhook]
+verify_jwt = false
+
+[functions.start-create-checkout]
+verify_jwt = false
+
+[functions.start-checkout-status]
+verify_jwt = false
+
+[functions.complete-signup]
+verify_jwt = false
