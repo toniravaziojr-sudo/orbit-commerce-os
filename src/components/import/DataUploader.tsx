@@ -232,9 +232,19 @@ function parseCSV(content: string): any[] {
   const hasTitle = headers.some(h => h.toLowerCase() === 'title');
   const hasVariantSKU = headers.some(h => h.toLowerCase().includes('variant') && h.toLowerCase().includes('sku'));
   
+  // Check if this is a Shopify order export (has Name column for order number and Lineitem columns)
+  const hasOrderName = headers.some(h => h.toLowerCase() === 'name' && !h.toLowerCase().includes('shipping') && !h.toLowerCase().includes('billing'));
+  const hasLineitemName = headers.some(h => h.toLowerCase().includes('lineitem') && h.toLowerCase().includes('name'));
+  const hasFinancialStatus = headers.some(h => h.toLowerCase().includes('financial') && h.toLowerCase().includes('status'));
+  
   if (hasHandle && hasTitle && hasVariantSKU) {
     // Group rows by Handle and merge variant data
     return groupShopifyProductRows(rawRows);
+  }
+  
+  if (hasOrderName && hasLineitemName && hasFinancialStatus) {
+    // Group rows by order Name and merge line items
+    return groupShopifyOrderRows(rawRows);
   }
 
   return rawRows;
@@ -341,6 +351,66 @@ function groupShopifyProductRows(rows: any[]): any[] {
     
     return product;
   });
+}
+
+// Group Shopify CSV order rows by Name (order number) - orders with multiple items have multiple rows
+function groupShopifyOrderRows(rows: any[]): any[] {
+  const orderMap = new Map<string, any>();
+
+  for (const row of rows) {
+    const orderName = row['Name'] || '';
+    if (!orderName) continue;
+
+    if (!orderMap.has(orderName)) {
+      // First row for this order - use as base
+      orderMap.set(orderName, {
+        ...row,
+        line_items: [],
+      });
+    }
+
+    const order = orderMap.get(orderName)!;
+    
+    // Fill in missing fields from the first row (Shopify might leave some empty on subsequent rows)
+    const fieldsToFill = [
+      'Email', 'Financial Status', 'Paid at', 'Fulfillment Status', 'Fulfilled at',
+      'Currency', 'Subtotal', 'Shipping', 'Taxes', 'Total', 'Discount Code', 'Discount Amount',
+      'Shipping Method', 'Created at', 'Payment Method', 'Payment Reference',
+      'Shipping Name', 'Shipping Phone', 'Shipping Address1', 'Shipping Address2',
+      'Shipping City', 'Shipping Province', 'Shipping Zip', 'Shipping Country',
+      'Billing Name', 'Billing Phone', 'Billing Address1', 'Billing Address2',
+      'Billing City', 'Billing Province', 'Billing Zip', 'Billing Country',
+      'Notes', 'Tracking Number', 'Tracking Company'
+    ];
+    
+    for (const field of fieldsToFill) {
+      if (!order[field] && row[field]) {
+        order[field] = row[field];
+      }
+    }
+
+    // Add line item if present
+    const lineitemName = row['Lineitem name'];
+    const lineitemQty = row['Lineitem quantity'];
+    if (lineitemName && lineitemQty) {
+      order.line_items.push({
+        title: lineitemName,
+        sku: row['Lineitem sku'] || null,
+        quantity: parseInt(lineitemQty || '1', 10),
+        price: row['Lineitem price'] || '0',
+        compare_at_price: row['Lineitem compare at price'] || null,
+        discount: row['Lineitem discount'] || '0',
+        fulfillment_status: row['Lineitem fulfillment status'] || null,
+      });
+    }
+  }
+
+  // Convert Map to array
+  const result = Array.from(orderMap.values());
+  
+  console.log(`[DataUploader] Pedidos agrupados: ${result.length} pedidos únicos de ${rows.length} linhas`);
+  
+  return result;
 }
 
 function parseCSVLine(line: string, delimiter: string = ','): string[] {
