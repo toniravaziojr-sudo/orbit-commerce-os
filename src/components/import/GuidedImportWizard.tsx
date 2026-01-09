@@ -1189,8 +1189,17 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   };
 
   const parseCSV = (content: string): any[] => {
-    // Normalize line endings
-    const normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Normalize line endings and remove BOM
+    let normalizedContent = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (normalizedContent.charCodeAt(0) === 0xFEFF) {
+      normalizedContent = normalizedContent.substring(1);
+    }
+    
+    // Detect delimiter
+    const firstLine = normalizedContent.split('\n')[0];
+    const semicolonCount = (firstLine.match(/;/g) || []).length;
+    const commaCount = (firstLine.match(/,/g) || []).length;
+    const delimiter = semicolonCount > commaCount ? ';' : ',';
     
     // Parse all fields including multi-line quoted values
     const rows: string[][] = [];
@@ -1218,7 +1227,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       } else {
         if (char === '"') {
           inQuotes = true;
-        } else if (char === ',') {
+        } else if (char === delimiter) {
           currentRow.push(currentField.trim());
           currentField = '';
         } else if (char === '\n') {
@@ -1244,8 +1253,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     
     if (rows.length < 2) return [];
     
-    const headers = rows[0];
-    const data: any[] = [];
+    // Parse headers - normalize them
+    const headers = rows[0].map(h => h.trim().replace(/^"|"$/g, '').replace(/^\ufeff/, ''));
+    const rawData: any[] = [];
     
     for (let i = 1; i < rows.length; i++) {
       const values = rows[i];
@@ -1258,11 +1268,107 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       // Only add rows that have at least one non-empty value
       if (Object.values(obj).some(v => v !== '')) {
-        data.push(obj);
+        rawData.push(obj);
       }
     }
     
-    return data;
+    // Check if this is a Shopify product export (has Handle column and multiple rows per product)
+    const hasHandle = headers.some(h => h.toLowerCase() === 'handle');
+    const hasTitle = headers.some(h => h.toLowerCase() === 'title');
+    const hasVariantSKU = headers.some(h => h.toLowerCase().includes('variant') && h.toLowerCase().includes('sku'));
+    
+    if (hasHandle && hasTitle && hasVariantSKU) {
+      // Group rows by Handle and merge variant data
+      return groupShopifyProductRows(rawData);
+    }
+    
+    return rawData;
+  };
+
+  // Group Shopify CSV rows by Handle (products with variants have multiple rows)
+  const groupShopifyProductRows = (rows: any[]): any[] => {
+    const productMap = new Map<string, any>();
+
+    for (const row of rows) {
+      const handle = row['Handle'] || '';
+      if (!handle) continue;
+
+      if (!productMap.has(handle)) {
+        // First row for this product - use as base (has the title and main info)
+        productMap.set(handle, {
+          ...row,
+          variants: [],
+          images: [],
+        });
+      }
+
+      const product = productMap.get(handle)!;
+      
+      // Fill in missing fields from the first row (Shopify only puts Title on first row)
+      if (!product['Title'] && row['Title']) product['Title'] = row['Title'];
+      if (!product['Body (HTML)'] && row['Body (HTML)']) product['Body (HTML)'] = row['Body (HTML)'];
+      if (!product['Vendor'] && row['Vendor']) product['Vendor'] = row['Vendor'];
+      if (!product['Type'] && row['Type']) product['Type'] = row['Type'];
+      if (!product['Tags'] && row['Tags']) product['Tags'] = row['Tags'];
+      if (!product['Published'] && row['Published']) product['Published'] = row['Published'];
+      if (!product['SEO Title'] && row['SEO Title']) product['SEO Title'] = row['SEO Title'];
+      if (!product['SEO Description'] && row['SEO Description']) product['SEO Description'] = row['SEO Description'];
+
+      // Add variant data if present
+      const variantSKU = row['Variant SKU'];
+      const variantPrice = row['Variant Price'];
+      if (variantSKU || variantPrice) {
+        product.variants.push({
+          sku: variantSKU || null,
+          price: variantPrice || '0',
+          compare_at_price: row['Variant Compare At Price'] || null,
+          inventory_quantity: parseInt(row['Variant Inventory Qty'] || '0', 10),
+          weight: parseFloat(row['Variant Grams'] || row['Variant Weight'] || '0') || null,
+          barcode: row['Variant Barcode'] || null,
+          option1: row['Option1 Value'] || null,
+          option2: row['Option2 Value'] || null,
+          option3: row['Option3 Value'] || null,
+          title: [row['Option1 Value'], row['Option2 Value'], row['Option3 Value']]
+            .filter(Boolean)
+            .join(' / ') || 'Default',
+        });
+      }
+
+      // Add image if present and not duplicate
+      const imageSrc = row['Image Src'];
+      if (imageSrc && !product.images.some((img: any) => img.src === imageSrc)) {
+        product.images.push({
+          src: imageSrc,
+          alt: row['Image Alt Text'] || null,
+          position: product.images.length,
+        });
+      }
+    }
+
+    // Convert Map to array and set first variant as main product data if no direct price
+    return Array.from(productMap.values()).map(product => {
+      // If product doesn't have direct price/sku, use first variant
+      if (!product['Variant Price'] && product.variants.length > 0) {
+        const firstVariant = product.variants[0];
+        product['Variant Price'] = firstVariant.price;
+        product['Variant SKU'] = firstVariant.sku;
+        product['Variant Compare At Price'] = firstVariant.compare_at_price;
+        product['Variant Inventory Qty'] = firstVariant.inventory_quantity?.toString() || '0';
+        product['Variant Grams'] = firstVariant.weight?.toString() || '';
+        product['Variant Barcode'] = firstVariant.barcode;
+      }
+      
+      console.log('[GuidedImportWizard] Produto agrupado:', {
+        handle: product['Handle'],
+        title: product['Title'],
+        price: product['Variant Price'],
+        sku: product['Variant SKU'],
+        imagesCount: product.images?.length || 0,
+        variantsCount: product.variants?.length || 0,
+      });
+      
+      return product;
+    });
   };
 
   const handleFileImportStep = useCallback(async (stepId: string, file?: File) => {

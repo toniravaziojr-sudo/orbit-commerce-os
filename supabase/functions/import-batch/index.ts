@@ -244,15 +244,19 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
 
     // Import images if available
     if (product.images?.length > 0) {
-      const imageInserts = product.images.map((img: any, index: number) => ({
-        product_id: newProduct.id,
-        url: img.url,
-        alt: img.alt,
-        is_primary: img.is_primary || index === 0,
-        position: img.position || index,
-      }));
+      const imageInserts = product.images
+        .filter((img: any) => img.url && img.url.trim())
+        .map((img: any, index: number) => ({
+          product_id: newProduct.id,
+          url: img.url,
+          alt_text: img.alt || null,
+          is_primary: img.is_primary || index === 0,
+          sort_order: img.position || index,
+        }));
 
-      await supabase.from('product_images').insert(imageInserts);
+      if (imageInserts.length > 0) {
+        await supabase.from('product_images').insert(imageInserts);
+      }
     }
 
     // Import variants if available
