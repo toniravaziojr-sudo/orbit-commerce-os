@@ -37,13 +37,13 @@ import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { toast } from 'sonner';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 
-const statusConfig = {
-  active: { label: 'Ativo', variant: 'default' as const },
-  inactive: { label: 'Inativo', variant: 'secondary' as const },
-  blocked: { label: 'Bloqueado', variant: 'destructive' as const },
+const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
+  active: { label: 'Ativo', variant: 'default' },
+  inactive: { label: 'Inativo', variant: 'secondary' },
+  blocked: { label: 'Bloqueado', variant: 'destructive' },
 };
 
-const tierConfig = {
+const tierConfig: Record<string, { label: string; color: string; icon: string }> = {
   bronze: { label: 'Bronze', color: 'bg-amber-700', icon: '🥉' },
   silver: { label: 'Prata', color: 'bg-slate-400', icon: '🥈' },
   gold: { label: 'Ouro', color: 'bg-yellow-500', icon: '🥇' },
@@ -199,13 +199,15 @@ export default function CustomerDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{customer.full_name}</h1>
-              <Badge variant={statusConfig[customer.status].variant}>
-                {statusConfig[customer.status].label}
+              <Badge variant={statusConfig[customer.status]?.variant ?? 'secondary'}>
+                {statusConfig[customer.status]?.label ?? customer.status ?? 'Sem status'}
               </Badge>
-              <div className="flex items-center gap-1 text-sm">
-                <span>{tierConfig[customer.loyalty_tier].icon}</span>
-                <span>{tierConfig[customer.loyalty_tier].label}</span>
-              </div>
+              {customer.loyalty_tier && tierConfig[customer.loyalty_tier] && (
+                <div className="flex items-center gap-1 text-sm">
+                  <span>{tierConfig[customer.loyalty_tier].icon}</span>
+                  <span>{tierConfig[customer.loyalty_tier].label}</span>
+                </div>
+              )}
             </div>
             <p className="text-muted-foreground">
               Cliente desde {customer.first_order_at 

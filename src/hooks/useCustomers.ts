@@ -13,7 +13,7 @@ export interface Customer {
   phone: string | null;
   birth_date: string | null;
   gender: 'male' | 'female' | 'other' | 'not_informed' | null;
-  status: 'active' | 'inactive' | 'blocked';
+  status: 'active' | 'inactive' | 'blocked' | null;
   email_verified: boolean;
   phone_verified: boolean;
   accepts_marketing: boolean;
@@ -23,7 +23,7 @@ export interface Customer {
   first_order_at: string | null;
   last_order_at: string | null;
   loyalty_points: number;
-  loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
   created_at: string;
   updated_at: string;
 }
