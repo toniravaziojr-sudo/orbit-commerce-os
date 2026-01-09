@@ -8,7 +8,9 @@ import {
   Save,
   ExternalLink,
   RefreshCw,
-  TestTube
+  TestTube,
+  CreditCard,
+  Shield
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +21,10 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { usePaymentProviders, PaymentProviderInput } from '@/hooks/usePaymentProviders';
+import { PlatformAdminGate } from '@/components/auth/PlatformAdminGate';
+import { Link } from 'react-router-dom';
 
 interface GatewayField {
   key: string;
@@ -333,9 +338,65 @@ export function PaymentGatewaySettings() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
+        </Card>
         );
       })}
+
+      {/* Platform Admin - Mercado Pago Billing Integration */}
+      <PlatformAdminGate>
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <CreditCard className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    Mercado Pago - Billing da Plataforma
+                    <Badge variant="outline" className="gap-1">
+                      <Shield className="h-3 w-3" />
+                      Admin
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Integração para cobranças de assinaturas dos tenants da plataforma
+                  </CardDescription>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                Esta integração é configurada via secrets do Cloud e é usada para o sistema de billing da plataforma.
+                As credenciais <code className="text-xs bg-muted px-1 rounded">MP_ACCESS_TOKEN</code> e{' '}
+                <code className="text-xs bg-muted px-1 rounded">MP_PUBLIC_KEY</code> devem estar configuradas.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center gap-4">
+              <Button asChild>
+                <Link to="/platform/billing">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Gerenciar Billing
+                </Link>
+              </Button>
+              <Button variant="outline" asChild>
+                <a 
+                  href="https://www.mercadopago.com.br/developers/panel/app" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Painel Mercado Pago
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </PlatformAdminGate>
     </div>
   );
 }
