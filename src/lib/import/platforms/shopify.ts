@@ -101,7 +101,12 @@ export interface ShopifyCustomer {
   note?: string;
   default_address?: ShopifyAddress;
   addresses?: ShopifyAddress[];
-  // CSV fields - Standard
+  orders_count?: number;
+  total_spent?: string | number;
+  created_at?: string;
+  updated_at?: string;
+  verified_email?: boolean;
+  // CSV fields - Standard Shopify Customer Export
   'Email'?: string;
   'First Name'?: string;
   'Last Name'?: string;
@@ -109,6 +114,30 @@ export interface ShopifyCustomer {
   'Accepts Marketing'?: string;
   'Tags'?: string;
   'Note'?: string;
+  'Orders Count'?: string;
+  'Total Spent'?: string;
+  'Created At'?: string;
+  'Email Verified'?: string;
+  // Address fields in CSV (flattened)
+  'Company'?: string;
+  'Address1'?: string;
+  'Address2'?: string;
+  'City'?: string;
+  'Province'?: string;
+  'Province Code'?: string;
+  'Country'?: string;
+  'Country Code'?: string;
+  'Zip'?: string;
+  'Default Address Phone'?: string;
+  'Default Address Company'?: string;
+  'Default Address Address1'?: string;
+  'Default Address Address2'?: string;
+  'Default Address City'?: string;
+  'Default Address Province'?: string;
+  'Default Address Province Code'?: string;
+  'Default Address Country'?: string;
+  'Default Address Country Code'?: string;
+  'Default Address Zip'?: string;
   // CSV fields - Alternative formats
   'Customer Email'?: string;
   'E-mail'?: string;
@@ -116,6 +145,11 @@ export interface ShopifyCustomer {
   'Nome Completo'?: string;
   'Telefone'?: string;
   'Celular'?: string;
+  'CPF'?: string;
+  'Data de Nascimento'?: string;
+  'Genero'?: string;
+  'Sexo'?: string;
+  [key: string]: any;
 }
 
 export interface ShopifyAddress {
@@ -131,6 +165,7 @@ export interface ShopifyAddress {
   name?: string;
   first_name?: string;
   last_name?: string;
+  company?: string;
   default?: boolean;
 }
 
@@ -146,23 +181,94 @@ export interface ShopifyOrder {
   total_discounts?: string | number;
   total_shipping_price_set?: { shop_money?: { amount?: string } };
   total_price?: string | number;
+  total_tax?: string | number;
   currency?: string;
   created_at?: string;
   processed_at?: string;
+  closed_at?: string;
+  cancelled_at?: string;
+  cancel_reason?: string;
   line_items?: ShopifyLineItem[];
   shipping_address?: ShopifyAddress;
   billing_address?: ShopifyAddress;
   note?: string;
-  // CSV fields - Standard
+  discount_codes?: Array<{ code?: string; amount?: string; type?: string }>;
+  shipping_lines?: Array<{ title?: string; price?: string; code?: string }>;
+  gateway?: string;
+  payment_gateway_names?: string[];
+  fulfillments?: Array<{ tracking_number?: string; tracking_company?: string }>;
+  // CSV fields - Standard Shopify Orders Export
   'Name'?: string;
   'Email'?: string;
   'Financial Status'?: string;
   'Fulfillment Status'?: string;
+  'Fulfilled at'?: string;
+  'Accepts Marketing'?: string;
+  'Currency'?: string;
   'Subtotal'?: string;
-  'Discount Amount'?: string;
   'Shipping'?: string;
+  'Taxes'?: string;
   'Total'?: string;
+  'Discount Code'?: string;
+  'Discount Amount'?: string;
+  'Discount Type'?: string;
+  'Shipping Method'?: string;
   'Created at'?: string;
+  'Paid at'?: string;
+  'Cancelled at'?: string;
+  'Cancel Reason'?: string;
+  'Notes'?: string;
+  'Note Attributes'?: string;
+  'Payment Method'?: string;
+  'Payment Reference'?: string;
+  'Payment Gateway'?: string;
+  'Refunded Amount'?: string;
+  'Vendor'?: string;
+  'Tags'?: string;
+  'Risk Level'?: string;
+  'Source'?: string;
+  // Lineitem fields
+  'Lineitem name'?: string;
+  'Lineitem quantity'?: string;
+  'Lineitem price'?: string;
+  'Lineitem sku'?: string;
+  'Lineitem discount'?: string;
+  'Lineitem compare at price'?: string;
+  'Lineitem requires shipping'?: string;
+  'Lineitem taxable'?: string;
+  'Lineitem fulfillment status'?: string;
+  // Shipping address
+  'Shipping Name'?: string;
+  'Shipping Phone'?: string;
+  'Shipping Street'?: string;
+  'Shipping Address1'?: string;
+  'Shipping Address2'?: string;
+  'Shipping City'?: string;
+  'Shipping Province'?: string;
+  'Shipping Province Code'?: string;
+  'Shipping Province Name'?: string;
+  'Shipping Zip'?: string;
+  'Shipping Country'?: string;
+  'Shipping Country Code'?: string;
+  'Shipping Company'?: string;
+  // Billing address
+  'Billing Name'?: string;
+  'Billing Phone'?: string;
+  'Billing Street'?: string;
+  'Billing Address1'?: string;
+  'Billing Address2'?: string;
+  'Billing City'?: string;
+  'Billing Province'?: string;
+  'Billing Province Code'?: string;
+  'Billing Province Name'?: string;
+  'Billing Zip'?: string;
+  'Billing Country'?: string;
+  'Billing Country Code'?: string;
+  'Billing Company'?: string;
+  // Tracking
+  'Tracking Number'?: string;
+  'Tracking Url'?: string;
+  'Tracking Company'?: string;
   // CSV fields - Alternative formats
   'Order Number'?: string;
   'Número do Pedido'?: string;
@@ -172,10 +278,7 @@ export interface ShopifyOrder {
   'Status'?: string;
   'Payment Status'?: string;
   'Status Pagamento'?: string;
-  'Lineitem name'?: string;
-  'Lineitem quantity'?: string;
-  'Lineitem price'?: string;
-  'Lineitem sku'?: string;
+  [key: string]: any;
 }
 
 export interface ShopifyLineItem {
@@ -406,14 +509,9 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
 }
 
 export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustomer | null {
-  // Try multiple email field variations
-  const email = (
-    raw.email || 
-    raw['Email'] || 
-    raw['Customer Email'] || 
-    raw['E-mail'] || 
-    ''
-  ).toString().trim().toLowerCase();
+  // Try multiple email field variations (case-insensitive)
+  const email = getFieldValue(raw, ['email', 'Email', 'Customer Email', 'E-mail', 'e-mail'])
+    ?.toString().trim().toLowerCase() || '';
   
   // Validate email
   if (!email || !email.includes('@')) {
@@ -421,54 +519,126 @@ export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustom
     return null;
   }
   
-  const firstName = raw.first_name || raw['First Name'] || '';
-  const lastName = raw.last_name || raw['Last Name'] || '';
+  // Name: try multiple field variations
+  const firstName = getFieldValue(raw, ['first_name', 'First Name', 'Nome', 'Primeiro Nome'])?.toString().trim() || '';
+  const lastName = getFieldValue(raw, ['last_name', 'Last Name', 'Sobrenome', 'Último Nome'])?.toString().trim() || '';
   let fullName = `${firstName} ${lastName}`.trim();
   
   // Try alternative name fields
   if (!fullName) {
-    fullName = raw['Nome'] || raw['Nome Completo'] || 'Cliente';
+    fullName = getFieldValue(raw, ['Nome Completo', 'full_name', 'name', 'Nome'])?.toString().trim() || 'Cliente';
   }
   
-  // Try multiple phone field variations
-  const phone = raw.phone || raw['Phone'] || raw['Telefone'] || raw['Celular'] || null;
+  // Phone: multiple variations
+  const phone = getFieldValue(raw, ['phone', 'Phone', 'Telefone', 'Celular', 'Default Address Phone', 'Fone'])?.toString().trim() || null;
   
-  const acceptsMarketing = raw.accepts_marketing ?? 
-    (raw['Accepts Marketing']?.toLowerCase() === 'yes' || raw['Accepts Marketing']?.toLowerCase() === 'true');
+  // CPF (Brazilian ID)
+  const cpf = getFieldValue(raw, ['CPF', 'cpf', 'Documento', 'documento'])?.toString().replace(/\D/g, '') || null;
   
-  const tags = (raw.tags || raw['Tags'] || '').split(',').map(t => t.trim()).filter(Boolean);
-  const note = raw.note || raw['Note'] || null;
+  // Birth date
+  const birthDateRaw = getFieldValue(raw, ['birth_date', 'Data de Nascimento', 'birthday', 'Aniversário']);
+  const birthDate = birthDateRaw ? parseDate(birthDateRaw.toString()) : null;
   
+  // Gender
+  const genderRaw = getFieldValue(raw, ['gender', 'Genero', 'Sexo'])?.toString().toLowerCase();
+  let gender: string | null = null;
+  if (genderRaw) {
+    if (['m', 'male', 'masculino', 'homem'].includes(genderRaw)) gender = 'male';
+    else if (['f', 'female', 'feminino', 'mulher'].includes(genderRaw)) gender = 'female';
+    else gender = genderRaw;
+  }
+  
+  // Marketing opt-in
+  const marketingRaw = getFieldValue(raw, ['accepts_marketing', 'Accepts Marketing', 'accepts_email_marketing'])?.toString().toLowerCase();
+  const acceptsMarketing = marketingRaw === 'yes' || marketingRaw === 'true' || marketingRaw === 'sim' || marketingRaw === '1';
+  
+  // Tags
+  const tagsRaw = getFieldValue(raw, ['tags', 'Tags'])?.toString() || '';
+  const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+  
+  // Notes
+  const note = getFieldValue(raw, ['note', 'Note', 'Observações', 'Notas'])?.toString().trim() || null;
+  
+  // Total orders and spent (from Shopify export)
+  const totalOrders = parseInt(getFieldValue(raw, ['orders_count', 'Orders Count', 'Total de Pedidos'])?.toString() || '0', 10) || null;
+  const totalSpent = parsePrice(getFieldValue(raw, ['total_spent', 'Total Spent', 'Total Gasto'])) || null;
+  
+  // Build addresses array
   const addresses: NormalizedAddress[] = [];
-  const allAddresses = raw.addresses || (raw.default_address ? [raw.default_address] : []);
   
-  allAddresses.forEach((addr, idx) => {
-    addresses.push(normalizeShopifyAddress(addr, idx === 0));
-  });
+  // Check for default_address object
+  if (raw.default_address) {
+    addresses.push(normalizeShopifyAddress(raw.default_address, true));
+  }
+  
+  // Check for addresses array
+  if (raw.addresses && Array.isArray(raw.addresses)) {
+    raw.addresses.forEach((addr, idx) => {
+      if (idx === 0 && !raw.default_address) {
+        addresses.push(normalizeShopifyAddress(addr, true));
+      } else {
+        addresses.push(normalizeShopifyAddress(addr, false));
+      }
+    });
+  }
+  
+  // Check for flattened CSV address fields
+  const csvAddress1 = getFieldValue(raw, ['Address1', 'Default Address Address1', 'Endereço', 'Rua']);
+  const csvCity = getFieldValue(raw, ['City', 'Default Address City', 'Cidade']);
+  
+  if (csvAddress1 && csvCity && addresses.length === 0) {
+    addresses.push({
+      label: 'Principal',
+      recipient_name: fullName,
+      street: csvAddress1.toString().trim(),
+      number: '',
+      complement: getFieldValue(raw, ['Address2', 'Default Address Address2', 'Complemento'])?.toString().trim() || null,
+      neighborhood: '',
+      city: csvCity.toString().trim(),
+      state: getFieldValue(raw, ['Province Code', 'Default Address Province Code', 'Province', 'Estado', 'UF'])?.toString().trim() || '',
+      postal_code: (getFieldValue(raw, ['Zip', 'Default Address Zip', 'CEP'])?.toString() || '').replace(/\D/g, ''),
+      country: getFieldValue(raw, ['Country Code', 'Default Address Country Code', 'Country', 'País'])?.toString().trim() || 'BR',
+      is_default: true,
+    });
+  }
   
   return {
     email,
     full_name: fullName,
     phone: normalizePhone(phone),
-    cpf: null,
-    birth_date: null,
-    gender: null,
+    cpf: cpf && cpf.length === 11 ? cpf : null,
+    birth_date: birthDate,
+    gender,
     accepts_marketing: acceptsMarketing,
     status: 'active',
     addresses,
     tags,
     notes: note,
-  };
+    // Extended fields for direct import
+    total_orders: totalOrders,
+    total_spent: totalSpent,
+  } as NormalizedCustomer;
 }
 
 export function normalizeShopifyAddress(raw: ShopifyAddress, isDefault: boolean = false): NormalizedAddress {
   const name = raw.name || `${raw.first_name || ''} ${raw.last_name || ''}`.trim() || 'Destinatário';
   
+  // Try to extract number from address1 (Brazilian format: "Rua X, 123")
+  let street = raw.address1 || '';
+  let number = '';
+  
+  // Pattern: "Street Name, 123" or "Street Name 123"
+  const numberMatch = street.match(/,?\s*(\d+)\s*$/);
+  if (numberMatch) {
+    number = numberMatch[1];
+    street = street.replace(/,?\s*\d+\s*$/, '').trim();
+  }
+  
   return {
     label: isDefault ? 'Principal' : 'Endereço',
     recipient_name: name,
-    street: raw.address1 || '',
-    number: '', // Shopify não separa número
+    street,
+    number,
     complement: raw.address2 || null,
     neighborhood: '',
     city: raw.city || '',
@@ -506,14 +676,41 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
   ).toString().trim().toLowerCase();
   
   const financialStatus = raw.financial_status || raw['Financial Status'] || raw['Payment Status'] || raw['Status Pagamento'] || 'pending';
-  const fulfillmentStatus = raw.fulfillment_status || raw['Fulfillment Status'] || null;
+  const fulfillmentStatus = raw.fulfillment_status || raw['Fulfillment Status'] || raw['Fulfilled at'] ? 'fulfilled' : null;
   
-  const subtotal = parseFloat(raw.subtotal_price?.toString() || raw['Subtotal'] || '0') || 0;
-  const discountTotal = parseFloat(raw.total_discounts?.toString() || raw['Discount Amount'] || '0') || 0;
-  const shippingTotal = parseFloat(
-    raw.total_shipping_price_set?.shop_money?.amount || raw['Shipping'] || '0'
-  ) || 0;
-  const total = parseFloat(raw.total_price?.toString() || raw['Total'] || '0') || subtotal;
+  // Parse monetary values
+  const subtotal = parsePrice(raw.subtotal_price || raw['Subtotal']);
+  const discountTotal = parsePrice(raw.total_discounts || raw['Discount Amount']);
+  const shippingTotal = parsePrice(raw.total_shipping_price_set?.shop_money?.amount || raw['Shipping']);
+  const taxTotal = parsePrice(raw.total_tax || raw['Taxes']);
+  const total = parsePrice(raw.total_price || raw['Total']) || subtotal;
+  
+  // Payment info
+  const paymentGateway = raw.gateway || raw['Payment Gateway'] || raw['Payment Method'] || null;
+  const paymentRef = raw['Payment Reference'] || null;
+  
+  // Discount info
+  const discountCode = raw.discount_codes?.[0]?.code || raw['Discount Code'] || null;
+  const discountType = raw.discount_codes?.[0]?.type || raw['Discount Type'] || null;
+  
+  // Shipping info
+  const shippingMethod = raw.shipping_lines?.[0]?.title || raw['Shipping Method'] || null;
+  const shippingServiceCode = raw.shipping_lines?.[0]?.code || null;
+  
+  // Tracking info
+  const trackingCode = raw.fulfillments?.[0]?.tracking_number || raw['Tracking Number'] || null;
+  const trackingCarrier = raw.fulfillments?.[0]?.tracking_company || raw['Tracking Company'] || null;
+  
+  // Dates
+  const createdAt = raw.created_at || raw['Created at'] || new Date().toISOString();
+  const paidAt = raw.processed_at || raw['Paid at'] || (financialStatus === 'paid' ? createdAt : null);
+  const cancelledAt = raw.cancelled_at || raw['Cancelled at'] || null;
+  const cancelReason = raw.cancel_reason || raw['Cancel Reason'] || null;
+  const fulfilledAt = raw['Fulfilled at'] || null;
+  
+  // Notes
+  const notes = raw.note || raw['Notes'] || null;
+  const noteAttributes = raw['Note Attributes'] || null;
   
   // Handle line items from CSV format (single line per item)
   let items: NormalizedOrderItem[] = [];
@@ -524,49 +721,173 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
       product_sku: item.sku || null,
       variant_name: item.variant_title || null,
       quantity: item.quantity || 1,
-      unit_price: parseFloat(item.price?.toString() || '0'),
-      total_price: parseFloat(item.price?.toString() || '0') * (item.quantity || 1),
+      unit_price: parsePrice(item.price),
+      total_price: parsePrice(item.price) * (item.quantity || 1),
     }));
   } else if (raw['Lineitem name']) {
     // CSV format with lineitem fields
+    const qty = parseInt(raw['Lineitem quantity'] || '1', 10);
+    const price = parsePrice(raw['Lineitem price']);
     items = [{
       product_name: raw['Lineitem name'] || 'Produto',
       product_sku: raw['Lineitem sku'] || null,
       variant_name: null,
-      quantity: parseInt(raw['Lineitem quantity'] || '1', 10),
-      unit_price: parseFloat(raw['Lineitem price'] || '0'),
-      total_price: parseFloat(raw['Lineitem price'] || '0') * parseInt(raw['Lineitem quantity'] || '1', 10),
+      quantity: qty,
+      unit_price: price,
+      total_price: price * qty,
     }];
+  }
+  
+  // Customer info from shipping/billing address
+  let customerName = raw.shipping_address?.name || raw.billing_address?.name || '';
+  let customerPhone = raw.phone || raw.shipping_address?.phone || raw.billing_address?.phone || null;
+  
+  // Try CSV shipping fields
+  if (!customerName) {
+    customerName = raw['Shipping Name'] || raw['Billing Name'] || '';
+  }
+  if (!customerPhone) {
+    customerPhone = raw['Shipping Phone'] || raw['Billing Phone'] || null;
+  }
+  
+  // Build shipping address from raw or CSV fields
+  let shippingAddress: NormalizedAddress | null = null;
+  if (raw.shipping_address) {
+    shippingAddress = normalizeShopifyAddress(raw.shipping_address, true);
+  } else if (raw['Shipping City'] || raw['Shipping Address1']) {
+    shippingAddress = {
+      label: 'Entrega',
+      recipient_name: raw['Shipping Name'] || customerName,
+      street: raw['Shipping Address1'] || raw['Shipping Street'] || '',
+      number: '',
+      complement: raw['Shipping Address2'] || null,
+      neighborhood: '',
+      city: raw['Shipping City'] || '',
+      state: raw['Shipping Province Code'] || raw['Shipping Province'] || '',
+      postal_code: (raw['Shipping Zip'] || '').replace(/\D/g, ''),
+      country: raw['Shipping Country Code'] || raw['Shipping Country'] || 'BR',
+      is_default: true,
+    };
+  }
+  
+  // Build billing address from raw or CSV fields
+  let billingAddress: NormalizedAddress | null = null;
+  if (raw.billing_address) {
+    billingAddress = normalizeShopifyAddress(raw.billing_address, false);
+  } else if (raw['Billing City'] || raw['Billing Address1']) {
+    billingAddress = {
+      label: 'Cobrança',
+      recipient_name: raw['Billing Name'] || customerName,
+      street: raw['Billing Address1'] || raw['Billing Street'] || '',
+      number: '',
+      complement: raw['Billing Address2'] || null,
+      neighborhood: '',
+      city: raw['Billing City'] || '',
+      state: raw['Billing Province Code'] || raw['Billing Province'] || '',
+      postal_code: (raw['Billing Zip'] || '').replace(/\D/g, ''),
+      country: raw['Billing Country Code'] || raw['Billing Country'] || 'BR',
+      is_default: false,
+    };
   }
   
   return {
     order_number: orderNumber.replace(/^#/, ''),
     status: mapShopifyStatus(financialStatus, fulfillmentStatus),
     payment_status: mapShopifyPaymentStatus(financialStatus),
-    payment_method: null,
+    payment_method: paymentGateway,
     shipping_status: fulfillmentStatus,
     subtotal,
     discount_total: discountTotal,
     shipping_total: shippingTotal,
     total,
-    currency: raw.currency || 'BRL',
+    currency: raw.currency || raw['Currency'] || 'BRL',
     customer_email: email,
-    customer_name: raw.shipping_address?.name || raw.billing_address?.name || '',
-    customer_phone: raw.phone || raw.shipping_address?.phone || null,
-    shipping_address: raw.shipping_address ? normalizeShopifyAddress(raw.shipping_address, true) : null,
-    billing_address: raw.billing_address ? normalizeShopifyAddress(raw.billing_address, false) : null,
+    customer_name: customerName,
+    customer_phone: normalizePhone(customerPhone),
+    shipping_address: shippingAddress,
+    billing_address: billingAddress,
     items,
-    notes: raw.note || null,
-    created_at: raw.created_at || raw['Created at'] || new Date().toISOString(),
-    paid_at: financialStatus === 'paid' ? raw.processed_at || null : null,
-    shipped_at: null,
+    notes: noteAttributes ? `${notes || ''}\n${noteAttributes}`.trim() : notes,
+    created_at: createdAt,
+    paid_at: paidAt,
+    shipped_at: fulfilledAt,
     delivered_at: null,
-    tracking_code: null,
-    tracking_carrier: null,
-  };
+    tracking_code: trackingCode,
+    tracking_carrier: trackingCarrier,
+    // Extended fields for direct import
+    tax_total: taxTotal,
+    discount_code: discountCode,
+    discount_type: discountType,
+    shipping_service_code: shippingServiceCode,
+    shipping_service_name: shippingMethod,
+    cancelled_at: cancelledAt,
+    cancellation_reason: cancelReason,
+    payment_gateway: paymentGateway,
+    payment_gateway_id: paymentRef,
+  } as NormalizedOrder;
 }
 
 // Helpers
+
+/**
+ * Get field value from raw object, trying multiple field names (case-insensitive)
+ */
+function getFieldValue(raw: Record<string, any>, fieldNames: string[]): any {
+  for (const field of fieldNames) {
+    if (raw[field] !== undefined && raw[field] !== null && raw[field] !== '') {
+      return raw[field];
+    }
+    // Try lowercase
+    const lower = field.toLowerCase();
+    for (const key of Object.keys(raw)) {
+      if (key.toLowerCase() === lower && raw[key] !== undefined && raw[key] !== null && raw[key] !== '') {
+        return raw[key];
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Parse date string to ISO format
+ */
+function parseDate(value: string): string | null {
+  if (!value) return null;
+  
+  // Try common formats
+  const trimmed = value.trim();
+  
+  // ISO format
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.split('T')[0];
+  }
+  
+  // BR format: DD/MM/YYYY
+  const brMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (brMatch) {
+    return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+  }
+  
+  // US format: MM/DD/YYYY
+  const usMatch = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (usMatch) {
+    const month = parseInt(usMatch[1], 10);
+    const day = parseInt(usMatch[2], 10);
+    // If month > 12, it's probably BR format
+    if (month <= 12) {
+      return `${usMatch[3]}-${usMatch[1]}-${usMatch[2]}`;
+    }
+  }
+  
+  // Try Date.parse as fallback
+  const parsed = Date.parse(trimmed);
+  if (!isNaN(parsed)) {
+    return new Date(parsed).toISOString().split('T')[0];
+  }
+  
+  return null;
+}
+
 function slugify(text: string): string {
   if (!text) return '';
   return text
