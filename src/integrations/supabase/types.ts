@@ -9389,6 +9389,13 @@ export type Database = {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
       }
+      update_customer_order_stats: {
+        Args: { p_tenant_id: string }
+        Returns: {
+          total_customers: number
+          updated_count: number
+        }[]
+      }
       update_import_job_batch: {
         Args: {
           p_batch_failed: number
