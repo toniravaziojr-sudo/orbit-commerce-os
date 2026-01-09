@@ -537,8 +537,47 @@ export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustom
   // Phone: multiple variations
   const phone = getFieldValue(raw, ['phone', 'Phone', 'Telefone', 'Celular', 'Default Address Phone', 'Fone'])?.toString().trim() || null;
   
-  // CPF (Brazilian ID)
-  const cpf = getFieldValue(raw, ['CPF', 'cpf', 'Documento', 'documento'])?.toString().replace(/\D/g, '') || null;
+  // CPF (Brazilian ID) - Try multiple locations where Shopify stores it
+  // Shopify doesn't have native CPF field - it may be in Note, Tags, Company, or tax_id
+  let cpf: string | null = null;
+  
+  // Direct CPF fields
+  cpf = getFieldValue(raw, ['CPF', 'cpf', 'Documento', 'documento', 'Tax ID', 'tax_id'])?.toString().replace(/\D/g, '') || null;
+  
+  // Try to extract from Note field (common pattern: "CPF: 123.456.789-00" or just the number)
+  if (!cpf) {
+    const note = getFieldValue(raw, ['note', 'Note', 'Observações', 'Notas'])?.toString() || '';
+    const noteMatch = note.match(/(?:cpf|documento|doc)[:\s]*(\d{3}\.?\d{3}\.?\d{3}-?\d{2})/i);
+    if (noteMatch) {
+      cpf = noteMatch[1].replace(/\D/g, '');
+    }
+    // Also try to find bare CPF pattern in note
+    if (!cpf) {
+      const bareCpfMatch = note.match(/\b(\d{3}\.?\d{3}\.?\d{3}-?\d{2})\b/);
+      if (bareCpfMatch) {
+        cpf = bareCpfMatch[1].replace(/\D/g, '');
+      }
+    }
+  }
+  
+  // Try to extract from Tags (some apps store as "cpf:12345678900")
+  if (!cpf) {
+    const tags = getFieldValue(raw, ['tags', 'Tags'])?.toString() || '';
+    const tagMatch = tags.match(/cpf[:\s]*(\d{11})/i);
+    if (tagMatch) {
+      cpf = tagMatch[1];
+    }
+  }
+  
+  // Try Company field (some Brazilian stores use it for CPF/CNPJ)
+  if (!cpf) {
+    const company = getFieldValue(raw, ['Company', 'company', 'Default Address Company', 'Empresa'])?.toString() || '';
+    // Only if it looks like a CPF (11 digits) or CNPJ (14 digits)
+    const cleanCompany = company.replace(/\D/g, '');
+    if (cleanCompany.length === 11) {
+      cpf = cleanCompany;
+    }
+  }
   
   // Birth date
   const birthDateRaw = getFieldValue(raw, ['birth_date', 'Data de Nascimento', 'birthday', 'Aniversário']);
@@ -607,11 +646,14 @@ export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustom
     });
   }
   
+  // Validate CPF - must be exactly 11 digits and pass basic validation
+  const validCpf = cpf && cpf.length === 11 && isValidCpf(cpf) ? cpf : null;
+  
   return {
     email,
     full_name: fullName,
     phone: normalizePhone(phone),
-    cpf: cpf && cpf.length === 11 ? cpf : null,
+    cpf: validCpf,
     birth_date: birthDate,
     gender,
     accepts_marketing: acceptsMarketing,
@@ -623,6 +665,33 @@ export function normalizeShopifyCustomer(raw: ShopifyCustomer): NormalizedCustom
     total_orders: totalOrders,
     total_spent: totalSpent,
   } as NormalizedCustomer;
+}
+
+// Basic CPF validation (check digit algorithm)
+function isValidCpf(cpf: string): boolean {
+  if (cpf.length !== 11) return false;
+  
+  // Check for known invalid patterns (all same digits)
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+  
+  // Validate check digits
+  let sum = 0;
+  for (let i = 0; i < 9; i++) {
+    sum += parseInt(cpf.charAt(i)) * (10 - i);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  if (remainder !== parseInt(cpf.charAt(9))) return false;
+  
+  sum = 0;
+  for (let i = 0; i < 10; i++) {
+    sum += parseInt(cpf.charAt(i)) * (11 - i);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  if (remainder !== parseInt(cpf.charAt(10))) return false;
+  
+  return true;
 }
 
 export function normalizeShopifyAddress(raw: ShopifyAddress, isDefault: boolean = false): NormalizedAddress {
@@ -656,7 +725,7 @@ export function normalizeShopifyAddress(raw: ShopifyAddress, isDefault: boolean 
 
 export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null {
   // Try multiple order number field variations
-  const orderNumber = (
+  let orderNumber = (
     raw.name || 
     raw['Name'] || 
     raw['Order Number'] || 
@@ -665,6 +734,9 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
     (raw.order_number ? `#${raw.order_number}` : null) ||
     ''
   ).toString();
+  
+  // Remove # prefix for consistent storage
+  orderNumber = orderNumber.replace(/^#/, '').trim();
   
   if (!orderNumber) {
     console.warn('Skipping order without order number:', raw);
