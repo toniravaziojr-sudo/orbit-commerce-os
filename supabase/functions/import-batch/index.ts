@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-09.1915'; // Updated with batch orders optimization
+const DEPLOY_VERSION = '2026-01-09.2200'; // Fixed order deduplication + CPF extraction
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`[import-batch] Starting batch ${batchIndex} for job ${jobId}: ${module} (${items.length} items)`);
+    console.log(`[import-batch v${DEPLOY_VERSION}] Starting batch ${batchIndex} for job ${jobId}: ${module} (${items.length} items)`);
 
     const results = {
       batchIndex,
@@ -723,9 +723,12 @@ function mapShippingStatus(raw: string | null | undefined): string {
  * Pre-fetches existing orders and customers, then does bulk inserts
  */
 async function importOrdersBatch(supabase: any, tenantId: string, orders: any[], results: any) {
-  // Extract all order numbers
+  // Extract all order numbers (remove # prefix if present)
   const orderNumbers = orders
-    .map(o => (o.order_number || '').toString().trim())
+    .map(o => {
+      const num = (o.order_number || '').toString().trim();
+      return num.replace(/^#/, ''); // Remove # prefix
+    })
     .filter(n => n);
   
   if (orderNumbers.length === 0) {
@@ -733,7 +736,7 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
     return;
   }
 
-  // Pre-fetch existing orders in one query
+  // Pre-fetch existing orders in one query (CRITICAL: prevent duplicates)
   const { data: existingOrders } = await supabase
     .from('orders')
     .select('order_number')
@@ -741,15 +744,30 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
     .in('order_number', orderNumbers);
 
   const existingOrderNumbers = new Set((existingOrders || []).map((o: any) => o.order_number));
+  
+  // Also track order numbers within this batch to prevent duplicate inserts
+  const seenInBatch = new Set<string>();
 
-  // Filter out existing orders
+  // Filter out existing orders AND duplicates within the same batch
   const newOrders = orders.filter(o => {
-    const orderNumber = (o.order_number || '').toString().trim();
+    let orderNumber = (o.order_number || '').toString().trim();
+    orderNumber = orderNumber.replace(/^#/, ''); // Remove # prefix
+    
     if (!orderNumber) return false;
+    
+    // Skip if already exists in database
     if (existingOrderNumbers.has(orderNumber)) {
       results.skipped++;
       return false;
     }
+    
+    // Skip if already seen in this batch (prevent duplicates within batch)
+    if (seenInBatch.has(orderNumber)) {
+      results.skipped++;
+      return false;
+    }
+    
+    seenInBatch.add(orderNumber);
     return true;
   });
 
@@ -812,7 +830,9 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
   const orderItemsMap: Map<string, any[]> = new Map();
 
   for (const order of newOrders) {
-    const orderNumber = (order.order_number || '').toString().trim();
+    let orderNumber = (order.order_number || '').toString().trim();
+    orderNumber = orderNumber.replace(/^#/, ''); // Ensure # is removed
+    
     const customerEmail = (order.customer_email || '').toString().trim().toLowerCase();
     const customerName = order.customer_name || (customerEmail ? 'Cliente' : 'Cliente');
     
@@ -825,7 +845,7 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
     const orderData = {
       tenant_id: tenantId,
       customer_id: customerId,
-      order_number: orderNumber,
+      order_number: orderNumber, // Store without # prefix
       status: order.status || 'pending',
       payment_status: mappedPaymentStatus,
       payment_method: mappedPaymentMethod,
