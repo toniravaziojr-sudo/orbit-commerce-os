@@ -113,6 +113,24 @@ serve(async (req) => {
             planKey = session.plan_key;
             cycle = session.billing_cycle;
 
+            // IDEMPOTENCY: Only process if session is still pending_payment
+            // Prevents duplicate emails if MP sends multiple events for same payment
+            if (session.status !== 'pending_payment') {
+              console.log('Session already processed:', session.id, 'status:', session.status);
+              await supabase.from('billing_events').insert({
+                tenant_id: null,
+                provider: 'mercadopago',
+                event_type: `payment.${payment.status}.duplicate`,
+                event_id: eventId,
+                payload: { ...payment, checkout_session_id: session.id, skipped: true },
+                processed_at: new Date().toISOString(),
+              });
+              return new Response(
+                JSON.stringify({ success: true, message: 'Session already processed' }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+
             // Update session to paid
             await supabase
               .from('billing_checkout_sessions')
@@ -121,7 +139,8 @@ serve(async (req) => {
                 mp_payment_id: data.id.toString(),
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', session.id);
+              .eq('id', session.id)
+              .eq('status', 'pending_payment'); // Extra safety: only update if still pending
 
             // Generate token for complete-signup
             const { data: tokenData, error: tokenError } = await supabase.rpc(
@@ -273,6 +292,23 @@ serve(async (req) => {
             .maybeSingle();
 
           if (session && preapproval.status === 'authorized') {
+            // IDEMPOTENCY: Only process if session is still pending_payment
+            if (session.status !== 'pending_payment') {
+              console.log('Preapproval session already processed:', session.id, 'status:', session.status);
+              await supabase.from('billing_events').insert({
+                tenant_id: null,
+                provider: 'mercadopago',
+                event_type: `preapproval.${preapproval.status}.duplicate`,
+                event_id: eventId,
+                payload: { ...preapproval, checkout_session_id: session.id, skipped: true },
+                processed_at: new Date().toISOString(),
+              });
+              return new Response(
+                JSON.stringify({ success: true, message: 'Session already processed' }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
+
             await supabase
               .from('billing_checkout_sessions')
               .update({
@@ -280,7 +316,8 @@ serve(async (req) => {
                 mp_preapproval_id: data.id.toString(),
                 updated_at: new Date().toISOString(),
               })
-              .eq('id', session.id);
+              .eq('id', session.id)
+              .eq('status', 'pending_payment'); // Extra safety
 
             // Generate token and send email (same as payment flow)
             const { data: tokenData } = await supabase.rpc(
