@@ -67,6 +67,8 @@ import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
 import LateCallback from "@/pages/integrations/LateCallback";
 import NotFound from "@/pages/NotFound";
+import Marketplaces from "@/pages/Marketplaces";
+import Files from "@/pages/Files";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
@@ -260,6 +262,8 @@ const App = () => {
                   <Route path="/reviews" element={<Reviews />} />
                   <Route path="/emails" element={<Emails />} />
                   <Route path="/integrations" element={<Integrations />} />
+                  <Route path="/marketplaces" element={<Marketplaces />} />
+                  <Route path="/files" element={<Files />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />
                   <Route path="/finance" element={<Finance />} />
