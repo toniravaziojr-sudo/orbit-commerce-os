@@ -11,25 +11,25 @@ export type ModuleStatus = 'ready' | 'pending';
 
 export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // Principal
-  '/': 'ready',
+  '/': 'pending',
   '/executions': 'pending',
   
   // E-commerce
-  '/orders': 'ready',
-  '/products': 'ready',
-  '/categories': 'ready',
-  '/customers': 'ready',
-  '/discounts': 'ready',
+  '/orders': 'pending',
+  '/products': 'pending',
+  '/categories': 'pending',
+  '/customers': 'pending',
+  '/discounts': 'pending',
   
   // Loja Online
-  '/storefront': 'ready',
-  '/cart-checkout': 'ready',
-  '/menus': 'ready',
-  '/pages': 'ready',
-  '/blog': 'ready',
+  '/storefront': 'pending',
+  '/cart-checkout': 'pending',
+  '/menus': 'pending',
+  '/pages': 'pending',
+  '/blog': 'pending',
   
   // Marketing
-  '/marketing': 'ready',
+  '/marketing': 'pending',
   '/marketing/atribuicao': 'pending',
   '/offers': 'pending',
   '/reviews': 'pending',
@@ -39,7 +39,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // CRM
   '/notifications': 'pending',
   '/support': 'pending',
-  '/emails': 'ready',
+  '/emails': 'pending',
   
   // ERP
   '/fiscal': 'pending',
@@ -48,15 +48,15 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/shipping': 'pending',
   
   // Sistema
-  '/integrations': 'ready',
-  '/import': 'ready',
-  '/settings': 'ready',
+  '/integrations': 'pending',
+  '/import': 'pending',
+  '/settings': 'pending',
   '/files': 'pending',
   '/marketplaces': 'pending',
   
   // Plataforma
-  '/platform/health-monitor': 'ready',
-  '/platform/integrations': 'ready',
+  '/platform/health-monitor': 'pending',
+  '/platform/integrations': 'pending',
   '/platform/block-suggestions': 'pending',
 };
 
