@@ -190,32 +190,19 @@ function parseCSV(content: string): any[] {
     cleanContent = cleanContent.substring(1);
   }
   
-  const lines = cleanContent.split('\n');
-  if (lines.length < 2) return [];
-
-  // Detect delimiter: check first line for ; vs ,
-  const firstLine = lines[0];
-  const semicolonCount = (firstLine.match(/;/g) || []).length;
-  const commaCount = (firstLine.match(/,/g) || []).length;
-  const delimiter = semicolonCount > commaCount ? ';' : ',';
-
-  // Parse headers - normalize them
-  const rawHeaders = parseCSVLine(firstLine, delimiter);
-  const headers = rawHeaders.map(h => {
-    let clean = h.trim()
-      .replace(/^"|"$/g, '')    // Remove quotes
-      .replace(/^\ufeff/, '')   // Remove BOM from individual cells
-      .replace(/\s+/g, ' ');    // Normalize spaces
-    return clean;
-  });
+  // Use robust multi-line CSV parser
+  const rows = parseCSVRobust(cleanContent);
+  if (rows.length < 2) return [];
+  
+  // First row is headers
+  const headers = rows[0].map(h => h.trim().replace(/^\ufeff/, '').replace(/\s+/g, ' '));
+  
+  console.log(`[parseCSV] Parsed ${rows.length - 1} rows with ${headers.length} columns`);
   
   const rawRows: any[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    
-    const values = parseCSVLine(line, delimiter);
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i];
     if (values.length >= headers.length - 1) { // Allow slight mismatch
       const obj: any = {};
       headers.forEach((header, index) => {
@@ -226,6 +213,8 @@ function parseCSV(content: string): any[] {
       rawRows.push(obj);
     }
   }
+
+  console.log(`[parseCSV] Created ${rawRows.length} raw row objects`);
 
   // Check if this is a Shopify product export (has Handle column and multiple rows per product)
   const hasHandle = headers.some(h => h.toLowerCase() === 'handle');
@@ -239,24 +228,127 @@ function parseCSV(content: string): any[] {
   
   if (hasHandle && hasTitle && hasVariantSKU) {
     // Group rows by Handle and merge variant data
-    return groupShopifyProductRows(rawRows);
+    const grouped = groupShopifyProductRows(rawRows);
+    console.log(`[parseCSV] Grouped into ${grouped.length} unique products`);
+    return grouped;
   }
   
   if (hasOrderName && hasLineitemName && hasFinancialStatus) {
     // Group rows by order Name and merge line items
-    return groupShopifyOrderRows(rawRows);
+    const grouped = groupShopifyOrderRows(rawRows);
+    console.log(`[parseCSV] Grouped into ${grouped.length} unique orders`);
+    return grouped;
   }
 
   return rawRows;
+}
+
+// Robust CSV parser that handles multi-line fields enclosed in quotes
+function parseCSVRobust(content: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
+  let i = 0;
+  
+  // Detect delimiter from first line (before any quotes)
+  const firstLineEnd = content.indexOf('\n');
+  const firstLine = firstLineEnd > 0 ? content.substring(0, firstLineEnd) : content;
+  const semicolonCount = (firstLine.match(/;/g) || []).length;
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const delimiter = semicolonCount > commaCount ? ';' : ',';
+  
+  while (i < content.length) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          // Escaped quote - add one quote and skip next
+          currentField += '"';
+          i += 2;
+          continue;
+        } else {
+          // End of quoted field
+          inQuotes = false;
+          i++;
+          continue;
+        }
+      } else {
+        // Regular character inside quotes (including newlines)
+        currentField += char;
+        i++;
+        continue;
+      }
+    } else {
+      // Not inside quotes
+      if (char === '"') {
+        // Start of quoted field
+        inQuotes = true;
+        i++;
+        continue;
+      } else if (char === delimiter) {
+        // End of field
+        currentRow.push(currentField.trim());
+        currentField = '';
+        i++;
+        continue;
+      } else if (char === '\r' && nextChar === '\n') {
+        // Windows line ending - end of row
+        currentRow.push(currentField.trim());
+        if (currentRow.some(f => f !== '')) { // Skip completely empty rows
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+        i += 2;
+        continue;
+      } else if (char === '\n') {
+        // Unix line ending - end of row
+        currentRow.push(currentField.trim());
+        if (currentRow.some(f => f !== '')) { // Skip completely empty rows
+          rows.push(currentRow);
+        }
+        currentRow = [];
+        currentField = '';
+        i++;
+        continue;
+      } else {
+        // Regular character
+        currentField += char;
+        i++;
+        continue;
+      }
+    }
+  }
+  
+  // Don't forget the last field/row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(f => f !== '')) {
+      rows.push(currentRow);
+    }
+  }
+  
+  console.log(`[parseCSVRobust] Parsed ${rows.length} total rows from content`);
+  
+  return rows;
 }
 
 // Group Shopify CSV rows by Handle (products with variants have multiple rows)
 function groupShopifyProductRows(rows: any[]): any[] {
   const productMap = new Map<string, any>();
 
+  console.log(`[groupShopifyProductRows] Processing ${rows.length} raw rows...`);
+
   for (const row of rows) {
     const handle = row['Handle'] || '';
-    if (!handle) continue;
+    if (!handle) {
+      // Log para debug de linhas sem handle
+      console.log('[groupShopifyProductRows] Row without Handle:', Object.keys(row).slice(0, 5));
+      continue;
+    }
 
     if (!productMap.has(handle)) {
       // First row for this product - use as base (has the title and main info)
@@ -294,6 +386,9 @@ function groupShopifyProductRows(rows: any[]): any[] {
     if (!product['SEO Description'] && row['SEO Description']) {
       product['SEO Description'] = row['SEO Description'];
     }
+    if (!product['Status'] && row['Status']) {
+      product['Status'] = row['Status'];
+    }
 
     // Add variant data if present
     const variantSKU = row['Variant SKU'];
@@ -326,8 +421,10 @@ function groupShopifyProductRows(rows: any[]): any[] {
     }
   }
 
+  console.log(`[groupShopifyProductRows] Found ${productMap.size} unique products by Handle`);
+
   // Convert Map to array and set first variant as main product data if no direct price
-  return Array.from(productMap.values()).map(product => {
+  const results = Array.from(productMap.values()).map(product => {
     // If product doesn't have direct price/sku, use first variant
     if (!product['Variant Price'] && product.variants.length > 0) {
       const firstVariant = product.variants[0];
@@ -339,18 +436,13 @@ function groupShopifyProductRows(rows: any[]): any[] {
       product['Variant Barcode'] = firstVariant.barcode;
     }
     
-    // Debug log para verificar dados
-    console.log('[DataUploader] Produto agrupado:', {
-      handle: product['Handle'],
-      title: product['Title'],
-      price: product['Variant Price'],
-      sku: product['Variant SKU'],
-      imagesCount: product.images?.length || 0,
-      variantsCount: product.variants?.length || 0,
-    });
-    
     return product;
   });
+  
+  // Log summary
+  console.log(`[groupShopifyProductRows] Final: ${results.length} products ready for import`);
+  
+  return results;
 }
 
 // Group Shopify CSV order rows by Name (order number) - orders with multiple items have multiple rows
@@ -413,30 +505,4 @@ function groupShopifyOrderRows(rows: any[]): any[] {
   return result;
 }
 
-function parseCSVLine(line: string, delimiter: string = ','): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        // Escaped quote
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === delimiter && !inQuotes) {
-      result.push(current.trim().replace(/^"|"$/g, ''));
-      current = '';
-    } else {
-      current += char;
-    }
-  }
-  
-  result.push(current.trim().replace(/^"|"$/g, ''));
-  return result;
-}
+// parseCSVLine is no longer needed - parseCSVRobust handles everything
