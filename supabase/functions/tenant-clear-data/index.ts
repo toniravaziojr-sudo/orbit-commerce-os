@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ClearDataRequest {
   tenantId: string;
-  modules: ('products' | 'categories' | 'customers' | 'orders' | 'all')[];
+  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'all')[];
 }
 
 Deno.serve(async (req) => {
@@ -225,6 +225,134 @@ Deno.serve(async (req) => {
         .eq('tenant_id', tenantId)
         .select('id');
       deleted['orders'] = ordersDeleted?.length || 0;
+    }
+
+    // Clear structure (menus, pages)
+    if (shouldClearAll || modules.includes('structure')) {
+      // Delete store_menu_items
+      const { data: menuItemsDeleted } = await supabase
+        .from('store_menu_items')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['store_menu_items'] = menuItemsDeleted?.length || 0;
+
+      // Delete store_menus
+      const { data: menusDeleted } = await supabase
+        .from('store_menus')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['store_menus'] = menusDeleted?.length || 0;
+
+      // Delete store_pages and their templates
+      const { data: pageIds } = await supabase
+        .from('store_pages')
+        .select('id')
+        .eq('tenant_id', tenantId);
+
+      const spIds = pageIds?.map(p => p.id) || [];
+      
+      if (spIds.length > 0) {
+        const { data: templatesDeleted } = await supabase
+          .from('store_page_templates')
+          .delete()
+          .in('page_id', spIds)
+          .select('id');
+        deleted['store_page_templates'] = templatesDeleted?.length || 0;
+      }
+
+      const { data: pagesDeleted } = await supabase
+        .from('store_pages')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['store_pages'] = pagesDeleted?.length || 0;
+
+      // Delete blog_posts
+      const { data: blogPostsDeleted } = await supabase
+        .from('blog_posts')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['blog_posts'] = blogPostsDeleted?.length || 0;
+    }
+
+    // Clear visual (store_settings, banners, storage files)
+    if (shouldClearAll || modules.includes('visual')) {
+      // Get current store_settings to find files to delete
+      const { data: storeSettings } = await supabase
+        .from('store_settings')
+        .select('logo_url, favicon_url')
+        .eq('tenant_id', tenantId)
+        .single();
+
+      // Delete files from storage if they exist
+      const filesToDelete: string[] = [];
+      if (storeSettings?.logo_url && storeSettings.logo_url.includes('store-assets')) {
+        const logoPath = storeSettings.logo_url.split('store-assets/')[1];
+        if (logoPath) filesToDelete.push(logoPath);
+      }
+      if (storeSettings?.favicon_url && storeSettings.favicon_url.includes('store-assets')) {
+        const faviconPath = storeSettings.favicon_url.split('store-assets/')[1];
+        if (faviconPath) filesToDelete.push(faviconPath);
+      }
+
+      // Delete all imported files for this tenant from storage
+      const { data: storedFiles } = await supabase
+        .storage
+        .from('store-assets')
+        .list(tenantId);
+
+      if (storedFiles && storedFiles.length > 0) {
+        const allFilePaths = storedFiles.map(f => `${tenantId}/${f.name}`);
+        const { error: storageError } = await supabase
+          .storage
+          .from('store-assets')
+          .remove(allFilePaths);
+        
+        if (!storageError) {
+          deleted['storage_files'] = allFilePaths.length;
+        } else {
+          console.error('Error deleting storage files:', storageError);
+        }
+      }
+
+      // Reset store_settings visual fields
+      const { error: settingsError } = await supabase
+        .from('store_settings')
+        .update({
+          logo_url: null,
+          favicon_url: null,
+          primary_color: null,
+          secondary_color: null,
+          accent_color: null,
+          social_facebook: null,
+          social_instagram: null,
+          social_tiktok: null,
+          social_youtube: null,
+          social_twitter: null,
+          social_linkedin: null,
+          social_custom: null,
+          business_description: null,
+          business_hours: null,
+          business_address: null,
+          business_cnpj: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('tenant_id', tenantId);
+      
+      if (!settingsError) {
+        deleted['store_settings_reset'] = 1;
+      }
+
+      // Delete homepage_blocks (banners, etc.)
+      const { data: homepageBlocksDeleted } = await supabase
+        .from('homepage_blocks')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['homepage_blocks'] = homepageBlocksDeleted?.length || 0;
     }
 
     // Clear import jobs
