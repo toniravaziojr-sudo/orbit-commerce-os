@@ -229,23 +229,23 @@ export default function CustomerDetail() {
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard
           title="Total de Pedidos"
-          value={customer.total_orders.toString()}
+          value={(customer.total_orders ?? 0).toString()}
           icon={ShoppingBag}
         />
         <StatCard
           title="Total Gasto"
-          value={formatCurrency(customer.total_spent)}
+          value={formatCurrency(customer.total_spent ?? 0)}
           icon={TrendingUp}
           variant="success"
         />
         <StatCard
           title="Ticket Médio"
-          value={formatCurrency(customer.average_ticket)}
+          value={formatCurrency(customer.average_ticket ?? 0)}
           icon={TrendingUp}
         />
         <StatCard
           title="Pontos de Fidelidade"
-          value={customer.loyalty_points.toString()}
+          value={(customer.loyalty_points ?? 0).toString()}
           icon={Crown}
           variant="primary"
         />
