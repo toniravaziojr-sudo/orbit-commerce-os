@@ -222,9 +222,13 @@ function parseCSV(content: string): any[] {
   const hasVariantSKU = headers.some(h => h.toLowerCase().includes('variant') && h.toLowerCase().includes('sku'));
   
   // Check if this is a Shopify order export (has Name column for order number and Lineitem columns)
-  const hasOrderName = headers.some(h => h.toLowerCase() === 'name' && !h.toLowerCase().includes('shipping') && !h.toLowerCase().includes('billing'));
+  const hasOrderName = headers.some(h => h === 'Name' || h.toLowerCase() === 'name');
   const hasLineitemName = headers.some(h => h.toLowerCase().includes('lineitem') && h.toLowerCase().includes('name'));
   const hasFinancialStatus = headers.some(h => h.toLowerCase().includes('financial') && h.toLowerCase().includes('status'));
+  
+  // Log detection info for debugging
+  console.log('[parseCSV] Detection:', { hasHandle, hasTitle, hasVariantSKU, hasOrderName, hasLineitemName, hasFinancialStatus });
+  console.log('[parseCSV] Sample headers:', headers.slice(0, 15));
   
   if (hasHandle && hasTitle && hasVariantSKU) {
     // Group rows by Handle and merge variant data
@@ -233,10 +237,15 @@ function parseCSV(content: string): any[] {
     return grouped;
   }
   
+  // IMPORTANT: Detect order CSV - check for 'Name' column that looks like order numbers (#1001, etc.)
   if (hasOrderName && hasLineitemName && hasFinancialStatus) {
+    // Verify that 'Name' column contains order numbers (starts with # or is numeric)
+    const sampleName = rawRows[0]?.['Name'] || rawRows[0]?.['name'] || '';
+    console.log('[parseCSV] Order detection - sample Name:', sampleName);
+    
     // Group rows by order Name and merge line items
     const grouped = groupShopifyOrderRows(rawRows);
-    console.log(`[parseCSV] Grouped into ${grouped.length} unique orders`);
+    console.log(`[parseCSV] ORDERS: Grouped ${rawRows.length} rows into ${grouped.length} unique orders`);
     return grouped;
   }
 
@@ -448,10 +457,27 @@ function groupShopifyProductRows(rows: any[]): any[] {
 // Group Shopify CSV order rows by Name (order number) - orders with multiple items have multiple rows
 function groupShopifyOrderRows(rows: any[]): any[] {
   const orderMap = new Map<string, any>();
+  let rowsWithoutName = 0;
+  let rowsWithLineItems = 0;
+
+  console.log(`[groupShopifyOrderRows] Starting to process ${rows.length} raw rows...`);
+  
+  // Log first row keys for debugging
+  if (rows.length > 0) {
+    console.log('[groupShopifyOrderRows] First row keys:', Object.keys(rows[0]).slice(0, 20));
+  }
 
   for (const row of rows) {
-    const orderName = row['Name'] || '';
-    if (!orderName) continue;
+    // Try multiple possible column names for order identifier
+    const orderName = row['Name'] || row['name'] || row['Order Name'] || row['order_name'] || '';
+    
+    if (!orderName) {
+      rowsWithoutName++;
+      if (rowsWithoutName <= 5) {
+        console.log('[groupShopifyOrderRows] Row without Name - first 10 keys:', Object.keys(row).slice(0, 10), 'values:', Object.values(row).slice(0, 5));
+      }
+      continue;
+    }
 
     if (!orderMap.has(orderName)) {
       // First row for this order - use as base
@@ -463,9 +489,9 @@ function groupShopifyOrderRows(rows: any[]): any[] {
 
     const order = orderMap.get(orderName)!;
     
-    // Fill in missing fields from the first row (Shopify might leave some empty on subsequent rows)
+    // Fill in missing fields from subsequent rows (Shopify might leave some empty on the first row)
     const fieldsToFill = [
-      'Email', 'Financial Status', 'Paid at', 'Fulfillment Status', 'Fulfilled at',
+      'Email', 'email', 'Financial Status', 'Paid at', 'Fulfillment Status', 'Fulfilled at',
       'Currency', 'Subtotal', 'Shipping', 'Taxes', 'Total', 'Discount Code', 'Discount Amount',
       'Shipping Method', 'Created at', 'Payment Method', 'Payment Reference',
       'Shipping Name', 'Shipping Phone', 'Shipping Address1', 'Shipping Address2',
@@ -481,18 +507,20 @@ function groupShopifyOrderRows(rows: any[]): any[] {
       }
     }
 
-    // Add line item if present
-    const lineitemName = row['Lineitem name'];
-    const lineitemQty = row['Lineitem quantity'];
+    // Add line item if present (try multiple column name variations)
+    const lineitemName = row['Lineitem name'] || row['Lineitem Name'] || row['lineitem_name'] || '';
+    const lineitemQty = row['Lineitem quantity'] || row['Lineitem Quantity'] || row['lineitem_quantity'] || '';
+    
     if (lineitemName && lineitemQty) {
+      rowsWithLineItems++;
       order.line_items.push({
         title: lineitemName,
-        sku: row['Lineitem sku'] || null,
+        sku: row['Lineitem sku'] || row['Lineitem SKU'] || null,
         quantity: parseInt(lineitemQty || '1', 10),
-        price: row['Lineitem price'] || '0',
-        compare_at_price: row['Lineitem compare at price'] || null,
-        discount: row['Lineitem discount'] || '0',
-        fulfillment_status: row['Lineitem fulfillment status'] || null,
+        price: row['Lineitem price'] || row['Lineitem Price'] || '0',
+        compare_at_price: row['Lineitem compare at price'] || row['Lineitem Compare At Price'] || null,
+        discount: row['Lineitem discount'] || row['Lineitem Discount'] || '0',
+        fulfillment_status: row['Lineitem fulfillment status'] || row['Lineitem Fulfillment Status'] || null,
       });
     }
   }
@@ -500,9 +528,17 @@ function groupShopifyOrderRows(rows: any[]): any[] {
   // Convert Map to array
   const result = Array.from(orderMap.values());
   
-  console.log(`[DataUploader] Pedidos agrupados: ${result.length} pedidos únicos de ${rows.length} linhas`);
+  console.log(`[groupShopifyOrderRows] SUMMARY:`);
+  console.log(`  - Total raw rows: ${rows.length}`);
+  console.log(`  - Rows without Name (skipped): ${rowsWithoutName}`);
+  console.log(`  - Rows with line items: ${rowsWithLineItems}`);
+  console.log(`  - Unique orders: ${result.length}`);
+  
+  // Log sample of order names found
+  if (result.length > 0) {
+    const sampleOrders = result.slice(0, 5).map(o => o['Name'] || o['name']);
+    console.log(`  - Sample order names: ${sampleOrders.join(', ')}`);
+  }
   
   return result;
 }
-
-// parseCSVLine is no longer needed - parseCSVRobust handles everything

@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-08.2115';
+const DEPLOY_VERSION = '2026-01-09.1915'; // Updated with batch orders optimization
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,8 +97,23 @@ Deno.serve(async (req) => {
           error: error?.message || String(error),
         });
       }
+    } else if (module === 'orders') {
+      // Use batch processing for orders (much faster than one-by-one)
+      try {
+        await importOrdersBatch(supabase, tenantId, items, results);
+        results.processed = items.length;
+      } catch (error: any) {
+        console.error('[import-batch] Batch orders error:', error);
+        results.failed += items.length;
+        results.processed = items.length;
+        results.itemErrors.push({
+          index: 0,
+          identifier: 'batch',
+          error: error?.message || String(error),
+        });
+      }
     } else {
-      // Process other modules individually (products, categories, orders)
+      // Process other modules individually (products, categories)
       for (let i = 0; i < items.length; i++) {
         const item = items[i];
         try {
@@ -108,9 +123,6 @@ Deno.serve(async (req) => {
               break;
             case 'categories':
               await importCategory(supabase, tenantId, item, results);
-              break;
-            case 'orders':
-              await importOrder(supabase, tenantId, item, results);
               break;
           }
           results.processed++;
@@ -706,6 +718,228 @@ function mapShippingStatus(raw: string | null | undefined): string {
   }
 }
 
+/**
+ * Batch import orders - optimized for speed
+ * Pre-fetches existing orders and customers, then does bulk inserts
+ */
+async function importOrdersBatch(supabase: any, tenantId: string, orders: any[], results: any) {
+  // Extract all order numbers
+  const orderNumbers = orders
+    .map(o => (o.order_number || '').toString().trim())
+    .filter(n => n);
+  
+  if (orderNumbers.length === 0) {
+    results.skipped += orders.length;
+    return;
+  }
+
+  // Pre-fetch existing orders in one query
+  const { data: existingOrders } = await supabase
+    .from('orders')
+    .select('order_number')
+    .eq('tenant_id', tenantId)
+    .in('order_number', orderNumbers);
+
+  const existingOrderNumbers = new Set((existingOrders || []).map((o: any) => o.order_number));
+
+  // Filter out existing orders
+  const newOrders = orders.filter(o => {
+    const orderNumber = (o.order_number || '').toString().trim();
+    if (!orderNumber) return false;
+    if (existingOrderNumbers.has(orderNumber)) {
+      results.skipped++;
+      return false;
+    }
+    return true;
+  });
+
+  if (newOrders.length === 0) {
+    return;
+  }
+
+  // Extract unique customer emails
+  const customerEmails = [...new Set(
+    newOrders
+      .map(o => (o.customer_email || '').toString().trim().toLowerCase())
+      .filter(e => e && e.includes('@'))
+  )];
+
+  // Pre-fetch existing customers
+  let customerMap = new Map<string, string>();
+  if (customerEmails.length > 0) {
+    const { data: existingCustomers } = await supabase
+      .from('customers')
+      .select('id, email')
+      .eq('tenant_id', tenantId)
+      .in('email', customerEmails);
+
+    customerMap = new Map((existingCustomers || []).map((c: any) => [c.email, c.id]));
+  }
+
+  // Find customers that need to be created
+  const customersToCreate: any[] = [];
+  const seenEmails = new Set<string>();
+  
+  for (const order of newOrders) {
+    const email = (order.customer_email || '').toString().trim().toLowerCase();
+    if (email && email.includes('@') && !customerMap.has(email) && !seenEmails.has(email)) {
+      seenEmails.add(email);
+      customersToCreate.push({
+        tenant_id: tenantId,
+        email,
+        full_name: order.customer_name || 'Cliente',
+        phone: order.customer_phone || null,
+      });
+    }
+  }
+
+  // Bulk create missing customers
+  if (customersToCreate.length > 0) {
+    const { data: newCustomers, error: custError } = await supabase
+      .from('customers')
+      .insert(customersToCreate)
+      .select('id, email');
+
+    if (!custError && newCustomers) {
+      for (const c of newCustomers) {
+        customerMap.set(c.email, c.id);
+      }
+    }
+  }
+
+  // Build order inserts
+  const orderInserts: any[] = [];
+  const orderItemsMap: Map<string, any[]> = new Map();
+
+  for (const order of newOrders) {
+    const orderNumber = (order.order_number || '').toString().trim();
+    const customerEmail = (order.customer_email || '').toString().trim().toLowerCase();
+    const customerName = order.customer_name || (customerEmail ? 'Cliente' : 'Cliente');
+    
+    const customerId = customerEmail ? customerMap.get(customerEmail) || null : null;
+
+    const mappedPaymentMethod = mapPaymentMethod(order.payment_method);
+    const mappedPaymentStatus = mapPaymentStatus(order.payment_status);
+    const mappedShippingStatus = mapShippingStatus(order.shipping_status);
+
+    const orderData = {
+      tenant_id: tenantId,
+      customer_id: customerId,
+      order_number: orderNumber,
+      status: order.status || 'pending',
+      payment_status: mappedPaymentStatus,
+      payment_method: mappedPaymentMethod,
+      payment_gateway: order.payment_gateway || null,
+      payment_gateway_id: order.payment_gateway_id || null,
+      shipping_status: mappedShippingStatus,
+      subtotal: order.subtotal || 0,
+      discount_total: order.discount_total || 0,
+      shipping_total: order.shipping_total || 0,
+      tax_total: order.tax_total || 0,
+      total: order.total || 0,
+      customer_email: customerEmail || null,
+      customer_name: customerName,
+      customer_phone: order.customer_phone || null,
+      // Shipping address
+      shipping_street: order.shipping_address?.street || null,
+      shipping_number: order.shipping_address?.number || null,
+      shipping_complement: order.shipping_address?.complement || null,
+      shipping_neighborhood: order.shipping_address?.neighborhood || null,
+      shipping_city: order.shipping_address?.city || null,
+      shipping_state: order.shipping_address?.state || null,
+      shipping_postal_code: order.shipping_address?.postal_code || null,
+      shipping_country: order.shipping_address?.country || 'BR',
+      // Billing address
+      billing_street: order.billing_address?.street || null,
+      billing_number: order.billing_address?.number || null,
+      billing_complement: order.billing_address?.complement || null,
+      billing_neighborhood: order.billing_address?.neighborhood || null,
+      billing_city: order.billing_address?.city || null,
+      billing_state: order.billing_address?.state || null,
+      billing_postal_code: order.billing_address?.postal_code || null,
+      billing_country: order.billing_address?.country || null,
+      // Discount info
+      discount_code: order.discount_code || null,
+      discount_name: order.discount_code || null,
+      discount_type: order.discount_type || null,
+      // Shipping service
+      shipping_service_code: order.shipping_service_code || null,
+      shipping_service_name: order.shipping_service_name || null,
+      // Notes
+      customer_notes: order.notes || null,
+      // Tracking
+      tracking_code: order.tracking_code || null,
+      shipping_carrier: order.tracking_carrier || null,
+      // Timestamps
+      paid_at: order.paid_at || null,
+      shipped_at: order.shipped_at || null,
+      delivered_at: order.delivered_at || null,
+      cancelled_at: order.cancelled_at || null,
+      cancellation_reason: order.cancellation_reason || null,
+      created_at: order.created_at || new Date().toISOString(),
+    };
+
+    orderInserts.push(orderData);
+    
+    // Store items for later insertion
+    if (order.items?.length > 0) {
+      orderItemsMap.set(orderNumber, order.items);
+    }
+  }
+
+  // Bulk insert orders
+  if (orderInserts.length > 0) {
+    const { data: insertedOrders, error: orderError } = await supabase
+      .from('orders')
+      .insert(orderInserts)
+      .select('id, order_number');
+
+    if (orderError) {
+      console.error('[import-batch] Batch orders insert error:', orderError);
+      results.failed += orderInserts.length;
+      results.itemErrors.push({
+        index: 0,
+        identifier: 'orders-batch',
+        error: orderError.message,
+      });
+      return;
+    }
+
+    if (insertedOrders) {
+      results.imported += insertedOrders.length;
+
+      // Build order_number -> id map for items
+      const orderIdMap = new Map(insertedOrders.map((o: any) => [o.order_number, o.id]));
+
+      // Collect all order items
+      const allOrderItems: any[] = [];
+      for (const [orderNumber, items] of orderItemsMap) {
+        const orderId = orderIdMap.get(orderNumber);
+        if (!orderId) continue;
+
+        const validItems = items.filter((item: any) => item.product_name);
+        for (const item of validItems) {
+          allOrderItems.push({
+            order_id: orderId,
+            sku: item.product_sku || `SKU-${orderNumber}-${allOrderItems.length}`,
+            product_name: item.product_name || 'Produto',
+            quantity: item.quantity || 1,
+            unit_price: item.unit_price || 0,
+            discount_amount: 0,
+            total_price: (item.quantity || 1) * (item.unit_price || 0),
+          });
+        }
+      }
+
+      // Bulk insert order items
+      if (allOrderItems.length > 0) {
+        await supabase.from('order_items').insert(allOrderItems);
+      }
+    }
+  }
+}
+
+// Legacy single-order import function (kept for reference)
 async function importOrder(supabase: any, tenantId: string, order: any, results: any) {
   const orderNumber = (order.order_number || '').toString().trim();
   if (!orderNumber) {
