@@ -14,6 +14,7 @@ import { useImportService } from '@/hooks/useImportService';
 import { getAdapter } from '@/lib/import/platforms';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ImportWizardProps {
   onComplete?: () => void;
@@ -235,6 +236,19 @@ export function ImportWizard({ onComplete }: ImportWizardProps) {
         progress: importProgress,
         stats: allStats,
       });
+
+      // Update customer order statistics after importing orders
+      if (modules.includes('orders') && allStats.orders?.imported > 0) {
+        try {
+          console.log('[ImportWizard] Updating customer order stats...');
+          await supabase.rpc('update_customer_order_stats', { 
+            p_tenant_id: currentTenant.id 
+          });
+          console.log('[ImportWizard] Customer order stats updated successfully');
+        } catch (statsError) {
+          console.warn('[ImportWizard] Failed to update customer stats:', statsError);
+        }
+      }
 
       setStep('complete');
       
