@@ -318,30 +318,29 @@ export function AppSidebar() {
 
     if (group.collapsible && !collapsed) {
       return (
-        <div key={group.label} className="mb-1">
+        <div key={group.label} className="mb-2">
           <Collapsible open={open} onOpenChange={() => toggleGroup(group.label)}>
             <CollapsibleTrigger asChild>
               <button
                 className={cn(
-                  "flex w-full items-center justify-between px-3 py-2 text-xs font-medium rounded-lg transition-all duration-200",
-                  "hover:bg-sidebar-accent/60",
-                  open 
-                    ? "bg-sidebar-accent/40 text-sidebar-foreground" 
-                    : "text-sidebar-muted-foreground",
-                  groupActive && !open && "text-sidebar-primary"
+                  "flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+                  "hover:text-sidebar-foreground",
+                  open || groupActive
+                    ? "text-sidebar-foreground" 
+                    : "text-sidebar-foreground/60"
                 )}
               >
-                <span className="tracking-wide">{group.label}</span>
+                <span>{group.label}</span>
                 <ChevronDown
                   className={cn(
-                    "h-4 w-4 transition-transform duration-200 text-sidebar-muted-foreground",
-                    open && "rotate-180 text-sidebar-foreground"
+                    "h-3.5 w-3.5 transition-transform duration-200",
+                    open ? "rotate-180" : ""
                   )}
                 />
               </button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
-              <ul className="space-y-0.5 py-1 pl-2 border-l-2 border-sidebar-border ml-3 mt-1">
+            <CollapsibleContent>
+              <ul className="space-y-0.5 mt-1">
                 {group.items.map(renderNavItem)}
               </ul>
             </CollapsibleContent>
@@ -353,7 +352,7 @@ export function AppSidebar() {
     return (
       <div key={group.label} className="mb-3">
         {!collapsed && (
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-sidebar-muted-foreground/70">
+          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60">
             {group.label}
           </p>
         )}
