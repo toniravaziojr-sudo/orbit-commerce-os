@@ -13,6 +13,8 @@ import type {
   NormalizedOrderItem,
 } from '../types';
 
+import { stripHtmlToText, cleanSku, extractNumericOnly } from '../utils';
+
 // Campos da Nuvemshop (como vêm da API/CSV)
 export interface NuvemshopProduct {
   id?: number;
@@ -216,7 +218,11 @@ function getText(value: { pt?: string; es?: string; en?: string } | string | und
 // Funções de normalização
 export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProduct {
   const name = getText(raw.name) || raw['Nome'] || 'Produto sem nome';
-  const description = getText(raw.description) || raw['Descrição'] || null;
+  
+  // Convert HTML to plain text
+  const rawDescription = getText(raw.description) || raw['Descrição'] || null;
+  const description = stripHtmlToText(rawDescription);
+  
   const handle = getText(raw.handle) || raw['URL'] || slugify(name);
   
   const variant = raw.variants?.[0];
@@ -237,8 +243,14 @@ export function normalizeNuvemshopProduct(raw: NuvemshopProduct): NormalizedProd
     '0'
   ) || null;
   
-  const sku = variant?.sku || raw['SKU'] || null;
-  const barcode = variant?.barcode || raw['Código de barras'] || null;
+  // SKU - clean special chars
+  const rawSku = variant?.sku || raw['SKU'] || null;
+  const sku = cleanSku(rawSku);
+  
+  // Barcode - only numbers
+  const rawBarcode = variant?.barcode || raw['Código de barras'] || null;
+  const barcode = extractNumericOnly(rawBarcode);
+  
   const weight = parseFloat(variant?.weight?.toString() || raw['Peso (kg)']?.replace(',', '.') || '0') || null;
   const width = parseFloat(variant?.width?.toString() || raw['Largura (cm)']?.replace(',', '.') || '0') || null;
   const height = parseFloat(variant?.height?.toString() || raw['Altura (cm)']?.replace(',', '.') || '0') || null;
