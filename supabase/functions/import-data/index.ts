@@ -13,6 +13,17 @@ interface ImportRequest {
   categoryMap?: Record<string, string>; // slug -> id mapping for linking products to categories
 }
 
+// Helper function to generate slugs
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .substring(0, 200);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -107,18 +118,38 @@ Deno.serve(async (req) => {
 });
 
 async function importProduct(supabase: any, tenantId: string, product: any, results: any, categoryMap?: Record<string, string>) {
+  // CRITICAL: Validate product name - NEVER create "Produto sem nome"
+  const productName = (product.name || product.title || '').toString().trim();
+  if (!productName || productName === 'Produto sem nome' || productName === 'Produto importado') {
+    throw new Error('Produto sem nome válido - importação rejeitada');
+  }
+
+  // Generate slug if missing
+  const effectiveSlug = product.slug || slugify(productName);
+
   // Check for duplicate by slug
   const { data: existing } = await supabase
     .from('products')
     .select('id')
     .eq('tenant_id', tenantId)
-    .eq('slug', product.slug)
+    .eq('slug', effectiveSlug)
     .maybeSingle();
 
   let productId: string;
 
-  // Generate SKU if not provided - NEVER fail due to null SKU
-  const effectiveSku = product.sku || `SKU-${product.slug || Date.now().toString(36)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+  // Generate SKU if not provided - deterministic
+  const effectiveSku = product.sku || `IMP-${effectiveSlug.substring(0, 20)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+
+  // Parse price (handle Brazilian format)
+  let effectivePrice = 0;
+  if (product.price !== undefined && product.price !== null) {
+    if (typeof product.price === 'string') {
+      const cleaned = product.price.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+      effectivePrice = parseFloat(cleaned) || 0;
+    } else {
+      effectivePrice = Number(product.price) || 0;
+    }
+  }
 
   if (existing) {
     productId = existing.id;
@@ -126,10 +157,10 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
     const { error } = await supabase
       .from('products')
       .update({
-        name: product.name || 'Produto sem nome',
+        name: productName,
         description: product.description,
         short_description: product.short_description,
-        price: product.price || 0,
+        price: effectivePrice,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
         sku: effectiveSku,
@@ -155,11 +186,11 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       .from('products')
       .insert({
         tenant_id: tenantId,
-        name: product.name || 'Produto sem nome',
-        slug: product.slug || `produto-${Date.now()}`,
+        name: productName,
+        slug: effectiveSlug,
         description: product.description,
         short_description: product.short_description,
-        price: product.price || 0,
+        price: effectivePrice,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
         sku: effectiveSku,
