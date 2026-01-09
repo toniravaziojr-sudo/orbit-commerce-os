@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "https://esm.sh/resend@2.0.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +9,6 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -24,7 +24,8 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN')!;
-    // const mpWebhookSecret = Deno.env.get('MP_WEBHOOK_SECRET'); // For signature validation
+    const resendApiKey = Deno.env.get('RESEND_API_KEY');
+    const appUrl = Deno.env.get('APP_URL') || 'https://app.comandocentral.com.br';
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -32,11 +33,9 @@ serve(async (req) => {
     console.log('Webhook received:', JSON.stringify(body, null, 2));
 
     const { type, data, action } = body;
-
-    // Generate unique event ID for idempotency
     const eventId = body.id?.toString() || `${type}-${data?.id}-${Date.now()}`;
 
-    // Check if already processed (idempotency)
+    // Idempotency check
     const { data: existingEvent } = await supabase
       .from('billing_events')
       .select('id')
@@ -56,10 +55,10 @@ serve(async (req) => {
     let planKey: string | null = null;
     let cycle: string | null = null;
     let eventType = type || action || 'unknown';
+    let checkoutSessionId: string | null = null;
 
     // Handle payment events
     if (type === 'payment' && data?.id) {
-      // Fetch payment details from MP
       const paymentResponse = await fetch(`https://api.mercadopago.com/v1/payments/${data.id}`, {
         headers: { 'Authorization': `Bearer ${mpAccessToken}` },
       });
@@ -68,72 +67,159 @@ serve(async (req) => {
         const payment = await paymentResponse.json();
         console.log('Payment details:', JSON.stringify(payment, null, 2));
 
-        // Extract tenant info from external_reference or metadata
-        if (payment.external_reference) {
-          const parts = payment.external_reference.split('|');
-          tenantId = parts[0] || null;
-          planKey = parts[1] || null;
-          cycle = parts[2] || null;
-        } else if (payment.metadata) {
-          tenantId = payment.metadata.tenant_id;
-          planKey = payment.metadata.plan_key;
-          cycle = payment.metadata.cycle;
-        }
+        // Check if this is from billing_checkout_sessions (new flow)
+        if (payment.external_reference?.startsWith('bcs_')) {
+          const mpExternalRef = payment.external_reference;
+          
+          // Find the checkout session
+          const { data: session } = await supabase
+            .from('billing_checkout_sessions')
+            .select('*')
+            .eq('mp_external_reference', mpExternalRef)
+            .maybeSingle();
 
-        // Process based on payment status
-        if (tenantId && payment.status === 'approved') {
-          const now = new Date();
-          const periodEnd = new Date();
-          if (cycle === 'annual') {
-            periodEnd.setFullYear(periodEnd.getFullYear() + 1);
-          } else {
-            periodEnd.setMonth(periodEnd.getMonth() + 1);
+          if (session && payment.status === 'approved') {
+            checkoutSessionId = session.id;
+            planKey = session.plan_key;
+            cycle = session.billing_cycle;
+
+            // Update session to paid
+            await supabase
+              .from('billing_checkout_sessions')
+              .update({
+                status: 'paid',
+                mp_payment_id: data.id.toString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', session.id);
+
+            // Generate token for complete-signup
+            const { data: tokenData, error: tokenError } = await supabase.rpc(
+              'generate_billing_checkout_token',
+              { p_session_id: session.id }
+            );
+
+            if (tokenError) {
+              console.error('Error generating token:', tokenError);
+            } else {
+              const token = tokenData;
+              const completeUrl = `${appUrl}/complete-signup?token=${token}`;
+
+              // Send email with Resend
+              if (resendApiKey) {
+                const resend = new Resend(resendApiKey);
+                
+                try {
+                  await resend.emails.send({
+                    from: 'Comando Central <noreply@comandocentral.com.br>',
+                    to: [session.email],
+                    subject: 'Pagamento confirmado — crie sua conta',
+                    html: `
+                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <h1 style="color: #1a1a1a;">Pagamento confirmado! 🎉</h1>
+                        <p style="color: #4a4a4a; font-size: 16px;">
+                          Olá <strong>${session.owner_name}</strong>,
+                        </p>
+                        <p style="color: #4a4a4a; font-size: 16px;">
+                          Seu pagamento foi aprovado com sucesso. Agora é só criar sua conta para começar a usar o Comando Central.
+                        </p>
+                        <div style="text-align: center; margin: 30px 0;">
+                          <a href="${completeUrl}" 
+                             style="background-color: #2563eb; color: white; padding: 14px 28px; 
+                                    text-decoration: none; border-radius: 8px; font-weight: bold;
+                                    display: inline-block;">
+                            Criar minha conta
+                          </a>
+                        </div>
+                        <p style="color: #6a6a6a; font-size: 14px;">
+                          Este link é válido por 24 horas. Se você não solicitou isso, ignore este email.
+                        </p>
+                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                        <p style="color: #9a9a9a; font-size: 12px; text-align: center;">
+                          Comando Central — Gestão completa para e-commerce
+                        </p>
+                      </div>
+                    `,
+                  });
+                  console.log('Email sent to:', session.email);
+                } catch (emailError) {
+                  console.error('Error sending email:', emailError);
+                }
+              } else {
+                console.warn('RESEND_API_KEY not configured, skipping email');
+              }
+            }
+
+            // Record event
+            await supabase.from('billing_events').insert({
+              tenant_id: null,
+              provider: 'mercadopago',
+              event_type: `payment.${payment.status}`,
+              event_id: eventId,
+              payload: { ...payment, checkout_session_id: session.id },
+              processed_at: new Date().toISOString(),
+            });
+          }
+        } else {
+          // Legacy flow: tenant already exists
+          if (payment.external_reference) {
+            const parts = payment.external_reference.split('|');
+            tenantId = parts[0] || null;
+            planKey = parts[1] || null;
+            cycle = parts[2] || null;
+          } else if (payment.metadata) {
+            tenantId = payment.metadata.tenant_id;
+            planKey = payment.metadata.plan_key;
+            cycle = payment.metadata.cycle;
           }
 
-          const { error: updateError } = await supabase
-            .from('tenant_subscriptions')
-            .upsert({
-              tenant_id: tenantId,
-              plan_key: planKey || 'start',
-              billing_cycle: cycle || 'monthly',
-              status: 'active',
-              current_period_start: now.toISOString(),
-              current_period_end: periodEnd.toISOString(),
-              mp_customer_id: payment.payer?.id?.toString(),
-              mp_payment_method: {
-                type: payment.payment_type_id,
-                last_four: payment.card?.last_four_digits,
-                brand: payment.payment_method_id,
-              },
-              updated_at: now.toISOString(),
-            }, { onConflict: 'tenant_id' });
+          if (tenantId && payment.status === 'approved') {
+            const now = new Date();
+            const periodEnd = new Date();
+            if (cycle === 'annual') {
+              periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+            } else {
+              periodEnd.setMonth(periodEnd.getMonth() + 1);
+            }
 
-          if (updateError) {
-            console.error('Error updating subscription:', updateError);
-          } else {
+            await supabase
+              .from('tenant_subscriptions')
+              .upsert({
+                tenant_id: tenantId,
+                plan_key: planKey || 'start',
+                billing_cycle: cycle || 'monthly',
+                status: 'active',
+                current_period_start: now.toISOString(),
+                current_period_end: periodEnd.toISOString(),
+                mp_customer_id: payment.payer?.id?.toString(),
+                mp_payment_method: {
+                  type: payment.payment_type_id,
+                  last_four: payment.card?.last_four_digits,
+                  brand: payment.payment_method_id,
+                },
+                updated_at: now.toISOString(),
+              }, { onConflict: 'tenant_id' });
+
             console.log('Subscription activated for tenant:', tenantId);
+          } else if (tenantId && ['rejected', 'cancelled', 'refunded'].includes(payment.status)) {
+            await supabase
+              .from('tenant_subscriptions')
+              .update({
+                status: payment.status === 'refunded' ? 'canceled' : 'inactive',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('tenant_id', tenantId);
           }
-        } else if (tenantId && ['rejected', 'cancelled', 'refunded'].includes(payment.status)) {
-          await supabase
-            .from('tenant_subscriptions')
-            .update({
-              status: payment.status === 'refunded' ? 'canceled' : 'inactive',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('tenant_id', tenantId);
 
-          console.log('Subscription deactivated for tenant:', tenantId);
+          await supabase.from('billing_events').insert({
+            tenant_id: tenantId,
+            provider: 'mercadopago',
+            event_type: `payment.${payment.status}`,
+            event_id: eventId,
+            payload: payment,
+            processed_at: new Date().toISOString(),
+          });
         }
-
-        // Record event
-        await supabase.from('billing_events').insert({
-          tenant_id: tenantId,
-          provider: 'mercadopago',
-          event_type: `payment.${payment.status}`,
-          event_id: eventId,
-          payload: payment,
-          processed_at: new Date().toISOString(),
-        });
       }
     }
 
@@ -147,32 +233,95 @@ serve(async (req) => {
         const preapproval = await preapprovalResponse.json();
         console.log('Preapproval details:', JSON.stringify(preapproval, null, 2));
 
-        if (preapproval.external_reference) {
-          const parts = preapproval.external_reference.split('|');
-          tenantId = parts[0] || null;
-          planKey = parts[1] || null;
-          cycle = parts[2] || null;
+        // Check if new checkout flow
+        if (preapproval.external_reference?.startsWith('bcs_')) {
+          const { data: session } = await supabase
+            .from('billing_checkout_sessions')
+            .select('*')
+            .eq('mp_external_reference', preapproval.external_reference)
+            .maybeSingle();
+
+          if (session && preapproval.status === 'authorized') {
+            await supabase
+              .from('billing_checkout_sessions')
+              .update({
+                status: 'paid',
+                mp_preapproval_id: data.id.toString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', session.id);
+
+            // Generate token and send email (same as payment flow)
+            const { data: tokenData } = await supabase.rpc(
+              'generate_billing_checkout_token',
+              { p_session_id: session.id }
+            );
+
+            if (tokenData && resendApiKey) {
+              const completeUrl = `${appUrl}/complete-signup?token=${tokenData}`;
+              const resend = new Resend(resendApiKey);
+              
+              try {
+                await resend.emails.send({
+                  from: 'Comando Central <noreply@comandocentral.com.br>',
+                  to: [session.email],
+                  subject: 'Assinatura confirmada — crie sua conta',
+                  html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                      <h1 style="color: #1a1a1a;">Assinatura ativada! 🎉</h1>
+                      <p style="color: #4a4a4a; font-size: 16px;">
+                        Olá <strong>${session.owner_name}</strong>,
+                      </p>
+                      <p style="color: #4a4a4a; font-size: 16px;">
+                        Sua assinatura foi ativada com sucesso. Agora é só criar sua conta para começar.
+                      </p>
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${completeUrl}" 
+                           style="background-color: #2563eb; color: white; padding: 14px 28px; 
+                                  text-decoration: none; border-radius: 8px; font-weight: bold;
+                                  display: inline-block;">
+                          Criar minha conta
+                        </a>
+                      </div>
+                      <p style="color: #6a6a6a; font-size: 14px;">
+                        Este link é válido por 24 horas.
+                      </p>
+                    </div>
+                  `,
+                });
+              } catch (e) {
+                console.error('Email error:', e);
+              }
+            }
+          }
+        } else {
+          // Legacy preapproval
+          if (preapproval.external_reference) {
+            const parts = preapproval.external_reference.split('|');
+            tenantId = parts[0] || null;
+            planKey = parts[1] || null;
+            cycle = parts[2] || null;
+          }
+
+          if (tenantId) {
+            let status = 'pending';
+            if (preapproval.status === 'authorized') status = 'active';
+            else if (preapproval.status === 'paused') status = 'past_due';
+            else if (preapproval.status === 'cancelled') status = 'canceled';
+
+            await supabase
+              .from('tenant_subscriptions')
+              .upsert({
+                tenant_id: tenantId,
+                plan_key: planKey || 'start',
+                billing_cycle: cycle || 'monthly',
+                status: status,
+                mp_preapproval_id: data.id,
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'tenant_id' });
+          }
         }
 
-        if (tenantId) {
-          let status = 'pending';
-          if (preapproval.status === 'authorized') status = 'active';
-          else if (preapproval.status === 'paused') status = 'past_due';
-          else if (preapproval.status === 'cancelled') status = 'canceled';
-
-          await supabase
-            .from('tenant_subscriptions')
-            .upsert({
-              tenant_id: tenantId,
-              plan_key: planKey || 'start',
-              billing_cycle: cycle || 'monthly',
-              status: status,
-              mp_preapproval_id: data.id,
-              updated_at: new Date().toISOString(),
-            }, { onConflict: 'tenant_id' });
-        }
-
-        // Record event
         await supabase.from('billing_events').insert({
           tenant_id: tenantId,
           provider: 'mercadopago',
@@ -185,7 +334,7 @@ serve(async (req) => {
     }
 
     // Record generic event if not already recorded
-    if (!tenantId) {
+    if (!tenantId && !checkoutSessionId) {
       await supabase.from('billing_events').insert({
         tenant_id: null,
         provider: 'mercadopago',
