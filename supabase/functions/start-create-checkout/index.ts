@@ -111,8 +111,8 @@ serve(async (req) => {
       slug = `${slug}-${Date.now().toString(36)}`;
     }
 
-    // Gerar external_reference único
-    const externalReference = `billing-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+    // Gerar external_reference único (MUST start with bcs_ for webhook to recognize)
+    const externalReference: string = `bcs_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     // Criar session no banco
     const { data: session, error: sessionError } = await supabase
