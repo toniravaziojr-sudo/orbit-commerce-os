@@ -11,6 +11,7 @@ import { useOrderDraft } from '@/hooks/useOrderDraft';
 import { useCheckoutPayment, PaymentMethod, CardData } from '@/hooks/useCheckoutPayment';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { getStoredAttribution, clearStoredAttribution } from '@/hooks/useAttribution';
+import { getStoredAffiliateData, clearStoredAffiliateData } from '@/lib/affiliateTracking';
 import { CheckoutForm, CheckoutFormData, initialCheckoutFormData, validateCheckoutForm } from './CheckoutForm';
 import { CheckoutOrderSummary } from './CheckoutOrderSummary';
 import { CheckoutShipping } from './CheckoutShipping';
@@ -246,6 +247,9 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
     
     // Get attribution data
     const attribution = getStoredAttribution();
+    
+    // Get affiliate data
+    const affiliate = getStoredAffiliateData();
 
     const result = await processPayment({
       method: paymentMethod,
@@ -263,6 +267,7 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
       card: paymentMethod === 'credit_card' ? cardData : undefined,
       checkoutSessionId: sessionId || undefined,
       attribution: attribution || undefined,
+      affiliate: affiliate || undefined,
     });
 
     if (result.success) {
@@ -278,12 +283,12 @@ export function CheckoutContent({ tenantId }: CheckoutContentProps) {
 
       if (paymentMethod === 'credit_card' && result.cardStatus === 'paid') {
         setPaymentStatus('approved');
-        clearCart(); clearDraft(); clearStoredAttribution();
+        clearCart(); clearDraft(); clearStoredAttribution(); clearStoredAffiliateData();
         toast.success('Pedido realizado com sucesso!');
         navigate(`${urls.thankYou()}?pedido=${result.orderNumber}`);
       } else {
         setPaymentStatus('pending_payment');
-        clearCart(); clearDraft(); clearStoredAttribution();
+        clearCart(); clearDraft(); clearStoredAttribution(); clearStoredAffiliateData();
       }
     } else {
       setPaymentStatus('failed');

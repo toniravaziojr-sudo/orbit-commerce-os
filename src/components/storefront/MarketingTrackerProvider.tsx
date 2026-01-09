@@ -9,6 +9,7 @@ import { useLocation } from 'react-router-dom';
 import { usePublicMarketingConfig, PublicMarketingConfig } from '@/hooks/useMarketingIntegrations';
 import { MarketingTracker } from '@/lib/marketingTracker';
 import { useAttribution } from '@/hooks/useAttribution';
+import { useAffiliateTracking } from '@/hooks/useAffiliateTracking';
 
 interface MarketingTrackerContextValue {
   tracker: MarketingTracker | null;
@@ -39,6 +40,9 @@ export function MarketingTrackerProvider({ tenantId, children }: Props) {
   
   // Capture attribution data on storefront entry
   useAttribution();
+  
+  // Capture affiliate tracking data
+  useAffiliateTracking(tenantId);
 
   // Create and initialize tracker when config is available
   useEffect(() => {
