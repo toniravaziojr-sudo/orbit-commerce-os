@@ -1,20 +1,35 @@
-import { 
-  Plug, 
-  CreditCard, 
+import { useState } from "react";
+import {
+  Plug,
+  CreditCard,
   Share2,
   Boxes,
-  MessageSquare
+  MessageSquare,
+  TrendingUp,
+  Truck,
+  FileText,
+  Shield,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
+import { usePlatformOperator } from "@/hooks/usePlatformOperator";
+import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
+import { PlatformIntegrationsDashboard } from "@/components/integrations/PlatformIntegrationsDashboard";
+import { EmailAndDomainsPlatformSettings } from "@/components/integrations/EmailAndDomainsPlatformSettings";
+import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlatformSettings";
+import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
+import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
+import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
+import { Link } from "react-router-dom";
 
 // Future integrations
 const FUTURE_INTEGRATIONS = [
@@ -31,6 +46,8 @@ const FUTURE_INTEGRATIONS = [
 export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
   const { isConnected: lateConnected } = useLateConnection();
+  const { isPlatformOperator } = usePlatformOperator();
+  const [activeTab, setActiveTab] = useState("payments");
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
   const socialAccountsCount = lateConnected ? 1 : 0;
@@ -39,12 +56,12 @@ export default function Integrations() {
     <div className="space-y-8 animate-fade-in">
       <PageHeader
         title="Integrações"
-        description="Configure pagamentos e serviços externos"
+        description="Hub central de integrações e serviços externos"
       />
 
       {/* Quick Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("payments")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
@@ -61,7 +78,7 @@ export default function Integrations() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("social")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -78,7 +95,7 @@ export default function Integrations() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("communication")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
@@ -95,7 +112,7 @@ export default function Integrations() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("erp")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
@@ -113,8 +130,36 @@ export default function Integrations() {
         </Card>
       </div>
 
-      <Tabs defaultValue="payments" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+      {/* Quick Links */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/marketplaces">
+            <Boxes className="h-4 w-4 mr-2" />
+            Marketplaces
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/marketing">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Marketing / Analytics
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/shipping">
+            <Truck className="h-4 w-4 mr-2" />
+            Frete / Transportadoras
+          </Link>
+        </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/fiscal">
+            <FileText className="h-4 w-4 mr-2" />
+            Fiscal / NFe
+          </Link>
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="flex flex-wrap gap-1 h-auto p-1">
           <TabsTrigger value="payments" className="gap-2">
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">Pagamentos</span>
@@ -131,6 +176,13 @@ export default function Integrations() {
             <Boxes className="h-4 w-4" />
             <span className="hidden sm:inline">ERP</span>
           </TabsTrigger>
+          {/* Platform Admin Tab */}
+          {isPlatformOperator && (
+            <TabsTrigger value="platform" className="gap-2 border-l ml-2 pl-4">
+              <Shield className="h-4 w-4" />
+              <span className="hidden sm:inline">Plataforma</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="payments">
@@ -138,17 +190,14 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="social" className="space-y-6">
-          {/* Late - Social Publishing */}
           <LateConnectionSettings />
         </TabsContent>
 
         <TabsContent value="communication" className="space-y-6">
-          {/* WhatsApp Settings - provider-agnostic tabs */}
           <WhatsAppProviderTabs />
         </TabsContent>
 
         <TabsContent value="erp" className="space-y-6">
-          {/* Future Integrations */}
           <Card>
             <CardHeader>
               <CardTitle>Integrações ERP</CardTitle>
@@ -191,6 +240,55 @@ export default function Integrations() {
             ))}
           </div>
         </TabsContent>
+
+        {/* Platform Admin Tab Content */}
+        {isPlatformOperator && (
+          <TabsContent value="platform" className="space-y-6">
+            <PlatformAdminGate>
+              <Alert className="border-primary/30 bg-primary/5">
+                <Shield className="h-4 w-4 text-primary" />
+                <AlertDescription>
+                  <strong>Área do Operador:</strong> Configurações globais de integração da plataforma.
+                </AlertDescription>
+              </Alert>
+
+              <Tabs defaultValue="overview" className="space-y-6">
+                <TabsList className="flex flex-wrap gap-1 h-auto p-1">
+                  <TabsTrigger value="overview">Resumo</TabsTrigger>
+                  <TabsTrigger value="email">Email</TabsTrigger>
+                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+                  <TabsTrigger value="fiscal">Fiscal</TabsTrigger>
+                  <TabsTrigger value="logistics">Logística</TabsTrigger>
+                  <TabsTrigger value="ai">IA</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="overview">
+                  <PlatformIntegrationsDashboard onNavigateToTab={() => {}} />
+                </TabsContent>
+
+                <TabsContent value="email">
+                  <EmailAndDomainsPlatformSettings />
+                </TabsContent>
+
+                <TabsContent value="whatsapp">
+                  <WhatsAppPlatformSettings />
+                </TabsContent>
+
+                <TabsContent value="fiscal">
+                  <FiscalPlatformSettings />
+                </TabsContent>
+
+                <TabsContent value="logistics">
+                  <LogisticsPlatformSettings />
+                </TabsContent>
+
+                <TabsContent value="ai">
+                  <AIPlatformSettings />
+                </TabsContent>
+              </Tabs>
+            </PlatformAdminGate>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useMemo, ReactNode } from "react";
+import { useState, useMemo, ReactNode, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { platformBranding } from "@/lib/branding";
@@ -7,8 +7,10 @@ import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
 import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { FeatureGate } from "@/components/layout/FeatureGate";
+import { getModuleStatus, ModuleStatus } from "@/config/module-status";
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -23,25 +25,27 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Activity,
   FileText,
   ShoppingBag,
   Store,
   FolderTree,
   Menu,
-  Rocket,
   Star,
   TrendingUp,
   Percent,
   Truck,
-  Shield,
   Mail,
   Upload,
   BookOpen,
   Sparkles,
+  FolderOpen,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { TenantSwitcher } from "./TenantSwitcher";
 
 interface NavItem {
@@ -49,20 +53,18 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: string | number;
-  /** Feature key for gating - if set, item is wrapped in FeatureGate */
   featureKey?: string;
-  /** If true, item is only shown to platform admins via PlatformAdminGate */
   adminOnly?: boolean;
 }
 
 interface NavGroup {
   label: string;
   items: NavItem[];
-  /** If true, entire group is only shown to platform admins */
   adminOnly?: boolean;
+  collapsible?: boolean;
 }
 
-// Full navigation for tenant users
+// Full navigation for tenant users - with collapsible groups
 const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
@@ -73,6 +75,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "E-commerce",
+    collapsible: true,
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
       { title: "Produtos", href: "/products", icon: Package },
@@ -83,6 +86,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Loja Online",
+    collapsible: true,
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
       { title: "Carrinho e Checkout", href: "/cart-checkout", icon: ShoppingBag },
@@ -93,6 +97,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Marketing",
+    collapsible: true,
     items: [
       { title: "Integrações Marketing", href: "/marketing", icon: TrendingUp },
       { title: "Atribuição de venda", href: "/marketing/atribuicao", icon: TrendingUp },
@@ -104,6 +109,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "CRM",
+    collapsible: true,
     items: [
       { title: "Notificações", href: "/notifications", icon: Bell },
       { title: "Atendimento", href: "/support", icon: MessageSquare },
@@ -112,6 +118,7 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "ERP",
+    collapsible: true,
     items: [
       { title: "Fiscal", href: "/fiscal", icon: FileText },
       { title: "Financeiro", href: "/finance", icon: DollarSign },
@@ -121,8 +128,11 @@ const fullNavigation: NavGroup[] = [
   },
   {
     label: "Sistema",
+    collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
+      { title: "Marketplaces", href: "/marketplaces", icon: Building2 },
+      { title: "Arquivos", href: "/files", icon: FolderOpen },
       { title: "Importar Dados", href: "/import", icon: Upload },
       { title: "Configurações", href: "/settings", icon: Settings },
     ],
@@ -130,7 +140,6 @@ const fullNavigation: NavGroup[] = [
 ];
 
 // Navigation for Platform Admin (Comando Central) - REDUCED MENU
-// Only the 13 modules defined for admin operation
 const platformAdminNavigation: NavGroup[] = [
   {
     label: "Plataforma",
@@ -187,49 +196,161 @@ const platformNavigation: NavGroup = {
   ],
 };
 
+const STORAGE_KEY = 'sidebar-collapsed-groups';
+
+function getInitialOpenGroups(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+  return {};
+}
+
+function ModuleStatusIndicator({ status }: { status: ModuleStatus }) {
+  if (status === 'ready') {
+    return <span className="text-green-500 text-xs ml-1" title="100% funcional">✅</span>;
+  }
+  return <span className="text-amber-500 text-xs ml-1" title="Em construção">🟧</span>;
+}
+
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(getInitialOpenGroups);
   const location = useLocation();
   const { isPlatformOperator } = usePlatformOperator();
   const { isPlatformTenant, isLoading: isTenantTypeLoading } = useTenantType();
   const { currentTenant, tenants } = useAuth();
+  const { isSpecialTenant } = useIsSpecialTenant();
+
+  // Persist open groups state
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(openGroups));
+  }, [openGroups]);
 
   // Determine which navigation to show based on tenant type
   const { navigation, showPlatformSection } = useMemo(() => {
-    // While loading tenant type, default to customer menu to avoid flash
-    // But if we know it's platform, show platform menu
     if (isPlatformTenant) {
-      console.log('[AppSidebar] Showing platform admin navigation');
       return { navigation: platformAdminNavigation, showPlatformSection: false };
     }
-    
-    // Customer tenant: show full e-commerce menu
-    // Platform operators with customer tenants also get the platform section
-    console.log('[AppSidebar] Showing full navigation, isPlatformOperator:', isPlatformOperator);
     return { navigation: fullNavigation, showPlatformSection: isPlatformOperator };
   }, [isPlatformTenant, isPlatformOperator]);
+
   const isActive = (href: string) => {
     if (href === "/") return location.pathname === "/";
-    
-    // Special handling for pages routes
-    if (href === "/pages") {
-      return location.pathname === "/pages" || 
-        location.pathname.startsWith("/pages/");
-    }
-    
-    // Special handling for /storefront - only exact match, not children
-    // This prevents /storefront from highlighting when on /storefront/conversao
-    if (href === "/storefront") {
-      return location.pathname === "/storefront" || 
-        location.pathname.startsWith("/storefront/builder");
-    }
-    
-    // Special handling for /marketing - only exact match to avoid conflicts with /marketing/atribuicao
-    if (href === "/marketing") {
-      return location.pathname === "/marketing";
-    }
-    
+    if (href === "/pages") return location.pathname === "/pages" || location.pathname.startsWith("/pages/");
+    if (href === "/storefront") return location.pathname === "/storefront" || location.pathname.startsWith("/storefront/builder");
+    if (href === "/marketing") return location.pathname === "/marketing";
     return location.pathname.startsWith(href);
+  };
+
+  const isGroupActive = (group: NavGroup) => {
+    return group.items.some((item) => isActive(item.href));
+  };
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const isGroupOpen = (group: NavGroup) => {
+    if (!group.collapsible) return true;
+    // Default to open if has active item
+    if (openGroups[group.label] === undefined) {
+      return isGroupActive(group);
+    }
+    return openGroups[group.label];
+  };
+
+  const renderNavItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = isActive(item.href);
+    const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
+
+    const linkContent = (
+      <NavLink
+        to={item.href}
+        className={cn(
+          "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+          active
+            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+            : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+        )}
+      >
+        <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-sidebar-primary" : "")} />
+        {!collapsed && (
+          <>
+            <span className="flex-1 truncate">{item.title}</span>
+            {status && <ModuleStatusIndicator status={status} />}
+            {item.badge && (
+              <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
+                {item.badge}
+              </span>
+            )}
+          </>
+        )}
+      </NavLink>
+    );
+
+    const wrappedLink = collapsed ? (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+        <TooltipContent side="right" className="font-medium">
+          {item.title}
+          {status && <ModuleStatusIndicator status={status} />}
+        </TooltipContent>
+      </Tooltip>
+    ) : (
+      linkContent
+    );
+
+    let gatedContent: ReactNode = wrappedLink;
+    if (item.adminOnly) {
+      gatedContent = <PlatformAdminGate>{wrappedLink}</PlatformAdminGate>;
+    } else if (item.featureKey) {
+      gatedContent = <FeatureGate feature={item.featureKey}>{wrappedLink}</FeatureGate>;
+    }
+
+    return <li key={item.href}>{gatedContent}</li>;
+  };
+
+  const renderNavGroup = (group: NavGroup) => {
+    const groupActive = isGroupActive(group);
+    const open = isGroupOpen(group);
+
+    if (group.collapsible && !collapsed) {
+      return (
+        <Collapsible key={group.label} open={open} onOpenChange={() => toggleGroup(group.label)}>
+          <CollapsibleTrigger asChild>
+            <button
+              className={cn(
+                "flex w-full items-center justify-between px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider rounded-md transition-colors",
+                groupActive
+                  ? "text-sidebar-primary"
+                  : "text-sidebar-muted hover:text-sidebar-foreground"
+              )}
+            >
+              <span>{group.label}</span>
+              <ChevronDown
+                className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <ul className="space-y-0.5 mt-1">{group.items.map(renderNavItem)}</ul>
+          </CollapsibleContent>
+        </Collapsible>
+      );
+    }
+
+    return (
+      <div key={group.label} className="mb-4">
+        {!collapsed && (
+          <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-sidebar-muted">
+            {group.label}
+          </p>
+        )}
+        <ul className="space-y-0.5">{group.items.map(renderNavItem)}</ul>
+      </div>
+    );
   };
 
   return (
@@ -259,88 +380,9 @@ export function AppSidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-2 scrollbar-thin">
-        {/* Regular navigation */}
-        {navigation.map((group) => (
-          <div key={group.label} className="mb-4">
-            {!collapsed && (
-              <p className="mb-1.5 px-2 text-[9px] font-semibold uppercase tracking-wider text-sidebar-muted">
-                {group.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-
-                const linkContent = (
-                  <NavLink
-                    to={item.href}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                      active
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-                    )}
-                  >
-                    <Icon
-                      className={cn(
-                        "h-4 w-4 flex-shrink-0",
-                        active ? "text-sidebar-primary" : ""
-                      )}
-                    />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 truncate">{item.title}</span>
-                        {item.badge && (
-                          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">
-                            {item.badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                );
-
-                // Wrap with tooltip if collapsed
-                const wrappedLink = collapsed ? (
-                  <Tooltip delayDuration={0}>
-                    <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                    <TooltipContent side="right" className="font-medium">
-                      {item.title}
-                    </TooltipContent>
-                  </Tooltip>
-                ) : (
-                  linkContent
-                );
-
-                // Apply gating based on item properties
-                let gatedContent: ReactNode = wrappedLink;
-
-                // Admin-only items use PlatformAdminGate
-                if (item.adminOnly) {
-                  gatedContent = (
-                    <PlatformAdminGate>
-                      {wrappedLink}
-                    </PlatformAdminGate>
-                  );
-                }
-                // Feature-gated items use FeatureGate
-                else if (item.featureKey) {
-                  gatedContent = (
-                    <FeatureGate feature={item.featureKey}>
-                      {wrappedLink}
-                    </FeatureGate>
-                  );
-                }
-
-                return <li key={item.href}>{gatedContent}</li>;
-              })}
-            </ul>
-          </div>
-        ))}
+        {navigation.map(renderNavGroup)}
 
         {/* Platform admin navigation - only for platform operators WITH tenant context */}
-        {/* Double-protected: showPlatformSection + PlatformAdminGate */}
         {showPlatformSection && (
           <PlatformAdminGate>
             <div className="mb-4">
@@ -353,6 +395,7 @@ export function AppSidebar() {
                 {platformNavigation.items.map((item) => {
                   const Icon = item.icon;
                   const active = location.pathname.startsWith(item.href);
+                  const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
 
                   const linkContent = (
                     <NavLink
@@ -364,14 +407,12 @@ export function AppSidebar() {
                           : "text-sidebar-foreground hover:bg-primary/5 hover:text-primary"
                       )}
                     >
-                      <Icon
-                        className={cn(
-                          "h-4 w-4 flex-shrink-0",
-                          active ? "text-primary" : "text-primary/70"
-                        )}
-                      />
+                      <Icon className={cn("h-4 w-4 flex-shrink-0", active ? "text-primary" : "text-primary/70")} />
                       {!collapsed && (
-                        <span className="flex-1 truncate">{item.title}</span>
+                        <>
+                          <span className="flex-1 truncate">{item.title}</span>
+                          {status && <ModuleStatusIndicator status={status} />}
+                        </>
                       )}
                     </NavLink>
                   );
@@ -381,6 +422,7 @@ export function AppSidebar() {
                       <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
                       <TooltipContent side="right" className="font-medium">
                         {item.title}
+                        {status && <ModuleStatusIndicator status={status} />}
                       </TooltipContent>
                     </Tooltip>
                   ) : (

@@ -2145,6 +2145,66 @@ export type Database = {
           },
         ]
       }
+      files: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          filename: string
+          folder_id: string | null
+          id: string
+          is_folder: boolean | null
+          mime_type: string | null
+          original_name: string
+          size_bytes: number | null
+          storage_path: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          filename: string
+          folder_id?: string | null
+          id?: string
+          is_folder?: boolean | null
+          mime_type?: string | null
+          original_name: string
+          size_bytes?: number | null
+          storage_path: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          filename?: string
+          folder_id?: string | null
+          id?: string
+          is_folder?: boolean | null
+          mime_type?: string | null
+          original_name?: string
+          size_bytes?: number | null
+          storage_path?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "files_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "files_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       finance_entries: {
         Row: {
           amount: number
