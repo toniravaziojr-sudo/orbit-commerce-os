@@ -133,9 +133,11 @@ serve(async (req) => {
             planKey = session.plan_key;
             cycle = session.billing_cycle;
 
-            // IDEMPOTENCY: Only process if session is still pending_payment
-            // Prevents duplicate emails if MP sends multiple events for same payment
-            if (session.status !== 'pending_payment') {
+            // REPAIR MODE: Handle sessions that are paid but missing token
+            const needsRepair = session.status === 'paid' && (!session.token_hash || !session.token_expires_at);
+            
+            // IDEMPOTENCY: Only process if pending_payment OR needs repair
+            if (session.status !== 'pending_payment' && !needsRepair) {
               console.log('Session already processed:', session.id, 'status:', session.status);
               await supabase.from('billing_events').insert({
                 tenant_id: null,
@@ -150,17 +152,23 @@ serve(async (req) => {
                 { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
             }
+            
+            if (needsRepair) {
+              console.log('REPAIR MODE: Session paid but missing token, regenerating:', session.id);
+            }
 
-            // Update session to paid
-            await supabase
-              .from('billing_checkout_sessions')
-              .update({
-                status: 'paid',
-                mp_payment_id: data.id.toString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', session.id)
-              .eq('status', 'pending_payment'); // Extra safety: only update if still pending
+            // Update session to paid (only if still pending, repair mode skips this)
+            if (session.status === 'pending_payment') {
+              await supabase
+                .from('billing_checkout_sessions')
+                .update({
+                  status: 'paid',
+                  mp_payment_id: data.id.toString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', session.id)
+                .eq('status', 'pending_payment');
+            }
 
             // Generate token for complete-signup
             const { data: tokenData, error: tokenError } = await supabase.rpc(
@@ -170,6 +178,14 @@ serve(async (req) => {
 
             if (tokenError) {
               console.error('Error generating token:', tokenError);
+              // Record error but don't fail - session stays paid, can retry via resend-signup-email
+              await supabase
+                .from('billing_checkout_sessions')
+                .update({
+                  error_message: `Token generation failed: ${tokenError.message}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', session.id);
             } else {
               const token = tokenData;
               const completeUrl = `${appUrl}/complete-signup?token=${token}`;
@@ -214,6 +230,14 @@ serve(async (req) => {
                   console.log('Email sent to:', session.email);
                 } else {
                   console.error('Email send failed:', emailResult.error);
+                  // Record email error for diagnostics
+                  await supabase
+                    .from('billing_checkout_sessions')
+                    .update({
+                      error_message: `Email failed: ${emailResult.error}`,
+                      updated_at: new Date().toISOString(),
+                    })
+                    .eq('id', session.id);
                 }
               } else {
                 console.warn('RESEND_API_KEY not configured, skipping email');
@@ -312,8 +336,11 @@ serve(async (req) => {
             .maybeSingle();
 
           if (session && preapproval.status === 'authorized') {
-            // IDEMPOTENCY: Only process if session is still pending_payment
-            if (session.status !== 'pending_payment') {
+            // REPAIR MODE: Handle sessions that are paid but missing token
+            const needsRepair = session.status === 'paid' && (!session.token_hash || !session.token_expires_at);
+            
+            // IDEMPOTENCY: Only process if pending_payment OR needs repair
+            if (session.status !== 'pending_payment' && !needsRepair) {
               console.log('Preapproval session already processed:', session.id, 'status:', session.status);
               await supabase.from('billing_events').insert({
                 tenant_id: null,
@@ -329,15 +356,22 @@ serve(async (req) => {
               );
             }
 
-            await supabase
-              .from('billing_checkout_sessions')
-              .update({
-                status: 'paid',
-                mp_preapproval_id: data.id.toString(),
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', session.id)
-              .eq('status', 'pending_payment'); // Extra safety
+            if (needsRepair) {
+              console.log('REPAIR MODE (preapproval): Session paid but missing token, regenerating:', session.id);
+            }
+
+            // Update session to paid (only if still pending)
+            if (session.status === 'pending_payment') {
+              await supabase
+                .from('billing_checkout_sessions')
+                .update({
+                  status: 'paid',
+                  mp_preapproval_id: data.id.toString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', session.id)
+                .eq('status', 'pending_payment');
+            }
 
             // Generate token and send email (same as payment flow)
             const { data: tokenData } = await supabase.rpc(

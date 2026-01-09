@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Loader2, CheckCircle, XCircle, Mail, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle, XCircle, Mail, RefreshCw, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface SessionStatus {
   id: string;
@@ -24,6 +25,8 @@ export default function StartPending() {
   const [nextStep, setNextStep] = useState<string>('wait');
   const [error, setError] = useState<string | null>(null);
   const [polling, setPolling] = useState(true);
+  const [resending, setResending] = useState(false);
+  const [lastResent, setLastResent] = useState<Date | null>(null);
 
   const sessionId = searchParams.get('session');
   const paymentError = searchParams.get('error');
@@ -84,6 +87,49 @@ export default function StartPending() {
     return () => clearInterval(interval);
   }, [paymentError, checkStatus, polling]);
 
+  const handleResendEmail = async () => {
+    if (!sessionId || resending) return;
+    
+    // Rate limit on client side
+    if (lastResent) {
+      const diffSeconds = (Date.now() - lastResent.getTime()) / 1000;
+      if (diffSeconds < 60) {
+        toast.error(`Aguarde ${Math.ceil(60 - diffSeconds)} segundos para reenviar.`);
+        return;
+      }
+    }
+    
+    setResending(true);
+    try {
+      const response = await supabase.functions.invoke('resend-signup-email', {
+        body: { session_id: sessionId },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const result = response.data;
+      
+      if (!result.success) {
+        if (result.code === 'RATE_LIMITED') {
+          toast.error(result.error);
+        } else {
+          throw new Error(result.error);
+        }
+        return;
+      }
+
+      setLastResent(new Date());
+      toast.success('Email reenviado com sucesso!');
+    } catch (err: any) {
+      console.error('Resend error:', err);
+      toast.error(err.message || 'Falha ao reenviar email');
+    } finally {
+      setResending(false);
+    }
+  };
+
   const renderContent = () => {
     if (error) {
       return (
@@ -139,9 +185,24 @@ export default function StartPending() {
                 Enviamos um e-mail para <strong>{session?.email}</strong> com o link para criar sua conta.
               </AlertDescription>
             </Alert>
-            <p className="text-sm text-muted-foreground text-center">
-              Não recebeu? Verifique sua pasta de spam ou aguarde alguns minutos.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground text-center">
+                Não recebeu? Verifique sua pasta de spam ou clique abaixo para reenviar.
+              </p>
+              <Button
+                variant="outline"
+                onClick={handleResendEmail}
+                disabled={resending}
+                className="w-full"
+              >
+                {resending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4 mr-2" />
+                )}
+                Reenviar e-mail
+              </Button>
+            </div>
           </>
         );
 

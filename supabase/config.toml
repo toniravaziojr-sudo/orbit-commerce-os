@@ -404,3 +404,6 @@ verify_jwt = false
 
 [functions.complete-signup]
 verify_jwt = false
+
+[functions.resend-signup-email]
+verify_jwt = false
