@@ -629,6 +629,83 @@ function mapPaymentMethod(raw: string | null | undefined): string | null {
   return null;
 }
 
+/**
+ * Validate and map payment_status to valid enum value
+ * Valid: 'pending' | 'processing' | 'approved' | 'declined'
+ */
+function mapPaymentStatus(raw: string | null | undefined): string {
+  if (!raw) return 'pending';
+  
+  const normalized = raw.toLowerCase().trim();
+  
+  switch (normalized) {
+    case 'approved':
+    case 'paid':
+    case 'confirmed':
+    case 'completed':
+    case 'aprovado':
+      return 'approved';
+    case 'processing':
+    case 'pending_payment':
+    case 'processando':
+      return 'processing';
+    case 'declined':
+    case 'failed':
+    case 'refused':
+    case 'voided':
+    case 'expired':
+    case 'recusado':
+    case 'expirado':
+      return 'declined';
+    case 'pending':
+    case 'authorized':
+    case 'pendente':
+    default:
+      return 'pending';
+  }
+}
+
+/**
+ * Validate and map shipping_status to valid enum value
+ * Valid: 'pending' | 'processing' | 'shipped' | 'in_transit' | 'delivered'
+ */
+function mapShippingStatus(raw: string | null | undefined): string {
+  if (!raw) return 'pending';
+  
+  const normalized = raw.toLowerCase().trim();
+  
+  switch (normalized) {
+    case 'delivered':
+    case 'fulfilled':
+    case 'completed':
+    case 'entregue':
+      return 'delivered';
+    case 'in_transit':
+    case 'in-transit':
+    case 'out_for_delivery':
+    case 'em trânsito':
+    case 'em_transito':
+      return 'in_transit';
+    case 'shipped':
+    case 'dispatched':
+    case 'partial':
+    case 'partially_fulfilled':
+    case 'enviado':
+      return 'shipped';
+    case 'processing':
+    case 'preparing':
+    case 'em separação':
+    case 'em_separacao':
+    case 'processando':
+      return 'processing';
+    case 'pending':
+    case 'unfulfilled':
+    case 'pendente':
+    default:
+      return 'pending';
+  }
+}
+
 async function importOrder(supabase: any, tenantId: string, order: any, results: any) {
   const orderNumber = (order.order_number || '').toString().trim();
   if (!orderNumber) {
@@ -684,6 +761,9 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
 
   // Map payment method to valid enum value
   const mappedPaymentMethod = mapPaymentMethod(order.payment_method);
+  // Map payment_status and shipping_status to valid enum values
+  const mappedPaymentStatus = mapPaymentStatus(order.payment_status);
+  const mappedShippingStatus = mapShippingStatus(order.shipping_status);
 
   // Build order data with all supported fields
   const orderData = {
@@ -691,11 +771,11 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     customer_id: customerId,
     order_number: orderNumber,
     status: order.status || 'pending',
-    payment_status: order.payment_status || 'pending',
+    payment_status: mappedPaymentStatus,
     payment_method: mappedPaymentMethod,
     payment_gateway: order.payment_gateway || null,
     payment_gateway_id: order.payment_gateway_id || null,
-    shipping_status: order.shipping_status || 'pending',
+    shipping_status: mappedShippingStatus,
     subtotal: order.subtotal || 0,
     discount_total: order.discount_total || 0,
     shipping_total: order.shipping_total || 0,

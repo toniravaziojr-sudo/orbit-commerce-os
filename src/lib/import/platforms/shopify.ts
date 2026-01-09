@@ -717,20 +717,25 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
   const notes = raw.note || raw['Notes'] || null;
   const noteAttributes = raw['Note Attributes'] || null;
   
-  // Handle line items from CSV format (single line per item)
+  // Handle line items from CSV format
   let items: NormalizedOrderItem[] = [];
   
   if (raw.line_items && Array.isArray(raw.line_items) && raw.line_items.length > 0) {
-    items = raw.line_items.map(item => ({
-      product_name: item.title || 'Produto',
-      product_sku: item.sku || null,
-      variant_name: item.variant_title || null,
-      quantity: item.quantity || 1,
-      unit_price: parsePrice(item.price),
-      total_price: parsePrice(item.price) * (item.quantity || 1),
-    }));
+    // Grouped line items from DataUploader (groupShopifyOrderRows)
+    items = raw.line_items.map((item: any) => {
+      const qty = typeof item.quantity === 'number' ? item.quantity : parseInt(item.quantity || '1', 10);
+      const price = parsePrice(item.price);
+      return {
+        product_name: item.title || item.name || 'Produto',
+        product_sku: item.sku || null,
+        variant_name: item.variant_title || null,
+        quantity: qty,
+        unit_price: price,
+        total_price: price * qty,
+      };
+    });
   } else if (raw['Lineitem name']) {
-    // CSV format with lineitem fields
+    // Single line item from ungrouped CSV row
     const qty = parseInt(raw['Lineitem quantity'] || '1', 10);
     const price = parsePrice(raw['Lineitem price']);
     items = [{
@@ -803,7 +808,7 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
     status: mapShopifyStatus(financialStatus, fulfillmentStatus),
     payment_status: mapShopifyPaymentStatus(financialStatus),
     payment_method: mapPaymentMethodToEnum(paymentGateway),
-    shipping_status: fulfillmentStatus,
+    shipping_status: mapShopifyShippingStatus(fulfillmentStatus),
     subtotal,
     discount_total: discountTotal,
     shipping_total: shippingTotal,
@@ -1014,13 +1019,56 @@ function mapShopifyStatus(
   return 'pending';
 }
 
-function mapShopifyPaymentStatus(financial: string): NormalizedOrder['payment_status'] {
-  switch (financial) {
-    case 'paid': return 'paid';
-    case 'refunded': return 'refunded';
-    case 'voided': return 'cancelled';
-    case 'pending': return 'pending';
-    default: return 'pending';
+/**
+ * Map Shopify financial_status to our payment_status enum
+ * Valid values: 'pending' | 'processing' | 'approved' | 'declined'
+ */
+function mapShopifyPaymentStatus(financial: string): string {
+  const normalized = (financial || '').toLowerCase().trim();
+  
+  switch (normalized) {
+    case 'paid':
+    case 'partially_paid':
+      return 'approved'; // paid = approved in our system
+    case 'refunded':
+    case 'partially_refunded':
+      return 'approved'; // refund happens after payment was approved
+    case 'pending':
+    case 'authorized':
+      return 'pending';
+    case 'voided':
+    case 'expired':
+      return 'declined';
+    default:
+      return 'pending';
+  }
+}
+
+/**
+ * Map Shopify fulfillment_status to our shipping_status enum
+ * Valid values: 'pending' | 'processing' | 'shipped' | 'in_transit' | 'delivered'
+ */
+function mapShopifyShippingStatus(fulfillment: string | null): string {
+  if (!fulfillment) return 'pending';
+  
+  const normalized = fulfillment.toLowerCase().trim();
+  
+  switch (normalized) {
+    case 'fulfilled':
+      return 'delivered';
+    case 'partial':
+    case 'partially_fulfilled':
+      return 'shipped';
+    case 'unfulfilled':
+    case 'null':
+    case '':
+      return 'pending';
+    case 'in_transit':
+      return 'in_transit';
+    case 'shipped':
+      return 'shipped';
+    default:
+      return 'pending';
   }
 }
 
