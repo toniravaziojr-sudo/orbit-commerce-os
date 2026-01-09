@@ -1,6 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { Resend } from "https://esm.sh/resend@2.0.0";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+// Send email via Resend REST API (no SDK dependency)
+async function sendEmailViaResend(
+  apiKey: string,
+  to: string,
+  subject: string,
+  html: string,
+  from: string = 'Comando Central <noreply@comandocentral.com.br>'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from, to: [to], subject, html }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Resend API error:', response.status, errorData);
+      return { success: false, error: `HTTP ${response.status}` };
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Resend fetch error:', error);
+    return { success: false, error: String(error) };
+  }
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -105,45 +135,46 @@ serve(async (req) => {
               const token = tokenData;
               const completeUrl = `${appUrl}/complete-signup?token=${token}`;
 
-              // Send email with Resend
+              // Send email via REST (no SDK dependency)
               if (resendApiKey) {
-                const resend = new Resend(resendApiKey);
+                const emailHtml = `
+                  <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h1 style="color: #1a1a1a;">Pagamento confirmado! 🎉</h1>
+                    <p style="color: #4a4a4a; font-size: 16px;">
+                      Olá <strong>${session.owner_name}</strong>,
+                    </p>
+                    <p style="color: #4a4a4a; font-size: 16px;">
+                      Seu pagamento foi aprovado com sucesso. Agora é só criar sua conta para começar a usar o Comando Central.
+                    </p>
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${completeUrl}" 
+                         style="background-color: #2563eb; color: white; padding: 14px 28px; 
+                                text-decoration: none; border-radius: 8px; font-weight: bold;
+                                display: inline-block;">
+                        Criar minha conta
+                      </a>
+                    </div>
+                    <p style="color: #6a6a6a; font-size: 14px;">
+                      Este link é válido por 24 horas. Se você não solicitou isso, ignore este email.
+                    </p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+                    <p style="color: #9a9a9a; font-size: 12px; text-align: center;">
+                      Comando Central — Gestão completa para e-commerce
+                    </p>
+                  </div>
+                `;
                 
-                try {
-                  await resend.emails.send({
-                    from: 'Comando Central <noreply@comandocentral.com.br>',
-                    to: [session.email],
-                    subject: 'Pagamento confirmado — crie sua conta',
-                    html: `
-                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                        <h1 style="color: #1a1a1a;">Pagamento confirmado! 🎉</h1>
-                        <p style="color: #4a4a4a; font-size: 16px;">
-                          Olá <strong>${session.owner_name}</strong>,
-                        </p>
-                        <p style="color: #4a4a4a; font-size: 16px;">
-                          Seu pagamento foi aprovado com sucesso. Agora é só criar sua conta para começar a usar o Comando Central.
-                        </p>
-                        <div style="text-align: center; margin: 30px 0;">
-                          <a href="${completeUrl}" 
-                             style="background-color: #2563eb; color: white; padding: 14px 28px; 
-                                    text-decoration: none; border-radius: 8px; font-weight: bold;
-                                    display: inline-block;">
-                            Criar minha conta
-                          </a>
-                        </div>
-                        <p style="color: #6a6a6a; font-size: 14px;">
-                          Este link é válido por 24 horas. Se você não solicitou isso, ignore este email.
-                        </p>
-                        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-                        <p style="color: #9a9a9a; font-size: 12px; text-align: center;">
-                          Comando Central — Gestão completa para e-commerce
-                        </p>
-                      </div>
-                    `,
-                  });
+                const emailResult = await sendEmailViaResend(
+                  resendApiKey,
+                  session.email,
+                  'Pagamento confirmado — crie sua conta',
+                  emailHtml
+                );
+                
+                if (emailResult.success) {
                   console.log('Email sent to:', session.email);
-                } catch (emailError) {
-                  console.error('Error sending email:', emailError);
+                } else {
+                  console.error('Email send failed:', emailResult.error);
                 }
               } else {
                 console.warn('RESEND_API_KEY not configured, skipping email');
@@ -259,38 +290,38 @@ serve(async (req) => {
 
             if (tokenData && resendApiKey) {
               const completeUrl = `${appUrl}/complete-signup?token=${tokenData}`;
-              const resend = new Resend(resendApiKey);
+              const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                  <h1 style="color: #1a1a1a;">Assinatura ativada! 🎉</h1>
+                  <p style="color: #4a4a4a; font-size: 16px;">
+                    Olá <strong>${session.owner_name}</strong>,
+                  </p>
+                  <p style="color: #4a4a4a; font-size: 16px;">
+                    Sua assinatura foi ativada com sucesso. Agora é só criar sua conta para começar.
+                  </p>
+                  <div style="text-align: center; margin: 30px 0;">
+                    <a href="${completeUrl}" 
+                       style="background-color: #2563eb; color: white; padding: 14px 28px; 
+                              text-decoration: none; border-radius: 8px; font-weight: bold;
+                              display: inline-block;">
+                      Criar minha conta
+                    </a>
+                  </div>
+                  <p style="color: #6a6a6a; font-size: 14px;">
+                    Este link é válido por 24 horas.
+                  </p>
+                </div>
+              `;
               
-              try {
-                await resend.emails.send({
-                  from: 'Comando Central <noreply@comandocentral.com.br>',
-                  to: [session.email],
-                  subject: 'Assinatura confirmada — crie sua conta',
-                  html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                      <h1 style="color: #1a1a1a;">Assinatura ativada! 🎉</h1>
-                      <p style="color: #4a4a4a; font-size: 16px;">
-                        Olá <strong>${session.owner_name}</strong>,
-                      </p>
-                      <p style="color: #4a4a4a; font-size: 16px;">
-                        Sua assinatura foi ativada com sucesso. Agora é só criar sua conta para começar.
-                      </p>
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${completeUrl}" 
-                           style="background-color: #2563eb; color: white; padding: 14px 28px; 
-                                  text-decoration: none; border-radius: 8px; font-weight: bold;
-                                  display: inline-block;">
-                          Criar minha conta
-                        </a>
-                      </div>
-                      <p style="color: #6a6a6a; font-size: 14px;">
-                        Este link é válido por 24 horas.
-                      </p>
-                    </div>
-                  `,
-                });
-              } catch (e) {
-                console.error('Email error:', e);
+              const emailResult = await sendEmailViaResend(
+                resendApiKey,
+                session.email,
+                'Assinatura confirmada — crie sua conta',
+                emailHtml
+              );
+              
+              if (!emailResult.success) {
+                console.error('Email error:', emailResult.error);
               }
             }
           }
