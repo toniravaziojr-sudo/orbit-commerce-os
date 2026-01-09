@@ -946,35 +946,71 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           }
         }
         
-        // === FOOTER 1: Categories ===
-        if (categoryFooterItems.length > 0) {
-          const { data: footer1Data, error: footer1Error } = await supabase
-            .from('menus')
-            .upsert({
-              tenant_id: currentTenant.id,
-              name: 'Menu',
-              location: 'footer_1',
-            }, { onConflict: 'tenant_id,location' })
-            .select('id')
-            .single();
+        // === FOOTER 1: Categories + Native links (Rastreio, Blog) ===
+        const { data: footer1Data, error: footer1Error } = await supabase
+          .from('menus')
+          .upsert({
+            tenant_id: currentTenant.id,
+            name: 'Menu',
+            location: 'footer_1',
+          }, { onConflict: 'tenant_id,location' })
+          .select('id')
+          .single();
 
-          if (footer1Error) {
-            console.error('Error creating footer_1 menu:', footer1Error);
-            setImportErrors(prev => [...prev, 'Erro ao criar menu Footer 1']);
-          } else if (footer1Data) {
-            await supabase
+        if (footer1Error) {
+          console.error('Error creating footer_1 menu:', footer1Error);
+          setImportErrors(prev => [...prev, 'Erro ao criar menu Footer 1']);
+        } else if (footer1Data) {
+          await supabase
+            .from('menu_items')
+            .delete()
+            .eq('menu_id', footer1Data.id);
+
+          // Insert category items
+          let footer1ItemsCount = await insertMenuItems(categoryFooterItems, footer1Data.id);
+          
+          // Add native pages as default items: Blog and Rastreio
+          const nativeItems = [
+            { label: 'Blog', url: '/blog', item_type: 'internal' },
+            { label: 'Rastreio', url: '/rastreio', item_type: 'internal' },
+          ];
+          
+          let sortOrder = categoryFooterItems.length;
+          for (const native of nativeItems) {
+            const { error: nativeError } = await supabase
               .from('menu_items')
-              .delete()
-              .eq('menu_id', footer1Data.id);
-
-            const footer1ItemsCount = await insertMenuItems(categoryFooterItems, footer1Data.id);
-            totalMenuItems += footer1ItemsCount;
-            console.log(`Imported ${footer1ItemsCount} footer_1 (categories) menu items`);
+              .insert({
+                tenant_id: currentTenant.id,
+                menu_id: footer1Data.id,
+                label: native.label,
+                url: native.url,
+                item_type: native.item_type,
+                ref_id: null,
+                sort_order: sortOrder++,
+                parent_id: null,
+              });
+            
+            if (!nativeError) {
+              footer1ItemsCount++;
+            }
           }
+          
+          totalMenuItems += footer1ItemsCount;
+          console.log(`Imported ${footer1ItemsCount} footer_1 (categories + native) menu items`);
         }
         
-        // === FOOTER 2: Institutional/Policies ===
-        if (institutionalFooterItems.length > 0) {
+        // === FOOTER 2: Institutional/Policies (excluding Blog/Rastreio which are native) ===
+        // Filter out items that are already added as native to footer_1
+        const filteredInstitutionalItems = institutionalFooterItems.filter(item => {
+          const label = (item.label || '').toLowerCase();
+          // Skip Blog and Rastreio - they are native pages added to footer_1
+          if (label === 'blog' || label === 'rastreio' || label === 'rastrear' || label === 'tracking') {
+            return false;
+          }
+          return true;
+        });
+        
+        if (filteredInstitutionalItems.length > 0) {
           const { data: footer2Data, error: footer2Error } = await supabase
             .from('menus')
             .upsert({
@@ -994,18 +1030,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               .delete()
               .eq('menu_id', footer2Data.id);
 
-            const footer2ItemsCount = await insertMenuItems(institutionalFooterItems, footer2Data.id);
+            const footer2ItemsCount = await insertMenuItems(filteredInstitutionalItems, footer2Data.id);
             totalMenuItems += footer2ItemsCount;
             console.log(`Imported ${footer2ItemsCount} footer_2 (institutional) menu items`);
           }
         }
         
-        // If all items went to one group, still log it
-        if (categoryFooterItems.length === 0 && institutionalFooterItems.length > 0) {
-          console.log('All footer items classified as institutional');
-        } else if (institutionalFooterItems.length === 0 && categoryFooterItems.length > 0) {
-          console.log('All footer items classified as categories');
-        }
+        console.log(`Footer 1: ${categoryFooterItems.length} categories + 2 native, Footer 2: ${filteredInstitutionalItems.length} institutional`);
       }
       
       if (headerMenuItems.length === 0 && footerMenuItems.length === 0) {
