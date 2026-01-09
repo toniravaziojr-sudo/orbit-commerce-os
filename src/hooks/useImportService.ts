@@ -31,7 +31,14 @@ interface ImportProgress {
   errors: Array<{ index: number; identifier: string; error: string }>;
 }
 
-const BATCH_SIZE = 200;
+// Batch sizes per module type - optimized for each data type
+const BATCH_SIZES: Record<string, number> = {
+  customers: 200,  // Customers have batch upsert, can handle more
+  products: 50,    // Products have images/variants, moderate
+  categories: 100, // Categories are simple
+  orders: 100,     // Orders need customer lookup, but can batch better
+};
+const DEFAULT_BATCH_SIZE = 50;
 
 export function useImportService() {
   const [health, setHealth] = useState<HealthStatus>({
@@ -100,7 +107,9 @@ export function useImportService() {
     categoryMap?: Record<string, string>,
     onProgress?: (progress: ImportProgress) => void
   ): Promise<{ success: boolean; results: BatchResult[]; error?: string }> => {
-    const totalBatches = Math.ceil(items.length / BATCH_SIZE);
+    // Use module-specific batch size for optimal performance
+    const batchSize = BATCH_SIZES[module] || DEFAULT_BATCH_SIZE;
+    const totalBatches = Math.ceil(items.length / batchSize);
     const allResults: BatchResult[] = [];
     const allErrors: Array<{ index: number; identifier: string; error: string }> = [];
     
@@ -125,11 +134,13 @@ export function useImportService() {
 
     updateProgress('importing', 0);
 
+    console.log(`[useImportService] Starting ${module} import: ${items.length} items in ${totalBatches} batches of ${batchSize}`);
+
     for (let i = 0; i < totalBatches; i++) {
-      const batchItems = items.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
+      const batchItems = items.slice(i * batchSize, (i + 1) * batchSize);
       
       try {
-        console.log(`[useImportService] Sending batch ${i + 1}/${totalBatches} with ${batchItems.length} items`);
+        console.log(`[useImportService] Sending batch ${i + 1}/${totalBatches} for ${module} (${batchItems.length} items)`);
         
         const { data, error } = await supabase.functions.invoke('import-batch', {
           body: {
@@ -147,7 +158,7 @@ export function useImportService() {
           console.error(`[useImportService] Batch ${i} network error:`, error);
           // Don't abort entire import on batch failure - record and continue
           allErrors.push({
-            index: i * BATCH_SIZE,
+            index: i * batchSize,
             identifier: `batch-${i}`,
             error: `Erro de rede no batch ${i + 1}: ${error.message}`,
           });
@@ -165,13 +176,13 @@ export function useImportService() {
           if (result.itemErrors?.length > 0) {
             allErrors.push(...result.itemErrors.map(e => ({
               ...e,
-              index: e.index + (i * BATCH_SIZE), // Adjust index for global position
+              index: e.index + (i * batchSize), // Adjust index for global position
             })));
           }
         } else {
           console.error(`[useImportService] Batch ${i} failed:`, data?.error);
           allErrors.push({
-            index: i * BATCH_SIZE,
+            index: i * batchSize,
             identifier: `batch-${i}`,
             error: data?.error || 'Erro desconhecido no batch',
           });
@@ -183,7 +194,7 @@ export function useImportService() {
       } catch (err: any) {
         console.error(`[useImportService] Batch ${i} exception:`, err);
         allErrors.push({
-          index: i * BATCH_SIZE,
+          index: i * batchSize,
           identifier: `batch-${i}`,
           error: `Exceção no batch ${i + 1}: ${err.message}`,
         });
@@ -213,6 +224,6 @@ export function useImportService() {
     isChecking,
     checkHealth,
     importWithBatches,
-    batchSize: BATCH_SIZE,
+    batchSize: DEFAULT_BATCH_SIZE,
   };
 }
