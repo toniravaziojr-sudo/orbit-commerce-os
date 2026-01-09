@@ -1112,37 +1112,52 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         storeSettingsUpdate.favicon_url = visualConfig.favicon;
       }
       
-      // Extract business info from branding if available
-      const businessInfo = scrapedData.contactInfo || branding.contactInfo || {};
-      if (businessInfo.phone || businessInfo.telefone) {
-        storeSettingsUpdate.contact_phone = businessInfo.phone || businessInfo.telefone;
+      // Extract business info from visualData.contactInfo (newly extracted)
+      const contactInfo = visualData.contactInfo || scrapedData.contactInfo || branding.contactInfo || {};
+      if (contactInfo.phone) {
+        storeSettingsUpdate.contact_phone = contactInfo.phone;
       }
-      if (businessInfo.email) {
-        storeSettingsUpdate.contact_email = businessInfo.email;
+      if (contactInfo.whatsapp) {
+        storeSettingsUpdate.contact_whatsapp = contactInfo.whatsapp;
       }
-      if (businessInfo.address || businessInfo.endereco) {
-        storeSettingsUpdate.contact_address = businessInfo.address || businessInfo.endereco;
+      if (contactInfo.email) {
+        storeSettingsUpdate.contact_email = contactInfo.email;
       }
-      if (businessInfo.cnpj) {
-        storeSettingsUpdate.business_cnpj = businessInfo.cnpj;
+      if (contactInfo.address) {
+        storeSettingsUpdate.contact_address = contactInfo.address;
       }
-      if (businessInfo.legalName || businessInfo.razaoSocial) {
-        storeSettingsUpdate.business_legal_name = businessInfo.legalName || businessInfo.razaoSocial;
+      if (contactInfo.cnpj) {
+        storeSettingsUpdate.business_cnpj = contactInfo.cnpj;
       }
-      if (businessInfo.supportHours || businessInfo.horarioAtendimento) {
-        storeSettingsUpdate.contact_support_hours = businessInfo.supportHours || businessInfo.horarioAtendimento;
+      if (contactInfo.legalName) {
+        storeSettingsUpdate.business_legal_name = contactInfo.legalName;
+      }
+      if (contactInfo.supportHours) {
+        storeSettingsUpdate.contact_support_hours = contactInfo.supportHours;
       }
       
-      // Extract social media links
-      const socialLinks = scrapedData.socialLinks || branding.socialLinks || {};
+      // Extract social media links from visualData.socialLinks (newly extracted)
+      const socialLinks = visualData.socialLinks || scrapedData.socialLinks || branding.socialLinks || {};
       if (socialLinks.facebook) {
         storeSettingsUpdate.social_facebook = socialLinks.facebook;
       }
       if (socialLinks.instagram) {
         storeSettingsUpdate.social_instagram = socialLinks.instagram;
       }
-      if (socialLinks.whatsapp) {
-        storeSettingsUpdate.social_whatsapp = socialLinks.whatsapp;
+      if (socialLinks.tiktok) {
+        storeSettingsUpdate.social_tiktok = socialLinks.tiktok;
+      }
+      if (socialLinks.youtube) {
+        storeSettingsUpdate.social_youtube = socialLinks.youtube;
+      }
+      if (socialLinks.twitter) {
+        storeSettingsUpdate.social_twitter = socialLinks.twitter;
+      }
+      if (socialLinks.linkedin) {
+        storeSettingsUpdate.social_linkedin = socialLinks.linkedin;
+      }
+      if (socialLinks.pinterest) {
+        storeSettingsUpdate.social_pinterest = socialLinks.pinterest;
       }
       
       // Only update if we have something to update
