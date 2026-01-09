@@ -795,11 +795,14 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
     };
   }
   
+  // Customer name - CRITICAL: cannot be empty
+  const customerNameRaw = customerName || email.split('@')[0] || 'Cliente';
+
   return {
     order_number: orderNumber.replace(/^#/, ''),
     status: mapShopifyStatus(financialStatus, fulfillmentStatus),
     payment_status: mapShopifyPaymentStatus(financialStatus),
-    payment_method: paymentGateway,
+    payment_method: mapPaymentMethodToEnum(paymentGateway),
     shipping_status: fulfillmentStatus,
     subtotal,
     discount_total: discountTotal,
@@ -807,7 +810,7 @@ export function normalizeShopifyOrder(raw: ShopifyOrder): NormalizedOrder | null
     total,
     currency: raw.currency || raw['Currency'] || 'BRL',
     customer_email: email,
-    customer_name: customerName,
+    customer_name: customerNameRaw,
     customer_phone: normalizePhone(customerPhone),
     shipping_address: shippingAddress,
     billing_address: billingAddress,
@@ -955,6 +958,48 @@ function normalizePhone(phone: string | null): string | null {
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 10) return null;
   return digits;
+}
+
+/**
+ * Map payment method string to valid enum value
+ */
+function mapPaymentMethodToEnum(raw: string | null): string | null {
+  if (!raw) return null;
+  
+  const normalized = raw.toLowerCase().trim();
+  
+  // PIX variations
+  if (normalized.includes('pix')) return 'pix';
+  
+  // Credit card variations
+  if (normalized.includes('credit') || normalized.includes('crédito') || 
+      normalized.includes('credito') || normalized.includes('cartão de crédito') ||
+      normalized.includes('cartao de credito') || normalized.includes('card')) {
+    return 'credit_card';
+  }
+  
+  // Debit card variations
+  if (normalized.includes('debit') || normalized.includes('débito') || normalized.includes('debito')) {
+    return 'debit_card';
+  }
+  
+  // Boleto variations
+  if (normalized.includes('boleto') || normalized.includes('billet')) {
+    return 'boleto';
+  }
+  
+  // Mercado Pago
+  if (normalized.includes('mercado pago') || normalized.includes('mercadopago')) {
+    return 'mercado_pago';
+  }
+  
+  // Pagar.me (when not specific method)
+  if (normalized.includes('pagar.me') || normalized.includes('pagarme')) {
+    return 'pagarme';
+  }
+  
+  // Return null for unknown methods
+  return null;
 }
 
 function mapShopifyStatus(
