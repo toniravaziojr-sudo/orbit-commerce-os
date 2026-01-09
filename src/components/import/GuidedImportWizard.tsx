@@ -97,11 +97,11 @@ interface GuidedImportWizardProps {
   onComplete?: () => void;
 }
 
-// Wizard steps: url -> file-import -> visual-import -> complete
-type WizardStep = 'url' | 'file-import' | 'visual-import' | 'complete';
+// Wizard steps: url -> file-import -> structure-import -> complete
+type WizardStep = 'url' | 'file-import' | 'structure-import' | 'complete';
 
-// Sub-steps within visual import (Etapa 2)
-interface VisualImportProgress {
+// Sub-steps within structure import (Etapa 3 - Estrutura da Loja)
+interface StructureImportProgress {
   pages: 'pending' | 'processing' | 'completed' | 'error';
   categories: 'pending' | 'processing' | 'completed' | 'error';
   menus: 'pending' | 'processing' | 'completed' | 'error';
@@ -155,9 +155,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     data?: any;
   } | null>(null);
   
-  // Visual import state (Etapa 2)
-  const [isImportingVisual, setIsImportingVisual] = useState(false);
-  const [visualProgress, setVisualProgress] = useState<VisualImportProgress>({
+  // Structure import state (Etapa 3 - Estrutura da Loja)
+  const [isImportingStructure, setIsImportingStructure] = useState(false);
+  const [structureProgress, setStructureProgress] = useState<StructureImportProgress>({
     pages: 'pending',
     categories: 'pending',
     menus: 'pending',
@@ -289,14 +289,14 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     return { name: 'Plataforma não identificada', confidence: 'baixa' };
   };
 
-  // Etapa 2: Import visual structure (pages, categories, menus, visual) in one click
-  const handleImportVisualStructure = useCallback(async () => {
+  // Etapa 3: Import store structure (pages, categories, menus, visual) in one click
+  const handleImportStoreStructure = useCallback(async () => {
     if (!currentTenant?.id || !scrapedData) {
       toast.error('Dados da loja não disponíveis');
       return;
     }
 
-    setIsImportingVisual(true);
+    setIsImportingStructure(true);
     setImportErrors([]);
     const stats: ImportStats = { pages: 0, categories: 0, menuItems: 0, banners: 0 };
     
@@ -304,8 +304,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       // Step 1: Get better HTML with JS rendered (for menus)
       let htmlToUse = scrapedData.html || '';
       
-      setVisualProgress(prev => ({ ...prev, pages: 'processing' }));
-      toast.info('Extraindo estrutura visual da loja...');
+      setStructureProgress(prev => ({ ...prev, pages: 'processing' }));
+      toast.info('Extraindo estrutura da loja...');
       
       // Try to get better HTML for JS-rendered content
       try {
@@ -351,7 +351,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       });
 
       // === STEP 2.1: Import Pages (institutional/informational) ===
-      setVisualProgress(prev => ({ ...prev, pages: 'processing' }));
+      setStructureProgress(prev => ({ ...prev, pages: 'processing' }));
       
       // Get institutional pages from visual extraction (from footer links)
       const institutionalPages = visualData.institutionalPages || [];
@@ -402,10 +402,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
       }
       
-      setVisualProgress(prev => ({ ...prev, pages: 'completed' }));
+      setStructureProgress(prev => ({ ...prev, pages: 'completed' }));
       
       // === STEP 2.2: Import Categories (FLAT - no hierarchy in categories) ===
-      setVisualProgress(prev => ({ ...prev, categories: 'processing' }));
+      setStructureProgress(prev => ({ ...prev, categories: 'processing' }));
       
       const allCategories: Array<{
         name: string;
@@ -713,10 +713,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         console.log(`Aggregated ${aggregatedProducts} products to parent categories`);
       }
       
-      setVisualProgress(prev => ({ ...prev, categories: 'completed' }));
+      setStructureProgress(prev => ({ ...prev, categories: 'completed' }));
       
       // === STEP 2.3: Import Menus (Header AND Footer with hierarchy) ===
-      setVisualProgress(prev => ({ ...prev, menus: 'processing' }));
+      setStructureProgress(prev => ({ ...prev, menus: 'processing' }));
       
       const headerMenuItems = visualData.menuItems || [];
       const footerMenuItems = visualData.footerMenuItems || [];
@@ -1014,10 +1014,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       stats.menuItems = totalMenuItems;
       
-      setVisualProgress(prev => ({ ...prev, menus: 'completed' }));
+      setStructureProgress(prev => ({ ...prev, menus: 'completed' }));
       
       // === STEP 2.4: Import Home Page + Visual (banners, branding) ===
-      setVisualProgress(prev => ({ ...prev, visual: 'processing' }));
+      setStructureProgress(prev => ({ ...prev, visual: 'processing' }));
       
       const heroBanners = visualData.heroBanners || [];
       const branding = scrapedData.branding || visualData.branding || {};
@@ -1122,10 +1122,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         stats.banners = heroBanners.length;
       }
       
-      setVisualProgress(prev => ({ ...prev, visual: 'completed' }));
+      setStructureProgress(prev => ({ ...prev, visual: 'completed' }));
       setImportStats(stats);
       
-      toast.success('Estrutura visual importada com sucesso!');
+      toast.success('Estrutura da loja importada com sucesso!');
       
     } catch (error: any) {
       console.error('Visual import error:', error);
@@ -1134,7 +1134,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       toast.error(errorMessage);
       
       // Mark current step as error
-      setVisualProgress(prev => {
+      setStructureProgress(prev => {
         if (prev.pages === 'processing') return { ...prev, pages: 'error' };
         if (prev.categories === 'processing') return { ...prev, categories: 'error' };
         if (prev.menus === 'processing') return { ...prev, menus: 'error' };
@@ -1142,21 +1142,21 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         return prev;
       });
     } finally {
-      setIsImportingVisual(false);
+      setIsImportingStructure(false);
     }
   }, [currentTenant, scrapedData, storeUrl, analysisResult]);
 
-  // Check if visual import is complete
-  const isVisualImportComplete = 
-    visualProgress.pages === 'completed' &&
-    visualProgress.categories === 'completed' &&
-    visualProgress.menus === 'completed' &&
-    visualProgress.visual === 'completed';
+  // Check if structure import is complete
+  const isStructureImportComplete = 
+    structureProgress.pages === 'completed' &&
+    structureProgress.categories === 'completed' &&
+    structureProgress.menus === 'completed' &&
+    structureProgress.visual === 'completed';
 
-  // Calculate visual import progress percentage
-  const getVisualProgressPercent = () => {
+  // Calculate structure import progress percentage
+  const getStructureProgressPercent = () => {
     const steps = ['pages', 'categories', 'menus', 'visual'] as const;
-    const completed = steps.filter(s => visualProgress[s] === 'completed').length;
+    const completed = steps.filter(s => structureProgress[s] === 'completed').length;
     return (completed / steps.length) * 100;
   };
 
@@ -1540,13 +1540,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           <Globe className="h-5 w-5" />
           {wizardStep === 'url' && 'Etapa 1: Análise da Loja'}
           {wizardStep === 'file-import' && 'Etapa 2: Importação de Dados'}
-          {wizardStep === 'visual-import' && 'Etapa 3: Importação Visual'}
+          {wizardStep === 'structure-import' && 'Etapa 3: Estrutura da Loja'}
           {wizardStep === 'complete' && 'Importação Concluída'}
         </CardTitle>
         <CardDescription>
           {wizardStep === 'url' && 'Informe o link da sua loja para identificar a plataforma'}
           {wizardStep === 'file-import' && 'Importar produtos, clientes e pedidos via arquivo'}
-          {wizardStep === 'visual-import' && 'Importar páginas, categorias, menus e visual da loja'}
+          {wizardStep === 'structure-import' && 'Importar páginas, categorias, menus e visual da loja'}
           {wizardStep === 'complete' && 'Sua loja foi importada com sucesso!'}
         </CardDescription>
       </CardHeader>
@@ -1600,8 +1600,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           </div>
         )}
 
-        {/* ETAPA 3: Visual Import */}
-        {wizardStep === 'visual-import' && (
+        {/* ETAPA 3: Structure Import */}
+        {wizardStep === 'structure-import' && (
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-3">
               <p className="text-sm">
@@ -1615,41 +1615,41 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               </p>
             </div>
 
-            {!isImportingVisual && !isVisualImportComplete && (
+            {!isImportingStructure && !isStructureImportComplete && (
               <div className="text-center py-8 space-y-6">
                 <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-                  <Palette className="h-10 w-10 text-primary" />
+                  <FolderTree className="h-10 w-10 text-primary" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold mb-2">Importar Estrutura Visual</h3>
+                  <h3 className="text-lg font-semibold mb-2">Importar Estrutura da Loja</h3>
                   <p className="text-muted-foreground text-sm max-w-md mx-auto">
                     Com um clique, vamos importar automaticamente: páginas institucionais, categorias, menus (header/footer com hierarquia) e a página inicial com banners.
                   </p>
                 </div>
-                <Button size="lg" onClick={handleImportVisualStructure}>
+                <Button size="lg" onClick={handleImportStoreStructure}>
                   <Globe className="h-4 w-4 mr-2" />
-                  Importar Estrutura Visual
+                  Importar Estrutura da Loja
                 </Button>
               </div>
             )}
 
-            {(isImportingVisual || isVisualImportComplete) && (
+            {(isImportingStructure || isStructureImportComplete) && (
               <div className="space-y-4">
                 <div className="flex items-center gap-4 mb-4">
-                  <Progress value={getVisualProgressPercent()} className="flex-1" />
+                  <Progress value={getStructureProgressPercent()} className="flex-1" />
                   <span className="text-sm text-muted-foreground">
-                    {Math.round(getVisualProgressPercent())}%
+                    {Math.round(getStructureProgressPercent())}%
                   </span>
                 </div>
                 
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(visualProgress.pages)}
+                    {getStepStatusIcon(structureProgress.pages)}
                     <div className="flex-1">
                       <p className="text-sm font-medium">Páginas da Loja</p>
                       <p className="text-xs text-muted-foreground">Sobre, Contato, Políticas, etc.</p>
                     </div>
-                    {visualProgress.pages === 'completed' && importStats.pages > 0 && (
+                    {structureProgress.pages === 'completed' && importStats.pages > 0 && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         {importStats.pages} encontradas
                       </span>
@@ -1657,12 +1657,12 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   </div>
                   
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(visualProgress.categories)}
+                    {getStepStatusIcon(structureProgress.categories)}
                     <div className="flex-1">
                       <p className="text-sm font-medium">Categorias</p>
-                      <p className="text-xs text-muted-foreground">Páginas de listagem de produtos (flat)</p>
+                      <p className="text-xs text-muted-foreground">Páginas de listagem de produtos</p>
                     </div>
-                    {visualProgress.categories === 'completed' && importStats.categories > 0 && (
+                    {structureProgress.categories === 'completed' && importStats.categories > 0 && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         {importStats.categories} importadas
                       </span>
@@ -1670,12 +1670,12 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   </div>
                   
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(visualProgress.menus)}
+                    {getStepStatusIcon(structureProgress.menus)}
                     <div className="flex-1">
                       <p className="text-sm font-medium">Menus (Header/Footer)</p>
                       <p className="text-xs text-muted-foreground">Com hierarquia de dropdowns preservada</p>
                     </div>
-                    {visualProgress.menus === 'completed' && importStats.menuItems > 0 && (
+                    {structureProgress.menus === 'completed' && importStats.menuItems > 0 && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         {importStats.menuItems} itens
                       </span>
@@ -1683,12 +1683,12 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   </div>
                   
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(visualProgress.visual)}
+                    {getStepStatusIcon(structureProgress.visual)}
                     <div className="flex-1">
-                      <p className="text-sm font-medium">Página Inicial + Visual</p>
-                      <p className="text-xs text-muted-foreground">Banners, cores e identidade visual</p>
+                      <p className="text-sm font-medium">Visual da Loja</p>
+                      <p className="text-xs text-muted-foreground">Página inicial, banners e cores</p>
                     </div>
-                    {visualProgress.visual === 'completed' && importStats.banners > 0 && (
+                    {structureProgress.visual === 'completed' && importStats.banners > 0 && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                         {importStats.banners} banners
                       </span>
@@ -1707,11 +1707,11 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   </div>
                 )}
 
-                {isVisualImportComplete && (
+                {isStructureImportComplete && (
                   <div className="text-center pt-4">
                     <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
                     <p className="text-sm text-muted-foreground">
-                      Estrutura visual importada com sucesso!
+                      Estrutura da loja importada com sucesso!
                     </p>
                   </div>
                 )}
@@ -1798,14 +1798,14 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               <ChevronLeft className="h-4 w-4 mr-2" />
               Voltar
             </Button>
-            <Button onClick={() => setWizardStep('visual-import')}>
+            <Button onClick={() => setWizardStep('structure-import')}>
               Continuar
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           </>
         )}
 
-        {wizardStep === 'visual-import' && (
+        {wizardStep === 'structure-import' && (
           <>
             <Button variant="outline" onClick={() => setWizardStep('file-import')}>
               <ChevronLeft className="h-4 w-4 mr-2" />
@@ -1813,7 +1813,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             </Button>
             <Button 
               onClick={() => setWizardStep('complete')}
-              disabled={!isVisualImportComplete}
+              disabled={!isStructureImportComplete}
             >
               Concluir
               <ChevronRight className="h-4 w-4 ml-2" />
