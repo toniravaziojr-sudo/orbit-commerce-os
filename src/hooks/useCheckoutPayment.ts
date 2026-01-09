@@ -7,6 +7,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { CartItem, ShippingOption } from '@/contexts/CartContext';
 import { AttributionData } from '@/hooks/useAttribution';
+import { AffiliateData } from '@/lib/affiliateTracking';
 
 export type PaymentMethod = 'pix' | 'boleto' | 'credit_card';
 
@@ -81,6 +82,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     checkoutSessionId,
     discount,
     attribution,
+    affiliate,
   }: {
     method: PaymentMethod;
     items: CartItem[];
@@ -91,6 +93,7 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
     checkoutSessionId?: string;
     discount?: DiscountData;
     attribution?: AttributionData;
+    affiliate?: AffiliateData;
   }): Promise<PaymentResult> => {
     setIsProcessing(true);
     setPaymentResult(null);
@@ -176,6 +179,11 @@ export function useCheckoutPayment({ tenantId }: UseCheckoutPaymentOptions) {
             attribution_medium: attribution.attribution_medium,
             session_id: attribution.session_id,
             first_touch_at: attribution.first_touch_at,
+          } : undefined,
+          // Affiliate data for conversion tracking
+          affiliate: affiliate ? {
+            affiliate_code: affiliate.affiliate_code,
+            captured_at: affiliate.captured_at,
           } : undefined,
         },
       });

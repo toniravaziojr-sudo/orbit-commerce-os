@@ -79,6 +79,10 @@ interface CreateOrderRequest {
     session_id?: string;
     first_touch_at?: string;
   };
+  affiliate?: {
+    affiliate_code: string;
+    captured_at: string;
+  };
 }
 
 function normalizeEmail(email: string): string {
@@ -290,6 +294,93 @@ serve(async (req) => {
         // Non-blocking
       } else {
         console.log('[checkout-create-order] Attribution saved:', payload.attribution.attribution_source);
+      }
+    }
+
+    // 8. Create affiliate conversion if affiliate data is present
+    if (payload.affiliate?.affiliate_code) {
+      console.log('[checkout-create-order] Processing affiliate conversion');
+      
+      // Find affiliate by code (link code or affiliate ID)
+      let affiliateId: string | null = null;
+      
+      // First try to find by link code
+      const { data: link } = await supabase
+        .from('affiliate_links')
+        .select('affiliate_id')
+        .eq('tenant_id', payload.tenant_id)
+        .eq('code', payload.affiliate.affiliate_code)
+        .maybeSingle();
+      
+      if (link) {
+        affiliateId = link.affiliate_id;
+      } else {
+        // Try to find affiliate directly by ID
+        const { data: affiliate } = await supabase
+          .from('affiliates')
+          .select('id')
+          .eq('tenant_id', payload.tenant_id)
+          .eq('id', payload.affiliate.affiliate_code)
+          .maybeSingle();
+        
+        if (affiliate) {
+          affiliateId = affiliate.id;
+        }
+      }
+      
+      if (affiliateId) {
+        // Check attribution window
+        const capturedAt = new Date(payload.affiliate.captured_at);
+        const now = new Date();
+        const daysDiff = (now.getTime() - capturedAt.getTime()) / (1000 * 60 * 60 * 24);
+        
+        // Get tenant's attribution window (default 30 days)
+        const { data: program } = await supabase
+          .from('affiliate_programs')
+          .select('attribution_window_days, commission_type, commission_value_cents, is_enabled')
+          .eq('tenant_id', payload.tenant_id)
+          .maybeSingle();
+        
+        const attributionWindow = program?.attribution_window_days || 30;
+        
+        if (program?.is_enabled && daysDiff <= attributionWindow) {
+          // Calculate commission
+          let commissionCents = 0;
+          const orderTotalCents = Math.round(payload.total * 100);
+          
+          if (program.commission_type === 'percent') {
+            commissionCents = Math.round(orderTotalCents * (program.commission_value_cents / 10000));
+          } else {
+            commissionCents = program.commission_value_cents;
+          }
+          
+          // Create conversion (idempotent - UNIQUE constraint on tenant_id + order_id)
+          const { error: conversionError } = await supabase
+            .from('affiliate_conversions')
+            .insert({
+              tenant_id: payload.tenant_id,
+              affiliate_id: affiliateId,
+              order_id: orderId,
+              order_total_cents: orderTotalCents,
+              commission_cents: commissionCents,
+              status: 'pending',
+            });
+          
+          if (conversionError) {
+            // Check if it's a duplicate (expected if order already has conversion)
+            if (conversionError.code === '23505') {
+              console.log('[checkout-create-order] Conversion already exists for this order');
+            } else {
+              console.error('[checkout-create-order] Error creating conversion:', conversionError);
+            }
+          } else {
+            console.log('[checkout-create-order] Affiliate conversion created:', affiliateId, commissionCents);
+          }
+        } else {
+          console.log('[checkout-create-order] Affiliate conversion skipped - outside attribution window or program disabled');
+        }
+      } else {
+        console.warn('[checkout-create-order] Affiliate not found for code:', payload.affiliate.affiliate_code);
       }
     }
 
