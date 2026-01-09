@@ -30,11 +30,29 @@ const corsHeaders = {
 // 13. Save to database
 // =====================================================
 
-interface ImportRequest {
+interface SinglePageImport {
   tenantId: string;
   url: string;
   slug?: string;
   title?: string;
+}
+
+interface MultiPageImport {
+  tenantId: string;
+  pages: Array<{
+    title: string;
+    slug: string;
+    url: string;
+    source?: string;
+  }>;
+  storeUrl?: string;
+  platform?: string;
+}
+
+type ImportRequest = SinglePageImport | MultiPageImport;
+
+function isMultiPageImport(req: ImportRequest): req is MultiPageImport {
+  return 'pages' in req && Array.isArray(req.pages);
 }
 
 // =====================================================
@@ -665,18 +683,7 @@ function createCarouselBlocks(carousels: CarouselDetection[]): BlockNode[] {
 // SLUG GENERATION
 // =====================================================
 function generateSlug(url: string, title?: string): string {
-  // Try to extract from URL path
-  try {
-    const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split('/').filter(p => p.length > 0);
-    const lastPart = pathParts[pathParts.length - 1];
-    
-    if (lastPart && lastPart.length > 2 && !lastPart.includes('.')) {
-      return lastPart.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    }
-  } catch {}
-  
-  // Fallback to title
+  // Prefer title-based slug
   if (title) {
     return title
       .toLowerCase()
@@ -690,6 +697,139 @@ function generateSlug(url: string, title?: string): string {
 }
 
 // =====================================================
+// MULTI-PAGE IMPORT HANDLER
+// =====================================================
+async function handleMultiPageImport(request: MultiPageImport): Promise<Response> {
+  const { tenantId, pages, storeUrl } = request;
+  
+  console.log(`[IMPORT] Starting multi-page import for tenant ${tenantId}: ${pages.length} pages`);
+  
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const results = {
+    imported: 0,
+    skipped: 0,
+    failed: 0,
+    details: [] as Array<{ title: string; status: 'imported' | 'skipped' | 'failed'; reason?: string }>
+  };
+  
+  for (const page of pages) {
+    try {
+      // Resolve relative URLs
+      let fullUrl = page.url;
+      if (fullUrl.startsWith('/') && storeUrl) {
+        fullUrl = new URL(fullUrl, storeUrl).toString();
+      }
+      
+      // Skip external URLs or anchor links
+      if (fullUrl.startsWith('#') || (!fullUrl.startsWith('http') && !fullUrl.startsWith('/'))) {
+        results.skipped++;
+        results.details.push({ title: page.title, status: 'skipped', reason: 'URL inválida' });
+        continue;
+      }
+      
+      // Skip if page already exists
+      const { data: existingPage } = await supabase
+        .from('store_pages')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('slug', page.slug)
+        .single();
+      
+      if (existingPage) {
+        results.skipped++;
+        results.details.push({ title: page.title, status: 'skipped', reason: 'Página já existe' });
+        continue;
+      }
+      
+      // Fetch the page content
+      let pageContent: any = { type: 'root', children: [] };
+      
+      try {
+        const { html, title } = await fetchHtml(fullUrl);
+        const adapter = detectAndGetAdapter(html, fullUrl);
+        const cleanedHtml = deepCleanHtml(cleanHtmlWithAdapter(html, adapter));
+        const mainContent = extractMainContent(cleanedHtml);
+        const sections = segmentHtml(mainContent);
+        
+        const allBlocks: BlockNode[] = [];
+        const platformContext = adapter.getAIContext();
+        
+        for (const section of sections.slice(0, 5)) { // Limit to 5 sections for speed
+          const preprocessedHtml = preprocessSection(section.html);
+          if (preprocessedHtml.length < 100) continue;
+          
+          const classification = await classifySection(
+            preprocessedHtml,
+            page.title || title,
+            section.index,
+            sections.length,
+            platformContext
+          );
+          
+          if (classification) {
+            const blocks = mapClassificationToBlocks(classification);
+            allBlocks.push(...blocks);
+          }
+        }
+        
+        const composedBlocks = composePageStructure(allBlocks);
+        if (composedBlocks.length > 0) {
+          pageContent = buildPageContent(composedBlocks);
+        }
+      } catch (fetchError) {
+        console.warn(`[IMPORT] Failed to fetch content for ${page.title}:`, fetchError);
+        // Create empty page with just title
+      }
+      
+      // Insert the page
+      const { error: insertError } = await supabase
+        .from('store_pages')
+        .insert({
+          tenant_id: tenantId,
+          title: page.title,
+          slug: page.slug,
+          content: pageContent,
+          status: 'draft',
+          is_published: false,
+          type: 'institutional',
+          seo_title: page.title,
+          seo_description: `Página ${page.title}`,
+        });
+      
+      if (insertError) {
+        results.failed++;
+        results.details.push({ title: page.title, status: 'failed', reason: insertError.message });
+      } else {
+        results.imported++;
+        results.details.push({ title: page.title, status: 'imported' });
+      }
+      
+    } catch (error) {
+      console.error(`[IMPORT] Error importing page ${page.title}:`, error);
+      results.failed++;
+      results.details.push({ 
+        title: page.title, 
+        status: 'failed', 
+        reason: error instanceof Error ? error.message : 'Erro desconhecido' 
+      });
+    }
+  }
+  
+  console.log(`[IMPORT] Multi-page import complete: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed`);
+  
+  return new Response(
+    JSON.stringify({
+      success: true,
+      results,
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+  );
+}
+
+// =====================================================
 // MAIN HANDLER
 // =====================================================
 Deno.serve(async (req) => {
@@ -698,17 +838,32 @@ Deno.serve(async (req) => {
   }
   
   try {
-    const { tenantId, url, slug: customSlug, title: customTitle } = await req.json() as ImportRequest;
+    const requestData = await req.json() as ImportRequest;
     
-    // Validate
-    if (!tenantId || !url) {
+    // Validate tenantId
+    if (!requestData.tenantId) {
       return new Response(
-        JSON.stringify({ success: false, error: 'tenantId e url são obrigatórios' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        JSON.stringify({ success: false, code: 'MISSING_TENANT', error: 'tenantId é obrigatório' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
     
-    console.log(`[IMPORT] Starting import for tenant ${tenantId}: ${url}`);
+    // Check if multi-page import
+    if (isMultiPageImport(requestData)) {
+      return handleMultiPageImport(requestData);
+    }
+    
+    // Single page import
+    const { tenantId, url, slug: customSlug, title: customTitle } = requestData as SinglePageImport;
+    
+    if (!url) {
+      return new Response(
+        JSON.stringify({ success: false, code: 'MISSING_URL', error: 'url é obrigatório' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+    
+    console.log(`[IMPORT] Starting single page import for tenant ${tenantId}: ${url}`);
     
     // 1. Initial fetch to detect platform
     const initialFetch = await fetchHtml(url);
