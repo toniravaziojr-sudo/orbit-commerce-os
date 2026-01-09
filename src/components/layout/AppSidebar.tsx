@@ -318,29 +318,33 @@ export function AppSidebar() {
 
     if (group.collapsible && !collapsed) {
       return (
-        <div key={group.label} className="mb-2">
+        <div key={group.label} className="mb-1">
           <Collapsible open={open} onOpenChange={() => toggleGroup(group.label)}>
             <CollapsibleTrigger asChild>
               <button
                 className={cn(
-                  "flex w-full items-center justify-between px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wider transition-colors",
-                  "hover:text-sidebar-foreground",
-                  open || groupActive
-                    ? "text-sidebar-foreground" 
-                    : "text-sidebar-foreground/60"
+                  "flex w-full items-center justify-between px-2 py-2 rounded-md transition-all duration-200",
+                  "hover:bg-sidebar-accent/50",
+                  open 
+                    ? "bg-sidebar-accent/30 text-sidebar-foreground" 
+                    : "text-sidebar-foreground/80",
+                  groupActive && !open && "text-sidebar-primary"
                 )}
               >
-                <span>{group.label}</span>
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-4 w-4" />
+                  <span className="text-xs font-semibold uppercase tracking-wide">{group.label}</span>
+                </div>
                 <ChevronDown
                   className={cn(
-                    "h-3.5 w-3.5 transition-transform duration-200",
+                    "h-4 w-4 transition-transform duration-200",
                     open ? "rotate-180" : ""
                   )}
                 />
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <ul className="space-y-0.5 mt-1">
+              <ul className="space-y-0.5 mt-1 ml-2 pl-4 border-l border-sidebar-border/50">
                 {group.items.map(renderNavItem)}
               </ul>
             </CollapsibleContent>
@@ -352,7 +356,7 @@ export function AppSidebar() {
     return (
       <div key={group.label} className="mb-3">
         {!collapsed && (
-          <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/60">
+          <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
             {group.label}
           </p>
         )}
