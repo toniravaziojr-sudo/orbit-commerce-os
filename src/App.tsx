@@ -70,6 +70,9 @@ import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import Files from "@/pages/Files";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
+import Influencers from "@/pages/Influencers";
+import SupplierLeadsPage from "@/pages/SupplierLeads";
+import Affiliates from "@/pages/Affiliates";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
@@ -275,6 +278,9 @@ const App = () => {
                   <Route path="/fiscal/operation-natures" element={<OperationNaturesSettings />} />
                   <Route path="/import" element={<Import />} />
                   <Route path="/purchases" element={<Purchases />} />
+                  <Route path="/influencers" element={<Influencers />} />
+                  <Route path="/suppliers" element={<SupplierLeadsPage />} />
+                  <Route path="/affiliates" element={<Affiliates />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />
