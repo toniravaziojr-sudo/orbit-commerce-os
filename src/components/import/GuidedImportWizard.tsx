@@ -1047,13 +1047,13 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       setStructureProgress(prev => ({ ...prev, menus: 'completed' }));
       
-      // === STEP 2.4: Import Home Page + Visual (banners, branding) ===
+      // === STEP 2.4: Import Home Page + Visual (banners, branding, business info) ===
       setStructureProgress(prev => ({ ...prev, visual: 'processing' }));
       
       const heroBanners = visualData.heroBanners || [];
       const branding = scrapedData.branding || visualData.branding || {};
       
-      // Update tenant with visual config
+      // Update tenant settings with visual config
       const { data: tenantData } = await supabase
         .from('tenants')
         .select('settings, logo_url')
@@ -1091,6 +1091,80 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         .from('tenants')
         .update(updateData)
         .eq('id', currentTenant.id);
+
+      // === UPDATE STORE_SETTINGS with colors and business info ===
+      const storeSettingsUpdate: Record<string, any> = {};
+      
+      // Apply colors to store_settings
+      if (visualConfig.primaryColor) {
+        storeSettingsUpdate.primary_color = visualConfig.primaryColor;
+      }
+      if (visualConfig.secondaryColor) {
+        storeSettingsUpdate.secondary_color = visualConfig.secondaryColor;
+      }
+      if (visualConfig.accentColor) {
+        storeSettingsUpdate.accent_color = visualConfig.accentColor;
+      }
+      if (visualConfig.logo) {
+        storeSettingsUpdate.logo_url = visualConfig.logo;
+      }
+      if (visualConfig.favicon) {
+        storeSettingsUpdate.favicon_url = visualConfig.favicon;
+      }
+      
+      // Extract business info from branding if available
+      const businessInfo = scrapedData.contactInfo || branding.contactInfo || {};
+      if (businessInfo.phone || businessInfo.telefone) {
+        storeSettingsUpdate.contact_phone = businessInfo.phone || businessInfo.telefone;
+      }
+      if (businessInfo.email) {
+        storeSettingsUpdate.contact_email = businessInfo.email;
+      }
+      if (businessInfo.address || businessInfo.endereco) {
+        storeSettingsUpdate.contact_address = businessInfo.address || businessInfo.endereco;
+      }
+      if (businessInfo.cnpj) {
+        storeSettingsUpdate.business_cnpj = businessInfo.cnpj;
+      }
+      if (businessInfo.legalName || businessInfo.razaoSocial) {
+        storeSettingsUpdate.business_legal_name = businessInfo.legalName || businessInfo.razaoSocial;
+      }
+      if (businessInfo.supportHours || businessInfo.horarioAtendimento) {
+        storeSettingsUpdate.contact_support_hours = businessInfo.supportHours || businessInfo.horarioAtendimento;
+      }
+      
+      // Extract social media links
+      const socialLinks = scrapedData.socialLinks || branding.socialLinks || {};
+      if (socialLinks.facebook) {
+        storeSettingsUpdate.social_facebook = socialLinks.facebook;
+      }
+      if (socialLinks.instagram) {
+        storeSettingsUpdate.social_instagram = socialLinks.instagram;
+      }
+      if (socialLinks.whatsapp) {
+        storeSettingsUpdate.social_whatsapp = socialLinks.whatsapp;
+      }
+      
+      // Only update if we have something to update
+      if (Object.keys(storeSettingsUpdate).length > 0) {
+        const { error: storeSettingsError } = await supabase
+          .from('store_settings')
+          .update(storeSettingsUpdate)
+          .eq('tenant_id', currentTenant.id);
+        
+        if (storeSettingsError) {
+          console.error('Error updating store_settings:', storeSettingsError);
+          // Try upsert if record doesn't exist
+          await supabase
+            .from('store_settings')
+            .upsert({
+              tenant_id: currentTenant.id,
+              ...storeSettingsUpdate,
+            }, { onConflict: 'tenant_id' });
+        }
+        
+        console.log('Updated store_settings with colors and business info:', Object.keys(storeSettingsUpdate));
+      }
 
       // Create and publish home page with banners
       if (heroBanners.length > 0) {

@@ -5653,6 +5653,8 @@ export type Database = {
           shipping_status: Database["public"]["Enums"]["shipping_status"]
           shipping_street: string | null
           shipping_total: number
+          source_order_number: string | null
+          source_platform: string | null
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
           tax_total: number
@@ -5707,6 +5709,8 @@ export type Database = {
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null
           shipping_total?: number
+          source_order_number?: string | null
+          source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           tax_total?: number
@@ -5761,6 +5765,8 @@ export type Database = {
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null
           shipping_total?: number
+          source_order_number?: string | null
+          source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           tax_total?: number

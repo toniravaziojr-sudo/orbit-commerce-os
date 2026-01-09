@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-09.2200'; // Fixed order deduplication + CPF extraction
+const DEPLOY_VERSION = '2026-01-09.2300'; // source_order_number + internal sequential numbering
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -719,57 +719,80 @@ function mapShippingStatus(raw: string | null | undefined): string {
 }
 
 /**
- * Batch import orders - optimized for speed
+ * Batch import orders - optimized for speed with internal sequential numbering
  * Pre-fetches existing orders and customers, then does bulk inserts
+ * CRITICAL: Uses source_order_number for deduplication, generates internal order_number
  */
-async function importOrdersBatch(supabase: any, tenantId: string, orders: any[], results: any) {
-  // Extract all order numbers (remove # prefix if present)
-  const orderNumbers = orders
+async function importOrdersBatch(supabase: any, tenantId: string, orders: any[], results: any, platform: string = 'shopify') {
+  // Extract all source order numbers (remove # prefix if present)
+  const sourceOrderNumbers = orders
     .map(o => {
       const num = (o.order_number || '').toString().trim();
       return num.replace(/^#/, ''); // Remove # prefix
     })
     .filter(n => n);
   
-  if (orderNumbers.length === 0) {
+  if (sourceOrderNumbers.length === 0) {
     results.skipped += orders.length;
     return;
   }
 
-  // Pre-fetch existing orders in one query (CRITICAL: prevent duplicates)
-  const { data: existingOrders } = await supabase
+  // Pre-fetch existing orders by source_order_number (CRITICAL: prevent duplicates)
+  // Check both order_number (legacy) and source_order_number (new)
+  const { data: existingBySource } = await supabase
+    .from('orders')
+    .select('source_order_number, order_number')
+    .eq('tenant_id', tenantId)
+    .in('source_order_number', sourceOrderNumbers);
+
+  const { data: existingByOrderNum } = await supabase
     .from('orders')
     .select('order_number')
     .eq('tenant_id', tenantId)
-    .in('order_number', orderNumbers);
+    .in('order_number', sourceOrderNumbers);
 
-  const existingOrderNumbers = new Set((existingOrders || []).map((o: any) => o.order_number));
+  // Build set of existing source order numbers
+  const existingSourceNumbers = new Set<string>();
+  (existingBySource || []).forEach((o: any) => {
+    if (o.source_order_number) existingSourceNumbers.add(o.source_order_number);
+  });
+  (existingByOrderNum || []).forEach((o: any) => {
+    if (o.order_number) existingSourceNumbers.add(o.order_number);
+  });
   
   // Also track order numbers within this batch to prevent duplicate inserts
   const seenInBatch = new Set<string>();
 
   // Filter out existing orders AND duplicates within the same batch
-  const newOrders = orders.filter(o => {
-    let orderNumber = (o.order_number || '').toString().trim();
-    orderNumber = orderNumber.replace(/^#/, ''); // Remove # prefix
-    
-    if (!orderNumber) return false;
-    
-    // Skip if already exists in database
-    if (existingOrderNumbers.has(orderNumber)) {
-      results.skipped++;
-      return false;
-    }
-    
-    // Skip if already seen in this batch (prevent duplicates within batch)
-    if (seenInBatch.has(orderNumber)) {
-      results.skipped++;
-      return false;
-    }
-    
-    seenInBatch.add(orderNumber);
-    return true;
-  });
+  // Then sort by created_at for chronological numbering
+  const newOrders = orders
+    .filter(o => {
+      let sourceNumber = (o.order_number || '').toString().trim();
+      sourceNumber = sourceNumber.replace(/^#/, ''); // Remove # prefix
+      
+      if (!sourceNumber) return false;
+      
+      // Skip if already exists in database (by source_order_number or order_number)
+      if (existingSourceNumbers.has(sourceNumber)) {
+        results.skipped++;
+        return false;
+      }
+      
+      // Skip if already seen in this batch (prevent duplicates within batch)
+      if (seenInBatch.has(sourceNumber)) {
+        results.skipped++;
+        return false;
+      }
+      
+      seenInBatch.add(sourceNumber);
+      return true;
+    })
+    .sort((a, b) => {
+      // Sort by created_at for chronological numbering
+      const dateA = new Date(a.created_at || '1970-01-01').getTime();
+      const dateB = new Date(b.created_at || '1970-01-01').getTime();
+      return dateA - dateB;
+    });
 
   if (newOrders.length === 0) {
     return;
@@ -825,13 +848,66 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
     }
   }
 
-  // Build order inserts
+  // Get the current max order number for this tenant to generate internal sequential numbers
+  const { data: maxOrderData } = await supabase
+    .from('orders')
+    .select('order_number')
+    .eq('tenant_id', tenantId)
+    .order('order_number', { ascending: false })
+    .limit(100); // Get last 100 to find max numeric
+
+  // Find the highest numeric order number
+  let maxOrderNum = 0;
+  if (maxOrderData) {
+    for (const order of maxOrderData) {
+      const numMatch = order.order_number?.match(/^#?(\d+)$/);
+      if (numMatch) {
+        const num = parseInt(numMatch[1], 10);
+        if (num > maxOrderNum) maxOrderNum = num;
+      }
+    }
+  }
+
+  // Get tenant's next_order_number as alternative starting point
+  const { data: tenantData } = await supabase
+    .from('tenants')
+    .select('next_order_number')
+    .eq('id', tenantId)
+    .single();
+  
+  // Use whichever is higher: max existing order or tenant's next_order_number
+  // IMPORTANT: For imports, we do NOT use the 1000 rule - we start from 1 if no orders exist
+  const tenantNextNum = tenantData?.next_order_number || 0;
+  let nextInternalNumber = Math.max(maxOrderNum + 1, 1); // Start from 1 for imports, not 1000
+  
+  // Only use tenant's next_order_number if it's higher AND we have no existing orders
+  if (maxOrderNum === 0 && tenantNextNum > 0) {
+    // Check if this is a fresh tenant (no imports yet)
+    const { count: orderCount } = await supabase
+      .from('orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
+    
+    if (orderCount === 0 && tenantNextNum >= 1000) {
+      // This is a fresh store - but for imports, still start from 1
+      // The 1000 rule is ONLY for new stores without imports
+      nextInternalNumber = 1;
+    }
+  }
+
+  console.log(`[import-batch] Starting internal numbering from ${nextInternalNumber} (maxExisting: ${maxOrderNum})`);
+
+  // Build order inserts with internal sequential numbering
   const orderInserts: any[] = [];
-  const orderItemsMap: Map<string, any[]> = new Map();
+  const orderItemsMap: Map<string, any[]> = new Map(); // keyed by internal order_number
 
   for (const order of newOrders) {
-    let orderNumber = (order.order_number || '').toString().trim();
-    orderNumber = orderNumber.replace(/^#/, ''); // Ensure # is removed
+    let sourceOrderNumber = (order.order_number || '').toString().trim();
+    sourceOrderNumber = sourceOrderNumber.replace(/^#/, ''); // Ensure # is removed
+    
+    // Generate internal sequential order number
+    const internalOrderNumber = `#${nextInternalNumber}`;
+    nextInternalNumber++;
     
     const customerEmail = (order.customer_email || '').toString().trim().toLowerCase();
     const customerName = order.customer_name || (customerEmail ? 'Cliente' : 'Cliente');
@@ -845,7 +921,9 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
     const orderData = {
       tenant_id: tenantId,
       customer_id: customerId,
-      order_number: orderNumber, // Store without # prefix
+      order_number: internalOrderNumber, // Internal sequential number (e.g., #1, #2, #3)
+      source_order_number: sourceOrderNumber, // Original from source (e.g., 3381)
+      source_platform: 'shopify', // Platform identifier
       status: order.status || 'pending',
       payment_status: mappedPaymentStatus,
       payment_method: mappedPaymentMethod,
@@ -901,11 +979,17 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
 
     orderInserts.push(orderData);
     
-    // Store items for later insertion
+    // Store items for later insertion (keyed by internal order number)
     if (order.items?.length > 0) {
-      orderItemsMap.set(orderNumber, order.items);
+      orderItemsMap.set(internalOrderNumber, order.items);
     }
   }
+
+  // Update tenant's next_order_number to the new max
+  await supabase
+    .from('tenants')
+    .update({ next_order_number: nextInternalNumber })
+    .eq('id', tenantId);
 
   // Bulk insert orders
   if (orderInserts.length > 0) {
