@@ -69,6 +69,7 @@ import LateCallback from "@/pages/integrations/LateCallback";
 import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import Files from "@/pages/Files";
+import PlatformBilling from "@/pages/platform/PlatformBilling";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
@@ -287,6 +288,7 @@ const App = () => {
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
                   <Route path="/platform/health-monitor" element={<HealthMonitor />} />
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
+                  <Route path="/platform/billing" element={<PlatformBilling />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />

@@ -204,6 +204,50 @@ export type Database = {
           },
         ]
       }
+      billing_events: {
+        Row: {
+          created_at: string
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          processing_error: string | null
+          provider: string
+          tenant_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          tenant_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          processing_error?: string | null
+          provider?: string
+          tenant_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_feature_flags: {
         Row: {
           created_at: string
@@ -230,6 +274,63 @@ export type Database = {
           id?: string
           is_enabled?: boolean
           metadata?: Json | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      billing_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          feature_bullets: Json | null
+          included_orders_per_month: number | null
+          is_active: boolean
+          is_public: boolean
+          is_recommended: boolean | null
+          mp_plan_id_annual: string | null
+          mp_plan_id_monthly: string | null
+          name: string
+          plan_key: string
+          price_annual_cents: number
+          price_monthly_cents: number
+          sort_order: number | null
+          support_level: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          feature_bullets?: Json | null
+          included_orders_per_month?: number | null
+          is_active?: boolean
+          is_public?: boolean
+          is_recommended?: boolean | null
+          mp_plan_id_annual?: string | null
+          mp_plan_id_monthly?: string | null
+          name: string
+          plan_key: string
+          price_annual_cents?: number
+          price_monthly_cents?: number
+          sort_order?: number | null
+          support_level?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          feature_bullets?: Json | null
+          included_orders_per_month?: number | null
+          is_active?: boolean
+          is_public?: boolean
+          is_recommended?: boolean | null
+          mp_plan_id_annual?: string | null
+          mp_plan_id_monthly?: string | null
+          name?: string
+          plan_key?: string
+          price_annual_cents?: number
+          price_monthly_cents?: number
+          sort_order?: number | null
+          support_level?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -8119,12 +8220,18 @@ export type Database = {
       tenant_subscriptions: {
         Row: {
           activated_at: string | null
+          billing_cycle: string | null
           cancelled_at: string | null
           card_brand: string | null
           card_last_four: string | null
           created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
           id: string
           metadata: Json | null
+          mp_customer_id: string | null
+          mp_payment_method: Json | null
+          mp_preapproval_id: string | null
           payment_method_type: string | null
           payment_provider: string | null
           plan_key: string
@@ -8142,12 +8249,18 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          billing_cycle?: string | null
           cancelled_at?: string | null
           card_brand?: string | null
           card_last_four?: string | null
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           id?: string
           metadata?: Json | null
+          mp_customer_id?: string | null
+          mp_payment_method?: Json | null
+          mp_preapproval_id?: string | null
           payment_method_type?: string | null
           payment_provider?: string | null
           plan_key: string
@@ -8165,12 +8278,18 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          billing_cycle?: string | null
           cancelled_at?: string | null
           card_brand?: string | null
           card_last_four?: string | null
           created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
           id?: string
           metadata?: Json | null
+          mp_customer_id?: string | null
+          mp_payment_method?: Json | null
+          mp_preapproval_id?: string | null
           payment_method_type?: string | null
           payment_provider?: string | null
           plan_key?: string

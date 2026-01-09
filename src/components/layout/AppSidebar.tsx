@@ -42,6 +42,7 @@ import {
   Sparkles,
   FolderOpen,
   Building2,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -147,6 +148,7 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
       { title: "Integrações da Plataforma", href: "/platform/integrations", icon: Plug },
       { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
+      { title: "Assinaturas", href: "/platform/billing", icon: CreditCard },
     ],
   },
   {
