@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2, Menu, FileText, Loader2, Upload, AlertTriangle } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
 import { ImportStep, ImportStepConfig } from './ImportStep';
+import { StructureImportStep, ImportStats as StructureImportStats } from './StructureImportStep';
 import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -169,6 +170,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     banners: 0,
   });
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [structureImportComplete, setStructureImportComplete] = useState(false);
+  const [structureStats, setStructureStats] = useState<StructureImportStats | null>(null);
   
   // Time tracking for ETA estimation
   const [importStartTime, setImportStartTime] = useState<number | null>(null);
@@ -1750,7 +1753,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
           </div>
         )}
 
-        {/* ETAPA 3: Structure Import */}
+        {/* ETAPA 3: Structure Import - Refactored with separate buttons */}
         {wizardStep === 'structure-import' && (
           <div className="space-y-6">
             <div className="bg-muted/50 rounded-lg p-3">
@@ -1765,116 +1768,29 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
               </p>
             </div>
 
-            {!isImportingStructure && !isStructureImportComplete && (
-              <div className="text-center py-8 space-y-6">
-                <div className="mx-auto w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-                  <FolderTree className="h-10 w-10 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold mb-2">Importar Estrutura da Loja</h3>
-                  <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                    Com um clique, vamos importar automaticamente: páginas institucionais, categorias, menus (header/footer com hierarquia) e a página inicial com banners.
-                  </p>
-                </div>
-                <Button size="lg" onClick={handleImportStoreStructure}>
-                  <Globe className="h-4 w-4 mr-2" />
-                  Importar Estrutura da Loja
-                </Button>
-              </div>
+            {currentTenant?.id && scrapedData && (
+              <StructureImportStep
+                tenantId={currentTenant.id}
+                storeUrl={storeUrl}
+                scrapedData={scrapedData}
+                analysisResult={analysisResult}
+                onComplete={(stats) => {
+                  setStructureImportComplete(true);
+                  setStructureStats(stats);
+                  // Update legacy stats for complete screen
+                  setImportStats({
+                    pages: stats.pages,
+                    categories: stats.categories,
+                    menuItems: stats.menuItems,
+                    banners: stats.visual.banners,
+                  });
+                }}
+              />
             )}
 
-            {(isImportingStructure || isStructureImportComplete) && (
-              <div className="space-y-4">
-                <ProgressWithETA 
-                  value={getStructureProgressPercent()} 
-                  label="Importando estrutura"
-                  showPercentage={true}
-                  estimatedTimeRemaining={estimatedTimeRemaining || undefined}
-                  currentStep={currentStepName}
-                  totalSteps={4}
-                  currentStepNumber={
-                    structureProgress.visual !== 'pending' ? 4 :
-                    structureProgress.menus !== 'pending' ? 3 :
-                    structureProgress.categories !== 'pending' ? 2 :
-                    structureProgress.pages !== 'pending' ? 1 : 0
-                  }
-                  size="md"
-                  variant={isStructureImportComplete ? 'success' : 'default'}
-                />
-                
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(structureProgress.pages)}
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Páginas da Loja</p>
-                      <p className="text-xs text-muted-foreground">Sobre, Contato, Políticas, etc.</p>
-                    </div>
-                    {structureProgress.pages === 'completed' && importStats.pages > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        {importStats.pages} encontradas
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(structureProgress.categories)}
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Categorias</p>
-                      <p className="text-xs text-muted-foreground">Páginas de listagem de produtos</p>
-                    </div>
-                    {structureProgress.categories === 'completed' && importStats.categories > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        {importStats.categories} importadas
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(structureProgress.menus)}
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Menus (Header/Footer)</p>
-                      <p className="text-xs text-muted-foreground">Com hierarquia de dropdowns preservada</p>
-                    </div>
-                    {structureProgress.menus === 'completed' && importStats.menuItems > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        {importStats.menuItems} itens
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                    {getStepStatusIcon(structureProgress.visual)}
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Visual da Loja</p>
-                      <p className="text-xs text-muted-foreground">Página inicial, banners e cores</p>
-                    </div>
-                    {structureProgress.visual === 'completed' && importStats.banners > 0 && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                        {importStats.banners} banners
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {importErrors.length > 0 && (
-                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
-                    <p className="text-sm font-medium text-destructive mb-1">Erros encontrados:</p>
-                    <ul className="text-xs text-destructive/80 list-disc list-inside">
-                      {importErrors.map((error, idx) => (
-                        <li key={idx}>{error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {isStructureImportComplete && (
-                  <div className="text-center pt-4">
-                    <CheckCircle2 className="h-12 w-12 text-primary mx-auto mb-3" />
-                    <p className="text-sm text-muted-foreground">
-                      Estrutura da loja importada com sucesso!
-                    </p>
-                  </div>
-                )}
+            {!scrapedData && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Dados da loja não disponíveis. Volte à etapa anterior.</p>
               </div>
             )}
           </div>
@@ -1973,7 +1889,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             </Button>
             <Button 
               onClick={() => setWizardStep('complete')}
-              disabled={!isStructureImportComplete}
+              disabled={!structureImportComplete}
             >
               Concluir
               <ChevronRight className="h-4 w-4 ml-2" />
