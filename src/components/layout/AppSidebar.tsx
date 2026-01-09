@@ -43,6 +43,8 @@ import {
   FolderOpen,
   Building2,
   CreditCard,
+  UserCheck,
+  Handshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -125,6 +127,15 @@ const fullNavigation: NavGroup[] = [
       { title: "Financeiro", href: "/finance", icon: DollarSign },
       { title: "Compras", href: "/purchases", icon: ShoppingBag },
       { title: "Logística", href: "/shipping", icon: Truck },
+    ],
+  },
+  {
+    label: "Parcerias",
+    collapsible: true,
+    items: [
+      { title: "Influencers", href: "/influencers", icon: UserCheck },
+      { title: "Fornecedores", href: "/suppliers", icon: Building2 },
+      { title: "Afiliados", href: "/affiliates", icon: Handshake },
     ],
   },
   {
