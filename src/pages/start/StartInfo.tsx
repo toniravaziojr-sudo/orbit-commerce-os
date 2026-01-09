@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +11,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+
+interface PlanInfo {
+  plan_key: string;
+  name: string;
+  price_monthly_cents: number;
+  price_annual_cents: number;
+}
 
 const formSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -27,6 +35,8 @@ export default function StartInfo() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [planInfo, setPlanInfo] = useState<PlanInfo | null>(null);
+  const [planLoading, setPlanLoading] = useState(true);
 
   const planKey = searchParams.get('plan') || 'start';
   const cycle = (searchParams.get('cycle') as 'monthly' | 'annual') || 'monthly';
@@ -34,6 +44,36 @@ export default function StartInfo() {
 
   // Block test10 plan without valid test_token in URL
   const isTestPlanBlocked = planKey === 'test10' && !testToken;
+
+  // Fetch plan info (including non-public plans like test10)
+  useEffect(() => {
+    async function loadPlanInfo() {
+      setPlanLoading(true);
+      const { data, error } = await supabase
+        .from('billing_plans')
+        .select('plan_key, name, price_monthly_cents, price_annual_cents')
+        .eq('plan_key', planKey)
+        .eq('is_active', true)
+        .single();
+
+      if (!error && data) {
+        setPlanInfo(data);
+      }
+      setPlanLoading(false);
+    }
+    loadPlanInfo();
+  }, [planKey]);
+
+  const formatPrice = (cents: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(cents / 100);
+  };
+
+  const displayPrice = planInfo 
+    ? (cycle === 'annual' ? planInfo.price_annual_cents : planInfo.price_monthly_cents) 
+    : 0;
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -111,6 +151,19 @@ export default function StartInfo() {
             <CardDescription>
               Preencha os dados para continuar com o pagamento
             </CardDescription>
+            {planInfo && !planLoading && (
+              <div className="mt-4 p-3 bg-muted rounded-lg">
+                <div className="flex items-center justify-center gap-2">
+                  <Badge variant="outline">{planInfo.name}</Badge>
+                  <span className="font-semibold text-lg">
+                    {formatPrice(displayPrice)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    /{cycle === 'monthly' ? 'mês' : 'ano'}
+                  </span>
+                </div>
+              </div>
+            )}
           </CardHeader>
 
           <CardContent>
