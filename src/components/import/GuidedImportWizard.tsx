@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, Package, FolderTree, Users, ShoppingCart, Palette, Globe, CheckCircle2, Menu, FileText, Loader2, Upload, AlertTriangle } from 'lucide-react';
@@ -12,8 +12,7 @@ import { getAdapter } from '@/lib/import/platforms';
 import { useAuth } from '@/hooks/useAuth';
 import { generateBlockId } from '@/lib/builder/utils';
 import type { BlockNode } from '@/lib/builder/types';
-import { Progress } from '@/components/ui/progress';
-
+import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 // Generate home page content from imported visual data
 function generateHomePageContent(heroBanners: any[], menuId?: string): BlockNode {
   const children: BlockNode[] = [
@@ -171,6 +170,11 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   });
   const [importErrors, setImportErrors] = useState<string[]>([]);
   
+  // Time tracking for ETA estimation
+  const [importStartTime, setImportStartTime] = useState<number | null>(null);
+  const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
+  const [currentStepName, setCurrentStepName] = useState<string>('');
+  
   // File import state (Etapa 3)
   const [fileStepStatuses, setFileStepStatuses] = useState<Record<string, {
     status: 'pending' | 'active' | 'completed' | 'skipped' | 'processing' | 'error';
@@ -189,6 +193,23 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   
   const { importData } = useImportData();
   const { currentTenant } = useAuth();
+  
+  // Update ETA based on progress
+  useEffect(() => {
+    if (!importStartTime || !isImportingStructure) {
+      setEstimatedTimeRemaining(null);
+      return;
+    }
+    
+    const progress = getStructureProgressPercent();
+    if (progress <= 0) return;
+    
+    const elapsedTime = (Date.now() - importStartTime) / 1000; // in seconds
+    const estimatedTotal = (elapsedTime / progress) * 100;
+    const remaining = Math.max(0, estimatedTotal - elapsedTime);
+    
+    setEstimatedTimeRemaining(remaining);
+  }, [structureProgress, importStartTime, isImportingStructure]);
 
   // Etapa 1: Analyze store URL and detect platform
   const handleAnalyzeStore = useCallback(async () => {
@@ -298,6 +319,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
     setIsImportingStructure(true);
     setImportErrors([]);
+    setImportStartTime(Date.now());
+    setEstimatedTimeRemaining(null);
     const stats: ImportStats = { pages: 0, categories: 0, menuItems: 0, banners: 0 };
     
     try {
@@ -305,6 +328,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       let htmlToUse = scrapedData.html || '';
       
       setStructureProgress(prev => ({ ...prev, pages: 'processing' }));
+      setCurrentStepName('Preparando análise...');
       toast.info('Extraindo estrutura da loja...');
       
       // Try to get better HTML for JS-rendered content
@@ -352,6 +376,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
       // === STEP 2.1: Import Pages (institutional/informational) ===
       setStructureProgress(prev => ({ ...prev, pages: 'processing' }));
+      setCurrentStepName('Importando páginas institucionais...');
       
       // Get institutional pages from visual extraction (from footer links)
       const institutionalPages = visualData.institutionalPages || [];
@@ -406,6 +431,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       // === STEP 2.2: Import Categories (FLAT - no hierarchy in categories) ===
       setStructureProgress(prev => ({ ...prev, categories: 'processing' }));
+      setCurrentStepName('Importando categorias...');
       
       const allCategories: Array<{
         name: string;
@@ -717,6 +743,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       // === STEP 2.3: Import Menus (Header AND Footer with hierarchy) ===
       setStructureProgress(prev => ({ ...prev, menus: 'processing' }));
+      setCurrentStepName('Importando menus (header/footer)...');
       
       const headerMenuItems = visualData.menuItems || [];
       const footerMenuItems = visualData.footerMenuItems || [];
@@ -1049,6 +1076,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       // === STEP 2.4: Import Home Page + Visual (banners, branding, business info) ===
       setStructureProgress(prev => ({ ...prev, visual: 'processing' }));
+      setCurrentStepName('Importando visual da loja...');
       
       const heroBanners = visualData.heroBanners || [];
       const branding = scrapedData.branding || visualData.branding || {};
@@ -1263,6 +1291,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       });
     } finally {
       setIsImportingStructure(false);
+      setCurrentStepName('');
+      setImportStartTime(null);
     }
   }, [currentTenant, scrapedData, storeUrl, analysisResult]);
 
@@ -1755,12 +1785,22 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
 
             {(isImportingStructure || isStructureImportComplete) && (
               <div className="space-y-4">
-                <div className="flex items-center gap-4 mb-4">
-                  <Progress value={getStructureProgressPercent()} className="flex-1" />
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round(getStructureProgressPercent())}%
-                  </span>
-                </div>
+                <ProgressWithETA 
+                  value={getStructureProgressPercent()} 
+                  label="Importando estrutura"
+                  showPercentage={true}
+                  estimatedTimeRemaining={estimatedTimeRemaining || undefined}
+                  currentStep={currentStepName}
+                  totalSteps={4}
+                  currentStepNumber={
+                    structureProgress.visual !== 'pending' ? 4 :
+                    structureProgress.menus !== 'pending' ? 3 :
+                    structureProgress.categories !== 'pending' ? 2 :
+                    structureProgress.pages !== 'pending' ? 1 : 0
+                  }
+                  size="md"
+                  variant={isStructureImportComplete ? 'success' : 'default'}
+                />
                 
                 <div className="space-y-3">
                   <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">

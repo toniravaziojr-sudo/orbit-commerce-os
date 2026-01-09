@@ -1,4 +1,4 @@
-import { Progress } from '@/components/ui/progress';
+import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,12 @@ interface ImportProgressProps {
   errors: any[];
   onViewReport?: (module: string) => void;
   hasReports?: boolean;
+  /** Optional overall progress (0-100) */
+  overallProgress?: number;
+  /** Optional estimated time remaining in seconds */
+  estimatedTimeRemaining?: number;
+  /** Optional current step description */
+  currentStep?: string;
 }
 
 const moduleLabels: Record<string, string> = {
@@ -21,22 +27,63 @@ const moduleLabels: Record<string, string> = {
   orders: 'Pedidos',
 };
 
-export function ImportProgress({ modules, progress, stats, status, errors, onViewReport, hasReports }: ImportProgressProps) {
+export function ImportProgress({ 
+  modules, 
+  progress, 
+  stats, 
+  status, 
+  errors, 
+  onViewReport, 
+  hasReports,
+  overallProgress,
+  estimatedTimeRemaining,
+  currentStep,
+}: ImportProgressProps) {
   const isCompleted = status === 'completed';
   const isFailed = status === 'failed';
   const isProcessing = status === 'processing';
 
+  // Calculate overall progress if not provided
+  const calculatedOverallProgress = overallProgress ?? (() => {
+    const totalItems = modules.reduce((sum, m) => sum + (progress[m]?.total || 0), 0);
+    const processedItems = modules.reduce((sum, m) => sum + (progress[m]?.current || 0), 0);
+    return totalItems > 0 ? (processedItems / totalItems) * 100 : 0;
+  })();
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        {isProcessing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-        {isCompleted && <CheckCircle className="h-5 w-5 text-green-500" />}
-        {isFailed && <XCircle className="h-5 w-5 text-destructive" />}
-        <h3 className="text-lg font-medium">
-          {isProcessing && 'Importando dados...'}
-          {isCompleted && 'Importação concluída!'}
-          {isFailed && 'Falha na importação'}
-        </h3>
+      {/* Overall progress with ETA */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          {isProcessing && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+          {isCompleted && <CheckCircle className="h-5 w-5 text-green-500" />}
+          {isFailed && <XCircle className="h-5 w-5 text-destructive" />}
+          <h3 className="text-lg font-medium">
+            {isProcessing && 'Importando dados...'}
+            {isCompleted && 'Importação concluída!'}
+            {isFailed && 'Falha na importação'}
+          </h3>
+        </div>
+        
+        {isProcessing && (
+          <ProgressWithETA
+            value={calculatedOverallProgress}
+            showPercentage={true}
+            estimatedTimeRemaining={estimatedTimeRemaining}
+            currentStep={currentStep}
+            size="md"
+            variant="default"
+          />
+        )}
+        
+        {isCompleted && (
+          <ProgressWithETA
+            value={100}
+            showPercentage={true}
+            size="md"
+            variant="success"
+          />
+        )}
       </div>
 
       <div className="grid gap-4">
@@ -63,7 +110,12 @@ export function ImportProgress({ modules, progress, stats, status, errors, onVie
               <CardContent className="space-y-2">
                 {moduleProgress && (
                   <>
-                    <Progress value={percentage} className="h-2" />
+                    <ProgressWithETA 
+                      value={percentage} 
+                      showPercentage={false}
+                      size="sm"
+                      variant={moduleProgress.status === 'completed' ? 'success' : 'default'}
+                    />
                     <p className="text-xs text-muted-foreground">
                       {moduleProgress.current} de {moduleProgress.total} ({percentage}%)
                     </p>
