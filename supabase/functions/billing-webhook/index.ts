@@ -62,8 +62,25 @@ serve(async (req) => {
     const body = await req.json();
     console.log('Webhook received:', JSON.stringify(body, null, 2));
 
-    const { type, data, action } = body;
-    const eventId = body.id?.toString() || `${type}-${data?.id}-${Date.now()}`;
+    // Support both new format (type/data.id) and legacy format (topic/resource)
+    let type = body.type;
+    let dataId = body.data?.id;
+    
+    // Handle legacy MP webhook format (topic/resource)
+    if (!type && body.topic) {
+      type = body.topic; // "payment", "merchant_order", etc.
+      // Extract ID from resource URL or use resource directly
+      const resource = body.resource;
+      if (resource) {
+        // resource can be "140664541287" or "https://api.mercadolibre.com/merchant_orders/37151208468"
+        const match = resource.match(/\/(\d+)$/) || resource.match(/^(\d+)$/);
+        dataId = match ? match[1] : resource;
+      }
+      console.log('Converted legacy format:', { type, dataId, originalResource: resource });
+    }
+
+    const { action } = body;
+    const eventId = body.id?.toString() || `${type}-${dataId}-${Date.now()}`;
 
     // Idempotency check
     const { data: existingEvent } = await supabase
@@ -86,6 +103,9 @@ serve(async (req) => {
     let cycle: string | null = null;
     let eventType = type || action || 'unknown';
     let checkoutSessionId: string | null = null;
+    
+    // Create data object for compatibility
+    const data = { id: dataId };
 
     // Handle payment events
     if (type === 'payment' && data?.id) {
