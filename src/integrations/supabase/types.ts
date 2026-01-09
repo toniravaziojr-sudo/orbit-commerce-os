@@ -492,6 +492,86 @@ export type Database = {
           },
         ]
       }
+      billing_checkout_sessions: {
+        Row: {
+          billing_cycle: string
+          created_at: string
+          email: string
+          error_message: string | null
+          id: string
+          mp_external_reference: string | null
+          mp_init_point: string | null
+          mp_payment_id: string | null
+          mp_preapproval_id: string | null
+          owner_name: string
+          phone: string | null
+          plan_key: string
+          slug: string | null
+          status: string
+          store_name: string
+          tenant_id: string | null
+          token_expires_at: string | null
+          token_hash: string | null
+          updated_at: string
+          user_id: string | null
+          utm: Json | null
+        }
+        Insert: {
+          billing_cycle: string
+          created_at?: string
+          email: string
+          error_message?: string | null
+          id?: string
+          mp_external_reference?: string | null
+          mp_init_point?: string | null
+          mp_payment_id?: string | null
+          mp_preapproval_id?: string | null
+          owner_name: string
+          phone?: string | null
+          plan_key: string
+          slug?: string | null
+          status?: string
+          store_name: string
+          tenant_id?: string | null
+          token_expires_at?: string | null
+          token_hash?: string | null
+          updated_at?: string
+          user_id?: string | null
+          utm?: Json | null
+        }
+        Update: {
+          billing_cycle?: string
+          created_at?: string
+          email?: string
+          error_message?: string | null
+          id?: string
+          mp_external_reference?: string | null
+          mp_init_point?: string | null
+          mp_payment_id?: string | null
+          mp_preapproval_id?: string | null
+          owner_name?: string
+          phone?: string | null
+          plan_key?: string
+          slug?: string | null
+          status?: string
+          store_name?: string
+          tenant_id?: string | null
+          token_expires_at?: string | null
+          token_hash?: string | null
+          updated_at?: string
+          user_id?: string | null
+          utm?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_checkout_sessions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_events: {
         Row: {
           created_at: string
@@ -9223,6 +9303,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      generate_billing_checkout_token: {
+        Args: { p_session_id: string }
+        Returns: string
+      }
       generate_order_number: { Args: { p_tenant_id: string }; Returns: string }
       generate_tenant_invoice: {
         Args: { p_tenant_id: string; p_year_month: string }
@@ -9319,6 +9403,10 @@ export type Database = {
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
+      }
+      validate_billing_checkout_token: {
+        Args: { p_token: string }
+        Returns: string
       }
     }
     Enums: {
