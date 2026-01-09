@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertTriangle, Info } from 'lucide-react';
+import { AlertTriangle, Info, XCircle, CheckCircle2 } from 'lucide-react';
 
 interface DataPreviewProps {
   data: Record<string, any[]>;
@@ -19,19 +19,35 @@ const moduleLabels: Record<string, string> = {
   orders: 'Pedidos',
 };
 
-interface ValidationWarning {
+interface ValidationIssue {
   field: string;
   count: number;
   message: string;
-  severity: 'warning' | 'info';
+  severity: 'error' | 'warning' | 'info';
+  affectedItems?: string[];
 }
 
-function validateProducts(items: any[]): ValidationWarning[] {
-  const warnings: ValidationWarning[] = [];
+function validateProducts(items: any[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  
+  // CRITICAL: Products without name are ERRORS (will not be imported)
+  const withoutName = items.filter(p => {
+    const name = (p.name || p.title || '').toString().trim();
+    return !name || name === 'Produto sem nome' || name === 'Produto importado';
+  });
+  if (withoutName.length > 0) {
+    issues.push({
+      field: 'name',
+      count: withoutName.length,
+      message: `${withoutName.length} produto(s) SEM NOME - NÃO serão importados`,
+      severity: 'error',
+      affectedItems: withoutName.slice(0, 5).map(p => p.sku || p.slug || 'sem identificador'),
+    });
+  }
   
   const withoutSku = items.filter(p => !p.sku).length;
   if (withoutSku > 0) {
-    warnings.push({
+    issues.push({
       field: 'sku',
       count: withoutSku,
       message: `${withoutSku} produto(s) sem SKU - será gerado automaticamente`,
@@ -39,79 +55,101 @@ function validateProducts(items: any[]): ValidationWarning[] {
     });
   }
   
-  const withoutName = items.filter(p => !p.name || p.name === 'Produto sem nome').length;
-  if (withoutName > 0) {
-    warnings.push({
-      field: 'name',
-      count: withoutName,
-      message: `${withoutName} produto(s) sem nome válido`,
-      severity: 'warning',
-    });
-  }
-  
   const withoutPrice = items.filter(p => !p.price || p.price <= 0).length;
   if (withoutPrice > 0) {
-    warnings.push({
+    issues.push({
       field: 'price',
       count: withoutPrice,
-      message: `${withoutPrice} produto(s) sem preço definido`,
+      message: `${withoutPrice} produto(s) sem preço ou preço zero`,
       severity: 'warning',
     });
   }
+
+  // Count valid products
+  const validCount = items.length - withoutName.length;
+  if (validCount > 0) {
+    issues.unshift({
+      field: 'valid',
+      count: validCount,
+      message: `${validCount} produto(s) válidos serão importados`,
+      severity: 'info',
+    });
+  }
   
-  return warnings;
+  return issues;
 }
 
-function validateCustomers(items: any[]): ValidationWarning[] {
-  const warnings: ValidationWarning[] = [];
+function validateCustomers(items: any[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   
-  const withoutEmail = items.filter(c => !c.email || !c.email.includes('@')).length;
-  if (withoutEmail > 0) {
-    warnings.push({
+  const withoutEmail = items.filter(c => !c.email || !c.email.includes('@'));
+  if (withoutEmail.length > 0) {
+    issues.push({
       field: 'email',
-      count: withoutEmail,
-      message: `${withoutEmail} cliente(s) sem email válido - serão ignorados`,
-      severity: 'warning',
+      count: withoutEmail.length,
+      message: `${withoutEmail.length} cliente(s) sem email válido - NÃO serão importados`,
+      severity: 'error',
+      affectedItems: withoutEmail.slice(0, 5).map(c => c.full_name || 'sem nome'),
+    });
+  }
+
+  const validCount = items.length - withoutEmail.length;
+  if (validCount > 0) {
+    issues.unshift({
+      field: 'valid',
+      count: validCount,
+      message: `${validCount} cliente(s) válidos serão importados`,
+      severity: 'info',
     });
   }
   
-  return warnings;
+  return issues;
 }
 
-function validateOrders(items: any[]): ValidationWarning[] {
-  const warnings: ValidationWarning[] = [];
+function validateOrders(items: any[]): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   
-  const withoutOrderNumber = items.filter(o => !o.order_number).length;
-  if (withoutOrderNumber > 0) {
-    warnings.push({
+  const withoutOrderNumber = items.filter(o => !o.order_number);
+  if (withoutOrderNumber.length > 0) {
+    issues.push({
       field: 'order_number',
-      count: withoutOrderNumber,
-      message: `${withoutOrderNumber} pedido(s) sem número - serão ignorados`,
-      severity: 'warning',
+      count: withoutOrderNumber.length,
+      message: `${withoutOrderNumber.length} pedido(s) sem número - NÃO serão importados`,
+      severity: 'error',
+    });
+  }
+
+  const validCount = items.length - withoutOrderNumber.length;
+  if (validCount > 0) {
+    issues.unshift({
+      field: 'valid',
+      count: validCount,
+      message: `${validCount} pedido(s) válidos serão importados`,
+      severity: 'info',
     });
   }
   
-  return warnings;
+  return issues;
 }
 
 export function DataPreview({ data, modules }: DataPreviewProps) {
   const availableModules = modules.filter(m => data[m]?.length > 0);
   const [activeTab, setActiveTab] = useState(availableModules[0] || 'products');
 
-  const validationWarnings = useMemo(() => {
-    const warnings: Record<string, ValidationWarning[]> = {};
+  const validationIssues = useMemo(() => {
+    const issues: Record<string, ValidationIssue[]> = {};
     
     if (data.products?.length > 0) {
-      warnings.products = validateProducts(data.products);
+      issues.products = validateProducts(data.products);
     }
     if (data.customers?.length > 0) {
-      warnings.customers = validateCustomers(data.customers);
+      issues.customers = validateCustomers(data.customers);
     }
     if (data.orders?.length > 0) {
-      warnings.orders = validateOrders(data.orders);
+      issues.orders = validateOrders(data.orders);
     }
     
-    return warnings;
+    return issues;
   }, [data]);
 
   if (availableModules.length === 0) {
@@ -122,26 +160,45 @@ export function DataPreview({ data, modules }: DataPreviewProps) {
     );
   }
 
-  const currentWarnings = validationWarnings[activeTab] || [];
+  const currentIssues = validationIssues[activeTab] || [];
+
+  // Check if there are blocking errors
+  const hasErrors = currentIssues.some(i => i.severity === 'error');
+  const hasWarnings = currentIssues.some(i => i.severity === 'warning');
 
   return (
     <div className="space-y-4">
       <h3 className="text-lg font-medium">Prévia dos dados normalizados</h3>
 
-      {currentWarnings.length > 0 && (
+      {currentIssues.length > 0 && (
         <div className="space-y-2">
-          {currentWarnings.map((warning, idx) => (
-            <Alert key={idx} variant={warning.severity === 'warning' ? 'destructive' : 'default'}>
-              {warning.severity === 'warning' ? (
+          {currentIssues.map((issue, idx) => (
+            <Alert 
+              key={idx} 
+              variant={issue.severity === 'error' ? 'destructive' : 'default'}
+              className={issue.severity === 'info' && issue.field === 'valid' ? 'border-green-500/50 bg-green-500/5' : ''}
+            >
+              {issue.severity === 'error' ? (
+                <XCircle className="h-4 w-4" />
+              ) : issue.severity === 'warning' ? (
                 <AlertTriangle className="h-4 w-4" />
+              ) : issue.field === 'valid' ? (
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
               ) : (
                 <Info className="h-4 w-4" />
               )}
               <AlertTitle className="text-sm">
-                {warning.severity === 'warning' ? 'Atenção' : 'Informação'}
+                {issue.severity === 'error' ? 'Erro - Itens não serão importados' : 
+                 issue.severity === 'warning' ? 'Atenção' : 
+                 issue.field === 'valid' ? 'Prontos para importar' : 'Informação'}
               </AlertTitle>
               <AlertDescription className="text-sm">
-                {warning.message}
+                {issue.message}
+                {issue.affectedItems && issue.affectedItems.length > 0 && (
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Exemplos: {issue.affectedItems.join(', ')}
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           ))}
@@ -156,32 +213,49 @@ export function DataPreview({ data, modules }: DataPreviewProps) {
               <Badge variant="secondary" className="ml-2">
                 {data[module].length}
               </Badge>
-              {validationWarnings[module]?.some(w => w.severity === 'warning') && (
+              {validationIssues[module]?.some(i => i.severity === 'error') && (
                 <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-destructive" />
+              )}
+              {!validationIssues[module]?.some(i => i.severity === 'error') && 
+               validationIssues[module]?.some(i => i.severity === 'warning') && (
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-yellow-500" />
               )}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {availableModules.map((module) => (
-          <TabsContent key={module} value={module}>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  {data[module].length} {moduleLabels[module]?.toLowerCase() || module} serão importados
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[300px]">
-                  {module === 'products' && <ProductsPreview items={data[module]} />}
-                  {module === 'categories' && <CategoriesPreview items={data[module]} />}
-                  {module === 'customers' && <CustomersPreview items={data[module]} />}
-                  {module === 'orders' && <OrdersPreview items={data[module]} />}
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+        {availableModules.map((module) => {
+          const moduleIssues = validationIssues[module] || [];
+          const validItem = moduleIssues.find(i => i.field === 'valid');
+          const validCount = validItem?.count || data[module].length;
+          
+          return (
+            <TabsContent key={module} value={module}>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base flex items-center justify-between">
+                    <span>
+                      {validCount} {moduleLabels[module]?.toLowerCase() || module} serão importados
+                    </span>
+                    {validCount < data[module].length && (
+                      <Badge variant="destructive" className="text-xs">
+                        {data[module].length - validCount} com erro
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ScrollArea className="h-[300px]">
+                    {module === 'products' && <ProductsPreview items={data[module]} />}
+                    {module === 'categories' && <CategoriesPreview items={data[module]} />}
+                    {module === 'customers' && <CustomersPreview items={data[module]} />}
+                    {module === 'orders' && <OrdersPreview items={data[module]} />}
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );

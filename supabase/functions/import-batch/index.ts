@@ -163,8 +163,14 @@ Deno.serve(async (req) => {
 // ========== Import Functions ==========
 
 async function importProduct(supabase: any, tenantId: string, product: any, results: any, categoryMap?: Record<string, string>) {
+  // CRITICAL: Validate product name - NEVER create "Produto sem nome"
+  const productName = (product.name || product.title || '').toString().trim();
+  if (!productName || productName === 'Produto sem nome' || productName === 'Produto importado') {
+    throw new Error('Produto sem nome válido - importação rejeitada');
+  }
+
   // Generate slug if missing
-  const effectiveSlug = product.slug || slugify(product.name || `produto-${Date.now()}`);
+  const effectiveSlug = product.slug || slugify(productName);
   
   // Check for duplicate by slug
   const { data: existing } = await supabase
@@ -176,11 +182,20 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
 
   let productId: string;
 
-  // Generate SKU if not provided
-  const effectiveSku = product.sku || `SKU-${effectiveSlug.substring(0, 20)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-  
-  // Generate name if missing
-  const effectiveName = product.name || product.title || 'Produto importado';
+  // Generate SKU if not provided - deterministic based on slug
+  const effectiveSku = product.sku || `IMP-${effectiveSlug.substring(0, 20)}-${hashCode(effectiveSlug + tenantId).toString(36).toUpperCase()}`;
+
+  // Validate and parse price (handle Brazilian format R$ 49,90)
+  let effectivePrice = 0;
+  if (product.price !== undefined && product.price !== null) {
+    if (typeof product.price === 'string') {
+      // Remove currency symbols and normalize
+      const cleaned = product.price.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+      effectivePrice = parseFloat(cleaned) || 0;
+    } else {
+      effectivePrice = Number(product.price) || 0;
+    }
+  }
 
   if (existing) {
     productId = existing.id;
@@ -188,10 +203,10 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
     const { error } = await supabase
       .from('products')
       .update({
-        name: effectiveName,
+        name: productName,
         description: product.description,
         short_description: product.short_description,
-        price: product.price || 0,
+        price: effectivePrice,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
         sku: effectiveSku,
@@ -217,11 +232,11 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       .from('products')
       .insert({
         tenant_id: tenantId,
-        name: effectiveName,
+        name: productName,
         slug: effectiveSlug,
         description: product.description,
         short_description: product.short_description,
-        price: product.price || 0,
+        price: effectivePrice,
         compare_at_price: product.compare_at_price,
         cost_price: product.cost_price,
         sku: effectiveSku,
@@ -299,6 +314,17 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       }
     }
   }
+}
+
+// Simple hash function for deterministic SKU generation
+function hashCode(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash);
 }
 
 async function importCategory(supabase: any, tenantId: string, category: any, results: any) {
