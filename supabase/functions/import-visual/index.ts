@@ -1870,6 +1870,7 @@ function extractBranding(html: string, baseUrl: string): VisualExtractionResult[
   const faviconPatterns = [
     /<link[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*href=["']([^"']+)["']/i,
     /<link[^>]*href=["']([^"']+)["'][^>]*rel=["'](?:icon|shortcut icon)["']/i,
+    /<link[^>]*rel=["']apple-touch-icon["'][^>]*href=["']([^"']+)["']/i,
   ];
 
   for (const pattern of faviconPatterns) {
@@ -1880,20 +1881,77 @@ function extractBranding(html: string, baseUrl: string): VisualExtractionResult[
     }
   }
 
-  // Extract colors from CSS variables or inline styles
-  const primaryColorPatterns = [
-    /--primary[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
-    /--brand[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
-    /--accent[^:]*:\s*([#]?[a-fA-F0-9]{3,6}|rgb[a]?\([^)]+\)|hsl[a]?\([^)]+\))/i,
+  // === ENHANCED COLOR EXTRACTION ===
+  // Strategy 1: CSS custom properties (most reliable)
+  const cssVarPatterns = [
+    { regex: /--(?:color-)?primary[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'primary' },
+    { regex: /--(?:color-)?secondary[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'secondary' },
+    { regex: /--(?:color-)?accent[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'accent' },
+    { regex: /--brand[^:]*color[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'primary' },
+    { regex: /--button[^:]*color[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'primary' },
+    { regex: /--link[^:]*color[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'accent' },
   ];
 
-  for (const pattern of primaryColorPatterns) {
-    const match = pattern.exec(html);
-    if (match) {
-      branding.primaryColor = match[1].trim();
-      break;
+  for (const { regex, type } of cssVarPatterns) {
+    const match = regex.exec(html);
+    if (match && match[1]) {
+      if (type === 'primary' && !branding.primaryColor) {
+        branding.primaryColor = match[1];
+      } else if (type === 'secondary' && !branding.secondaryColor) {
+        branding.secondaryColor = match[1];
+      } else if (type === 'accent' && !branding.accentColor) {
+        branding.accentColor = match[1];
+      }
     }
   }
+
+  // Strategy 2: Look for colors in <style> tags and inline styles
+  const styleBlocks = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || [];
+  const allStyles = styleBlocks.join(' ');
+  
+  // Find most common colors in buttons, headers, links
+  const colorContext = [
+    { pattern: /\.btn[^{]*\{[^}]*background[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'primary' },
+    { pattern: /button[^{]*\{[^}]*background[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'primary' },
+    { pattern: /\.header[^{]*\{[^}]*background[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'secondary' },
+    { pattern: /a[^{]*\{[^}]*color:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'accent' },
+    { pattern: /\.footer[^{]*\{[^}]*background[^:]*:\s*([#][a-fA-F0-9]{3,6})/gi, type: 'secondary' },
+  ];
+
+  for (const { pattern, type } of colorContext) {
+    const match = pattern.exec(allStyles);
+    if (match && match[1]) {
+      const color = match[1];
+      // Skip common non-brand colors
+      if (color.toLowerCase() === '#fff' || color.toLowerCase() === '#ffffff' || 
+          color.toLowerCase() === '#000' || color.toLowerCase() === '#000000' ||
+          color.toLowerCase() === '#333' || color.toLowerCase() === '#666') {
+        continue;
+      }
+      
+      if (type === 'primary' && !branding.primaryColor) {
+        branding.primaryColor = color;
+      } else if (type === 'secondary' && !branding.secondaryColor) {
+        branding.secondaryColor = color;
+      } else if (type === 'accent' && !branding.accentColor) {
+        branding.accentColor = color;
+      }
+    }
+  }
+
+  // Strategy 3: Meta theme-color
+  const themeColorMatch = /<meta[^>]*name=["']theme-color["'][^>]*content=["']([#][a-fA-F0-9]{3,6})["']/i.exec(html);
+  if (themeColorMatch && !branding.primaryColor) {
+    branding.primaryColor = themeColorMatch[1];
+  }
+
+  console.log('Extracted branding colors:', {
+    primary: branding.primaryColor,
+    secondary: branding.secondaryColor,
+    accent: branding.accentColor,
+    logo: branding.logo ? 'found' : 'not found',
+    favicon: branding.favicon ? 'found' : 'not found',
+  });
 
   return branding;
 }
