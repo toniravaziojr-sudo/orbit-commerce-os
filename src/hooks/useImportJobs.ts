@@ -183,7 +183,7 @@ const BATCH_SIZE = 30;
 export function useImportData() {
   const { currentTenant } = useAuth();
   const tenantId = currentTenant?.id;
-  const { createJob } = useImportJobs();
+  const { createJob, updateJobStatus } = useImportJobs();
 
   const importData = async (
     platform: string,
@@ -208,6 +208,17 @@ export function useImportData() {
     let totalFailed = 0;
     let totalSkipped = 0;
     const allErrors: any[] = [];
+
+    // Mark job as processing
+    try {
+      await updateJobStatus.mutateAsync({
+        jobId: job.id,
+        status: 'processing',
+        progress: { [module]: { current: 0, total: data.length } },
+      });
+    } catch (e) {
+      console.warn('[useImportData] Could not update job status to processing:', e);
+    }
 
     // Process in batches using import-batch function
     for (let i = 0; i < totalBatches; i++) {
@@ -256,6 +267,27 @@ export function useImportData() {
       if (i < totalBatches - 1) {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+    }
+
+    // CRITICAL: Finalize job with completed status
+    const finalStatus = totalFailed < data.length ? 'completed' : 'failed';
+    try {
+      await updateJobStatus.mutateAsync({
+        jobId: job.id,
+        status: finalStatus,
+        progress: { [module]: { current: data.length, total: data.length } },
+        stats: {
+          [module]: {
+            imported: totalImported,
+            updated: totalUpdated,
+            failed: totalFailed,
+            skipped: totalSkipped,
+            total: data.length,
+          },
+        },
+      });
+    } catch (e) {
+      console.warn('[useImportData] Could not update job status to completed:', e);
     }
 
     return {

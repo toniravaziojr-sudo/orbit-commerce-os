@@ -589,6 +589,46 @@ async function importCustomer(supabase: any, tenantId: string, customer: any, re
   }
 }
 
+// Map payment method to valid enum value
+function mapPaymentMethod(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  
+  const normalized = raw.toLowerCase().trim();
+  
+  // PIX variations
+  if (normalized.includes('pix')) return 'pix';
+  
+  // Credit card variations
+  if (normalized.includes('credit') || normalized.includes('crédito') || 
+      normalized.includes('credito') || normalized.includes('cartão de crédito') ||
+      normalized.includes('cartao de credito') || normalized.includes('card')) {
+    return 'credit_card';
+  }
+  
+  // Debit card variations
+  if (normalized.includes('debit') || normalized.includes('débito') || normalized.includes('debito')) {
+    return 'debit_card';
+  }
+  
+  // Boleto variations
+  if (normalized.includes('boleto') || normalized.includes('billet')) {
+    return 'boleto';
+  }
+  
+  // Mercado Pago
+  if (normalized.includes('mercado pago') || normalized.includes('mercadopago')) {
+    return 'mercado_pago';
+  }
+  
+  // Pagar.me (when not specific method)
+  if (normalized.includes('pagar.me') || normalized.includes('pagarme')) {
+    return 'pagarme';
+  }
+  
+  // Return null for unknown methods (will be saved as null, which is allowed)
+  return null;
+}
+
 async function importOrder(supabase: any, tenantId: string, order: any, results: any) {
   const orderNumber = (order.order_number || '').toString().trim();
   if (!orderNumber) {
@@ -610,6 +650,12 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
 
   let customerId = null;
   const customerEmail = (order.customer_email || '').toString().trim().toLowerCase();
+  const customerName = order.customer_name || (customerEmail ? 'Cliente' : null);
+  
+  // CRITICAL: customer_name cannot be null
+  if (!customerName) {
+    throw new Error('Pedido sem nome de cliente - customer_name é obrigatório');
+  }
   
   if (customerEmail && customerEmail.includes('@')) {
     const { data: customer } = await supabase
@@ -627,7 +673,7 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
         .insert({
           tenant_id: tenantId,
           email: customerEmail,
-          full_name: order.customer_name || 'Cliente',
+          full_name: customerName,
           phone: order.customer_phone || null,
         })
         .select('id')
@@ -636,6 +682,9 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     }
   }
 
+  // Map payment method to valid enum value
+  const mappedPaymentMethod = mapPaymentMethod(order.payment_method);
+
   // Build order data with all supported fields
   const orderData = {
     tenant_id: tenantId,
@@ -643,7 +692,7 @@ async function importOrder(supabase: any, tenantId: string, order: any, results:
     order_number: orderNumber,
     status: order.status || 'pending',
     payment_status: order.payment_status || 'pending',
-    payment_method: order.payment_method || null,
+    payment_method: mappedPaymentMethod,
     payment_gateway: order.payment_gateway || null,
     payment_gateway_id: order.payment_gateway_id || null,
     shipping_status: order.shipping_status || 'pending',
