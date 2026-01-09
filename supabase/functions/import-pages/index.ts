@@ -799,9 +799,10 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
+          code: 'EMPTY_CONTENT',
           error: 'Não foi possível extrair conteúdo da página. A página pode estar vazia ou protegida.' 
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
     
@@ -825,10 +826,11 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
+          code: 'DUPLICATE_SLUG',
           error: `Já existe uma página com o slug "${slug}"`,
           existingPageId: existingPage.id,
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
     
@@ -852,8 +854,8 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error('[IMPORT] Database error:', insertError);
       return new Response(
-        JSON.stringify({ success: false, error: `Erro ao salvar: ${insertError.message}` }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        JSON.stringify({ success: false, code: 'DATABASE_ERROR', error: `Erro ao salvar: ${insertError.message}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       );
     }
     
@@ -884,9 +886,10 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
+        code: 'UNEXPECTED_ERROR',
         error: error instanceof Error ? error.message : 'Erro desconhecido' 
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     );
   }
 });
