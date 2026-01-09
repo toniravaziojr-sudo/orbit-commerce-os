@@ -30,6 +30,10 @@ export default function StartInfo() {
 
   const planKey = searchParams.get('plan') || 'start';
   const cycle = (searchParams.get('cycle') as 'monthly' | 'annual') || 'monthly';
+  const testToken = searchParams.get('test_token') || undefined;
+
+  // Block test10 plan without valid test_token in URL
+  const isTestPlanBlocked = planKey === 'test10' && !testToken;
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -54,6 +58,7 @@ export default function StartInfo() {
           owner_name: data.owner_name,
           store_name: data.store_name,
           phone: data.phone || undefined,
+          test_token: testToken, // Pass test_token for test10 plan
           utm: Object.fromEntries(
             Array.from(searchParams.entries()).filter(([key]) => key.startsWith('utm_'))
           ),
@@ -109,6 +114,21 @@ export default function StartInfo() {
           </CardHeader>
 
           <CardContent>
+            {isTestPlanBlocked ? (
+              <div className="text-center py-8">
+                <p className="text-destructive font-medium">Plano de teste indisponível</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Este plano requer um token de acesso válido.
+                </p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/start')} 
+                  className="mt-4"
+                >
+                  Ver planos disponíveis
+                </Button>
+              </div>
+            ) : (
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
@@ -211,6 +231,7 @@ export default function StartInfo() {
                 </Button>
               </form>
             </Form>
+            )}
           </CardContent>
         </Card>
 
