@@ -16,6 +16,7 @@ interface CreateCheckoutRequest {
   phone?: string;
   slug?: string;
   utm?: Record<string, string>;
+  test_token?: string; // Required for test10 plan
 }
 
 function normalizeEmail(email: string): string {
@@ -52,7 +53,8 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: CreateCheckoutRequest = await req.json();
-    const { plan_key, cycle, email, owner_name, store_name, phone, utm } = body;
+    const { plan_key, cycle, email, owner_name, store_name, phone, utm, test_token } = body;
+    const billingTestToken = Deno.env.get('BILLING_TEST_TOKEN');
 
     // Validações
     if (!plan_key || !cycle || !email || !owner_name || !store_name) {
@@ -75,6 +77,30 @@ serve(async (req) => {
     if (planError || !plan) {
       return new Response(
         JSON.stringify({ success: false, error: 'Plano não encontrado ou inativo' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Security: test10 plan requires valid test_token and monthly cycle only
+    if (plan_key === 'test10') {
+      if (!billingTestToken || test_token !== billingTestToken) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Plano de teste indisponível. Token inválido.' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (cycle !== 'monthly') {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Plano de teste só está disponível no ciclo mensal.' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // Block non-public plans without test_token (except test10 which is handled above)
+    if (!plan.is_public && plan_key !== 'test10') {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Plano indisponível' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
