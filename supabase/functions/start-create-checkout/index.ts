@@ -105,11 +105,13 @@ serve(async (req) => {
       );
     }
 
-    // Verificar se já existe checkout pendente para este email
+    // Verificar se já existe checkout pendente para este email COM O MESMO PLANO E CICLO
     const { data: existingSession } = await supabase
       .from('billing_checkout_sessions')
-      .select('id, status, mp_init_point')
+      .select('id, status, mp_init_point, plan_key, billing_cycle')
       .eq('email', normalizedEmail)
+      .eq('plan_key', plan_key)
+      .eq('billing_cycle', cycle)
       .in('status', ['pending_payment'])
       .maybeSingle();
 
