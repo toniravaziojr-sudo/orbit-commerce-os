@@ -1,26 +1,26 @@
 import { useState } from "react";
 import {
-  Plug,
   CreditCard,
   Share2,
   Boxes,
   MessageSquare,
-  TrendingUp,
-  Truck,
-  FileText,
+  Globe,
+  Mail,
+  MoreHorizontal,
   Shield,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
-import { StatusBadge } from "@/components/ui/status-badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySettings";
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
+import { EmailDnsSettings } from "@/components/emails/EmailDnsSettings";
+import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
 import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { PlatformIntegrationsDashboard } from "@/components/integrations/PlatformIntegrationsDashboard";
@@ -29,15 +29,14 @@ import { WhatsAppPlatformSettings } from "@/components/integrations/WhatsAppPlat
 import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatformSettings";
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
-import { Link } from "react-router-dom";
+import { StatusBadge } from "@/components/ui/status-badge";
 
-// Future integrations
-const FUTURE_INTEGRATIONS = [
+// Future ERP integrations
+const ERP_INTEGRATIONS = [
   {
-    id: "erp",
-    name: "ERP / Bling",
-    category: "ERP",
-    description: "Sincronize estoque e pedidos com seu ERP",
+    id: "bling",
+    name: "Bling ERP",
+    description: "Sincronize estoque, pedidos e notas fiscais",
     status: "coming_soon",
     icon: "📊",
   },
@@ -46,11 +45,13 @@ const FUTURE_INTEGRATIONS = [
 export default function Integrations() {
   const { providers: paymentProviders, isLoading: loadingPayments } = usePaymentProviders();
   const { isConnected: lateConnected } = useLateConnection();
+  const { isConnected: meliConnected } = useMeliConnection();
   const { isPlatformOperator } = usePlatformOperator();
   const [activeTab, setActiveTab] = useState("payments");
 
   const activePaymentGateways = paymentProviders.filter(p => p.is_enabled).length;
   const socialAccountsCount = lateConnected ? 1 : 0;
+  const marketplacesCount = meliConnected ? 1 : 0;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -95,14 +96,31 @@ export default function Integrations() {
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("communication")}>
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("marketplaces")}>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                <Boxes className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Marketplaces</p>
+                <p className="text-2xl font-bold">
+                  {marketplacesCount}
+                  <span className="text-sm font-normal text-muted-foreground ml-1">{meliConnected ? "conectado" : "pendente"}</span>
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("whatsapp")}>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
                 <MessageSquare className="h-6 w-6 text-green-600 dark:text-green-400" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Comunicação</p>
+                <p className="text-sm text-muted-foreground">WhatsApp</p>
                 <p className="text-2xl font-bold">
                   0
                   <span className="text-sm font-normal text-muted-foreground ml-1">ativos</span>
@@ -111,51 +129,6 @@ export default function Integrations() {
             </div>
           </CardContent>
         </Card>
-
-        <Card className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setActiveTab("erp")}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                <Boxes className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">ERP</p>
-                <p className="text-2xl font-bold">
-                  0
-                  <span className="text-sm font-normal text-muted-foreground ml-1">em breve</span>
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Links */}
-      <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/marketplaces">
-            <Boxes className="h-4 w-4 mr-2" />
-            Marketplaces
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/marketing">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Marketing / Analytics
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/shipping">
-            <Truck className="h-4 w-4 mr-2" />
-            Frete / Transportadoras
-          </Link>
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <Link to="/fiscal">
-            <FileText className="h-4 w-4 mr-2" />
-            Fiscal / NFe
-          </Link>
-        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -168,13 +141,21 @@ export default function Integrations() {
             <Share2 className="h-4 w-4" />
             <span className="hidden sm:inline">Redes Sociais</span>
           </TabsTrigger>
-          <TabsTrigger value="communication" className="gap-2">
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Comunicação</span>
-          </TabsTrigger>
-          <TabsTrigger value="erp" className="gap-2">
+          <TabsTrigger value="marketplaces" className="gap-2">
             <Boxes className="h-4 w-4" />
-            <span className="hidden sm:inline">ERP</span>
+            <span className="hidden sm:inline">Marketplaces</span>
+          </TabsTrigger>
+          <TabsTrigger value="whatsapp" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            <span className="hidden sm:inline">WhatsApp</span>
+          </TabsTrigger>
+          <TabsTrigger value="emails" className="gap-2">
+            <Mail className="h-4 w-4" />
+            <span className="hidden sm:inline">Emails</span>
+          </TabsTrigger>
+          <TabsTrigger value="outros" className="gap-2">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="hidden sm:inline">Outros</span>
           </TabsTrigger>
           {/* Platform Admin Tab */}
           {isPlatformOperator && (
@@ -193,11 +174,32 @@ export default function Integrations() {
           <LateConnectionSettings />
         </TabsContent>
 
-        <TabsContent value="communication" className="space-y-6">
+        <TabsContent value="marketplaces" className="space-y-6">
+          <MarketplacesIntegrationTab />
+        </TabsContent>
+
+        <TabsContent value="whatsapp" className="space-y-6">
           <WhatsAppProviderTabs />
         </TabsContent>
 
-        <TabsContent value="erp" className="space-y-6">
+        <TabsContent value="emails" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <Globe className="h-5 w-5 text-primary" />
+                <div>
+                  <CardTitle>Configuração de Domínio</CardTitle>
+                  <CardDescription>Configure o domínio para enviar e receber emails</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <EmailDnsSettings />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="outros" className="space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Integrações ERP</CardTitle>
@@ -208,7 +210,7 @@ export default function Integrations() {
           </Card>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FUTURE_INTEGRATIONS.map((integration) => (
+            {ERP_INTEGRATIONS.map((integration) => (
               <Card
                 key={integration.id}
                 className="transition-all opacity-70"
@@ -231,9 +233,6 @@ export default function Integrations() {
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <StatusBadge variant="default">Em breve</StatusBadge>
-                    <Button variant="outline" size="sm" disabled>
-                      Configurar
-                    </Button>
                   </div>
                 </CardContent>
               </Card>

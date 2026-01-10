@@ -139,11 +139,17 @@ const fullNavigation: NavGroup[] = [
     ],
   },
   {
+    label: "Marketplaces",
+    collapsible: true,
+    items: [
+      { title: "Mercado Livre", href: "/marketplaces", icon: Building2 },
+    ],
+  },
+  {
     label: "Sistema",
     collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Marketplaces", href: "/marketplaces", icon: Building2 },
       { title: "Arquivos", href: "/files", icon: FolderOpen },
       { title: "Importar Dados", href: "/import", icon: Upload },
       { title: "Configurações", href: "/settings", icon: Settings },
