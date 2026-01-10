@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { useEffect } from 'react';
 
 export interface FileItem {
   id: string;
@@ -13,14 +14,54 @@ export interface FileItem {
   mime_type: string | null;
   size_bytes: number | null;
   is_folder: boolean;
+  is_system_folder?: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
+const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
+
+// Ensure system folder exists for a tenant
+async function ensureSystemFolder(tenantId: string, userId: string): Promise<void> {
+  // Check if system folder already exists
+  const { data: existing } = await supabase
+    .from('files')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .eq('is_system_folder', true)
+    .is('folder_id', null)
+    .single();
+
+  if (existing) return; // Already exists
+
+  // Create system folder
+  await supabase
+    .from('files')
+    .insert({
+      tenant_id: tenantId,
+      folder_id: null,
+      filename: SYSTEM_FOLDER_NAME,
+      original_name: SYSTEM_FOLDER_NAME,
+      storage_path: `${tenantId}/system/`,
+      is_folder: true,
+      is_system_folder: true,
+      created_by: userId,
+    });
+}
+
 export function useFiles(folderId: string | null = null) {
   const { currentTenant, user } = useAuth();
   const queryClient = useQueryClient();
+
+  // Ensure system folder exists when hook is used at root level
+  useEffect(() => {
+    if (currentTenant?.id && user?.id && folderId === null) {
+      ensureSystemFolder(currentTenant.id, user.id).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['files', currentTenant.id, null] });
+      });
+    }
+  }, [currentTenant?.id, user?.id, folderId, queryClient]);
 
   const { data: files, isLoading, error } = useQuery({
     queryKey: ['files', currentTenant?.id, folderId],
@@ -31,6 +72,7 @@ export function useFiles(folderId: string | null = null) {
         .from('files')
         .select('*')
         .eq('tenant_id', currentTenant.id)
+        .order('is_system_folder', { ascending: false })
         .order('is_folder', { ascending: false })
         .order('filename', { ascending: true });
 
@@ -190,6 +232,21 @@ export function useFiles(folderId: string | null = null) {
     }
   };
 
+  // Get system folder ID for default uploads
+  const getSystemFolderId = async (): Promise<string | null> => {
+    if (!currentTenant?.id) return null;
+    
+    const { data } = await supabase
+      .from('files')
+      .select('id')
+      .eq('tenant_id', currentTenant.id)
+      .eq('is_system_folder', true)
+      .is('folder_id', null)
+      .single();
+    
+    return data?.id || null;
+  };
+
   return {
     files: files || [],
     isLoading,
@@ -200,5 +257,6 @@ export function useFiles(folderId: string | null = null) {
     renameFile,
     getFileUrl,
     downloadFile,
+    getSystemFolderId,
   };
 }
