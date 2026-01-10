@@ -60,7 +60,7 @@ const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; i
   },
   pages: {
     label: 'Páginas Institucionais',
-    description: 'Sobre, Políticas, FAQ e outras páginas de texto',
+    description: 'Políticas, Termos, Trocas, Entregas e outras páginas de texto do footer',
     icon: <FileText className="h-5 w-5" />,
   },
   menus: {
@@ -345,47 +345,50 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, pages: 'processing' }));
 
     try {
-      let data = visualData;
-      if (!data) {
-        const { data: freshData, error } = await supabase.functions.invoke('import-visual', {
-          body: { url: storeUrl, html: scrapedData?.html || '', platform: analysisResult?.platform }
-        });
-        if (error) throw new Error(error.message);
-        data = freshData;
-        setVisualData(data);
+      // Usar nova edge function simplificada para páginas institucionais
+      const { data: result, error } = await supabase.functions.invoke('import-institutional-pages', {
+        body: { tenantId, storeUrl }
+      });
+
+      if (error) {
+        console.error('Error calling import-institutional-pages:', error);
+        setErrors(e => [...e, `Páginas: ${error.message}`]);
+        throw new Error(error.message);
       }
 
-      const institutionalPages = data.institutionalPages || [];
-      let importedCount = 0;
+      if (!result?.success) {
+        const errorMsg = result?.error || 'Falha na importação de páginas';
+        setErrors(e => [...e, `Páginas: ${errorMsg}`]);
+        throw new Error(errorMsg);
+      }
 
-      if (institutionalPages.length > 0) {
-        const { data: result, error } = await supabase.functions.invoke('import-pages', {
-          body: { tenantId, pages: institutionalPages, platform: analysisResult?.platform, storeUrl }
-        });
+      const importedCount = result.pages?.length || 0;
+      const skippedCount = result.skipped?.length || 0;
 
-        if (error) {
-          console.error('Error calling import-pages:', error);
-          setErrors(e => [...e, `Páginas: ${error.message}`]);
-        } else if (result?.success) {
-          importedCount = result.results?.imported || 0;
-        } else if (result?.error) {
-          setErrors(e => [...e, `Páginas: ${result.error}`]);
-        }
+      // Log skipped pages for debugging
+      if (result.skipped && result.skipped.length > 0) {
+        console.log('Páginas puladas:', result.skipped);
       }
 
       setStats(s => ({ ...s, pages: importedCount }));
       setProgress(p => ({ ...p, pages: 'completed' }));
-      toast.success(importedCount > 0 ? `${importedCount} páginas importadas` : 'Nenhuma página institucional encontrada');
+      
+      if (importedCount > 0) {
+        toast.success(`${importedCount} páginas institucionais importadas`);
+      } else if (skippedCount > 0) {
+        toast.info(`Nenhuma página elegível encontrada (${skippedCount} puladas)`);
+      } else {
+        toast.info('Nenhuma página institucional detectada no footer');
+      }
     } catch (err: any) {
       console.error('Error importing pages:', err);
-      setErrors(e => [...e, `Páginas: ${err.message}`]);
       setProgress(p => ({ ...p, pages: 'error' }));
       toast.error(`Erro ao importar páginas: ${err.message}`);
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData]);
+  }, [tenantId, storeUrl]);
 
   // ========================================
   // STEP 4: IMPORT MENUS

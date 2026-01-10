@@ -295,56 +295,37 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       });
 
       // === STEP 2.1: Import Pages (institutional/informational) ===
+      // Usa nova edge function simplificada que extrai páginas de texto do footer
       setStructureProgress(prev => ({ ...prev, pages: 'processing' }));
       setCurrentStepName('Importando páginas institucionais...');
       
-      // Get institutional pages from visual extraction (from footer links)
-      const institutionalPages = visualData.institutionalPages || [];
-      
-      if (institutionalPages.length > 0) {
-        toast.info(`Importando ${institutionalPages.length} páginas institucionais...`);
+      try {
+        toast.info('Buscando páginas institucionais do footer...');
         
-        try {
-          const { data: pagesResult, error: pagesError } = await supabase.functions.invoke('import-pages', {
-            body: {
-              tenantId: currentTenant.id,
-              pages: institutionalPages,
-              platform: analysisResult?.platform,
-              storeUrl: storeUrl, // Pass storeUrl for relative URL resolution
-            }
-          });
-          
-          if (pagesError) {
-            console.error('Error importing pages:', pagesError);
-            setImportErrors(prev => [...prev, `Erro ao importar páginas: ${pagesError.message}`]);
-          } else if (pagesResult?.success) {
-            stats.pages = pagesResult.results?.imported || 0;
-            console.log(`Imported ${stats.pages} institutional pages`);
+        const { data: pagesResult, error: pagesError } = await supabase.functions.invoke('import-institutional-pages', {
+          body: {
+            tenantId: currentTenant.id,
+            storeUrl: storeUrl,
           }
-        } catch (e) {
-          console.error('Error calling import-pages:', e);
-        }
-      } else {
-        // Fallback: try to detect pages from menu items
-        const pageItems = (visualData.menuItems || []).filter((item: any) => 
-          item.type === 'page' || 
-          /\/(?:pages?|pagina|sobre|contato|politica|termos)/i.test(item.url || '')
-        );
+        });
         
-        if (pageItems.length > 0) {
-          const pagesToImport = pageItems.map((item: any) => ({
-            title: item.label,
-            slug: item.internalUrl?.replace('/pagina/', '') || item.url.split('/').pop() || item.label.toLowerCase().replace(/\s+/g, '-'),
-            url: item.url,
-            source: 'header' as const,
-          }));
+        if (pagesError) {
+          console.error('Error importing pages:', pagesError);
+          setImportErrors(prev => [...prev, `Erro ao importar páginas: ${pagesError.message}`]);
+        } else if (pagesResult?.success) {
+          stats.pages = pagesResult.pages?.length || 0;
+          console.log(`Imported ${stats.pages} institutional pages`);
           
-          const { data: pagesResult } = await supabase.functions.invoke('import-pages', {
-            body: { tenantId: currentTenant.id, pages: pagesToImport, storeUrl: storeUrl }
-          });
-          
-          stats.pages = pagesResult?.results?.imported || 0;
+          // Log skipped pages for debugging
+          if (pagesResult.skipped && pagesResult.skipped.length > 0) {
+            console.log('Páginas puladas:', pagesResult.skipped);
+          }
+        } else if (pagesResult?.error) {
+          console.error('Import pages error:', pagesResult.error);
+          setImportErrors(prev => [...prev, `Páginas: ${pagesResult.error}`]);
         }
+      } catch (e) {
+        console.error('Error calling import-institutional-pages:', e);
       }
       
       setStructureProgress(prev => ({ ...prev, pages: 'completed' }));
