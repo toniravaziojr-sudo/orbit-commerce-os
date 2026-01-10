@@ -141,7 +141,7 @@ export function useImportJobs() {
   });
 
   const clearTenantData = useMutation({
-    mutationFn: async (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'all')[]) => {
+    mutationFn: async (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'storefront' | 'all')[]) => {
       if (!tenantId) throw new Error('Tenant ID required');
 
       const { data, error } = await supabase.functions.invoke('tenant-clear-data', {
@@ -162,6 +162,8 @@ export function useImportJobs() {
       queryClient.invalidateQueries({ queryKey: ['store-menus', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['blog-posts', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['storefront-templates', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['page-builder'] });
       
       const totalDeleted = Object.values(data.deleted as Record<string, number>).reduce((a, b) => a + b, 0);
       toast.success(`${totalDeleted} registros removidos com sucesso`);

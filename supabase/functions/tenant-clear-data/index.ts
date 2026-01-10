@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface ClearDataRequest {
   tenantId: string;
-  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'all')[];
+  modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'storefront' | 'all')[];
 }
 
 Deno.serve(async (req) => {
@@ -286,6 +286,25 @@ Deno.serve(async (req) => {
         .eq('tenant_id', tenantId)
         .select('id');
       deleted['blog_posts'] = blogPostsDeleted?.length || 0;
+    }
+
+    // Clear storefront (storefront_page_templates - builder templates)
+    if (shouldClearAll || modules.includes('storefront')) {
+      // Delete storefront_page_templates
+      const { data: templatesDeleted } = await supabase
+        .from('storefront_page_templates')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['storefront_page_templates'] = templatesDeleted?.length || 0;
+
+      // Also delete store_page_versions if they exist
+      const { data: versionsDeleted } = await supabase
+        .from('store_page_versions')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .select('id');
+      deleted['store_page_versions'] = versionsDeleted?.length || 0;
     }
 
     // Clear visual (store_settings, banners, storage files)
