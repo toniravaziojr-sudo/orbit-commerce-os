@@ -26,6 +26,9 @@ const EDITABLE_CREDENTIALS = [
   'OPENAI_API_KEY',
   'LATE_API_KEY',
   'LATE_WEBHOOK_SECRET',
+  // Mercado Livre
+  'MELI_APP_ID',
+  'MELI_CLIENT_SECRET',
 ];
 
 serve(async (req) => {
