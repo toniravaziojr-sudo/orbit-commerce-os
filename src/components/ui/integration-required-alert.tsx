@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Plug, ArrowRight } from "lucide-react";
+import { Plug, ArrowRight, Loader2 } from "lucide-react";
 import { LucideIcon } from "lucide-react";
+import { useIntegrationStatus, type IntegrationType } from "@/hooks/useIntegrationStatus";
 
 interface IntegrationRequiredAlertProps {
   /** Nome da integração necessária */
@@ -71,14 +72,50 @@ export function IntegrationRequiredAlert({
   );
 }
 
+interface SmartIntegrationAlertProps {
+  /** Tipo da integração para verificar automaticamente */
+  integrationType: IntegrationType;
+  /** Descrição customizada (opcional) */
+  description?: string;
+  /** Ícone customizado */
+  icon?: LucideIcon;
+  /** Mostrar apenas quando não conectado (default: true) */
+  showOnlyWhenNeeded?: boolean;
+}
+
 /**
- * Hook para verificar status de integração de marketplace
- * (use com useMeliConnection, etc.)
+ * Componente inteligente que verifica automaticamente o status da integração
+ * e só exibe o alerta quando necessário.
+ * 
+ * @example
+ * <SmartIntegrationAlert integrationType="mercadolivre" />
  */
-export function useIntegrationStatus() {
-  // Placeholder - pode ser expandido para verificar múltiplas integrações
-  return {
-    isLoading: false,
-    integrations: {},
-  };
+export function SmartIntegrationAlert({
+  integrationType,
+  description,
+  icon,
+  showOnlyWhenNeeded = true,
+}: SmartIntegrationAlertProps) {
+  const { getIntegration, needsIntegration } = useIntegrationStatus();
+  const integration = getIntegration(integrationType);
+
+  // Se está carregando, não mostra nada
+  if (integration.isLoading) {
+    return null;
+  }
+
+  // Se já está conectado e showOnlyWhenNeeded=true, não mostra
+  if (showOnlyWhenNeeded && !needsIntegration(integrationType)) {
+    return null;
+  }
+
+  return (
+    <IntegrationRequiredAlert
+      integrationName={integration.name}
+      description={description}
+      integrationPath={integration.redirectPath}
+      buttonText={integration.buttonText}
+      icon={icon}
+    />
+  );
 }
