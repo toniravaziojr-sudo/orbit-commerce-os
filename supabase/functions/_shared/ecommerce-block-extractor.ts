@@ -925,85 +925,172 @@ export function extractPageLinks(html: string, baseUrl: string): {
   const institutionalPages: Array<{ url: string; title: string; slug: string }> = [];
   const categoryPages: Array<{ url: string; title: string; slug: string }> = [];
   
-  // Institutional page patterns
-  const institutionalPatterns = [
-    /sobre|about|quem-somos|nossa-historia/i,
-    /politica|policy|privacidade|privacy/i,
-    /termos|terms|condicoes/i,
-    /troca|devolucao|exchange|return/i,
-    /faq|perguntas|duvidas/i,
-    /contato|contact|fale-conosco/i,
-    /como-comprar|how-to-buy/i,
-    /pagamento|payment/i,
-    /entrega|shipping|envio/i,
+  // =====================================================
+  // INSTITUTIONAL PAGE PATTERNS (BR E-COMMERCE FOCUSED)
+  // =====================================================
+  
+  // URL PATH patterns that indicate institutional pages (platform-specific)
+  const institutionalPathPatterns = [
+    // Shopify uses /pages/ for all institutional pages
+    /\/pages\//i,
+    // VTEX uses /institucional/ or /paginas/
+    /\/institucional\//i,
+    /\/paginas?\//i,
+    // Nuvemshop uses direct slugs but often /p/ or /pagina/
+    /\/p\/[^/]+$/i,
+    /\/pagina\//i,
+    // WooCommerce/WordPress uses direct slugs
+    /^\/(about|sobre|quem-somos|politica|termos|contato|faq|duvidas)/i,
   ];
   
-  // Extract links from footer (most reliable source)
-  const footerMatch = html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i);
-  const footerHtml = footerMatch ? footerMatch[1] : html;
+  // Slug/title patterns that indicate institutional content
+  const institutionalContentPatterns = [
+    // About/History
+    /sobre|about|quem-somos|nossa-historia|nossa-empresa|history|who-we-are/i,
+    // Policies
+    /politica|policy|privacidade|privacy|lgpd|cookies/i,
+    // Terms
+    /termos|terms|condicoes|conditions|uso|use/i,
+    // Returns/Exchange
+    /troca|devolucao|exchange|return|garantia|warranty/i,
+    // FAQ
+    /faq|perguntas|duvidas|frequentes|questions|ajuda|help|suporte/i,
+    // How to buy
+    /como-comprar|how-to-buy|como-funciona|how-it-works/i,
+    // Payment
+    /pagamento|payment|formas-de-pagamento|pagar/i,
+    // Shipping/Delivery
+    /entrega|shipping|envio|frete|delivery|prazo/i,
+    // Work with us
+    /trabalhe|careers|vagas|jobs/i,
+    // Store/physical stores
+    /lojas|stores|nossas-lojas|encontre/i,
+  ];
   
-  // Find all links
-  const linkRegex = /<a[^>]*href="([^"]+)"[^>]*>([^<]*)<\/a>/gi;
-  let match;
+  // Patterns to EXCLUDE (functional pages)
+  const excludePatterns = [
+    /login|cadastro|register|signup|sign-up/i,
+    /checkout|carrinho|cart|pedido|order/i,
+    /minha-conta|my-account|account|dashboard/i,
+    /wishlist|favoritos|lista-de-desejos/i,
+    /rastreio|rastrear|tracking|rastreamento/i,
+    /busca|search|pesquisa/i,
+    /produto|product|item/i,
+    /colecao|collection|categoria|category/i,
+    /blog/i, // Blog is separate
+  ];
   
-  while ((match = linkRegex.exec(footerHtml)) !== null) {
-    const [, href, text] = match;
-    if (!href || !text) continue;
+  // =====================================================
+  // EXTRACT LINKS FROM ENTIRE PAGE (not just footer)
+  // =====================================================
+  // Search in: footer, header nav, and main content
+  
+  const searchAreas = [
+    // Footer (primary source for institutional links)
+    { name: 'footer', html: html.match(/<footer[^>]*>([\s\S]*?)<\/footer>/i)?.[1] || '' },
+    // Navigation menus (often have institutional links)
+    { name: 'nav', html: html.match(/<nav[^>]*>([\s\S]*?)<\/nav>/gi)?.join(' ') || '' },
+    // Header
+    { name: 'header', html: html.match(/<header[^>]*>([\s\S]*?)<\/header>/i)?.[1] || '' },
+    // Also search the full HTML for /pages/ links (Shopify specific)
+    { name: 'full', html: html },
+  ];
+  
+  const seenUrls = new Set<string>();
+  
+  for (const area of searchAreas) {
+    if (!area.html) continue;
     
-    const cleanText = text.trim();
-    if (cleanText.length < 2) continue;
+    // Find all links with href
+    const linkRegex = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^>]*>[^<]*)*)<\/a>/gi;
+    let match;
     
-    // Normalize URL
-    let url = href;
-    if (href.startsWith('/')) {
+    while ((match = linkRegex.exec(area.html)) !== null) {
+      const [, href, rawText] = match;
+      if (!href) continue;
+      
+      // Clean text (remove inner tags)
+      const cleanText = rawText.replace(/<[^>]*>/g, '').trim();
+      if (cleanText.length < 2 || cleanText.length > 100) continue;
+      
+      // Normalize URL
+      let url = href;
       try {
-        const base = new URL(baseUrl);
-        url = `${base.origin}${href}`;
+        if (href.startsWith('/')) {
+          const base = new URL(baseUrl);
+          url = `${base.origin}${href}`;
+        } else if (!href.startsWith('http')) {
+          continue;
+        }
+        
+        // Skip external links
+        const linkUrl = new URL(url);
+        const baseUrlObj = new URL(baseUrl);
+        if (linkUrl.hostname !== baseUrlObj.hostname) continue;
+        
+        // Skip anchors
+        if (url.includes('#') && !url.split('#')[0]) continue;
+        
       } catch {
         continue;
       }
-    } else if (!href.startsWith('http')) {
-      continue;
-    }
-    
-    // Skip external links
-    try {
-      const linkUrl = new URL(url);
-      const baseUrlObj = new URL(baseUrl);
-      if (linkUrl.hostname !== baseUrlObj.hostname) continue;
-    } catch {
-      continue;
-    }
-    
-    // Check if institutional
-    const slug = extractSlugFromUrl(url);
-    const isInstitutional = institutionalPatterns.some(p => p.test(slug) || p.test(cleanText));
-    
-    if (isInstitutional) {
-      institutionalPages.push({
-        url,
-        title: cleanText,
-        slug,
-      });
-    } else if (slug && !slug.includes('produto') && !slug.includes('product')) {
-      // Might be a category page
-      categoryPages.push({
-        url,
-        title: cleanText,
-        slug,
-      });
+      
+      // Skip already seen
+      if (seenUrls.has(url)) continue;
+      seenUrls.add(url);
+      
+      const pathname = new URL(url).pathname;
+      const slug = extractSlugFromUrl(url);
+      
+      // Skip if matches exclude patterns
+      if (excludePatterns.some(p => p.test(pathname) || p.test(slug))) {
+        continue;
+      }
+      
+      // Check if institutional by PATH pattern
+      const isInstitutionalByPath = institutionalPathPatterns.some(p => p.test(pathname));
+      
+      // Check if institutional by CONTENT pattern (slug or title)
+      const isInstitutionalByContent = institutionalContentPatterns.some(p => 
+        p.test(slug) || p.test(cleanText)
+      );
+      
+      if (isInstitutionalByPath || isInstitutionalByContent) {
+        institutionalPages.push({
+          url,
+          title: cleanText || formatSlugAsTitle(slug),
+          slug,
+        });
+        console.log(`[page-links] Found institutional page: ${slug} (${area.name})`);
+      } else if (slug && area.name !== 'full') {
+        // Categories only from structured areas (not full HTML)
+        categoryPages.push({
+          url,
+          title: cleanText,
+          slug,
+        });
+      }
     }
   }
   
-  // Deduplicate
+  // Deduplicate by URL
   const uniqueInstitutional = deduplicatePages(institutionalPages);
   const uniqueCategories = deduplicatePages(categoryPages);
+  
+  console.log(`[page-links] Total: ${uniqueInstitutional.length} institutional, ${uniqueCategories.length} category pages`);
   
   return {
     homePage: baseUrl,
     institutionalPages: uniqueInstitutional,
     categoryPages: uniqueCategories.slice(0, 20), // Limit categories
   };
+}
+
+function formatSlugAsTitle(slug: string): string {
+  return slug
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase())
+    .trim();
 }
 
 function extractSlugFromUrl(url: string): string {
