@@ -1680,6 +1680,15 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                   <span>Páginas Institucionais: {importStats.pages}</span>
                 </li>
+                {structureStats?.blocks && (structureStats.blocks.homeSections > 0 || structureStats.blocks.pagesWithBlocks > 0) && (
+                  <li className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    <span>
+                      Blocos: {structureStats.blocks.totalBlocks}
+                      {structureStats.blocks.homeSections > 0 && ` (${structureStats.blocks.homeSections} na home)`}
+                    </span>
+                  </li>
+                )}
                 {Object.entries(fileStepStatuses).map(([stepId, status]) => {
                   const step = FILE_IMPORT_STEPS.find(s => s.id === stepId);
                   if (!step || status.status === 'pending') return null;

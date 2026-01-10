@@ -18,8 +18,10 @@ const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
 interface ImportRequest {
   tenantId: string;
-  url: string;
-  importType: 'home' | 'all' | 'single';
+  storeUrl?: string;  // Primary parameter from UI
+  url?: string;       // Alternative/legacy parameter
+  importType?: 'home' | 'all' | 'single';
+  platform?: string;
   pageSlug?: string;
 }
 
@@ -143,16 +145,19 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { tenantId, url, importType = 'home' }: ImportRequest = await req.json();
+    const { tenantId, storeUrl, url: legacyUrl, importType = 'all', platform }: ImportRequest = await req.json();
 
-    if (!tenantId || !url) {
+    // Support both storeUrl and url parameters
+    const targetUrl = storeUrl || legacyUrl;
+
+    if (!tenantId || !targetUrl) {
       return new Response(
-        JSON.stringify({ success: false, error: 'tenantId e url são obrigatórios' }),
+        JSON.stringify({ success: false, error: 'tenantId e storeUrl são obrigatórios' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('[import-pages] Starting import:', { tenantId, url, importType });
+    console.log('[import-pages] Starting import:', { tenantId, url: targetUrl, importType, platform });
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -163,7 +168,7 @@ Deno.serve(async (req) => {
 
     // Fetch home page
     console.log('[import-pages] Fetching home page...');
-    const homeHtml = await fetchPageContent(url);
+    const homeHtml = await fetchPageContent(targetUrl);
     console.log('[import-pages] HTML fetched:', homeHtml.length, 'chars');
 
     // Extract sections from home page
@@ -237,7 +242,7 @@ Deno.serve(async (req) => {
 
     // If importing all pages, get institutional pages
     if (importType === 'all') {
-      const pageLinks = extractPageLinks(homeHtml, url);
+      const pageLinks = extractPageLinks(homeHtml, targetUrl);
       console.log('[import-pages] Found', pageLinks.institutionalPages.length, 'institutional pages');
 
       // Import first 5 institutional pages
@@ -289,14 +294,28 @@ Deno.serve(async (req) => {
       }
     }
 
-    const result: ImportResult = {
+    // Calculate home sections count
+    const homeSectionsCount = importedPages.find(p => p.type === 'home')?.blocksCount || 0;
+    const pagesImported = importedPages.filter(p => p.type === 'institutional').length;
+
+    // Build response with both legacy and new field names for compatibility
+    const result = {
       success: true,
       pages: importedPages,
+      // New field names expected by UI
+      homeSectionsCount,
+      pagesImported,
+      totalSections: totalBlocks,
+      // Legacy stats object
       stats: {
         pagesImported: importedPages.length,
         totalBlocks,
         processingTimeMs: Date.now() - startTime,
       },
+      // Additional info
+      homeTemplate: importedPages.find(p => p.type === 'home') ? {
+        id: importedPages.find(p => p.type === 'home')!.id,
+      } : null,
     };
 
     console.log('[import-pages] Complete:', result.stats);
@@ -313,6 +332,9 @@ Deno.serve(async (req) => {
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido',
         pages: [],
+        homeSectionsCount: 0,
+        pagesImported: 0,
+        totalSections: 0,
         stats: { pagesImported: 0, totalBlocks: 0, processingTimeMs: Date.now() - startTime },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
