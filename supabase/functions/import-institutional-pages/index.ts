@@ -52,6 +52,12 @@ const EXCLUDED_URL_PATTERNS = [
   /\/cupom|\/coupon|\/desconto|\/promo/i,     // Cupons
   /\/parceiros|\/partners|\/afiliados|\/affiliate/i, // Parceiros
   /\/loja|\/store-locator|\/encontre/i,       // Localizador de loja
+  // NOVOS: Listagens genéricas
+  /\/todos-|\/all-|\/shop\//i,                // Listagens genéricas
+  /\/kit|\/combo|\/bundle/i,                  // Kits/combos
+  /\/lancamento|\/novidade|\/new-arrivals/i,  // Novidades
+  /\/ofertas|\/promocoes|\/sale/i,            // Promoções
+  /\/mais-vendidos|\/best-sellers/i,          // Mais vendidos
 ];
 
 // =====================================================
@@ -259,22 +265,26 @@ async function validatePageAsInstitutional(pageUrl: string): Promise<{
       return { valid: false, title, content: '', wordCount, reason: 'Muitos links (ratio > 30%)' };
     }
 
-    // 4. Verificar formulários no HTML
-    const formCount = (html.match(/<form/gi) || []).length;
-    const inputCount = (html.match(/<input/gi) || []).length;
-    
-    // REJEITAR: formulário complexo (mais de 3 inputs)
-    if (formCount > 0 && inputCount > 3) {
-      return { valid: false, title, content: '', wordCount, reason: 'Formulário complexo' };
+    // 4. Verificar formulários pelo CONTEÚDO (markdown), não pelo HTML
+    // Footer/header têm forms (busca, newsletter) que poluem o HTML
+    // Verificamos apenas se o CONTEÚDO principal é um formulário de contato
+    const isContactFormPage = (
+      /preencha|formulário|envie sua mensagem|entre em contato|send.*message/i.test(markdown) &&
+      /(?:nome|name|email|telefone|phone|mensagem|message)\s*[\n:]/i.test(markdown) &&
+      wordCount < 200 // Página de contato tem pouco texto próprio
+    );
+    if (isContactFormPage) {
+      return { valid: false, title, content: '', wordCount, reason: 'Página de formulário de contato' };
     }
 
-    // 5. Verificar vídeos embed
-    if (/<iframe[^>]*(?:youtube|vimeo|youtu\.be)/i.test(html)) {
-      return { valid: false, title, content: '', wordCount, reason: 'Contém vídeo embed' };
+    // 5. Verificar vídeos embed - só rejeitar se for página predominantemente de vídeo
+    const videoCount = (html.match(/<iframe[^>]*(?:youtube|vimeo|youtu\.be)/gi) || []).length;
+    if (videoCount > 2 || (videoCount > 0 && wordCount < 100)) {
+      return { valid: false, title, content: '', wordCount, reason: 'Página de vídeo' };
     }
 
-    // 6. Verificar indicadores de produto/comércio
-    if (/(?:\$|R\$|€|£)\s*\d+[.,]\d{2}|add.?to.?cart|adicionar.?ao.?carrinho|comprar.?agora|buy.?now/i.test(html)) {
+    // 6. Verificar indicadores de produto/comércio no MARKDOWN (conteúdo limpo)
+    if (/(?:\$|R\$|€|£)\s*\d+[.,]\d{2}|add.?to.?cart|adicionar.?ao.?carrinho|comprar.?agora|buy.?now/i.test(markdown)) {
       return { valid: false, title, content: '', wordCount, reason: 'Conteúdo de produto/loja' };
     }
 
