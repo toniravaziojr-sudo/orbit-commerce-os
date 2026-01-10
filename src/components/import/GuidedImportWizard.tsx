@@ -3,12 +3,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, Package, Users, ShoppingCart, CheckCircle2, Loader2 } from 'lucide-react';
 import { StoreUrlInput } from './StoreUrlInput';
-import { ImportStep, ImportStepConfig } from './ImportStep';
+import { ImportStep } from './ImportStep';
 import { StructureImportStep, ImportStats as StructureImportStats } from './StructureImportStep';
 import { useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { getAdapter } from '@/lib/import/platforms';
+import { normalizeData } from '@/lib/import/platforms';
+import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 
 interface GuidedImportWizardProps {
@@ -17,10 +18,18 @@ interface GuidedImportWizardProps {
 
 type WizardStep = 'url' | 'file-import' | 'structure-import' | 'complete';
 
-const FILE_IMPORT_STEPS: ImportStepConfig[] = [
-  { id: 'products', title: 'Produtos', description: 'Importar catálogo de produtos via arquivo JSON ou CSV', icon: <Package className="h-5 w-5" />, canSkip: true, importMethod: 'file' },
-  { id: 'customers', title: 'Clientes', description: 'Importar clientes e endereços via arquivo JSON ou CSV', icon: <Users className="h-5 w-5" />, canSkip: true, importMethod: 'file' },
-  { id: 'orders', title: 'Pedidos', description: 'Importar histórico de pedidos via arquivo JSON ou CSV', icon: <ShoppingCart className="h-5 w-5" />, canSkip: true, importMethod: 'file' },
+interface FileStepConfig {
+  id: string;
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+  canSkip: boolean;
+}
+
+const FILE_IMPORT_STEPS: FileStepConfig[] = [
+  { id: 'products', title: 'Produtos', description: 'Importar catálogo de produtos via arquivo JSON ou CSV', icon: <Package className="h-5 w-5" />, canSkip: true },
+  { id: 'customers', title: 'Clientes', description: 'Importar clientes e endereços via arquivo JSON ou CSV', icon: <Users className="h-5 w-5" />, canSkip: true },
+  { id: 'orders', title: 'Pedidos', description: 'Importar histórico de pedidos via arquivo JSON ou CSV', icon: <ShoppingCart className="h-5 w-5" />, canSkip: true },
 ];
 
 export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
@@ -106,14 +115,17 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         });
       }
 
-      const adapter = getAdapter(analysisResult?.platform || 'generic');
-      const normalized = stepId === 'products' ? adapter.normalizeProducts(data) : stepId === 'customers' ? adapter.normalizeCustomers(data) : adapter.normalizeOrders(data);
+      const platform = analysisResult?.platform?.toLowerCase() || 'generic';
+      const dataType = stepId === 'products' ? 'product' : stepId === 'customers' ? 'customer' : 'order';
+      const normalized = normalizeData(platform as PlatformType, dataType, data);
 
-      const result = await importData(stepId as any, normalized, currentTenant.id);
+      const moduleType = stepId as 'products' | 'customers' | 'orders';
+      const result = await importData(platform, moduleType, normalized);
+      const importedCount = result.results?.imported || 0;
       
       setFileStepStatuses(prev => ({
         ...prev,
-        [stepId]: { status: 'completed', importedCount: result.imported },
+        [stepId]: { status: 'completed', importedCount },
       }));
       
       const currentIndex = FILE_IMPORT_STEPS.findIndex(s => s.id === stepId);
@@ -122,7 +134,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         setFileStepStatuses(prev => ({ ...prev, [nextStep.id]: { status: 'active' } }));
       }
       
-      toast.success(`${result.imported} ${stepId} importados`);
+      toast.success(`${importedCount} ${stepId} importados`);
     } catch (error: any) {
       setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'error', errorMessage: error.message } }));
       toast.error(`Erro: ${error.message}`);
@@ -183,8 +195,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       <CardContent>
         {wizardStep === 'url' && (
           <StoreUrlInput
-            value={storeUrl}
-            onChange={setStoreUrl}
+            url={storeUrl}
+            onUrlChange={setStoreUrl}
             onAnalyze={handleAnalyzeStore}
             isAnalyzing={isAnalyzing}
             analysisResult={analysisResult}
@@ -196,11 +208,18 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
             {FILE_IMPORT_STEPS.map((step) => (
               <ImportStep
                 key={step.id}
-                config={step}
+                step={{
+                  id: step.id,
+                  title: step.title,
+                  description: step.description,
+                  icon: step.icon,
+                  canSkip: step.canSkip,
+                  importMethod: 'file'
+                }}
                 status={fileStepStatuses[step.id]?.status || 'pending'}
                 importedCount={fileStepStatuses[step.id]?.importedCount}
                 errorMessage={fileStepStatuses[step.id]?.errorMessage}
-                onFileSelect={(file) => handleFileImport(step.id, file)}
+                onImport={(file) => file && handleFileImport(step.id, file)}
                 onSkip={() => handleSkipStep(step.id)}
               />
             ))}
