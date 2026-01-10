@@ -1,24 +1,24 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, 
   XCircle,
-  Info,
   Link2,
   ShoppingBag,
   MessageSquare,
   Package,
   Construction,
+  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
 import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
-import { MeliMessagesTab } from "@/components/marketplaces/MeliMessagesTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 
 // Mercado Livre Logo Component
@@ -33,6 +33,7 @@ function MercadoLivreLogo({ className }: { className?: string }) {
 }
 
 export default function MercadoLivre() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "conexao");
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
@@ -111,10 +112,6 @@ export default function MercadoLivre() {
             <ShoppingBag className="h-4 w-4" />
             Pedidos
           </TabsTrigger>
-          <TabsTrigger value="mensagens" className="gap-2" disabled={!isConnected}>
-            <MessageSquare className="h-4 w-4" />
-            Mensagens
-          </TabsTrigger>
           <TabsTrigger value="anuncios" className="gap-2" disabled={!isConnected}>
             <Package className="h-4 w-4" />
             Anúncios
@@ -152,11 +149,20 @@ export default function MercadoLivre() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
                       <MessageSquare className="h-4 w-4 text-green-600" />
                     </div>
-                    <div>
+                    <div className="flex-1">
                       <h4 className="font-medium text-sm">Atendimento</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Responda perguntas e mensagens pós-venda pelo módulo de atendimento
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Responda perguntas e mensagens pós-venda pelo módulo de atendimento unificado
                       </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => navigate("/support")}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Ir para Atendimento
+                      </Button>
                     </div>
                   </div>
 
@@ -180,10 +186,6 @@ export default function MercadoLivre() {
 
         <TabsContent value="pedidos" className="mt-6">
           <MeliOrdersTab />
-        </TabsContent>
-
-        <TabsContent value="mensagens" className="mt-6">
-          <MeliMessagesTab />
         </TabsContent>
 
         <TabsContent value="anuncios" className="mt-6">
