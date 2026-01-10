@@ -286,22 +286,50 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       const heroBanners = data.heroBanners || [];
       if (heroBanners.length > 0) {
         const homePageContent = generateHomePageContent(heroBanners);
+        
+        // Initialize templates via RPC
         await supabase.rpc('initialize_storefront_templates', { p_tenant_id: tenantId });
+        
+        // Archive any existing published versions
         await supabase.from('store_page_versions').update({ status: 'archived' })
           .eq('tenant_id', tenantId).eq('entity_type', 'template').eq('page_type', 'home').eq('status', 'published');
         
+        // Get max version number
         const { data: maxVersionData } = await supabase.from('store_page_versions')
           .select('version').eq('tenant_id', tenantId).eq('entity_type', 'template').eq('page_type', 'home')
           .order('version', { ascending: false }).limit(1).maybeSingle();
         
         const newVersion = (maxVersionData?.version || 0) + 1;
-        await supabase.from('store_page_versions').insert([{
+        
+        // Insert new published version
+        const { error: insertError } = await supabase.from('store_page_versions').insert([{
           tenant_id: tenantId, entity_type: 'template', version: newVersion, status: 'published',
           content: homePageContent as unknown as Json, page_type: 'home',
         }]);
         
-        await supabase.from('storefront_page_templates').update({ published_version: newVersion, draft_version: newVersion })
-          .eq('tenant_id', tenantId).eq('page_type', 'home');
+        if (insertError) {
+          console.error('Error inserting version:', insertError);
+          throw new Error('Falha ao salvar template da home');
+        }
+        
+        // CRITICAL: Ensure template record exists and link to new version using UPSERT
+        const { error: upsertError } = await supabase.from('storefront_page_templates').upsert({
+          tenant_id: tenantId,
+          page_type: 'home',
+          published_version: newVersion,
+          draft_version: newVersion,
+        }, { onConflict: 'tenant_id,page_type' });
+        
+        if (upsertError) {
+          console.error('Error upserting template:', upsertError);
+          // Try update as fallback
+          await supabase.from('storefront_page_templates').update({ 
+            published_version: newVersion, 
+            draft_version: newVersion 
+          }).eq('tenant_id', tenantId).eq('page_type', 'home');
+        }
+        
+        console.log(`Home template created with version ${newVersion} and ${heroBanners.length} banners`);
       }
 
       setStats(s => ({ ...s, visual: { colors: colorsImported, contact: contactImported, social: socialImported, banners: heroBanners.length } }));
