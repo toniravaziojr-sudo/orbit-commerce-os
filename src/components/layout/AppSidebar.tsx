@@ -72,8 +72,7 @@ const fullNavigation: NavGroup[] = [
   {
     label: "Principal",
     items: [
-      { title: "Dashboard", href: "/", icon: LayoutDashboard },
-      { title: "Central de Execuções", href: "/executions", icon: Activity },
+      { title: "Central de Comando", href: "/command-center", icon: LayoutDashboard },
     ],
   },
   {
@@ -150,9 +149,8 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Arquivos", href: "/files", icon: FolderOpen },
+      { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Importar Dados", href: "/import", icon: Upload },
-      { title: "Configurações", href: "/settings", icon: Settings },
     ],
   },
 ];
@@ -194,7 +192,6 @@ const platformAdminNavigation: NavGroup[] = [
     label: "Sistema",
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Configurações", href: "/settings", icon: Settings },
     ],
   },
   {
@@ -388,7 +385,7 @@ export function AppSidebar() {
     <aside
       className={cn(
         "relative flex h-screen flex-col border-r border-sidebar-border bg-sidebar transition-all duration-300",
-        collapsed ? "w-[60px]" : "w-48"
+        collapsed ? "w-[60px]" : "w-56"
       )}
     >
       {/* Logo & Tenant Switcher */}

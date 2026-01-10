@@ -186,7 +186,7 @@ export default function Files() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Arquivos"
+        title="Meu Drive"
         description="Gerencie seus arquivos e imagens"
       />
 

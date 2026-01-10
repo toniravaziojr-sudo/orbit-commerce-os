@@ -75,6 +75,10 @@ import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
 import Files from "@/pages/Files";
+import CommandCenter from "@/pages/CommandCenter";
+import PersonalData from "@/pages/account/PersonalData";
+import CompanyData from "@/pages/account/CompanyData";
+import AccountBilling from "@/pages/account/Billing";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
 import Influencers from "@/pages/Influencers";
 import SupplierLeadsPage from "@/pages/SupplierLeads";
@@ -247,9 +251,12 @@ const App = () => {
                     </ProtectedRoute>
                   }
                 >
-                  <Route path="/" element={<Dashboard />} />
+                  {/* Redirect root to command-center */}
+                  <Route path="/" element={<Navigate to="/command-center" replace />} />
+                  <Route path="/command-center" element={<CommandCenter />} />
                   <Route path="/getting-started" element={<GettingStarted />} />
-                  <Route path="/executions" element={<Executions />} />
+                  {/* Redirect old executions route to command-center tab */}
+                  <Route path="/executions" element={<Navigate to="/command-center?tab=executions" replace />} />
                   <Route path="/orders" element={<Orders />} />
                   <Route path="/orders/new" element={<OrderNew />} />
                   <Route path="/orders/:id" element={<OrderDetail />} />
@@ -298,6 +305,10 @@ const App = () => {
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />
                   <Route path="/settings/fiscal" element={<Navigate to="/fiscal?tab=configuracoes" replace />} />
+                  {/* Account routes */}
+                  <Route path="/account/personal" element={<PersonalData />} />
+                  <Route path="/account/company" element={<CompanyData />} />
+                  <Route path="/account/billing" element={<AccountBilling />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
                   <Route path="/storefront/conversao" element={<Navigate to="/cart-checkout" replace />} />
                   <Route path="/cart-checkout" element={<CartAndCheckout />} />
