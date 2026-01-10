@@ -751,31 +751,57 @@ async function handleMultiPageImport(request: MultiPageImport): Promise<Response
       try {
         const { html, title } = await fetchHtml(fullUrl);
         
-        // === FILTER: Skip pages with forms or complex functionality ===
-        const hasForm = /<form\s/i.test(html);
-        const hasIframe = /<iframe\s/i.test(html) && !/<iframe[^>]*youtube/i.test(html); // Allow YouTube
-        const hasComplexScript = /(?:payment|checkout|cart|login|register|signup|subscribe|newsletter)/i.test(html);
-        const hasFormInputs = (html.match(/<input\s/gi) || []).length > 3; // More than 3 inputs = likely a form
-        const hasTextarea = /<textarea\s/i.test(html);
-        const hasSelect = (html.match(/<select\s/gi) || []).length > 2; // More than 2 selects = complex form
+        // =====================================================
+        // SMART PAGE FILTER v2 - Institutional vs Functional
+        // =====================================================
+        // Extract main content only (remove header/footer/nav) before checking
+        // This avoids false positives from newsletter forms in footer
+        let mainContentForCheck = html;
         
-        // Check if it's a functional page (contact form, login, etc)
-        const functionalPageKeywords = [
-          'formulario', 'form', 'contact-form', 'wpcf7', 'ninja-form', 'gravity-form',
-          'login', 'cadastro', 'register', 'signup', 'assinatura', 'subscription',
-          'checkout', 'carrinho', 'cart', 'payment', 'pagamento',
-          'minha-conta', 'my-account', 'account', 'dashboard',
-          'wishlist', 'lista-de-desejos', 'favoritos',
-          'compare', 'comparar', 'comparacao',
-          'tracking', 'rastreio', 'rastrear', 'rastreamento',
+        // Remove header/nav/footer before checking for forms
+        mainContentForCheck = mainContentForCheck.replace(/<header[\s\S]*?<\/header>/gi, '');
+        mainContentForCheck = mainContentForCheck.replace(/<nav[\s\S]*?<\/nav>/gi, '');
+        mainContentForCheck = mainContentForCheck.replace(/<footer[\s\S]*?<\/footer>/gi, '');
+        // Remove common footer classes (Shopify, etc)
+        mainContentForCheck = mainContentForCheck.replace(/<div[^>]*class="[^"]*(?:footer|site-footer|page-footer|main-footer)[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '');
+        // Remove newsletter sections
+        mainContentForCheck = mainContentForCheck.replace(/<(?:section|div)[^>]*class="[^"]*(?:newsletter|subscribe|mailing)[^"]*"[^>]*>[\s\S]*?<\/(?:section|div)>/gi, '');
+        
+        // Now check for forms in the MAIN CONTENT ONLY
+        const mainFormCount = (mainContentForCheck.match(/<form\s/gi) || []).length;
+        const mainInputCount = (mainContentForCheck.match(/<input\s/gi) || []).length;
+        const mainTextareaCount = (mainContentForCheck.match(/<textarea\s/gi) || []).length;
+        const mainSelectCount = (mainContentForCheck.match(/<select\s/gi) || []).length;
+        
+        // An iframe in main content (not YouTube) is a red flag
+        const hasMainIframe = /<iframe\s/i.test(mainContentForCheck) && !/<iframe[^>]*youtube/i.test(mainContentForCheck);
+        
+        // Check slug for functional page patterns (high priority)
+        const functionalSlugPatterns = [
+          /login/i, /cadastro/i, /register/i, /signup/i, /sign-up/i,
+          /checkout/i, /carrinho/i, /cart/i, /pagamento/i, /payment/i,
+          /minha-conta/i, /my-account/i, /account/i, /dashboard/i,
+          /wishlist/i, /favoritos/i, /lista-de-desejos/i,
+          /compare/i, /comparar/i,
+          /rastreio/i, /rastrear/i, /tracking/i, /rastreamento/i,
+          /pedidos/i, /orders/i,
         ];
         
-        const hasFunctionalKeyword = functionalPageKeywords.some(kw => 
-          html.toLowerCase().includes(kw) || page.slug.toLowerCase().includes(kw)
-        );
+        const isSlugFunctional = functionalSlugPatterns.some(pattern => pattern.test(page.slug));
         
-        if (hasForm || hasIframe || (hasComplexScript && hasFormInputs) || hasTextarea || hasSelect || hasFunctionalKeyword) {
-          console.log(`[IMPORT] Skipping functional page ${page.title}: form=${hasForm}, iframe=${hasIframe}, complex=${hasComplexScript}`);
+        // Check URL path for functional patterns
+        const urlPath = new URL(fullUrl).pathname.toLowerCase();
+        const isFunctionalPath = functionalSlugPatterns.some(pattern => pattern.test(urlPath));
+        
+        // Determine if truly functional:
+        // 1. Slug/URL clearly indicates functional page
+        // 2. Main content has significant form elements (not just 1 contact form)
+        // 3. Has non-YouTube iframe in main content
+        const hasSignificantForm = mainFormCount >= 2 || (mainFormCount >= 1 && (mainInputCount > 5 || mainSelectCount > 2 || mainTextareaCount > 1));
+        const isFunctionalPage = isSlugFunctional || isFunctionalPath || hasMainIframe || hasSignificantForm;
+        
+        if (isFunctionalPage) {
+          console.log(`[IMPORT] Skipping functional page ${page.title}: slug=${isSlugFunctional}, path=${isFunctionalPath}, forms=${mainFormCount}, inputs=${mainInputCount}`);
           results.skipped++;
           results.details.push({ 
             title: page.title, 
@@ -784,6 +810,8 @@ async function handleMultiPageImport(request: MultiPageImport): Promise<Response
           });
           continue;
         }
+        
+        console.log(`[IMPORT] Processing institutional page ${page.title}: forms=${mainFormCount}, inputs=${mainInputCount}`);
         
         const adapter = detectAndGetAdapter(html, fullUrl);
         const cleanedHtml = deepCleanHtml(cleanHtmlWithAdapter(html, adapter));

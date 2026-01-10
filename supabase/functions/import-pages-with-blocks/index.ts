@@ -244,6 +244,16 @@ Deno.serve(async (req) => {
     if (importType === 'all') {
       const pageLinks = extractPageLinks(homeHtml, targetUrl);
       console.log('[import-pages] Found', pageLinks.institutionalPages.length, 'institutional pages');
+      
+      // Log the found pages for debugging
+      if (pageLinks.institutionalPages.length > 0) {
+        console.log('[import-pages] Institutional pages found:');
+        for (const p of pageLinks.institutionalPages) {
+          console.log(`  - ${p.title}: ${p.slug}`);
+        }
+      } else {
+        console.warn('[import-pages] No institutional pages detected. HTML footer/nav structure may differ from expected patterns.');
+      }
 
       // Import ALL institutional pages (no limit)
       for (const page of pageLinks.institutionalPages) {
@@ -251,7 +261,10 @@ Deno.serve(async (req) => {
           console.log('[import-pages] Importing:', page.url);
           const pageHtml = await fetchPageContent(page.url);
           const pageSections = extractSectionsFromHTML(pageHtml);
+          console.log(`[import-pages] Extracted ${pageSections.length} sections from ${page.slug}`);
+          
           const pageBlocks = sectionsToBuilderBlocks(pageSections);
+          console.log(`[import-pages] Created ${pageBlocks.length} blocks for ${page.slug}`);
 
           if (pageBlocks.length > 0) {
             const slug = await generateUniqueSlug(supabase, tenantId, page.slug);
@@ -286,7 +299,10 @@ Deno.serve(async (req) => {
                 type: 'institutional',
               });
               totalBlocks += pageBlocks.length;
+              console.log(`[import-pages] ✓ Imported page: ${page.title} (${slug}) with ${pageBlocks.length} blocks`);
             }
+          } else {
+            console.log(`[import-pages] Skipping ${page.slug}: no blocks extracted`);
           }
         } catch (e) {
           console.error('[import-pages] Error importing page:', page.url, e);
