@@ -566,17 +566,59 @@ function classifyLinks(
     }
   }
   
-  // Remove duplicates by URL, keeping highest confidence
+  // DEDUPLICATION: Remove duplicates by SLUG (not just URL)
+  // Prefer pages from footer, then nav, then header, then content
+  const sourceRanking: Record<string, number> = {
+    footer: 1,
+    nav: 2,
+    header: 3,
+    content: 4,
+    sitemap: 5,
+  };
+  
   const uniquePages = new Map<string, DetectedPage>();
+  
   for (const page of pages) {
-    const existing = uniquePages.get(page.url);
-    if (!existing || page.confidence > existing.confidence) {
-      uniquePages.set(page.url, page);
+    // Normalize slug for dedup (remove numbers suffix, utm params, etc.)
+    const baseSlug = normalizeSlugForDedup(page.slug);
+    const existing = uniquePages.get(baseSlug);
+    
+    if (!existing) {
+      uniquePages.set(baseSlug, page);
+    } else {
+      // Prefer higher confidence
+      if (page.confidence > existing.confidence) {
+        uniquePages.set(baseSlug, page);
+      }
+      // If same confidence, prefer footer source
+      else if (page.confidence === existing.confidence) {
+        const existingRank = sourceRanking[existing.source] || 10;
+        const newRank = sourceRanking[page.source] || 10;
+        if (newRank < existingRank) {
+          uniquePages.set(baseSlug, page);
+        }
+      }
     }
   }
   
+  // Sort by: footer first, then confidence
   return Array.from(uniquePages.values())
-    .sort((a, b) => b.confidence - a.confidence);
+    .sort((a, b) => {
+      const aRank = sourceRanking[a.source] || 10;
+      const bRank = sourceRanking[b.source] || 10;
+      if (aRank !== bRank) return aRank - bRank;
+      return b.confidence - a.confidence;
+    });
+}
+
+// Normalize slug for deduplication
+function normalizeSlugForDedup(slug: string): string {
+  return slug
+    .toLowerCase()
+    .replace(/[-_]?\d+$/, '') // Remove trailing numbers (e.g., "-1", "_2")
+    .replace(/\?.*$/, '')     // Remove query params
+    .replace(/^\/|\/$/g, '')  // Trim slashes
+    .trim();
 }
 
 function classifyLink(link: RawLink, platform: string | null): DetectedPage {
