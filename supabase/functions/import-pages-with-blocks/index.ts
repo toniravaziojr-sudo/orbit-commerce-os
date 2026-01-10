@@ -245,8 +245,8 @@ Deno.serve(async (req) => {
       const pageLinks = extractPageLinks(homeHtml, targetUrl);
       console.log('[import-pages] Found', pageLinks.institutionalPages.length, 'institutional pages');
 
-      // Import first 5 institutional pages
-      for (const page of pageLinks.institutionalPages.slice(0, 5)) {
+      // Import ALL institutional pages (no limit)
+      for (const page of pageLinks.institutionalPages) {
         try {
           console.log('[import-pages] Importing:', page.url);
           const pageHtml = await fetchPageContent(page.url);
