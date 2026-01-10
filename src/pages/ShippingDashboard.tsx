@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Search,
   RotateCcw,
+  Gift,
+  DollarSign,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -35,6 +37,8 @@ import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
+import { FreeShippingRulesTab } from '@/components/shipping/FreeShippingRulesTab';
+import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import {
   PieChart,
   Pie,
@@ -200,7 +204,7 @@ export default function ShippingDashboard() {
       />
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
+        <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="dashboard" className="gap-2">
             <TrendingUp className="h-4 w-4" />
             Dashboard
@@ -216,6 +220,14 @@ export default function ShippingDashboard() {
           <TabsTrigger value="meios-transporte" className="gap-2">
             <Settings className="h-4 w-4" />
             Meios de Transporte
+          </TabsTrigger>
+          <TabsTrigger value="frete-gratis" className="gap-2">
+            <Gift className="h-4 w-4" />
+            Frete Grátis
+          </TabsTrigger>
+          <TabsTrigger value="frete-personalizado" className="gap-2">
+            <DollarSign className="h-4 w-4" />
+            Frete Personalizado
           </TabsTrigger>
         </TabsList>
 
@@ -442,6 +454,16 @@ export default function ShippingDashboard() {
         {/* Meios de Transporte Tab */}
         <TabsContent value="meios-transporte" className="mt-6">
           <CarrierCardsGrid />
+        </TabsContent>
+
+        {/* Frete Grátis Tab */}
+        <TabsContent value="frete-gratis" className="mt-6">
+          <FreeShippingRulesTab />
+        </TabsContent>
+
+        {/* Frete Personalizado Tab */}
+        <TabsContent value="frete-personalizado" className="mt-6">
+          <CustomShippingRulesTab />
         </TabsContent>
       </Tabs>
     </div>
