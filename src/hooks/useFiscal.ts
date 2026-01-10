@@ -130,6 +130,8 @@ export interface FiscalInvoice {
   cancel_justificativa?: string | null;
   created_at: string;
   updated_at: string;
+  // Marketplace info (from joined order)
+  marketplace_source?: string | null;
 }
 
 export interface FiscalInvoiceItem {
@@ -316,6 +318,7 @@ export function useFiscalInvoices(filters?: {
   startDate?: string; 
   endDate?: string;
   tipoDocumento?: number; // 0 = Entrada, 1 = Saída (default)
+  marketplaceSource?: string; // Filtro por origem (loja, mercadolivre, etc)
 }) {
   const { profile } = useAuth();
   const tenantId = profile?.current_tenant_id;
@@ -325,9 +328,10 @@ export function useFiscalInvoices(filters?: {
     queryFn: async () => {
       if (!tenantId) return [];
 
+      // Query with join to orders for marketplace_source
       let query = supabase
         .from('fiscal_invoices')
-        .select('*')
+        .select('*, orders!fiscal_invoices_order_id_fkey(marketplace_source)')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
@@ -347,7 +351,28 @@ export function useFiscalInvoices(filters?: {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as FiscalInvoice[];
+
+      // Transform data to include marketplace_source at top level
+      const invoices = (data || []).map((inv: any) => ({
+        ...inv,
+        marketplace_source: inv.orders?.marketplace_source || null,
+        orders: undefined, // Remove nested orders object
+      })) as FiscalInvoice[];
+
+      // Apply marketplace filter client-side (more flexible)
+      if (filters?.marketplaceSource) {
+        if (filters.marketplaceSource === 'loja') {
+          // Filter for store orders (no marketplace)
+          return invoices.filter(inv => !inv.marketplace_source);
+        } else {
+          // Filter for specific marketplace
+          return invoices.filter(inv => 
+            inv.marketplace_source?.toLowerCase() === filters.marketplaceSource?.toLowerCase()
+          );
+        }
+      }
+
+      return invoices;
     },
     enabled: !!tenantId,
   });
