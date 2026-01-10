@@ -73,6 +73,7 @@ import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
 import LateCallback from "@/pages/integrations/LateCallback";
 import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
+import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
 import Files from "@/pages/Files";
 import PlatformBilling from "@/pages/platform/PlatformBilling";
 import Influencers from "@/pages/Influencers";
@@ -278,6 +279,7 @@ const App = () => {
                   <Route path="/emails" element={<Emails />} />
                   <Route path="/integrations" element={<Integrations />} />
                   <Route path="/marketplaces" element={<Marketplaces />} />
+                  <Route path="/marketplaces/mercadolivre" element={<MercadoLivre />} />
                   <Route path="/files" element={<Files />} />
                   <Route path="/marketing" element={<Marketing />} />
                   <Route path="/marketing/atribuicao" element={<Attribution />} />

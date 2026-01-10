@@ -142,7 +142,7 @@ const fullNavigation: NavGroup[] = [
     label: "Marketplaces",
     collapsible: true,
     items: [
-      { title: "Mercado Livre", href: "/marketplaces", icon: Building2 },
+      { title: "Mercado Livre", href: "/marketplaces/mercadolivre", icon: Building2 },
     ],
   },
   {
