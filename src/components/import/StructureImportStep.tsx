@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, CheckCircle2, Loader2, Palette, FolderTree, FileText, Menu, ArrowRight, SkipForward, AlertCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, Palette, FolderTree, FileText, Menu, ArrowRight, SkipForward, AlertCircle, LayoutGrid } from 'lucide-react';
 import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -15,6 +15,7 @@ export interface StructureImportState {
   categories: ImportStepStatus;
   pages: ImportStepStatus;
   menus: ImportStepStatus;
+  blocks: ImportStepStatus;
 }
 
 export interface ImportStats {
@@ -27,6 +28,11 @@ export interface ImportStats {
   categories: number;
   pages: number;
   menuItems: number;
+  blocks: {
+    homeSections: number;
+    pagesWithBlocks: number;
+    totalBlocks: number;
+  };
 }
 
 interface StructureImportStepProps {
@@ -37,8 +43,8 @@ interface StructureImportStepProps {
   onComplete: (stats: ImportStats) => void;
 }
 
-// Required order of import steps
-const IMPORT_ORDER = ['visual', 'categories', 'pages', 'menus'] as const;
+// Required order of import steps (blocks come after menus)
+const IMPORT_ORDER = ['visual', 'categories', 'pages', 'menus', 'blocks'] as const;
 type ImportStepKey = typeof IMPORT_ORDER[number];
 
 const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; icon: React.ReactNode }> = {
@@ -62,6 +68,11 @@ const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; i
     description: 'Estrutura de navegação com hierarquia',
     icon: <Menu className="h-5 w-5" />,
   },
+  blocks: {
+    label: 'Blocos da Home e Páginas',
+    description: 'Banners, vitrines, carrosséis e seções de conteúdo',
+    icon: <LayoutGrid className="h-5 w-5" />,
+  },
 };
 
 export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisResult, onComplete }: StructureImportStepProps) {
@@ -70,6 +81,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     categories: 'pending',
     pages: 'pending',
     menus: 'pending',
+    blocks: 'pending',
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState<ImportStepKey | null>(null);
@@ -79,6 +91,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     categories: 0,
     pages: 0,
     menuItems: 0,
+    blocks: { homeSections: 0, pagesWithBlocks: 0, totalBlocks: 0 },
   });
   
   // Visual data cached from first extraction
@@ -535,10 +548,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setProgress(p => ({ ...p, menus: 'completed' }));
       toast.success(`${totalMenuItems} itens de menu importados`);
 
-      // Call onComplete when menus (last step) is done
-      if (isAllDone || (progress.visual !== 'pending' && progress.categories !== 'pending' && progress.pages !== 'pending')) {
-        onComplete(stats);
-      }
+      // Note: onComplete is called after blocks step, not menus
     } catch (err: any) {
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
@@ -548,13 +558,68 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData, stats, progress, onComplete, isAllDone]);
+  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData]);
+
+  // ========================================
+  // STEP 5: IMPORT BLOCKS (Home + Pages)
+  // ========================================
+  const importBlocks = useCallback(async () => {
+    setIsProcessing(true);
+    setCurrentStep('blocks');
+    setProgress(p => ({ ...p, blocks: 'processing' }));
+
+    try {
+      toast.info('Extraindo blocos de conteúdo da loja...');
+      
+      const { data, error } = await supabase.functions.invoke('import-pages-with-blocks', {
+        body: {
+          tenantId,
+          storeUrl,
+          platform: analysisResult?.platform,
+        }
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data?.success) throw new Error(data?.error || 'Falha na extração de blocos');
+
+      const homeSections = data.homeSectionsCount || 0;
+      const pagesWithBlocks = data.pagesImported || 0;
+      const totalBlocks = data.totalSections || 0;
+
+      setStats(s => ({
+        ...s,
+        blocks: { homeSections, pagesWithBlocks, totalBlocks }
+      }));
+      setProgress(p => ({ ...p, blocks: 'completed' }));
+      
+      const parts = [];
+      if (homeSections > 0) parts.push(`${homeSections} blocos na home`);
+      if (pagesWithBlocks > 0) parts.push(`${pagesWithBlocks} páginas`);
+      toast.success(`Blocos importados: ${parts.length > 0 ? parts.join(', ') : 'nenhum bloco encontrado'}`);
+
+      // Call onComplete after blocks (last step) is done
+      onComplete(stats);
+    } catch (err: any) {
+      console.error('Error importing blocks:', err);
+      setErrors(e => [...e, `Blocos: ${err.message}`]);
+      setProgress(p => ({ ...p, blocks: 'error' }));
+      toast.error(`Erro ao importar blocos: ${err.message}`);
+    } finally {
+      setIsProcessing(false);
+      setCurrentStep(null);
+    }
+  }, [tenantId, storeUrl, analysisResult, stats, onComplete]);
 
   // Skip a step
   const skipStep = useCallback((step: ImportStepKey) => {
     setProgress(p => ({ ...p, [step]: 'skipped' }));
     toast.info(`${STEP_CONFIG[step].label} pulado`);
-  }, []);
+    
+    // If skipping blocks (last step), call onComplete
+    if (step === 'blocks') {
+      onComplete(stats);
+    }
+  }, [onComplete, stats]);
 
   // Handler map
   const stepHandlers: Record<ImportStepKey, () => Promise<void>> = {
@@ -562,6 +627,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     categories: importCategories,
     pages: importPages,
     menus: importMenus,
+    blocks: importBlocks,
   };
 
   // Get icon for status
@@ -594,6 +660,12 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
         return stats.pages > 0 ? `${stats.pages} importadas` : 'Nenhuma encontrada';
       case 'menus':
         return `${stats.menuItems} itens`;
+      case 'blocks':
+        const b = stats.blocks;
+        const blockParts = [];
+        if (b.homeSections > 0) blockParts.push(`${b.homeSections} na home`);
+        if (b.pagesWithBlocks > 0) blockParts.push(`${b.pagesWithBlocks} páginas`);
+        return blockParts.length > 0 ? blockParts.join(', ') : 'Nenhum bloco';
       default:
         return null;
     }
@@ -605,7 +677,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Ordem obrigatória:</strong> Para que a importação funcione corretamente, siga a ordem: Visual → Categorias → Páginas → Menus.
+          <strong>Ordem obrigatória:</strong> Para que a importação funcione corretamente, siga a ordem: Visual → Categorias → Páginas → Menus → Blocos.
           Você pode pular etapas, mas os menus só serão corretamente vinculados se categorias e páginas forem importados antes.
         </AlertDescription>
       </Alert>
