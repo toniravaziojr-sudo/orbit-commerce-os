@@ -229,21 +229,31 @@ Deno.serve(async (req) => {
 
     // Clear structure (menus, pages)
     if (shouldClearAll || modules.includes('structure')) {
-      // Delete store_menu_items
-      const { data: menuItemsDeleted } = await supabase
-        .from('store_menu_items')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['store_menu_items'] = menuItemsDeleted?.length || 0;
+      // Get all menu IDs for this tenant
+      const { data: menuIds } = await supabase
+        .from('menus')
+        .select('id')
+        .eq('tenant_id', tenantId);
 
-      // Delete store_menus
+      const mIds = menuIds?.map(m => m.id) || [];
+
+      if (mIds.length > 0) {
+        // Delete menu_items first (child table)
+        const { data: menuItemsDeleted } = await supabase
+          .from('menu_items')
+          .delete()
+          .in('menu_id', mIds)
+          .select('id');
+        deleted['menu_items'] = menuItemsDeleted?.length || 0;
+      }
+
+      // Delete menus
       const { data: menusDeleted } = await supabase
-        .from('store_menus')
+        .from('menus')
         .delete()
         .eq('tenant_id', tenantId)
         .select('id');
-      deleted['store_menus'] = menusDeleted?.length || 0;
+      deleted['menus'] = menusDeleted?.length || 0;
 
       // Delete store_pages and their templates
       const { data: pageIds } = await supabase
