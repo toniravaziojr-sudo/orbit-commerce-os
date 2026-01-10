@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Bell, Search, User, LogOut, Settings } from "lucide-react";
+import { Search, User, LogOut, Building2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -55,7 +55,7 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Search */}
+      {/* Search - Future: Auxiliar de Comando */}
       <div className="flex items-center gap-4">
         <div className="relative hidden w-80 lg:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -68,14 +68,6 @@ export function AppHeader() {
 
       {/* Actions */}
       <div className="flex items-center gap-3">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5 text-muted-foreground" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-            3
-          </span>
-        </Button>
-
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -108,13 +100,17 @@ export function AppHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
+            <DropdownMenuItem onClick={() => navigate("/account/personal")}>
               <User className="mr-2 h-4 w-4" />
-              Perfil
+              Dados Pessoais
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/settings")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Configurações
+            <DropdownMenuItem onClick={() => navigate("/account/company")}>
+              <Building2 className="mr-2 h-4 w-4" />
+              Dados da Empresa
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => navigate("/account/billing")}>
+              <CreditCard className="mr-2 h-4 w-4" />
+              Planos e Faturamento
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
