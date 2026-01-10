@@ -509,54 +509,213 @@ function mapTrayPaymentStatus(status: string): NormalizedOrder['payment_status']
 
 export const TRAY_FIELD_MAPPING = {
   products: {
+    // Nome do produto
     'Nome': 'name',
+    'name': 'name',
+    'Produto': 'name',
+    // Descrição
     'Descrição': 'description',
+    'Descrição Completa': 'description',
+    'description': 'description',
+    // Descrição curta
     'Descrição Curta': 'short_description',
+    'Descrição Simples': 'short_description',
+    'Breve Descrição': 'short_description',
+    'description_small': 'short_description',
+    // Preço
     'Preço': 'price',
+    'Preço (normal)': 'price',
+    'price': 'price',
+    // Preço promocional
     'Preço Promocional': 'compare_at_price',
+    'Preço da Oferta': 'compare_at_price',
+    'promotional_price': 'compare_at_price',
+    // Custo
     'Preço de Custo': 'cost_price',
+    'Custo': 'cost_price',
+    'cost_price': 'cost_price',
+    // SKU/Referência
     'Referência': 'sku',
+    'Código do Produto': 'sku',
+    'Código': 'sku',
+    'reference': 'sku',
+    // Código de barras
     'EAN': 'barcode',
+    'GTIN': 'barcode',
+    'Código de Barras': 'barcode',
+    'ean': 'barcode',
+    // Dimensões
     'Peso': 'weight',
+    'Peso do Produto': 'weight',
+    'weight': 'weight',
     'Largura': 'width',
+    'width': 'width',
     'Altura': 'height',
+    'height': 'height',
     'Comprimento': 'depth',
+    'Profundidade': 'depth',
+    'length': 'depth',
+    // Estoque
     'Estoque': 'stock_quantity',
+    'Estoque Atual': 'stock_quantity',
+    'stock': 'stock_quantity',
+    // Status
     'Ativo': 'status',
+    'Disponível': 'status',
+    'available': 'status',
+    // Destaque
     'Destaque': 'is_featured',
+    'hot': 'is_featured',
+    // Lançamento
+    'Lançamento': 'is_new',
+    'release': 'is_new',
+    // Categoria
     'Categoria': 'categories',
+    'category_id': 'categories',
+    // Marca
+    'Marca': 'brand',
+    'brand': 'brand',
+    // Imagens
     'Imagem Principal': 'images',
+    'Imagens Adicionais': 'images',
+    // NCM
+    'NCM': 'ncm',
+    'ncm': 'ncm',
   },
   customers: {
+    // Nome
     'Nome': 'full_name',
+    'Nome do cliente': 'full_name',
+    'name': 'full_name',
+    // Email
     'E-mail': 'email',
+    'Email': 'email',
+    'email': 'email',
+    // Documentos
     'CPF': 'cpf',
+    'cpf': 'cpf',
+    'CNPJ': 'cnpj',
+    'cnpj': 'cnpj',
+    'RG': 'rg',
+    'rg': 'rg',
+    'Inscrição Estadual': 'state_inscription',
+    'IE': 'state_inscription',
+    'state_inscription': 'state_inscription',
+    // Razão Social
+    'Razão Social': 'company_name',
+    'Razão social': 'company_name',
+    'company_name': 'company_name',
+    // Tipo
+    'Tipo': 'person_type',
+    'type': 'person_type',
+    // Telefone
     'Telefone': 'phone',
-    'Celular': 'phone',
+    'phone': 'phone',
+    'Celular': 'cellphone',
+    'cellphone': 'cellphone',
+    // Nascimento
     'Data de Nascimento': 'birth_date',
+    'birth_date': 'birth_date',
+    // Gênero
     'Sexo': 'gender',
+    'Gênero': 'gender',
+    'gender': 'gender',
+    // Newsletter
     'Newsletter': 'accepts_marketing',
+    'Aceita marketing': 'accepts_marketing',
+    // Observações
     'Observação': 'notes',
+    'Observações': 'notes',
+    'observation': 'notes',
   },
   orders: {
+    // Número do pedido
     'Número': 'order_number',
+    'Pedido': 'order_number',
+    'id': 'order_number',
+    // Status
     'Status': 'status',
+    'Status pedido': 'status',
+    'status': 'status',
+    // Data
     'Data': 'created_at',
+    'Data do pedido': 'created_at',
+    'date': 'created_at',
+    'Hora': 'created_at_time',
+    'hour': 'created_at_time',
+    // Cliente
     'Cliente': 'customer_name',
+    'Nome do cliente': 'customer_name',
+    'Destinatário': 'shipping_recipient',
+    // Email
     'E-mail': 'customer_email',
+    'E-mail do cliente': 'customer_email',
+    // Telefone
+    'Telefone': 'customer_phone',
+    'Celular': 'customer_phone',
+    // CPF/CNPJ
+    'CPF': 'customer_cpf',
+    'CNPJ': 'customer_cnpj',
+    // Valores
     'Subtotal': 'subtotal',
+    'Subtotal produtos': 'subtotal',
+    'partial_total': 'subtotal',
     'Desconto': 'discount_total',
+    'discount': 'discount_total',
     'Frete': 'shipping_total',
+    'Frete valor': 'shipping_total',
+    'shipment_value': 'shipping_total',
+    'Frete tipo': 'shipping_method',
+    'shipment': 'shipping_method',
+    'Impostos': 'taxes_total',
+    'taxes': 'taxes_total',
     'Total': 'total',
+    'value_1': 'total',
+    // Pagamento
     'Forma de Pagamento': 'payment_method',
+    'Pagamento tipo': 'payment_method',
+    'payment_form': 'payment_method',
+    'Pagamento data': 'paid_at',
+    'payment_date': 'paid_at',
+    'Valor pagamento': 'payment_amount',
+    // Cupom
+    'Cupom de desconto': 'discount_code',
+    'discount_coupon': 'discount_code',
+    // Envio
     'Código de Rastreio': 'tracking_code',
+    'Envio código': 'tracking_code',
+    'sending_code': 'tracking_code',
+    'Envio data': 'shipped_at',
+    'sending_date': 'shipped_at',
+    'Prazo máximo de envio': 'shipping_deadline',
+    'Data estimada de entrega': 'estimated_delivery_at',
+    'estimated_delivery_date': 'estimated_delivery_at',
+    // Canal
+    'Canal de venda': 'source',
+    'point_sale': 'source',
+    // Marketplace
+    'Parceiro': 'marketplace',
+    'partner_id': 'marketplace',
+    'Vendedor ML': 'marketplace_seller',
+    'Valor comissão': 'marketplace_commission',
+    // Notas
+    'Obs. cliente': 'notes',
+    'customer_note': 'notes',
+    'Obs. loja': 'notes_internal',
+    'store_note': 'notes_internal',
   },
   categories: {
     'Nome': 'name',
+    'name': 'name',
     'Descrição': 'description',
+    'description': 'description',
     'URL': 'slug',
+    'slug': 'slug',
     'Categoria Pai': 'parent_slug',
+    'parent_id': 'parent_slug',
     'Ordem': 'sort_order',
+    'order': 'sort_order',
     'Ativa': 'is_active',
+    'has_product': 'has_products',
   },
 };

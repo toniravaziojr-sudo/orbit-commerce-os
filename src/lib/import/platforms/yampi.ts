@@ -485,56 +485,216 @@ function mapYampiPaymentStatus(status: string): NormalizedOrder['payment_status'
 
 export const YAMPI_FIELD_MAPPING = {
   products: {
+    // Nome
     'Nome': 'name',
+    'Nome do produto': 'name',
+    'name': 'name',
+    // Descrição
     'Descrição': 'description',
+    'Descrição completa': 'description',
+    'description': 'description',
+    // Descrição curta
     'Descrição Curta': 'short_description',
+    'short_description': 'short_description',
+    // Especificações técnicas
+    'Especificações técnicas': 'technical_specs',
+    'specifications': 'technical_specs',
+    // Preço
     'Preço': 'price',
+    'Preço de venda': 'price',
+    'price': 'price',
+    // Preço comparativo
     'Preço Comparativo': 'compare_at_price',
+    'Preço promocional': 'compare_at_price',
+    'price_compare': 'compare_at_price',
+    // Custo
     'Custo': 'cost_price',
+    'Preço de custo': 'cost_price',
+    'cost': 'cost_price',
+    // SKU
     'SKU': 'sku',
+    'Código SKU': 'sku',
+    'sku': 'sku',
+    // Código de barras
+    'EAN': 'barcode',
+    'GTIN': 'barcode',
+    'ean': 'barcode',
+    // Dimensões
     'Peso': 'weight',
+    'Peso do produto': 'weight',
+    'Peso (kg)': 'weight',
+    'weight': 'weight',
     'Largura': 'width',
+    'Largura (cm)': 'width',
+    'width': 'width',
     'Altura': 'height',
+    'Altura (cm)': 'height',
+    'height': 'height',
     'Profundidade': 'depth',
+    'Comprimento': 'depth',
+    'Comprimento (cm)': 'depth',
+    'depth': 'depth',
+    // Estoque
     'Estoque': 'stock_quantity',
+    'Quantidade em estoque': 'stock_quantity',
+    'quantity': 'stock_quantity',
+    // Estoque mínimo
+    'Estoque mínimo': 'min_stock',
+    'min_quantity': 'min_stock',
+    // Gerenciar estoque
+    'Estoque gerenciado pelo sistema': 'manage_stock',
+    // Ação quando esgotado
+    'O que fazer quando o produto estiver com estoque zerado': 'out_of_stock_action',
+    // Status
     'Ativo': 'status',
+    'Produto ativo': 'status',
+    'is_active': 'status',
+    // Disponível
+    'Produto disponível para a venda': 'is_available',
+    'Disponibilidade em estoque': 'availability_text',
+    // Destaque
     'Destaque': 'is_featured',
+    'is_featured': 'is_featured',
+    // Lançamento
+    'Produto lançamento': 'is_new',
+    // Marca
+    'Marca': 'brand',
+    'Código da marca': 'brand_id',
+    'brand_id': 'brand_id',
+    // Categoria
     'Categoria': 'categories',
+    'Códigos das categorias': 'category_ids',
+    'categories': 'categories',
+    // Imagens
     'Imagem Principal': 'images',
+    'URL do youtube': 'video_url',
+    // SEO
     'Título SEO': 'seo_title',
+    'Título da página': 'seo_title',
+    'seo_title': 'seo_title',
     'Descrição SEO': 'seo_description',
+    'Descrição da página': 'seo_description',
+    'seo_description': 'seo_description',
+    // Tags
+    'Termos para pesquisa': 'tags',
+    'Palavras-chave da página': 'seo_keywords',
+    // Slug
+    'Slug do produto': 'slug',
+    'slug': 'slug',
   },
   customers: {
+    // Nome
     'Nome': 'full_name',
+    'name': 'full_name',
+    'first_name': 'first_name',
+    'last_name': 'last_name',
+    // Email
     'E-mail': 'email',
+    'Email': 'email',
+    'email': 'email',
+    // Telefone
     'Telefone': 'phone',
+    'Tel. fixo': 'phone',
+    'phone': 'phone',
+    'Celular': 'cellphone',
+    'cellphone': 'cellphone',
+    // Documentos
     'CPF': 'cpf',
+    'cpf': 'cpf',
+    'CNPJ': 'cnpj',
+    'cnpj': 'cnpj',
+    'RG': 'rg',
+    'rg': 'rg',
+    'IE': 'state_inscription',
+    'Inscrição Estadual': 'state_inscription',
+    // Razão Social
+    'Razão social': 'company_name',
+    'company_name': 'company_name',
+    // Tipo
+    'Tipo': 'person_type',
+    'type': 'person_type',
+    // Nascimento
     'Data de Nascimento': 'birth_date',
+    'Data de nascimento': 'birth_date',
+    'birth_date': 'birth_date',
+    // Gênero
     'Sexo': 'gender',
+    'gender': 'gender',
+    // Newsletter
     'Newsletter': 'accepts_marketing',
+    'accepts_marketing': 'accepts_marketing',
+    // Observações
     'Observações': 'notes',
+    'notes': 'notes',
+    // Pedidos
+    'N˚ de pedidos': 'total_orders',
+    'Total de pedidos': 'total_spent',
+    'orders_count': 'total_orders',
+    // Última compra
+    'Última compra': 'last_order_date',
+    'Total da última compra': 'last_order_total',
+    // Código
+    'Código': 'external_id',
+    'id': 'external_id',
   },
   orders: {
+    // Número
     'Número': 'order_number',
+    'number': 'order_number',
+    // Status
     'Status': 'status',
+    'status': 'status',
+    // Status pagamento
     'Status Pagamento': 'payment_status',
+    'payment_status': 'payment_status',
+    // Status envio
+    'Status Envio': 'shipping_status',
+    'shipping_status': 'shipping_status',
+    // Valores
     'Subtotal': 'subtotal',
+    'value_products': 'subtotal',
     'Desconto': 'discount_total',
+    'value_discount': 'discount_total',
     'Frete': 'shipping_total',
+    'value_shipment': 'shipping_total',
     'Total': 'total',
+    'value_total': 'total',
+    // Cliente
     'Cliente': 'customer_name',
+    'customer_name': 'customer_name',
     'E-mail Cliente': 'customer_email',
+    'customer_email': 'customer_email',
+    // Pagamento
     'Forma de Pagamento': 'payment_method',
+    'payment_method': 'payment_method',
+    // Rastreio
     'Código de Rastreio': 'tracking_code',
+    'tracking_code': 'tracking_code',
+    'URL de Rastreio': 'tracking_url',
+    'tracking_url': 'tracking_url',
+    'Transportadora': 'tracking_carrier',
+    'shipping_service': 'tracking_carrier',
+    // Data
     'Data': 'created_at',
+    'created_at': 'created_at',
+    // Notas
+    'Observações': 'notes',
+    'notes': 'notes',
   },
   categories: {
     'Nome': 'name',
+    'name': 'name',
     'Descrição': 'description',
+    'description': 'description',
     'URL': 'slug',
+    'slug': 'slug',
     'Categoria Pai': 'parent_slug',
+    'parent_id': 'parent_slug',
     'Imagem': 'image_url',
+    'image_url': 'image_url',
     'Ativa': 'is_active',
+    'is_active': 'is_active',
     'Posição': 'sort_order',
+    'position': 'sort_order',
   },
 };

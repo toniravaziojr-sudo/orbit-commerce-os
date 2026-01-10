@@ -9,23 +9,36 @@ export interface NormalizedProduct {
   slug: string;
   description: string | null;
   short_description: string | null;
+  technical_specs?: string | null; // Especificações técnicas (Yampi)
   price: number;
   compare_at_price: number | null;
   cost_price: number | null;
   sku: string | null;
-  barcode: string | null;
+  barcode: string | null; // EAN/UPC/GTIN
   weight: number | null;
   width: number | null;
   height: number | null;
   depth: number | null;
   stock_quantity: number | null;
+  min_stock?: number | null; // Estoque mínimo
+  manage_stock?: boolean; // Gerenciar estoque
+  out_of_stock_action?: 'hide' | 'show' | 'backorder' | null; // Ação quando esgotado
   is_featured: boolean;
+  is_new?: boolean; // Lançamento
+  requires_shipping?: boolean; // Requer envio físico
+  is_taxable?: boolean; // Cobrar impostos
   status: 'active' | 'draft' | 'archived';
+  brand?: string | null; // Marca/Fornecedor
+  warranty?: string | null; // Garantia
+  video_url?: string | null; // URL do vídeo (YouTube)
   seo_title: string | null;
   seo_description: string | null;
+  seo_keywords?: string | null; // Palavras-chave SEO
   images: NormalizedProductImage[];
   variants: NormalizedProductVariant[];
   categories: string[]; // slugs das categorias
+  tags?: string[]; // Tags/Palavras-chave
+  external_id?: string | null; // ID externo (plataforma origem)
 }
 
 export interface NormalizedProductImage {
@@ -63,15 +76,29 @@ export interface NormalizedCategory {
 export interface NormalizedCustomer {
   email: string;
   full_name: string;
+  first_name?: string | null;
+  last_name?: string | null;
   phone: string | null;
+  cellphone?: string | null;
   cpf: string | null;
+  cnpj?: string | null;
+  rg?: string | null;
+  state_inscription?: string | null; // Inscrição Estadual
+  company_name?: string | null; // Razão Social
+  person_type?: 'individual' | 'company' | null; // PF ou PJ
   birth_date: string | null;
   gender: string | null;
   accepts_marketing: boolean;
+  accepts_sms?: boolean;
   status: 'active' | 'inactive';
   addresses: NormalizedAddress[];
   tags: string[];
   notes: string | null;
+  total_orders?: number | null;
+  total_spent?: number | null;
+  last_order_date?: string | null;
+  last_order_total?: number | null;
+  created_at?: string | null;
 }
 
 export interface NormalizedAddress {
@@ -91,37 +118,58 @@ export interface NormalizedAddress {
 // Pedido normalizado (formato interno)
 export interface NormalizedOrder {
   order_number: string;
+  source_order_number?: string | null; // Número original do canal (ex: #3381 do Shopify)
+  source_platform?: string | null; // Plataforma de origem
   status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded';
   payment_status: 'pending' | 'paid' | 'failed' | 'refunded' | 'cancelled';
   payment_method: string | null;
+  payment_installments?: number | null; // Número de parcelas
   shipping_status: string | null;
+  shipping_method?: string | null; // Método de envio (PAC, SEDEX, etc.)
   subtotal: number;
   discount_total: number;
+  discount_code?: string | null; // Código do cupom
   shipping_total: number;
+  taxes_total?: number | null;
   total: number;
   currency: string;
   customer_email: string;
   customer_name: string;
   customer_phone: string | null;
+  customer_cpf?: string | null;
+  customer_cnpj?: string | null;
   shipping_address: NormalizedAddress | null;
   billing_address: NormalizedAddress | null;
   items: NormalizedOrderItem[];
   notes: string | null;
+  notes_internal?: string | null; // Observação interna da loja
+  source?: string | null; // Canal de venda (web, POS, marketplace)
+  marketplace?: string | null; // Nome do marketplace (Mercado Livre, etc.)
+  risk_level?: string | null; // Nível de risco de fraude
   created_at: string;
   paid_at: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
+  estimated_delivery_at?: string | null;
   tracking_code: string | null;
+  tracking_url?: string | null;
   tracking_carrier: string | null;
+  tags?: string[];
 }
 
 export interface NormalizedOrderItem {
   product_name: string;
   product_sku: string | null;
+  product_id?: string | null;
   variant_name: string | null;
+  variant_id?: string | null;
   quantity: number;
   unit_price: number;
+  compare_at_price?: number | null;
+  discount?: number | null;
   total_price: number;
+  requires_shipping?: boolean;
+  weight?: number | null;
 }
 
 // Cupom normalizado (formato interno)
