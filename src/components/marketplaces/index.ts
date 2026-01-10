@@ -1,0 +1,1 @@
+export { MeliConnectionCard } from './MeliConnectionCard';
