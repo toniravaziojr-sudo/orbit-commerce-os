@@ -35,8 +35,17 @@ function MercadoLivreLogo({ className }: { className?: string }) {
 export default function MercadoLivre() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "conexao");
   const { isConnected, isLoading, platformConfigured } = useMeliConnection();
+  
+  const defaultTab = searchParams.get("tab") || (isConnected ? "pedidos" : "conexao");
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  // Redirecionar para pedidos quando conectar
+  useEffect(() => {
+    if (isConnected && activeTab === "conexao") {
+      setActiveTab("pedidos");
+    }
+  }, [isConnected]);
 
   // Processar callback do OAuth
   useEffect(() => {
@@ -104,10 +113,12 @@ export default function MercadoLivre() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="conexao" className="gap-2">
-            <Link2 className="h-4 w-4" />
-            Conexão
-          </TabsTrigger>
+          {!isConnected && (
+            <TabsTrigger value="conexao" className="gap-2">
+              <Link2 className="h-4 w-4" />
+              Conexão
+            </TabsTrigger>
+          )}
           <TabsTrigger value="pedidos" className="gap-2" disabled={!isConnected}>
             <ShoppingBag className="h-4 w-4" />
             Pedidos
@@ -154,17 +165,15 @@ export default function MercadoLivre() {
                       <p className="text-xs text-muted-foreground mb-2">
                         Responda perguntas e mensagens pós-venda pelo módulo de atendimento unificado
                       </p>
-                      {isConnected && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => navigate("/support")}
-                        >
-                          <ExternalLink className="h-3 w-3 mr-1" />
-                          Ir para Atendimento
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => navigate("/support")}
+                      >
+                        <ExternalLink className="h-3 w-3 mr-1" />
+                        Ir para Atendimento
+                      </Button>
                     </div>
                   </div>
 
