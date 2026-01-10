@@ -3,6 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
+import { useEffect, useRef } from 'react';
+import { 
+  registerFileToDrive, 
+  backfillStorefrontAssets,
+  extractStoragePathFromUrl 
+} from '@/lib/registerFileToDrive';
 
 // Interface para redes sociais customizadas
 export interface CustomSocialLink {
@@ -94,9 +100,10 @@ function parseSocialCustom(data: Json | null): CustomSocialLink[] {
 }
 
 export function useStoreSettings() {
-  const { currentTenant } = useAuth();
+  const { currentTenant, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const backfillRanRef = useRef(false);
 
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ['store-settings', currentTenant?.id],
@@ -120,6 +127,28 @@ export function useStoreSettings() {
     },
     enabled: !!currentTenant?.id,
   });
+
+  // Backfill: register existing logo/favicon to Drive if not already there
+  useEffect(() => {
+    if (
+      settings && 
+      currentTenant?.id && 
+      user?.id && 
+      !backfillRanRef.current &&
+      (settings.logo_url || settings.favicon_url)
+    ) {
+      backfillRanRef.current = true;
+      backfillStorefrontAssets(
+        currentTenant.id,
+        user.id,
+        settings.logo_url,
+        settings.favicon_url
+      ).then(() => {
+        // Invalidate files query to show newly registered files
+        queryClient.invalidateQueries({ queryKey: ['files', currentTenant.id] });
+      });
+    }
+  }, [settings, currentTenant?.id, user?.id, queryClient]);
 
   const upsertSettings = useMutation({
     mutationFn: async (formData: StoreSettingsFormData) => {
@@ -191,9 +220,9 @@ export function useStoreSettings() {
     },
   });
 
-  // Upload de imagem para o bucket store-assets
+  // Upload de imagem para o bucket store-assets + registra no Drive
   const uploadAsset = async (file: File, assetType: 'logo' | 'favicon'): Promise<string | null> => {
-    if (!currentTenant?.id) return null;
+    if (!currentTenant?.id || !user?.id) return null;
     
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
     const filePath = `tenants/${currentTenant.id}/branding/${assetType}.${fileExt}`;
@@ -220,7 +249,24 @@ export function useStoreSettings() {
       .from('store-assets')
       .getPublicUrl(filePath);
     
-    return publicUrl.publicUrl;
+    const url = publicUrl.publicUrl;
+
+    // Register file to Drive (system folder)
+    await registerFileToDrive({
+      tenantId: currentTenant.id,
+      userId: user.id,
+      url,
+      storagePath: filePath,
+      originalName: `${assetType}.${fileExt}`,
+      mimeType: file.type,
+      size: file.size,
+      source: `storefront_${assetType}`,
+    });
+
+    // Invalidate files query to show newly registered file
+    queryClient.invalidateQueries({ queryKey: ['files', currentTenant.id] });
+    
+    return url;
   };
 
   return {
