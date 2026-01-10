@@ -3729,54 +3729,6 @@ export type Database = {
           },
         ]
       }
-      imported_items: {
-        Row: {
-          created_at: string
-          entity_id: string
-          entity_table: string
-          entity_type: string
-          external_id: string | null
-          id: string
-          import_job_id: string | null
-          tenant_id: string
-        }
-        Insert: {
-          created_at?: string
-          entity_id: string
-          entity_table: string
-          entity_type: string
-          external_id?: string | null
-          id?: string
-          import_job_id?: string | null
-          tenant_id: string
-        }
-        Update: {
-          created_at?: string
-          entity_id?: string
-          entity_table?: string
-          entity_type?: string
-          external_id?: string | null
-          id?: string
-          import_job_id?: string | null
-          tenant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "imported_items_import_job_id_fkey"
-            columns: ["import_job_id"]
-            isOneToOne: false
-            referencedRelation: "import_jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "imported_items_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       influencer_interactions: {
         Row: {
           created_at: string
