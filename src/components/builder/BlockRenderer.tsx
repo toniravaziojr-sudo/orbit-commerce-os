@@ -36,7 +36,7 @@ import {
 } from './blocks/content';
 
 // Interactive blocks (refactored)
-import { FAQBlock, TestimonialsBlock } from './blocks/interactive';
+import { FAQBlock, TestimonialsBlock, NewsletterBlock, ContactFormBlock, MapBlock, SocialFeedBlock } from './blocks/interactive';
 
 // E-commerce components (refactored)
 import { ProductCTAs, ProductRatingSummary } from './blocks/ecommerce';
@@ -281,6 +281,10 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     // Interactive blocks (refactored)
     FAQ: FAQBlock,
     Testimonials: TestimonialsBlock,
+    Newsletter: NewsletterBlock,
+    ContactForm: ContactFormBlock,
+    Map: MapBlock,
+    SocialFeed: SocialFeedBlock,
     
     // Header / Footer
     Header: HeaderBlock,
