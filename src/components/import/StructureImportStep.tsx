@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, CheckCircle2, Loader2, Palette, FolderTree, FileText, Menu, ArrowRight, SkipForward, AlertCircle, LayoutGrid } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, FolderTree, FileText, Menu, ArrowRight, SkipForward, AlertCircle } from 'lucide-react';
 import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
@@ -11,28 +11,15 @@ import { supabase } from '@/integrations/supabase/client';
 export type ImportStepStatus = 'pending' | 'processing' | 'completed' | 'skipped' | 'error';
 
 export interface StructureImportState {
-  visual: ImportStepStatus;
   categories: ImportStepStatus;
   pages: ImportStepStatus;
   menus: ImportStepStatus;
-  blocks: ImportStepStatus;
 }
 
 export interface ImportStats {
-  visual: {
-    colors: number;
-    contact: number;
-    social: number;
-    logo: boolean;
-  };
   categories: number;
   pages: number;
   menuItems: number;
-  blocks: {
-    homeSections: number;
-    pagesWithBlocks: number;
-    totalBlocks: number;
-  };
 }
 
 interface StructureImportStepProps {
@@ -44,15 +31,10 @@ interface StructureImportStepProps {
 }
 
 // Required order of import steps (menus LAST - they depend on categories and pages)
-const IMPORT_ORDER = ['visual', 'categories', 'pages', 'blocks', 'menus'] as const;
+const IMPORT_ORDER = ['categories', 'pages', 'menus'] as const;
 type ImportStepKey = typeof IMPORT_ORDER[number];
 
 const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; icon: React.ReactNode }> = {
-  visual: {
-    label: 'Branding da Loja',
-    description: 'Cores, logo, favicon, informações de contato e redes sociais',
-    icon: <Palette className="h-5 w-5" />,
-  },
   categories: {
     label: 'Categorias',
     description: 'Categorias de produtos detectadas nos menus',
@@ -68,30 +50,21 @@ const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; i
     description: 'Estrutura de navegação com hierarquia',
     icon: <Menu className="h-5 w-5" />,
   },
-  blocks: {
-    label: 'Blocos da Home e Páginas',
-    description: 'Banners, vitrines, carrosséis e seções de conteúdo',
-    icon: <LayoutGrid className="h-5 w-5" />,
-  },
 };
 
 export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisResult, onComplete }: StructureImportStepProps) {
   const [progress, setProgress] = useState<StructureImportState>({
-    visual: 'pending',
     categories: 'pending',
     pages: 'pending',
     menus: 'pending',
-    blocks: 'pending',
   });
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentStep, setCurrentStep] = useState<ImportStepKey | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [stats, setStats] = useState<ImportStats>({
-    visual: { colors: 0, contact: 0, social: 0, logo: false },
     categories: 0,
     pages: 0,
     menuItems: 0,
-    blocks: { homeSections: 0, pagesWithBlocks: 0, totalBlocks: 0 },
   });
   
   // Visual data cached from first extraction
@@ -120,147 +93,6 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
 
   // Check if all steps are done
   const isAllDone = Object.values(progress).every(s => s === 'completed' || s === 'skipped');
-
-  // ========================================
-  // STEP 1: IMPORT VISUAL
-  // ========================================
-  const importVisual = useCallback(async () => {
-    setIsProcessing(true);
-    setCurrentStep('visual');
-    setProgress(p => ({ ...p, visual: 'processing' }));
-    
-    try {
-      // Try to get better HTML with JS rendered AND branding via Firecrawl
-      let htmlToUse = scrapedData?.html || '';
-      let firecrawlBranding: any = null;
-      
-      try {
-        // Use Firecrawl with 'branding' format for accurate color extraction
-        const { data: betterScrape } = await supabase.functions.invoke('firecrawl-scrape', {
-          body: { 
-            url: storeUrl,
-            options: { 
-              formats: ['html', 'links', 'branding'], 
-              onlyMainContent: false, 
-              waitFor: 3000 
-            }
-          }
-        });
-        if (betterScrape?.data?.html) htmlToUse = betterScrape.data.html;
-        // Firecrawl branding extraction provides accurate colors via LLM analysis
-        if (betterScrape?.data?.branding) {
-          firecrawlBranding = betterScrape.data.branding;
-          console.log('Firecrawl branding extracted:', firecrawlBranding);
-        }
-      } catch (e) {
-        console.log('Fallback scrape failed, using original HTML');
-      }
-
-      // Call import-visual edge function
-      const { data, error } = await supabase.functions.invoke('import-visual', {
-        body: { url: storeUrl, html: htmlToUse, platform: analysisResult?.platform }
-      });
-
-      if (error) throw new Error(error.message);
-      if (!data?.success) throw new Error(data?.error || 'Falha na extração visual');
-
-      // Merge Firecrawl branding with extracted data (Firecrawl is more accurate for colors)
-      if (firecrawlBranding) {
-        if (!data.branding) data.branding = {};
-        // Use Firecrawl colors if available (more accurate than regex)
-        if (firecrawlBranding.colors?.primary && !data.branding.primaryColor) {
-          data.branding.primaryColor = firecrawlBranding.colors.primary;
-        }
-        if (firecrawlBranding.colors?.secondary && !data.branding.secondaryColor) {
-          data.branding.secondaryColor = firecrawlBranding.colors.secondary;
-        }
-        if (firecrawlBranding.colors?.accent && !data.branding.accentColor) {
-          data.branding.accentColor = firecrawlBranding.colors.accent;
-        }
-        // Also try background as secondary if needed
-        if (firecrawlBranding.colors?.background && !data.branding.secondaryColor) {
-          data.branding.secondaryColor = firecrawlBranding.colors.background;
-        }
-        // Use Firecrawl logo if our extraction failed
-        if (firecrawlBranding.logo && !data.branding.logo) {
-          data.branding.logo = firecrawlBranding.logo;
-        }
-        if (firecrawlBranding.images?.favicon && !data.branding.favicon) {
-          data.branding.favicon = firecrawlBranding.images.favicon;
-        }
-        console.log('Merged branding:', data.branding);
-      }
-
-      setVisualData(data);
-
-      // Apply visual data to store_settings
-      const storeSettingsUpdate: Record<string, any> = {};
-      const branding = data.branding || {};
-      const contactInfo = data.contactInfo || {};
-      const socialLinks = data.socialLinks || {};
-
-      let colorsImported = 0;
-      let contactImported = 0;
-      let socialImported = 0;
-
-      // Colors - use correct column names from store_settings table
-      if (branding.primaryColor) { storeSettingsUpdate.primary_color = branding.primaryColor; colorsImported++; }
-      if (branding.secondaryColor) { storeSettingsUpdate.secondary_color = branding.secondaryColor; colorsImported++; }
-      if (branding.accentColor) { storeSettingsUpdate.accent_color = branding.accentColor; colorsImported++; }
-
-      // Contact info - use correct column names from store_settings table
-      if (contactInfo.phone) { storeSettingsUpdate.contact_phone = contactInfo.phone; contactImported++; }
-      if (contactInfo.whatsapp) { storeSettingsUpdate.social_whatsapp = contactInfo.whatsapp; contactImported++; }
-      if (contactInfo.email) { storeSettingsUpdate.contact_email = contactInfo.email; contactImported++; }
-      if (contactInfo.address) { storeSettingsUpdate.contact_address = contactInfo.address; contactImported++; }
-      if (contactInfo.cnpj) { storeSettingsUpdate.business_cnpj = contactInfo.cnpj; contactImported++; }
-      if (contactInfo.legalName) { storeSettingsUpdate.business_legal_name = contactInfo.legalName; contactImported++; }
-      if (contactInfo.supportHours) { storeSettingsUpdate.contact_support_hours = contactInfo.supportHours; contactImported++; }
-
-      // Social links - use correct column names from store_settings table
-      // Note: social_twitter, social_linkedin, social_pinterest don't exist in store_settings
-      // They should be stored in social_custom JSON array if needed
-      if (socialLinks.facebook) { storeSettingsUpdate.social_facebook = socialLinks.facebook; socialImported++; }
-      if (socialLinks.instagram) { storeSettingsUpdate.social_instagram = socialLinks.instagram; socialImported++; }
-      if (socialLinks.tiktok) { storeSettingsUpdate.social_tiktok = socialLinks.tiktok; socialImported++; }
-      if (socialLinks.youtube) { storeSettingsUpdate.social_youtube = socialLinks.youtube; socialImported++; }
-      
-      // Store additional social links in social_custom array
-      const customSocial: Array<{ platform: string; url: string }> = [];
-      if (socialLinks.twitter) { customSocial.push({ platform: 'twitter', url: socialLinks.twitter }); socialImported++; }
-      if (socialLinks.linkedin) { customSocial.push({ platform: 'linkedin', url: socialLinks.linkedin }); socialImported++; }
-      if (socialLinks.pinterest) { customSocial.push({ platform: 'pinterest', url: socialLinks.pinterest }); socialImported++; }
-      if (customSocial.length > 0) { storeSettingsUpdate.social_custom = customSocial; }
-
-      if (Object.keys(storeSettingsUpdate).length > 0) {
-        const { error: updateError } = await supabase.from('store_settings').update(storeSettingsUpdate).eq('tenant_id', tenantId);
-        if (updateError) {
-          await supabase.from('store_settings').upsert({ tenant_id: tenantId, ...storeSettingsUpdate }, { onConflict: 'tenant_id' });
-        }
-      }
-
-      // Check if logo/favicon was imported
-      const logoImported = !!(branding.logo || branding.favicon);
-
-      setStats(s => ({ ...s, visual: { colors: colorsImported, contact: contactImported, social: socialImported, logo: logoImported } }));
-      setProgress(p => ({ ...p, visual: 'completed' }));
-      
-      const parts = [];
-      if (colorsImported > 0) parts.push(`${colorsImported} cores`);
-      if (contactImported > 0) parts.push(`${contactImported} contatos`);
-      if (socialImported > 0) parts.push(`${socialImported} redes sociais`);
-      if (logoImported) parts.push('logo');
-      toast.success(`Branding importado: ${parts.length > 0 ? parts.join(', ') : 'dados visuais'}`);
-    } catch (err: any) {
-      console.error('Error importing visual:', err);
-      setErrors(e => [...e, `Visual: ${err.message}`]);
-      setProgress(p => ({ ...p, visual: 'error' }));
-      toast.error(`Erro ao importar visual: ${err.message}`);
-    } finally {
-      setIsProcessing(false);
-      setCurrentStep(null);
-    }
-  }, [tenantId, storeUrl, scrapedData, analysisResult]);
 
   // ========================================
   // STEP 2: IMPORT CATEGORIES
@@ -551,7 +383,8 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setProgress(p => ({ ...p, menus: 'completed' }));
       toast.success(`${totalMenuItems} itens de menu importados`);
 
-      // Note: onComplete is called after blocks step, not menus
+      // Menus is the last step - call onComplete
+      onComplete(stats);
     } catch (err: any) {
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
@@ -561,76 +394,24 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData]);
-
-  // ========================================
-  // STEP 5: IMPORT BLOCKS (Home + Pages)
-  // ========================================
-  const importBlocks = useCallback(async () => {
-    setIsProcessing(true);
-    setCurrentStep('blocks');
-    setProgress(p => ({ ...p, blocks: 'processing' }));
-
-    try {
-      toast.info('Extraindo blocos de conteúdo da loja...');
-      
-      const { data, error } = await supabase.functions.invoke('import-pages-with-blocks', {
-        body: {
-          tenantId,
-          storeUrl,
-          platform: analysisResult?.platform,
-        }
-      });
-
-      if (error) throw new Error(error.message);
-      if (!data?.success) throw new Error(data?.error || 'Falha na extração de blocos');
-
-      const homeSections = data.homeSectionsCount || 0;
-      const pagesWithBlocks = data.pagesImported || 0;
-      const totalBlocks = data.totalSections || 0;
-
-      setStats(s => ({
-        ...s,
-        blocks: { homeSections, pagesWithBlocks, totalBlocks }
-      }));
-      setProgress(p => ({ ...p, blocks: 'completed' }));
-      
-      const parts = [];
-      if (homeSections > 0) parts.push(`${homeSections} blocos na home`);
-      if (pagesWithBlocks > 0) parts.push(`${pagesWithBlocks} páginas`);
-      toast.success(`Blocos importados: ${parts.length > 0 ? parts.join(', ') : 'nenhum bloco encontrado'}`);
-
-      // Call onComplete after blocks (last step) is done
-      onComplete(stats);
-    } catch (err: any) {
-      console.error('Error importing blocks:', err);
-      setErrors(e => [...e, `Blocos: ${err.message}`]);
-      setProgress(p => ({ ...p, blocks: 'error' }));
-      toast.error(`Erro ao importar blocos: ${err.message}`);
-    } finally {
-      setIsProcessing(false);
-      setCurrentStep(null);
-    }
-  }, [tenantId, storeUrl, analysisResult, stats, onComplete]);
+  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData, stats, onComplete]);
 
   // Skip a step
   const skipStep = useCallback((step: ImportStepKey) => {
     setProgress(p => ({ ...p, [step]: 'skipped' }));
     toast.info(`${STEP_CONFIG[step].label} pulado`);
     
-    // If skipping blocks (last step), call onComplete
-    if (step === 'blocks') {
+    // If skipping menus (last step), call onComplete
+    if (step === 'menus') {
       onComplete(stats);
     }
   }, [onComplete, stats]);
 
   // Handler map
   const stepHandlers: Record<ImportStepKey, () => Promise<void>> = {
-    visual: importVisual,
     categories: importCategories,
     pages: importPages,
     menus: importMenus,
-    blocks: importBlocks,
   };
 
   // Get icon for status
@@ -649,26 +430,12 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     if (progress[step] !== 'completed') return null;
 
     switch (step) {
-      case 'visual':
-        const v = stats.visual;
-        const parts = [];
-        if (v.colors > 0) parts.push(`${v.colors} cores`);
-        if (v.contact > 0) parts.push(`${v.contact} contatos`);
-        if (v.social > 0) parts.push(`${v.social} redes`);
-        if (v.logo) parts.push('logo importado');
-        return parts.length > 0 ? parts.join(', ') : 'Nenhum dado encontrado';
       case 'categories':
         return `${stats.categories} importadas`;
       case 'pages':
         return stats.pages > 0 ? `${stats.pages} importadas` : 'Nenhuma encontrada';
       case 'menus':
         return `${stats.menuItems} itens`;
-      case 'blocks':
-        const b = stats.blocks;
-        const blockParts = [];
-        if (b.homeSections > 0) blockParts.push(`${b.homeSections} na home`);
-        if (b.pagesWithBlocks > 0) blockParts.push(`${b.pagesWithBlocks} páginas`);
-        return blockParts.length > 0 ? blockParts.join(', ') : 'Nenhum bloco';
       default:
         return null;
     }
@@ -680,7 +447,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Ordem obrigatória:</strong> Para que a importação funcione corretamente, siga a ordem: Visual → Categorias → Páginas → Menus → Blocos.
+          <strong>Ordem obrigatória:</strong> Para que a importação funcione corretamente, siga a ordem: Categorias → Páginas → Menus.
           Você pode pular etapas, mas os menus só serão corretamente vinculados se categorias e páginas forem importados antes.
         </AlertDescription>
       </Alert>
