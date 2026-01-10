@@ -2316,152 +2316,278 @@ function normalizeUrl(href: string, baseUrl: string): string {
   }
   return normalizeImageUrl(href, baseUrl);
 }
-// Extract institutional pages from footer links, header, nav, and Shopify standard policies
-// Improved: finds pages from multiple sources including sitemap, menus, and all internal links
+// =====================================================
+// EXTRACT INSTITUTIONAL PAGES - UNIVERSAL PATTERNS
+// Detects common e-commerce pages across ALL platforms
+// =====================================================
+
+// Universal page patterns - works for any platform
+const INSTITUTIONAL_PAGE_PATTERNS: Array<{
+  slugPatterns: RegExp[];
+  titlePatterns: RegExp[];
+  category: 'about' | 'privacy' | 'terms' | 'returns' | 'shipping' | 'faq' | 'payment' | 'warranty' | 'contact' | 'other';
+  defaultTitle: string;
+  priority: number;
+}> = [
+  // === ABOUT ===
+  {
+    slugPatterns: [/sobre/, /about/, /quem-somos/, /nossa-historia/, /historia/, /empresa/, /institucional/],
+    titlePatterns: [/sobre\s*(n[oó]s)?/i, /about\s*us/i, /quem\s*somos/i, /nossa\s*hist[oó]ria/i, /a\s*empresa/i],
+    category: 'about',
+    defaultTitle: 'Sobre Nós',
+    priority: 1
+  },
+  // === PRIVACY ===
+  {
+    slugPatterns: [/privacidade/, /privacy/, /politica.*privacidade/, /privacy.*policy/, /lgpd/],
+    titlePatterns: [/pol[ií]tica.*privacidade/i, /privacy\s*policy/i, /privacidade/i, /lgpd/i],
+    category: 'privacy',
+    defaultTitle: 'Política de Privacidade',
+    priority: 2
+  },
+  // === TERMS ===
+  {
+    slugPatterns: [/termos/, /terms/, /condi[cç][oõ]es/, /uso/, /servi[cç]o/],
+    titlePatterns: [/termos.*(?:uso|servi[cç]o)/i, /terms.*(?:service|use)/i, /condi[cç][oõ]es.*uso/i],
+    category: 'terms',
+    defaultTitle: 'Termos de Uso',
+    priority: 2
+  },
+  // === RETURNS/REFUND ===
+  {
+    slugPatterns: [/troca/, /devolu[cç]/, /refund/, /return/, /reembolso/, /cancelamento/],
+    titlePatterns: [/trocas?.*devolu[cç]/i, /devolu[cç].*trocas?/i, /refund/i, /return/i, /pol[ií]tica.*troca/i],
+    category: 'returns',
+    defaultTitle: 'Trocas e Devoluções',
+    priority: 2
+  },
+  // === SHIPPING ===
+  {
+    slugPatterns: [/frete/, /envio/, /shipping/, /entrega/, /prazos?/],
+    titlePatterns: [/pol[ií]tica.*frete/i, /shipping/i, /envio/i, /entrega/i, /prazos?.*entrega/i],
+    category: 'shipping',
+    defaultTitle: 'Política de Frete',
+    priority: 2
+  },
+  // === FAQ ===
+  {
+    slugPatterns: [/faq/, /duvida/, /pergunta/, /ajuda/, /help/, /suporte/],
+    titlePatterns: [/faq/i, /d[uú]vidas?/i, /perguntas?\s*frequentes?/i, /ajuda/i, /help/i],
+    category: 'faq',
+    defaultTitle: 'Perguntas Frequentes',
+    priority: 1
+  },
+  // === PAYMENT ===
+  {
+    slugPatterns: [/pagamento/, /payment/, /formas.*pagamento/, /meios.*pagamento/],
+    titlePatterns: [/formas?.*pagamento/i, /meios?.*pagamento/i, /payment/i, /como\s*pagar/i],
+    category: 'payment',
+    defaultTitle: 'Formas de Pagamento',
+    priority: 3
+  },
+  // === WARRANTY ===
+  {
+    slugPatterns: [/garantia/, /warranty/],
+    titlePatterns: [/garantia/i, /warranty/i, /pol[ií]tica.*garantia/i],
+    category: 'warranty',
+    defaultTitle: 'Garantia',
+    priority: 3
+  },
+  // === CONTACT (text pages only, not forms) ===
+  {
+    slugPatterns: [/contato/, /contact/, /fale.*conosco/, /atendimento/],
+    titlePatterns: [/contato/i, /contact/i, /fale.*conosco/i, /atendimento/i],
+    category: 'contact',
+    defaultTitle: 'Contato',
+    priority: 3
+  }
+];
+
+// Pages to NEVER import (functional, not content)
+const SKIP_PAGE_PATTERNS = [
+  // E-commerce functional
+  /\/cart\b/, /\/carrinho\b/, /\/checkout\b/, /\/account\b/, /\/conta\b/, /\/login\b/,
+  /\/cadastro\b/, /\/register\b/, /\/signup\b/, /\/signin\b/, /\/wishlist\b/,
+  /\/search\b/, /\/busca\b/, /\/compare\b/, /\/comparar\b/,
+  // Tracking (we have native)
+  /\/rastreio\b/, /\/rastreamento\b/, /\/rastrear\b/, /\/tracking\b/, /\/track\b/,
+  // Blog (we have native)
+  /\/blogs?\b/, /\/artigos?\b/, /\/noticias?\b/, /\/news\b/,
+  // Collections/Products
+  /\/collections?\b/, /\/products?\b/, /\/produtos?\b/, /\/categorias?\b/,
+  // Assets
+  /\.(?:jpg|jpeg|png|gif|webp|svg|pdf|css|js)$/i,
+  // External
+  /facebook\.com/, /instagram\.com/, /twitter\.com/, /youtube\.com/,
+  /linkedin\.com/, /pinterest\.com/, /tiktok\.com/, /wa\.me/, /whatsapp\.com/,
+  // Technical
+  /^javascript:/, /^mailto:/, /^tel:/, /^#$/
+];
+
 function extractInstitutionalPages(html: string, baseUrl: string, platform?: string): ExtractedInstitutionalPage[] {
   const pages: ExtractedInstitutionalPage[] = [];
   const addedSlugs = new Set<string>();
   const processedUrls = new Set<string>();
 
-  // Core routes to SKIP (not institutional pages or pages with forms/functions)
-  const skipPatterns = [
-    // E-commerce routes
-    '/collections', '/products', '/cart', '/checkout', '/account', '/login',
-    '/search', '/register', '/wishlist', '/compare', '/comparar',
-    // Tracking/functional routes
-    '/rastreio', '/rastrear', '/rastreamento', '/tracking', '/track',
-    // Auth routes
-    '/minha-conta', '/my-account', '/signin', '/signup', '/cadastro', '/newsletter',
-    // Contact forms (we want text pages, not forms)
-    '/contato', '/contact', '/fale-conosco', '/formulario',
-    // Technical/assets
-    'javascript:', 'mailto:', 'tel:', 'whatsapp', '#', '/cdn/', '/apps/',
-    '/assets/', '/files/', '.jpg', '.png', '.gif', '.webp', '.svg', '.pdf',
-    // Social media
-    'facebook.com', 'instagram.com', 'twitter.com', 'youtube.com', 'linkedin.com', 
-    'pinterest.com', 'tiktok.com', 'wa.me', 'api.whatsapp.com', '/blogs/',
-  ];
+  console.log('=== EXTRACTING INSTITUTIONAL PAGES ===');
+  console.log(`Platform: ${platform}, BaseURL: ${baseUrl}`);
 
-  const shouldSkip = (href: string): boolean => {
+  const shouldSkipUrl = (href: string): boolean => {
+    if (!href || href === '#' || href === '/') return true;
     const lowerHref = href.toLowerCase();
-    // Skip external links (different domain) unless it's relative
-    if (href.startsWith('http') && !href.includes(new URL(baseUrl).hostname)) return true;
-    // Skip core routes and social media
-    if (skipPatterns.some(p => lowerHref.includes(p))) return true;
-    // Skip home page
-    if (/^https?:\/\/[^/]+\/?$/.test(href) || href === '/' || href === '') return true;
-    // Skip already processed URLs
-    const cleanUrl = href.split('?')[0].replace(/\/$/, '').toLowerCase();
-    if (processedUrls.has(cleanUrl)) return true;
-    processedUrls.add(cleanUrl);
-    return false;
+    
+    // Skip external links
+    if (href.startsWith('http') && baseUrl) {
+      try {
+        const hrefDomain = new URL(href).hostname;
+        const baseDomain = new URL(baseUrl).hostname;
+        if (hrefDomain !== baseDomain) return true;
+      } catch {}
+    }
+    
+    // Skip functional pages
+    return SKIP_PAGE_PATTERNS.some(pattern => pattern.test(lowerHref));
   };
 
-  const extractSlug = (href: string): string | null => {
-    // Remove UTM and tracking params
-    const cleanHref = href.split('?')[0].replace(/\/$/, '');
+  const normalizeUrl = (href: string): string => {
+    if (!href) return '';
+    let url = href.split('?')[0].replace(/\/$/, '');
+    if (!url.startsWith('http') && baseUrl) {
+      url = `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    }
+    return url;
+  };
+
+  const extractSlugFromUrl = (href: string): string | null => {
+    const cleanHref = href.split('?')[0].replace(/\/$/, '').toLowerCase();
     
-    // Match Shopify policies
-    const policyMatch = /\/policies\/([^/?#]+)/i.exec(cleanHref);
-    if (policyMatch) return policyMatch[1];
+    // Try common page URL patterns
+    const patterns = [
+      /\/policies\/([^/?#]+)/i,      // Shopify policies
+      /\/pages?\/([^/?#]+)/i,        // Generic pages
+      /\/paginas?\/([^/?#]+)/i,      // Portuguese
+      /\/politicas?\/([^/?#]+)/i,    // Portuguese policies
+      /\/institucional\/([^/?#]+)/i, // Institutional
+    ];
     
-    // Match /pages/slug or /page/slug
-    const pageMatch = /\/(?:pages?|pagina)\/([^/?#]+)/i.exec(cleanHref);
-    if (pageMatch) return pageMatch[1];
+    for (const pattern of patterns) {
+      const match = pattern.exec(cleanHref);
+      if (match) return match[1];
+    }
+    
+    // Fallback: last path segment
+    const segments = cleanHref.replace(/^https?:\/\/[^/]+/, '').split('/').filter(Boolean);
+    if (segments.length > 0) {
+      const lastSegment = segments[segments.length - 1];
+      // Only use if it looks like a page slug (not numeric, not too short)
+      if (lastSegment.length > 2 && !/^\d+$/.test(lastSegment)) {
+        return lastSegment;
+      }
+    }
     
     return null;
   };
 
-  const extractTitle = (rawLabel: string): string => {
-    return rawLabel.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+  const categorizeSlug = (slug: string, title: string): { category: string; normalizedTitle: string } => {
+    const lowerSlug = slug.toLowerCase();
+    const lowerTitle = title.toLowerCase();
+    
+    for (const pattern of INSTITUTIONAL_PAGE_PATTERNS) {
+      // Check slug patterns
+      if (pattern.slugPatterns.some(p => p.test(lowerSlug))) {
+        return { category: pattern.category, normalizedTitle: pattern.defaultTitle };
+      }
+      // Check title patterns
+      if (pattern.titlePatterns.some(p => p.test(lowerTitle))) {
+        return { category: pattern.category, normalizedTitle: pattern.defaultTitle };
+      }
+    }
+    
+    return { category: 'other', normalizedTitle: title || slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') };
   };
 
-  const addPage = (href: string, rawLabel: string, source: 'footer' | 'header' | 'sitemap' | 'global') => {
-    if (shouldSkip(href)) return;
+  const addPage = (href: string, rawTitle: string, source: 'footer' | 'header' | 'sitemap' | 'global') => {
+    if (shouldSkipUrl(href)) return false;
     
-    const slug = extractSlug(href);
-    if (!slug || addedSlugs.has(slug.toLowerCase())) return;
+    const url = normalizeUrl(href);
+    if (!url || processedUrls.has(url.toLowerCase())) return false;
+    processedUrls.add(url.toLowerCase());
     
-    const title = extractTitle(rawLabel);
-    if (!title || title.length < 2) return;
+    const slug = extractSlugFromUrl(href);
+    if (!slug || addedSlugs.has(slug.toLowerCase())) return false;
     
-    // Clean URL - remove UTM params
-    let cleanUrl = href.split('?')[0];
-    if (!cleanUrl.startsWith('http')) {
-      // Only add baseUrl if it's not empty, otherwise skip this page
-      if (!baseUrl) {
-        console.warn(`Skipping page ${slug}: relative URL "${cleanUrl}" but no baseUrl available`);
-        return;
-      }
-      cleanUrl = `${baseUrl}${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
-    }
+    // Clean title
+    const title = rawTitle.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (!title || title.length < 2 || title.length > 100) return false;
     
-    // Validate the final URL
-    try {
-      new URL(cleanUrl);
-    } catch (e) {
-      console.warn(`Skipping page ${slug}: invalid URL "${cleanUrl}"`);
-      return;
-    }
+    // Skip if title looks like a product or category
+    if (/^\d+%?\s*off|^r\$|compre|add.*cart|adicionar/i.test(title)) return false;
     
-    pages.push({ 
-      title, 
-      slug: slug.toLowerCase(), 
-      url: cleanUrl, 
-      source 
+    const { category, normalizedTitle } = categorizeSlug(slug, title);
+    
+    pages.push({
+      title: title || normalizedTitle,
+      slug: slug.toLowerCase(),
+      url,
+      source
     });
     addedSlugs.add(slug.toLowerCase());
-    console.log(`Found institutional page: ${title} -> ${slug} (${cleanUrl})`);
+    console.log(`[PAGE] Found: "${title}" -> ${slug} (${category}) from ${source}`);
+    return true;
   };
 
-  // Link extraction pattern
-  const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
-
-  // ===== STRATEGY 1: Extract from header/nav =====
-  const headerPatterns = [
-    /<header[^>]*>([\s\S]*?)<\/header>/gi,
-    /<nav[^>]*class="[^"]*(?:main|primary|site|header)[^"]*"[^>]*>([\s\S]*?)<\/nav>/gi,
-    /<div[^>]*class="[^"]*(?:header|navigation|main-nav)[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
-  ];
-
-  for (const headerPattern of headerPatterns) {
-    let headerMatch;
-    while ((headerMatch = headerPattern.exec(html)) !== null) {
-      let linkMatch;
-      const tempPattern = new RegExp(linkPattern.source, 'gi');
-      while ((linkMatch = tempPattern.exec(headerMatch[1])) !== null) {
-        const [, href, rawLabel] = linkMatch;
-        if (/\/(?:pages?|policies)\//i.test(href)) {
-          addPage(href, rawLabel, 'header');
-        }
-      }
-    }
-  }
-
-  // ===== STRATEGY 2: Extract from footer =====
+  // ===== STRATEGY 1: Footer Links (most reliable for institutional pages) =====
   const footerPatterns = [
     /<footer[^>]*>([\s\S]*?)<\/footer>/gi,
-    /<div[^>]*class="[^"]*(?:footer|Footer|site-footer)[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>\s*)*(?=<\/body>|$)/gi,
-    /<section[^>]*class="[^"]*(?:footer|Footer)[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
-    /<div[^>]*id="?(?:footer|shopify-section-footer)"?[^>]*>([\s\S]*?)<\/div>/gi,
+    /<div[^>]*(?:class|id)="[^"]*footer[^"]*"[^>]*>([\s\S]*?)<\/div>(?=\s*<\/body|\s*$)/gi,
+    /<section[^>]*class="[^"]*footer[^"]*"[^>]*>([\s\S]*?)<\/section>/gi,
   ];
 
   for (const footerPattern of footerPatterns) {
-    let footerMatch;
-    while ((footerMatch = footerPattern.exec(html)) !== null) {
+    let match;
+    while ((match = footerPattern.exec(html)) !== null) {
+      const footerHtml = match[1] || match[0];
+      
+      // Find all links in footer
+      const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<(?!\/a)[^>]*>[^<]*)*)<\/a>/gi;
       let linkMatch;
-      const tempPattern = new RegExp(linkPattern.source, 'gi');
-      while ((linkMatch = tempPattern.exec(footerMatch[1])) !== null) {
-        const [, href, rawLabel] = linkMatch;
-        if (/\/(?:pages?|policies)\//i.test(href)) {
-          addPage(href, rawLabel, 'footer');
+      
+      while ((linkMatch = linkPattern.exec(footerHtml)) !== null) {
+        addPage(linkMatch[1], linkMatch[2], 'footer');
+      }
+    }
+  }
+  console.log(`[STRATEGY 1] Footer: Found ${pages.length} pages so far`);
+
+  // ===== STRATEGY 2: Header/Nav Links =====
+  const navPatterns = [
+    /<header[^>]*>([\s\S]*?)<\/header>/gi,
+    /<nav[^>]*(?:class="[^"]*(?:main|primary|site)[^"]*")?[^>]*>([\s\S]*?)<\/nav>/gi,
+  ];
+
+  const beforeCount = pages.length;
+  for (const navPattern of navPatterns) {
+    let match;
+    while ((match = navPattern.exec(html)) !== null) {
+      const navHtml = match[1] || match[0];
+      const linkPattern = /<a[^>]*href=["']([^"']+)["'][^>]*>([^<]*(?:<(?!\/a)[^>]*>[^<]*)*)<\/a>/gi;
+      let linkMatch;
+      
+      while ((linkMatch = linkPattern.exec(navHtml)) !== null) {
+        const href = linkMatch[1];
+        // Only add if it's a page link, not category/product
+        if (/\/(?:pages?|policies|paginas?|politicas?)\//i.test(href)) {
+          addPage(href, linkMatch[2], 'header');
         }
       }
     }
   }
+  console.log(`[STRATEGY 2] Header: Found ${pages.length - beforeCount} new pages`);
 
-  // ===== STRATEGY 3: Add Shopify standard policy pages (always for Shopify stores) =====
-  const isShopify = platform === 'Shopify' || html.includes('Shopify') || html.includes('shopify') || html.includes('cdn.shopify');
+  // ===== STRATEGY 3: Platform-specific policy pages =====
+  const isShopify = platform === 'Shopify' || /shopify|cdn\.shopify/i.test(html);
+  const isNuvemshop = platform === 'Nuvemshop' || /tiendanube|nuvemshop/i.test(html);
+  
   if (isShopify) {
     const shopifyPolicies = [
       { slug: 'privacy-policy', title: 'Política de Privacidade', path: '/policies/privacy-policy' },
@@ -2472,102 +2598,102 @@ function extractInstitutionalPages(html: string, baseUrl: string, platform?: str
     
     for (const policy of shopifyPolicies) {
       if (!addedSlugs.has(policy.slug)) {
-        pages.push({
-          title: policy.title,
-          slug: policy.slug,
-          url: `${baseUrl}${policy.path}`,
-          source: 'sitemap',
-        });
-        addedSlugs.add(policy.slug);
-        console.log(`Added Shopify policy: ${policy.title}`);
+        // Check if the page actually exists in HTML
+        if (html.includes(policy.path) || html.includes(`/policies/${policy.slug}`)) {
+          pages.push({
+            title: policy.title,
+            slug: policy.slug,
+            url: `${baseUrl}${policy.path}`,
+            source: 'sitemap'
+          });
+          addedSlugs.add(policy.slug);
+          console.log(`[STRATEGY 3] Shopify policy: ${policy.title}`);
+        }
       }
     }
   }
 
-  // ===== STRATEGY 4: Search ENTIRE HTML for ALL /pages/ and /policies/ links =====
-  // Reset pattern to start from beginning
-  const globalPagePattern = /<a[^>]*href=["']([^"']*\/(?:pages?|policies)\/[^"'?#]+)[^"']*["'][^>]*>([^<]*(?:<[^/][^>]*>[^<]*)*?)<\/a>/gi;
-  let linkMatch;
-  
-  while ((linkMatch = globalPagePattern.exec(html)) !== null) {
-    const [, href, rawLabel] = linkMatch;
-    addPage(href, rawLabel, 'global');
-  }
-
-  // ===== STRATEGY 5: Look for menu data in JSON (Shopify themes often embed this) =====
-  const jsonMenuPatterns = [
-    /"links"\s*:\s*\[([\s\S]*?)\]/gi,
-    /"menu"\s*:\s*\[([\s\S]*?)\]/gi,
+  // ===== STRATEGY 4: Global search for page/policy links =====
+  const globalPatterns = [
+    /<a[^>]*href=["']([^"']*\/(?:pages?|policies|paginas?|politicas?)\/[^"'?#]+)["'][^>]*>([^<]*(?:<(?!\/a)[^>]*>[^<]*)*)<\/a>/gi,
   ];
 
-  for (const pattern of jsonMenuPatterns) {
+  const beforeGlobal = pages.length;
+  for (const pattern of globalPatterns) {
     let match;
     while ((match = pattern.exec(html)) !== null) {
-      // Extract URLs from the JSON-like structure
-      const urlMatches = match[1].matchAll(/"(?:url|href)"\s*:\s*"([^"]*\/(?:pages?|policies)\/[^"]+)"/gi);
-      const titleMatches = match[1].matchAll(/"(?:title|label|name)"\s*:\s*"([^"]+)"/gi);
-      
-      const urls = Array.from(urlMatches).map(m => m[1]);
-      const titles = Array.from(titleMatches).map(m => m[1]);
-      
-      urls.forEach((url, i) => {
-        const title = titles[i] || extractSlug(url) || 'Página';
-        addPage(url, title, 'sitemap');
-      });
+      addPage(match[1], match[2], 'global');
     }
   }
+  console.log(`[STRATEGY 4] Global: Found ${pages.length - beforeGlobal} new pages`);
 
-  // ===== STRATEGY 6: Look for sitemap links if available in the HTML =====
-  // Some themes include sitemap data or links to sitemap
-  const sitemapLinksPattern = /<loc>([^<]*\/(?:pages?|policies)\/[^<]+)<\/loc>/gi;
-  while ((linkMatch = sitemapLinksPattern.exec(html)) !== null) {
-    const url = linkMatch[1];
-    const slug = extractSlug(url);
-    if (slug && !addedSlugs.has(slug.toLowerCase())) {
-      // Generate title from slug
-      const title = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      addPage(url, title, 'sitemap');
-    }
-  }
-
-  // ===== STRATEGY 7: Common institutional page paths for Shopify =====
-  // Try to find pages by common names that might exist
-  const commonPageSlugs = [
-    'sobre', 'sobre-nos', 'about', 'about-us', 'quem-somos',
-    'contato', 'contact', 'fale-conosco',
-    'faq', 'perguntas-frequentes', 'duvidas',
-    'como-comprar', 'how-to-buy',
-    'entrega', 'envio', 'shipping', 'frete',
-    'troca', 'devolucao', 'trocas-e-devolucoes', 'returns',
-    'garantia', 'warranty',
-    'pagamento', 'formas-de-pagamento', 'payment',
-    'rastreio', 'rastreamento', 'tracking', 'rastrear-pedido',
-    'depoimentos', 'testimonials', 'feedback-clientes',
-    'parceiros', 'partners',
-    'trabalhe-conosco', 'careers', 'vagas',
+  // ===== STRATEGY 5: Common institutional page slugs =====
+  const commonSlugs = [
+    { slug: 'sobre', title: 'Sobre' },
+    { slug: 'sobre-nos', title: 'Sobre Nós' },
+    { slug: 'quem-somos', title: 'Quem Somos' },
+    { slug: 'about', title: 'About' },
+    { slug: 'about-us', title: 'About Us' },
+    { slug: 'faq', title: 'FAQ' },
+    { slug: 'perguntas-frequentes', title: 'Perguntas Frequentes' },
+    { slug: 'duvidas', title: 'Dúvidas' },
+    { slug: 'trocas-e-devolucoes', title: 'Trocas e Devoluções' },
+    { slug: 'politica-de-troca', title: 'Política de Troca' },
+    { slug: 'como-comprar', title: 'Como Comprar' },
+    { slug: 'formas-de-pagamento', title: 'Formas de Pagamento' },
+    { slug: 'politica-de-privacidade', title: 'Política de Privacidade' },
+    { slug: 'termos-de-uso', title: 'Termos de Uso' },
+    { slug: 'garantia', title: 'Garantia' },
+    { slug: 'politica-de-frete', title: 'Política de Frete' },
+    { slug: 'entrega', title: 'Entrega' },
+    { slug: 'trabalhe-conosco', title: 'Trabalhe Conosco' },
   ];
 
-  // Check if any of these common pages are referenced in the HTML
-  for (const slug of commonPageSlugs) {
+  const beforeCommon = pages.length;
+  for (const { slug, title } of commonSlugs) {
     if (addedSlugs.has(slug)) continue;
     
-    // Check if this slug appears in any /pages/ link
-    const slugPattern = new RegExp(`/pages/${slug}(?:[?#]|"|'|$)`, 'i');
-    if (slugPattern.test(html)) {
-      const title = slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      if (!addedSlugs.has(slug)) {
-        pages.push({
-          title,
-          slug,
-          url: `${baseUrl}/pages/${slug}`,
-          source: 'global',
-        });
-        addedSlugs.add(slug);
-        console.log(`Found common page by pattern: ${title}`);
-      }
+    // Check if slug appears in any /pages/ link in the HTML
+    const slugRegex = new RegExp(`/pages?/${slug}(?:[?#"']|$)`, 'i');
+    if (slugRegex.test(html)) {
+      pages.push({
+        title,
+        slug,
+        url: `${baseUrl}/pages/${slug}`,
+        source: 'global'
+      });
+      addedSlugs.add(slug);
+      console.log(`[STRATEGY 5] Common slug found: ${title}`);
     }
   }
+  console.log(`[STRATEGY 5] Common slugs: Found ${pages.length - beforeCommon} new pages`);
 
-  console.log(`Extracted ${pages.length} institutional pages total`);
+  // ===== STRATEGY 6: Look for embedded JSON menu data =====
+  const jsonPatterns = [
+    /"(?:links|menu|items)"\s*:\s*\[[\s\S]*?"(?:url|href)"\s*:\s*"([^"]*\/(?:pages?|policies)\/[^"]+)"[\s\S]*?"(?:title|label|name)"\s*:\s*"([^"]+)"/gi,
+  ];
+
+  const beforeJson = pages.length;
+  for (const pattern of jsonPatterns) {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      addPage(match[1], match[2], 'sitemap');
+    }
+  }
+  console.log(`[STRATEGY 6] JSON data: Found ${pages.length - beforeJson} new pages`);
+
+  // Sort by priority (about, policies, then others)
+  const priorityOrder: Record<string, number> = {
+    'about': 1, 'privacy': 2, 'terms': 3, 'returns': 4, 'shipping': 5,
+    'faq': 6, 'payment': 7, 'warranty': 8, 'contact': 9, 'other': 10
+  };
+
+  pages.sort((a, b) => {
+    const catA = categorizeSlug(a.slug, a.title).category;
+    const catB = categorizeSlug(b.slug, b.title).category;
+    return (priorityOrder[catA] || 10) - (priorityOrder[catB] || 10);
+  });
+
+  console.log(`=== INSTITUTIONAL PAGES EXTRACTION COMPLETE: ${pages.length} pages found ===`);
   return pages;
 }
