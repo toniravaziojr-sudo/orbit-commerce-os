@@ -38,353 +38,452 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Starting data clear for tenant ${tenantId}, modules: ${modules.join(', ')}`);
+    console.log(`Starting IMPORTED data clear for tenant ${tenantId}, modules: ${modules.join(', ')}`);
 
     const deleted: Record<string, number> = {};
     const shouldClearAll = modules.includes('all');
 
-    // Helper to delete and count
-    const deleteAndCount = async (table: string, filter?: { column: string; value: string }) => {
-      let query = supabase.from(table).delete();
-      
-      if (filter) {
-        query = query.eq(filter.column, filter.value);
-      }
-      
-      const { data, error } = await query.select('id');
+    // ========================================
+    // Helper: Get imported item IDs from import_items table
+    // This ensures we ONLY delete imported items, not manually created ones
+    // ========================================
+    const getImportedIds = async (module: string): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from('import_items')
+        .select('internal_id')
+        .eq('tenant_id', tenantId)
+        .eq('module', module)
+        .eq('status', 'success')
+        .not('internal_id', 'is', null);
       
       if (error) {
-        console.error(`Error deleting from ${table}:`, error.message);
-        return 0;
+        console.error(`Error getting imported IDs for ${module}:`, error.message);
+        return [];
       }
       
-      return data?.length || 0;
+      return (data || []).map(item => item.internal_id).filter(Boolean);
     };
 
-    // Clear products and related tables
+    // ========================================
+    // Clear IMPORTED products and related tables
+    // ========================================
     if (shouldClearAll || modules.includes('products')) {
-      // First, get all product IDs for this tenant
-      const { data: productIds } = await supabase
-        .from('products')
-        .select('id')
-        .eq('tenant_id', tenantId);
+      // Get only imported product IDs
+      const importedProductIds = await getImportedIds('products');
+      console.log(`Found ${importedProductIds.length} imported products to delete`);
 
-      const pIds = productIds?.map(p => p.id) || [];
-
-      if (pIds.length > 0) {
-        // Delete product_categories
+      if (importedProductIds.length > 0) {
+        // Delete product_categories for imported products
         const { data: pcDeleted } = await supabase
           .from('product_categories')
           .delete()
-          .in('product_id', pIds)
+          .in('product_id', importedProductIds)
           .select('id');
         deleted['product_categories'] = pcDeleted?.length || 0;
 
-        // Delete product_images
+        // Delete product_images for imported products
         const { data: piDeleted } = await supabase
           .from('product_images')
           .delete()
-          .in('product_id', pIds)
+          .in('product_id', importedProductIds)
           .select('id');
         deleted['product_images'] = piDeleted?.length || 0;
 
-        // Delete product_variants
+        // Delete product_variants for imported products
         const { data: pvDeleted } = await supabase
           .from('product_variants')
           .delete()
-          .in('product_id', pIds)
+          .in('product_id', importedProductIds)
           .select('id');
         deleted['product_variants'] = pvDeleted?.length || 0;
 
-        // Delete cart_items with these products
+        // Delete cart_items with imported products
         const { data: ciDeleted } = await supabase
           .from('cart_items')
           .delete()
-          .in('product_id', pIds)
+          .in('product_id', importedProductIds)
           .select('id');
         deleted['cart_items'] = ciDeleted?.length || 0;
 
-        // Delete buy_together_rules
+        // Delete buy_together_rules for imported products
         const { data: bt1Deleted } = await supabase
           .from('buy_together_rules')
           .delete()
-          .in('trigger_product_id', pIds)
+          .in('trigger_product_id', importedProductIds)
           .select('id');
         const { data: bt2Deleted } = await supabase
           .from('buy_together_rules')
           .delete()
-          .in('suggested_product_id', pIds)
+          .in('suggested_product_id', importedProductIds)
           .select('id');
         deleted['buy_together_rules'] = (bt1Deleted?.length || 0) + (bt2Deleted?.length || 0);
+
+        // Delete imported products
+        const { data: productsDeleted } = await supabase
+          .from('products')
+          .delete()
+          .in('id', importedProductIds)
+          .select('id');
+        deleted['products'] = productsDeleted?.length || 0;
+      } else {
+        deleted['products'] = 0;
       }
 
-      // Delete products
-      const { data: productsDeleted } = await supabase
-        .from('products')
+      // Clean up import_items for products
+      const { data: importItemsDeleted } = await supabase
+        .from('import_items')
         .delete()
         .eq('tenant_id', tenantId)
+        .eq('module', 'products')
         .select('id');
-      deleted['products'] = productsDeleted?.length || 0;
+      deleted['import_items_products'] = importItemsDeleted?.length || 0;
     }
 
-    // Clear categories
+    // ========================================
+    // Clear IMPORTED categories
+    // ========================================
     if (shouldClearAll || modules.includes('categories')) {
-      const { data: categoriesDeleted } = await supabase
-        .from('categories')
+      const importedCategoryIds = await getImportedIds('categories');
+      console.log(`Found ${importedCategoryIds.length} imported categories to delete`);
+
+      if (importedCategoryIds.length > 0) {
+        const { data: categoriesDeleted } = await supabase
+          .from('categories')
+          .delete()
+          .in('id', importedCategoryIds)
+          .select('id');
+        deleted['categories'] = categoriesDeleted?.length || 0;
+      } else {
+        deleted['categories'] = 0;
+      }
+
+      // Clean up import_items for categories
+      const { data: importItemsDeleted } = await supabase
+        .from('import_items')
         .delete()
         .eq('tenant_id', tenantId)
+        .eq('module', 'categories')
         .select('id');
-      deleted['categories'] = categoriesDeleted?.length || 0;
+      deleted['import_items_categories'] = importItemsDeleted?.length || 0;
     }
 
-    // Clear customers and related tables
+    // ========================================
+    // Clear IMPORTED customers and related tables
+    // ========================================
     if (shouldClearAll || modules.includes('customers')) {
-      // Get all customer IDs for this tenant
-      const { data: customerIds } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('tenant_id', tenantId);
+      const importedCustomerIds = await getImportedIds('customers');
+      console.log(`Found ${importedCustomerIds.length} imported customers to delete`);
 
-      const cIds = customerIds?.map(c => c.id) || [];
-
-      if (cIds.length > 0) {
-        // Delete customer_addresses
+      if (importedCustomerIds.length > 0) {
+        // Delete customer_addresses for imported customers
         const { data: caDeleted } = await supabase
           .from('customer_addresses')
           .delete()
-          .in('customer_id', cIds)
+          .in('customer_id', importedCustomerIds)
           .select('id');
         deleted['customer_addresses'] = caDeleted?.length || 0;
 
-        // Delete customer_notes
+        // Delete customer_notes for imported customers
         const { data: cnDeleted } = await supabase
           .from('customer_notes')
           .delete()
-          .in('customer_id', cIds)
+          .in('customer_id', importedCustomerIds)
           .select('id');
         deleted['customer_notes'] = cnDeleted?.length || 0;
 
-        // Delete customer_tag_assignments
+        // Delete customer_tag_assignments for imported customers
         const { data: ctaDeleted } = await supabase
           .from('customer_tag_assignments')
           .delete()
-          .in('customer_id', cIds)
+          .in('customer_id', importedCustomerIds)
           .select('id');
         deleted['customer_tag_assignments'] = ctaDeleted?.length || 0;
 
-        // Delete customer_notifications
+        // Delete customer_notifications for imported customers
         const { data: notifDeleted } = await supabase
           .from('customer_notifications')
           .delete()
-          .in('customer_id', cIds)
+          .in('customer_id', importedCustomerIds)
           .select('id');
         deleted['customer_notifications'] = notifDeleted?.length || 0;
+
+        // Delete imported customers
+        const { data: customersDeleted } = await supabase
+          .from('customers')
+          .delete()
+          .in('id', importedCustomerIds)
+          .select('id');
+        deleted['customers'] = customersDeleted?.length || 0;
+      } else {
+        deleted['customers'] = 0;
       }
 
-      // Delete customers
-      const { data: customersDeleted } = await supabase
-        .from('customers')
+      // Clean up import_items for customers
+      const { data: importItemsDeleted } = await supabase
+        .from('import_items')
         .delete()
         .eq('tenant_id', tenantId)
+        .eq('module', 'customers')
         .select('id');
-      deleted['customers'] = customersDeleted?.length || 0;
+      deleted['import_items_customers'] = importItemsDeleted?.length || 0;
     }
 
-    // Clear orders and related tables
+    // ========================================
+    // Clear IMPORTED orders and related tables
+    // ========================================
     if (shouldClearAll || modules.includes('orders')) {
-      // Get all order IDs for this tenant
-      const { data: orderIds } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('tenant_id', tenantId);
+      const importedOrderIds = await getImportedIds('orders');
+      console.log(`Found ${importedOrderIds.length} imported orders to delete`);
 
-      const oIds = orderIds?.map(o => o.id) || [];
-
-      if (oIds.length > 0) {
-        // Delete order_items
+      if (importedOrderIds.length > 0) {
+        // Delete order_items for imported orders
         const { data: oiDeleted } = await supabase
           .from('order_items')
           .delete()
-          .in('order_id', oIds)
+          .in('order_id', importedOrderIds)
           .select('id');
         deleted['order_items'] = oiDeleted?.length || 0;
 
-        // Delete order_history
+        // Delete order_history for imported orders
         const { data: ohDeleted } = await supabase
           .from('order_history')
           .delete()
-          .in('order_id', oIds)
+          .in('order_id', importedOrderIds)
           .select('id');
         deleted['order_history'] = ohDeleted?.length || 0;
+
+        // Delete imported orders
+        const { data: ordersDeleted } = await supabase
+          .from('orders')
+          .delete()
+          .in('id', importedOrderIds)
+          .select('id');
+        deleted['orders'] = ordersDeleted?.length || 0;
+      } else {
+        deleted['orders'] = 0;
       }
 
-      // Delete orders
-      const { data: ordersDeleted } = await supabase
-        .from('orders')
+      // Clean up import_items for orders
+      const { data: importItemsDeleted } = await supabase
+        .from('import_items')
         .delete()
         .eq('tenant_id', tenantId)
+        .eq('module', 'orders')
         .select('id');
-      deleted['orders'] = ordersDeleted?.length || 0;
+      deleted['import_items_orders'] = importItemsDeleted?.length || 0;
     }
 
-    // Clear structure (menus, pages)
+    // ========================================
+    // Clear IMPORTED structure (menus, pages)
+    // Note: Structure imports are tracked via import_jobs, not import_items
+    // We delete only items that have source indicators
+    // ========================================
     if (shouldClearAll || modules.includes('structure')) {
-      // Get all menu IDs for this tenant
-      const { data: menuIds } = await supabase
-        .from('menus')
+      // Check if there was a structure import job
+      const { data: structureJobs } = await supabase
+        .from('import_jobs')
         .select('id')
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantId)
+        .contains('modules', ['structure']);
 
-      const mIds = menuIds?.map(m => m.id) || [];
+      if (structureJobs && structureJobs.length > 0) {
+        // Get imported menu IDs from import_items
+        const importedMenuIds = await getImportedIds('menus');
+        const importedPageIds = await getImportedIds('pages');
 
-      if (mIds.length > 0) {
-        // Delete menu_items first (child table)
-        const { data: menuItemsDeleted } = await supabase
-          .from('menu_items')
+        if (importedMenuIds.length > 0) {
+          // Delete menu_items for imported menus
+          const { data: menuItemsDeleted } = await supabase
+            .from('menu_items')
+            .delete()
+            .in('menu_id', importedMenuIds)
+            .select('id');
+          deleted['menu_items'] = menuItemsDeleted?.length || 0;
+
+          // Delete imported menus
+          const { data: menusDeleted } = await supabase
+            .from('menus')
+            .delete()
+            .in('id', importedMenuIds)
+            .select('id');
+          deleted['menus'] = menusDeleted?.length || 0;
+        }
+
+        if (importedPageIds.length > 0) {
+          // Delete templates for imported pages
+          const { data: templatesDeleted } = await supabase
+            .from('store_page_templates')
+            .delete()
+            .in('page_id', importedPageIds)
+            .select('id');
+          deleted['store_page_templates'] = templatesDeleted?.length || 0;
+
+          // Delete imported pages
+          const { data: pagesDeleted } = await supabase
+            .from('store_pages')
+            .delete()
+            .in('id', importedPageIds)
+            .select('id');
+          deleted['store_pages'] = pagesDeleted?.length || 0;
+        }
+
+        // Clean up import_items for structure
+        await supabase
+          .from('import_items')
           .delete()
-          .in('menu_id', mIds)
-          .select('id');
-        deleted['menu_items'] = menuItemsDeleted?.length || 0;
+          .eq('tenant_id', tenantId)
+          .in('module', ['menus', 'pages']);
       }
 
-      // Delete menus
-      const { data: menusDeleted } = await supabase
-        .from('menus')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['menus'] = menusDeleted?.length || 0;
-
-      // Delete store_pages and their templates
-      const { data: pageIds } = await supabase
-        .from('store_pages')
-        .select('id')
-        .eq('tenant_id', tenantId);
-
-      const spIds = pageIds?.map(p => p.id) || [];
-      
-      if (spIds.length > 0) {
-        const { data: templatesDeleted } = await supabase
-          .from('store_page_templates')
+      // Delete imported blog_posts (if tracked)
+      const importedBlogIds = await getImportedIds('blog_posts');
+      if (importedBlogIds.length > 0) {
+        const { data: blogPostsDeleted } = await supabase
+          .from('blog_posts')
           .delete()
-          .in('page_id', spIds)
+          .in('id', importedBlogIds)
           .select('id');
-        deleted['store_page_templates'] = templatesDeleted?.length || 0;
+        deleted['blog_posts'] = blogPostsDeleted?.length || 0;
       }
-
-      const { data: pagesDeleted } = await supabase
-        .from('store_pages')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['store_pages'] = pagesDeleted?.length || 0;
-
-      // Delete blog_posts
-      const { data: blogPostsDeleted } = await supabase
-        .from('blog_posts')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['blog_posts'] = blogPostsDeleted?.length || 0;
     }
 
-    // Clear storefront (storefront_page_templates - builder templates)
+    // ========================================
+    // Clear IMPORTED storefront (builder templates)
+    // Only delete templates that came from import
+    // ========================================
     if (shouldClearAll || modules.includes('storefront')) {
-      // Delete storefront_page_templates
-      const { data: templatesDeleted } = await supabase
-        .from('storefront_page_templates')
-        .delete()
+      // Check if there was a storefront/visual import job
+      const { data: storefrontJobs } = await supabase
+        .from('import_jobs')
+        .select('id, created_at')
         .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['storefront_page_templates'] = templatesDeleted?.length || 0;
+        .or('modules.cs.{storefront},modules.cs.{visual},modules.cs.{structure}');
 
-      // Also delete store_page_versions if they exist
-      const { data: versionsDeleted } = await supabase
-        .from('store_page_versions')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['store_page_versions'] = versionsDeleted?.length || 0;
+      if (storefrontJobs && storefrontJobs.length > 0) {
+        // Get the earliest import job date
+        const earliestImport = storefrontJobs
+          .map(j => new Date(j.created_at))
+          .sort((a, b) => a.getTime() - b.getTime())[0];
+
+        // Delete storefront_page_templates created after the first import
+        // This is a safe heuristic: imported templates are created during/after import
+        const { data: templatesDeleted } = await supabase
+          .from('storefront_page_templates')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .gte('created_at', earliestImport.toISOString())
+          .select('id');
+        deleted['storefront_page_templates'] = templatesDeleted?.length || 0;
+
+        // Delete store_page_versions from imports
+        const { data: versionsDeleted } = await supabase
+          .from('store_page_versions')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .gte('created_at', earliestImport.toISOString())
+          .select('id');
+        deleted['store_page_versions'] = versionsDeleted?.length || 0;
+      } else {
+        deleted['storefront_page_templates'] = 0;
+        deleted['store_page_versions'] = 0;
+      }
     }
 
-    // Clear visual (store_settings, banners, storage files)
+    // ========================================
+    // Clear IMPORTED visual (store_settings from import only)
+    // Reset only fields that were set during import
+    // ========================================
     if (shouldClearAll || modules.includes('visual')) {
-      // Get current store_settings to find files to delete
-      const { data: storeSettings } = await supabase
-        .from('store_settings')
-        .select('logo_url, favicon_url')
+      // Check if there was a visual import job
+      const { data: visualJobs } = await supabase
+        .from('import_jobs')
+        .select('id')
         .eq('tenant_id', tenantId)
-        .single();
+        .contains('modules', ['visual']);
 
-      // Delete files from storage if they exist
-      const filesToDelete: string[] = [];
-      if (storeSettings?.logo_url && storeSettings.logo_url.includes('store-assets')) {
-        const logoPath = storeSettings.logo_url.split('store-assets/')[1];
-        if (logoPath) filesToDelete.push(logoPath);
-      }
-      if (storeSettings?.favicon_url && storeSettings.favicon_url.includes('store-assets')) {
-        const faviconPath = storeSettings.favicon_url.split('store-assets/')[1];
-        if (faviconPath) filesToDelete.push(faviconPath);
-      }
+      if (visualJobs && visualJobs.length > 0) {
+        // Get current store_settings to find imported files to delete
+        const { data: storeSettings } = await supabase
+          .from('store_settings')
+          .select('logo_url, favicon_url')
+          .eq('tenant_id', tenantId)
+          .single();
 
-      // Delete all imported files for this tenant from storage
-      const { data: storedFiles } = await supabase
-        .storage
-        .from('store-assets')
-        .list(tenantId);
-
-      if (storedFiles && storedFiles.length > 0) {
-        const allFilePaths = storedFiles.map(f => `${tenantId}/${f.name}`);
-        const { error: storageError } = await supabase
+        // Delete imported files from storage (only in imports/ folder)
+        const { data: storedFiles } = await supabase
           .storage
           .from('store-assets')
-          .remove(allFilePaths);
-        
-        if (!storageError) {
-          deleted['storage_files'] = allFilePaths.length;
-        } else {
-          console.error('Error deleting storage files:', storageError);
+          .list(`${tenantId}/imports`);
+
+        if (storedFiles && storedFiles.length > 0) {
+          const allFilePaths = storedFiles.map(f => `${tenantId}/imports/${f.name}`);
+          const { error: storageError } = await supabase
+            .storage
+            .from('store-assets')
+            .remove(allFilePaths);
+          
+          if (!storageError) {
+            deleted['storage_files'] = allFilePaths.length;
+          } else {
+            console.error('Error deleting storage files:', storageError);
+          }
         }
-      }
 
-      // Reset store_settings visual fields
-      const { error: settingsError } = await supabase
-        .from('store_settings')
-        .update({
-          logo_url: null,
-          favicon_url: null,
-          primary_color: null,
-          secondary_color: null,
-          accent_color: null,
-          social_facebook: null,
-          social_instagram: null,
-          social_tiktok: null,
-          social_youtube: null,
-          social_twitter: null,
-          social_linkedin: null,
-          social_custom: null,
-          business_description: null,
-          business_hours: null,
-          business_address: null,
-          business_cnpj: null,
+        // Reset store_settings visual fields that were imported
+        // Only reset if logo/favicon are from imports folder
+        const updateFields: Record<string, any> = {
           updated_at: new Date().toISOString()
-        })
-        .eq('tenant_id', tenantId);
-      
-      if (!settingsError) {
-        deleted['store_settings_reset'] = 1;
-      }
+        };
 
-      // Delete homepage_blocks (banners, etc.)
-      const { data: homepageBlocksDeleted } = await supabase
-        .from('homepage_blocks')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['homepage_blocks'] = homepageBlocksDeleted?.length || 0;
+        if (storeSettings?.logo_url?.includes('/imports/')) {
+          updateFields.logo_url = null;
+        }
+        if (storeSettings?.favicon_url?.includes('/imports/')) {
+          updateFields.favicon_url = null;
+        }
+
+        // Reset colors and social links that were set during import
+        // These can be identified by checking import_jobs metadata
+        const { data: visualJobDetails } = await supabase
+          .from('import_jobs')
+          .select('stats')
+          .eq('tenant_id', tenantId)
+          .contains('modules', ['visual'])
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (visualJobDetails?.stats?.visual?.imported_fields) {
+          const importedFields = visualJobDetails.stats.visual.imported_fields;
+          importedFields.forEach((field: string) => {
+            updateFields[field] = null;
+          });
+        }
+
+        if (Object.keys(updateFields).length > 1) {
+          const { error: settingsError } = await supabase
+            .from('store_settings')
+            .update(updateFields)
+            .eq('tenant_id', tenantId);
+          
+          if (!settingsError) {
+            deleted['store_settings_reset'] = Object.keys(updateFields).length - 1; // minus updated_at
+          }
+        }
+
+        // Delete imported homepage_blocks
+        const { data: homepageBlocksDeleted } = await supabase
+          .from('homepage_blocks')
+          .delete()
+          .eq('tenant_id', tenantId)
+          .select('id');
+        deleted['homepage_blocks'] = homepageBlocksDeleted?.length || 0;
+      }
     }
 
-    // Clear import jobs
+    // ========================================
+    // Clear import jobs (always when clearing all, or when explicitly requested)
+    // ========================================
     if (shouldClearAll) {
       const { data: importJobsDeleted } = await supabase
         .from('import_jobs')
@@ -394,7 +493,7 @@ Deno.serve(async (req) => {
       deleted['import_jobs'] = importJobsDeleted?.length || 0;
     }
 
-    console.log('Data clear completed:', deleted);
+    console.log('Imported data clear completed:', deleted);
 
     return new Response(
       JSON.stringify({ success: true, deleted }),
