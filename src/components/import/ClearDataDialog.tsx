@@ -18,7 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface ClearDataDialogProps {
-  onClear: (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'all')[]) => Promise<void>;
+  onClear: (modules: ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'storefront' | 'all')[]) => Promise<void>;
   isClearing: boolean;
 }
 
@@ -29,6 +29,7 @@ const moduleOptions = [
   { id: 'orders', label: 'Pedidos', description: 'Inclui itens e histórico' },
   { id: 'structure', label: 'Estrutura da Loja', description: 'Menus, páginas institucionais e configurações de menu' },
   { id: 'visual', label: 'Visual da Loja', description: 'Cores, logo, favicon, informações do negócio e banners importados' },
+  { id: 'storefront', label: 'Loja Virtual (Builder)', description: 'Templates das páginas do e-commerce (Home, Produto, Carrinho, etc.)' },
 ] as const;
 
 export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
@@ -60,7 +61,7 @@ export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
   const handleClear = async () => {
     const modules = selectAll 
       ? ['all'] as ('all')[]
-      : Array.from(selectedModules) as ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual')[];
+      : Array.from(selectedModules) as ('products' | 'categories' | 'customers' | 'orders' | 'structure' | 'visual' | 'storefront')[];
     
     await onClear(modules);
     setOpen(false);
