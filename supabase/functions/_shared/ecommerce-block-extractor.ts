@@ -1,13 +1,28 @@
 // =====================================================
-// E-COMMERCE BLOCK EXTRACTOR
+// E-COMMERCE BLOCK EXTRACTOR v2
 // =====================================================
 // Extrai seções de HTML de páginas de e-commerce brasileiras
 // Detecta padrões específicos de plataformas: VTEX, Nuvemshop,
-// Shopify, Loja Integrada, Tray, Yampi, WooCommerce, etc.
+// Shopify, Loja Integrada, Tray, Yampi, WooCommerce, Wix, etc.
+// 
+// Baseado no estudo de estrutura de blocos:
+// - Banner Principal/Carrossel (Hero)
+// - Faixa Promocional (Condições da loja)
+// - Vitrine de Produtos em Destaque
+// - Coleções/Categorias em Destaque
+// - Prova Social (Reviews/Trends)
+// - Bloco de Ofertas Personalizadas
+// - Cadastro de Newsletter
+// - Vantagens/Condições da Loja
+// - Banners Promocionais Secundários
+// - Rodapé com Blocos Informativos
+// 
 // Usa detector avançado de header/footer para limpar conteúdo
+// Usa content-analyzer para análise semântica
 // =====================================================
 
 import { detectLayoutElements, extractMainContent } from './header-footer-detector.ts';
+import { analyzeContent, type ContentBlockType, BLOCK_PATTERNS } from './content-analyzer.ts';
 
 export interface ExtractedSection {
   type: SectionType;
@@ -599,7 +614,7 @@ const SECTION_PATTERNS: Record<SectionType, {
 };
 
 // =====================================================
-// MAIN EXTRACTION FUNCTION
+// MAIN EXTRACTION FUNCTION (Enhanced with Content Analysis)
 // =====================================================
 export function extractSectionsFromHTML(html: string): ExtractedSection[] {
   const sections: ExtractedSection[] = [];
@@ -628,16 +643,42 @@ export function extractSectionsFromHTML(html: string): ExtractedSection[] {
   const rawSections = extractRawSections(cleanHtml);
   console.log(`[block-extractor] Found ${rawSections.length} raw sections`);
   
-  // Classify each section
+  // Classify each section using BOTH traditional patterns AND semantic analysis
   for (let i = 0; i < rawSections.length; i++) {
     const rawSection = rawSections[i];
-    const classification = classifySection(rawSection, platform);
     
-    if (classification.type !== 'unknown' || classification.confidence > 0.3) {
+    // Traditional pattern-based classification
+    const patternClassification = classifySection(rawSection, platform);
+    
+    // Semantic content analysis (from content-analyzer)
+    const contentAnalysis = analyzeContent(rawSection);
+    
+    // Combine results - prefer higher confidence
+    let finalType: SectionType = patternClassification.type;
+    let finalConfidence = patternClassification.confidence;
+    
+    // If content analysis has higher confidence, use that
+    if (contentAnalysis.confidence > patternClassification.confidence) {
+      finalType = mapContentTypeToSectionType(contentAnalysis.type);
+      finalConfidence = contentAnalysis.confidence;
+    }
+    
+    // Boost confidence if both agree
+    if (mapContentTypeToSectionType(contentAnalysis.type) === patternClassification.type) {
+      finalConfidence = Math.min(1, finalConfidence * 1.3);
+    }
+    
+    if (finalType !== 'unknown' || finalConfidence > 0.3) {
       sections.push({
-        ...classification,
+        type: finalType,
+        html: rawSection,
+        confidence: finalConfidence,
         metadata: {
-          ...classification.metadata,
+          title: patternClassification.metadata.title || contentAnalysis.data.title,
+          itemCount: patternClassification.metadata.itemCount || contentAnalysis.data.items?.length,
+          hasImages: patternClassification.metadata.hasImages || contentAnalysis.metadata.hasImages,
+          hasVideo: patternClassification.metadata.hasVideo || contentAnalysis.metadata.hasVideo,
+          hasCTA: patternClassification.metadata.hasCTA,
           position: i,
         },
         platform: platform || undefined,
@@ -655,6 +696,44 @@ export function extractSectionsFromHTML(html: string): ExtractedSection[] {
   
   console.log(`[block-extractor] Classified ${sections.length} sections`);
   return sections;
+}
+
+// Map ContentBlockType to SectionType
+function mapContentTypeToSectionType(contentType: ContentBlockType): SectionType {
+  const mapping: Record<ContentBlockType, SectionType> = {
+    'hero_banner': 'hero_banner',
+    'carousel_banner': 'carousel_banner',
+    'promo_bar': 'promo_bar',
+    'secondary_banner': 'hero_banner',
+    'product_showcase': 'product_showcase',
+    'category_showcase': 'category_showcase',
+    'collection_highlight': 'category_showcase',
+    'testimonials': 'testimonials',
+    'reviews': 'testimonials',
+    'social_proof': 'social_proof',
+    'logos_partners': 'logos',
+    'trust_badges': 'social_proof',
+    'benefits': 'benefits',
+    'features': 'features',
+    'faq': 'faq',
+    'steps_how_it_works': 'steps',
+    'about_section': 'about',
+    'stats_numbers': 'stats',
+    'newsletter': 'newsletter',
+    'countdown': 'countdown',
+    'cta_block': 'newsletter',
+    'gallery': 'gallery',
+    'video': 'video',
+    'instagram_feed': 'gallery',
+    'text_content': 'institutional_content',
+    'contact_form': 'contact',
+    'store_locator': 'contact',
+    'policy_content': 'institutional_content',
+    'footer_links': 'footer_info',
+    'footer_info': 'footer_info',
+    'unknown': 'unknown',
+  };
+  return mapping[contentType] || 'unknown';
 }
 
 // Export layout detection for external use
