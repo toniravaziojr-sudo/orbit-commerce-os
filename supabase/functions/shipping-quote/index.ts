@@ -25,15 +25,18 @@ interface ShippingQuoteRequest {
   }>;
   store_host?: string;
   tenant_id?: string; // fallback for dev
+  cart_subtotal_cents?: number; // for rule matching
 }
 
 interface ShippingOption {
-  source_provider: string; // frenet, correios, loggi
+  source_provider: string; // frenet, correios, loggi, free_rule, custom_rule
   carrier: string; // Carrier name (e.g., "Correios", "Jadlog")
   service_code: string;
   service_name: string;
   price: number;
   estimated_days: number;
+  estimated_days_min?: number;
+  estimated_days_max?: number;
   delivery_date?: string;
   metadata?: Record<string, unknown>;
 }
@@ -58,6 +61,35 @@ interface QuoteWarning {
   provider: string;
   code: string;
   message?: string;
+}
+
+interface ShippingFreeRule {
+  id: string;
+  name: string;
+  region_type: string;
+  cep_start: string;
+  cep_end: string;
+  uf: string | null;
+  min_order_cents: number | null;
+  delivery_days_min: number | null;
+  delivery_days_max: number | null;
+  is_enabled: boolean;
+  sort_order: number;
+}
+
+interface ShippingCustomRule {
+  id: string;
+  name: string;
+  region_type: string;
+  cep_start: string;
+  cep_end: string;
+  uf: string | null;
+  min_order_cents: number | null;
+  price_cents: number;
+  delivery_days_min: number | null;
+  delivery_days_max: number | null;
+  is_enabled: boolean;
+  sort_order: number;
 }
 
 // ========== TENANT RESOLUTION ==========
@@ -623,12 +655,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const body: ShippingQuoteRequest = await req.json();
-    const { recipient_cep, items, store_host, tenant_id } = body;
+    const { recipient_cep, items, store_host, tenant_id, cart_subtotal_cents } = body;
 
     if (!recipient_cep || !items || items.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: 'recipient_cep e items são obrigatórios' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -645,46 +677,137 @@ serve(async (req) => {
     if (!resolvedTenantId) {
       return new Response(
         JSON.stringify({ success: false, error: 'Tenant não encontrado' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     console.log(`[ShippingQuote] Tenant: ${resolvedTenantId}, CEP: ${recipient_cep}`);
 
-    // Get active providers with supports_quote=true
-    const { data: providers, error: providersError } = await supabase
-      .from('shipping_providers')
-      .select('id, provider, is_enabled, supports_quote, credentials, settings')
-      .eq('tenant_id', resolvedTenantId)
-      .eq('is_enabled', true)
-      .eq('supports_quote', true);
+    // Normalize CEP to digits only
+    const recipientCepDigits = recipient_cep.replace(/\D/g, '').padStart(8, '0');
 
-    if (providersError) {
-      console.error('[ShippingQuote] Error fetching providers:', providersError);
-      throw providersError;
+    // Calculate cart subtotal from items if not provided
+    const calculatedSubtotal = cart_subtotal_cents ?? 
+      Math.round(items.reduce((acc, item) => acc + item.price * item.quantity * 100, 0));
+
+    // ========== FETCH FREE AND CUSTOM RULES IN PARALLEL ==========
+    const [freeRulesResult, customRulesResult, providersResult, storeSettingsResult] = await Promise.all([
+      supabase
+        .from('shipping_free_rules')
+        .select('*')
+        .eq('tenant_id', resolvedTenantId)
+        .eq('is_enabled', true)
+        .order('sort_order', { ascending: false }),
+      supabase
+        .from('shipping_custom_rules')
+        .select('*')
+        .eq('tenant_id', resolvedTenantId)
+        .eq('is_enabled', true)
+        .order('sort_order', { ascending: false }),
+      supabase
+        .from('shipping_providers')
+        .select('id, provider, is_enabled, supports_quote, credentials, settings')
+        .eq('tenant_id', resolvedTenantId)
+        .eq('is_enabled', true)
+        .eq('supports_quote', true),
+      supabase
+        .from('store_settings')
+        .select('settings')
+        .eq('tenant_id', resolvedTenantId)
+        .single(),
+    ]);
+
+    const freeRules = (freeRulesResult.data || []) as ShippingFreeRule[];
+    const customRules = (customRulesResult.data || []) as ShippingCustomRule[];
+    const providers = (providersResult.data || []) as ProviderRecord[];
+    const storeSettings = storeSettingsResult.data;
+
+    console.log(`[ShippingQuote] Found ${freeRules.length} free rules, ${customRules.length} custom rules`);
+
+    // ========== PROCESS RULES ==========
+    const ruleOptions: ShippingOption[] = [];
+
+    // Helper: Check if CEP matches rule range
+    const cepMatchesRule = (cepDigits: string, cepStart: string, cepEnd: string): boolean => {
+      const cep = cepDigits.padStart(8, '0');
+      const start = cepStart.replace(/\D/g, '').padStart(8, '0');
+      const end = cepEnd.replace(/\D/g, '').padStart(8, '0');
+      return cep >= start && cep <= end;
+    };
+
+    // Process FREE rules - find first matching
+    for (const rule of freeRules) {
+      // Check CEP range
+      if (!cepMatchesRule(recipientCepDigits, rule.cep_start, rule.cep_end)) {
+        continue;
+      }
+
+      // Check minimum order if set
+      if (rule.min_order_cents !== null && calculatedSubtotal < rule.min_order_cents) {
+        continue;
+      }
+
+      // Match found!
+      const daysMin = rule.delivery_days_min ?? 3;
+      const daysMax = rule.delivery_days_max ?? daysMin;
+      
+      ruleOptions.push({
+        source_provider: 'free_rule',
+        carrier: 'Frete Grátis',
+        service_code: `free_rule:${rule.id}`,
+        service_name: rule.name || 'Frete Grátis',
+        price: 0,
+        estimated_days: daysMax,
+        estimated_days_min: daysMin,
+        estimated_days_max: daysMax,
+        metadata: {
+          rule_id: rule.id,
+          region_type: rule.region_type,
+          is_free: true,
+        },
+      });
+
+      // Only take first matching free rule
+      break;
     }
 
-    if (!providers || providers.length === 0) {
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          options: [], 
-          message: 'Nenhum provedor de frete ativo',
-          quote_warnings: [],
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Process CUSTOM rules - collect all matching
+    for (const rule of customRules) {
+      // Check CEP range
+      if (!cepMatchesRule(recipientCepDigits, rule.cep_start, rule.cep_end)) {
+        continue;
+      }
+
+      // Check minimum order if set
+      if (rule.min_order_cents !== null && calculatedSubtotal < rule.min_order_cents) {
+        continue;
+      }
+
+      // Match found!
+      const daysMin = rule.delivery_days_min ?? 3;
+      const daysMax = rule.delivery_days_max ?? daysMin;
+      const priceInReais = rule.price_cents / 100;
+
+      ruleOptions.push({
+        source_provider: 'custom_rule',
+        carrier: 'Frete Personalizado',
+        service_code: `custom_rule:${rule.id}`,
+        service_name: rule.name,
+        price: priceInReais,
+        estimated_days: daysMax,
+        estimated_days_min: daysMin,
+        estimated_days_max: daysMax,
+        metadata: {
+          rule_id: rule.id,
+          region_type: rule.region_type,
+          price_cents: rule.price_cents,
+        },
+      });
     }
 
-    console.log(`[ShippingQuote] Active quote providers: ${providers.map(p => p.provider).join(', ')}`);
+    console.log(`[ShippingQuote] Matched ${ruleOptions.length} rule options`);
 
-    // Get store settings for origin CEP
-    const { data: storeSettings } = await supabase
-      .from('store_settings')
-      .select('settings')
-      .eq('tenant_id', resolvedTenantId)
-      .single();
-
+    // ========== PROCESS CARRIER PROVIDERS ==========
     const originCep = (storeSettings?.settings as any)?.origin_cep || 
                       (storeSettings?.settings as any)?.cep || 
                       '01310100'; // Default to SP if not set
@@ -709,102 +832,124 @@ serve(async (req) => {
 
     console.log('[ShippingQuote] Totals:', totals, 'Origin:', originCep);
 
-    // Query all providers in parallel with timeout
+    // Query all CARRIER providers in parallel with timeout (skip if no providers)
     const TIMEOUT_MS = 10000;
     const quoteResults: ProviderQuoteResult[] = [];
+    let carrierOptions: ShippingOption[] = [];
 
-    const quotePromises: Promise<ProviderQuoteResult>[] = providers.map(async (provider: ProviderRecord) => {
-      const providerName = provider.provider.toLowerCase();
-      const providerStart = Date.now();
-      
-      try {
-        let options: ShippingOption[] = [];
+    if (providers.length > 0) {
+      console.log(`[ShippingQuote] Active quote providers: ${providers.map((p: ProviderRecord) => p.provider).join(', ')}`);
+
+      const quotePromises: Promise<ProviderQuoteResult>[] = providers.map(async (provider: ProviderRecord) => {
+        const providerName = provider.provider.toLowerCase();
+        const providerStart = Date.now();
         
-        if (providerName === 'frenet') {
-          options = await quoteFrenet(provider, originCep, recipient_cep, totals);
-        } else if (providerName === 'correios') {
-          options = await quoteCorreios(provider, originCep, recipient_cep, totals);
-        } else if (providerName === 'loggi') {
-          options = await quoteLoggi(provider, originCep, recipient_cep, totals);
-        } else {
-          console.log(`[ShippingQuote] Unknown provider: ${providerName}`);
+        try {
+          let options: ShippingOption[] = [];
+          
+          if (providerName === 'frenet') {
+            options = await quoteFrenet(provider, originCep, recipient_cep, totals);
+          } else if (providerName === 'correios') {
+            options = await quoteCorreios(provider, originCep, recipient_cep, totals);
+          } else if (providerName === 'loggi') {
+            options = await quoteLoggi(provider, originCep, recipient_cep, totals);
+          } else {
+            console.log(`[ShippingQuote] Unknown provider: ${providerName}`);
+            return {
+              provider: providerName,
+              options: [],
+              error: 'Unknown provider',
+              duration_ms: Date.now() - providerStart,
+            };
+          }
+
+          return {
+            provider: providerName,
+            options,
+            duration_ms: Date.now() - providerStart,
+          };
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[ShippingQuote] Error from ${providerName}:`, error);
           return {
             provider: providerName,
             options: [],
-            error: 'Unknown provider',
+            error: errorMsg,
             duration_ms: Date.now() - providerStart,
           };
         }
+      });
 
-        return {
-          provider: providerName,
-          options,
-          duration_ms: Date.now() - providerStart,
-        };
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error(`[ShippingQuote] Error from ${providerName}:`, error);
-        return {
-          provider: providerName,
-          options: [],
-          error: errorMsg,
-          duration_ms: Date.now() - providerStart,
-        };
+      // Wrap all with timeout
+      const timeoutResults = await Promise.all(
+        quotePromises.map(async (promise, index) => {
+          const providerName = providers[index].provider.toLowerCase();
+          const timeoutPromise = new Promise<ProviderQuoteResult>((resolve) => {
+            setTimeout(() => {
+              resolve({
+                provider: providerName,
+                options: [],
+                error: 'Timeout',
+                duration_ms: TIMEOUT_MS,
+              });
+            }, TIMEOUT_MS);
+          });
+
+          return Promise.race([promise, timeoutPromise]);
+        })
+      );
+
+      // Collect carrier results and warnings
+      for (const result of timeoutResults) {
+        quoteResults.push(result);
+        if (result.error) {
+          quoteWarnings.push({
+            provider: result.provider,
+            code: result.error === 'Timeout' ? 'TIMEOUT' : 'ERROR',
+            message: result.error,
+          });
+        }
+        carrierOptions = carrierOptions.concat(result.options);
       }
-    });
 
-    // Wrap all with timeout
-    const timeoutResults = await Promise.all(
-      quotePromises.map(async (promise, index) => {
-        const providerName = providers[index].provider.toLowerCase();
-        const timeoutPromise = new Promise<ProviderQuoteResult>((resolve) => {
-          setTimeout(() => {
-            resolve({
-              provider: providerName,
-              options: [],
-              error: 'Timeout',
-              duration_ms: TIMEOUT_MS,
-            });
-          }, TIMEOUT_MS);
-        });
-
-        return Promise.race([promise, timeoutPromise]);
-      })
-    );
-
-    // Collect results and warnings
-    let allOptions: ShippingOption[] = [];
-    for (const result of timeoutResults) {
-      quoteResults.push(result);
-      if (result.error) {
-        quoteWarnings.push({
-          provider: result.provider,
-          code: result.error === 'Timeout' ? 'TIMEOUT' : 'ERROR',
-          message: result.error,
-        });
-      }
-      allOptions = allOptions.concat(result.options);
+      console.log(`[ShippingQuote] Carrier options count: ${carrierOptions.length}`);
     }
 
-    console.log(`[ShippingQuote] Raw options count: ${allOptions.length}`);
+    // ========== COMBINE RULE OPTIONS + CARRIER OPTIONS ==========
+    // Rule options come first (Frete Grátis should appear first if matched)
+    let allOptions = [...ruleOptions, ...carrierOptions];
 
-    // Deduplicate options
-    const dedupedOptions = deduplicateOptions(allOptions);
-    console.log(`[ShippingQuote] After deduplication: ${dedupedOptions.length}`);
+    console.log(`[ShippingQuote] Total raw options: ${allOptions.length}`);
 
-    // Sort by price
-    dedupedOptions.sort((a, b) => a.price - b.price);
+    // Deduplicate carrier options (rules are not deduplicated against carriers)
+    const dedupedCarrierOptions = deduplicateOptions(carrierOptions);
+    
+    // Final combined: rules first, then deduped carrier options
+    const finalOptions = [...ruleOptions, ...dedupedCarrierOptions];
+    
+    console.log(`[ShippingQuote] After deduplication: ${finalOptions.length}`);
 
-    console.log(`[ShippingQuote] Total options: ${dedupedOptions.length} in ${Date.now() - startTime}ms`);
+    // Sort: free options first, then by price
+    finalOptions.sort((a, b) => {
+      if (a.price === 0 && b.price !== 0) return -1;
+      if (b.price === 0 && a.price !== 0) return 1;
+      return a.price - b.price;
+    });
+
+    console.log(`[ShippingQuote] Total options: ${finalOptions.length} in ${Date.now() - startTime}ms`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        options: dedupedOptions,
+        options: finalOptions,
         origin_cep: originCep,
         recipient_cep,
         totals,
         quote_warnings: quoteWarnings,
+        rules_matched: {
+          free: ruleOptions.filter(o => o.source_provider === 'free_rule').length,
+          custom: ruleOptions.filter(o => o.source_provider === 'custom_rule').length,
+        },
         providers_queried: quoteResults.map(r => ({
           provider: r.provider,
           options_count: r.options.length,

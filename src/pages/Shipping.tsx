@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Truck, 
   Settings, 
@@ -11,7 +11,9 @@ import {
   ChevronRight,
   Eye,
   FileText,
-  RefreshCw
+  RefreshCw,
+  Gift,
+  DollarSign
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
@@ -20,9 +22,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StatCard } from '@/components/ui/stat-card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useShipments, type Shipment } from '@/hooks/useShipments';
 import { ShippingCarrierSettings } from '@/components/shipping/ShippingCarrierSettings';
+import { FreeShippingRulesTab } from '@/components/shipping/FreeShippingRulesTab';
+import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 
 const PAGE_SIZE = 20;
 
@@ -49,8 +53,22 @@ function formatDateTime(dateString: string) {
 
 export default function Shipping() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'shipments');
   const [currentPage, setCurrentPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  useEffect(() => {
+    if (tabFromUrl && ['shipments', 'settings', 'frete-gratis', 'frete-personalizado'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setSearchParams({ tab: value });
+  };
 
   const { shipments, stats, totalCount, isLoading } = useShipments({
     page: currentPage,
@@ -95,15 +113,23 @@ export default function Shipping() {
         />
       </div>
 
-      <Tabs defaultValue="shipments" className="space-y-6">
-        <TabsList>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="shipments" className="gap-2">
             <Package className="h-4 w-4" />
-            Envios
+            <span className="hidden sm:inline">Envios</span>
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
-            Transportadoras
+            <span className="hidden sm:inline">Transportadoras</span>
+          </TabsTrigger>
+          <TabsTrigger value="frete-gratis" className="gap-2">
+            <Gift className="h-4 w-4" />
+            <span className="hidden sm:inline">Frete Grátis</span>
+          </TabsTrigger>
+          <TabsTrigger value="frete-personalizado" className="gap-2">
+            <DollarSign className="h-4 w-4" />
+            <span className="hidden sm:inline">Frete Personalizado</span>
           </TabsTrigger>
         </TabsList>
 
@@ -251,6 +277,14 @@ export default function Shipping() {
 
         <TabsContent value="settings">
           <ShippingCarrierSettings />
+        </TabsContent>
+
+        <TabsContent value="frete-gratis">
+          <FreeShippingRulesTab />
+        </TabsContent>
+
+        <TabsContent value="frete-personalizado">
+          <CustomShippingRulesTab />
         </TabsContent>
       </Tabs>
     </div>
