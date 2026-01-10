@@ -6,9 +6,6 @@ import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
-import { generateBlockId } from '@/lib/builder/utils';
-import type { BlockNode } from '@/lib/builder/types';
 
 // Types for the structure import
 export type ImportStepStatus = 'pending' | 'processing' | 'completed' | 'skipped' | 'error';
@@ -25,7 +22,7 @@ export interface ImportStats {
     colors: number;
     contact: number;
     social: number;
-    banners: number;
+    logo: boolean;
   };
   categories: number;
   pages: number;
@@ -46,8 +43,8 @@ type ImportStepKey = typeof IMPORT_ORDER[number];
 
 const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; icon: React.ReactNode }> = {
   visual: {
-    label: 'Visual da Loja',
-    description: 'Cores, logo, informações de contato e redes sociais',
+    label: 'Branding da Loja',
+    description: 'Cores, logo, favicon, informações de contato e redes sociais',
     icon: <Palette className="h-5 w-5" />,
   },
   categories: {
@@ -67,59 +64,6 @@ const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; i
   },
 };
 
-// Generate home page content from imported visual data
-function generateHomePageContent(heroBanners: any[], menuId?: string): BlockNode {
-  const children: BlockNode[] = [
-    {
-      id: generateBlockId('Header'),
-      type: 'Header',
-      props: { menuId: menuId || '', showSearch: true, showCart: true, sticky: true },
-    },
-  ];
-
-  if (heroBanners.length > 0) {
-    children.push({
-      id: generateBlockId('HeroBanner'),
-      type: 'HeroBanner',
-      props: {
-        slides: heroBanners.map((banner, idx) => ({
-          id: `slide-${idx}`,
-          imageDesktop: banner.imageDesktop || '',
-          imageMobile: banner.imageMobile || banner.imageDesktop || '',
-          linkUrl: banner.linkUrl || '',
-          altText: banner.altText || `Banner ${idx + 1}`,
-        })),
-        autoplaySeconds: 5,
-        bannerWidth: 'full',
-        showArrows: true,
-        showDots: true,
-      },
-    });
-  }
-
-  children.push({
-    id: generateBlockId('Section'),
-    type: 'Section',
-    props: { padding: 'lg' },
-    children: [{ id: generateBlockId('CategoryList'), type: 'CategoryList', props: { title: 'Categorias', layout: 'grid', columns: 4 } }],
-  });
-
-  children.push({
-    id: generateBlockId('Section'),
-    type: 'Section',
-    props: { backgroundColor: '#f9fafb', padding: 'lg' },
-    children: [{ id: generateBlockId('ProductGrid'), type: 'ProductGrid', props: { title: 'Produtos em Destaque', source: 'featured', columns: 4, limit: 8, showPrice: true } }],
-  });
-
-  children.push({
-    id: generateBlockId('Footer'),
-    type: 'Footer',
-    props: { menuId: '', showSocial: true, copyrightText: `© ${new Date().getFullYear()} Minha Loja. Todos os direitos reservados.` },
-  });
-
-  return { id: 'root', type: 'Page', props: {}, children };
-}
-
 export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisResult, onComplete }: StructureImportStepProps) {
   const [progress, setProgress] = useState<StructureImportState>({
     visual: 'pending',
@@ -131,7 +75,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
   const [currentStep, setCurrentStep] = useState<ImportStepKey | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [stats, setStats] = useState<ImportStats>({
-    visual: { colors: 0, contact: 0, social: 0, banners: 0 },
+    visual: { colors: 0, contact: 0, social: 0, logo: false },
     categories: 0,
     pages: 0,
     menuItems: 0,
@@ -282,59 +226,18 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
         }
       }
 
-      // Create home page with banners
-      const heroBanners = data.heroBanners || [];
-      if (heroBanners.length > 0) {
-        const homePageContent = generateHomePageContent(heroBanners);
-        
-        // Initialize templates via RPC
-        await supabase.rpc('initialize_storefront_templates', { p_tenant_id: tenantId });
-        
-        // Archive any existing published versions
-        await supabase.from('store_page_versions').update({ status: 'archived' })
-          .eq('tenant_id', tenantId).eq('entity_type', 'template').eq('page_type', 'home').eq('status', 'published');
-        
-        // Get max version number
-        const { data: maxVersionData } = await supabase.from('store_page_versions')
-          .select('version').eq('tenant_id', tenantId).eq('entity_type', 'template').eq('page_type', 'home')
-          .order('version', { ascending: false }).limit(1).maybeSingle();
-        
-        const newVersion = (maxVersionData?.version || 0) + 1;
-        
-        // Insert new published version
-        const { error: insertError } = await supabase.from('store_page_versions').insert([{
-          tenant_id: tenantId, entity_type: 'template', version: newVersion, status: 'published',
-          content: homePageContent as unknown as Json, page_type: 'home',
-        }]);
-        
-        if (insertError) {
-          console.error('Error inserting version:', insertError);
-          throw new Error('Falha ao salvar template da home');
-        }
-        
-        // CRITICAL: Ensure template record exists and link to new version using UPSERT
-        const { error: upsertError } = await supabase.from('storefront_page_templates').upsert({
-          tenant_id: tenantId,
-          page_type: 'home',
-          published_version: newVersion,
-          draft_version: newVersion,
-        }, { onConflict: 'tenant_id,page_type' });
-        
-        if (upsertError) {
-          console.error('Error upserting template:', upsertError);
-          // Try update as fallback
-          await supabase.from('storefront_page_templates').update({ 
-            published_version: newVersion, 
-            draft_version: newVersion 
-          }).eq('tenant_id', tenantId).eq('page_type', 'home');
-        }
-        
-        console.log(`Home template created with version ${newVersion} and ${heroBanners.length} banners`);
-      }
+      // Check if logo/favicon was imported
+      const logoImported = !!(branding.logo || branding.favicon);
 
-      setStats(s => ({ ...s, visual: { colors: colorsImported, contact: contactImported, social: socialImported, banners: heroBanners.length } }));
+      setStats(s => ({ ...s, visual: { colors: colorsImported, contact: contactImported, social: socialImported, logo: logoImported } }));
       setProgress(p => ({ ...p, visual: 'completed' }));
-      toast.success(`Visual importado: ${colorsImported} cores, ${contactImported} contatos, ${socialImported} redes sociais, ${heroBanners.length} banners`);
+      
+      const parts = [];
+      if (colorsImported > 0) parts.push(`${colorsImported} cores`);
+      if (contactImported > 0) parts.push(`${contactImported} contatos`);
+      if (socialImported > 0) parts.push(`${socialImported} redes sociais`);
+      if (logoImported) parts.push('logo');
+      toast.success(`Branding importado: ${parts.length > 0 ? parts.join(', ') : 'dados visuais'}`);
     } catch (err: any) {
       console.error('Error importing visual:', err);
       setErrors(e => [...e, `Visual: ${err.message}`]);
@@ -679,7 +582,12 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     switch (step) {
       case 'visual':
         const v = stats.visual;
-        return `${v.colors} cores, ${v.contact} contatos, ${v.social} redes, ${v.banners} banners`;
+        const parts = [];
+        if (v.colors > 0) parts.push(`${v.colors} cores`);
+        if (v.contact > 0) parts.push(`${v.contact} contatos`);
+        if (v.social > 0) parts.push(`${v.social} redes`);
+        if (v.logo) parts.push('logo importado');
+        return parts.length > 0 ? parts.join(', ') : 'Nenhum dado encontrado';
       case 'categories':
         return `${stats.categories} importadas`;
       case 'pages':

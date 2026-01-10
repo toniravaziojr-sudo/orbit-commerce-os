@@ -2107,7 +2107,12 @@ function extractSocialLinks(html: string): SocialLinks {
 
 function extractBranding(html: string, baseUrl: string): VisualExtractionResult['branding'] {
   const branding: VisualExtractionResult['branding'] = {};
-
+  
+  // Safety check - return empty branding if no HTML
+  if (!html || typeof html !== 'string') {
+    console.log('extractBranding: No HTML provided, returning empty branding');
+    return branding;
+  }
   // Extract logo - multiple strategies
   const logoPatterns = [
     /<img[^>]*class="[^"]*logo[^"]*"[^>]*src=["']([^"']+)["']/i,

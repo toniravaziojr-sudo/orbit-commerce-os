@@ -8,90 +8,9 @@ import { StructureImportStep, ImportStats as StructureImportStats } from './Stru
 import { useImportJobs, useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
 import { getAdapter } from '@/lib/import/platforms';
 import { useAuth } from '@/hooks/useAuth';
-import { generateBlockId } from '@/lib/builder/utils';
-import type { BlockNode } from '@/lib/builder/types';
 import { ProgressWithETA } from '@/components/ui/progress-with-eta';
-// Generate home page content from imported visual data
-function generateHomePageContent(heroBanners: any[], menuId?: string): BlockNode {
-  const children: BlockNode[] = [
-    {
-      id: generateBlockId('Header'),
-      type: 'Header',
-      props: {
-        menuId: menuId || '',
-        showSearch: true,
-        showCart: true,
-        sticky: true,
-      },
-    },
-  ];
-
-  // Add HeroBanner if banners exist
-  if (heroBanners.length > 0) {
-    children.push({
-      id: generateBlockId('HeroBanner'),
-      type: 'HeroBanner',
-      props: {
-        slides: heroBanners.map((banner, idx) => ({
-          id: `slide-${idx}`,
-          imageDesktop: banner.imageDesktop || '',
-          imageMobile: banner.imageMobile || banner.imageDesktop || '',
-          linkUrl: banner.linkUrl || '',
-          altText: banner.altText || `Banner ${idx + 1}`,
-        })),
-        autoplaySeconds: 5,
-        bannerWidth: 'full',
-        showArrows: true,
-        showDots: true,
-      },
-    });
-  }
-
-  // Add CategoryList section
-  children.push({
-    id: generateBlockId('Section'),
-    type: 'Section',
-    props: { padding: 'lg' },
-    children: [{
-      id: generateBlockId('CategoryList'),
-      type: 'CategoryList',
-      props: { title: 'Categorias', layout: 'grid', columns: 4 },
-    }],
-  });
-
-  // Add ProductGrid section
-  children.push({
-    id: generateBlockId('Section'),
-    type: 'Section',
-    props: { backgroundColor: '#f9fafb', padding: 'lg' },
-    children: [{
-      id: generateBlockId('ProductGrid'),
-      type: 'ProductGrid',
-      props: { title: 'Produtos em Destaque', source: 'featured', columns: 4, limit: 8, showPrice: true },
-    }],
-  });
-
-  // Add Footer
-  children.push({
-    id: generateBlockId('Footer'),
-    type: 'Footer',
-    props: {
-      menuId: '',
-      showSocial: true,
-      copyrightText: `© ${new Date().getFullYear()} Minha Loja. Todos os direitos reservados.`,
-    },
-  });
-
-  return {
-    id: 'root',
-    type: 'Page',
-    props: {},
-    children,
-  };
-}
 
 interface GuidedImportWizardProps {
   onComplete?: () => void;
@@ -112,7 +31,6 @@ interface ImportStats {
   pages: number;
   categories: number;
   menuItems: number;
-  banners: number;
 }
 
 // File import steps (Etapa 2 - arquivos)
@@ -167,7 +85,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     pages: 0,
     categories: 0,
     menuItems: 0,
-    banners: 0,
   });
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [structureImportComplete, setStructureImportComplete] = useState(false);
@@ -324,7 +241,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     setImportErrors([]);
     setImportStartTime(Date.now());
     setEstimatedTimeRemaining(null);
-    const stats: ImportStats = { pages: 0, categories: 0, menuItems: 0, banners: 0 };
+    const stats: ImportStats = { pages: 0, categories: 0, menuItems: 0 };
     
     try {
       // Step 1: Get better HTML with JS rendered (for menus)
@@ -1077,11 +994,10 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       setStructureProgress(prev => ({ ...prev, menus: 'completed' }));
       
-      // === STEP 2.4: Import Home Page + Visual (banners, branding, business info) ===
+      // === STEP 2.4: Import Visual (branding, business info) - NO BANNERS ===
       setStructureProgress(prev => ({ ...prev, visual: 'processing' }));
-      setCurrentStepName('Importando visual da loja...');
+      setCurrentStepName('Importando branding da loja...');
       
-      const heroBanners = visualData.heroBanners || [];
       const branding = scrapedData.branding || visualData.branding || {};
       
       // Update tenant settings with visual config
@@ -1211,67 +1127,8 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         
         console.log('Updated store_settings with colors and business info:', Object.keys(storeSettingsUpdate));
       }
-
-      // Create and publish home page with banners
-      if (heroBanners.length > 0) {
-        const homePageContent = generateHomePageContent(heroBanners, menuId || undefined);
-        
-        // Initialize storefront templates
-        await supabase.rpc('initialize_storefront_templates', { 
-          p_tenant_id: currentTenant.id 
-        });
-        
-        // Archive old published versions
-        await supabase
-          .from('store_page_versions')
-          .update({ status: 'archived' })
-          .eq('tenant_id', currentTenant.id)
-          .eq('entity_type', 'template')
-          .eq('page_type', 'home')
-          .eq('status', 'published');
-        
-        // Get max version
-        const { data: maxVersionData } = await supabase
-          .from('store_page_versions')
-          .select('version')
-          .eq('tenant_id', currentTenant.id)
-          .eq('entity_type', 'template')
-          .eq('page_type', 'home')
-          .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        const newVersion = (maxVersionData?.version || 0) + 1;
-        
-        // Insert new published version
-        const { error: insertError } = await supabase
-          .from('store_page_versions')
-          .insert([{
-            tenant_id: currentTenant.id,
-            entity_type: 'template',
-            version: newVersion,
-            status: 'published',
-            content: homePageContent as unknown as Json,
-            page_type: 'home',
-          }]);
-        
-        if (insertError) {
-          console.error('Error inserting home template version:', insertError);
-          setImportErrors(prev => [...prev, 'Erro ao publicar página inicial']);
-        } else {
-          // Update template to point to this version
-          await supabase
-            .from('storefront_page_templates')
-            .update({ 
-              published_version: newVersion,
-              draft_version: newVersion,
-            })
-            .eq('tenant_id', currentTenant.id)
-            .eq('page_type', 'home');
-        }
-        
-        stats.banners = heroBanners.length;
-      }
+      
+      // NOTE: Banners/home page not imported - user builds home page manually in builder
       
       setStructureProgress(prev => ({ ...prev, visual: 'completed' }));
       setImportStats(stats);
@@ -1782,7 +1639,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                     pages: stats.pages,
                     categories: stats.categories,
                     menuItems: stats.menuItems,
-                    banners: stats.visual.banners,
                   });
                 }}
               />
@@ -1822,7 +1678,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-primary" />
-                  <span>Banners: {importStats.banners}</span>
+                  <span>Páginas Institucionais: {importStats.pages}</span>
                 </li>
                 {Object.entries(fileStepStatuses).map(([stepId, status]) => {
                   const step = FILE_IMPORT_STEPS.find(s => s.id === stepId);
