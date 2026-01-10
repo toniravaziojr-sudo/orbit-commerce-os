@@ -30,6 +30,7 @@ type EssentialCategory =
   | 'media'
   | 'content'
   | 'social-proof'
+  | 'interactive'
   | 'info'
   | 'layout';
 
@@ -40,6 +41,7 @@ const essentialCategoryLabels: Record<EssentialCategory, string> = {
   media: 'Mídia',
   content: 'Conteúdo',
   'social-proof': 'Prova Social',
+  interactive: 'Interativo',
   info: 'Informações',
   layout: 'Layout',
 };
@@ -84,6 +86,12 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   
   // Social Proof
   'Testimonials': 'social-proof',
+  
+  // Interactive
+  'NewsletterBlock': 'interactive',
+  'ContactFormBlock': 'interactive',
+  'MapBlock': 'interactive',
+  'SocialFeedBlock': 'interactive',
   
   // Info
   'InfoHighlights': 'info',
@@ -132,6 +140,11 @@ const visibleBlockTypes = new Set([
   'AccordionBlock',
   // Social Proof
   'Testimonials',
+  // Interactive
+  'NewsletterBlock',
+  'ContactFormBlock',
+  'MapBlock',
+  'SocialFeedBlock',
   // Info
   'InfoHighlights',
   'FAQ',
@@ -200,6 +213,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
       media: [],
       content: [],
       'social-proof': [],
+      interactive: [],
       info: [],
       layout: [],
     };
@@ -250,6 +264,7 @@ export function BlockPalette({ onAddBlock }: BlockPaletteProps) {
     'media',
     'content',
     'social-proof',
+    'interactive',
     'info',
     'layout',
   ];
