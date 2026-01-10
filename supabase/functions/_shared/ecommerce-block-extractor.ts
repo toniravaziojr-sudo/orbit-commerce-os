@@ -4,7 +4,10 @@
 // Extrai seções de HTML de páginas de e-commerce brasileiras
 // Detecta padrões específicos de plataformas: VTEX, Nuvemshop,
 // Shopify, Loja Integrada, Tray, Yampi, WooCommerce, etc.
+// Usa detector avançado de header/footer para limpar conteúdo
 // =====================================================
+
+import { detectLayoutElements, extractMainContent } from './header-footer-detector.ts';
 
 export interface ExtractedSection {
   type: SectionType;
@@ -55,18 +58,21 @@ const PLATFORM_PATTERNS = {
     /vtex-store-components/i,
     /render\.vtex\.com/i,
     /__RENDER_8_STATE__/,
+    /vtexassets\.com/i,
   ],
   shopify: [
     /shopify/i,
     /cdn\.shopify\.com/i,
     /shopify-section/i,
     /data-shopify/i,
+    /Shopify\.theme/i,
   ],
   nuvemshop: [
     /nuvemshop/i,
     /tiendanube/i,
     /NuvemShop/i,
     /js-nuvemshop/i,
+    /d26lpennugtm8s\.cloudfront\.net/i,
   ],
   woocommerce: [
     /woocommerce/i,
@@ -78,19 +84,32 @@ const PLATFORM_PATTERNS = {
     /tray\.com\.br/i,
     /traycorp/i,
     /data-tray/i,
+    /cdn\.tray\.com\.br/i,
   ],
   yampi: [
     /yampi/i,
     /checkout\.yampi/i,
+    /cdn\.yampi\.com\.br/i,
   ],
   loja_integrada: [
     /lojaintegrada/i,
     /loja-integrada/i,
     /cdn\.awsli\.com\.br/i,
+    /awsli\.com\.br/i,
   ],
   bagy: [
     /bagy\.com\.br/i,
     /cdn\.bagy/i,
+  ],
+  magento: [
+    /mage-/i,
+    /Mage\.Cookies/i,
+    /data-mage-init/i,
+  ],
+  wix: [
+    /wix\.com/i,
+    /parastorage\.com/i,
+    /static\.wixstatic\.com/i,
   ],
 };
 
@@ -589,8 +608,24 @@ export function extractSectionsFromHTML(html: string): ExtractedSection[] {
   const platform = detectPlatform(html);
   console.log(`[block-extractor] Platform detected: ${platform || 'unknown'}`);
   
-  // Extract major sections from HTML structure
-  const rawSections = extractRawSections(html);
+  // Use advanced header/footer detector to get clean main content
+  console.log(`[block-extractor] Running header/footer detection...`);
+  const layoutResult = detectLayoutElements(html);
+  
+  if (layoutResult.header) {
+    console.log(`[block-extractor] Header detected (confidence: ${layoutResult.header.confidence.toFixed(2)}, source: ${layoutResult.header.source})`);
+  }
+  if (layoutResult.footer) {
+    console.log(`[block-extractor] Footer detected (confidence: ${layoutResult.footer.confidence.toFixed(2)}, source: ${layoutResult.footer.source})`);
+    console.log(`[block-extractor] Footer sections: ${layoutResult.footerSections.length}`);
+  }
+  
+  // Extract main content (without header/footer)
+  const cleanHtml = extractMainContent(html);
+  console.log(`[block-extractor] Clean HTML size: ${cleanHtml.length} (original: ${html.length})`);
+  
+  // Extract major sections from cleaned HTML structure
+  const rawSections = extractRawSections(cleanHtml);
   console.log(`[block-extractor] Found ${rawSections.length} raw sections`);
   
   // Classify each section
@@ -621,6 +656,9 @@ export function extractSectionsFromHTML(html: string): ExtractedSection[] {
   console.log(`[block-extractor] Classified ${sections.length} sections`);
   return sections;
 }
+
+// Export layout detection for external use
+export { detectLayoutElements } from './header-footer-detector.ts';
 
 // =====================================================
 // PLATFORM DETECTION

@@ -7,7 +7,7 @@
 // =====================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { extractSectionsFromHTML, mapSectionTypeToBlockType } from '../_shared/ecommerce-block-extractor.ts';
+import { extractSectionsFromHTML, mapSectionTypeToBlockType, detectLayoutElements } from '../_shared/ecommerce-block-extractor.ts';
 import { mapClassificationToBlocks } from '../_shared/intelligent-block-mapper.ts';
 import { detectAllPages, type DetectedPage } from '../_shared/advanced-page-detector.ts';
 
