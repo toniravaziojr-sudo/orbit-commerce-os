@@ -8,6 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Settings,
   CheckCircle2,
   XCircle,
@@ -19,6 +30,9 @@ import {
   Info,
   Copy,
   Check,
+  Trash2,
+  Edit3,
+  Key,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -39,10 +53,18 @@ const MercadoLivreLogo = () => (
   </svg>
 );
 
-interface CredentialStatus {
+interface IntegrationData {
   key: string;
-  isConfigured: boolean;
-  preview: string;
+  name: string;
+  description: string;
+  icon: string;
+  docs: string;
+  secrets: Record<string, boolean>;
+  previews: Record<string, string>;
+  sources: Record<string, string>;
+  status: string;
+  configuredCount: number;
+  totalCount: number;
 }
 
 export function MeliPlatformSettings() {
@@ -51,6 +73,7 @@ export function MeliPlatformSettings() {
   const [clientSecret, setClientSecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   // URLs para configuração
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -58,20 +81,28 @@ export function MeliPlatformSettings() {
   const webhookUri = `${supabaseUrl}/functions/v1/meli-webhook`;
 
   // Buscar status das credenciais
-  const { data: credentialStatus, isLoading } = useQuery({
+  const { data: integrationData, isLoading } = useQuery({
     queryKey: ["meli-platform-credentials"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("platform-secrets-check", {
-        body: { keys: ["MELI_APP_ID", "MELI_CLIENT_SECRET"] },
+        body: {},
       });
 
       if (error) throw error;
-      return data?.credentials as CredentialStatus[] || [];
+      
+      // Buscar a integração do Mercado Livre
+      const meliIntegration = data?.integrations?.find(
+        (i: IntegrationData) => i.key === "mercadolivre"
+      );
+      
+      return meliIntegration as IntegrationData | null;
     },
   });
 
-  const appIdConfigured = credentialStatus?.find(c => c.key === "MELI_APP_ID")?.isConfigured;
-  const secretConfigured = credentialStatus?.find(c => c.key === "MELI_CLIENT_SECRET")?.isConfigured;
+  const appIdConfigured = integrationData?.secrets?.MELI_APP_ID ?? false;
+  const secretConfigured = integrationData?.secrets?.MELI_CLIENT_SECRET ?? false;
+  const appIdPreview = integrationData?.previews?.MELI_APP_ID ?? "";
+  const secretPreview = integrationData?.previews?.MELI_CLIENT_SECRET ?? "";
   const allConfigured = appIdConfigured && secretConfigured;
 
   // Mutation para salvar credenciais
@@ -107,10 +138,35 @@ export function MeliPlatformSettings() {
       toast.success("Credenciais salvas com sucesso");
       setAppId("");
       setClientSecret("");
+      setIsEditing(false);
       queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao salvar credenciais");
+    },
+  });
+
+  // Mutation para remover credenciais
+  const removeMutation = useMutation({
+    mutationFn: async (credentialKey: string) => {
+      const { data, error } = await supabase.functions.invoke("platform-credentials-update", {
+        body: {
+          credentialKey,
+          credentialValue: null, // Enviar null para remover
+          action: "delete",
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || "Erro ao remover credencial");
+      }
+    },
+    onSuccess: () => {
+      toast.success("Credencial removida com sucesso");
+      queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
+    },
+    onError: (error) => {
+      toast.error(error.message || "Erro ao remover credencial");
     },
   });
 
@@ -185,6 +241,130 @@ export function MeliPlatformSettings() {
         </CardContent>
       </Card>
 
+      {/* Credenciais Salvas (quando configuradas) */}
+      {allConfigured && !isEditing && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Credenciais Salvas
+                </CardTitle>
+                <CardDescription>
+                  Credenciais configuradas para a integração
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                Editar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* APP ID */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">APP ID / Client ID</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-sm font-mono bg-background px-2 py-1 rounded">
+                    {appIdPreview || "••••••••"}
+                  </code>
+                  <Badge variant="secondary" className="text-xs">
+                    Configurado
+                  </Badge>
+                </div>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    disabled={removeMutation.isPending}
+                  >
+                    {removeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover APP ID?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Isso irá desconfigurar a integração. Tenants conectados perderão acesso ao Mercado Livre.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => removeMutation.mutate("MELI_APP_ID")}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+
+            {/* Client Secret */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Client Secret</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <code className="text-sm font-mono bg-background px-2 py-1 rounded">
+                    {secretPreview || "••••••••"}
+                  </code>
+                  <Badge variant="secondary" className="text-xs">
+                    Configurado
+                  </Badge>
+                </div>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    disabled={removeMutation.isPending}
+                  >
+                    {removeMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover Client Secret?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Isso irá desconfigurar a integração. Tenants conectados perderão acesso ao Mercado Livre.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => removeMutation.mutate("MELI_CLIENT_SECRET")}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* URLs para configurar no DevCenter */}
       <Card>
         <CardHeader>
@@ -251,95 +431,118 @@ export function MeliPlatformSettings() {
         </CardContent>
       </Card>
 
-      {/* Formulário de credenciais */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Credenciais da Aplicação</CardTitle>
-          <CardDescription>
-            Obtenha estas credenciais no DevCenter do Mercado Livre
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="appId">APP ID / Client ID</Label>
-            <Input
-              id="appId"
-              type="text"
-              placeholder={appIdConfigured ? "••••••••" : "Cole seu APP ID aqui"}
-              value={appId}
-              onChange={(e) => setAppId(e.target.value)}
-            />
-            {appIdConfigured && (
-              <p className="text-xs text-muted-foreground">
-                ✓ Já configurado. Deixe em branco para manter o valor atual.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="clientSecret">Client Secret</Label>
-            <div className="relative">
+      {/* Formulário de credenciais (quando não configuradas ou editando) */}
+      {(!allConfigured || isEditing) && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">
+                  {isEditing ? "Editar Credenciais" : "Credenciais da Aplicação"}
+                </CardTitle>
+                <CardDescription>
+                  {isEditing 
+                    ? "Atualize as credenciais do Mercado Livre" 
+                    : "Obtenha estas credenciais no DevCenter do Mercado Livre"}
+                </CardDescription>
+              </div>
+              {isEditing && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setAppId("");
+                    setClientSecret("");
+                  }}
+                >
+                  Cancelar
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="appId">APP ID / Client ID</Label>
               <Input
-                id="clientSecret"
-                type={showSecret ? "text" : "password"}
-                placeholder={secretConfigured ? "••••••••" : "Cole seu Client Secret aqui"}
-                value={clientSecret}
-                onChange={(e) => setClientSecret(e.target.value)}
-                className="pr-10"
+                id="appId"
+                type="text"
+                placeholder={appIdConfigured ? `Atual: ${appIdPreview}` : "Cole seu APP ID aqui"}
+                value={appId}
+                onChange={(e) => setAppId(e.target.value)}
               />
+              {appIdConfigured && isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  Deixe em branco para manter o valor atual: {appIdPreview}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clientSecret">Client Secret</Label>
+              <div className="relative">
+                <Input
+                  id="clientSecret"
+                  type={showSecret ? "text" : "password"}
+                  placeholder={secretConfigured ? `Atual: ${secretPreview}` : "Cole seu Client Secret aqui"}
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowSecret(!showSecret)}
+                >
+                  {showSecret ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+              {secretConfigured && isEditing && (
+                <p className="text-xs text-muted-foreground">
+                  Deixe em branco para manter o valor atual: {secretPreview}
+                </p>
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="flex justify-between items-center">
               <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowSecret(!showSecret)}
+                variant="outline"
+                size="sm"
+                asChild
               >
-                {showSecret ? (
-                  <EyeOff className="h-4 w-4" />
+                <a
+                  href="https://developers.mercadolivre.com.br/devcenter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Abrir DevCenter
+                </a>
+              </Button>
+
+              <Button
+                onClick={() => saveMutation.mutate()}
+                disabled={saveMutation.isPending || (!appId.trim() && !clientSecret.trim())}
+              >
+                {saveMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
-                  <Eye className="h-4 w-4" />
+                  <Save className="h-4 w-4 mr-2" />
                 )}
+                {isEditing ? "Atualizar Credenciais" : "Salvar Credenciais"}
               </Button>
             </div>
-            {secretConfigured && (
-              <p className="text-xs text-muted-foreground">
-                ✓ Já configurado. Deixe em branco para manter o valor atual.
-              </p>
-            )}
-          </div>
-
-          <Separator />
-
-          <div className="flex justify-between items-center">
-            <Button
-              variant="outline"
-              size="sm"
-              asChild
-            >
-              <a
-                href="https://developers.mercadolivre.com.br/devcenter"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir DevCenter
-              </a>
-            </Button>
-
-            <Button
-              onClick={() => saveMutation.mutate()}
-              disabled={saveMutation.isPending || (!appId.trim() && !clientSecret.trim())}
-            >
-              {saveMutation.isPending ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Salvar Credenciais
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

@@ -70,12 +70,17 @@ serve(async (req) => {
       );
     }
 
-    const { credentialKey, credentialValue }: { credentialKey: string; credentialValue: string } = await req.json();
+    const body = await req.json();
+    const { credentialKey, credentialValue, action } = body as { 
+      credentialKey: string; 
+      credentialValue?: string | null;
+      action?: 'update' | 'delete';
+    };
 
     if (!credentialKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Nome da credencial é obrigatório' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -83,12 +88,37 @@ serve(async (req) => {
     if (!EDITABLE_CREDENTIALS.includes(credentialKey)) {
       return new Response(
         JSON.stringify({ success: false, error: `Credencial '${credentialKey}' não é editável` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Usar service role para atualizar
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Ação de delete - remove completamente o registro
+    if (action === 'delete') {
+      const { error } = await supabaseAdmin
+        .from('platform_credentials')
+        .delete()
+        .eq('credential_key', credentialKey);
+
+      if (error) {
+        console.error('[platform-credentials-update] Error deleting:', error);
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log(`[platform-credentials-update] Deleted ${credentialKey} by user ${user.email}`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: `${credentialKey} removido com sucesso!` 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Se credentialValue está vazio ou null, limpar (volta a usar env var)
     if (!credentialValue) {
@@ -96,6 +126,7 @@ serve(async (req) => {
         .from('platform_credentials')
         .update({ 
           credential_value: null, 
+          is_active: false,
           updated_at: new Date().toISOString(),
           updated_by: user.id 
         })
@@ -105,7 +136,7 @@ serve(async (req) => {
         console.error('[platform-credentials-update] Error clearing:', error);
         return new Response(
           JSON.stringify({ success: false, error: error.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 

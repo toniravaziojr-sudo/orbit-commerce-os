@@ -105,6 +105,9 @@ serve(async (req) => {
     const metaAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_ID');
     const metaAppSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'META_APP_SECRET');
     const lateApiKey = await checkCredential(supabaseUrl, supabaseServiceKey, 'LATE_API_KEY');
+    const meliAppId = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_APP_ID');
+    const meliClientSecret = await checkCredential(supabaseUrl, supabaseServiceKey, 'MELI_CLIENT_SECRET');
+    
     const secrets: Record<string, IntegrationConfig & { previews?: Record<string, string>; sources?: Record<string, string> }> = {
       focus_nfe: {
         name: 'Focus NFe',
@@ -267,6 +270,24 @@ serve(async (req) => {
         },
         sources: {
           LATE_API_KEY: lateApiKey.source || '',
+        },
+      },
+      mercadolivre: {
+        name: 'Mercado Livre',
+        description: 'Integração com marketplace Mercado Livre',
+        icon: 'ShoppingBag',
+        docs: 'https://developers.mercadolivre.com.br/',
+        secrets: {
+          MELI_APP_ID: meliAppId.exists,
+          MELI_CLIENT_SECRET: meliClientSecret.exists,
+        },
+        previews: {
+          MELI_APP_ID: meliAppId.preview || '',
+          MELI_CLIENT_SECRET: meliClientSecret.preview || '',
+        },
+        sources: {
+          MELI_APP_ID: meliAppId.source || '',
+          MELI_CLIENT_SECRET: meliClientSecret.source || '',
         },
       },
     };
