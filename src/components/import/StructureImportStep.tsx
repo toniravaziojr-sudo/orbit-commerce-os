@@ -173,17 +173,28 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, visual: 'processing' }));
     
     try {
-      // Try to get better HTML with JS rendered
+      // Try to get better HTML with JS rendered AND branding via Firecrawl
       let htmlToUse = scrapedData?.html || '';
+      let firecrawlBranding: any = null;
       
       try {
+        // Use Firecrawl with 'branding' format for accurate color extraction
         const { data: betterScrape } = await supabase.functions.invoke('firecrawl-scrape', {
           body: { 
             url: storeUrl,
-            options: { formats: ['html', 'links'], onlyMainContent: false, waitFor: 3000 }
+            options: { 
+              formats: ['html', 'links', 'branding'], 
+              onlyMainContent: false, 
+              waitFor: 3000 
+            }
           }
         });
         if (betterScrape?.data?.html) htmlToUse = betterScrape.data.html;
+        // Firecrawl branding extraction provides accurate colors via LLM analysis
+        if (betterScrape?.data?.branding) {
+          firecrawlBranding = betterScrape.data.branding;
+          console.log('Firecrawl branding extracted:', firecrawlBranding);
+        }
       } catch (e) {
         console.log('Fallback scrape failed, using original HTML');
       }
@@ -195,6 +206,33 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
 
       if (error) throw new Error(error.message);
       if (!data?.success) throw new Error(data?.error || 'Falha na extração visual');
+
+      // Merge Firecrawl branding with extracted data (Firecrawl is more accurate for colors)
+      if (firecrawlBranding) {
+        if (!data.branding) data.branding = {};
+        // Use Firecrawl colors if available (more accurate than regex)
+        if (firecrawlBranding.colors?.primary && !data.branding.primaryColor) {
+          data.branding.primaryColor = firecrawlBranding.colors.primary;
+        }
+        if (firecrawlBranding.colors?.secondary && !data.branding.secondaryColor) {
+          data.branding.secondaryColor = firecrawlBranding.colors.secondary;
+        }
+        if (firecrawlBranding.colors?.accent && !data.branding.accentColor) {
+          data.branding.accentColor = firecrawlBranding.colors.accent;
+        }
+        // Also try background as secondary if needed
+        if (firecrawlBranding.colors?.background && !data.branding.secondaryColor) {
+          data.branding.secondaryColor = firecrawlBranding.colors.background;
+        }
+        // Use Firecrawl logo if our extraction failed
+        if (firecrawlBranding.logo && !data.branding.logo) {
+          data.branding.logo = firecrawlBranding.logo;
+        }
+        if (firecrawlBranding.images?.favicon && !data.branding.favicon) {
+          data.branding.favicon = firecrawlBranding.images.favicon;
+        }
+        console.log('Merged branding:', data.branding);
+      }
 
       setVisualData(data);
 
