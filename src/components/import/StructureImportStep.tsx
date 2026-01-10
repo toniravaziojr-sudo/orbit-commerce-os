@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle, CheckCircle2, Loader2, FolderTree, FileText, Menu, ArrowRight, SkipForward, AlertCircle } from 'lucide-react';
-import { ProgressWithETA } from '@/components/ui/progress-with-eta';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,12 +36,12 @@ type ImportStepKey = typeof IMPORT_ORDER[number];
 const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; icon: React.ReactNode }> = {
   categories: {
     label: 'Categorias',
-    description: 'Categorias de produtos detectadas nos menus',
+    description: 'Categorias de produtos detectadas nos menus (apenas nome e slug)',
     icon: <FolderTree className="h-5 w-5" />,
   },
   pages: {
     label: 'Páginas Institucionais',
-    description: 'Políticas, Termos, Trocas, Entregas e outras páginas de texto do footer',
+    description: 'Políticas, Termos, Trocas e outras páginas (criadas como rascunho vazio)',
     icon: <FileText className="h-5 w-5" />,
   },
   menus: {
@@ -66,18 +65,6 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     pages: 0,
     menuItems: 0,
   });
-  
-  // Visual data cached from first extraction
-  const [visualData, setVisualData] = useState<any>(null);
-  const [createdMenuId, setCreatedMenuId] = useState<string | null>(null);
-
-  // Get the current step that should be active (first non-completed step in order)
-  const getCurrentActiveStep = useCallback((): ImportStepKey | null => {
-    for (const step of IMPORT_ORDER) {
-      if (progress[step] === 'pending') return step;
-    }
-    return null;
-  }, [progress]);
 
   // Check if a step can be started (previous steps must be completed/skipped)
   const canStartStep = useCallback((step: ImportStepKey): boolean => {
@@ -95,7 +82,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
   const isAllDone = Object.values(progress).every(s => s === 'completed' || s === 'skipped');
 
   // ========================================
-  // STEP 2: IMPORT CATEGORIES
+  // IMPORT CATEGORIES (simple: name + slug only)
   // ========================================
   const importCategories = useCallback(async () => {
     setIsProcessing(true);
@@ -103,51 +90,44 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, categories: 'processing' }));
 
     try {
-      // Use cached visual data or fetch fresh
-      let data = visualData;
-      if (!data) {
-        const { data: freshData, error } = await supabase.functions.invoke('import-visual', {
-          body: { url: storeUrl, html: scrapedData?.html || '', platform: analysisResult?.platform }
-        });
-        if (error) throw new Error(error.message);
-        data = freshData;
-        setVisualData(data);
-      }
-
-      const allCategories: Array<{ name: string; slug: string; url?: string }> = [];
-      const processedSlugs = new Set<string>();
-
-      const extractSlugFromUrl = (url: string): string | null => {
-        const match = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i.exec(url);
-        return match ? match[1] : null;
-      };
-
-      // Process menu items
-      const processMenuItem = (item: any) => {
-        const slug = extractSlugFromUrl(item.url || '');
-        if ((item.type === 'category' || slug) && slug && !processedSlugs.has(slug)) {
-          allCategories.push({ name: item.label || item.name, slug, url: item.url });
-          processedSlugs.add(slug);
-        }
-        if (item.children) item.children.forEach(processMenuItem);
-      };
-
-      (data.menuItems || []).forEach(processMenuItem);
-      (data.categories || []).forEach((cat: any) => {
-        if (cat?.slug && !processedSlugs.has(cat.slug)) {
-          allCategories.push({ name: cat.name, slug: cat.slug, url: cat.url });
-          processedSlugs.add(cat.slug);
+      // Use Firecrawl to get links
+      const { data: scrapeResult, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
+        body: { 
+          url: storeUrl,
+          options: { formats: ['links'], onlyMainContent: false }
         }
       });
 
+      if (scrapeError) throw new Error(scrapeError.message);
+
+      const links = scrapeResult?.data?.links || scrapeResult?.links || [];
+      const origin = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`).origin;
+
+      // Filter category URLs
+      const categoryPattern = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i;
+      const processedSlugs = new Set<string>();
+      const categories: Array<{ name: string; slug: string }> = [];
+
+      for (const link of links) {
+        if (!link.startsWith(origin)) continue;
+        const match = categoryPattern.exec(link);
+        if (match && match[1] && !processedSlugs.has(match[1].toLowerCase())) {
+          const slug = match[1].toLowerCase();
+          processedSlugs.add(slug);
+          categories.push({
+            slug,
+            name: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          });
+        }
+      }
+
       // Save categories
       let importedCount = 0;
-      for (const cat of allCategories) {
-        if (!cat?.slug) continue;
+      for (const cat of categories) {
         const { error } = await supabase.from('categories').upsert({
           tenant_id: tenantId,
-          name: cat.name || cat.slug,
-          slug: cat.slug.toLowerCase(),
+          name: cat.name,
+          slug: cat.slug,
           is_active: true,
         }, { onConflict: 'tenant_id,slug' });
         
@@ -166,10 +146,10 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData]);
+  }, [tenantId, storeUrl]);
 
   // ========================================
-  // STEP 3: IMPORT PAGES
+  // IMPORT PAGES (simplified: empty placeholders)
   // ========================================
   const importPages = useCallback(async () => {
     setIsProcessing(true);
@@ -177,45 +157,27 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, pages: 'processing' }));
 
     try {
-      // Usar nova edge function simplificada para páginas institucionais
       const { data: result, error } = await supabase.functions.invoke('import-institutional-pages', {
         body: { tenantId, storeUrl }
       });
 
-      if (error) {
-        console.error('Error calling import-institutional-pages:', error);
-        setErrors(e => [...e, `Páginas: ${error.message}`]);
-        throw new Error(error.message);
-      }
-
-      if (!result?.success) {
-        const errorMsg = result?.error || 'Falha na importação de páginas';
-        setErrors(e => [...e, `Páginas: ${errorMsg}`]);
-        throw new Error(errorMsg);
-      }
+      if (error) throw new Error(error.message);
+      if (!result?.success) throw new Error(result?.error || 'Falha na importação');
 
       const importedCount = result.pages?.length || 0;
-      const skippedCount = result.skipped?.length || 0;
-
-      // Log skipped pages for debugging
-      if (result.skipped && result.skipped.length > 0) {
-        console.log('Páginas puladas:', result.skipped);
-      }
-
       setStats(s => ({ ...s, pages: importedCount }));
       setProgress(p => ({ ...p, pages: 'completed' }));
       
       if (importedCount > 0) {
-        toast.success(`${importedCount} páginas institucionais importadas`);
-      } else if (skippedCount > 0) {
-        toast.info(`Nenhuma página elegível encontrada (${skippedCount} puladas)`);
+        toast.success(`${importedCount} páginas criadas como rascunho`);
       } else {
-        toast.info('Nenhuma página institucional detectada no footer');
+        toast.info('Nenhuma página institucional detectada');
       }
     } catch (err: any) {
       console.error('Error importing pages:', err);
+      setErrors(e => [...e, `Páginas: ${err.message}`]);
       setProgress(p => ({ ...p, pages: 'error' }));
-      toast.error(`Erro ao importar páginas: ${err.message}`);
+      toast.error(`Erro: ${err.message}`);
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
@@ -223,7 +185,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
   }, [tenantId, storeUrl]);
 
   // ========================================
-  // STEP 4: IMPORT MENUS
+  // IMPORT MENUS (navigation structure)
   // ========================================
   const importMenus = useCallback(async () => {
     setIsProcessing(true);
@@ -231,151 +193,117 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, menus: 'processing' }));
 
     try {
-      let data = visualData;
-      if (!data) {
-        const { data: freshData, error } = await supabase.functions.invoke('import-visual', {
-          body: { url: storeUrl, html: scrapedData?.html || '', platform: analysisResult?.platform }
-        });
-        if (error) throw new Error(error.message);
-        data = freshData;
-        setVisualData(data);
-      }
+      // Get scraped data with links
+      const { data: scrapeResult, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
+        body: { 
+          url: storeUrl,
+          options: { formats: ['html', 'links'], onlyMainContent: false, waitFor: 2000 }
+        }
+      });
 
-      const headerMenuItems = data.menuItems || [];
-      const footerMenuItems = data.footerMenuItems || [];
-      let totalMenuItems = 0;
+      if (scrapeError) throw new Error(scrapeError.message);
 
-      // Get imported categories and pages for linking
-      const { data: importedCategories } = await supabase.from('categories').select('id, slug, name').eq('tenant_id', tenantId);
-      const { data: importedPages } = await supabase.from('store_pages').select('id, slug, title').eq('tenant_id', tenantId);
+      const html = scrapeResult?.data?.html || scrapeResult?.html || '';
+      const links = scrapeResult?.data?.links || scrapeResult?.links || [];
+      const origin = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`).origin;
+
+      // Get existing categories and pages for linking
+      const { data: categories } = await supabase.from('categories').select('id, slug, name').eq('tenant_id', tenantId);
+      const { data: pages } = await supabase.from('store_pages').select('id, slug, title').eq('tenant_id', tenantId);
 
       const categoryMap = new Map<string, { id: string; slug: string }>();
-      (importedCategories || []).forEach(cat => {
+      (categories || []).forEach(cat => {
         categoryMap.set(cat.slug.toLowerCase(), { id: cat.id, slug: cat.slug });
-        categoryMap.set(cat.name.toLowerCase().replace(/\s+/g, '-'), { id: cat.id, slug: cat.slug });
       });
 
       const pageMap = new Map<string, { id: string; slug: string }>();
-      (importedPages || []).forEach(page => {
+      (pages || []).forEach(page => {
         pageMap.set(page.slug.toLowerCase(), { id: page.id, slug: page.slug });
-        pageMap.set(page.title.toLowerCase().replace(/\s+/g, '-'), { id: page.id, slug: page.slug });
       });
 
-      const findCategoryMatch = (url: string, label: string) => {
-        const match = url.match(/\/(?:collections?|categoria|category|c)\/([^/?#]+)/i);
-        if (match && categoryMap.has(match[1].toLowerCase())) return categoryMap.get(match[1].toLowerCase());
-        const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
-        return categoryMap.get(labelSlug) || null;
-      };
+      // Extract menu items from links
+      const categoryPattern = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i;
+      const pagePattern = /\/(?:pages?|pagina|policies)\/([^/?#]+)/i;
 
-      const findPageMatch = (url: string, label: string) => {
-        const match = url.match(/\/(?:pages?|pagina|policies)\/([^/?#]+)/i);
-        if (match && pageMap.has(match[1].toLowerCase())) return pageMap.get(match[1].toLowerCase());
-        const labelSlug = label.toLowerCase().replace(/\s+/g, '-');
-        return pageMap.get(labelSlug) || null;
-      };
+      const headerItems: Array<{ label: string; url: string; type: string; refId?: string }> = [];
+      const footerItems: Array<{ label: string; url: string; type: string; refId?: string }> = [];
+      const seenUrls = new Set<string>();
 
-      const insertMenuItems = async (items: any[], menuId: string) => {
-        let count = 0;
-        let sortOrder = 0;
+      for (const link of links) {
+        if (!link.startsWith(origin) || seenUrls.has(link)) continue;
+        seenUrls.add(link);
 
-        for (const item of items) {
-          const categoryMatch = findCategoryMatch(item.internalUrl || item.url || '', item.label || '');
-          const pageMatch = !categoryMatch ? findPageMatch(item.internalUrl || item.url || '', item.label || '') : null;
+        const catMatch = categoryPattern.exec(link);
+        const pageMatch = pagePattern.exec(link);
 
-          let itemType = item.type || 'external';
-          let itemUrl = item.internalUrl || item.url || '#';
-          let refId = null;
-
-          if (categoryMatch) {
-            itemType = 'category';
-            itemUrl = `/categoria/${categoryMatch.slug}`;
-            refId = categoryMatch.id;
-          } else if (pageMatch) {
-            itemType = 'page';
-            itemUrl = `/pagina/${pageMatch.slug}`;
-            refId = pageMatch.id;
-          }
-
-          const { data: parentItem, error } = await supabase.from('menu_items').insert({
-            tenant_id: tenantId, menu_id: menuId, label: item.label, url: itemUrl,
-            item_type: itemType, ref_id: refId, sort_order: sortOrder++, parent_id: null,
-          }).select('id').single();
-
-          if (error) continue;
-          count++;
-
-          // Insert children
-          if (item.children && parentItem) {
-            for (let i = 0; i < item.children.length; i++) {
-              const child = item.children[i];
-              const childCategoryMatch = findCategoryMatch(child.internalUrl || child.url || '', child.label || '');
-              const childPageMatch = !childCategoryMatch ? findPageMatch(child.internalUrl || child.url || '', child.label || '') : null;
-
-              let childType = child.type || 'external';
-              let childUrl = child.internalUrl || child.url || '#';
-              let childRefId = null;
-
-              if (childCategoryMatch) {
-                childType = 'category';
-                childUrl = `/categoria/${childCategoryMatch.slug}`;
-                childRefId = childCategoryMatch.id;
-              } else if (childPageMatch) {
-                childType = 'page';
-                childUrl = `/pagina/${childPageMatch.slug}`;
-                childRefId = childPageMatch.id;
-              }
-
-              const { error: childError } = await supabase.from('menu_items').insert({
-                tenant_id: tenantId, menu_id: menuId, label: child.label, url: childUrl,
-                item_type: childType, ref_id: childRefId, parent_id: parentItem.id, sort_order: i,
-              });
-
-              if (!childError) count++;
-            }
-          }
+        if (catMatch) {
+          const slug = catMatch[1].toLowerCase();
+          const cat = categoryMap.get(slug);
+          headerItems.push({
+            label: cat ? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : slug,
+            url: `/categoria/${slug}`,
+            type: 'category',
+            refId: cat?.id,
+          });
+        } else if (pageMatch) {
+          const slug = pageMatch[1].toLowerCase();
+          const page = pageMap.get(slug);
+          footerItems.push({
+            label: page ? slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : slug,
+            url: `/pagina/${slug}`,
+            type: 'page',
+            refId: page?.id,
+          });
         }
-        return count;
-      };
+      }
 
-      // Header Menu
-      if (headerMenuItems.length > 0) {
+      let totalMenuItems = 0;
+
+      // Create/update header menu
+      if (headerItems.length > 0) {
         const { data: headerMenu } = await supabase.from('menus')
           .upsert({ tenant_id: tenantId, name: 'Menu Header', location: 'header' }, { onConflict: 'tenant_id,location' })
           .select('id').single();
 
         if (headerMenu) {
-          setCreatedMenuId(headerMenu.id);
           await supabase.from('menu_items').delete().eq('menu_id', headerMenu.id);
-          totalMenuItems += await insertMenuItems(headerMenuItems, headerMenu.id);
+          for (let i = 0; i < Math.min(headerItems.length, 10); i++) {
+            const item = headerItems[i];
+            const { error } = await supabase.from('menu_items').insert({
+              tenant_id: tenantId,
+              menu_id: headerMenu.id,
+              label: item.label,
+              url: item.url,
+              item_type: item.type,
+              ref_id: item.refId || null,
+              sort_order: i,
+            });
+            if (!error) totalMenuItems++;
+          }
         }
       }
 
-      // Footer Menu 1 (Categorias)
-      const categoryFooterItems = footerMenuItems.filter((item: any) => 
-        /\/(?:collections?|categoria|category|c)\//i.test(item.url || '')
-      );
-      if (categoryFooterItems.length > 0) {
-        const { data: footer1 } = await supabase.from('menus')
-          .upsert({ tenant_id: tenantId, name: 'Footer 1', location: 'footer_1' }, { onConflict: 'tenant_id,location' })
-          .select('id').single();
-        if (footer1) {
-          await supabase.from('menu_items').delete().eq('menu_id', footer1.id);
-          totalMenuItems += await insertMenuItems(categoryFooterItems, footer1.id);
-        }
-      }
-
-      // Footer Menu 2 (Institucional)
-      const institutionalFooterItems = footerMenuItems.filter((item: any) => 
-        /\/(?:pages?|pagina|policies)\//i.test(item.url || '')
-      );
-      if (institutionalFooterItems.length > 0) {
-        const { data: footer2 } = await supabase.from('menus')
+      // Create/update footer menu
+      if (footerItems.length > 0) {
+        const { data: footerMenu } = await supabase.from('menus')
           .upsert({ tenant_id: tenantId, name: 'Footer 2', location: 'footer_2' }, { onConflict: 'tenant_id,location' })
           .select('id').single();
-        if (footer2) {
-          await supabase.from('menu_items').delete().eq('menu_id', footer2.id);
-          totalMenuItems += await insertMenuItems(institutionalFooterItems, footer2.id);
+
+        if (footerMenu) {
+          await supabase.from('menu_items').delete().eq('menu_id', footerMenu.id);
+          for (let i = 0; i < Math.min(footerItems.length, 10); i++) {
+            const item = footerItems[i];
+            const { error } = await supabase.from('menu_items').insert({
+              tenant_id: tenantId,
+              menu_id: footerMenu.id,
+              label: item.label,
+              url: item.url,
+              item_type: item.type,
+              ref_id: item.refId || null,
+              sort_order: i,
+            });
+            if (!error) totalMenuItems++;
+          }
         }
       }
 
@@ -383,25 +311,24 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setProgress(p => ({ ...p, menus: 'completed' }));
       toast.success(`${totalMenuItems} itens de menu importados`);
 
-      // Menus is the last step - call onComplete
-      onComplete(stats);
+      // Call onComplete with final stats
+      onComplete({ ...stats, menuItems: totalMenuItems });
     } catch (err: any) {
       console.error('Error importing menus:', err);
       setErrors(e => [...e, `Menus: ${err.message}`]);
       setProgress(p => ({ ...p, menus: 'error' }));
-      toast.error(`Erro ao importar menus: ${err.message}`);
+      toast.error(`Erro: ${err.message}`);
     } finally {
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl, scrapedData, analysisResult, visualData, stats, onComplete]);
+  }, [tenantId, storeUrl, stats, onComplete]);
 
   // Skip a step
   const skipStep = useCallback((step: ImportStepKey) => {
     setProgress(p => ({ ...p, [step]: 'skipped' }));
     toast.info(`${STEP_CONFIG[step].label} pulado`);
     
-    // If skipping menus (last step), call onComplete
     if (step === 'menus') {
       onComplete(stats);
     }
@@ -433,7 +360,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       case 'categories':
         return `${stats.categories} importadas`;
       case 'pages':
-        return stats.pages > 0 ? `${stats.pages} importadas` : 'Nenhuma encontrada';
+        return stats.pages > 0 ? `${stats.pages} criadas` : 'Nenhuma encontrada';
       case 'menus':
         return `${stats.menuItems} itens`;
       default:
@@ -443,50 +370,49 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
 
   return (
     <div className="space-y-6">
-      {/* Warning about order */}
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Ordem obrigatória:</strong> Para que a importação funcione corretamente, siga a ordem: Categorias → Páginas → Menus.
-          Você pode pular etapas, mas os menus só serão corretamente vinculados se categorias e páginas forem importados antes.
+          Importe na ordem: Categorias → Páginas → Menus. Páginas são criadas como rascunho vazio para você preencher depois.
         </AlertDescription>
       </Alert>
 
-      {/* Steps */}
       <div className="space-y-3">
         {IMPORT_ORDER.map((step, index) => {
           const config = STEP_CONFIG[step];
           const status = progress[step];
           const canStart = canStartStep(step);
           const isActive = currentStep === step;
-          const statsText = renderStepStats(step);
 
           return (
-            <Card key={step} className={`transition-colors ${isActive ? 'ring-2 ring-primary' : ''}`}>
-              <CardContent className="py-4">
-                <div className="flex items-center gap-4">
-                  {/* Step number and icon */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-medium text-muted-foreground w-5">{index + 1}.</span>
-                    {getStatusIcon(status)}
-                  </div>
-
-                  {/* Step info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      {config.icon}
-                      <span className="font-medium">{config.label}</span>
-                      {statsText && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-                          {statsText}
-                        </span>
+            <Card key={step} className={`transition-all ${isActive ? 'ring-2 ring-primary' : ''}`}>
+              <CardHeader className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted">
+                      {status === 'pending' ? (
+                        <span className="text-sm font-medium">{index + 1}</span>
+                      ) : (
+                        getStatusIcon(status)
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">{config.description}</p>
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        {config.icon}
+                        {config.label}
+                        {renderStepStats(step) && (
+                          <span className="text-sm font-normal text-muted-foreground">
+                            ({renderStepStats(step)})
+                          </span>
+                        )}
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-0.5">
+                        {config.description}
+                      </CardDescription>
+                    </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex gap-2">
                     {status === 'pending' && (
                       <>
                         <Button
@@ -503,7 +429,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
                           onClick={() => stepHandlers[step]()}
                           disabled={!canStart || isProcessing}
                         >
-                          {isProcessing && isActive ? (
+                          {isActive ? (
                             <Loader2 className="h-4 w-4 mr-1 animate-spin" />
                           ) : (
                             <ArrowRight className="h-4 w-4 mr-1" />
@@ -512,47 +438,34 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
                         </Button>
                       </>
                     )}
-                    {status === 'completed' && (
-                      <span className="text-sm text-green-600 font-medium">Concluído</span>
-                    )}
-                    {status === 'skipped' && (
-                      <span className="text-sm text-muted-foreground">Pulado</span>
-                    )}
-                    {status === 'error' && (
-                      <Button size="sm" variant="outline" onClick={() => {
-                        setProgress(p => ({ ...p, [step]: 'pending' }));
-                      }}>
-                        Tentar novamente
-                      </Button>
-                    )}
                   </div>
                 </div>
-              </CardContent>
+              </CardHeader>
             </Card>
           );
         })}
       </div>
 
-      {/* Errors */}
       {errors.length > 0 && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <ul className="list-disc list-inside">
-              {errors.map((err, i) => <li key={i}>{err}</li>)}
+            <ul className="list-disc pl-4 space-y-1">
+              {errors.map((error, i) => (
+                <li key={i}>{error}</li>
+              ))}
             </ul>
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Completion message */}
       {isAllDone && (
-        <div className="text-center py-4">
-          <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Estrutura da loja importada!
-          </p>
-        </div>
+        <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+          <CheckCircle2 className="h-4 w-4 text-green-500" />
+          <AlertDescription className="text-green-700 dark:text-green-300">
+            Importação de estrutura concluída! Categorias: {stats.categories}, Páginas: {stats.pages}, Menu: {stats.menuItems} itens.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
