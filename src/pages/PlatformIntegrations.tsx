@@ -7,8 +7,9 @@ import { FiscalPlatformSettings } from "@/components/integrations/FiscalPlatform
 import { LogisticsPlatformSettings } from "@/components/integrations/LogisticsPlatformSettings";
 import { AIPlatformSettings } from "@/components/integrations/AIPlatformSettings";
 import { LatePlatformSettings } from "@/components/integrations/platform/LatePlatformSettings";
+import { MeliPlatformSettings } from "@/components/integrations/MeliPlatformSettings";
 import { SmokeTestDialog } from "@/components/integrations/SmokeTestDialog";
-import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar } from "lucide-react";
+import { Shield, MessageCircle, Mail, FileText, Truck, Bot, LayoutGrid, Send, Calendar, ShoppingBag } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -96,6 +97,10 @@ export default function PlatformIntegrations() {
             <Calendar className="h-4 w-4" />
             <span className="hidden sm:inline">Late</span>
           </TabsTrigger>
+          <TabsTrigger value="mercadolivre" className="gap-2">
+            <ShoppingBag className="h-4 w-4" />
+            <span className="hidden sm:inline">Mercado Livre</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -124,6 +129,10 @@ export default function PlatformIntegrations() {
 
         <TabsContent value="late">
           <LatePlatformSettings />
+        </TabsContent>
+
+        <TabsContent value="mercadolivre">
+          <MeliPlatformSettings />
         </TabsContent>
       </Tabs>
 
