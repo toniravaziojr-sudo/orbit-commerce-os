@@ -87,6 +87,12 @@ export interface Order {
   internal_notes: string | null;
   cancelled_at: string | null;
   cancellation_reason: string | null;
+  // Marketplace fields
+  source_order_number: string | null;
+  source_platform: string | null;
+  marketplace_source: string | null;
+  marketplace_order_id: string | null;
+  marketplace_data: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
