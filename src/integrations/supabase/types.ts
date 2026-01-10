@@ -2623,6 +2623,7 @@ export type Database = {
           id: string
           is_folder: boolean | null
           is_system_folder: boolean | null
+          metadata: Json | null
           mime_type: string | null
           original_name: string
           size_bytes: number | null
@@ -2638,6 +2639,7 @@ export type Database = {
           id?: string
           is_folder?: boolean | null
           is_system_folder?: boolean | null
+          metadata?: Json | null
           mime_type?: string | null
           original_name: string
           size_bytes?: number | null
@@ -2653,6 +2655,7 @@ export type Database = {
           id?: string
           is_folder?: boolean | null
           is_system_folder?: boolean | null
+          metadata?: Json | null
           mime_type?: string | null
           original_name?: string
           size_bytes?: number | null
