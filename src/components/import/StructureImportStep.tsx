@@ -43,8 +43,8 @@ interface StructureImportStepProps {
   onComplete: (stats: ImportStats) => void;
 }
 
-// Required order of import steps (blocks come after menus)
-const IMPORT_ORDER = ['visual', 'categories', 'pages', 'menus', 'blocks'] as const;
+// Required order of import steps (menus LAST - they depend on categories and pages)
+const IMPORT_ORDER = ['visual', 'categories', 'pages', 'blocks', 'menus'] as const;
 type ImportStepKey = typeof IMPORT_ORDER[number];
 
 const STEP_CONFIG: Record<ImportStepKey, { label: string; description: string; icon: React.ReactNode }> = {
