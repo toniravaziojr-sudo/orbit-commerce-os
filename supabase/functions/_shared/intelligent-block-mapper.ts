@@ -981,6 +981,91 @@ export function createProductCardsBlock(classification: ClassificationResult): B
 }
 
 // =====================================================
+// TEXT CONTENT BLOCK (NEW - for institutional pages)
+// =====================================================
+export function createTextContentBlock(classification: ClassificationResult): BlockNode[] {
+  const { extractedContent } = classification;
+  const { title, paragraphs, items } = extractedContent;
+  
+  const blocks: BlockNode[] = [];
+  
+  // Add title
+  if (title && !isNoiseTitle(title)) {
+    blocks.push({
+      id: generateBlockId('text-title'),
+      type: 'TextBanners',
+      props: {
+        title: title,
+        subtitle: '',
+        alignment: 'center',
+        backgroundColor: 'transparent',
+      },
+    });
+  }
+  
+  // Add paragraphs as RichText
+  const cleanParagraphs = paragraphs.filter(p => !isNoiseParagraph(p) && p.length > 20);
+  
+  if (cleanParagraphs.length > 0) {
+    const sanitizedContent = cleanParagraphs
+      .map(p => `<p>${p}</p>`)
+      .join('\n');
+    
+    blocks.push({
+      id: generateBlockId('text-content'),
+      type: 'RichText',
+      props: {
+        content: sanitizedContent,
+      },
+    });
+  }
+  
+  // If there are items (like FAQ items or list items), add them
+  const validItems = items.filter(item => !isNoiseTitle(item.title));
+  if (validItems.length > 0) {
+    // Check if items look like FAQ (have question-like titles)
+    const looksFAQ = validItems.some(item => 
+      item.title?.includes('?') || 
+      /^como\s|^qual\s|^quando\s|^onde\s|^por\s*que\s/i.test(item.title || '')
+    );
+    
+    if (looksFAQ) {
+      blocks.push({
+        id: generateBlockId('text-faq'),
+        type: 'FAQ',
+        props: {
+          title: '',
+          items: validItems.slice(0, 15).map(item => ({
+            question: item.title || '',
+            answer: item.description || 'Resposta em breve.',
+          })),
+        },
+      });
+    } else {
+      // Add as feature list
+      const featureItems = validItems.map((item, index) => ({
+        id: generateBlockId(`text-feature-${index}`),
+        icon: ICON_MAP[item.suggestedIcon || 'check'] || ICON_MAP.default,
+        text: item.title + (item.description ? `: ${item.description}` : ''),
+      }));
+      
+      blocks.push({
+        id: generateBlockId('text-features'),
+        type: 'FeatureList',
+        props: {
+          title: '',
+          items: featureItems,
+          iconColor: '#22c55e',
+          showButton: false,
+        },
+      });
+    }
+  }
+  
+  return blocks;
+}
+
+// =====================================================
 // MAIN MAPPER FUNCTION
 // =====================================================
 export function mapClassificationToBlocks(classification: ClassificationResult): BlockNode[] {
@@ -994,16 +1079,25 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
     return [];
   }
   
+  // Check if this looks like a columns layout
+  const hasImage = extractedContent.images.length > 0;
+  const hasTextContent = extractedContent.paragraphs.length > 0 || extractedContent.items.length > 0;
+  const isColumnsLayout = layout?.includes('columns-image');
+  
+  // Check if this is primarily text content (institutional page)
+  const isTextHeavy = extractedContent.paragraphs.length >= 2 && extractedContent.images.length <= 1;
+  
+  // Low confidence + text heavy -> use TextContent block (institutional page)
+  if (confidence < 0.5 && isTextHeavy) {
+    console.log('[mapper] Low confidence with text-heavy content, using TextContent block');
+    return createTextContentBlock(classification);
+  }
+  
   // Low confidence -> generic fallback
   if (confidence < 0.4) {
     console.log('[mapper] Low confidence, using generic block');
     return createGenericBlock(classification);
   }
-  
-  // Check if this looks like a columns layout
-  const hasImage = extractedContent.images.length > 0;
-  const hasTextContent = extractedContent.paragraphs.length > 0 || extractedContent.items.length > 0;
-  const isColumnsLayout = layout?.includes('columns-image');
   
   // Map by section type to NATIVE blocks
   switch (sectionType) {
@@ -1070,6 +1164,10 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       return createProductCardsBlock(classification);
       
     case 'about':
+      if (isTextHeavy) {
+        console.log('[mapper] Creating TextContent for about section (text-heavy)');
+        return createTextContentBlock(classification);
+      }
       if (hasImage && hasTextContent) {
         console.log('[mapper] Creating ContentColumns for about section');
         return createContentColumnsBlock(classification);
@@ -1078,8 +1176,16 @@ export function mapClassificationToBlocks(classification: ClassificationResult):
       return createGenericBlock(classification);
       
     case 'contact':
+      console.log('[mapper] Creating TextContent for contact section');
+      return createTextContentBlock(classification);
+      
     case 'generic':
     default:
+      // For generic sections, prefer text content if text-heavy
+      if (isTextHeavy) {
+        console.log('[mapper] Creating TextContent for text-heavy generic section');
+        return createTextContentBlock(classification);
+      }
       if (isColumnsLayout && hasImage && hasTextContent) {
         console.log('[mapper] Creating ContentColumns for generic section with image+text');
         return createContentColumnsBlock(classification);
