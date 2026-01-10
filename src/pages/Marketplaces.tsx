@@ -14,9 +14,12 @@ import {
   CheckCircle2, 
   XCircle,
   Info,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
 
 // Outros marketplaces (em breve)
 const UPCOMING_MARKETPLACES = [
