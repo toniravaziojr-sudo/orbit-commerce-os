@@ -25,6 +25,8 @@ import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { ExportInvoicesButton } from '@/components/fiscal/ExportInvoicesButton';
 import { InvoiceTimeline } from '@/components/fiscal/InvoiceTimeline';
 import { ConsultaChaveDialog } from '@/components/fiscal/ConsultaChaveDialog';
+import { MarketplaceSourceFilter } from '@/components/fiscal/MarketplaceSourceFilter';
+import { OrderSourceBadge } from '@/components/orders/OrderSourceBadge';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,12 +84,16 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
   const [currentErrorInvoiceId, setCurrentErrorInvoiceId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
+  const [marketplaceSource, setMarketplaceSource] = useState<string>('all');
   const [selectedInvoices, setSelectedInvoices] = useState<Set<string>>(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   
   const { settings, isLoading: settingsLoading } = useFiscalSettings();
   const { data: stats, isLoading: statsLoading } = useFiscalStats(tipoDocumento);
-  const { data: invoices, isLoading: invoicesLoading, refetch } = useFiscalInvoices({ tipoDocumento });
+  const { data: invoices, isLoading: invoicesLoading, refetch } = useFiscalInvoices({ 
+    tipoDocumento,
+    marketplaceSource: marketplaceSource !== 'all' ? marketplaceSource : undefined,
+  });
   const checkStatus = useCheckInvoiceStatus();
 
   const isLoading = settingsLoading || statsLoading || invoicesLoading;
@@ -783,6 +789,10 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                 </TabsTrigger>
               </TabsList>
               <div className="flex items-center gap-2">
+                <MarketplaceSourceFilter
+                  value={marketplaceSource}
+                  onChange={setMarketplaceSource}
+                />
                 <DateRangeFilter
                   startDate={startDate}
                   endDate={endDate}
@@ -887,6 +897,7 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                         />
                       </TableHead>
                       <TableHead>Número</TableHead>
+                      <TableHead>Origem</TableHead>
                       <TableHead>Data</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead>CPF/CNPJ</TableHead>
@@ -911,6 +922,12 @@ export function FiscalInvoiceList({ tipoDocumento }: FiscalInvoiceListProps) {
                           </TableCell>
                           <TableCell className="font-medium">
                             {invoice.serie}-{invoice.numero}
+                          </TableCell>
+                          <TableCell>
+                            <OrderSourceBadge 
+                              marketplaceSource={invoice.marketplace_source} 
+                              size="sm"
+                            />
                           </TableCell>
                           <TableCell>
                             {format(new Date(invoice.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
