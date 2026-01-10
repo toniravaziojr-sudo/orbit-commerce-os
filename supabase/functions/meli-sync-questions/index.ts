@@ -9,7 +9,8 @@ const corsHeaders = {
 /**
  * Mercado Livre Sync Questions
  * 
- * Sincroniza perguntas e mensagens do ML para marketplace_messages.
+ * Sincroniza perguntas e mensagens do ML para o sistema de atendimento unificado.
+ * Cria conversas e mensagens no módulo de Atendimento (não em tabela separada).
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -54,6 +55,9 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Buscar ou criar channel_account para mercadolivre
+    let channelAccount = await getOrCreateChannelAccount(supabase, tenantId, connection);
 
     const accessToken = connection.access_token;
     const sellerId = connection.external_user_id;
@@ -100,18 +104,8 @@ serve(async (req) => {
 
     for (const q of questions) {
       try {
-        // Mapear status
-        const statusMap: Record<string, string> = {
-          UNANSWERED: "unanswered",
-          ANSWERED: "answered",
-          CLOSED_UNANSWERED: "closed",
-          UNDER_REVIEW: "unanswered",
-          DELETED: "deleted",
-        };
-
         // Buscar info do item se disponível
         let itemTitle = "";
-        let itemThumbnail = "";
         if (q.item_id) {
           try {
             const itemRes = await fetch(`https://api.mercadolibre.com/items/${q.item_id}`, {
@@ -120,50 +114,133 @@ serve(async (req) => {
             if (itemRes.ok) {
               const item = await itemRes.json();
               itemTitle = item.title || "";
-              itemThumbnail = item.thumbnail || "";
             }
           } catch {
             // Ignore item fetch errors
           }
         }
 
-        const messageData = {
-          tenant_id: tenantId,
-          connection_id: connection.id,
-          marketplace: "mercadolivre",
-          external_message_id: q.id.toString(),
-          external_item_id: q.item_id?.toString() || null,
-          message_type: "question",
-          status: statusMap[q.status] || "unanswered",
-          buyer_id: q.from?.id?.toString() || null,
-          buyer_nickname: null, // ML não retorna nickname na pergunta
-          question_text: q.text || "",
-          answer_text: q.answer?.text || null,
-          answered_at: q.answer?.date_created ? new Date(q.answer.date_created).toISOString() : null,
-          item_title: itemTitle,
-          item_thumbnail: itemThumbnail,
-          received_at: q.date_created ? new Date(q.date_created).toISOString() : new Date().toISOString(),
-          metadata: {
-            meli_question_id: q.id,
-            meli_item_id: q.item_id,
-            meli_status: q.status,
-            meli_date_created: q.date_created,
-          },
-        };
+        // Criar ou atualizar conversa no sistema de atendimento
+        const externalConversationId = `meli_question_${q.id}`;
+        
+        // Verificar se já existe
+        const { data: existingConv } = await supabase
+          .from("conversations")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("external_conversation_id", externalConversationId)
+          .single();
 
-        // Upsert mensagem
-        const { error: upsertError } = await supabase
-          .from("marketplace_messages")
-          .upsert(messageData, {
-            onConflict: "tenant_id,marketplace,external_message_id",
+        let conversationId: string;
+
+        if (existingConv) {
+          conversationId = existingConv.id;
+          
+          // Atualizar status se necessário
+          const newStatus = q.status === "UNANSWERED" ? "new" : "resolved";
+          await supabase
+            .from("conversations")
+            .update({
+              status: newStatus,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conversationId);
+        } else {
+          // Criar nova conversa
+          const status = q.status === "UNANSWERED" ? "new" : "resolved";
+          
+          const { data: newConv, error: convError } = await supabase
+            .from("conversations")
+            .insert({
+              tenant_id: tenantId,
+              channel_type: "mercadolivre",
+              channel_account_id: channelAccount.id,
+              external_conversation_id: externalConversationId,
+              customer_name: q.from?.nickname || `Comprador ${q.from?.id}`,
+              subject: itemTitle ? `Pergunta sobre: ${itemTitle.substring(0, 50)}` : "Pergunta do Mercado Livre",
+              status,
+              priority: q.status === "UNANSWERED" ? 2 : 0,
+              unread_count: q.status === "UNANSWERED" ? 1 : 0,
+              metadata: {
+                meli_question_id: q.id,
+                meli_item_id: q.item_id,
+                meli_buyer_id: q.from?.id,
+                item_title: itemTitle,
+              },
+            })
+            .select("id")
+            .single();
+
+          if (convError) {
+            console.error(`[meli-sync-questions] Conv create error:`, convError);
+            errors++;
+            continue;
+          }
+
+          conversationId = newConv.id;
+        }
+
+        // Verificar se a mensagem da pergunta já existe
+        const questionMsgId = `meli_q_${q.id}`;
+        const { data: existingMsg } = await supabase
+          .from("messages")
+          .select("id")
+          .eq("conversation_id", conversationId)
+          .eq("tenant_id", tenantId)
+          .limit(1)
+          .single();
+
+        // Se não existe mensagem, criar
+        if (!existingMsg) {
+          // Mensagem da pergunta (inbound do cliente)
+          await supabase.from("messages").insert({
+            conversation_id: conversationId,
+            tenant_id: tenantId,
+            direction: "inbound",
+            sender_type: "customer",
+            sender_name: q.from?.nickname || `Comprador ${q.from?.id}`,
+            content: q.text,
+            content_type: "text",
+            delivery_status: "delivered",
+            is_ai_generated: false,
+            is_internal: false,
+            is_note: false,
+            created_at: q.date_created ? new Date(q.date_created).toISOString() : new Date().toISOString(),
           });
 
-        if (upsertError) {
-          console.error(`[meli-sync-questions] Upsert error for question ${q.id}:`, upsertError);
-          errors++;
-        } else {
-          synced++;
+          // Se tem resposta, criar mensagem da resposta (outbound)
+          if (q.answer?.text) {
+            await supabase.from("messages").insert({
+              conversation_id: conversationId,
+              tenant_id: tenantId,
+              direction: "outbound",
+              sender_type: "agent",
+              sender_name: "Vendedor",
+              content: q.answer.text,
+              content_type: "text",
+              delivery_status: "delivered",
+              is_ai_generated: false,
+              is_internal: false,
+              is_note: false,
+              created_at: q.answer.date_created ? new Date(q.answer.date_created).toISOString() : new Date().toISOString(),
+            });
+          }
+
+          // Atualizar contadores da conversa
+          await supabase
+            .from("conversations")
+            .update({
+              message_count: q.answer?.text ? 2 : 1,
+              last_message_at: q.answer?.date_created 
+                ? new Date(q.answer.date_created).toISOString() 
+                : (q.date_created ? new Date(q.date_created).toISOString() : new Date().toISOString()),
+              last_customer_message_at: q.date_created ? new Date(q.date_created).toISOString() : new Date().toISOString(),
+              last_agent_message_at: q.answer?.date_created ? new Date(q.answer.date_created).toISOString() : null,
+            })
+            .eq("id", conversationId);
         }
+
+        synced++;
 
       } catch (qError) {
         console.error(`[meli-sync-questions] Error processing question:`, qError);
@@ -206,3 +283,40 @@ serve(async (req) => {
     );
   }
 });
+
+async function getOrCreateChannelAccount(supabase: any, tenantId: string, connection: any) {
+  // Buscar channel_account existente para mercadolivre
+  const { data: existing } = await supabase
+    .from("channel_accounts")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .eq("channel_type", "mercadolivre")
+    .single();
+
+  if (existing) {
+    return existing;
+  }
+
+  // Criar novo
+  const { data: newAccount, error } = await supabase
+    .from("channel_accounts")
+    .insert({
+      tenant_id: tenantId,
+      channel_type: "mercadolivre",
+      account_name: connection.external_username || "Mercado Livre",
+      external_account_id: connection.external_user_id,
+      is_active: true,
+      metadata: {
+        marketplace_connection_id: connection.id,
+      },
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[meli-sync-questions] Error creating channel_account:", error);
+    throw error;
+  }
+
+  return newAccount;
+}
