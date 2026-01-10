@@ -4243,6 +4243,137 @@ export type Database = {
           },
         ]
       }
+      marketplace_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string | null
+          external_user_id: string
+          external_username: string | null
+          id: string
+          is_active: boolean
+          last_error: string | null
+          last_sync_at: string | null
+          marketplace: string
+          metadata: Json | null
+          refresh_token: string | null
+          scopes: string[] | null
+          tenant_id: string
+          token_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at?: string | null
+          external_user_id: string
+          external_username?: string | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          marketplace?: string
+          metadata?: Json | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          tenant_id: string
+          token_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          external_user_id?: string
+          external_username?: string | null
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_sync_at?: string | null
+          marketplace?: string
+          metadata?: Json | null
+          refresh_token?: string | null
+          scopes?: string[] | null
+          tenant_id?: string
+          token_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_connections_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_sync_logs: {
+        Row: {
+          completed_at: string | null
+          connection_id: string
+          created_at: string
+          details: Json | null
+          error_message: string | null
+          id: string
+          items_created: number | null
+          items_failed: number | null
+          items_processed: number | null
+          items_updated: number | null
+          started_at: string
+          status: string
+          sync_type: string
+          tenant_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          connection_id: string
+          created_at?: string
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          items_created?: number | null
+          items_failed?: number | null
+          items_processed?: number | null
+          items_updated?: number | null
+          started_at?: string
+          status?: string
+          sync_type: string
+          tenant_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          details?: Json | null
+          error_message?: string | null
+          id?: string
+          items_created?: number | null
+          items_failed?: number | null
+          items_processed?: number | null
+          items_updated?: number | null
+          started_at?: string
+          status?: string
+          sync_type?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_sync_logs_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_sync_logs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       media_asset_generations: {
         Row: {
           brand_context_snapshot: Json | null
@@ -5632,6 +5763,9 @@ export type Database = {
           free_shipping: boolean
           id: string
           internal_notes: string | null
+          marketplace_data: Json | null
+          marketplace_order_id: string | null
+          marketplace_source: string | null
           order_number: string
           paid_at: string | null
           payment_gateway: string | null
@@ -5688,6 +5822,9 @@ export type Database = {
           free_shipping?: boolean
           id?: string
           internal_notes?: string | null
+          marketplace_data?: Json | null
+          marketplace_order_id?: string | null
+          marketplace_source?: string | null
           order_number: string
           paid_at?: string | null
           payment_gateway?: string | null
@@ -5744,6 +5881,9 @@ export type Database = {
           free_shipping?: boolean
           id?: string
           internal_notes?: string | null
+          marketplace_data?: Json | null
+          marketplace_order_id?: string | null
+          marketplace_source?: string | null
           order_number?: string
           paid_at?: string | null
           payment_gateway?: string | null
