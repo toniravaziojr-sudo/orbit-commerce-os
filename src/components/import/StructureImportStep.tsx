@@ -208,28 +208,34 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       let contactImported = 0;
       let socialImported = 0;
 
-      // Colors
-      if (branding.primaryColor) { storeSettingsUpdate.theme_primary_color = branding.primaryColor; colorsImported++; }
-      if (branding.secondaryColor) { storeSettingsUpdate.theme_secondary_color = branding.secondaryColor; colorsImported++; }
-      if (branding.accentColor) { storeSettingsUpdate.theme_accent_color = branding.accentColor; colorsImported++; }
+      // Colors - use correct column names from store_settings table
+      if (branding.primaryColor) { storeSettingsUpdate.primary_color = branding.primaryColor; colorsImported++; }
+      if (branding.secondaryColor) { storeSettingsUpdate.secondary_color = branding.secondaryColor; colorsImported++; }
+      if (branding.accentColor) { storeSettingsUpdate.accent_color = branding.accentColor; colorsImported++; }
 
-      // Contact info
+      // Contact info - use correct column names from store_settings table
       if (contactInfo.phone) { storeSettingsUpdate.contact_phone = contactInfo.phone; contactImported++; }
-      if (contactInfo.whatsapp) { storeSettingsUpdate.contact_whatsapp = contactInfo.whatsapp; contactImported++; }
+      if (contactInfo.whatsapp) { storeSettingsUpdate.social_whatsapp = contactInfo.whatsapp; contactImported++; }
       if (contactInfo.email) { storeSettingsUpdate.contact_email = contactInfo.email; contactImported++; }
       if (contactInfo.address) { storeSettingsUpdate.contact_address = contactInfo.address; contactImported++; }
       if (contactInfo.cnpj) { storeSettingsUpdate.business_cnpj = contactInfo.cnpj; contactImported++; }
       if (contactInfo.legalName) { storeSettingsUpdate.business_legal_name = contactInfo.legalName; contactImported++; }
       if (contactInfo.supportHours) { storeSettingsUpdate.contact_support_hours = contactInfo.supportHours; contactImported++; }
 
-      // Social links
+      // Social links - use correct column names from store_settings table
+      // Note: social_twitter, social_linkedin, social_pinterest don't exist in store_settings
+      // They should be stored in social_custom JSON array if needed
       if (socialLinks.facebook) { storeSettingsUpdate.social_facebook = socialLinks.facebook; socialImported++; }
       if (socialLinks.instagram) { storeSettingsUpdate.social_instagram = socialLinks.instagram; socialImported++; }
       if (socialLinks.tiktok) { storeSettingsUpdate.social_tiktok = socialLinks.tiktok; socialImported++; }
       if (socialLinks.youtube) { storeSettingsUpdate.social_youtube = socialLinks.youtube; socialImported++; }
-      if (socialLinks.twitter) { storeSettingsUpdate.social_twitter = socialLinks.twitter; socialImported++; }
-      if (socialLinks.linkedin) { storeSettingsUpdate.social_linkedin = socialLinks.linkedin; socialImported++; }
-      if (socialLinks.pinterest) { storeSettingsUpdate.social_pinterest = socialLinks.pinterest; socialImported++; }
+      
+      // Store additional social links in social_custom array
+      const customSocial: Array<{ platform: string; url: string }> = [];
+      if (socialLinks.twitter) { customSocial.push({ platform: 'twitter', url: socialLinks.twitter }); socialImported++; }
+      if (socialLinks.linkedin) { customSocial.push({ platform: 'linkedin', url: socialLinks.linkedin }); socialImported++; }
+      if (socialLinks.pinterest) { customSocial.push({ platform: 'pinterest', url: socialLinks.pinterest }); socialImported++; }
+      if (customSocial.length > 0) { storeSettingsUpdate.social_custom = customSocial; }
 
       if (Object.keys(storeSettingsUpdate).length > 0) {
         const { error: updateError } = await supabase.from('store_settings').update(storeSettingsUpdate).eq('tenant_id', tenantId);
