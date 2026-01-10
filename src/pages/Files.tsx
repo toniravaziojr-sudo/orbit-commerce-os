@@ -39,6 +39,7 @@ import {
   ChevronRight,
   Home,
   ArrowLeft,
+  Lock,
 } from "lucide-react";
 import { useFiles, FileItem } from "@/hooks/useFiles";
 import { cn } from "@/lib/utils";
@@ -313,49 +314,58 @@ export default function Files() {
             <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {filteredFiles.map((file) => {
                 const Icon = getFileIcon(file);
+                const isSystemFolder = file.is_system_folder === true;
                 return (
                   <div
                     key={file.id}
                     className="group relative flex flex-col items-center p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
                     onDoubleClick={() => handlePreview(file)}
                   >
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {!file.is_folder && (
-                          <>
-                            <DropdownMenuItem onClick={() => downloadFile(file)}>
-                              <Download className="h-4 w-4 mr-2" />
-                              Baixar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCopyLink(file)}>
-                              <Link2 className="h-4 w-4 mr-2" />
-                              Copiar link
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        <DropdownMenuItem onClick={() => openRenameDialog(file)}>
-                          <Edit2 className="h-4 w-4 mr-2" />
-                          Renomear
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => deleteFile.mutate(file)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {isSystemFolder && (
+                      <Badge variant="secondary" className="absolute top-1 left-1 text-xs">
+                        <Lock className="h-3 w-3 mr-1" />
+                        Sistema
+                      </Badge>
+                    )}
+                    {!isSystemFolder && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-1 right-1 h-7 w-7 opacity-0 group-hover:opacity-100"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {!file.is_folder && (
+                            <>
+                              <DropdownMenuItem onClick={() => downloadFile(file)}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Baixar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCopyLink(file)}>
+                                <Link2 className="h-4 w-4 mr-2" />
+                                Copiar link
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <DropdownMenuItem onClick={() => openRenameDialog(file)}>
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Renomear
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteFile.mutate(file)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                     <Icon className={cn(
                       "h-12 w-12 mb-2",
                       file.is_folder ? "text-amber-500" : "text-muted-foreground"
@@ -376,6 +386,7 @@ export default function Files() {
             <div className="space-y-1">
               {filteredFiles.map((file) => {
                 const Icon = getFileIcon(file);
+                const isSystemFolder = file.is_system_folder === true;
                 return (
                   <div
                     key={file.id}
@@ -387,49 +398,59 @@ export default function Files() {
                       file.is_folder ? "text-amber-500" : "text-muted-foreground"
                     )} />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{file.original_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{file.original_name}</p>
+                        {isSystemFolder && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Sistema
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {file.is_folder ? 'Pasta' : formatBytes(file.size_bytes)} •{' '}
                         {formatDistanceToNow(new Date(file.created_at), { addSuffix: true, locale: ptBR })}
                       </p>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100"
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {!file.is_folder && (
-                          <>
-                            <DropdownMenuItem onClick={() => downloadFile(file)}>
-                              <Download className="h-4 w-4 mr-2" />
-                              Baixar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleCopyLink(file)}>
-                              <Link2 className="h-4 w-4 mr-2" />
-                              Copiar link
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                          </>
-                        )}
-                        <DropdownMenuItem onClick={() => openRenameDialog(file)}>
-                          <Edit2 className="h-4 w-4 mr-2" />
-                          Renomear
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => deleteFile.mutate(file)}
-                          className="text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Excluir
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    {!isSystemFolder && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {!file.is_folder && (
+                            <>
+                              <DropdownMenuItem onClick={() => downloadFile(file)}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Baixar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleCopyLink(file)}>
+                                <Link2 className="h-4 w-4 mr-2" />
+                                Copiar link
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <DropdownMenuItem onClick={() => openRenameDialog(file)}>
+                            <Edit2 className="h-4 w-4 mr-2" />
+                            Renomear
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteFile.mutate(file)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 );
               })}
