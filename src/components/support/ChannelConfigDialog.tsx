@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ExternalLink, Eye, EyeOff, Info, CheckCircle, Link2 } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, Info, CheckCircle, Link2, ShoppingCart } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
 
 interface ChannelConfigDialogProps {
   open: boolean;
@@ -104,6 +106,7 @@ export function ChannelConfigDialog({
 }: ChannelConfigDialogProps) {
   const { currentTenant } = useAuth();
   const navigate = useNavigate();
+  const { isConnected: meliConnected, connection: meliConnection, isLoading: meliLoading } = useMeliConnection();
   const [config, setConfig] = useState<ChannelConfig>({});
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
@@ -430,27 +433,56 @@ export function ChannelConfigDialog({
           )}
 
           {channelType === 'mercadolivre' && (
-            <>
-              <div className="space-y-2">
-                <Label>Client ID</Label>
-                <Input
-                  placeholder="ID da aplicação ML"
-                  value={config.ml_client_id || ''}
-                  onChange={(e) => updateConfig('ml_client_id', e.target.value)}
-                />
+            meliLoading ? (
+              <div className="text-sm text-muted-foreground">Verificando integração...</div>
+            ) : meliConnected ? (
+              // ML connected - show config from integration
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/30">
+                  <div className="p-2 rounded-full bg-green-100 dark:bg-green-900/30">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">Mercado Livre Conectado</p>
+                    {meliConnection?.externalUsername && (
+                      <p className="text-sm text-muted-foreground">@{meliConnection.externalUsername}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Conta vinculada via Marketplaces
+                    </p>
+                  </div>
+                </div>
+
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    As credenciais do Mercado Livre são gerenciadas em <strong>Marketplaces</strong>. 
+                    Este canal de atendimento usa automaticamente essa configuração.
+                  </AlertDescription>
+                </Alert>
+
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onOpenChange(false);
+                    navigate('/marketplaces');
+                  }}
+                  className="w-full"
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Gerenciar em Marketplaces
+                </Button>
               </div>
-              {renderSecretInput('ml_client_secret', 'Client Secret', 'Chave secreta da aplicação')}
-              <div className="space-y-2">
-                <Label>User ID</Label>
-                <Input
-                  placeholder="Seu ID de vendedor"
-                  value={config.ml_user_id || ''}
-                  onChange={(e) => updateConfig('ml_user_id', e.target.value)}
-                />
-              </div>
-              {renderSecretInput('ml_access_token', 'Access Token', 'Token de acesso OAuth')}
-              {renderSecretInput('ml_refresh_token', 'Refresh Token', 'Token para renovação')}
-            </>
+            ) : (
+              // ML not connected - show integration required alert
+              <IntegrationRequiredAlert
+                integrationName="Mercado Livre"
+                description="para configurar o canal de atendimento"
+                integrationPath="/marketplaces"
+                buttonText="Conectar Mercado Livre"
+                icon={ShoppingCart}
+              />
+            )
           )}
 
           {channelType === 'shopee' && (
@@ -477,7 +509,7 @@ export function ChannelConfigDialog({
           )}
         </div>
 
-        {channelType !== 'whatsapp' && (
+        {channelType !== 'whatsapp' && channelType !== 'mercadolivre' && (
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={handleTest} disabled={testing}>
               {testing ? 'Testando...' : 'Testar conexão'}

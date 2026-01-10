@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink, Bot } from "lucide-react";
+import { Plus, Settings, Trash2, CheckCircle, XCircle, AlertCircle, ExternalLink, Bot, ShoppingCart } from "lucide-react";
 import { useChannelAccounts, type ChannelAccount } from "@/hooks/useChannelAccounts";
 import type { SupportChannelType } from "@/hooks/useConversations";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,10 +17,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenantType } from "@/hooks/useTenantType";
 import { useNavigate } from "react-router-dom";
+import { useMeliConnection } from "@/hooks/useMeliConnection";
+import { IntegrationRequiredAlert } from "@/components/ui/integration-required-alert";
 
 interface IntegrationStatus {
   whatsapp: { configured: boolean; connected: boolean; phone?: string };
   email: { configured: boolean; verified: boolean; from?: string };
+  mercadolivre: { configured: boolean; connected: boolean; username?: string };
 }
 
 const channelInfo: Record<SupportChannelType, { name: string; icon: string; description: string; integrationPath: string }> = {
@@ -79,6 +82,7 @@ export function ChannelIntegrations() {
   const { isPlatformTenant } = useTenantType();
   const navigate = useNavigate();
   const { channels, isLoading, createChannel, updateChannel, deleteChannel } = useChannelAccounts();
+  const { isConnected: meliConnected, isLoading: meliLoading, connection: meliConnection } = useMeliConnection();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<SupportChannelType | ''>('');
   const [accountName, setAccountName] = useState('');
@@ -90,6 +94,7 @@ export function ChannelIntegrations() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
     whatsapp: { configured: false, connected: false },
     email: { configured: false, verified: false },
+    mercadolivre: { configured: false, connected: false },
   });
   const [loadingStatus, setLoadingStatus] = useState(true);
 
@@ -123,6 +128,11 @@ export function ChannelIntegrations() {
             verified: emailData?.verification_status === 'verified',
             from: emailData?.from_email || emailData?.from_name || undefined,
           },
+          mercadolivre: {
+            configured: meliConnected,
+            connected: meliConnected,
+            username: meliConnection?.externalUsername || undefined,
+          },
         });
       } catch (error) {
         console.error('Error fetching integration status:', error);
@@ -132,7 +142,7 @@ export function ChannelIntegrations() {
     };
 
     fetchIntegrationStatus();
-  }, [currentTenant?.id]);
+  }, [currentTenant?.id, meliConnected, meliConnection]);
 
   const handleAddChannel = () => {
     if (!selectedType || !accountName) return;
@@ -157,7 +167,15 @@ export function ChannelIntegrations() {
   const isIntegrationReady = (type: SupportChannelType): boolean => {
     if (type === 'whatsapp') return integrationStatus.whatsapp.configured;
     if (type === 'email') return integrationStatus.email.configured;
+    if (type === 'mercadolivre') return integrationStatus.mercadolivre.configured;
     return true; // Other channels manage their own config
+  };
+
+  const getIntegrationPath = (type: SupportChannelType): string => {
+    if (type === 'whatsapp') return '/integrations';
+    if (type === 'email') return '/emails';
+    if (type === 'mercadolivre') return '/marketplaces';
+    return '';
   };
 
   const getIntegrationLabel = (type: SupportChannelType): string | null => {
@@ -167,10 +185,16 @@ export function ChannelIntegrations() {
     if (type === 'email' && integrationStatus.email.configured) {
       return integrationStatus.email.from || (integrationStatus.email.verified ? 'Verificado' : 'Configurado');
     }
+    if (type === 'mercadolivre' && integrationStatus.mercadolivre.configured) {
+      return integrationStatus.mercadolivre.username || 'Conectado';
+    }
     return null;
   };
 
-  if (isLoading || loadingStatus) {
+  // Canais que usam integrações externas (não WhatsApp/Email que já estão no linkedChannels)
+  const marketplaceChannels: SupportChannelType[] = ['mercadolivre', 'shopee'];
+
+  if (isLoading || loadingStatus || meliLoading) {
     return (
       <div className="space-y-4 p-4">
         <Skeleton className="h-32 w-full" />
@@ -302,6 +326,66 @@ export function ChannelIntegrations() {
                         Configurar {info.name}
                       </Button>
                     </div>
+                  )
+                ) : marketplaceChannels.includes(type) ? (
+                  // Marketplace channels - need integration first
+                  integrationReady ? (
+                    // Integration ready - show config
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {integrationLabel || 'Integração conectada'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Via Marketplaces
+                          </p>
+                        </div>
+                        <Switch
+                          checked={channel?.is_active || false}
+                          onCheckedChange={(checked) => {
+                            if (channel) {
+                              updateChannel.mutate({ id: channel.id, is_active: checked });
+                            } else {
+                              createChannel.mutate({
+                                channel_type: type,
+                                account_name: `${info.name} Principal`,
+                              });
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="flex-1 text-muted-foreground"
+                          onClick={() => navigate('/marketplaces')}
+                        >
+                          <Settings className="h-4 w-4 mr-2" />
+                          Gerenciar em Marketplaces
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setAiConfigChannel({ type, name: channelInfo[type].name });
+                            setAiConfigOpen(true);
+                          }}
+                        >
+                          <Bot className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Integration not ready - show alert
+                    <IntegrationRequiredAlert
+                      integrationName={info.name}
+                      description="para ativar o canal de atendimento"
+                      integrationPath="/marketplaces"
+                      buttonText="Conectar Mercado Livre"
+                      icon={ShoppingCart}
+                    />
                   )
                 ) : (
                   // Other channels - manage their own config
