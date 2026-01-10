@@ -24,7 +24,6 @@ interface StructureImportProgress {
   pages: 'pending' | 'processing' | 'completed' | 'error';
   categories: 'pending' | 'processing' | 'completed' | 'error';
   menus: 'pending' | 'processing' | 'completed' | 'error';
-  visual: 'pending' | 'processing' | 'completed' | 'error';
 }
 
 interface ImportStats {
@@ -79,7 +78,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     pages: 'pending',
     categories: 'pending',
     menus: 'pending',
-    visual: 'pending',
   });
   const [importStats, setImportStats] = useState<ImportStats>({
     pages: 0,
@@ -1127,7 +1125,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         if (prev.pages === 'processing') return { ...prev, pages: 'error' };
         if (prev.categories === 'processing') return { ...prev, categories: 'error' };
         if (prev.menus === 'processing') return { ...prev, menus: 'error' };
-        if (prev.visual === 'processing') return { ...prev, visual: 'error' };
         return prev;
       });
     } finally {
@@ -1141,12 +1138,11 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
   const isStructureImportComplete = 
     structureProgress.pages === 'completed' &&
     structureProgress.categories === 'completed' &&
-    structureProgress.menus === 'completed' &&
-    structureProgress.visual === 'completed';
+    structureProgress.menus === 'completed';
 
   // Calculate structure import progress percentage
   const getStructureProgressPercent = () => {
-    const steps = ['pages', 'categories', 'menus', 'visual'] as const;
+    const steps = ['pages', 'categories', 'menus'] as const;
     const completed = steps.filter(s => structureProgress[s] === 'completed').length;
     return (completed / steps.length) * 100;
   };
@@ -1661,15 +1657,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                   <span>Páginas Institucionais: {importStats.pages}</span>
                 </li>
-                {structureStats?.blocks && (structureStats.blocks.homeSections > 0 || structureStats.blocks.pagesWithBlocks > 0) && (
-                  <li className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" />
-                    <span>
-                      Blocos: {structureStats.blocks.totalBlocks}
-                      {structureStats.blocks.homeSections > 0 && ` (${structureStats.blocks.homeSections} na home)`}
-                    </span>
-                  </li>
-                )}
                 {Object.entries(fileStepStatuses).map(([stepId, status]) => {
                   const step = FILE_IMPORT_STEPS.find(s => s.id === stepId);
                   if (!step || status.status === 'pending') return null;

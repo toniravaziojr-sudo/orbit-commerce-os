@@ -579,18 +579,19 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Registrar no import_items para limpeza futura
+        // Registrar no import_items para limpeza futura (campos corretos)
+        const trackingJobId = crypto.randomUUID();
         await supabase
           .from('import_items')
           .insert({
-            import_job_id: null, // Sem job específico
+            job_id: trackingJobId,
+            tenant_id: tenantId,
             module: 'pages',
             external_id: page.url,
             internal_id: newPage.id,
-            raw_data: { url: page.url, title: page.title, slug: page.slug },
-            normalized_data: { wordCount: textContent.wordCount },
-            validation_status: 'valid',
-            import_status: 'created',
+            status: 'success',
+            data_raw: { url: page.url, title: page.title, slug: page.slug },
+            data_normalized: { wordCount: textContent.wordCount },
           });
 
         importedPages.push({
