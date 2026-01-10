@@ -7262,6 +7262,127 @@ export type Database = {
           },
         ]
       }
+      shipping_custom_rules: {
+        Row: {
+          cep_end: string
+          cep_start: string
+          created_at: string
+          delivery_days_max: number | null
+          delivery_days_min: number | null
+          id: string
+          is_enabled: boolean
+          min_order_cents: number | null
+          name: string
+          price_cents: number
+          region_type: string
+          sort_order: number
+          tenant_id: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep_end: string
+          cep_start: string
+          created_at?: string
+          delivery_days_max?: number | null
+          delivery_days_min?: number | null
+          id?: string
+          is_enabled?: boolean
+          min_order_cents?: number | null
+          name: string
+          price_cents?: number
+          region_type: string
+          sort_order?: number
+          tenant_id: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep_end?: string
+          cep_start?: string
+          created_at?: string
+          delivery_days_max?: number | null
+          delivery_days_min?: number | null
+          id?: string
+          is_enabled?: boolean
+          min_order_cents?: number | null
+          name?: string
+          price_cents?: number
+          region_type?: string
+          sort_order?: number
+          tenant_id?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_custom_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipping_free_rules: {
+        Row: {
+          cep_end: string
+          cep_start: string
+          created_at: string
+          delivery_days_max: number | null
+          delivery_days_min: number | null
+          id: string
+          is_enabled: boolean
+          min_order_cents: number | null
+          name: string
+          region_type: string
+          sort_order: number
+          tenant_id: string
+          uf: string | null
+          updated_at: string
+        }
+        Insert: {
+          cep_end: string
+          cep_start: string
+          created_at?: string
+          delivery_days_max?: number | null
+          delivery_days_min?: number | null
+          id?: string
+          is_enabled?: boolean
+          min_order_cents?: number | null
+          name: string
+          region_type: string
+          sort_order?: number
+          tenant_id: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cep_end?: string
+          cep_start?: string
+          created_at?: string
+          delivery_days_max?: number | null
+          delivery_days_min?: number | null
+          id?: string
+          is_enabled?: boolean
+          min_order_cents?: number | null
+          name?: string
+          region_type?: string
+          sort_order?: number
+          tenant_id?: string
+          uf?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_free_rules_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipping_providers: {
         Row: {
           created_at: string
