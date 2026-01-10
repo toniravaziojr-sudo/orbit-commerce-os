@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/tooltip';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { OrderSourceBadge } from './OrderSourceBadge';
 import type { Order, OrderStatus, ShippingStatus } from '@/hooks/useOrders';
 
 interface OrderListProps {
@@ -175,11 +176,17 @@ export function OrderList({
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
                   <TableCell onClick={() => onView(order)}>
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center">
-                        <Package className="h-5 w-5 text-primary" />
-                      </div>
+                      <OrderSourceBadge 
+                        marketplaceSource={order.marketplace_source} 
+                        size="md"
+                      />
                       <div>
                         <p className="font-medium">{order.order_number}</p>
+                        {order.marketplace_order_id && (
+                          <p className="text-xs text-muted-foreground">
+                            #{order.marketplace_order_id}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </TableCell>
