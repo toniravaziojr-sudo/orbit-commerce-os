@@ -3,11 +3,13 @@
 // =====================================================
 // Importa home page e páginas institucionais detectando
 // e extraindo blocos de conteúdo de e-commerces BR
+// Usa detecção avançada multi-plataforma
 // =====================================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { extractSectionsFromHTML, extractPageLinks, mapSectionTypeToBlockType } from '../_shared/ecommerce-block-extractor.ts';
+import { extractSectionsFromHTML, mapSectionTypeToBlockType } from '../_shared/ecommerce-block-extractor.ts';
 import { mapClassificationToBlocks } from '../_shared/intelligent-block-mapper.ts';
+import { detectAllPages, type DetectedPage } from '../_shared/advanced-page-detector.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -240,25 +242,38 @@ Deno.serve(async (req) => {
       totalBlocks += homeBlocks.length;
     }
 
-    // If importing all pages, get institutional pages
+    // If importing all pages, get institutional pages using advanced detection
     if (importType === 'all') {
-      const pageLinks = extractPageLinks(homeHtml, targetUrl);
-      console.log('[import-pages] Found', pageLinks.institutionalPages.length, 'institutional pages');
+      console.log('[import-pages] Using advanced page detection...');
+      const detectionResult = detectAllPages(homeHtml, targetUrl);
+      console.log('[import-pages] Platform detected:', detectionResult.platform || 'generic');
+      console.log('[import-pages] Found', detectionResult.institutionalPages.length, 'institutional pages');
+      console.log('[import-pages] Found', detectionResult.customPages.length, 'custom pages');
+      
+      // Combine institutional and custom pages for import
+      const pagesToImport: DetectedPage[] = [
+        ...detectionResult.institutionalPages,
+        ...detectionResult.customPages.filter(p => p.confidence >= 0.5),
+      ];
       
       // Log the found pages for debugging
-      if (pageLinks.institutionalPages.length > 0) {
-        console.log('[import-pages] Institutional pages found:');
-        for (const p of pageLinks.institutionalPages) {
-          console.log(`  - ${p.title}: ${p.slug}`);
+      if (pagesToImport.length > 0) {
+        console.log('[import-pages] Pages to import:');
+        for (const p of pagesToImport) {
+          console.log(`  - [${p.type}] ${p.title}: ${p.slug} (confidence: ${p.confidence.toFixed(2)}, source: ${p.source})`);
         }
       } else {
-        console.warn('[import-pages] No institutional pages detected. HTML footer/nav structure may differ from expected patterns.');
+        console.warn('[import-pages] No institutional/custom pages detected.');
+        console.warn('[import-pages] This may indicate:');
+        console.warn('  1. The page structure differs from expected patterns');
+        console.warn('  2. Links are loaded dynamically via JavaScript');
+        console.warn('  3. The page uses an uncommon platform structure');
       }
 
-      // Import ALL institutional pages (no limit)
-      for (const page of pageLinks.institutionalPages) {
+      // Import ALL detected pages (no limit)
+      for (const page of pagesToImport) {
         try {
-          console.log('[import-pages] Importing:', page.url);
+          console.log(`[import-pages] Importing ${page.type} page: ${page.url}`);
           const pageHtml = await fetchPageContent(page.url);
           const pageSections = extractSectionsFromHTML(pageHtml);
           console.log(`[import-pages] Extracted ${pageSections.length} sections from ${page.slug}`);
@@ -302,7 +317,7 @@ Deno.serve(async (req) => {
               console.log(`[import-pages] ✓ Imported page: ${page.title} (${slug}) with ${pageBlocks.length} blocks`);
             }
           } else {
-            console.log(`[import-pages] Skipping ${page.slug}: no blocks extracted`);
+            console.log(`[import-pages] Skipping ${page.slug}: no blocks extracted (page may be too simple or empty)`);
           }
         } catch (e) {
           console.error('[import-pages] Error importing page:', page.url, e);
