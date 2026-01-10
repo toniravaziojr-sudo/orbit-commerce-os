@@ -23,13 +23,13 @@ interface ClearDataDialogProps {
 }
 
 const moduleOptions = [
-  { id: 'products', label: 'Produtos', description: 'Inclui imagens, variantes e vínculos com categorias' },
-  { id: 'categories', label: 'Categorias', description: 'Todas as categorias do tenant' },
-  { id: 'customers', label: 'Clientes', description: 'Inclui endereços, notas e tags' },
-  { id: 'orders', label: 'Pedidos', description: 'Inclui itens e histórico' },
-  { id: 'structure', label: 'Estrutura da Loja', description: 'Menus, páginas institucionais e configurações de menu' },
-  { id: 'visual', label: 'Visual da Loja', description: 'Cores, logo, favicon, informações do negócio e banners importados' },
-  { id: 'storefront', label: 'Loja Virtual (Builder)', description: 'Templates das páginas do e-commerce (Home, Produto, Carrinho, etc.)' },
+  { id: 'products', label: 'Produtos Importados', description: 'Apenas produtos que vieram da importação (não afeta cadastros manuais)' },
+  { id: 'categories', label: 'Categorias Importadas', description: 'Apenas categorias que vieram da importação' },
+  { id: 'customers', label: 'Clientes Importados', description: 'Apenas clientes que vieram da importação (não afeta cadastros manuais)' },
+  { id: 'orders', label: 'Pedidos Importados', description: 'Apenas pedidos que vieram da importação' },
+  { id: 'structure', label: 'Estrutura Importada', description: 'Menus e páginas que vieram da importação' },
+  { id: 'visual', label: 'Visual Importado', description: 'Cores, logo e configurações que vieram da importação' },
+  { id: 'storefront', label: 'Storefront Importado', description: 'Templates do builder que vieram da importação' },
 ] as const;
 
 export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
@@ -93,10 +93,10 @@ export function ClearDataDialog({ onClear, isClearing }: ClearDataDialogProps) {
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Limpar Dados para Reimportação
+            Limpar Dados Importados
           </AlertDialogTitle>
           <AlertDialogDescription>
-            Selecione os módulos que deseja limpar. Esta ação é irreversível.
+            Remove APENAS os dados que foram trazidos pela importação. Cadastros manuais não serão afetados.
           </AlertDialogDescription>
         </AlertDialogHeader>
 

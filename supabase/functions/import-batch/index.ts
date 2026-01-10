@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     // Use batch processing for customers (much faster)
     if (module === 'customers') {
       try {
-        await importCustomersBatch(supabase, tenantId, items, results);
+        await importCustomersBatch(supabase, tenantId, jobId, items, results);
         results.processed = items.length;
       } catch (error: any) {
         console.error('[import-batch] Batch customers error:', error);
@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
     } else if (module === 'orders') {
       // Use batch processing for orders (much faster than one-by-one)
       try {
-        await importOrdersBatch(supabase, tenantId, items, results);
+        await importOrdersBatch(supabase, tenantId, jobId, items, results);
         results.processed = items.length;
       } catch (error: any) {
         console.error('[import-batch] Batch orders error:', error);
@@ -119,10 +119,10 @@ Deno.serve(async (req) => {
         try {
           switch (module) {
             case 'products':
-              await importProduct(supabase, tenantId, item, results, categoryMap);
+              await importProduct(supabase, tenantId, jobId, item, results, categoryMap);
               break;
             case 'categories':
-              await importCategory(supabase, tenantId, item, results);
+              await importCategory(supabase, tenantId, jobId, item, results);
               break;
           }
           results.processed++;
@@ -188,7 +188,33 @@ Deno.serve(async (req) => {
 
 // ========== Import Functions ==========
 
-async function importProduct(supabase: any, tenantId: string, product: any, results: any, categoryMap?: Record<string, string>) {
+// Helper: Track imported item in import_items table
+async function trackImportedItem(
+  supabase: any, 
+  tenantId: string, 
+  jobId: string,
+  module: string, 
+  internalId: string, 
+  externalId?: string
+) {
+  try {
+    await supabase.from('import_items').upsert({
+      tenant_id: tenantId,
+      job_id: jobId,
+      module,
+      internal_id: internalId,
+      external_id: externalId || null,
+      status: 'success',
+    }, {
+      onConflict: 'tenant_id,module,internal_id',
+      ignoreDuplicates: false,
+    });
+  } catch (error) {
+    console.warn(`[import-batch] Could not track imported item:`, error);
+  }
+}
+
+async function importProduct(supabase: any, tenantId: string, jobId: string, product: any, results: any, categoryMap?: Record<string, string>) {
   // CRITICAL: Validate product name - NEVER create "Produto sem nome"
   const productName = (product.name || product.title || '').toString().trim();
   if (!productName || productName === 'Produto sem nome' || productName === 'Produto importado') {
@@ -251,6 +277,9 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
       .eq('id', existing.id);
 
     if (error) throw error;
+    
+    // Track the updated product as imported
+    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, product.external_id);
     results.updated++;
   } else {
     // Insert new product
@@ -282,6 +311,9 @@ async function importProduct(supabase: any, tenantId: string, product: any, resu
 
     if (error) throw error;
     productId = newProduct.id;
+
+    // Track the new product as imported
+    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, product.external_id);
 
     // Import images if available
     if (product.images?.length > 0) {
@@ -353,7 +385,7 @@ function hashCode(str: string): number {
   return Math.abs(hash);
 }
 
-async function importCategory(supabase: any, tenantId: string, category: any, results: any) {
+async function importCategory(supabase: any, tenantId: string, jobId: string, category: any, results: any) {
   const effectiveSlug = category.slug || slugify(category.name || `categoria-${Date.now()}`);
   
   const { data: existing } = await supabase
@@ -381,6 +413,9 @@ async function importCategory(supabase: any, tenantId: string, category: any, re
       .eq('id', existing.id);
 
     if (error) throw error;
+    
+    // Track the updated category as imported
+    await trackImportedItem(supabase, tenantId, jobId, 'categories', existing.id, category.external_id);
     results.updated++;
   } else {
     let parentId = null;
@@ -394,7 +429,7 @@ async function importCategory(supabase: any, tenantId: string, category: any, re
       parentId = parent?.id || null;
     }
 
-    const { error } = await supabase
+    const { data: newCategory, error } = await supabase
       .from('categories')
       .insert({
         tenant_id: tenantId,
@@ -409,14 +444,19 @@ async function importCategory(supabase: any, tenantId: string, category: any, re
         seo_description: category.seo_description,
         sort_order: category.sort_order,
         is_active: category.is_active ?? true,
-      });
+      })
+      .select('id')
+      .single();
 
     if (error) throw error;
+    
+    // Track the new category as imported
+    await trackImportedItem(supabase, tenantId, jobId, 'categories', newCategory.id, category.external_id);
     results.imported++;
   }
 }
 
-async function importCustomersBatch(supabase: any, tenantId: string, customers: any[], results: any) {
+async function importCustomersBatch(supabase: any, tenantId: string, jobId: string, customers: any[], results: any) {
   // Pre-fetch all existing emails in one query for this batch
   const emails = customers
     .map(c => (c.email || '').toString().trim().toLowerCase())
@@ -436,7 +476,7 @@ async function importCustomersBatch(supabase: any, tenantId: string, customers: 
   const existingMap = new Map((existingCustomers || []).map((c: any) => [c.email, c.id]));
 
   const toInsert: any[] = [];
-  const toUpdate: { id: string; data: any }[] = [];
+  const toUpdate: { id: string; data: any; externalId?: string }[] = [];
 
   for (const customer of customers) {
     const email = (customer.email || '').toString().trim().toLowerCase();
@@ -459,13 +499,18 @@ async function importCustomersBatch(supabase: any, tenantId: string, customers: 
 
     const existingId = existingMap.get(email) as string | undefined;
     if (existingId) {
-      toUpdate.push({ id: existingId as string, data: { ...customerData, updated_at: new Date().toISOString() } });
+      toUpdate.push({ 
+        id: existingId as string, 
+        data: { ...customerData, updated_at: new Date().toISOString() },
+        externalId: customer.external_id,
+      });
     } else {
       toInsert.push({
         tenant_id: tenantId,
         email,
         ...customerData,
         _addresses: customer.addresses || [],
+        _externalId: customer.external_id,
       });
     }
   }
@@ -473,12 +518,14 @@ async function importCustomersBatch(supabase: any, tenantId: string, customers: 
   // Batch update existing customers
   for (const upd of toUpdate) {
     await supabase.from('customers').update(upd.data).eq('id', upd.id);
+    // Track updated customer
+    await trackImportedItem(supabase, tenantId, jobId, 'customers', upd.id, upd.externalId);
     results.updated++;
   }
 
   // Batch insert new customers
   if (toInsert.length > 0) {
-    const insertData = toInsert.map(({ _addresses, ...rest }) => rest);
+    const insertData = toInsert.map(({ _addresses, _externalId, ...rest }) => rest);
     const { data: inserted, error } = await supabase
       .from('customers')
       .insert(insertData)
@@ -490,8 +537,16 @@ async function importCustomersBatch(supabase: any, tenantId: string, customers: 
     } else if (inserted) {
       results.imported += inserted.length;
 
-      // Map emails to new IDs for address insertion
+      // Map emails to new IDs for address insertion and tracking
       const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
+      
+      // Track all imported customers
+      for (const cust of toInsert) {
+        const customerId = emailToId.get(cust.email);
+        if (customerId) {
+          await trackImportedItem(supabase, tenantId, jobId, 'customers', customerId as string, cust._externalId);
+        }
+      }
 
       // Collect all addresses to insert
       const allAddresses: any[] = [];
@@ -723,7 +778,7 @@ function mapShippingStatus(raw: string | null | undefined): string {
  * Pre-fetches existing orders and customers, then does bulk inserts
  * CRITICAL: Uses source_order_number for deduplication, generates internal order_number
  */
-async function importOrdersBatch(supabase: any, tenantId: string, orders: any[], results: any, platform: string = 'shopify') {
+async function importOrdersBatch(supabase: any, tenantId: string, jobId: string, orders: any[], results: any, platform: string = 'shopify') {
   // Extract all source order numbers (remove # prefix if present)
   const sourceOrderNumbers = orders
     .map(o => {
@@ -1014,6 +1069,11 @@ async function importOrdersBatch(supabase: any, tenantId: string, orders: any[],
 
       // Build order_number -> id map for items
       const orderIdMap = new Map(insertedOrders.map((o: any) => [o.order_number, o.id]));
+      
+      // Track all imported orders
+      for (const insertedOrder of insertedOrders) {
+        await trackImportedItem(supabase, tenantId, jobId, 'orders', insertedOrder.id);
+      }
 
       // Collect all order items
       const allOrderItems: any[] = [];
