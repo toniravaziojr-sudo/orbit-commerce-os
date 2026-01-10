@@ -154,15 +154,17 @@ export default function MercadoLivre() {
                       <p className="text-xs text-muted-foreground mb-2">
                         Responda perguntas e mensagens pós-venda pelo módulo de atendimento unificado
                       </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={() => navigate("/support")}
-                      >
-                        <ExternalLink className="h-3 w-3 mr-1" />
-                        Ir para Atendimento
-                      </Button>
+                      {isConnected && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => navigate("/support")}
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Ir para Atendimento
+                        </Button>
+                      )}
                     </div>
                   </div>
 
