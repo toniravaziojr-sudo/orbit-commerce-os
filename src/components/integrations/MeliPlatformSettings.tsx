@@ -81,7 +81,7 @@ export function MeliPlatformSettings() {
   const webhookUri = `${supabaseUrl}/functions/v1/meli-webhook`;
 
   // Buscar status das credenciais
-  const { data: integrationData, isLoading } = useQuery({
+  const { data: integrationData, isLoading, refetch } = useQuery({
     queryKey: ["meli-platform-credentials"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("platform-secrets-check", {
@@ -95,8 +95,10 @@ export function MeliPlatformSettings() {
         (i: IntegrationData) => i.key === "mercadolivre"
       );
       
+      console.log('[MeliPlatformSettings] Fetched data:', meliIntegration);
       return meliIntegration as IntegrationData | null;
     },
+    staleTime: 0, // Sempre refetch quando solicitado
   });
 
   const appIdConfigured = integrationData?.secrets?.MELI_APP_ID ?? false;
@@ -134,12 +136,15 @@ export function MeliPlatformSettings() {
         }
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Credenciais salvas com sucesso");
       setAppId("");
       setClientSecret("");
       setIsEditing(false);
-      queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
+      // Invalidar e aguardar refetch antes de atualizar a UI
+      await queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
+      // Forçar refetch imediato
+      await refetch();
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao salvar credenciais");
@@ -161,9 +166,10 @@ export function MeliPlatformSettings() {
         throw new Error(data?.error || error?.message || "Erro ao remover credencial");
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Credencial removida com sucesso");
-      queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
+      await queryClient.invalidateQueries({ queryKey: ["meli-platform-credentials"] });
+      await refetch();
     },
     onError: (error) => {
       toast.error(error.message || "Erro ao remover credencial");
