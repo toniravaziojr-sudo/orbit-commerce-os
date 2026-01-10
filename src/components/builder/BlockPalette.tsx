@@ -92,6 +92,10 @@ const blockCategoryMapping: Record<string, EssentialCategory> = {
   'ContactFormBlock': 'interactive',
   'MapBlock': 'interactive',
   'SocialFeedBlock': 'interactive',
+  'PersonalizedProducts': 'interactive',
+  'LivePurchases': 'interactive',
+  'PricingTable': 'interactive',
+  'PopupModal': 'interactive',
   
   // Info
   'InfoHighlights': 'info',
@@ -145,6 +149,10 @@ const visibleBlockTypes = new Set([
   'ContactFormBlock',
   'MapBlock',
   'SocialFeedBlock',
+  'PersonalizedProducts',
+  'LivePurchases',
+  'PricingTable',
+  'PopupModal',
   // Info
   'InfoHighlights',
   'FAQ',

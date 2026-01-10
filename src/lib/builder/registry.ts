@@ -2968,6 +2968,142 @@ const blockDefinitions: BlockDefinition[] = [
     canHaveChildren: false,
     isRemovable: true,
   },
+  {
+    type: 'PersonalizedProducts',
+    label: 'Produtos Personalizados',
+    category: 'content',
+    icon: 'Sparkles',
+    defaultProps: {
+      title: 'Recomendados para Você',
+      subtitle: 'Produtos selecionados com base em suas preferências',
+      layout: 'grid',
+      columns: 4,
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      subtitle: { type: 'string', label: 'Subtítulo' },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'grid',
+        options: [
+          { label: 'Grade', value: 'grid' },
+          { label: 'Carrossel', value: 'carousel' },
+        ],
+      },
+      columns: {
+        type: 'select',
+        label: 'Colunas',
+        defaultValue: '4',
+        options: [
+          { label: '2 Colunas', value: '2' },
+          { label: '3 Colunas', value: '3' },
+          { label: '4 Colunas', value: '4' },
+        ],
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'LivePurchases',
+    label: 'Comprando Agora',
+    category: 'content',
+    icon: 'ShoppingCart',
+    defaultProps: {
+      title: 'Comprando Agora',
+      layout: 'cards',
+      showStats: true,
+      purchasesToday: 127,
+      viewersNow: 43,
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'cards',
+        options: [
+          { label: 'Cards', value: 'cards' },
+          { label: 'Ticker', value: 'ticker' },
+          { label: 'Popup', value: 'popup' },
+        ],
+      },
+      showStats: { type: 'boolean', label: 'Mostrar Estatísticas', defaultValue: true },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'PricingTable',
+    label: 'Tabela de Preços',
+    category: 'content',
+    icon: 'CreditCard',
+    defaultProps: {
+      title: 'Escolha o Plano Ideal',
+      subtitle: 'Comece gratuitamente e escale conforme cresce',
+      layout: 'cards',
+      showAnnualToggle: true,
+      annualDiscount: 20,
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      subtitle: { type: 'string', label: 'Subtítulo' },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'cards',
+        options: [
+          { label: 'Cards', value: 'cards' },
+          { label: 'Tabela', value: 'table' },
+        ],
+      },
+      showAnnualToggle: { type: 'boolean', label: 'Toggle Mensal/Anual', defaultValue: true },
+      annualDiscount: { type: 'number', label: 'Desconto Anual (%)', defaultValue: 20, min: 0, max: 50 },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'PopupModal',
+    label: 'Popup/Modal',
+    category: 'content',
+    icon: 'Bell',
+    defaultProps: {
+      title: 'Receba Ofertas Exclusivas!',
+      subtitle: 'Cadastre-se e ganhe 10% de desconto na primeira compra',
+      type: 'newsletter',
+      layout: 'centered',
+      showEmailInput: true,
+      buttonText: 'Quero meu desconto!',
+      discountCode: 'BEMVINDO10',
+    },
+    propsSchema: {
+      title: { type: 'string', label: 'Título' },
+      subtitle: { type: 'string', label: 'Subtítulo' },
+      type: {
+        type: 'select',
+        label: 'Tipo',
+        defaultValue: 'newsletter',
+        options: [
+          { label: 'Newsletter', value: 'newsletter' },
+          { label: 'Promoção', value: 'promotion' },
+          { label: 'Anúncio', value: 'announcement' },
+        ],
+      },
+      layout: {
+        type: 'select',
+        label: 'Layout',
+        defaultValue: 'centered',
+        options: [
+          { label: 'Centralizado', value: 'centered' },
+          { label: 'Com Imagem', value: 'side-image' },
+          { label: 'Canto', value: 'corner' },
+        ],
+      },
+      showEmailInput: { type: 'boolean', label: 'Mostrar Campo Email', defaultValue: true },
+      buttonText: { type: 'string', label: 'Texto do Botão' },
+      discountCode: { type: 'string', label: 'Código de Desconto' },
+    },
+    canHaveChildren: false,
+  },
 ];
 
 // Registry class

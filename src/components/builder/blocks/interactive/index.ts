@@ -8,3 +8,7 @@ export { NewsletterBlock } from './NewsletterBlock';
 export { ContactFormBlock } from './ContactFormBlock';
 export { MapBlock } from './MapBlock';
 export { SocialFeedBlock } from './SocialFeedBlock';
+export { PersonalizedProductsBlock } from './PersonalizedProductsBlock';
+export { LivePurchasesBlock } from './LivePurchasesBlock';
+export { PricingTableBlock } from './PricingTableBlock';
+export { PopupModalBlock } from './PopupModalBlock';
