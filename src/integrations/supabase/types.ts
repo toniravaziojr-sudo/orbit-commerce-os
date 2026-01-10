@@ -4308,6 +4308,93 @@ export type Database = {
           },
         ]
       }
+      marketplace_messages: {
+        Row: {
+          answer_text: string | null
+          answered_at: string | null
+          buyer_id: string | null
+          buyer_nickname: string | null
+          connection_id: string | null
+          created_at: string
+          external_item_id: string | null
+          external_message_id: string
+          external_order_id: string | null
+          external_thread_id: string | null
+          id: string
+          item_thumbnail: string | null
+          item_title: string | null
+          marketplace: string
+          message_type: string
+          metadata: Json | null
+          question_text: string | null
+          received_at: string | null
+          status: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer_text?: string | null
+          answered_at?: string | null
+          buyer_id?: string | null
+          buyer_nickname?: string | null
+          connection_id?: string | null
+          created_at?: string
+          external_item_id?: string | null
+          external_message_id: string
+          external_order_id?: string | null
+          external_thread_id?: string | null
+          id?: string
+          item_thumbnail?: string | null
+          item_title?: string | null
+          marketplace?: string
+          message_type: string
+          metadata?: Json | null
+          question_text?: string | null
+          received_at?: string | null
+          status?: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer_text?: string | null
+          answered_at?: string | null
+          buyer_id?: string | null
+          buyer_nickname?: string | null
+          connection_id?: string | null
+          created_at?: string
+          external_item_id?: string | null
+          external_message_id?: string
+          external_order_id?: string | null
+          external_thread_id?: string | null
+          id?: string
+          item_thumbnail?: string | null
+          item_title?: string | null
+          marketplace?: string
+          message_type?: string
+          metadata?: Json | null
+          question_text?: string | null
+          received_at?: string | null
+          status?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_messages_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_sync_logs: {
         Row: {
           completed_at: string | null

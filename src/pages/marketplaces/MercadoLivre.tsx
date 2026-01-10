@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { MeliConnectionCard } from "@/components/marketplaces/MeliConnectionCard";
+import { MeliOrdersTab } from "@/components/marketplaces/MeliOrdersTab";
+import { MeliMessagesTab } from "@/components/marketplaces/MeliMessagesTab";
 import { useMeliConnection } from "@/hooks/useMeliConnection";
 
 // Mercado Livre Logo Component
@@ -177,49 +179,11 @@ export default function MercadoLivre() {
         </TabsContent>
 
         <TabsContent value="pedidos" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShoppingBag className="h-5 w-5" />
-                Pedidos do Mercado Livre
-              </CardTitle>
-              <CardDescription>
-                Visualize e gerencie os pedidos recebidos do Mercado Livre
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-900/10">
-                <Construction className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  <strong>Em desenvolvimento:</strong> A sincronização de pedidos do Mercado Livre está sendo implementada.
-                  Em breve você poderá visualizar e processar pedidos diretamente por aqui.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
+          <MeliOrdersTab />
         </TabsContent>
 
         <TabsContent value="mensagens" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Mensagens do Mercado Livre
-              </CardTitle>
-              <CardDescription>
-                Responda perguntas de pré-venda e mensagens pós-venda
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Alert className="border-amber-500/30 bg-amber-50 dark:bg-amber-900/10">
-                <Construction className="h-4 w-4 text-amber-600" />
-                <AlertDescription className="text-amber-800 dark:text-amber-200">
-                  <strong>Em desenvolvimento:</strong> O módulo de mensagens do Mercado Livre está sendo implementado.
-                  Em breve você poderá responder perguntas e mensagens diretamente por aqui.
-                </AlertDescription>
-              </Alert>
-            </CardContent>
-          </Card>
+          <MeliMessagesTab />
         </TabsContent>
 
         <TabsContent value="anuncios" className="mt-6">
