@@ -105,11 +105,9 @@ export function StoreUrlInput({
       <div className="bg-muted/50 rounded-lg p-4 max-w-lg mx-auto">
         <h4 className="font-medium mb-2">O que será importado:</h4>
         <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Categorias e menu de navegação</li>
-          <li>• Banners e imagens da página inicial</li>
-          <li>• Cores e identidade visual</li>
-          <li>• Logo e favicon</li>
-          <li>• Estrutura de páginas</li>
+          <li>• Categorias da loja</li>
+          <li>• Páginas institucionais (sobre, políticas, etc.)</li>
+          <li>• Estrutura de menus (header e footer)</li>
         </ul>
       </div>
     </div>
