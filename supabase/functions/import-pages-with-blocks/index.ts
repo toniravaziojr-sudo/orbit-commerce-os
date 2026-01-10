@@ -14,6 +14,7 @@ import { detectAllPages, type DetectedPage } from '../_shared/advanced-page-dete
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
@@ -256,24 +257,29 @@ Deno.serve(async (req) => {
         ...detectionResult.customPages.filter(p => p.confidence >= 0.5),
       ];
       
-      // Log the found pages for debugging
-      if (pagesToImport.length > 0) {
-        console.log('[import-pages] Pages to import:');
-        for (const p of pagesToImport) {
-          console.log(`  - [${p.type}] ${p.title}: ${p.slug} (confidence: ${p.confidence.toFixed(2)}, source: ${p.source})`);
+      // Limit to max 8 pages to avoid CPU timeout
+      const maxPages = 8;
+      const limitedPages = pagesToImport.slice(0, maxPages);
+      
+      if (limitedPages.length > 0) {
+        console.log(`[import-pages] Importing ${limitedPages.length} pages (max ${maxPages}):`);
+        for (const p of limitedPages) {
+          console.log(`  - [${p.type}] ${p.title}: ${p.slug}`);
         }
       } else {
-        console.warn('[import-pages] No institutional/custom pages detected.');
-        console.warn('[import-pages] This may indicate:');
-        console.warn('  1. The page structure differs from expected patterns');
-        console.warn('  2. Links are loaded dynamically via JavaScript');
-        console.warn('  3. The page uses an uncommon platform structure');
+        console.warn('[import-pages] No pages detected to import');
       }
 
-      // Import ALL detected pages (no limit)
-      for (const page of pagesToImport) {
+      // Import pages with timeout protection
+      for (const page of limitedPages) {
+        // Check if we're running low on time (50s limit, stop at 40s)
+        if (Date.now() - startTime > 40000) {
+          console.warn('[import-pages] Time limit approaching, stopping page import');
+          break;
+        }
+        
         try {
-          console.log(`[import-pages] Importing ${page.type} page: ${page.url}`);
+          console.log(`[import-pages] Importing: ${page.url}`);
           const pageHtml = await fetchPageContent(page.url);
           const pageSections = extractSectionsFromHTML(pageHtml);
           console.log(`[import-pages] Extracted ${pageSections.length} sections from ${page.slug}`);
@@ -314,13 +320,11 @@ Deno.serve(async (req) => {
                 type: 'institutional',
               });
               totalBlocks += pageBlocks.length;
-              console.log(`[import-pages] ✓ Imported page: ${page.title} (${slug}) with ${pageBlocks.length} blocks`);
+              console.log(`[import-pages] ✓ Imported: ${page.title} (${slug})`);
             }
-          } else {
-            console.log(`[import-pages] Skipping ${page.slug}: no blocks extracted (page may be too simple or empty)`);
           }
         } catch (e) {
-          console.error('[import-pages] Error importing page:', page.url, e);
+          console.error('[import-pages] Error importing:', page.url, e);
         }
       }
     }
