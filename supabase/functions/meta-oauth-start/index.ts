@@ -19,26 +19,27 @@ const corsHeaders = {
  */
 
 // Pacotes de escopos por feature
+// NOTA: Escopos avançados (instagram_manage_messages, etc.) requerem App Review da Meta.
+// Para modo desenvolvimento, usamos apenas escopos que funcionam sem aprovação.
 const SCOPE_PACKS: Record<string, string[]> = {
-  // Atendimento (Messenger + Instagram)
+  // Atendimento (Messenger + Instagram) - escopos básicos que funcionam em dev mode
   atendimento: [
     "pages_messaging",
     "pages_manage_metadata",
     "pages_read_engagement",
-    "instagram_manage_messages",
-    "instagram_manage_comments",
+    // instagram_manage_messages e instagram_manage_comments requerem App Review
   ],
   // Publicação/Agendamento (Facebook + Instagram)
   publicacao: [
     "pages_manage_posts",
-    "instagram_content_publish",
     "pages_read_engagement",
+    // instagram_content_publish requer App Review
   ],
   // Ads/Insights (campanhas e métricas)
   ads: [
-    "ads_management",
     "ads_read",
     "read_insights",
+    // ads_management requer App Review para uso completo
   ],
   // Leads (Lead Ads)
   leads: [
@@ -57,10 +58,10 @@ const SCOPE_PACKS: Record<string, string[]> = {
   ],
 };
 
-// Escopos base sempre incluídos
+// Escopos base sempre incluídos (public_profile é sempre disponível)
+// NOTA: "email" requer que o usuário tenha email confirmado e pode falhar em dev mode
 const BASE_SCOPES = [
   "public_profile",
-  "email",
   "pages_show_list",
 ];
 
