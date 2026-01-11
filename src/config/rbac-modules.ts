@@ -71,6 +71,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/settings/domains': { module: 'system', submodule: 'settings' },
   '/settings/billing': { module: 'system', submodule: 'settings' },
   '/system/users': { module: 'system', submodule: 'users' }, // Owner only
+  '/support-center': { module: 'system', submodule: 'support-center' }, // Support center for platform help
   
   // Platform routes (platform admins only - but checked in code)
   '/platform/integrations': { module: 'platform' },
@@ -169,6 +170,7 @@ export const MODULES: ModuleConfig[] = [
       { key: 'import', label: 'Importar Dados', route: '/import' },
       { key: 'files', label: 'Meu Drive', route: '/files' },
       { key: 'settings', label: 'Configurações', route: '/settings' },
+      { key: 'support-center', label: 'Suporte', route: '/support-center' },
     ],
   },
 ];

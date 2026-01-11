@@ -87,6 +87,7 @@ import PlatformBilling from "@/pages/platform/PlatformBilling";
 import Influencers from "@/pages/Influencers";
 import SupplierLeadsPage from "@/pages/SupplierLeads";
 import Affiliates from "@/pages/Affiliates";
+import SupportCenter from "@/pages/SupportCenter";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
@@ -318,6 +319,7 @@ const App = () => {
                   <Route path="/influencers" element={<Influencers />} />
                   <Route path="/suppliers" element={<SupplierLeadsPage />} />
                   <Route path="/affiliates" element={<Affiliates />} />
+                  <Route path="/support-center" element={<SupportCenter />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/settings/domains" element={<Domains />} />
                   <Route path="/settings/billing" element={<BillingSettings />} />
