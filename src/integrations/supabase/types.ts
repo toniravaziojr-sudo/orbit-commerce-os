@@ -8787,6 +8787,144 @@ export type Database = {
           },
         ]
       }
+      support_ticket_attachments: {
+        Row: {
+          created_at: string
+          file_id: string | null
+          id: string
+          message_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          message_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          file_id?: string | null
+          id?: string
+          message_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_attachments_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "support_ticket_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_attachments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_ticket_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          sender_type: string
+          sender_user_id: string
+          tenant_id: string
+          ticket_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          sender_type: string
+          sender_user_id: string
+          tenant_id: string
+          ticket_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          sender_type?: string
+          sender_user_id?: string
+          tenant_id?: string
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_ticket_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "support_ticket_messages_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "support_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      support_tickets: {
+        Row: {
+          category: string
+          created_at: string
+          created_by: string
+          id: string
+          last_message_at: string | null
+          priority: string
+          status: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          last_message_at?: string | null
+          priority?: string
+          status?: string
+          subject: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_message_at?: string | null
+          priority?: string
+          status?: string
+          subject?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "support_tickets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       system_email_config: {
         Row: {
           created_at: string
@@ -10082,6 +10220,7 @@ export type Database = {
         Returns: boolean
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_platform_admin_by_auth: { Args: never; Returns: boolean }
       is_tenant_owner: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean

@@ -43,6 +43,7 @@ import {
   Sparkles,
   FolderOpen,
   Building2,
+  LifeBuoy,
   CreditCard,
   UserCheck,
   Handshake,
@@ -160,6 +161,12 @@ const fullNavigation: NavGroup[] = [
     label: "Meu Drive",
     items: [
       { title: "Meu Drive", href: "/files", icon: FolderOpen },
+    ],
+  },
+  {
+    label: "Suporte",
+    items: [
+      { title: "Suporte", href: "/support-center", icon: LifeBuoy },
     ],
   },
 ];
