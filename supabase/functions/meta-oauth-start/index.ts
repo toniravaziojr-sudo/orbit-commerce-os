@@ -182,8 +182,9 @@ serve(async (req) => {
       );
     }
 
-    // Construir redirect URI (callback vai para edge function)
-    const redirectUri = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
+    // Construir redirect URI (callback vai para rota do APP - melhor prática para SaaS)
+    const appBaseUrl = Deno.env.get("APP_URL") || "https://app.comandocentral.com.br";
+    const redirectUri = `${appBaseUrl}/integrations/meta/callback`;
 
     // URL de autorização do Facebook/Meta
     // Docs: https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow
