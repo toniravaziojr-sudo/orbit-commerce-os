@@ -35,11 +35,11 @@ export async function uploadAndRegisterToSystemDrive(
     return null;
   }
 
-  // Generate storage path
+  // Generate UNIQUE storage path with UUID to avoid cache issues
   const fileExt = file.name.split('.').pop()?.toLowerCase() || 'bin';
   const timestamp = Date.now();
-  const randomId = Math.random().toString(36).slice(2, 8);
-  const filename = customFilename || `${timestamp}-${randomId}.${fileExt}`;
+  const uuid = crypto.randomUUID().slice(0, 8);
+  const filename = customFilename || `${timestamp}-${uuid}.${fileExt}`;
   
   const basePath = subPath 
     ? `tenants/${tenantId}/${subPath}` 
@@ -47,10 +47,13 @@ export async function uploadAndRegisterToSystemDrive(
   const storagePath = `${basePath}/${filename}`;
   const bucket = 'store-assets';
 
-  // Upload to storage
+  // Upload to storage - NEVER upsert, always use unique path
   const { error: uploadError } = await supabase.storage
     .from(bucket)
-    .upload(storagePath, file, { upsert: true });
+    .upload(storagePath, file, { 
+      upsert: false,
+      cacheControl: '3600',
+    });
 
   if (uploadError) {
     console.error('Upload error:', uploadError);

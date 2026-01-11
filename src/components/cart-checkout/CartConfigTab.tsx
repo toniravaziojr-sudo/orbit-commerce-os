@@ -59,11 +59,17 @@ export function CartConfigTab() {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${currentTenant.id}/cart-banners/${type}.${fileExt}`;
+      // Generate UNIQUE path to avoid cache issues
+      const timestamp = Date.now();
+      const uuid = crypto.randomUUID().slice(0, 8);
+      const fileName = `${currentTenant.id}/cart-banners/${type}-${timestamp}-${uuid}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('store-assets')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, file, { 
+          upsert: false, // Never upsert - always unique path
+          cacheControl: '3600',
+        });
 
       if (uploadError) throw uploadError;
 

@@ -14,6 +14,45 @@ export interface FileUsageMap {
 }
 
 /**
+ * Extracts the base storage path from a URL (removes query params and version)
+ */
+function extractStoragePathFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  
+  // Remove query params (cache busting, version, etc.)
+  const urlWithoutParams = url.split('?')[0];
+  
+  // Extract path from Supabase storage URL
+  // Pattern: .../storage/v1/object/public/{bucket}/{path}
+  const match = urlWithoutParams.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Compares two URLs/paths to see if they refer to the same file
+ */
+function urlsMatch(url1: string | null, url2: string | null): boolean {
+  if (!url1 || !url2) return false;
+  
+  // Remove query params for comparison
+  const clean1 = url1.split('?')[0];
+  const clean2 = url2.split('?')[0];
+  
+  // Direct match
+  if (clean1 === clean2) return true;
+  
+  // Check if one contains the other (path inside URL)
+  if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
+  
+  // Extract and compare storage paths
+  const path1 = extractStoragePathFromUrl(url1);
+  const path2 = extractStoragePathFromUrl(url2);
+  if (path1 && path2 && path1 === path2) return true;
+  
+  return false;
+}
+
+/**
  * Hook to detect which files are currently in use by store_settings (logo/favicon)
  * with real-time updates when store_settings changes.
  */
@@ -21,14 +60,14 @@ export function useFileUsageDetection() {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
 
-  const { data: storeSettings } = useQuery({
+  const { data: storeSettings, refetch: refetchSettings } = useQuery({
     queryKey: ['store-settings-urls', currentTenant?.id],
     queryFn: async () => {
       if (!currentTenant?.id) return null;
 
       const { data, error } = await supabase
         .from('store_settings')
-        .select('logo_url, favicon_url')
+        .select('logo_url, favicon_url, updated_at')
         .eq('tenant_id', currentTenant.id)
         .maybeSingle();
 
@@ -36,6 +75,8 @@ export function useFileUsageDetection() {
       return data;
     },
     enabled: !!currentTenant?.id,
+    // Reduce stale time for more responsive updates
+    staleTime: 1000,
   });
 
   // Subscribe to realtime changes on store_settings for this tenant
@@ -52,9 +93,13 @@ export function useFileUsageDetection() {
           table: 'store_settings',
           filter: `tenant_id=eq.${currentTenant.id}`,
         },
-        () => {
-          // Invalidate to refresh the badge data
+        (payload) => {
+          console.log('[useFileUsageDetection] Realtime update:', payload.eventType);
+          // Immediate refetch on any change
+          refetchSettings();
+          // Also invalidate related queries
           queryClient.invalidateQueries({ queryKey: ['store-settings-urls', currentTenant.id] });
+          queryClient.invalidateQueries({ queryKey: ['store-settings', currentTenant.id] });
         }
       )
       .subscribe();
@@ -62,7 +107,7 @@ export function useFileUsageDetection() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentTenant?.id, queryClient]);
+  }, [currentTenant?.id, queryClient, refetchSettings]);
 
   /**
    * Check if a file is in use and return usage details
@@ -72,16 +117,18 @@ export function useFileUsageDetection() {
 
     const usages: FileUsage[] = [];
 
-    // Check by storage_path match in URL or by metadata source
+    // Get file identifiers
     const metadata = file.metadata as Record<string, unknown> | null;
     const fileUrl = metadata?.url as string | undefined;
     const fileSource = metadata?.source as string | undefined;
+    const filePath = file.storage_path;
 
     // Check logo
     if (storeSettings.logo_url) {
       const isLogoMatch = 
-        (fileUrl && storeSettings.logo_url === fileUrl) ||
-        (storeSettings.logo_url.includes(file.storage_path)) ||
+        urlsMatch(fileUrl || null, storeSettings.logo_url) ||
+        urlsMatch(filePath, storeSettings.logo_url) ||
+        (storeSettings.logo_url.includes(filePath)) ||
         (fileSource === 'storefront_logo');
       
       if (isLogoMatch) {
@@ -92,8 +139,9 @@ export function useFileUsageDetection() {
     // Check favicon
     if (storeSettings.favicon_url) {
       const isFaviconMatch = 
-        (fileUrl && storeSettings.favicon_url === fileUrl) ||
-        (storeSettings.favicon_url.includes(file.storage_path)) ||
+        urlsMatch(fileUrl || null, storeSettings.favicon_url) ||
+        urlsMatch(filePath, storeSettings.favicon_url) ||
+        (storeSettings.favicon_url.includes(filePath)) ||
         (fileSource === 'storefront_favicon');
       
       if (isFaviconMatch) {
@@ -115,5 +163,6 @@ export function useFileUsageDetection() {
     storeSettings,
     getFileUsage,
     isFileInUse,
+    refetchUsage: refetchSettings,
   };
 }

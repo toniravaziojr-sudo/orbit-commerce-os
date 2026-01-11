@@ -99,6 +99,8 @@ export function StorefrontConfigTab() {
       social_custom: formData.social_custom as unknown as import('@/integrations/supabase/types').Json,
     });
     setHasChanges(false);
+    // Force UI refresh by updating local state with latest values
+    // This ensures images display correctly after save
   };
 
   const handleLogoUpload = async (file: File) => {

@@ -102,7 +102,7 @@ export function ImageUpload({
           <div className="flex items-center gap-4">
             <div className="relative w-20 h-20 rounded-lg overflow-hidden bg-muted flex items-center justify-center">
               <img
-                src={value}
+                src={`${value}${value.includes('?') ? '&' : '?'}v=${Date.now()}`}
                 alt={label}
                 className="w-full h-full object-contain"
                 onError={(e) => {
@@ -112,7 +112,7 @@ export function ImageUpload({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{label}</p>
-              <p className="text-xs text-muted-foreground truncate">{value}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[200px]">Imagem carregada</p>
             </div>
             <Button
               type="button"

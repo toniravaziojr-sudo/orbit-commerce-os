@@ -5,10 +5,9 @@ import { useToast } from '@/hooks/use-toast';
 import type { Json } from '@/integrations/supabase/types';
 import { useEffect, useRef } from 'react';
 import { 
-  registerFileToDrive, 
   backfillStorefrontAssets,
-  extractStoragePathFromUrl 
 } from '@/lib/registerFileToDrive';
+import { replaceSystemAsset } from '@/lib/replaceSystemAsset';
 
 // Interface para redes sociais customizadas
 export interface CustomSocialLink {
@@ -221,52 +220,37 @@ export function useStoreSettings() {
   });
 
   // Upload de imagem para o bucket store-assets + registra no Drive
+  // SEMPRE gera path único para evitar cache de sobrescrita
   const uploadAsset = async (file: File, assetType: 'logo' | 'favicon'): Promise<string | null> => {
     if (!currentTenant?.id || !user?.id) return null;
     
-    const fileExt = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const filePath = `tenants/${currentTenant.id}/branding/${assetType}.${fileExt}`;
+    // Get current URL for reference (old file)
+    const oldUrl = assetType === 'logo' ? settings?.logo_url : settings?.favicon_url;
     
-    // Remove arquivo existente se houver
-    await supabase.storage.from('store-assets').remove([filePath]);
+    // Use replaceSystemAsset which generates UNIQUE paths
+    const result = await replaceSystemAsset({
+      tenantId: currentTenant.id,
+      userId: user.id,
+      file,
+      assetType,
+      oldUrl,
+    });
     
-    // Upload do novo arquivo
-    const { error: uploadError } = await supabase.storage
-      .from('store-assets')
-      .upload(filePath, file, { upsert: true });
-    
-    if (uploadError) {
+    if (!result) {
       toast({ 
         title: 'Erro no upload', 
-        description: uploadError.message, 
+        description: 'Não foi possível fazer o upload do arquivo',
         variant: 'destructive' 
       });
       return null;
     }
-    
-    // Retorna URL pública
-    const { data: publicUrl } = supabase.storage
-      .from('store-assets')
-      .getPublicUrl(filePath);
-    
-    const url = publicUrl.publicUrl;
-
-    // Register file to Drive (system folder)
-    await registerFileToDrive({
-      tenantId: currentTenant.id,
-      userId: user.id,
-      url,
-      storagePath: filePath,
-      originalName: `${assetType}.${fileExt}`,
-      mimeType: file.type,
-      size: file.size,
-      source: `storefront_${assetType}`,
-    });
 
     // Invalidate files query to show newly registered file
     queryClient.invalidateQueries({ queryKey: ['files', currentTenant.id] });
+    // Also invalidate store-settings-urls for badge updates
+    queryClient.invalidateQueries({ queryKey: ['store-settings-urls', currentTenant.id] });
     
-    return url;
+    return result.publicUrl;
   };
 
   return {
