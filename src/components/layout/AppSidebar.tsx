@@ -351,7 +351,7 @@ export function AppSidebar() {
   };
 
   const renderNavGroup = (group: NavGroup) => {
-    // Filter items based on permissions
+    // Filter items based on permissions - THIS IS CRITICAL FOR RBAC
     const visibleItems = group.items.filter(item => {
       if (item.ownerOnly && !isOwner && !isPlatformOp) return false;
       if (!isPlatformTenant && !item.ownerOnly && !isSidebarItemVisible(item.href)) return false;
@@ -364,7 +364,17 @@ export function AppSidebar() {
     const groupActive = visibleItems.some((item) => isActive(item.href));
     const open = isGroupOpen(group);
 
-    if (group.collapsible && !collapsed) {
+    // When collapsed, show only icons for visible items (no collapsible groups)
+    if (collapsed) {
+      return (
+        <div key={group.label} className="mb-2">
+          <ul className="space-y-0.5">{visibleItems.map(renderNavItem)}</ul>
+        </div>
+      );
+    }
+
+    // When expanded and collapsible, use Collapsible component
+    if (group.collapsible) {
       return (
         <div key={group.label} className="mb-1">
           <Collapsible open={open} onOpenChange={() => toggleGroup(group.label)}>
@@ -401,13 +411,12 @@ export function AppSidebar() {
       );
     }
 
+    // Non-collapsible expanded groups
     return (
       <div key={group.label} className="mb-3">
-        {!collapsed && (
-          <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
-            {group.label}
-          </p>
-        )}
+        <p className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
+          {group.label}
+        </p>
         <ul className="space-y-0.5">{visibleItems.map(renderNavItem)}</ul>
       </div>
     );
