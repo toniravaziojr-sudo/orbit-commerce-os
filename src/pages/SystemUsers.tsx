@@ -87,27 +87,41 @@ export default function SystemUsers() {
     queryFn: async () => {
       if (!currentTenant) return [];
       
-      const { data, error } = await supabase
+      // First get user_roles
+      const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
-        .select(`
-          id,
-          user_id,
-          role,
-          user_type,
-          permissions,
-          created_at,
-          profiles:user_id (
-            id,
-            email,
-            full_name,
-            avatar_url
-          )
-        `)
+        .select('id, user_id, role, user_type, permissions, created_at')
         .eq('tenant_id', currentTenant.id)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      return data || [];
+      if (rolesError) {
+        console.error('Error fetching user_roles:', rolesError);
+        throw rolesError;
+      }
+
+      if (!roles || roles.length === 0) return [];
+
+      // Get all user_ids to fetch profiles
+      const userIds = roles.map(r => r.user_id);
+      
+      // Fetch profiles separately
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url')
+        .in('id', userIds);
+
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError);
+        // Continue without profiles - fallback to showing user_id
+      }
+
+      // Map profiles to roles
+      const profilesMap = new Map((profiles || []).map(p => [p.id, p]));
+      
+      return roles.map(role => ({
+        ...role,
+        profiles: profilesMap.get(role.user_id) || null,
+      }));
     },
     enabled: !!currentTenant && isOwner,
   });
@@ -339,9 +353,13 @@ export default function SystemUsers() {
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <UsersIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
                   <h3 className="text-lg font-medium">Nenhum membro na equipe</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
                     Convide pessoas para ajudar a gerenciar sua loja
                   </p>
+                  <Button onClick={() => setIsInviteModalOpen(true)}>
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Convidar Usuário
+                  </Button>
                 </div>
               )}
             </CardContent>
