@@ -57,6 +57,7 @@ export function usePermissions() {
 
   /**
    * Check if user can access a specific route
+   * Routes not in ROUTE_TO_PERMISSION should be BLOCKED by default (unless whitelisted)
    */
   const canAccessRoute = (route: string): boolean => {
     // Platform operators always have access
@@ -65,23 +66,43 @@ export function usePermissions() {
     // Owners always have access
     if (isOwner) return true;
 
-    // Command center is always accessible
+    // Command center and root are always accessible
     if (route === '/' || route === '/command-center') return true;
+    
+    // Account routes are always accessible
+    if (route.startsWith('/account/')) return true;
+    
+    // Getting started is always accessible
+    if (route === '/getting-started') return true;
+    
+    // Dev routes (only for development)
+    if (route.startsWith('/dev/')) return true;
 
-    // Find the route config
-    const routeConfig = Object.entries(ROUTE_TO_PERMISSION).find(([path]) => {
-      if (route === path) return true;
-      // Check if route starts with path (for nested routes)
-      if (route.startsWith(path + '/')) return true;
-      return false;
-    });
+    // Find the route config - try exact match first, then prefix match
+    let routeConfig: [string, { module: string; submodule?: string }] | undefined;
+    
+    // First try exact match
+    if (ROUTE_TO_PERMISSION[route]) {
+      routeConfig = [route, ROUTE_TO_PERMISSION[route]];
+    } else {
+      // Then try prefix match (for nested routes like /orders/123)
+      routeConfig = Object.entries(ROUTE_TO_PERMISSION).find(([path]) => {
+        return route.startsWith(path + '/');
+      });
+    }
 
     if (!routeConfig) {
-      // Route not in permission map - allow by default for unprotected routes
-      return true;
+      // Route not in permission map - BLOCK by default for security
+      console.log(`[usePermissions] Route "${route}" not in permission map - blocking`);
+      return false;
     }
 
     const [, config] = routeConfig;
+    
+    // Platform routes are only for platform operators (already checked above)
+    if (config.module === 'platform') {
+      return isPlatformOperator;
+    }
     
     // Special case: system/users is owner-only
     if (config.module === 'system' && config.submodule === 'users') {

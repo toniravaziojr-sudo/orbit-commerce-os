@@ -9836,6 +9836,10 @@ export type Database = {
         Args: { p_tenant_id: string }
         Returns: undefined
       }
+      is_owner_of_member_tenant: {
+        Args: { p_member_id: string; p_owner_id: string }
+        Returns: boolean
+      }
       is_platform_admin: { Args: never; Returns: boolean }
       is_tenant_owner: {
         Args: { _tenant_id: string; _user_id: string }

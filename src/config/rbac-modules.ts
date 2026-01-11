@@ -17,6 +17,7 @@ export interface SubmoduleConfig {
 }
 
 // Map routes to permission keys for route guard
+// IMPORTANT: All protected routes MUST be listed here, otherwise they will be blocked
 export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: string }> = {
   // E-commerce
   '/orders': { module: 'ecommerce', submodule: 'orders' },
@@ -24,12 +25,14 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/categories': { module: 'ecommerce', submodule: 'categories' },
   '/customers': { module: 'ecommerce', submodule: 'customers' },
   '/discounts': { module: 'ecommerce', submodule: 'discounts' },
+  '/abandoned-checkouts': { module: 'ecommerce', submodule: 'orders' },
   
   // Loja Online
   '/storefront': { module: 'storefront', submodule: 'storefront' },
   '/cart-checkout': { module: 'storefront', submodule: 'cart-checkout' },
   '/menus': { module: 'storefront', submodule: 'menus' },
   '/pages': { module: 'storefront', submodule: 'pages' },
+  '/page-templates': { module: 'storefront', submodule: 'pages' },
   '/blog': { module: 'storefront', submodule: 'blog' },
   
   // Marketing
@@ -57,6 +60,7 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/affiliates': { module: 'partnerships', submodule: 'affiliates' },
   
   // Marketplaces
+  '/marketplaces': { module: 'marketplaces' },
   '/marketplaces/mercadolivre': { module: 'marketplaces', submodule: 'mercadolivre' },
   
   // Sistema
@@ -64,7 +68,18 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/import': { module: 'system', submodule: 'import' },
   '/files': { module: 'system', submodule: 'files' },
   '/settings': { module: 'system', submodule: 'settings' },
+  '/settings/domains': { module: 'system', submodule: 'settings' },
+  '/settings/billing': { module: 'system', submodule: 'settings' },
   '/system/users': { module: 'system', submodule: 'users' }, // Owner only
+  
+  // Platform routes (platform admins only - but checked in code)
+  '/platform/integrations': { module: 'platform' },
+  '/platform/health-monitor': { module: 'platform' },
+  '/platform/block-suggestions': { module: 'platform' },
+  '/platform/billing': { module: 'platform' },
+  
+  // Getting started (always accessible to members)
+  '/getting-started': { module: 'ecommerce' }, // Mapped to ecommerce so viewers can see it
 };
 
 // Module configurations with submodules
