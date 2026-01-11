@@ -114,30 +114,24 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
     mutationFn: async () => {
       if (!member || !currentTenant) throw new Error('Missing data');
 
-      // Update user_roles
-      const { error: roleError } = await supabase
-        .from('user_roles')
-        .update({
-          user_type: userType as any,
-          permissions: permissions as any,
-        })
-        .eq('id', member.id);
+      // Use edge function to update (bypasses RLS for profile update)
+      const response = await supabase.functions.invoke('tenant-user-update', {
+        body: {
+          user_role_id: member.id,
+          user_type: userType,
+          permissions: permissions,
+          full_name: displayName || null,
+        },
+      });
 
-      if (roleError) throw roleError;
-
-      // Update profile name if changed
-      if (displayName !== (member.profiles?.full_name || '')) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ full_name: displayName || null })
-          .eq('id', member.user_id);
-
-        if (profileError) throw profileError;
+      if (response.error) throw response.error;
+      if (!response.data?.success) {
+        throw new Error(response.data?.error || 'Erro ao atualizar usuário');
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      toast.success('Permissões atualizadas com sucesso!');
+      toast.success('Usuário atualizado com sucesso!');
       onOpenChange(false);
     },
     onError: (error: any) => {
