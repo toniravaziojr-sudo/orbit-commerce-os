@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -54,12 +55,14 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
   const [userType, setUserType] = useState<string>('viewer');
   const [permissions, setPermissions] = useState<Record<string, boolean | Record<string, boolean>>>({});
   const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [displayName, setDisplayName] = useState<string>('');
 
   // Initialize from member data
   useEffect(() => {
     if (member) {
       setUserType(member.user_type || 'viewer');
       setPermissions(member.permissions || {});
+      setDisplayName(member.profiles?.full_name || '');
     }
   }, [member]);
 
@@ -111,7 +114,8 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
     mutationFn: async () => {
       if (!member || !currentTenant) throw new Error('Missing data');
 
-      const { error } = await supabase
+      // Update user_roles
+      const { error: roleError } = await supabase
         .from('user_roles')
         .update({
           user_type: userType as any,
@@ -119,7 +123,17 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
         })
         .eq('id', member.id);
 
-      if (error) throw error;
+      if (roleError) throw roleError;
+
+      // Update profile name if changed
+      if (displayName !== (member.profiles?.full_name || '')) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ full_name: displayName || null })
+          .eq('id', member.user_id);
+
+        if (profileError) throw profileError;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
@@ -205,6 +219,20 @@ export function EditUserModal({ open, onOpenChange, member }: EditUserModalProps
               <p className="font-medium">{memberName}</p>
               <p className="text-sm text-muted-foreground">{member?.profiles?.email}</p>
             </div>
+          </div>
+
+          {/* Display Name */}
+          <div className="space-y-2">
+            <Label htmlFor="display-name">Nome</Label>
+            <Input
+              id="display-name"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="Nome do usuário"
+            />
+            <p className="text-xs text-muted-foreground">
+              Nome exibido na lista de equipe
+            </p>
           </div>
 
           {/* User Type */}
