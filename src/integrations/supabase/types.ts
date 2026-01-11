@@ -2545,6 +2545,48 @@ export type Database = {
           },
         ]
       }
+      email_events: {
+        Row: {
+          created_at: string
+          data: Json | null
+          event_type: string
+          id: string
+          subscriber_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json | null
+          event_type: string
+          id?: string
+          subscriber_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json | null
+          event_type?: string
+          id?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_events_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_folders: {
         Row: {
           created_at: string
@@ -2585,6 +2627,363 @@ export type Database = {
             columns: ["mailbox_id"]
             isOneToOne: false
             referencedRelation: "mailboxes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_campaign_steps: {
+        Row: {
+          campaign_id: string
+          conditions: Json | null
+          created_at: string
+          delay_minutes: number
+          id: string
+          step_index: number
+          template_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          campaign_id: string
+          conditions?: Json | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          step_index?: number
+          template_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          campaign_id?: string
+          conditions?: Json | null
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          step_index?: number
+          template_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_campaign_steps_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_campaign_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_campaign_steps_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_campaigns: {
+        Row: {
+          created_at: string
+          id: string
+          list_id: string | null
+          name: string
+          segment: Json | null
+          sent_count: number | null
+          status: string
+          template_id: string | null
+          tenant_id: string
+          trigger_config: Json | null
+          trigger_type: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_id?: string | null
+          name: string
+          segment?: Json | null
+          sent_count?: number | null
+          status?: string
+          template_id?: string | null
+          tenant_id: string
+          trigger_config?: Json | null
+          trigger_type?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_id?: string | null
+          name?: string
+          segment?: Json | null
+          sent_count?: number | null
+          status?: string
+          template_id?: string | null
+          tenant_id?: string
+          trigger_config?: Json | null
+          trigger_type?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_campaigns_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_campaigns_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_forms: {
+        Row: {
+          config: Json | null
+          created_at: string
+          id: string
+          list_id: string | null
+          name: string
+          slug: string
+          status: string
+          success_message: string | null
+          tags_to_add: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          id?: string
+          list_id?: string | null
+          name: string
+          slug: string
+          status?: string
+          success_message?: string | null
+          tags_to_add?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          id?: string
+          list_id?: string | null
+          name?: string
+          slug?: string
+          status?: string
+          success_message?: string | null
+          tags_to_add?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_forms_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_forms_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_list_members: {
+        Row: {
+          created_at: string
+          id: string
+          list_id: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          list_id: string
+          subscriber_id: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          list_id?: string
+          subscriber_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_list_members_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_list_members_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_marketing_list_members_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_lists: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_lists_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_subscribers: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          name: string | null
+          phone: string | null
+          source: string | null
+          status: string
+          tags: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string
+          tags?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_subscribers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_marketing_templates: {
+        Row: {
+          body_html: string
+          body_text: string | null
+          created_at: string
+          id: string
+          name: string
+          subject: string
+          tenant_id: string
+          updated_at: string
+          variables: string[] | null
+        }
+        Insert: {
+          body_html: string
+          body_text?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          subject: string
+          tenant_id: string
+          updated_at?: string
+          variables?: string[] | null
+        }
+        Update: {
+          body_html?: string
+          body_text?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          subject?: string
+          tenant_id?: string
+          updated_at?: string
+          variables?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_marketing_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
         ]
@@ -2791,6 +3190,127 @@ export type Database = {
             foreignKeyName: "email_provider_configs_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_send_queue: {
+        Row: {
+          body_html: string
+          body_text: string | null
+          campaign_id: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          metadata: Json | null
+          provider_message_id: string | null
+          scheduled_at: string
+          sent_at: string | null
+          status: string
+          subject: string
+          subscriber_id: string | null
+          tenant_id: string
+          to_email: string
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          body_text?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          metadata?: Json | null
+          provider_message_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          subscriber_id?: string | null
+          tenant_id: string
+          to_email: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          body_text?: string | null
+          campaign_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          metadata?: Json | null
+          provider_message_id?: string | null
+          scheduled_at?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+          to_email?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_send_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_send_queue_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_send_queue_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          subscriber_id: string
+          tenant_id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          subscriber_id: string
+          tenant_id: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          subscriber_id?: string
+          tenant_id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_unsubscribe_tokens_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_unsubscribe_tokens_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -7517,6 +8037,172 @@ export type Database = {
           },
         ]
       }
+      quiz_questions: {
+        Row: {
+          created_at: string
+          id: string
+          is_required: boolean | null
+          mapping: Json | null
+          options: Json | null
+          order_index: number
+          question: string
+          quiz_id: string
+          tenant_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_required?: boolean | null
+          mapping?: Json | null
+          options?: Json | null
+          order_index?: number
+          question: string
+          quiz_id: string
+          tenant_id: string
+          type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_required?: boolean | null
+          mapping?: Json | null
+          options?: Json | null
+          order_index?: number
+          question?: string
+          quiz_id?: string
+          tenant_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_questions_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_questions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quiz_responses: {
+        Row: {
+          answers: Json
+          id: string
+          metadata: Json | null
+          quiz_id: string
+          submitted_at: string
+          subscriber_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          answers?: Json
+          id?: string
+          metadata?: Json | null
+          quiz_id: string
+          submitted_at?: string
+          subscriber_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          answers?: Json
+          id?: string
+          metadata?: Json | null
+          quiz_id?: string
+          submitted_at?: string
+          subscriber_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_responses_quiz_id_fkey"
+            columns: ["quiz_id"]
+            isOneToOne: false
+            referencedRelation: "quizzes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_responses_subscriber_id_fkey"
+            columns: ["subscriber_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_subscribers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quiz_responses_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quizzes: {
+        Row: {
+          created_at: string
+          id: string
+          intro_text: string | null
+          list_id: string | null
+          name: string
+          outro_text: string | null
+          settings: Json | null
+          slug: string
+          status: string
+          tags_to_add: string[] | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          intro_text?: string | null
+          list_id?: string | null
+          name: string
+          outro_text?: string | null
+          settings?: Json | null
+          slug: string
+          status?: string
+          tags_to_add?: string[] | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          intro_text?: string | null
+          list_id?: string | null
+          name?: string
+          outro_text?: string | null
+          settings?: Json | null
+          slug?: string
+          status?: string
+          tags_to_add?: string[] | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quizzes_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "email_marketing_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quizzes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       related_products: {
         Row: {
           created_at: string
@@ -10143,6 +10829,10 @@ export type Database = {
         Args: { p_tenant_id: string; p_year_month: string }
         Returns: string
       }
+      generate_unsubscribe_token: {
+        Args: { p_subscriber_id: string; p_tenant_id: string }
+        Returns: string
+      }
       get_auth_user_email: { Args: never; Returns: string }
       get_current_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_current_year_month: { Args: never; Returns: string }
@@ -10225,6 +10915,7 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      normalize_email: { Args: { p_email: string }; Returns: string }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
@@ -10249,6 +10940,10 @@ export type Database = {
       }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_has_tenant_access: {
+        Args: { p_tenant_id: string }
         Returns: boolean
       }
       validate_billing_checkout_token: {
