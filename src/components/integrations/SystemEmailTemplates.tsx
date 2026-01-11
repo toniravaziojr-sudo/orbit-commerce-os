@@ -46,9 +46,11 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   welcome: <Mail className="h-4 w-4" />,
   password_reset: <KeyRound className="h-4 w-4" />,
   tutorials: <BookOpen className="h-4 w-4" />,
+  tenant_user_invite: <Mail className="h-4 w-4" />,
+  nfe_autorizada: <FileText className="h-4 w-4" />,
 };
 
-const TEMPLATE_ORDER = ["auth_confirm", "welcome", "password_reset", "tutorials"];
+const TEMPLATE_ORDER = ["auth_confirm", "welcome", "password_reset", "tutorials", "tenant_user_invite", "nfe_autorizada"];
 
 // Variable descriptions
 const VARIABLE_DESCRIPTIONS: Record<string, string> = {
@@ -57,6 +59,23 @@ const VARIABLE_DESCRIPTIONS: Record<string, string> = {
   confirmation_url: "Link de confirmação de email",
   dashboard_url: "Link para o painel/dashboard",
   reset_url: "Link para redefinir senha",
+  tenant_name: "Nome da loja/tenant",
+  inviter_name: "Nome de quem enviou o convite",
+  user_type_label: "Tipo do usuário convidado (ex: Gerente, Editor)",
+  accept_url: "Link para aceitar o convite",
+  expires_at: "Data de expiração do convite",
+  invited_email: "Email do convidado",
+  // NFe variables
+  customer_name: "Nome do cliente",
+  order_number: "Número do pedido",
+  nfe_number: "Número da NF-e",
+  nfe_serie: "Série da NF-e",
+  data_emissao: "Data de emissão da NF-e",
+  valor_total: "Valor total da NF-e",
+  chave_acesso: "Chave de acesso da NF-e",
+  danfe_url: "Link para download do DANFE (PDF)",
+  xml_url: "Link para download do XML",
+  store_name: "Nome da loja",
 };
 
 // URL redirect info per template
@@ -65,6 +84,8 @@ const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
   welcome: "O botão direciona para app.comandocentral.com.br (dashboard)",
   password_reset: "Após clicar, abre a página de nova senha, depois vai para o login",
   tutorials: "Enviado automaticamente 1 hora após criação da conta. O botão direciona para o dashboard.",
+  tenant_user_invite: "O botão leva para a página de aceite do convite (app.comandocentral.com.br/accept-invite?token=...)",
+  nfe_autorizada: "Os botões direcionam para download do DANFE (PDF) e XML da nota fiscal.",
 };
 
 export function SystemEmailTemplates() {
