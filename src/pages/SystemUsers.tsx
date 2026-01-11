@@ -232,12 +232,13 @@ export default function SystemUsers() {
       <PageHeader
         title="Usuários e Permissões"
         description="Gerencie sua equipe e controle quem acessa cada área do sistema"
-      >
-        <Button onClick={() => setIsInviteModalOpen(true)}>
-          <UserPlus className="mr-2 h-4 w-4" />
-          Convidar Usuário
-        </Button>
-      </PageHeader>
+        actions={
+          <Button onClick={() => setIsInviteModalOpen(true)}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Convidar Usuário
+          </Button>
+        }
+      />
 
       <Tabs defaultValue="team" className="w-full">
         <TabsList>
