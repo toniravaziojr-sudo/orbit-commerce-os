@@ -254,6 +254,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Canonical APP_BASE_URL - always use the published app domain
+    const APP_BASE_URL = Deno.env.get("APP_BASE_URL") || "https://app.comandocentral.com.br";
+    const acceptUrl = `${APP_BASE_URL}/accept-invite?token=${token}`;
+
+    console.log(`[tenant-user-invite] Generated accept URL: ${acceptUrl}`);
+
     // Send email if SendGrid is configured
     if (sendgridApiKey) {
       // Get system email config
@@ -266,8 +272,6 @@ const handler = async (req: Request): Promise<Response> => {
         const fromEmail = emailConfig.from_email.includes('@')
           ? emailConfig.from_email
           : `${emailConfig.from_email}@${emailConfig.sending_domain}`;
-
-        const acceptUrl = `${Deno.env.get("SUPABASE_URL")?.replace('.supabase.co', '.lovable.app') || 'https://app.comandocentral.com.br'}/accept-invite?token=${token}`;
 
         const emailResult = await sendInviteEmail(
           sendgridApiKey,
