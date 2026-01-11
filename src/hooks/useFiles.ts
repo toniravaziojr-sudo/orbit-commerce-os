@@ -18,6 +18,7 @@ export interface FileItem {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  metadata?: Record<string, unknown> | null;
 }
 
 const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
@@ -166,12 +167,23 @@ export function useFiles(folderId: string | null = null) {
   const deleteFile = useMutation({
     mutationFn: async (file: FileItem) => {
       if (!file.is_folder) {
-        // Delete from storage first
-        const { error: storageError } = await supabase.storage
-          .from('tenant-files')
-          .remove([file.storage_path]);
-
-        if (storageError) console.error('Storage delete error:', storageError);
+        // Determine bucket based on metadata source or storage_path
+        const metadata = file.metadata as Record<string, unknown> | null;
+        const source = metadata?.source as string | undefined;
+        
+        // If it's a store asset, use store-assets bucket
+        if (source?.startsWith('storefront_') || file.storage_path.includes('tenants/')) {
+          const { error: storageError } = await supabase.storage
+            .from('store-assets')
+            .remove([file.storage_path]);
+          if (storageError) console.error('Storage delete error:', storageError);
+        } else {
+          // Regular file in tenant-files bucket
+          const { error: storageError } = await supabase.storage
+            .from('tenant-files')
+            .remove([file.storage_path]);
+          if (storageError) console.error('Storage delete error:', storageError);
+        }
       }
 
       // Delete metadata record
@@ -188,6 +200,27 @@ export function useFiles(folderId: string | null = null) {
     },
     onError: (error: Error) => {
       toast.error(`Erro ao excluir arquivo: ${error.message}`);
+    },
+  });
+
+  const moveFile = useMutation({
+    mutationFn: async ({ fileId, targetFolderId }: { fileId: string; targetFolderId: string | null }) => {
+      const { data, error } = await supabase
+        .from('files')
+        .update({ folder_id: targetFolderId, updated_at: new Date().toISOString() })
+        .eq('id', fileId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
+      toast.success('Arquivo movido com sucesso!');
+    },
+    onError: (error: Error) => {
+      toast.error(`Erro ao mover arquivo: ${error.message}`);
     },
   });
 
@@ -255,6 +288,7 @@ export function useFiles(folderId: string | null = null) {
     createFolder,
     deleteFile,
     renameFile,
+    moveFile,
     getFileUrl,
     downloadFile,
     getSystemFolderId,
