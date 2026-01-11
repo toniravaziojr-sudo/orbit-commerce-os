@@ -1,15 +1,15 @@
 // =============================================
 // IMAGE UPLOADER WITH LIBRARY - Upload or select from media library
+// Agora usa `files` (Uploads do sistema) via useSystemUpload
 // =============================================
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, Image, Loader2, X, Check, FolderOpen } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { Upload, Link, Loader2, X, Check, FolderOpen } from 'lucide-react';
 import { useMediaLibrary, MediaVariant } from '@/hooks/useMediaLibrary';
+import { useSystemUpload } from '@/hooks/useSystemUpload';
 import { MediaLibraryPicker } from './MediaLibraryPicker';
 import { cn } from '@/lib/utils';
 
@@ -28,9 +28,10 @@ export function ImageUploaderWithLibrary({
   aspectRatio = 'video',
   variant,
 }: ImageUploaderWithLibraryProps) {
-  const { currentTenant } = useAuth();
-  const { registerMedia } = useMediaLibrary();
-  const [isUploading, setIsUploading] = useState(false);
+  const { upload, isUploading } = useSystemUpload({ 
+    source: `builder_${variant}`,
+    subPath: `builder/${variant}`,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState(value || '');
@@ -46,11 +47,6 @@ export function ImageUploaderWithLibrary({
   const variantLabel = variant === 'desktop' ? 'Desktop' : 'Mobile';
 
   const handleFileSelect = async (file: File) => {
-    if (!currentTenant?.id) {
-      setError('Erro: Tenant não encontrado');
-      return;
-    }
-
     // Validate file type
     if (!file.type.startsWith('image/')) {
       setError('Por favor, selecione uma imagem válida');
@@ -63,49 +59,17 @@ export function ImageUploaderWithLibrary({
       return;
     }
 
-    setIsUploading(true);
     setError(null);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      // Generate UNIQUE path with timestamp and UUID to avoid cache issues
-      const timestamp = Date.now();
-      const uuid = crypto.randomUUID().slice(0, 8);
-      const fileName = `${currentTenant.id}/builder/${variant}/${timestamp}-${uuid}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false, // Never upsert - always unique path
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-      const publicUrl = urlData.publicUrl;
-
-      // Register in media library
-      await registerMedia.mutateAsync({
-        filePath: fileName,
-        fileUrl: publicUrl,
-        fileName: file.name,
-        variant: variant,
-        fileSize: file.size,
-        mimeType: file.type,
-      });
-
-      onChange(publicUrl);
-      setUrlInput(publicUrl);
+      const result = await upload(file);
+      if (result) {
+        onChange(result.publicUrl);
+        setUrlInput(result.publicUrl);
+      }
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Erro ao fazer upload da imagem');
-    } finally {
-      setIsUploading(false);
     }
   };
 

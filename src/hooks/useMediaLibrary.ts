@@ -1,8 +1,8 @@
 // =============================================
-// MEDIA LIBRARY HOOK - Manage reusable images and videos
+// MEDIA LIBRARY HOOK - Agora usa tabela `files` (Uploads do sistema)
 // =============================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -47,9 +47,15 @@ interface UseMediaLibraryOptions {
   mediaType?: MediaType;
 }
 
+interface FileMetadata {
+  variant?: string;
+  url?: string;
+  public_url?: string;
+  [key: string]: unknown;
+}
+
 export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibraryOptions) {
   const { currentTenant } = useAuth();
-  const queryClient = useQueryClient();
   const tenantId = currentTenant?.id;
 
   // Handle both old signature (variant only) and new signature (options object)
@@ -63,36 +69,99 @@ export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibrar
     mediaType = variantOrOptions.mediaType || 'all';
   }
 
-  // Fetch media items for the tenant (filtered by variant and mediaType)
+  // Fetch media items from `files` table (within system folder tree)
   const { data: mediaItems = [], isLoading } = useQuery({
-    queryKey: ['media-library', tenantId, variant, mediaType],
+    queryKey: ['media-library-files', tenantId, variant, mediaType],
     queryFn: async () => {
       if (!tenantId) return [];
+
+      // First, get the system folder ID
+      const { data: systemFolder } = await supabase
+        .from('files')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('is_system_folder', true)
+        .maybeSingle();
+
+      if (!systemFolder) return [];
+
+      // Get all folder IDs within system tree (system folder + descendants)
+      const { data: allFolders } = await supabase
+        .from('files')
+        .select('id, folder_id')
+        .eq('tenant_id', tenantId)
+        .eq('is_folder', true);
+
+      const systemFolderIds = new Set<string>([systemFolder.id]);
       
-      let query = supabase
-        .from('media_library')
+      // Build tree of system folder descendants
+      if (allFolders) {
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const folder of allFolders) {
+            if (folder.folder_id && systemFolderIds.has(folder.folder_id) && !systemFolderIds.has(folder.id)) {
+              systemFolderIds.add(folder.id);
+              changed = true;
+            }
+          }
+        }
+      }
+
+      // Now fetch all FILES (not folders) within system tree
+      const { data: files, error } = await supabase
+        .from('files')
         .select('*')
         .eq('tenant_id', tenantId)
+        .eq('is_folder', false)
         .order('created_at', { ascending: false });
-      
-      if (variant) {
-        query = query.eq('variant', variant);
-      }
-      
-      const { data, error } = await query;
-      
+
       if (error) {
-        console.error('Error fetching media library:', error);
+        console.error('Error fetching files for media library:', error);
         return [];
       }
-      
-      // Filter by media type using both mime_type and file URL extension
-      let items = data as MediaItem[];
-      
+
+      // Filter to only files within system folder tree
+      const systemFiles = files.filter(f => 
+        f.folder_id && systemFolderIds.has(f.folder_id)
+      );
+
+      // Transform to MediaItem format
+      let items: MediaItem[] = systemFiles.map(file => {
+        // Parse metadata safely
+        const metadata = (typeof file.metadata === 'object' && file.metadata !== null ? file.metadata : {}) as FileMetadata;
+        
+        // Determine variant from metadata or filename
+        const fileVariant: MediaVariant = 
+          metadata.variant === 'mobile' ? 'mobile' :
+          file.filename?.toLowerCase().includes('mobile') ? 'mobile' : 'desktop';
+
+        // Get URL from metadata or construct from storage
+        const fileUrl = metadata.url || metadata.public_url || '';
+
+        return {
+          id: file.id,
+          tenant_id: file.tenant_id,
+          file_path: file.storage_path || '',
+          file_url: fileUrl,
+          file_name: file.filename || 'Sem nome',
+          variant: fileVariant,
+          file_size: file.size_bytes,
+          mime_type: file.mime_type,
+          created_at: file.created_at,
+        };
+      });
+
+      // Filter by variant if specified
+      if (variant) {
+        items = items.filter(item => item.variant === variant);
+      }
+
+      // Filter by media type
       if (mediaType === 'image') {
         items = items.filter(item => {
           const type = getMediaType(item.mime_type, item.file_url);
-          return type === 'image' || type === 'unknown'; // Include 'unknown' as image by default for banners
+          return type === 'image' || type === 'unknown';
         });
       } else if (mediaType === 'video') {
         items = items.filter(item => {
@@ -100,73 +169,14 @@ export function useMediaLibrary(variantOrOptions?: MediaVariant | UseMediaLibrar
           return type === 'video';
         });
       }
-      
+
       return items;
     },
     enabled: !!tenantId,
   });
 
-  // Register a new media item
-  const registerMedia = useMutation({
-    mutationFn: async (params: {
-      filePath: string;
-      fileUrl: string;
-      fileName: string;
-      variant: MediaVariant;
-      fileSize?: number;
-      mimeType?: string;
-    }) => {
-      if (!tenantId) throw new Error('Tenant não encontrado');
-
-      const { data, error } = await supabase
-        .from('media_library')
-        .insert({
-          tenant_id: tenantId,
-          file_path: params.filePath,
-          file_url: params.fileUrl,
-          file_name: params.fileName,
-          variant: params.variant,
-          file_size: params.fileSize,
-          mime_type: params.mimeType,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        // Ignore duplicate errors (image already registered)
-        if (error.code === '23505') {
-          return null;
-        }
-        throw error;
-      }
-
-      return data as MediaItem;
-    },
-    onSuccess: () => {
-      // Invalidate all media library queries
-      queryClient.invalidateQueries({ queryKey: ['media-library', tenantId] });
-    },
-  });
-
-  // Delete a media item
-  const deleteMedia = useMutation({
-    mutationFn: async (mediaId: string) => {
-      const { error } = await supabase
-        .from('media_library')
-        .delete()
-        .eq('id', mediaId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['media-library', tenantId] });
-    },
-  });
-
   return {
     mediaItems,
     isLoading,
-    registerMedia,
-    deleteMedia,
   };
 }
