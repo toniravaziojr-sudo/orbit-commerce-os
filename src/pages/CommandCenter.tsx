@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutDashboard, Activity, CalendarClock } from "lucide-react";
+import { AgendaContent } from "@/components/command-center/agenda";
 
 // Dashboard content (from Dashboard.tsx)
 import {
@@ -309,26 +310,8 @@ function ExecutionsContent() {
   );
 }
 
-// Agenda Tab Content (placeholder)
-function AgendaContent() {
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-          <CalendarClock className="h-16 w-16 text-muted-foreground/50 mb-6" />
-          <h3 className="text-xl font-semibold mb-3">Agenda de Lembretes</h3>
-          <p className="text-sm text-muted-foreground max-w-md mb-6">
-            Crie lembretes e receba notificações via WhatsApp antes das datas importantes.
-          </p>
-          <Button>
-            <CalendarClock className="h-4 w-4 mr-2" />
-            Criar Lembrete
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
+// Agenda Tab Content - Uses dedicated component
+// (AgendaContent is imported from command-center/agenda)
 
 export default function CommandCenter() {
   const [searchParams, setSearchParams] = useSearchParams();
