@@ -9,6 +9,7 @@ export interface RegisterFileOptions {
   mimeType?: string;
   size?: number;
   source: string; // e.g., 'storefront_logo', 'storefront_favicon', 'category_banner'
+  bucket?: string; // e.g., 'store-assets', 'tenant-files'
 }
 
 const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
@@ -71,7 +72,7 @@ export async function fileExistsInDrive(tenantId: string, storagePath: string): 
  * Returns the file record ID or null if failed.
  */
 export async function registerFileToDrive(options: RegisterFileOptions): Promise<string | null> {
-  const { tenantId, userId, url, storagePath, originalName, mimeType, size, source } = options;
+  const { tenantId, userId, url, storagePath, originalName, mimeType, size, source, bucket } = options;
 
   // Get or create system folder
   const systemFolderId = await ensureSystemFolderAndGetId(tenantId, userId);
@@ -87,7 +88,7 @@ export async function registerFileToDrive(options: RegisterFileOptions): Promise
     return null; // Already exists, no need to register again
   }
 
-  // Create file record
+  // Create file record with bucket info for proper operations
   const { data, error } = await supabase
     .from('files')
     .insert({
@@ -101,7 +102,11 @@ export async function registerFileToDrive(options: RegisterFileOptions): Promise
       is_folder: false,
       is_system_folder: false,
       created_by: userId,
-      metadata: { source, url },
+      metadata: { 
+        source, 
+        url, 
+        bucket: bucket || 'store-assets' // Default to store-assets for storefront uploads
+      },
     })
     .select('id')
     .single();
