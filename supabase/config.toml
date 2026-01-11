@@ -407,3 +407,7 @@ verify_jwt = false
 
 [functions.resend-signup-email]
 verify_jwt = false
+
+[functions.agenda-dispatch-reminders]
+verify_jwt = false
+schedule = "*/2 * * * *"
