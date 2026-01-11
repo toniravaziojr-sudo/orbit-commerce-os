@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useWasInvitedUser } from '@/hooks/useWasInvitedUser';
 import { LogoHorizontal } from '@/components/branding/Logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,13 +29,29 @@ type CreateStoreFormData = z.infer<typeof createStoreSchema>;
 
 export default function CreateStore() {
   const navigate = useNavigate();
-  const { user, refreshProfile } = useAuth();
+  const { user, refreshProfile, tenants } = useAuth();
+  const { wasInvited, isLoading: inviteLoading } = useWasInvitedUser(user?.email);
   const [isLoading, setIsLoading] = useState(false);
 
   const form = useForm<CreateStoreFormData>({
     resolver: zodResolver(createStoreSchema),
     defaultValues: { name: '', slug: '' },
   });
+
+  // CRITICAL: Redirecionar usuários que não deveriam estar aqui
+  useEffect(() => {
+    // Se o usuário já tem tenants, redirecionar para home
+    if (tenants.length > 0) {
+      navigate('/');
+      return;
+    }
+    
+    // Se o usuário foi convidado anteriormente, ele não pode criar loja
+    if (!inviteLoading && wasInvited) {
+      console.log('[CreateStore] User was previously invited - redirecting to /no-access');
+      navigate('/no-access');
+    }
+  }, [tenants.length, wasInvited, inviteLoading, navigate]);
 
   // Auto-generate slug from name using centralized policy
   const handleNameChange = (name: string) => {
@@ -132,6 +149,15 @@ export default function CreateStore() {
       setIsLoading(false);
     }
   };
+
+  // Show loading while checking if user was invited
+  if (inviteLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
