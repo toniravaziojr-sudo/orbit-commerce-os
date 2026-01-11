@@ -23,9 +23,21 @@ const loginSchema = z.object({
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
 });
 
+// Schema completo para signup normal (owner criando loja)
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
   businessName: z.string().min(2, 'Nome do negócio deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
+  email: z.string().email('Email inválido').max(255, 'Email muito longo'),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'As senhas não coincidem',
+  path: ['confirmPassword'],
+});
+
+// Schema simplificado para signup de convidado (não cria loja)
+const inviteSignUpSchema = z.object({
+  fullName: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(100, 'Nome muito longo'),
   email: z.string().email('Email inválido').max(255, 'Email muito longo'),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
   confirmPassword: z.string(),
@@ -40,6 +52,7 @@ const resetPasswordSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
+type InviteSignUpFormData = z.infer<typeof inviteSignUpSchema>;
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
 export default function Auth() {
@@ -51,17 +64,20 @@ export default function Auth() {
   const [activeTab, setActiveTab] = useState<string>('login');
   const [loginError, setLoginError] = useState<string | null>(null);
   
+  // Detectar modo convite (usuário convidado não cria loja)
+  const isInviteMode = !!sessionStorage.getItem('pending_invite_token');
+  
   // Capturar plano e UTMs da URL
   const planParams = usePlanFromUrl();
   
   // Salvar plano e UTMs no storage quando presentes na URL
   useEffect(() => {
-    if (planParams.plan) {
+    if (planParams.plan && !isInviteMode) {
       savePlanSelectionToStorage(planParams);
       // Se tem plano selecionado, ir direto para signup
       setActiveTab('signup');
     }
-  }, [planParams.plan]);
+  }, [planParams.plan, isInviteMode]);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -92,6 +108,12 @@ export default function Auth() {
   const signUpForm = useForm<SignUpFormData>({
     resolver: zodResolver(signUpSchema),
     defaultValues: { fullName: '', businessName: '', email: '', password: '', confirmPassword: '' },
+  });
+
+  // Form simplificado para convite (sem businessName)
+  const inviteSignUpForm = useForm<InviteSignUpFormData>({
+    resolver: zodResolver(inviteSignUpSchema),
+    defaultValues: { fullName: '', email: '', password: '', confirmPassword: '' },
   });
 
   const resetPasswordForm = useForm<ResetPasswordFormData>({
@@ -238,6 +260,41 @@ export default function Auth() {
     }
   };
 
+  // Handler simplificado para signup de convidado (não cria tenant)
+  const handleInviteSignUp = async (data: InviteSignUpFormData) => {
+    setIsLoading(true);
+    try {
+      // Criar conta do usuário SEM criar tenant
+      const { error } = await signUp(data.email, data.password, data.fullName);
+      
+      if (error) {
+        if (error.message.includes('User already registered')) {
+          toast.error('Este email já está cadastrado. Tente fazer login.');
+        } else {
+          toast.error(error.message);
+        }
+        return;
+      }
+
+      // Aguardar a sessão ser criada (auto-confirm ativo)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const { data: sessionData } = await supabase.auth.getSession();
+      
+      if (sessionData?.session?.user) {
+        toast.success('Conta criada! Aceitando convite...');
+        // Redirecionar para accept-invite (onde o token ainda está no sessionStorage)
+        navigate('/accept-invite', { replace: true });
+      } else {
+        toast.error('Erro ao criar conta. Tente novamente.');
+      }
+    } catch (error) {
+      toast.error('Erro ao criar conta. Tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
@@ -342,9 +399,13 @@ export default function Auth() {
           ) : (
             <>
               <CardHeader className="space-y-1 text-center">
-                <CardTitle className="text-xl">Bem-vindo</CardTitle>
+                <CardTitle className="text-xl">
+                  {isInviteMode ? 'Aceitar Convite' : 'Bem-vindo'}
+                </CardTitle>
                 <CardDescription>
-                  Entre na sua conta ou crie uma nova
+                  {isInviteMode 
+                    ? 'Entre ou crie uma conta para aceitar o convite' 
+                    : 'Entre na sua conta ou crie uma nova'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -426,125 +487,230 @@ export default function Auth() {
                   </TabsContent>
 
                   <TabsContent value="signup" className="space-y-4">
-                    <Form {...signUpForm}>
-                      <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
-                        <FormField
-                          control={signUpForm.control}
-                          name="fullName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Seu Nome</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    {...field}
-                                    placeholder="Nome do responsável"
-                                    className="pl-10"
-                                    disabled={isLoading}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={signUpForm.control}
-                          name="businessName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Nome do Negócio</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    {...field}
-                                    placeholder="Minha Loja Online"
-                                    className="pl-10"
-                                    disabled={isLoading}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                Será usado para criar sua loja: {field.value ? `${generateSlug(field.value)}.shops.comandocentral.com.br` : 'sua-loja.shops.comandocentral.com.br'}
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={signUpForm.control}
-                          name="email"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Email</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    {...field}
-                                    type="email"
-                                    placeholder="seu@email.com"
-                                    className="pl-10"
-                                    disabled={isLoading}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={signUpForm.control}
-                          name="password"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Senha</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    {...field}
-                                    type="password"
-                                    placeholder="••••••••"
-                                    className="pl-10"
-                                    disabled={isLoading}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={signUpForm.control}
-                          name="confirmPassword"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Confirmar Senha</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                  <Input
-                                    {...field}
-                                    type="password"
-                                    placeholder="••••••••"
-                                    className="pl-10"
-                                    disabled={isLoading}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <Button type="submit" className="w-full" disabled={isLoading}>
-                          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Criar Conta
-                        </Button>
-                      </form>
-                    </Form>
+                    {isInviteMode ? (
+                      // Formulário simplificado para convidados (sem businessName)
+                      <Form {...inviteSignUpForm}>
+                        <form onSubmit={inviteSignUpForm.handleSubmit(handleInviteSignUp)} className="space-y-4">
+                          <div className="p-3 bg-primary/10 rounded-md border border-primary/20 mb-4">
+                            <p className="text-sm text-center text-muted-foreground">
+                              Você está aceitando um convite para fazer parte de uma equipe.
+                            </p>
+                          </div>
+                          <FormField
+                            control={inviteSignUpForm.control}
+                            name="fullName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Seu Nome</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      placeholder="Seu nome completo"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={inviteSignUpForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="email"
+                                      placeholder="seu@email.com"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={inviteSignUpForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Senha</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="password"
+                                      placeholder="••••••••"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={inviteSignUpForm.control}
+                            name="confirmPassword"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Confirmar Senha</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="password"
+                                      placeholder="••••••••"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Criar Conta e Aceitar Convite
+                          </Button>
+                        </form>
+                      </Form>
+                    ) : (
+                      // Formulário completo para owners (com businessName)
+                      <Form {...signUpForm}>
+                        <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
+                          <FormField
+                            control={signUpForm.control}
+                            name="fullName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Seu Nome</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      placeholder="Nome do responsável"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={signUpForm.control}
+                            name="businessName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Nome do Negócio</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      placeholder="Minha Loja Online"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormDescription className="text-xs">
+                                  Será usado para criar sua loja: {field.value ? `${generateSlug(field.value)}.shops.comandocentral.com.br` : 'sua-loja.shops.comandocentral.com.br'}
+                                </FormDescription>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={signUpForm.control}
+                            name="email"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="email"
+                                      placeholder="seu@email.com"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={signUpForm.control}
+                            name="password"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Senha</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="password"
+                                      placeholder="••••••••"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={signUpForm.control}
+                            name="confirmPassword"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Confirmar Senha</FormLabel>
+                                <FormControl>
+                                  <div className="relative">
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                      {...field}
+                                      type="password"
+                                      placeholder="••••••••"
+                                      className="pl-10"
+                                      disabled={isLoading}
+                                    />
+                                  </div>
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Criar Conta
+                          </Button>
+                        </form>
+                      </Form>
+                    )}
                   </TabsContent>
                 </Tabs>
 
