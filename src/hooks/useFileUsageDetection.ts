@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { FileItem } from '@/hooks/useFiles';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 
 export interface FileUsage {
   type: 'logo' | 'favicon';
@@ -14,47 +14,39 @@ export interface FileUsageMap {
 }
 
 /**
- * Extracts the base storage path from a URL (removes query params and version)
+ * Normalizes a URL by removing query params (cache busting, version, etc.)
  */
-function extractStoragePathFromUrl(url: string | null): string | null {
+function normalizeUrl(url: string | null): string | null {
   if (!url) return null;
-  
-  // Remove query params (cache busting, version, etc.)
-  const urlWithoutParams = url.split('?')[0];
-  
-  // Extract path from Supabase storage URL
-  // Pattern: .../storage/v1/object/public/{bucket}/{path}
-  const match = urlWithoutParams.match(/\/storage\/v1\/object\/public\/[^/]+\/(.+)$/);
-  return match ? match[1] : null;
+  return url.split('?')[0].trim();
 }
 
 /**
- * Compares two URLs/paths to see if they refer to the same file
+ * Extracts bucket and storage path from a Supabase Storage URL
+ * Pattern: .../storage/v1/object/public/{bucket}/{path}
  */
-function urlsMatch(url1: string | null, url2: string | null): boolean {
-  if (!url1 || !url2) return false;
+function extractStorageInfo(url: string | null): { bucket: string; path: string } | null {
+  if (!url) return null;
   
-  // Remove query params for comparison
-  const clean1 = url1.split('?')[0];
-  const clean2 = url2.split('?')[0];
+  const cleanUrl = normalizeUrl(url);
+  if (!cleanUrl) return null;
   
-  // Direct match
-  if (clean1 === clean2) return true;
+  const match = cleanUrl.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
+  if (match) {
+    return { bucket: match[1], path: match[2] };
+  }
   
-  // Check if one contains the other (path inside URL)
-  if (clean1.includes(clean2) || clean2.includes(clean1)) return true;
-  
-  // Extract and compare storage paths
-  const path1 = extractStoragePathFromUrl(url1);
-  const path2 = extractStoragePathFromUrl(url2);
-  if (path1 && path2 && path1 === path2) return true;
-  
-  return false;
+  return null;
 }
 
 /**
  * Hook to detect which files are currently in use by store_settings (logo/favicon)
- * with real-time updates when store_settings changes.
+ * with STRICT matching logic - only ONE file per usage type.
+ * 
+ * Priority order for matching:
+ * 1. file_id exact match (logo_file_id, favicon_file_id)
+ * 2. bucket + storage_path exact match
+ * 3. normalized URL exact match
  */
 export function useFileUsageDetection() {
   const { currentTenant } = useAuth();
@@ -67,7 +59,7 @@ export function useFileUsageDetection() {
 
       const { data, error } = await supabase
         .from('store_settings')
-        .select('logo_url, favicon_url, updated_at')
+        .select('logo_url, favicon_url, logo_file_id, favicon_file_id, updated_at')
         .eq('tenant_id', currentTenant.id)
         .maybeSingle();
 
@@ -75,7 +67,6 @@ export function useFileUsageDetection() {
       return data;
     },
     enabled: !!currentTenant?.id,
-    // Reduce stale time for more responsive updates
     staleTime: 1000,
   });
 
@@ -110,54 +101,97 @@ export function useFileUsageDetection() {
   }, [currentTenant?.id, queryClient, refetchSettings]);
 
   /**
-   * Check if a file is in use and return usage details
+   * STRICT matching: Check if file matches a specific setting reference
+   * Returns true ONLY for exact matches
    */
-  const getFileUsage = (file: FileItem): FileUsage[] => {
+  const matchesReference = useCallback((
+    file: FileItem,
+    settingUrl: string | null,
+    settingFileId: string | null
+  ): boolean => {
+    if (!settingUrl && !settingFileId) return false;
+    if (file.is_folder) return false;
+
+    // Priority 1: file_id exact match (strongest)
+    if (settingFileId && file.id === settingFileId) {
+      return true;
+    }
+
+    // If file_id is set but doesn't match, this file is NOT the current one
+    if (settingFileId && file.id !== settingFileId) {
+      return false;
+    }
+
+    // Priority 2 & 3: URL/path matching (only if no file_id set)
+    if (!settingFileId && settingUrl) {
+      const metadata = file.metadata as Record<string, unknown> | null;
+      const fileUrl = metadata?.url as string | undefined;
+      const fileBucket = metadata?.bucket as string | undefined;
+      const filePath = file.storage_path;
+
+      // Extract storage info from setting URL
+      const settingStorageInfo = extractStorageInfo(settingUrl);
+      
+      // Priority 2: bucket + storage_path exact match
+      if (settingStorageInfo) {
+        const matchesBucketPath = (
+          fileBucket === settingStorageInfo.bucket && 
+          filePath === settingStorageInfo.path
+        );
+        if (matchesBucketPath) return true;
+        
+        // Also check if storage_path matches directly
+        if (filePath === settingStorageInfo.path) return true;
+      }
+
+      // Priority 3: normalized URL exact match
+      const normalizedFileUrl = normalizeUrl(fileUrl || null);
+      const normalizedSettingUrl = normalizeUrl(settingUrl);
+      
+      if (normalizedFileUrl && normalizedSettingUrl && normalizedFileUrl === normalizedSettingUrl) {
+        return true;
+      }
+    }
+
+    return false;
+  }, []);
+
+  /**
+   * Check if a file is in use and return usage details
+   * STRICT: Only ONE file per usage type
+   */
+  const getFileUsage = useCallback((file: FileItem): FileUsage[] => {
     if (!storeSettings || file.is_folder) return [];
 
     const usages: FileUsage[] = [];
 
-    // Get file identifiers
-    const metadata = file.metadata as Record<string, unknown> | null;
-    const fileUrl = metadata?.url as string | undefined;
-    const fileSource = metadata?.source as string | undefined;
-    const filePath = file.storage_path;
-
-    // Check logo
-    if (storeSettings.logo_url) {
-      const isLogoMatch = 
-        urlsMatch(fileUrl || null, storeSettings.logo_url) ||
-        urlsMatch(filePath, storeSettings.logo_url) ||
-        (storeSettings.logo_url.includes(filePath)) ||
-        (fileSource === 'storefront_logo');
-      
-      if (isLogoMatch) {
-        usages.push({ type: 'logo', label: 'Logo' });
-      }
+    // Check logo - STRICT match only
+    if (matchesReference(
+      file, 
+      storeSettings.logo_url, 
+      storeSettings.logo_file_id
+    )) {
+      usages.push({ type: 'logo', label: 'Logo' });
     }
 
-    // Check favicon
-    if (storeSettings.favicon_url) {
-      const isFaviconMatch = 
-        urlsMatch(fileUrl || null, storeSettings.favicon_url) ||
-        urlsMatch(filePath, storeSettings.favicon_url) ||
-        (storeSettings.favicon_url.includes(filePath)) ||
-        (fileSource === 'storefront_favicon');
-      
-      if (isFaviconMatch) {
-        usages.push({ type: 'favicon', label: 'Favicon' });
-      }
+    // Check favicon - STRICT match only
+    if (matchesReference(
+      file, 
+      storeSettings.favicon_url, 
+      storeSettings.favicon_file_id
+    )) {
+      usages.push({ type: 'favicon', label: 'Favicon' });
     }
 
     return usages;
-  };
+  }, [storeSettings, matchesReference]);
 
   /**
    * Check if file is in use
    */
-  const isFileInUse = (file: FileItem): boolean => {
+  const isFileInUse = useCallback((file: FileItem): boolean => {
     return getFileUsage(file).length > 0;
-  };
+  }, [getFileUsage]);
 
   return {
     storeSettings,

@@ -7953,12 +7953,14 @@ export type Database = {
           custom_css: string | null
           custom_scripts: string | null
           facebook_pixel_id: string | null
+          favicon_file_id: string | null
           favicon_url: string | null
           footer_style: string | null
           google_analytics_id: string | null
           header_style: string | null
           id: string
           is_published: boolean | null
+          logo_file_id: string | null
           logo_url: string | null
           offers_config: Json | null
           primary_color: string | null
@@ -7993,12 +7995,14 @@ export type Database = {
           custom_css?: string | null
           custom_scripts?: string | null
           facebook_pixel_id?: string | null
+          favicon_file_id?: string | null
           favicon_url?: string | null
           footer_style?: string | null
           google_analytics_id?: string | null
           header_style?: string | null
           id?: string
           is_published?: boolean | null
+          logo_file_id?: string | null
           logo_url?: string | null
           offers_config?: Json | null
           primary_color?: string | null
@@ -8033,12 +8037,14 @@ export type Database = {
           custom_css?: string | null
           custom_scripts?: string | null
           facebook_pixel_id?: string | null
+          favicon_file_id?: string | null
           favicon_url?: string | null
           footer_style?: string | null
           google_analytics_id?: string | null
           header_style?: string | null
           id?: string
           is_published?: boolean | null
+          logo_file_id?: string | null
           logo_url?: string | null
           offers_config?: Json | null
           primary_color?: string | null
@@ -8059,6 +8065,20 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "store_settings_favicon_file_id_fkey"
+            columns: ["favicon_file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_settings_logo_file_id_fkey"
+            columns: ["logo_file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "store_settings_tenant_id_fkey"
             columns: ["tenant_id"]
