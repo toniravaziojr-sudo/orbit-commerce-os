@@ -50,12 +50,12 @@ const TEMPLATE_ICONS: Record<string, React.ReactNode> = {
   password_reset: <KeyRound className="h-4 w-4" />,
   tutorials: <BookOpen className="h-4 w-4" />,
   tenant_user_invite: <Mail className="h-4 w-4" />,
-  nfe_autorizada: <FileText className="h-4 w-4" />,
 };
 
-const TEMPLATE_ORDER = ["auth_confirm", "welcome", "password_reset", "tutorials", "tenant_user_invite", "nfe_autorizada"];
+// NF-e template is tenant-scoped (in fiscal_settings), not a system template
+const TEMPLATE_ORDER = ["auth_confirm", "welcome", "password_reset", "tutorials", "tenant_user_invite"];
 
-// Variable descriptions
+// Variable descriptions (system templates only - NF-e is tenant-scoped)
 const VARIABLE_DESCRIPTIONS: Record<string, string> = {
   app_name: "Nome do aplicativo (Comando Central)",
   user_name: "Nome do usuário",
@@ -68,27 +68,15 @@ const VARIABLE_DESCRIPTIONS: Record<string, string> = {
   accept_url: "Link para aceitar o convite",
   expires_at: "Data de expiração do convite",
   invited_email: "Email do convidado",
-  // NFe variables
-  customer_name: "Nome do cliente",
-  order_number: "Número do pedido",
-  nfe_number: "Número da NF-e",
-  nfe_serie: "Série da NF-e",
-  data_emissao: "Data de emissão da NF-e",
-  valor_total: "Valor total da NF-e",
-  chave_acesso: "Chave de acesso da NF-e",
-  danfe_url: "Link para download do DANFE (PDF)",
-  xml_url: "Link para download do XML",
-  store_name: "Nome da loja",
 };
 
-// URL redirect info per template
+// URL redirect info per template (NF-e is tenant-scoped, not here)
 const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
   auth_confirm: "Após confirmar, o usuário é redirecionado para o login",
   welcome: "O botão direciona para app.comandocentral.com.br (dashboard)",
   password_reset: "Após clicar, abre a página de nova senha, depois vai para o login",
   tutorials: "Enviado automaticamente 1 hora após criação da conta. O botão direciona para o dashboard.",
   tenant_user_invite: "O botão leva para a página de aceite do convite (app.comandocentral.com.br/accept-invite?token=...)",
-  nfe_autorizada: "Os botões direcionam para download do DANFE (PDF) e XML da nota fiscal.",
 };
 
 // Default templates for seeding

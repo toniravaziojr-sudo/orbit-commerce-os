@@ -203,25 +203,82 @@ serve(async (req) => {
         </html>
       `;
     } else {
-      // Use system template
-      console.log("[fiscal-send-nfe-email] Using system email template");
-      const { data: template, error: templateError } = await supabase
-        .from("system_email_templates")
-        .select("subject, body_html")
-        .eq("template_key", "nfe_autorizada")
-        .eq("is_active", true)
-        .single();
-
-      if (templateError || !template) {
-        console.error("[fiscal-send-nfe-email] Template not found:", templateError);
-        return new Response(
-          JSON.stringify({ success: false, error: "Template de email não encontrado" }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      subject = template.subject;
-      htmlBody = template.body_html;
+      // Use default fallback template (no longer depends on system_email_templates)
+      console.log("[fiscal-send-nfe-email] Using default fallback email template");
+      subject = `Sua Nota Fiscal - Pedido {{order_number}} - {{store_name}}`;
+      htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background-color: #0f172a; padding: 30px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 24px;">{{store_name}}</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px;">
+              <h2 style="color: #1a1a1a; margin: 0 0 20px 0; font-size: 22px;">Sua Nota Fiscal foi emitida!</h2>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 15px 0;">
+                Olá <strong>{{customer_name}}</strong>,
+              </p>
+              <p style="color: #555; line-height: 1.6; margin: 0 0 20px 0;">
+                A nota fiscal do seu pedido <strong>{{order_number}}</strong> foi autorizada pela SEFAZ.
+              </p>
+              <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;"><strong>Número da NF-e:</strong></td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px;">{{nfe_number}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;"><strong>Série:</strong></td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px;">{{nfe_serie}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;"><strong>Data de Emissão:</strong></td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px;">{{data_emissao}}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #666; font-size: 14px;"><strong>Valor Total:</strong></td>
+                    <td style="padding: 8px 0; color: #333; font-size: 14px; font-weight: bold;">R$ {{valor_total}}</td>
+                  </tr>
+                </table>
+              </div>
+              <p style="color: #888; font-size: 12px; word-break: break-all; margin: 15px 0;">
+                <strong>Chave de Acesso:</strong><br>{{chave_acesso}}
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="{{danfe_url}}" style="display: inline-block; background-color: #22c55e; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 5px; font-weight: 600;">
+                  📄 Baixar DANFE (PDF)
+                </a>
+                <a href="{{xml_url}}" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 5px; font-weight: 600;">
+                  📥 Baixar XML
+                </a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9fafb; padding: 20px; text-align: center; border-top: 1px solid #eee;">
+              <p style="color: #888; font-size: 12px; margin: 0;">
+                © ${new Date().getFullYear()} {{store_name}}. Todos os direitos reservados.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+      `;
     }
 
     // Replace variables in template
