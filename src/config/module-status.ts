@@ -17,7 +17,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // E-commerce
   '/orders': 'pending',
   '/products': 'pending',
-  '/categories': 'pending',
+  '/categories': 'ready',
   '/customers': 'pending',
   '/discounts': 'pending',
   
