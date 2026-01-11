@@ -54,6 +54,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { InviteUserModal } from '@/components/users/InviteUserModal';
+import { EditUserModal } from '@/components/users/EditUserModal';
 
 const USER_TYPE_CONFIG: Record<string, { label: string; icon: typeof Crown; color: string }> = {
   owner: { label: 'Proprietário', icon: Crown, color: 'bg-amber-100 text-amber-800' },
@@ -72,6 +73,7 @@ export default function SystemUsers() {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [userToRemove, setUserToRemove] = useState<string | null>(null);
   const [inviteToRevoke, setInviteToRevoke] = useState<string | null>(null);
+  const [memberToEdit, setMemberToEdit] = useState<any>(null);
 
   // Redirect non-owners
   useEffect(() => {
@@ -282,6 +284,9 @@ export default function SystemUsers() {
                       const config = USER_TYPE_CONFIG[userType];
                       const Icon = config?.icon || Eye;
                       const isCurrentUser = member.user_id === user?.id;
+                      // Improved name display with fallback to email
+                      const displayName = profile?.full_name || profile?.email?.split('@')[0] || 'Usuário';
+                      const displayInitial = (profile?.full_name || profile?.email || '?')[0].toUpperCase();
 
                       return (
                         <TableRow key={member.id}>
@@ -296,13 +301,13 @@ export default function SystemUsers() {
                                   />
                                 ) : (
                                   <span className="text-sm font-medium">
-                                    {(profile?.full_name || profile?.email || '?')[0].toUpperCase()}
+                                    {displayInitial}
                                   </span>
                                 )}
                               </div>
                               <div>
                                 <p className="font-medium">
-                                  {profile?.full_name || 'Sem nome'}
+                                  {displayName}
                                   {isCurrentUser && (
                                     <span className="ml-2 text-xs text-muted-foreground">(você)</span>
                                   )}
@@ -334,6 +339,10 @@ export default function SystemUsers() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setMemberToEdit(member)}>
+                                    <Edit3 className="mr-2 h-4 w-4" />
+                                    Editar Permissões
+                                  </DropdownMenuItem>
                                   <DropdownMenuItem
                                     className="text-destructive"
                                     onClick={() => setUserToRemove(member.id)}
@@ -524,6 +533,13 @@ export default function SystemUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit User Modal */}
+      <EditUserModal
+        open={!!memberToEdit}
+        onOpenChange={(open) => !open && setMemberToEdit(null)}
+        member={memberToEdit}
+      />
     </div>
   );
 }

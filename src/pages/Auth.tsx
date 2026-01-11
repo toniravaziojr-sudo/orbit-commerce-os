@@ -282,6 +282,18 @@ export default function Auth() {
       const { data: sessionData } = await supabase.auth.getSession();
       
       if (sessionData?.session?.user) {
+        // Persist the full name to profiles table
+        const userId = sessionData.session.user.id;
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ full_name: data.fullName })
+          .eq('id', userId);
+        
+        if (profileError) {
+          console.error('Error updating profile with name:', profileError);
+          // Don't block the flow, just log
+        }
+        
         toast.success('Conta criada! Aceitando convite...');
         // Redirecionar para accept-invite (onde o token ainda está no sessionStorage)
         navigate('/accept-invite', { replace: true });
