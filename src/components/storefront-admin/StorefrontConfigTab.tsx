@@ -106,12 +106,14 @@ export function StorefrontConfigTab() {
   const handleLogoUpload = async (file: File) => {
     const result = await uploadAsset(file, 'logo');
     if (result) {
-      // Update both URL and file_id for strict matching
-      handleChange('logo_url', result.url);
-      // Save file_id to store_settings for strict badge matching
-      if (result.fileId) {
-        upsertSettings.mutate({ logo_file_id: result.fileId });
-      }
+      // Save BOTH logo_url AND logo_file_id immediately to DB
+      // This ensures the new image is persisted right away
+      await upsertSettings.mutateAsync({ 
+        logo_url: result.url,
+        logo_file_id: result.fileId 
+      });
+      // Update local form state to reflect the saved value
+      setFormData(prev => ({ ...prev, logo_url: result.url }));
     }
     return result?.url || null;
   };
@@ -119,12 +121,14 @@ export function StorefrontConfigTab() {
   const handleFaviconUpload = async (file: File) => {
     const result = await uploadAsset(file, 'favicon');
     if (result) {
-      // Update both URL and file_id for strict matching
-      handleChange('favicon_url', result.url);
-      // Save file_id to store_settings for strict badge matching
-      if (result.fileId) {
-        upsertSettings.mutate({ favicon_file_id: result.fileId });
-      }
+      // Save BOTH favicon_url AND favicon_file_id immediately to DB
+      // This ensures the new image is persisted right away
+      await upsertSettings.mutateAsync({ 
+        favicon_url: result.url,
+        favicon_file_id: result.fileId 
+      });
+      // Update local form state to reflect the saved value
+      setFormData(prev => ({ ...prev, favicon_url: result.url }));
     }
     return result?.url || null;
   };
