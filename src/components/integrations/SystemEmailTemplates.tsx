@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { usePlatformOperator } from "@/hooks/usePlatformOperator";
@@ -23,7 +24,9 @@ import {
   BookOpen,
   Info,
   Copy,
-  Check
+  Check,
+  Plus,
+  AlertCircle
 } from "lucide-react";
 
 interface EmailTemplate {
@@ -88,13 +91,50 @@ const TEMPLATE_REDIRECT_INFO: Record<string, string> = {
   nfe_autorizada: "Os botões direcionam para download do DANFE (PDF) e XML da nota fiscal.",
 };
 
+// Default templates for seeding
+const DEFAULT_TEMPLATES: Omit<EmailTemplate, 'id' | 'created_at' | 'updated_at'>[] = [
+  {
+    template_key: 'tenant_user_invite',
+    name: 'Convite de Equipe',
+    description: 'Email enviado quando um membro é convidado para a equipe',
+    subject: 'Você foi convidado para {{tenant_name}} - Comando Central',
+    body_html: `<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="text-align: center; padding: 24px 20px; background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);">
+      <img src="https://app.comandocentral.com.br/images/email-logo.png" alt="Comando Central" style="height: 120px; width: auto; display: block; margin: 0 auto;" />
+    </div>
+    <div style="padding: 40px 20px; background-color: #FFFFFF;">
+      <h1 style="color: #1E293B; margin: 0 0 20px; font-size: 24px;">Você foi convidado!</h1>
+      <p style="color: #475569; line-height: 1.6;">
+        <strong>{{inviter_name}}</strong> convidou você para fazer parte da equipe de <strong>{{tenant_name}}</strong> no Comando Central.
+      </p>
+      <p style="color: #475569; line-height: 1.6;">
+        Seu perfil de acesso será: <strong>{{user_type_label}}</strong>
+      </p>
+      <p style="text-align: center; margin: 30px 0;">
+        <a href="{{accept_url}}" style="background-color: #3B82F6; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">Aceitar Convite</a>
+      </p>
+      <p style="color: #64748B; font-size: 14px;">Este convite expira em: {{expires_at}}</p>
+    </div>
+    <div style="text-align: center; padding: 20px; background-color: #F8FAFC; border-top: 1px solid #E2E8F0;">
+      <p style="color: #64748B; font-size: 12px; margin: 0;">© 2025 Comando Central — O centro de comando do seu e-commerce.</p>
+    </div>
+  </div>`,
+    variables: ['tenant_name', 'inviter_name', 'user_type_label', 'accept_url', 'expires_at', 'invited_email'],
+    is_active: true,
+    send_delay_minutes: 0,
+    auto_send: false,
+  },
+];
+
 export function SystemEmailTemplates() {
   const { toast } = useToast();
   const { isPlatformOperator, isLoading: authLoading } = usePlatformOperator();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [editedTemplate, setEditedTemplate] = useState<Partial<EmailTemplate>>({});
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -111,18 +151,28 @@ export function SystemEmailTemplates() {
 
   const loadTemplates = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
+      console.log('[SystemEmailTemplates] Loading templates...');
       const { data, error } = await supabase
         .from("system_email_templates")
         .select("*")
         .order("template_key");
 
-      if (error) throw error;
+      if (error) {
+        console.error('[SystemEmailTemplates] Query error:', error);
+        throw error;
+      }
+      
+      console.log('[SystemEmailTemplates] Loaded templates:', data?.length || 0);
       
       // Sort by predefined order
       const sorted = (data || []).sort((a, b) => {
         const aIndex = TEMPLATE_ORDER.indexOf(a.template_key);
         const bIndex = TEMPLATE_ORDER.indexOf(b.template_key);
+        if (aIndex === -1 && bIndex === -1) return 0;
+        if (aIndex === -1) return 1;
+        if (bIndex === -1) return -1;
         return aIndex - bIndex;
       });
       
@@ -134,8 +184,13 @@ export function SystemEmailTemplates() {
         setEditedTemplate(sorted[0]);
       }
     } catch (error: any) {
-      console.error("Error loading templates:", error);
-      toast({ title: "Erro ao carregar templates", description: error.message, variant: "destructive" });
+      console.error("[SystemEmailTemplates] Error loading templates:", error);
+      setLoadError(error.message || 'Erro desconhecido ao carregar templates');
+      toast({ 
+        title: "Erro ao carregar templates", 
+        description: error.message, 
+        variant: "destructive" 
+      });
     } finally {
       setIsLoading(false);
     }
@@ -159,6 +214,7 @@ export function SystemEmailTemplates() {
         .update({
           subject: editedTemplate.subject,
           body_html: editedTemplate.body_html,
+          is_active: editedTemplate.is_active,
           updated_at: new Date().toISOString()
         })
         .eq("template_key", selectedTemplate);
@@ -168,9 +224,53 @@ export function SystemEmailTemplates() {
       toast({ title: "Template salvo com sucesso!" });
       await loadTemplates();
     } catch (error: any) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      console.error('[SystemEmailTemplates] Save error:', error);
+      toast({ 
+        title: "Erro ao salvar", 
+        description: error.message, 
+        variant: "destructive" 
+      });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleCreateDefaultTemplates = async () => {
+    setIsCreating(true);
+    try {
+      console.log('[SystemEmailTemplates] Creating default templates...');
+      
+      for (const template of DEFAULT_TEMPLATES) {
+        const { error } = await supabase
+          .from("system_email_templates")
+          .upsert(
+            {
+              ...template,
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: 'template_key' }
+          );
+        
+        if (error) {
+          console.error(`[SystemEmailTemplates] Error creating template ${template.template_key}:`, error);
+          throw error;
+        }
+      }
+
+      toast({ 
+        title: "Templates criados!", 
+        description: "Os templates padrão foram criados com sucesso." 
+      });
+      await loadTemplates();
+    } catch (error: any) {
+      console.error('[SystemEmailTemplates] Create error:', error);
+      toast({ 
+        title: "Erro ao criar templates", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -197,6 +297,12 @@ export function SystemEmailTemplates() {
         confirmation_url: "https://app.comandocentral.com.br/auth?confirmed=true",
         dashboard_url: "https://app.comandocentral.com.br",
         reset_url: "https://app.comandocentral.com.br/reset-password?token=sample",
+        tenant_name: "Loja de Teste",
+        inviter_name: "João Admin",
+        user_type_label: "Gerente",
+        accept_url: "https://app.comandocentral.com.br/accept-invite?token=sample",
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'),
+        invited_email: testEmail,
       };
 
       Object.entries(sampleValues).forEach(([key, value]) => {
@@ -222,6 +328,7 @@ export function SystemEmailTemplates() {
         toast({ title: "Falha ao enviar", description: data.error, variant: "destructive" });
       }
     } catch (error: any) {
+      console.error('[SystemEmailTemplates] Test send error:', error);
       toast({ title: "Erro ao enviar teste", description: error.message, variant: "destructive" });
     } finally {
       setIsTesting(false);
@@ -244,6 +351,12 @@ export function SystemEmailTemplates() {
       confirmation_url: "#",
       dashboard_url: "#",
       reset_url: "#",
+      tenant_name: "Minha Loja",
+      inviter_name: "Maria Admin",
+      user_type_label: "Gerente",
+      accept_url: "#",
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('pt-BR'),
+      invited_email: "convidado@exemplo.com",
     };
 
     Object.entries(sampleValues).forEach(([key, value]) => {
@@ -262,9 +375,100 @@ export function SystemEmailTemplates() {
   if (isLoading) {
     return (
       <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Templates de Email do App</CardTitle>
+              <CardDescription>
+                Personalize os emails padrão enviados pelo sistema
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
         <CardContent className="py-8">
-          <div className="flex items-center justify-center">
-            <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <RefreshCw className="h-5 w-5 animate-spin" />
+            <span>Carregando templates...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (loadError) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            </div>
+            <div>
+              <CardTitle>Templates de Email do App</CardTitle>
+              <CardDescription>
+                Personalize os emails padrão enviados pelo sistema
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Erro ao carregar templates: {loadError}</span>
+              <Button variant="outline" size="sm" onClick={loadTemplates}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Tentar novamente
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state
+  if (templates.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Templates de Email do App</CardTitle>
+              <CardDescription>
+                Personalize os emails padrão enviados pelo sistema
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12 space-y-4">
+            <div className="flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <Mail className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold">Nenhum template encontrado</h3>
+              <p className="text-muted-foreground mt-1">
+                Crie os templates padrão para começar a personalizar os emails do sistema.
+              </p>
+            </div>
+            <Button onClick={handleCreateDefaultTemplates} disabled={isCreating}>
+              {isCreating ? (
+                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              Criar templates padrão
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -272,6 +476,16 @@ export function SystemEmailTemplates() {
   }
 
   const currentTemplate = templates.find(t => t.template_key === selectedTemplate);
+
+  // Calculate dynamic grid columns based on template count
+  const getGridCols = () => {
+    const count = templates.length;
+    if (count <= 2) return 'grid-cols-2';
+    if (count <= 3) return 'grid-cols-3';
+    if (count <= 4) return 'grid-cols-4';
+    if (count <= 6) return 'grid-cols-3 sm:grid-cols-6';
+    return 'grid-cols-4 sm:grid-cols-4';
+  };
 
   return (
     <>
@@ -291,14 +505,21 @@ export function SystemEmailTemplates() {
         </CardHeader>
         <CardContent>
           <Tabs value={selectedTemplate || ""} onValueChange={handleSelectTemplate}>
-            <TabsList className="grid w-full grid-cols-4 mb-6">
-              {templates.map((template) => (
-                <TabsTrigger key={template.template_key} value={template.template_key} className="gap-2">
-                  {TEMPLATE_ICONS[template.template_key]}
-                  <span className="hidden sm:inline">{template.name}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="overflow-x-auto -mx-1 px-1 mb-6">
+              <TabsList className={`grid w-full ${getGridCols()}`}>
+                {templates.map((template) => (
+                  <TabsTrigger 
+                    key={template.template_key} 
+                    value={template.template_key} 
+                    className="gap-2 text-xs sm:text-sm"
+                  >
+                    {TEMPLATE_ICONS[template.template_key] || <FileText className="h-4 w-4" />}
+                    <span className="hidden sm:inline truncate">{template.name}</span>
+                    <span className="sm:hidden truncate">{template.name.split(' ')[0]}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
             {templates.map((template) => (
               <TabsContent key={template.template_key} value={template.template_key} className="space-y-6">
@@ -306,30 +527,46 @@ export function SystemEmailTemplates() {
                 <div className="flex items-start justify-between gap-4 p-4 rounded-lg bg-muted/50">
                   <div>
                     <h3 className="font-medium flex items-center gap-2">
-                      {TEMPLATE_ICONS[template.template_key]}
+                      {TEMPLATE_ICONS[template.template_key] || <FileText className="h-4 w-4" />}
                       {template.name}
                     </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       {template.description}
                     </p>
                   </div>
-                  <Badge variant={template.is_active ? "default" : "secondary"}>
-                    {template.is_active ? "Ativo" : "Inativo"}
-                  </Badge>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={`active-${template.template_key}`} className="text-sm">
+                        Ativo
+                      </Label>
+                      <Switch
+                        id={`active-${template.template_key}`}
+                        checked={editedTemplate.is_active ?? template.is_active}
+                        onCheckedChange={(checked) => 
+                          setEditedTemplate({ ...editedTemplate, is_active: checked })
+                        }
+                      />
+                    </div>
+                    <Badge variant={editedTemplate.is_active ?? template.is_active ? "default" : "secondary"}>
+                      {editedTemplate.is_active ?? template.is_active ? "Ativo" : "Inativo"}
+                    </Badge>
+                  </div>
                 </div>
 
                 {/* Redirect Info */}
-                <Alert className="bg-blue-50 border-blue-200">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <strong>Redirecionamento:</strong> {TEMPLATE_REDIRECT_INFO[template.template_key]}
-                    {template.template_key === 'tutorials' && template.auto_send && (
-                      <span className="block mt-1">
-                        <strong>Envio automático:</strong> {template.send_delay_minutes} minutos após criação da conta ({Math.round((template.send_delay_minutes || 60) / 60)} hora{(template.send_delay_minutes || 60) >= 120 ? 's' : ''})
-                      </span>
-                    )}
-                  </AlertDescription>
-                </Alert>
+                {TEMPLATE_REDIRECT_INFO[template.template_key] && (
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <Info className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      <strong>Redirecionamento:</strong> {TEMPLATE_REDIRECT_INFO[template.template_key]}
+                      {template.template_key === 'tutorials' && template.auto_send && (
+                        <span className="block mt-1">
+                          <strong>Envio automático:</strong> {template.send_delay_minutes} minutos após criação da conta ({Math.round((template.send_delay_minutes || 60) / 60)} hora{(template.send_delay_minutes || 60) >= 120 ? 's' : ''})
+                        </span>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
 
                 {/* Variables - Clickable to copy */}
                 <div className="p-4 rounded-lg border bg-background">
@@ -440,7 +677,7 @@ export function SystemEmailTemplates() {
           <DialogHeader>
             <DialogTitle>Pré-visualização do Email</DialogTitle>
             <DialogDescription>
-              {editedTemplate.subject?.replace(/{{app_name}}/g, "Comando Central")}
+              {editedTemplate.subject?.replace(/{{app_name}}/g, "Comando Central").replace(/{{tenant_name}}/g, "Minha Loja")}
             </DialogDescription>
           </DialogHeader>
           <div 
