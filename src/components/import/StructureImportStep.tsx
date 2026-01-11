@@ -82,7 +82,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
   const isAllDone = Object.values(progress).every(s => s === 'completed' || s === 'skipped');
 
   // ========================================
-  // IMPORT CATEGORIES (simple: name + slug only)
+  // IMPORT CATEGORIES via Edge Function (secure multi-tenant)
   // ========================================
   const importCategories = useCallback(async () => {
     setIsProcessing(true);
@@ -90,53 +90,52 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
     setProgress(p => ({ ...p, categories: 'processing' }));
 
     try {
-      // Use Firecrawl to get links
-      const { data: scrapeResult, error: scrapeError } = await supabase.functions.invoke('firecrawl-scrape', {
+      // Step 1: Create or reuse import job
+      const { data: job, error: jobError } = await supabase
+        .from('import_jobs')
+        .insert({
+          tenant_id: tenantId,
+          platform: analysisResult?.platform || 'unknown',
+          modules: ['categories'],
+          status: 'pending',
+          source_url: storeUrl,
+          started_at: new Date().toISOString(),
+          progress: { categories: { current: 0, total: 0 } },
+          stats: { categories: { imported: 0, updated: 0, skipped: 0, failed: 0 } },
+        })
+        .select('id')
+        .single();
+
+      if (jobError) {
+        console.error('Error creating import job:', jobError);
+        throw new Error('Erro ao criar job de importação');
+      }
+
+      const jobId = job?.id;
+      if (!jobId) throw new Error('Job ID não retornado');
+
+      // Step 2: Call Edge Function (WITHOUT tenant_id - security!)
+      const { data: result, error } = await supabase.functions.invoke('import-store-categories', {
         body: { 
-          url: storeUrl,
-          options: { formats: ['links'], onlyMainContent: false }
+          job_id: jobId,
+          source_url: storeUrl,
+          platform: analysisResult?.platform || 'unknown',
+          // DO NOT send tenant_id - it's derived from job in Edge Function
         }
       });
 
-      if (scrapeError) throw new Error(scrapeError.message);
+      if (error) throw new Error(error.message);
+      if (!result?.success) throw new Error(result?.error || 'Falha na importação');
 
-      const links = scrapeResult?.data?.links || scrapeResult?.links || [];
-      const origin = new URL(storeUrl.startsWith('http') ? storeUrl : `https://${storeUrl}`).origin;
-
-      // Filter category URLs
-      const categoryPattern = /\/(?:collections?|categoria|category|c)\/([^/?#]+)/i;
-      const processedSlugs = new Set<string>();
-      const categories: Array<{ name: string; slug: string }> = [];
-
-      for (const link of links) {
-        if (!link.startsWith(origin)) continue;
-        const match = categoryPattern.exec(link);
-        if (match && match[1] && !processedSlugs.has(match[1].toLowerCase())) {
-          const slug = match[1].toLowerCase();
-          processedSlugs.add(slug);
-          categories.push({
-            slug,
-            name: slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-          });
-        }
-      }
-
-      // Save categories
-      let importedCount = 0;
-      for (const cat of categories) {
-        const { error } = await supabase.from('categories').upsert({
-          tenant_id: tenantId,
-          name: cat.name,
-          slug: cat.slug,
-          is_active: true,
-        }, { onConflict: 'tenant_id,slug' });
-        
-        if (!error) importedCount++;
-      }
-
+      const importedCount = (result.stats?.created || 0) + (result.stats?.updated || 0);
       setStats(s => ({ ...s, categories: importedCount }));
       setProgress(p => ({ ...p, categories: 'completed' }));
-      toast.success(`${importedCount} categorias importadas`);
+      
+      if (importedCount > 0) {
+        toast.success(`${result.stats?.created || 0} categorias criadas, ${result.stats?.updated || 0} atualizadas`);
+      } else {
+        toast.info('Nenhuma categoria encontrada para importar');
+      }
     } catch (err: any) {
       console.error('Error importing categories:', err);
       setErrors(e => [...e, `Categorias: ${err.message}`]);
@@ -146,7 +145,7 @@ export function StructureImportStep({ tenantId, storeUrl, scrapedData, analysisR
       setIsProcessing(false);
       setCurrentStep(null);
     }
-  }, [tenantId, storeUrl]);
+  }, [tenantId, storeUrl, analysisResult]);
 
   // ========================================
   // IMPORT PAGES (simplified: empty placeholders)

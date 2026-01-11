@@ -10938,6 +10938,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_import_job_module: {
+        Args: {
+          p_current: number
+          p_errors?: Json
+          p_failed?: number
+          p_imported?: number
+          p_job_id: string
+          p_module: string
+          p_skipped?: number
+          p_total: number
+          p_updated?: number
+        }
+        Returns: undefined
+      }
       user_belongs_to_tenant: {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
