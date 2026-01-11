@@ -51,7 +51,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/integrations': 'pending',
   '/import': 'pending',
   '/settings': 'pending',
-  '/files': 'pending',
+  '/files': 'ready',
   '/marketplaces': 'pending',
   
   // Plataforma

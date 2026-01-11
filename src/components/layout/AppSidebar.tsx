@@ -149,8 +149,13 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
-      { title: "Meu Drive", href: "/files", icon: FolderOpen },
       { title: "Importar Dados", href: "/import", icon: Upload },
+    ],
+  },
+  {
+    label: "Meu Drive",
+    items: [
+      { title: "Meu Drive", href: "/files", icon: FolderOpen },
     ],
   },
 ];
