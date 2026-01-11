@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { FileItem } from '@/hooks/useFiles';
+import { useEffect } from 'react';
 
 export interface FileUsage {
   type: 'logo' | 'favicon';
@@ -14,9 +15,11 @@ export interface FileUsageMap {
 
 /**
  * Hook to detect which files are currently in use by store_settings (logo/favicon)
+ * with real-time updates when store_settings changes.
  */
 export function useFileUsageDetection() {
   const { currentTenant } = useAuth();
+  const queryClient = useQueryClient();
 
   const { data: storeSettings } = useQuery({
     queryKey: ['store-settings-urls', currentTenant?.id],
@@ -34,6 +37,32 @@ export function useFileUsageDetection() {
     },
     enabled: !!currentTenant?.id,
   });
+
+  // Subscribe to realtime changes on store_settings for this tenant
+  useEffect(() => {
+    if (!currentTenant?.id) return;
+
+    const channel = supabase
+      .channel(`store-settings-usage-${currentTenant.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'store_settings',
+          filter: `tenant_id=eq.${currentTenant.id}`,
+        },
+        () => {
+          // Invalidate to refresh the badge data
+          queryClient.invalidateQueries({ queryKey: ['store-settings-urls', currentTenant.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentTenant?.id, queryClient]);
 
   /**
    * Check if a file is in use and return usage details
