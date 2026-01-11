@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Folder, ChevronRight, Home, Check, FolderOpen } from "lucide-react";
+import { Folder, Home, Check, FolderOpen, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FolderNode {
@@ -26,6 +26,8 @@ interface MoveFileDialogProps {
   fileName: string;
   currentFolderId: string | null;
   excludeFolderId?: string | null; // To prevent moving folder into itself
+  isSystemItem?: boolean; // Whether the item being moved is a system item
+  systemFolderId?: string | null; // The ID of the system folder
   folders: Array<{
     id: string;
     original_name: string;
@@ -92,12 +94,39 @@ function flattenTree(nodes: FolderNode[]): FolderNode[] {
   return result;
 }
 
+// Check if a folder is within the system tree
+function isWithinSystemTree(
+  folderId: string | null, 
+  systemFolderId: string | null,
+  folders: MoveFileDialogProps['folders']
+): boolean {
+  if (!folderId || !systemFolderId) return false;
+  if (folderId === systemFolderId) return true;
+  
+  let currentId: string | null = folderId;
+  const visited = new Set<string>();
+  
+  while (currentId) {
+    if (visited.has(currentId)) break;
+    visited.add(currentId);
+    
+    if (currentId === systemFolderId) return true;
+    
+    const folder = folders.find(f => f.id === currentId);
+    currentId = folder?.folder_id || null;
+  }
+  
+  return false;
+}
+
 export function MoveFileDialog({
   open,
   onOpenChange,
   fileName,
   currentFolderId,
   excludeFolderId,
+  isSystemItem = false,
+  systemFolderId,
   folders,
   onConfirm,
   isPending,
@@ -107,15 +136,33 @@ export function MoveFileDialog({
   // Build and flatten folder tree
   const flatFolders = useMemo(() => {
     const tree = buildFolderTree(folders, excludeFolderId);
-    return flattenTree(tree);
-  }, [folders, excludeFolderId]);
+    let flattened = flattenTree(tree);
+    
+    // If moving a system item, filter to only show folders within system tree
+    if (isSystemItem && systemFolderId) {
+      flattened = flattened.filter(folder => 
+        folder.id === systemFolderId || 
+        isWithinSystemTree(folder.id, systemFolderId, folders)
+      );
+    }
+    
+    return flattened;
+  }, [folders, excludeFolderId, isSystemItem, systemFolderId]);
+
+  // Check if root is a valid destination
+  const canMoveToRoot = !isSystemItem;
 
   // Reset selection when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedFolderId(null);
+      // If system item, default to system folder
+      if (isSystemItem && systemFolderId) {
+        setSelectedFolderId(systemFolderId);
+      } else {
+        setSelectedFolderId(null);
+      }
     }
-  }, [open]);
+  }, [open, isSystemItem, systemFolderId]);
 
   const handleConfirm = () => {
     onConfirm(selectedFolderId);
@@ -133,27 +180,39 @@ export function MoveFileDialog({
           </p>
         </DialogHeader>
 
+        {/* Warning for system items */}
+        {isSystemItem && (
+          <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200 rounded-md text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+              Este arquivo é do sistema e só pode ser movido dentro de "Uploads do sistema".
+            </span>
+          </div>
+        )}
+
         {/* Folder list */}
         <ScrollArea className="h-[300px] border rounded-md p-2">
           <div className="space-y-1">
-            {/* Root option */}
-            <button
-              onClick={() => setSelectedFolderId(null)}
-              className={cn(
-                "w-full flex items-center gap-2 p-2 rounded-md text-left hover:bg-muted transition-colors",
-                selectedFolderId === null && "bg-primary/10 ring-1 ring-primary"
-              )}
-            >
-              {selectedFolderId === null && (
-                <Check className="h-4 w-4 text-primary flex-shrink-0" />
-              )}
-              {selectedFolderId !== null && <div className="w-4" />}
-              <Home className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <span className="text-sm font-medium">Raiz</span>
-              {currentFolderId === null && (
-                <span className="text-xs text-muted-foreground ml-auto">(atual)</span>
-              )}
-            </button>
+            {/* Root option - only show if not a system item */}
+            {canMoveToRoot && (
+              <button
+                onClick={() => setSelectedFolderId(null)}
+                className={cn(
+                  "w-full flex items-center gap-2 p-2 rounded-md text-left hover:bg-muted transition-colors",
+                  selectedFolderId === null && "bg-primary/10 ring-1 ring-primary"
+                )}
+              >
+                {selectedFolderId === null && (
+                  <Check className="h-4 w-4 text-primary flex-shrink-0" />
+                )}
+                {selectedFolderId !== null && <div className="w-4" />}
+                <Home className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="text-sm font-medium">Raiz</span>
+                {currentFolderId === null && (
+                  <span className="text-xs text-muted-foreground ml-auto">(atual)</span>
+                )}
+              </button>
+            )}
 
             {/* All folders with indentation */}
             {flatFolders.map((folder) => {
@@ -189,9 +248,9 @@ export function MoveFileDialog({
               );
             })}
 
-            {flatFolders.length === 0 && (
+            {flatFolders.length === 0 && !canMoveToRoot && (
               <p className="text-xs text-muted-foreground text-center py-4">
-                Nenhuma pasta encontrada
+                Nenhuma pasta de destino disponível
               </p>
             )}
           </div>

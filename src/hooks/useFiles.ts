@@ -128,6 +128,84 @@ export function useFiles(folderId: string | null = null) {
     enabled: !!currentTenant?.id,
   });
 
+  // Get system folder ID
+  const systemFolder = allFolders?.find(f => f.is_system_folder);
+  const systemFolderId = systemFolder?.id || null;
+
+  /**
+   * Check if a folder is within the system folder tree (is system folder or descendant)
+   */
+  const isWithinSystemTree = (folderId: string | null): boolean => {
+    if (!folderId || !allFolders || !systemFolderId) return false;
+    
+    // If it IS the system folder
+    if (folderId === systemFolderId) return true;
+    
+    // Build parent chain and check if any ancestor is the system folder
+    let currentId: string | null = folderId;
+    const visited = new Set<string>();
+    
+    while (currentId) {
+      if (visited.has(currentId)) break; // Prevent infinite loop
+      visited.add(currentId);
+      
+      if (currentId === systemFolderId) return true;
+      
+      const folder = allFolders.find(f => f.id === currentId);
+      currentId = folder?.folder_id || null;
+    }
+    
+    return false;
+  };
+
+  /**
+   * Check if a file/folder is a "system item" (inside system tree or system_managed)
+   */
+  const isSystemItem = (item: FileItem): boolean => {
+    // Is the system folder itself
+    if (item.is_system_folder) return true;
+    
+    // Check metadata for system_managed flag
+    const metadata = item.metadata as Record<string, unknown> | null;
+    if (metadata?.system_managed === true) return true;
+    
+    // Check if it's within the system folder tree
+    if (item.folder_id && isWithinSystemTree(item.folder_id)) return true;
+    
+    return false;
+  };
+
+  /**
+   * Validate if a move operation is allowed
+   */
+  const canMoveItem = (item: FileItem, targetFolderId: string | null): { allowed: boolean; reason?: string } => {
+    // Cannot move system folder itself
+    if (item.is_system_folder) {
+      return { allowed: false, reason: 'Não é possível mover a pasta do sistema' };
+    }
+    
+    // If item is a system item, it can only move within system tree
+    if (isSystemItem(item)) {
+      const targetIsInSystemTree = targetFolderId === null 
+        ? false 
+        : isWithinSystemTree(targetFolderId) || targetFolderId === systemFolderId;
+      
+      if (!targetIsInSystemTree) {
+        return { 
+          allowed: false, 
+          reason: 'Arquivos do sistema só podem ser movidos dentro de "Uploads do sistema"' 
+        };
+      }
+    }
+    
+    // Cannot move folder into itself
+    if (item.is_folder && item.id === targetFolderId) {
+      return { allowed: false, reason: 'Não é possível mover uma pasta para dentro dela mesma' };
+    }
+    
+    return { allowed: true };
+  };
+
   const uploadFile = useMutation({
     mutationFn: async ({ file, folderId }: { file: File; folderId: string | null }) => {
       if (!currentTenant?.id || !user?.id) throw new Error('Tenant ou usuário não encontrado');
@@ -232,7 +310,23 @@ export function useFiles(folderId: string | null = null) {
   });
 
   const moveFile = useMutation({
-    mutationFn: async ({ fileId, targetFolderId }: { fileId: string; targetFolderId: string | null }) => {
+    mutationFn: async ({ fileId, targetFolderId, skipValidation }: { fileId: string; targetFolderId: string | null; skipValidation?: boolean }) => {
+      // Get the file to validate
+      if (!skipValidation) {
+        const { data: fileData } = await supabase
+          .from('files')
+          .select('*')
+          .eq('id', fileId)
+          .single();
+        
+        if (fileData) {
+          const validation = canMoveItem(fileData as FileItem, targetFolderId);
+          if (!validation.allowed) {
+            throw new Error(validation.reason || 'Movimento não permitido');
+          }
+        }
+      }
+      
       const { data, error } = await supabase
         .from('files')
         .update({ folder_id: targetFolderId, updated_at: new Date().toISOString() })
@@ -249,7 +343,7 @@ export function useFiles(folderId: string | null = null) {
       toast.success('Arquivo movido com sucesso!');
     },
     onError: (error: Error) => {
-      toast.error(`Erro ao mover arquivo: ${error.message}`);
+      toast.error(error.message || 'Erro ao mover arquivo');
     },
   });
 
@@ -376,6 +470,7 @@ export function useFiles(folderId: string | null = null) {
   return {
     files: files || [],
     allFolders: allFolders || [],
+    systemFolderId,
     isLoading,
     error,
     uploadFile,
@@ -386,5 +481,8 @@ export function useFiles(folderId: string | null = null) {
     getFileUrl,
     downloadFile,
     getSystemFolderId,
+    isWithinSystemTree,
+    isSystemItem,
+    canMoveItem,
   };
 }

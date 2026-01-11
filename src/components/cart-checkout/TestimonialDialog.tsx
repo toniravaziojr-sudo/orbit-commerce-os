@@ -35,7 +35,7 @@ import {
 } from '@/hooks/useCheckoutTestimonials';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { useSystemUpload } from '@/hooks/useSystemUpload';
 import { Star, Loader2, Search, X, Upload, Image as ImageIcon } from 'lucide-react';
 
 const testimonialSchema = z.object({
@@ -93,8 +93,12 @@ export function TestimonialDialog({
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [showProductSelector, setShowProductSelector] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { upload: systemUpload, isUploading } = useSystemUpload({
+    source: 'testimonial_image',
+    subPath: 'testimonials',
+  });
 
   const form = useForm<TestimonialFormValues>({
     resolver: zodResolver(testimonialSchema),
@@ -107,9 +111,7 @@ export function TestimonialDialog({
   });
 
   const isEditing = !!testimonial;
-  const isSubmitting = createTestimonial.isPending || updateTestimonial.isPending;
 
-  // Reset form when dialog opens or testimonial changes
   useEffect(() => {
     if (open) {
       if (testimonial) {
@@ -137,27 +139,9 @@ export function TestimonialDialog({
   const handleImageUpload = async (file: File) => {
     if (!currentTenant?.id) return;
     
-    setIsUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${currentTenant.id}/testimonials/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('store-assets')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('store-assets')
-        .getPublicUrl(filePath);
-
-      form.setValue('image_url', publicUrl);
-    } catch (error) {
-      console.error('Error uploading image:', error);
-    } finally {
-      setIsUploading(false);
+    const result = await systemUpload(file);
+    if (result?.publicUrl) {
+      form.setValue('image_url', result.publicUrl);
     }
   };
 
@@ -439,9 +423,9 @@ export function TestimonialDialog({
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
-            disabled={isSubmitting}
+            disabled={form.formState.isSubmitting || isUploading}
           >
-            {isSubmitting ? (
+            {form.formState.isSubmitting ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : isEditing ? (
               'Salvar'

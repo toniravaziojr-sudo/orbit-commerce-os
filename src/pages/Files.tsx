@@ -119,6 +119,7 @@ export default function Files() {
   const {
     files,
     allFolders,
+    systemFolderId,
     isLoading,
     uploadFile,
     createFolder,
@@ -127,6 +128,8 @@ export default function Files() {
     moveFile,
     getFileUrl,
     downloadFile,
+    isSystemItem,
+    canMoveItem,
   } = useFiles(currentFolderId);
 
   // Drag state for drag & drop file moving
@@ -345,6 +348,8 @@ export default function Files() {
   const handleDropOnFolder = async (e: React.DragEvent, targetFolder: FileItem) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    const itemBeingDragged = draggedItem;
     setDraggedItem(null);
     
     try {
@@ -359,7 +364,15 @@ export default function Files() {
         return;
       }
       
-      // Prevent dropping into system folder? No, system folder CAN receive files
+      // Validate move for system items
+      if (itemBeingDragged) {
+        const validation = canMoveItem(itemBeingDragged, targetFolder.id);
+        if (!validation.allowed) {
+          toast.error(validation.reason || 'Movimento não permitido');
+          return;
+        }
+      }
+      
       await moveFile.mutateAsync({ fileId: itemId, targetFolderId: targetFolder.id });
     } catch (err) {
       console.error('Drop error:', err);
@@ -369,6 +382,8 @@ export default function Files() {
   const handleDropOnBreadcrumb = async (e: React.DragEvent, targetFolderId: string | null) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    const itemBeingDragged = draggedItem;
     setDraggedItem(null);
     
     try {
@@ -376,6 +391,16 @@ export default function Files() {
       if (!data) return;
       
       const { id: itemId } = JSON.parse(data);
+      
+      // Validate move for system items (dropping on breadcrumb/root)
+      if (itemBeingDragged) {
+        const validation = canMoveItem(itemBeingDragged, targetFolderId);
+        if (!validation.allowed) {
+          toast.error(validation.reason || 'Movimento não permitido');
+          return;
+        }
+      }
+      
       await moveFile.mutateAsync({ fileId: itemId, targetFolderId });
     } catch (err) {
       console.error('Drop error:', err);
@@ -766,6 +791,8 @@ export default function Files() {
         fileName={fileToMove?.original_name || ''}
         currentFolderId={fileToMove?.folder_id || null}
         excludeFolderId={fileToMove?.is_folder ? fileToMove.id : undefined}
+        isSystemItem={fileToMove ? isSystemItem(fileToMove) : false}
+        systemFolderId={systemFolderId}
         folders={allFolders}
         onConfirm={handleConfirmMove}
         isPending={moveFile.isPending}
