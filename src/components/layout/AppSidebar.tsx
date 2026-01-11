@@ -8,6 +8,7 @@ import { useTenantType } from "@/hooks/useTenantType";
 import { useTenantAccess } from "@/hooks/useTenantAccess";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsSpecialTenant } from "@/hooks/useIsSpecialTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { PlatformAdminGate } from "@/components/auth/PlatformAdminGate";
 import { FeatureGate } from "@/components/layout/FeatureGate";
 import { getModuleStatus, ModuleStatus } from "@/config/module-status";
@@ -45,6 +46,7 @@ import {
   CreditCard,
   UserCheck,
   Handshake,
+  UsersRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -58,6 +60,7 @@ interface NavItem {
   badge?: string | number;
   featureKey?: string;
   adminOnly?: boolean;
+  ownerOnly?: boolean; // Only visible to tenant owner
 }
 
 interface NavGroup {
@@ -150,6 +153,7 @@ const fullNavigation: NavGroup[] = [
     items: [
       { title: "Integrações", href: "/integrations", icon: Plug },
       { title: "Importar Dados", href: "/import", icon: Upload },
+      { title: "Usuários e Permissões", href: "/system/users", icon: UsersRound, ownerOnly: true },
     ],
   },
   {
@@ -242,6 +246,7 @@ export function AppSidebar() {
   const { isPlatformTenant, isLoading: isTenantTypeLoading } = useTenantType();
   const { currentTenant, tenants } = useAuth();
   const { isSpecialTenant } = useIsSpecialTenant();
+  const { isOwner, isSidebarItemVisible, isPlatformOperator: isPlatformOp } = usePermissions();
 
   // Persist open groups state
   useEffect(() => {
@@ -282,6 +287,16 @@ export function AppSidebar() {
   };
 
   const renderNavItem = (item: NavItem) => {
+    // Owner-only items visibility check
+    if (item.ownerOnly && !isOwner && !isPlatformOp) {
+      return null;
+    }
+    
+    // Permission-based visibility (for non-platform tenant navigation)
+    if (!isPlatformTenant && !item.ownerOnly && !isSidebarItemVisible(item.href)) {
+      return null;
+    }
+    
     const Icon = item.icon;
     const active = isActive(item.href);
     const status = isSpecialTenant ? getModuleStatus(item.href) : undefined;
@@ -330,11 +345,23 @@ export function AppSidebar() {
       gatedContent = <FeatureGate feature={item.featureKey}>{wrappedLink}</FeatureGate>;
     }
 
+    if (!gatedContent) return null;
+    
     return <li key={item.href}>{gatedContent}</li>;
   };
 
   const renderNavGroup = (group: NavGroup) => {
-    const groupActive = isGroupActive(group);
+    // Filter items based on permissions
+    const visibleItems = group.items.filter(item => {
+      if (item.ownerOnly && !isOwner && !isPlatformOp) return false;
+      if (!isPlatformTenant && !item.ownerOnly && !isSidebarItemVisible(item.href)) return false;
+      return true;
+    });
+    
+    // Don't render group if no visible items
+    if (visibleItems.length === 0) return null;
+    
+    const groupActive = visibleItems.some((item) => isActive(item.href));
     const open = isGroupOpen(group);
 
     if (group.collapsible && !collapsed) {
@@ -366,7 +393,7 @@ export function AppSidebar() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <ul className="space-y-0.5 mt-1 ml-2 pl-4 border-l border-sidebar-border/50">
-                {group.items.map(renderNavItem)}
+                {visibleItems.map(renderNavItem)}
               </ul>
             </CollapsibleContent>
           </Collapsible>
@@ -381,7 +408,7 @@ export function AppSidebar() {
             {group.label}
           </p>
         )}
-        <ul className="space-y-0.5">{group.items.map(renderNavItem)}</ul>
+        <ul className="space-y-0.5">{visibleItems.map(renderNavItem)}</ul>
       </div>
     );
   };

@@ -22,6 +22,8 @@ interface UserRole {
   user_id: string;
   tenant_id: string;
   role: 'owner' | 'admin' | 'operator' | 'support' | 'finance' | 'viewer';
+  user_type?: 'owner' | 'manager' | 'editor' | 'attendant' | 'assistant' | 'viewer';
+  permissions?: Record<string, boolean | Record<string, boolean>>;
 }
 
 interface AuthContextType {
@@ -71,14 +73,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUserRoles = async (userId: string) => {
     const { data, error } = await supabase
       .from('user_roles')
-      .select('*')
+      .select('id, user_id, tenant_id, role, user_type, permissions')
       .eq('user_id', userId);
 
     if (error) {
       console.error('Error fetching user roles:', error);
       return [];
     }
-    return data as UserRole[];
+    // Ensure permissions is always an object
+    return (data || []).map(role => ({
+      ...role,
+      permissions: role.permissions || {},
+    })) as UserRole[];
   };
 
   const fetchTenants = async (roles: UserRole[]) => {
