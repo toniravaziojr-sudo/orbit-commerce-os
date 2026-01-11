@@ -29,6 +29,9 @@ const EDITABLE_CREDENTIALS = [
   // Mercado Livre
   'MELI_APP_ID',
   'MELI_CLIENT_SECRET',
+  // Meta (Facebook/Instagram/WhatsApp)
+  'META_APP_ID',
+  'META_APP_SECRET',
 ];
 
 serve(async (req) => {
