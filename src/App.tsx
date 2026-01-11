@@ -57,6 +57,7 @@ import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
 import AcceptInvite from "@/pages/AcceptInvite";
 import SystemUsers from "@/pages/SystemUsers";
 import CreateStore from "@/pages/CreateStore";
+import NoAccess from "@/pages/NoAccess";
 import ResetPassword from "@/pages/ResetPassword";
 import StartPlan from "@/pages/start/StartPlan";
 import StartInfo from "@/pages/start/StartInfo";
@@ -229,7 +230,17 @@ const App = () => {
                 }
               />
 
-              {/* FULLSCREEN BUILDER ROUTES - Outside AppShell for 100% viewport */}
+              {/* No access page for removed invited users */}
+              <Route
+                path="/no-access"
+                element={
+                  <ProtectedRoute requireTenant={false}>
+                    <NoAccess />
+                  </ProtectedRoute>
+                }
+              />
+
+
               {!shouldUseTenantRootRoutes && (
                 <Route
                   element={

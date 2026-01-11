@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { usePlatformOperator } from '@/hooks/usePlatformOperator';
+import { useWasInvitedUser } from '@/hooks/useWasInvitedUser';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -12,6 +13,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, requireTenant = true }: ProtectedRouteProps) {
   const { user, currentTenant, tenants, userRoles, isLoading } = useAuth();
   const { isPlatformOperator, isLoading: platformLoading } = usePlatformOperator();
+  const { wasInvited, isLoading: inviteLoading } = useWasInvitedUser(user?.email);
   const location = useLocation();
   
   // Track if we've waited enough for data to load
@@ -33,7 +35,8 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     }
   }, [isLoading, user, userRoles.length, hasPendingInvite]);
 
-  if (isLoading || platformLoading) {
+  // Wait for all loading states
+  if (isLoading || platformLoading || inviteLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -65,9 +68,16 @@ export function ProtectedRoute({ children, requireTenant = true }: ProtectedRout
     );
   }
 
+  // CRITICAL: Se o usuário foi convidado anteriormente (accepted_at) mas não tem mais tenant,
+  // ele foi REMOVIDO e NÃO pode criar loja própria. Redirecionar para /no-access.
+  if (requireTenant && tenants.length === 0 && wasInvited && hasWaitedForData && !hasPendingInvite) {
+    console.log('[ProtectedRoute] User was previously invited but has no tenants - redirecting to /no-access');
+    return <Navigate to="/no-access" replace />;
+  }
+
   // Se precisa de tenant e não tem nenhum, redireciona para criar loja
-  // MAS só se não houver convite pendente E já esperamos o suficiente
-  if (requireTenant && tenants.length === 0 && !hasPendingInvite && hasWaitedForData) {
+  // MAS só se não houver convite pendente E já esperamos o suficiente E não foi convidado antes
+  if (requireTenant && tenants.length === 0 && !hasPendingInvite && hasWaitedForData && !wasInvited) {
     return <Navigate to="/create-store" replace />;
   }
 
