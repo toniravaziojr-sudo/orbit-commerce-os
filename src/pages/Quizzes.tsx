@@ -42,11 +42,11 @@ export default function Quizzes() {
           {isLoading ? (
             <p className="text-muted-foreground">Carregando...</p>
           ) : quizzes.length === 0 ? (
-            <EmptyState
+          <EmptyState
               icon={HelpCircle}
               title="Nenhum quiz criado"
               description="Crie seu primeiro quiz para capturar leads de forma interativa"
-              action={<Button><Plus className="h-4 w-4 mr-2" />Criar Quiz</Button>}
+              action={{ label: "Criar Quiz", onClick: () => {} }}
             />
           ) : (
             <div className="space-y-3">
