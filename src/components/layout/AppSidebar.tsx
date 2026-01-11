@@ -173,6 +173,7 @@ const platformAdminNavigation: NavGroup[] = [
       { title: "Integrações da Plataforma", href: "/platform/integrations", icon: Plug },
       { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
       { title: "Assinaturas", href: "/platform/billing", icon: CreditCard },
+      { title: "Emails do Sistema", href: "/platform/emails", icon: Mail },
     ],
   },
   {
@@ -218,6 +219,7 @@ const platformNavigation: NavGroup = {
     { title: "Health Monitor", href: "/platform/health-monitor", icon: Activity },
     { title: "Integrações da Plataforma", href: "/platform/integrations", icon: Plug },
     { title: "Sugestões de Blocos", href: "/platform/block-suggestions", icon: Sparkles },
+    { title: "Emails do Sistema", href: "/platform/emails", icon: Mail },
   ],
 };
 
