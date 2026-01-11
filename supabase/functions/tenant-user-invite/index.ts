@@ -13,6 +13,14 @@ interface InviteRequest {
   tenant_id: string;
 }
 
+const USER_TYPE_LABELS: Record<string, string> = {
+  manager: 'Gerente',
+  editor: 'Editor',
+  attendant: 'Atendente',
+  assistant: 'Auxiliar',
+  viewer: 'Visualizador',
+};
+
 // Generate a secure random token
 function generateToken(): string {
   const array = new Uint8Array(32);
@@ -20,25 +28,25 @@ function generateToken(): string {
   return Array.from(array, b => b.toString(16).padStart(2, '0')).join('');
 }
 
-// SendGrid email helper
-async function sendInviteEmail(
-  apiKey: string,
-  from: { email: string; name: string },
-  to: string,
+// Render template with variables
+function renderTemplate(template: string, variables: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+    result = result.replace(regex, value);
+  }
+  return result;
+}
+
+// Fallback HTML if template not found
+function getFallbackHtml(
   inviterName: string,
   tenantName: string,
   userType: string,
   acceptUrl: string
-): Promise<{ success: boolean; error?: string }> {
-  const userTypeLabels: Record<string, string> = {
-    manager: 'Gerente',
-    editor: 'Editor',
-    attendant: 'Atendente',
-    assistant: 'Auxiliar',
-    viewer: 'Visualizador',
-  };
-
-  const html = `
+): string {
+  const userTypeLabel = USER_TYPE_LABELS[userType] || userType;
+  return `
 <!DOCTYPE html>
 <html>
 <head>
@@ -62,7 +70,7 @@ async function sendInviteEmail(
                 <strong>${inviterName}</strong> convidou você para fazer parte da equipe de <strong>${tenantName}</strong> no Comando Central.
               </p>
               <p style="color: #555; line-height: 1.6; margin: 0 0 25px 0;">
-                Seu perfil de acesso será: <strong>${userTypeLabels[userType] || userType}</strong>
+                Seu perfil de acesso será: <strong>${userTypeLabel}</strong>
               </p>
               <div style="text-align: center; margin: 30px 0;">
                 <a href="${acceptUrl}" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: 600;">
@@ -88,7 +96,16 @@ async function sendInviteEmail(
 </body>
 </html>
   `;
+}
 
+// SendGrid email helper
+async function sendInviteEmail(
+  apiKey: string,
+  from: { email: string; name: string },
+  to: string,
+  subject: string,
+  html: string
+): Promise<{ success: boolean; error?: string }> {
   try {
     const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
@@ -99,7 +116,7 @@ async function sendInviteEmail(
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
         from: { email: from.email, name: from.name },
-        subject: `Convite para ${tenantName} - Comando Central`,
+        subject,
         content: [{ type: "text/html", value: html }],
       }),
     });
@@ -132,7 +149,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!authHeader) {
       return new Response(
         JSON.stringify({ success: false, error: "Não autorizado" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -147,7 +164,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (userError || !user) {
       return new Response(
         JSON.stringify({ success: false, error: "Não autorizado" }),
-        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -171,7 +188,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("[tenant-user-invite] User is not owner:", ownerError);
       return new Response(
         JSON.stringify({ success: false, error: "Somente o proprietário pode convidar usuários" }),
-        { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -192,7 +209,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (existingRole) {
       return new Response(
         JSON.stringify({ success: false, error: "Este usuário já faz parte da equipe" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -210,7 +227,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (existingInvite) {
       return new Response(
         JSON.stringify({ success: false, error: "Já existe um convite pendente para este email" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -250,7 +267,7 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("[tenant-user-invite] Insert error:", insertError);
       return new Response(
         JSON.stringify({ success: false, error: "Erro ao criar convite" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -273,14 +290,55 @@ const handler = async (req: Request): Promise<Response> => {
           ? emailConfig.from_email
           : `${emailConfig.from_email}@${emailConfig.sending_domain}`;
 
+        // Fetch email template from database
+        const { data: emailTemplate, error: templateError } = await supabaseAdmin
+          .from('system_email_templates')
+          .select('subject, body_html, is_active')
+          .eq('template_key', 'tenant_user_invite')
+          .eq('is_active', true)
+          .maybeSingle();
+
+        const inviterName = inviterProfile?.full_name || inviterProfile?.email || 'Um administrador';
+        const tenantName = tenant?.name || 'sua loja';
+        const userTypeLabel = USER_TYPE_LABELS[user_type] || user_type;
+        const expiresAtFormatted = expiresAt.toLocaleDateString('pt-BR', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        let subject: string;
+        let html: string;
+
+        if (emailTemplate && !templateError) {
+          // Use template from database
+          const templateVars = {
+            tenant_name: tenantName,
+            inviter_name: inviterName,
+            user_type_label: userTypeLabel,
+            accept_url: acceptUrl,
+            expires_at: expiresAtFormatted,
+            invited_email: normalizedEmail,
+          };
+
+          subject = renderTemplate(emailTemplate.subject, templateVars);
+          html = renderTemplate(emailTemplate.body_html, templateVars);
+          console.log("[tenant-user-invite] Using template from database");
+        } else {
+          // Fallback to hardcoded template
+          subject = `Convite para ${tenantName} - Comando Central`;
+          html = getFallbackHtml(inviterName, tenantName, user_type, acceptUrl);
+          console.log("[tenant-user-invite] Using fallback template (template not found or inactive)");
+        }
+
         const emailResult = await sendInviteEmail(
           sendgridApiKey,
           { email: fromEmail, name: emailConfig.from_name },
           normalizedEmail,
-          inviterProfile?.full_name || inviterProfile?.email || 'Um administrador',
-          tenant?.name || 'sua loja',
-          user_type,
-          acceptUrl
+          subject,
+          html
         );
 
         if (!emailResult.success) {
@@ -304,7 +362,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.error("[tenant-user-invite] Error:", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   }
 };

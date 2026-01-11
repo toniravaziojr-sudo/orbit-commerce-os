@@ -59,6 +59,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/platform/health-monitor': 'pending',
   '/platform/integrations': 'pending',
   '/platform/block-suggestions': 'pending',
+  '/platform/emails': 'ready',
 };
 
 export function getModuleStatus(href: string): ModuleStatus | undefined {
