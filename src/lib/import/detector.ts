@@ -56,16 +56,22 @@ const DETECTION_PATTERNS: Record<PlatformType, DetectionPattern> = {
       /\.traycorp\.com\.br/i,
     ],
     htmlPatterns: [
-      /tray/i,
+      /smb\.tray/i,  // smb.tray.min.js - strong signal
+      /Pixel-Tray/i, // Facebook Pixel-Tray - very strong signal
       /traycorp/i,
       /tray-commerce/i,
+      /traycdn/i,
+      /static\.tray\.com\.br/i,
     ],
     metaPatterns: [
       { name: 'generator', content: /tray/i },
     ],
     scriptPatterns: [
-      /tray/i,
+      /smb\.tray\.min\.js/i, // CRITICAL: High confidence signal
+      /tray\.min\.js/i,
       /tray\.com\.br/i,
+      /traycdn\.com\.br/i,
+      /traycorp/i,
     ],
     features: ['tray', 'carrinho'],
   },

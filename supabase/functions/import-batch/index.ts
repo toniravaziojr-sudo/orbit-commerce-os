@@ -198,15 +198,19 @@ async function trackImportedItem(
   externalId?: string
 ) {
   try {
+    // Use external_id for conflict resolution (unique index: tenant_id, module, external_id)
+    // If no external_id, use internal_id as external_id fallback for tracking
+    const effectiveExternalId = externalId || internalId;
+    
     await supabase.from('import_items').upsert({
       tenant_id: tenantId,
       job_id: jobId,
       module,
       internal_id: internalId,
-      external_id: externalId || null,
+      external_id: effectiveExternalId,
       status: 'success',
     }, {
-      onConflict: 'tenant_id,module,internal_id',
+      onConflict: 'tenant_id,module,external_id',
       ignoreDuplicates: false,
     });
   } catch (error) {

@@ -132,7 +132,7 @@ export default function Import() {
                        module === 'orders' ? 'Pedidos' : module}
                       {job.stats?.[module] && (
                         <span className="ml-1 text-xs">
-                          ({job.stats[module].imported || 0})
+                          ({(job.stats[module].imported || 0) + (job.stats[module].updated || 0)})
                         </span>
                       )}
                     </Badge>
