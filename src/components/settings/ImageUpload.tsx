@@ -45,9 +45,8 @@ export function ImageUpload({
     setIsUploading(true);
     try {
       const url = await onUpload(file);
-      if (url) {
-        onChange(url);
-      }
+      // Don't call onChange here - the upload handler already saves to DB
+      // and the component will receive the new value via props
     } finally {
       setIsUploading(false);
     }
