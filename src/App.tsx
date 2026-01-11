@@ -322,6 +322,7 @@ const App = () => {
                   <Route path="/platform/health-monitor" element={<HealthMonitor />} />
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   <Route path="/platform/billing" element={<PlatformBilling />} />
+                  <Route path="/platform/emails" element={<SystemEmails />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<SystemUsers />} />
                   {/* Legacy redirects */}

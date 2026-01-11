@@ -53,6 +53,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/settings': 'pending',
   '/files': 'ready',
   '/marketplaces': 'pending',
+  '/system/users': 'ready',
   
   // Plataforma
   '/platform/health-monitor': 'pending',
