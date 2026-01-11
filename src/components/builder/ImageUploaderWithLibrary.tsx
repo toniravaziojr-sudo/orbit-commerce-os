@@ -68,14 +68,16 @@ export function ImageUploaderWithLibrary({
 
     try {
       const fileExt = file.name.split('.').pop();
+      // Generate UNIQUE path with timestamp and UUID to avoid cache issues
       const timestamp = Date.now();
-      const fileName = `${currentTenant.id}/builder/${variant}/${timestamp}.${fileExt}`;
+      const uuid = crypto.randomUUID().slice(0, 8);
+      const fileName = `${currentTenant.id}/builder/${variant}/${timestamp}-${uuid}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
         .upload(fileName, file, {
           cacheControl: '3600',
-          upsert: false,
+          upsert: false, // Never upsert - always unique path
         });
 
       if (uploadError) throw uploadError;

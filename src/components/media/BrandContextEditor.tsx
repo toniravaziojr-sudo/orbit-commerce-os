@@ -150,12 +150,15 @@ export function BrandContextEditor() {
     setIsUploadingPackshot(true);
     try {
       const fileExt = packshotFile.name.split(".").pop();
-      const filePath = `${currentTenant.id}/packshots/main.${fileExt}`;
+      // Generate UNIQUE path with timestamp and UUID to avoid cache issues
+      const timestamp = Date.now();
+      const uuid = crypto.randomUUID().slice(0, 8);
+      const filePath = `${currentTenant.id}/packshots/${timestamp}-${uuid}.${fileExt}`;
 
-      // Upload to storage
+      // Upload to storage - NEVER upsert, always use unique path
       const { error: uploadError } = await supabase.storage
         .from("media-assets")
-        .upload(filePath, packshotFile, { upsert: true });
+        .upload(filePath, packshotFile, { upsert: false });
 
       if (uploadError) throw uploadError;
 
