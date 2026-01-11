@@ -75,6 +75,7 @@ import BlogPostEditor from "@/pages/BlogPostEditor";
 import BlockSuggestions from "@/pages/BlockSuggestions";
 import DemoEstruturaPage from "@/pages/DemoEstruturaPage";
 import LateCallback from "@/pages/integrations/LateCallback";
+import MetaOAuthCallback from "@/pages/MetaOAuthCallback";
 import NotFound from "@/pages/NotFound";
 import Marketplaces from "@/pages/Marketplaces";
 import MercadoLivre from "@/pages/marketplaces/MercadoLivre";
@@ -168,6 +169,8 @@ const App = () => {
               <Route path="/complete-signup" element={<CompleteSignup />} />
               {/* Late OAuth callback - opened in popup, handles close */}
               <Route path="/integrations/late/callback" element={<LateCallback />} />
+              {/* Meta OAuth callback - handles Meta connection result */}
+              <Route path="/integrations/meta/callback" element={<MetaOAuthCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
               <Route path="/accept-invite" element={<AcceptInvite />} />
 

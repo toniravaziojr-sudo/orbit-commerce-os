@@ -5902,6 +5902,50 @@ export type Database = {
           },
         ]
       }
+      meta_oauth_states: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          return_path: string | null
+          scope_packs: string[]
+          state_hash: string
+          tenant_id: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[]
+          state_hash: string
+          tenant_id: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          return_path?: string | null
+          scope_packs?: string[]
+          state_hash?: string
+          tenant_id?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_oauth_states_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_whatsapp_onboarding_states: {
         Row: {
           created_at: string | null
@@ -10798,6 +10842,7 @@ export type Database = {
           plan_key: string
         }[]
       }
+      cleanup_expired_meta_oauth_states: { Args: never; Returns: undefined }
       create_tenant_for_user: {
         Args: { p_name: string; p_slug: string }
         Returns: {
