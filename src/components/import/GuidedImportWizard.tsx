@@ -9,6 +9,7 @@ import { useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeData } from '@/lib/import/platforms';
+import { parseCSV } from '@/lib/import/utils';
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -92,6 +93,9 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
     if (h.includes('woocommerce')) return { name: 'WooCommerce', confidence: 'alta' };
     if (h.includes('nuvemshop') || h.includes('tiendanube')) return { name: 'Nuvemshop', confidence: 'alta' };
     if (h.includes('vtex')) return { name: 'VTEX', confidence: 'alta' };
+    // TRAY detection - strong signals
+    if (h.includes('smb.tray') || h.includes('pixel-tray') || h.includes('tray.min.js') || h.includes('traycdn')) return { name: 'Tray', confidence: 'alta' };
+    if (h.includes('tray.com.br') || h.includes('traycorp')) return { name: 'Tray', confidence: 'alta' };
     return { name: 'Não identificada', confidence: 'baixa' };
   };
 
@@ -107,12 +111,14 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         const parsed = JSON.parse(text);
         data = Array.isArray(parsed) ? parsed : parsed.products || parsed.customers || parsed.orders || [parsed];
       } else {
-        const lines = text.split('\n').filter(l => l.trim());
-        const headers = lines[0].split(/[,;]/).map(h => h.trim().replace(/"/g, ''));
-        data = lines.slice(1).map(line => {
-          const values = line.split(/[,;]/).map(v => v.trim().replace(/"/g, ''));
-          return headers.reduce((obj, h, i) => ({ ...obj, [h]: values[i] || '' }), {});
-        });
+        // Use proper CSV parser that handles quoted fields with commas
+        data = parseCSV(text);
+      }
+
+      // Debug: Log first few items to verify parsing
+      console.log(`[handleFileImport] Parsed ${data.length} items from ${file.name}`);
+      if (data.length > 0) {
+        console.log('[handleFileImport] First item sample:', JSON.stringify(data[0]).substring(0, 500));
       }
 
       const platform = analysisResult?.platform?.toLowerCase() || 'generic';

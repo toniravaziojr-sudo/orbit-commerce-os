@@ -116,3 +116,63 @@ export function normalizeGender(gender: string | null | undefined): 'male' | 'fe
   if (g === 'f' || g === 'feminino' || g === 'female') return 'female';
   return null;
 }
+
+/**
+ * Parse a CSV line handling quoted fields that may contain commas
+ */
+export function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote
+        current += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if ((char === ',' || char === ';') && !inQuotes) {
+      // Field separator
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  // Push last field
+  result.push(current.trim());
+  
+  return result;
+}
+
+/**
+ * Parse CSV content into array of objects
+ */
+export function parseCSV(content: string): Record<string, string>[] {
+  const lines = content.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  
+  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+  const data: Record<string, string>[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]).map(v => v.replace(/^"|"$/g, ''));
+    if (values.length === headers.length || values.some(v => v.trim())) {
+      const row: Record<string, string> = {};
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] || '';
+      });
+      data.push(row);
+    }
+  }
+  
+  return data;
+}
