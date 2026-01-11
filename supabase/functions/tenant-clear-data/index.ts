@@ -130,29 +130,46 @@ Deno.serve(async (req) => {
 
     // ========================================
     // Clear IMPORTED categories
+    // FIX: Delete product_categories BEFORE categories (FK constraint)
     // ========================================
     if (shouldClearAll || modules.includes('categories')) {
       const importedCategoryIds = await getImportedIds('categories');
       console.log(`Found ${importedCategoryIds.length} imported categories to delete`);
 
       if (importedCategoryIds.length > 0) {
-        const { data: categoriesDeleted } = await supabase
+        // STEP 1: Delete product_categories FIRST (to avoid FK error)
+        const { error: pcError, count: pcCount } = await supabase
+          .from('product_categories')
+          .delete({ count: 'exact' })
+          .in('category_id', importedCategoryIds);
+        
+        if (pcError) {
+          console.error('Error deleting product_categories:', pcError);
+        }
+        deleted['product_categories_from_categories'] = pcCount || 0;
+
+        // STEP 2: Then delete categories
+        const { error: catError, count: catCount } = await supabase
           .from('categories')
-          .delete()
-          .in('id', importedCategoryIds)
-          .select('id');
-        deleted['categories'] = categoriesDeleted?.length || 0;
+          .delete({ count: 'exact' })
+          .in('id', importedCategoryIds);
+        
+        if (catError) {
+          console.error('Error deleting categories:', catError);
+        }
+        deleted['categories'] = catCount || 0;
       } else {
         deleted['categories'] = 0;
+        deleted['product_categories_from_categories'] = 0;
       }
 
-      const { data: importItemsDeleted } = await supabase
+      // STEP 3: Delete import_items for categories module
+      const { count: importItemsCount } = await supabase
         .from('import_items')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('tenant_id', tenantId)
-        .eq('module', 'categories')
-        .select('id');
-      deleted['import_items_categories'] = importItemsDeleted?.length || 0;
+        .eq('module', 'categories');
+      deleted['import_items_categories'] = importItemsCount || 0;
     }
 
     // ========================================
