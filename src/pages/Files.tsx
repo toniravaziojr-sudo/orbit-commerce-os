@@ -118,6 +118,7 @@ export default function Files() {
 
   const {
     files,
+    allFolders,
     isLoading,
     uploadFile,
     createFolder,
@@ -127,6 +128,9 @@ export default function Files() {
     getFileUrl,
     downloadFile,
   } = useFiles(currentFolderId);
+
+  // Drag state for drag & drop file moving
+  const [draggedItem, setDraggedItem] = useState<FileItem | null>(null);
 
   const { getFileUsage, isFileInUse, storeSettings } = useFileUsageDetection();
   const { upsertSettings } = useStoreSettings();
@@ -318,6 +322,66 @@ export default function Files() {
     }
   };
 
+  // Drag & Drop handlers for moving files
+  const handleDragStartItem = (e: React.DragEvent, item: FileItem) => {
+    if (item.is_system_folder) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData('application/json', JSON.stringify({ id: item.id, isFolder: item.is_folder }));
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedItem(item);
+  };
+
+  const handleDragEndItem = () => {
+    setDraggedItem(null);
+  };
+
+  const handleDragOverFolder = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDropOnFolder = async (e: React.DragEvent, targetFolder: FileItem) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggedItem(null);
+    
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+      
+      const { id: itemId, isFolder } = JSON.parse(data);
+      
+      // Prevent dropping folder into itself
+      if (isFolder && itemId === targetFolder.id) {
+        toast.error('Não é possível mover uma pasta para dentro dela mesma');
+        return;
+      }
+      
+      // Prevent dropping into system folder? No, system folder CAN receive files
+      await moveFile.mutateAsync({ fileId: itemId, targetFolderId: targetFolder.id });
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  };
+
+  const handleDropOnBreadcrumb = async (e: React.DragEvent, targetFolderId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggedItem(null);
+    
+    try {
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+      
+      const { id: itemId } = JSON.parse(data);
+      await moveFile.mutateAsync({ fileId: itemId, targetFolderId });
+    } catch (err) {
+      console.error('Drop error:', err);
+    }
+  };
+
   const renderFileActions = (file: FileItem, isSystemFolder: boolean) => {
     if (isSystemFolder) return null;
 
@@ -465,16 +529,19 @@ export default function Files() {
         </div>
       </div>
 
-      {/* Breadcrumb */}
+      {/* Breadcrumb with drop targets */}
       <div className="flex items-center gap-1 text-sm">
         {folderPath.map((path, index) => (
           <div key={path.id || 'root'} className="flex items-center gap-1">
             {index > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
             <button
               onClick={() => handleNavigateToPath(index)}
+              onDragOver={handleDragOverFolder}
+              onDrop={(e) => handleDropOnBreadcrumb(e, path.id)}
               className={cn(
                 "px-2 py-1 rounded hover:bg-muted transition-colors",
-                index === folderPath.length - 1 && "font-medium"
+                index === folderPath.length - 1 && "font-medium",
+                draggedItem && "ring-2 ring-primary/50 ring-dashed"
               )}
             >
               {index === 0 ? <Home className="h-4 w-4" /> : path.name}
@@ -527,10 +594,22 @@ export default function Files() {
                 const Icon = getFileIcon(file);
                 const isSystemFolder = file.is_system_folder === true;
                 const usages = getFileUsage(file);
+                const isDragging = draggedItem?.id === file.id;
+                const canBeDropTarget = file.is_folder && !isDragging && draggedItem?.id !== file.id;
+                
                 return (
                   <div
                     key={file.id}
-                    className="group relative flex flex-col items-center p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-colors"
+                    draggable={!isSystemFolder}
+                    onDragStart={(e) => handleDragStartItem(e, file)}
+                    onDragEnd={handleDragEndItem}
+                    onDragOver={canBeDropTarget ? handleDragOverFolder : undefined}
+                    onDrop={canBeDropTarget ? (e) => handleDropOnFolder(e, file) : undefined}
+                    className={cn(
+                      "group relative flex flex-col items-center p-4 rounded-lg border bg-card hover:bg-muted/50 cursor-pointer transition-all",
+                      isDragging && "opacity-50 scale-95",
+                      canBeDropTarget && draggedItem && "ring-2 ring-primary ring-dashed bg-primary/5"
+                    )}
                     onDoubleClick={() => handlePreview(file)}
                   >
                     {/* Badges row */}
@@ -686,6 +765,8 @@ export default function Files() {
         onOpenChange={setMoveDialogOpen}
         fileName={fileToMove?.original_name || ''}
         currentFolderId={fileToMove?.folder_id || null}
+        excludeFolderId={fileToMove?.is_folder ? fileToMove.id : undefined}
+        folders={allFolders}
         onConfirm={handleConfirmMove}
         isPending={moveFile.isPending}
       />

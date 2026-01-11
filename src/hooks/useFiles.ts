@@ -23,6 +23,24 @@ export interface FileItem {
 
 const SYSTEM_FOLDER_NAME = 'Uploads do sistema';
 
+// Determine which bucket a file belongs to based on metadata or path
+function getBucketForFile(file: FileItem): string {
+  const metadata = file.metadata as Record<string, unknown> | null;
+  const source = metadata?.source as string | undefined;
+  const bucket = metadata?.bucket as string | undefined;
+  
+  // Explicit bucket in metadata takes precedence
+  if (bucket) return bucket;
+  
+  // If it's a store asset (logo, favicon, etc.)
+  if (source?.startsWith('storefront_') || file.storage_path.includes('tenants/')) {
+    return 'store-assets';
+  }
+  
+  // Default: tenant-files
+  return 'tenant-files';
+}
+
 // Ensure system folder exists for a tenant
 async function ensureSystemFolder(tenantId: string, userId: string): Promise<void> {
   // Check if system folder already exists
@@ -90,6 +108,26 @@ export function useFiles(folderId: string | null = null) {
     enabled: !!currentTenant?.id,
   });
 
+  // Query all folders for the tenant (used by MoveFileDialog and drag/drop)
+  const { data: allFolders } = useQuery({
+    queryKey: ['files-all-folders', currentTenant?.id],
+    queryFn: async () => {
+      if (!currentTenant?.id) return [];
+
+      const { data, error } = await supabase
+        .from('files')
+        .select('id, original_name, folder_id, is_system_folder')
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_folder', true)
+        .order('is_system_folder', { ascending: false })
+        .order('original_name', { ascending: true });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!currentTenant?.id,
+  });
+
   const uploadFile = useMutation({
     mutationFn: async ({ file, folderId }: { file: File; folderId: string | null }) => {
       if (!currentTenant?.id || !user?.id) throw new Error('Tenant ou usuário não encontrado');
@@ -105,7 +143,7 @@ export function useFiles(folderId: string | null = null) {
 
       if (uploadError) throw uploadError;
 
-      // Create metadata record
+      // Create metadata record with bucket info
       const { data, error } = await supabase
         .from('files')
         .insert({
@@ -118,6 +156,7 @@ export function useFiles(folderId: string | null = null) {
           size_bytes: file.size,
           is_folder: false,
           created_by: user.id,
+          metadata: { bucket: 'tenant-files' },
         })
         .select()
         .single();
@@ -157,6 +196,7 @@ export function useFiles(folderId: string | null = null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Pasta criada com sucesso!');
     },
     onError: (error: Error) => {
@@ -167,23 +207,11 @@ export function useFiles(folderId: string | null = null) {
   const deleteFile = useMutation({
     mutationFn: async (file: FileItem) => {
       if (!file.is_folder) {
-        // Determine bucket based on metadata source or storage_path
-        const metadata = file.metadata as Record<string, unknown> | null;
-        const source = metadata?.source as string | undefined;
-        
-        // If it's a store asset, use store-assets bucket
-        if (source?.startsWith('storefront_') || file.storage_path.includes('tenants/')) {
-          const { error: storageError } = await supabase.storage
-            .from('store-assets')
-            .remove([file.storage_path]);
-          if (storageError) console.error('Storage delete error:', storageError);
-        } else {
-          // Regular file in tenant-files bucket
-          const { error: storageError } = await supabase.storage
-            .from('tenant-files')
-            .remove([file.storage_path]);
-          if (storageError) console.error('Storage delete error:', storageError);
-        }
+        const bucket = getBucketForFile(file);
+        const { error: storageError } = await supabase.storage
+          .from(bucket)
+          .remove([file.storage_path]);
+        if (storageError) console.error('Storage delete error:', storageError);
       }
 
       // Delete metadata record
@@ -217,6 +245,7 @@ export function useFiles(folderId: string | null = null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Arquivo movido com sucesso!');
     },
     onError: (error: Error) => {
@@ -238,6 +267,7 @@ export function useFiles(folderId: string | null = null) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['files', currentTenant?.id] });
+      queryClient.invalidateQueries({ queryKey: ['files-all-folders', currentTenant?.id] });
       toast.success('Arquivo renomeado com sucesso!');
     },
     onError: (error: Error) => {
@@ -246,23 +276,86 @@ export function useFiles(folderId: string | null = null) {
   });
 
   const getFileUrl = async (file: FileItem): Promise<string | null> => {
-    const { data } = await supabase.storage
-      .from('tenant-files')
-      .createSignedUrl(file.storage_path, 3600); // 1 hour expiry
+    try {
+      const metadata = file.metadata as Record<string, unknown> | null;
+      
+      // 1. Check if there's a direct URL in metadata
+      const metadataUrl = metadata?.url as string | undefined;
+      if (metadataUrl) {
+        return metadataUrl;
+      }
+      
+      // 2. Use bucket + storage_path to get public URL
+      const bucket = getBucketForFile(file);
+      
+      // Try public URL first
+      const { data: publicData } = supabase.storage
+        .from(bucket)
+        .getPublicUrl(file.storage_path);
+      
+      if (publicData?.publicUrl) {
+        return publicData.publicUrl;
+      }
+      
+      // Fallback to signed URL
+      const { data: signedData, error } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(file.storage_path, 3600); // 1 hour expiry
 
-    return data?.signedUrl || null;
+      if (error) {
+        console.error('Error getting signed URL:', error);
+        return null;
+      }
+      
+      return signedData?.signedUrl || null;
+    } catch (err) {
+      console.error('Error in getFileUrl:', err);
+      return null;
+    }
   };
 
   const downloadFile = async (file: FileItem) => {
-    const url = await getFileUrl(file);
-    if (url) {
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = file.original_name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    try {
+      const bucket = getBucketForFile(file);
+      
+      // Try to download directly from storage
+      const { data, error } = await supabase.storage
+        .from(bucket)
+        .download(file.storage_path);
+      
+      if (error) {
+        console.error('Storage download error:', error);
+        
+        // Fallback: try to fetch from URL
+        const url = await getFileUrl(file);
+        if (url) {
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Failed to fetch file');
+          const blob = await response.blob();
+          triggerDownload(blob, file.original_name);
+          return;
+        }
+        
+        throw new Error('Não foi possível baixar o arquivo');
+      }
+      
+      triggerDownload(data, file.original_name);
+    } catch (err) {
+      console.error('Download error:', err);
+      throw err;
     }
+  };
+
+  // Helper to trigger file download
+  const triggerDownload = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // Get system folder ID for default uploads
@@ -282,6 +375,7 @@ export function useFiles(folderId: string | null = null) {
 
   return {
     files: files || [],
+    allFolders: allFolders || [],
     isLoading,
     error,
     uploadFile,
