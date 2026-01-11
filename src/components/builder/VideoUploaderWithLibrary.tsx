@@ -1,16 +1,16 @@
 // =============================================
 // VIDEO UPLOADER WITH LIBRARY - Upload or select videos from media library
 // Supports both file upload and YouTube/Vimeo embeds
+// Agora usa `files` (Uploads do sistema) via useSystemUpload
 // =============================================
 
 import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, Link, Loader2, X, Check, FolderOpen, Video, Youtube } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/useAuth';
+import { Upload, Loader2, X, Check, FolderOpen, Video, Youtube } from 'lucide-react';
 import { useMediaLibrary, MediaVariant } from '@/hooks/useMediaLibrary';
+import { useSystemUpload } from '@/hooks/useSystemUpload';
 import { cn } from '@/lib/utils';
 
 interface VideoUploaderWithLibraryProps {
@@ -91,10 +91,12 @@ export function VideoUploaderWithLibrary({
   placeholder = 'Selecione ou arraste um vídeo',
   variant,
 }: VideoUploaderWithLibraryProps) {
-  const { currentTenant } = useAuth();
   // Only fetch videos, not images
-  const { registerMedia, mediaItems } = useMediaLibrary({ variant, mediaType: 'video' });
-  const [isUploading, setIsUploading] = useState(false);
+  const { mediaItems } = useMediaLibrary({ variant, mediaType: 'video' });
+  const { upload, isUploading } = useSystemUpload({
+    source: `video_${variant}`,
+    subPath: `videos/${variant}`,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState(value || '');
@@ -105,11 +107,6 @@ export function VideoUploaderWithLibrary({
   const videoType = detectVideoType(value);
 
   const handleFileSelect = async (file: File) => {
-    if (!currentTenant?.id) {
-      setError('Erro: Tenant não encontrado');
-      return;
-    }
-
     // Validate file type
     if (!ACCEPTED_VIDEO_TYPES.includes(file.type)) {
       setError('Por favor, selecione um vídeo válido (MP4, WEBM ou MOV)');
@@ -122,49 +119,17 @@ export function VideoUploaderWithLibrary({
       return;
     }
 
-    setIsUploading(true);
     setError(null);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      // Generate UNIQUE path with timestamp and UUID to avoid cache issues
-      const timestamp = Date.now();
-      const uuid = crypto.randomUUID().slice(0, 8);
-      const fileName = `${currentTenant.id}/videos/${variant}/${timestamp}-${uuid}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false, // Never upsert - always unique path
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-
-      const publicUrl = urlData.publicUrl;
-
-      // Register in media library
-      await registerMedia.mutateAsync({
-        filePath: fileName,
-        fileUrl: publicUrl,
-        fileName: file.name,
-        variant: variant,
-        fileSize: file.size,
-        mimeType: file.type,
-      });
-
-      onChange(publicUrl);
-      setUrlInput(publicUrl);
+      const result = await upload(file);
+      if (result) {
+        onChange(result.publicUrl);
+        setUrlInput(result.publicUrl);
+      }
     } catch (err: any) {
       console.error('Upload error:', err);
       setError(err.message || 'Erro ao fazer upload do vídeo');
-    } finally {
-      setIsUploading(false);
     }
   };
 
