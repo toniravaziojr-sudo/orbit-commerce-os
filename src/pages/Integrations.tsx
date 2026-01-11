@@ -17,6 +17,7 @@ import { PaymentGatewaySettings } from "@/components/payments/PaymentGatewaySett
 import { WhatsAppProviderTabs } from "@/components/integrations/WhatsAppProviderTabs";
 import { LateConnectionSettings } from "@/components/integrations/LateConnectionSettings";
 import { EmailDnsSettings } from "@/components/emails/EmailDnsSettings";
+import { MetaConnectionSettings } from "@/components/integrations/MetaConnectionSettings";
 import { MarketplacesIntegrationTab } from "@/components/integrations/MarketplacesIntegrationTab";
 import { usePaymentProviders } from "@/hooks/usePaymentProviders";
 import { useLateConnection } from "@/hooks/useLateConnection";
@@ -171,6 +172,7 @@ export default function Integrations() {
         </TabsContent>
 
         <TabsContent value="social" className="space-y-6">
+          <MetaConnectionSettings />
           <LateConnectionSettings />
         </TabsContent>
 
