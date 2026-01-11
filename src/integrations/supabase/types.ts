@@ -9305,6 +9305,59 @@ export type Database = {
           },
         ]
       }
+      tenant_user_invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_by: string
+          permissions: Json | null
+          revoked_at: string | null
+          tenant_id: string
+          token: string
+          updated_at: string | null
+          user_type: Database["public"]["Enums"]["tenant_user_type"]
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          invited_by: string
+          permissions?: Json | null
+          revoked_at?: string | null
+          tenant_id: string
+          token: string
+          updated_at?: string | null
+          user_type?: Database["public"]["Enums"]["tenant_user_type"]
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_by?: string
+          permissions?: Json | null
+          revoked_at?: string | null
+          tenant_id?: string
+          token?: string
+          updated_at?: string | null
+          user_type?: Database["public"]["Enums"]["tenant_user_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_user_invitations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenants: {
         Row: {
           created_at: string
@@ -9351,23 +9404,38 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          invited_at: string | null
+          invited_by: string | null
+          permissions: Json | null
           role: Database["public"]["Enums"]["app_role"]
           tenant_id: string
+          updated_at: string | null
           user_id: string
+          user_type: Database["public"]["Enums"]["tenant_user_type"] | null
         }
         Insert: {
           created_at?: string
           id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          permissions?: Json | null
           role: Database["public"]["Enums"]["app_role"]
           tenant_id: string
+          updated_at?: string | null
           user_id: string
+          user_type?: Database["public"]["Enums"]["tenant_user_type"] | null
         }
         Update: {
           created_at?: string
           id?: string
+          invited_at?: string | null
+          invited_by?: string | null
+          permissions?: Json | null
           role?: Database["public"]["Enums"]["app_role"]
           tenant_id?: string
+          updated_at?: string | null
           user_id?: string
+          user_type?: Database["public"]["Enums"]["tenant_user_type"] | null
         }
         Relationships: [
           {
@@ -9651,6 +9719,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_invitation: {
+        Args: { p_token: string; p_user_id: string }
+        Returns: Json
+      }
       check_tenant_order_limit: {
         Args: { p_tenant_id: string }
         Returns: {
@@ -9765,6 +9837,10 @@ export type Database = {
         Returns: undefined
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      is_tenant_owner: {
+        Args: { _tenant_id: string; _user_id: string }
+        Returns: boolean
+      }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }
         Returns: undefined
@@ -9794,6 +9870,17 @@ export type Database = {
       validate_billing_checkout_token: {
         Args: { p_token: string }
         Returns: string
+      }
+      validate_invitation_token: {
+        Args: { p_token: string }
+        Returns: {
+          email: string
+          invitation_id: string
+          permissions: Json
+          tenant_id: string
+          tenant_name: string
+          user_type: Database["public"]["Enums"]["tenant_user_type"]
+        }[]
       }
     }
     Enums: {
@@ -9923,6 +10010,13 @@ export type Database = {
         | "chat"
       tenant_plan: "start" | "growth" | "scale" | "enterprise" | "unlimited"
       tenant_type: "platform" | "customer"
+      tenant_user_type:
+        | "owner"
+        | "manager"
+        | "editor"
+        | "attendant"
+        | "assistant"
+        | "viewer"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -10184,6 +10278,14 @@ export const Constants = {
       ],
       tenant_plan: ["start", "growth", "scale", "enterprise", "unlimited"],
       tenant_type: ["platform", "customer"],
+      tenant_user_type: [
+        "owner",
+        "manager",
+        "editor",
+        "attendant",
+        "assistant",
+        "viewer",
+      ],
     },
   },
 } as const
