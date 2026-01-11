@@ -411,3 +411,9 @@ verify_jwt = false
 [functions.agenda-dispatch-reminders]
 verify_jwt = false
 schedule = "*/2 * * * *"
+
+[functions.command-assistant-chat]
+verify_jwt = true
+
+[functions.command-assistant-execute]
+verify_jwt = true

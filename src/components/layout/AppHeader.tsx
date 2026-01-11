@@ -1,7 +1,6 @@
 import { useNavigate } from "react-router-dom";
-import { Search, User, LogOut, Building2, CreditCard } from "lucide-react";
+import { User, LogOut, Building2, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +12,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { CommandAssistantTrigger } from "@/components/command-assistant";
 
 export function AppHeader() {
   const navigate = useNavigate();
@@ -55,14 +55,10 @@ export function AppHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
-      {/* Search - Future: Auxiliar de Comando */}
+      {/* Command Assistant Trigger */}
       <div className="flex items-center gap-4">
-        <div className="relative hidden w-80 lg:block">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar pedidos, produtos, clientes..."
-            className="pl-9 bg-muted/50 border-transparent focus:border-border"
-          />
+        <div className="hidden lg:block">
+          <CommandAssistantTrigger />
         </div>
       </div>
 

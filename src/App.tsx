@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { CommandAssistantProvider, CommandAssistantPanel } from "@/components/command-assistant";
 
 // Admin Pages
 import Dashboard from "@/pages/Dashboard";
@@ -152,7 +153,9 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <Routes>
+            <CommandAssistantProvider>
+              <CommandAssistantPanel />
+              <Routes>
               {/* Public routes (always available) */}
               <Route path="/auth" element={<Auth />} />
               <Route path="/auth/aguardando-confirmacao" element={<AwaitingConfirmation />} />
@@ -344,6 +347,7 @@ const App = () => {
 
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </CommandAssistantProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>

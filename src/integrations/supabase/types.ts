@@ -1602,6 +1602,140 @@ export type Database = {
           },
         ]
       }
+      command_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          tenant_id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tenant_id: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tenant_id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_conversations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      command_message_attachments: {
+        Row: {
+          bucket: string
+          created_at: string
+          filename: string
+          id: string
+          message_id: string
+          mime_type: string | null
+          path: string
+          size: number | null
+          tenant_id: string
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          filename: string
+          id?: string
+          message_id: string
+          mime_type?: string | null
+          path: string
+          size?: number | null
+          tenant_id: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          message_id?: string
+          mime_type?: string | null
+          path?: string
+          size?: number | null
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_message_attachments_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "command_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "command_message_attachments_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      command_messages: {
+        Row: {
+          content: string | null
+          conversation_id: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Insert: {
+          content?: string | null
+          conversation_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role: string
+          tenant_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string | null
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          role?: string
+          tenant_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "command_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "command_conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "command_messages_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_events: {
         Row: {
           actor_id: string | null
