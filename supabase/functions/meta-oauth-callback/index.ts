@@ -2,11 +2,20 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getCredential } from "../_shared/platform-credentials.ts";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 /**
  * Meta OAuth Callback
  * 
- * Recebe o code do Meta, valida state (anti-CSRF), troca por tokens,
- * descobre assets (páginas, IG, WABA) e salva no banco por tenant.
+ * Recebe o code do Meta via POST (do frontend), valida state (anti-CSRF), 
+ * troca por tokens, descobre assets (páginas, IG, WABA) e salva no banco por tenant.
+ * 
+ * Contrato:
+ * - Erro de negócio = HTTP 200 + { success: false, error, code }
+ * - Sucesso = HTTP 200 + { success: true, ... }
  * 
  * Fluxo:
  * 1. Validar state no banco (anti-CSRF)
@@ -14,37 +23,31 @@ import { getCredential } from "../_shared/platform-credentials.ts";
  * 3. Trocar por long-lived token
  * 4. Descobrir assets (páginas, Instagram, WhatsApp)
  * 5. Salvar em marketplace_connections
- * 6. Redirecionar para o app
+ * 6. Retornar sucesso/erro JSON
  */
 serve(async (req) => {
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // URL base do app para redirect
+  // URL base do app para construir redirect_uri (deve ser igual ao cadastrado no Meta)
   const appBaseUrl = Deno.env.get("APP_URL") || "https://app.comandocentral.com.br";
 
   try {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    const error = url.searchParams.get("error");
-    const errorDescription = url.searchParams.get("error_description");
-
-    // Se usuário cancelou ou erro do Meta
-    if (error) {
-      console.log(`[meta-oauth-callback] Erro do Meta: ${error} - ${errorDescription}`);
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=${encodeURIComponent(error)}&error_description=${encodeURIComponent(errorDescription || "")}`,
-        302
-      );
-    }
+    // Espera body JSON com code e state
+    const body = await req.json();
+    const { code, state } = body;
 
     if (!code || !state) {
-      console.log("[meta-oauth-callback] Code ou state ausente");
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=missing_params`,
-        302
+      console.log("[meta-oauth-callback] Code ou state ausente no body");
+      return new Response(
+        JSON.stringify({ success: false, error: "Parâmetros ausentes", code: "MISSING_PARAMS" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -59,9 +62,9 @@ serve(async (req) => {
 
     if (stateError || !stateRecord) {
       console.error("[meta-oauth-callback] State inválido ou expirado:", stateError);
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=invalid_state`,
-        302
+      return new Response(
+        JSON.stringify({ success: false, error: "Sessão de autorização expirada ou inválida", code: "INVALID_STATE" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -80,14 +83,14 @@ serve(async (req) => {
 
     if (!appId || !appSecret) {
       console.error("[meta-oauth-callback] Credenciais Meta não configuradas");
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=not_configured`,
-        302
+      return new Response(
+        JSON.stringify({ success: false, error: "Integração Meta não configurada", code: "NOT_CONFIGURED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Construir redirect URI (deve ser igual ao cadastrado no app)
-    const redirectUri = `${supabaseUrl}/functions/v1/meta-oauth-callback`;
+    // Construir redirect URI (deve ser igual ao usado em meta-oauth-start e cadastrado no Meta)
+    const redirectUri = `${appBaseUrl}/integrations/meta/callback`;
 
     // Trocar code por access_token (short-lived)
     const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
@@ -101,9 +104,9 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
       console.error("[meta-oauth-callback] Erro ao trocar token:", errorData);
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=token_exchange_failed`,
-        302
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao obter tokens de acesso", code: "TOKEN_EXCHANGE_FAILED", details: errorData }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -171,26 +174,38 @@ serve(async (req) => {
 
     if (upsertError) {
       console.error("[meta-oauth-callback] Erro ao salvar conexão:", upsertError);
-      return Response.redirect(
-        `${appBaseUrl}/integrations/meta/callback?error=save_failed`,
-        302
+      return new Response(
+        JSON.stringify({ success: false, error: "Erro ao salvar a conexão", code: "SAVE_FAILED" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     console.log(`[meta-oauth-callback] Conexão Meta salva com sucesso para tenant ${tenant_id}`);
 
-    // Redirect com sucesso para a rota do app
-    const successUrl = new URL(`${appBaseUrl}/integrations/meta/callback`);
-    successUrl.searchParams.set("success", "true");
-    successUrl.searchParams.set("return_path", return_path || "/integrations");
-
-    return Response.redirect(successUrl.toString(), 302);
+    return new Response(
+      JSON.stringify({
+        success: true,
+        returnPath: return_path || "/integrations",
+        connection: {
+          externalUserId: metaUserId,
+          externalUsername: metaUserName,
+          expiresAt,
+          scopePacks: scope_packs,
+          assets,
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
 
   } catch (error) {
     console.error("[meta-oauth-callback] Erro:", error);
-    return Response.redirect(
-      `${appBaseUrl}/integrations/meta/callback?error=internal_error`,
-      302
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : "Erro interno",
+        code: "INTERNAL_ERROR"
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
