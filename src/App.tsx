@@ -54,6 +54,8 @@ import ShippingDashboard from "@/pages/ShippingDashboard";
 import ShippingSettings from "@/pages/ShippingSettings";
 import Auth from "@/pages/Auth";
 import AwaitingConfirmation from "@/pages/AwaitingConfirmation";
+import AcceptInvite from "@/pages/AcceptInvite";
+import SystemUsers from "@/pages/SystemUsers";
 import CreateStore from "@/pages/CreateStore";
 import ResetPassword from "@/pages/ResetPassword";
 import StartPlan from "@/pages/start/StartPlan";
@@ -162,6 +164,7 @@ const App = () => {
               {/* Late OAuth callback - opened in popup, handles close */}
               <Route path="/integrations/late/callback" element={<LateCallback />} />
               <Route path="/demo-estrutura" element={<DemoEstruturaPage />} />
+              <Route path="/accept-invite" element={<AcceptInvite />} />
 
               {/* 
                 Storefront routes - When on tenant host (custom domain / platform subdomain),
@@ -319,6 +322,8 @@ const App = () => {
                   <Route path="/platform/health-monitor" element={<HealthMonitor />} />
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   <Route path="/platform/billing" element={<PlatformBilling />} />
+                  {/* System routes - Owner only */}
+                  <Route path="/system/users" element={<SystemUsers />} />
                   {/* Legacy redirects */}
                   <Route path="/health-monitor" element={<Navigate to="/platform/health-monitor" replace />} />
                   <Route path="/settings/emails" element={<Navigate to="/platform/integrations" replace />} />

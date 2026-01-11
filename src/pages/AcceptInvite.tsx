@@ -10,31 +10,40 @@ import { toast } from 'sonner';
 export default function AcceptInvite() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isLoading: authLoading, refreshProfile } = useAuth();
+  const { user, isLoading: authLoading, refreshProfile, setCurrentTenant } = useAuth();
   const token = searchParams.get('token');
   
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'login-required'>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const [acceptedTenantId, setAcceptedTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (authLoading) return;
     
-    if (!token) {
+    // Check for token from URL or sessionStorage (after login redirect)
+    const effectiveToken = token || sessionStorage.getItem('pending_invite_token');
+    
+    if (!effectiveToken) {
       setStatus('error');
       setErrorMessage('Token de convite não encontrado');
       return;
     }
 
     if (!user) {
+      // Save token and redirect to login
+      sessionStorage.setItem('pending_invite_token', effectiveToken);
       setStatus('login-required');
       return;
     }
+
+    // Clear stored token since we're processing it
+    sessionStorage.removeItem('pending_invite_token');
 
     // Accept the invitation
     const acceptInvite = async () => {
       try {
         const response = await supabase.functions.invoke('tenant-user-accept-invite', {
-          body: { token },
+          body: { token: effectiveToken },
         });
 
         if (response.error) throw response.error;
@@ -43,13 +52,19 @@ export default function AcceptInvite() {
         }
 
         setStatus('success');
+        setAcceptedTenantId(response.data.tenant_id);
         toast.success('Convite aceito com sucesso!');
         
         // Refresh profile to get new tenant
         await refreshProfile();
         
+        // Switch to the new tenant
+        if (response.data.tenant_id) {
+          await setCurrentTenant(response.data.tenant_id);
+        }
+        
         // Redirect after 2 seconds
-        setTimeout(() => navigate('/'), 2000);
+        setTimeout(() => navigate('/command-center'), 2000);
       } catch (error: any) {
         console.error('Error accepting invite:', error);
         setStatus('error');
@@ -61,10 +76,7 @@ export default function AcceptInvite() {
   }, [token, user, authLoading]);
 
   const handleLogin = () => {
-    // Save token in sessionStorage to use after login
-    if (token) {
-      sessionStorage.setItem('pending_invite_token', token);
-    }
+    // Token is already saved in sessionStorage
     navigate('/auth');
   };
 
@@ -101,7 +113,7 @@ export default function AcceptInvite() {
             <>
               <CheckCircle className="h-12 w-12 text-green-500" />
               <p className="text-center text-muted-foreground">
-                Convite aceito! Redirecionando...
+                Convite aceito! Redirecionando para a Central de Comando...
               </p>
             </>
           )}

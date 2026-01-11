@@ -66,6 +66,13 @@ export default function Auth() {
   // Redirect if already logged in
   useEffect(() => {
     if (user && !authLoading) {
+      // Check for pending invite token first
+      const pendingInviteToken = sessionStorage.getItem('pending_invite_token');
+      if (pendingInviteToken) {
+        navigate('/accept-invite', { replace: true });
+        return;
+      }
+      
       // Se tem plano salvo, redirecionar para billing
       const storedPlan = sessionStorage.getItem('selected_plan');
       if (storedPlan) {
