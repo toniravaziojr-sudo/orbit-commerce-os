@@ -104,19 +104,29 @@ export function StorefrontConfigTab() {
   };
 
   const handleLogoUpload = async (file: File) => {
-    const url = await uploadAsset(file, 'logo');
-    if (url) {
-      handleChange('logo_url', url);
+    const result = await uploadAsset(file, 'logo');
+    if (result) {
+      // Update both URL and file_id for strict matching
+      handleChange('logo_url', result.url);
+      // Save file_id to store_settings for strict badge matching
+      if (result.fileId) {
+        upsertSettings.mutate({ logo_file_id: result.fileId });
+      }
     }
-    return url;
+    return result?.url || null;
   };
 
   const handleFaviconUpload = async (file: File) => {
-    const url = await uploadAsset(file, 'favicon');
-    if (url) {
-      handleChange('favicon_url', url);
+    const result = await uploadAsset(file, 'favicon');
+    if (result) {
+      // Update both URL and file_id for strict matching
+      handleChange('favicon_url', result.url);
+      // Save file_id to store_settings for strict badge matching
+      if (result.fileId) {
+        upsertSettings.mutate({ favicon_file_id: result.fileId });
+      }
     }
-    return url;
+    return result?.url || null;
   };
 
   if (isLoading) {

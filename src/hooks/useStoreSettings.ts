@@ -64,6 +64,8 @@ export type StoreSettingsFormData = {
   store_description?: string | null;
   logo_url?: string | null;
   favicon_url?: string | null;
+  logo_file_id?: string | null;
+  favicon_file_id?: string | null;
   contact_phone?: string | null;
   contact_email?: string | null;
   contact_address?: string | null;
@@ -219,9 +221,15 @@ export function useStoreSettings() {
     },
   });
 
-  // Upload de imagem para o bucket store-assets + registra no Drive
-  // SEMPRE gera path único para evitar cache de sobrescrita
-  const uploadAsset = async (file: File, assetType: 'logo' | 'favicon'): Promise<string | null> => {
+  /**
+   * Upload de imagem para o bucket store-assets + registra no Drive.
+   * SEMPRE gera path único para evitar cache de sobrescrita.
+   * Returns { url, fileId } for proper file_id tracking.
+   */
+  const uploadAsset = async (
+    file: File, 
+    assetType: 'logo' | 'favicon'
+  ): Promise<{ url: string; fileId: string | null } | null> => {
     if (!currentTenant?.id || !user?.id) return null;
     
     // Get current URL for reference (old file)
@@ -250,7 +258,7 @@ export function useStoreSettings() {
     // Also invalidate store-settings-urls for badge updates
     queryClient.invalidateQueries({ queryKey: ['store-settings-urls', currentTenant.id] });
     
-    return result.publicUrl;
+    return { url: result.publicUrl, fileId: result.fileId };
   };
 
   return {
