@@ -302,6 +302,113 @@ export type Database = {
           },
         ]
       }
+      agenda_reminders: {
+        Row: {
+          channel: string
+          created_at: string
+          id: string
+          last_error: string | null
+          remind_at: string
+          sent_at: string | null
+          status: string
+          task_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          remind_at: string
+          sent_at?: string | null
+          status?: string
+          task_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          remind_at?: string
+          sent_at?: string | null
+          status?: string
+          task_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_reminders_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "agenda_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agenda_reminders_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agenda_tasks: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          due_at: string
+          id: string
+          is_recurring: boolean | null
+          recurrence: Json | null
+          reminder_offsets: Json | null
+          status: string
+          tenant_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_at: string
+          id?: string
+          is_recurring?: boolean | null
+          recurrence?: Json | null
+          reminder_offsets?: Json | null
+          status?: string
+          tenant_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_at?: string
+          id?: string
+          is_recurring?: boolean | null
+          recurrence?: Json | null
+          reminder_offsets?: Json | null
+          status?: string
+          tenant_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agenda_tasks_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_channel_config: {
         Row: {
           channel_type: string
