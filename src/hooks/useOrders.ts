@@ -13,6 +13,7 @@ import {
   normalizePaymentStatus,
   normalizeShippingStatus,
 } from '@/types/orderStatus';
+import { coreOrdersApi } from '@/lib/coreApi';
 
 // Re-export types for backward compatibility
 export type { OrderStatus, PaymentStatus, ShippingStatus };
@@ -322,85 +323,17 @@ export function useOrders(options?: {
 
   const updateOrderStatus = useMutation({
     mutationFn: async ({ orderId, status, reason }: { orderId: string; status: OrderStatus; reason?: string }) => {
-      // Get current order
-      const { data: currentOrder, error: fetchError } = await supabase
-        .from('orders')
-        .select('status')
-        .eq('id', orderId)
-        .single();
-
-      if (fetchError) throw fetchError;
-
-      const updateData: Record<string, unknown> = { status };
+      // Use Core API for status changes with state machine validation
+      const result = await coreOrdersApi.setOrderStatus(orderId, status, reason);
       
-      // Update related fields based on status
-      if (status === 'cancelled' || status === 'refunded') {
-        updateData.cancelled_at = new Date().toISOString();
-        updateData.cancellation_reason = reason;
-      } else if (status === 'dispatched') {
-        updateData.shipping_status = 'label_generated';
-      } else if (status === 'shipping') {
-        updateData.shipped_at = new Date().toISOString();
-        updateData.shipping_status = 'shipped';
-      } else if (status === 'completed') {
-        updateData.delivered_at = new Date().toISOString();
-        updateData.shipping_status = 'delivered';
-      } else if (status === 'approved') {
-        updateData.paid_at = new Date().toISOString();
-        updateData.payment_status = 'paid';
+      if (!result.success) {
+        if (result.code === 'INVALID_TRANSITION') {
+          throw new Error('Transição de status inválida');
+        }
+        throw new Error(result.error || 'Erro ao atualizar status');
       }
 
-      const { data, error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId)
-        .select('*, customers(email)')
-        .single();
-
-      if (error) throw error;
-
-      // Create history entry
-      const statusLabels = ORDER_STATUS_CONFIG;
-      const oldLabel = statusLabels[currentOrder.status as OrderStatus]?.label || currentOrder.status;
-      const newLabel = statusLabels[status]?.label || status;
-      
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        action: 'status_changed',
-        previous_value: { status: currentOrder.status },
-        new_value: { status },
-        description: `Status do pedido alterado de ${oldLabel} para ${newLabel}`,
-      });
-
-      // Emit payment event when order is marked as approved
-      if (status === 'approved' && currentTenant?.id) {
-        const idempotencyKey = `payment_approved_manual_${orderId}_${Date.now()}`;
-        
-        await supabase.from('events_inbox').insert({
-          tenant_id: currentTenant.id,
-          provider: 'internal',
-          event_type: 'payment_status_changed',
-          idempotency_key: idempotencyKey,
-          occurred_at: new Date().toISOString(),
-          payload_normalized: {
-            order_id: orderId,
-            order_number: data.order_number || '',
-            customer_name: data.customer_name || '',
-            customer_email: data.customer_email || '',
-            customer_phone: data.customer_phone || '',
-            order_total: data.total || 0,
-            old_status: currentOrder.status,
-            new_status: 'paid',
-            payment_method: data.payment_method || 'manual',
-            payment_gateway: 'manual',
-          },
-          status: 'new',
-        });
-        
-        console.log('[useOrders] Emitted payment_approved event for order', orderId);
-      }
-
-      return data;
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
@@ -408,7 +341,7 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
+      toast.error(error.message || 'Erro ao atualizar status');
     },
   });
 
@@ -597,34 +530,17 @@ export function useOrderDetails(orderId: string | undefined) {
 
   const updatePaymentStatus = useMutation({
     mutationFn: async ({ orderId, paymentStatus }: { orderId: string; paymentStatus: PaymentStatus }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      // Use Core API for payment status changes with state machine validation
+      const result = await coreOrdersApi.setPaymentStatus(orderId, paymentStatus);
       
-      const updateData: Record<string, unknown> = { 
-        payment_status: paymentStatus,
-      };
-      
-      // If paid, set paid_at
-      if (paymentStatus === 'paid') {
-        updateData.paid_at = new Date().toISOString();
+      if (!result.success) {
+        if (result.code === 'INVALID_TRANSITION') {
+          throw new Error('Transição de status de pagamento inválida');
+        }
+        throw new Error(result.error || 'Erro ao atualizar status de pagamento');
       }
-      
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
 
-      if (error) throw error;
-
-      // Add history
-      const statusLabel = PAYMENT_STATUS_CONFIG[paymentStatus]?.label || paymentStatus;
-      
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        author_id: user?.id,
-        action: 'payment_status_updated',
-        description: `Status de pagamento alterado para: ${statusLabel}`,
-        new_value: { payment_status: paymentStatus },
-      });
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
@@ -633,7 +549,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de pagamento:', error);
-      toast.error('Erro ao atualizar status de pagamento');
+      toast.error(error.message || 'Erro ao atualizar status de pagamento');
     },
   });
 
@@ -680,37 +596,26 @@ export function useOrderDetails(orderId: string | undefined) {
   });
 
   const updateShippingStatus = useMutation({
-    mutationFn: async ({ orderId, shippingStatus }: { orderId: string; shippingStatus: ShippingStatus }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      const updateData: Record<string, unknown> = { 
-        shipping_status: shippingStatus,
-      };
-      
-      // Update related timestamps based on status
-      if (shippingStatus === 'shipped') {
-        updateData.shipped_at = new Date().toISOString();
-      } else if (shippingStatus === 'delivered') {
-        updateData.delivered_at = new Date().toISOString();
-      }
-      
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Add history
-      const statusLabel = SHIPPING_STATUS_CONFIG[shippingStatus]?.label || shippingStatus;
-      
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        author_id: user?.id,
-        action: 'shipping_status_updated',
-        description: `Status de envio alterado para: ${statusLabel}`,
-        new_value: { shipping_status: shippingStatus },
+    mutationFn: async ({ orderId, shippingStatus, trackingCode, carrier }: { 
+      orderId: string; 
+      shippingStatus: ShippingStatus;
+      trackingCode?: string;
+      carrier?: string;
+    }) => {
+      // Use Core API for shipping status changes with state machine validation
+      const result = await coreOrdersApi.setShippingStatus(orderId, shippingStatus, {
+        tracking_code: trackingCode,
+        shipping_carrier: carrier,
       });
+      
+      if (!result.success) {
+        if (result.code === 'INVALID_TRANSITION') {
+          throw new Error('Transição de status de envio inválida');
+        }
+        throw new Error(result.error || 'Erro ao atualizar status de envio');
+      }
+
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
@@ -719,7 +624,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar status de envio:', error);
-      toast.error('Erro ao atualizar status de envio');
+      toast.error(error.message || 'Erro ao atualizar status de envio');
     },
   });
 
