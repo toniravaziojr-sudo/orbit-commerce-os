@@ -1994,6 +1994,59 @@ export type Database = {
           },
         ]
       }
+      core_audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          after_json: Json
+          before_json: Json | null
+          changed_fields: string[]
+          correlation_id: string | null
+          created_at: string
+          entity_id: string
+          entity_type: string
+          id: string
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          after_json: Json
+          before_json?: Json | null
+          changed_fields?: string[]
+          correlation_id?: string | null
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          source?: string
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          after_json?: Json
+          before_json?: Json | null
+          changed_fields?: string[]
+          correlation_id?: string | null
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "core_audit_log_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_blocks: {
         Row: {
           block_type: string
@@ -2321,6 +2374,7 @@ export type Database = {
           company_name: string | null
           cpf: string | null
           created_at: string
+          deleted_at: string | null
           email: string
           email_verified: boolean | null
           first_order_at: string | null
@@ -2359,6 +2413,7 @@ export type Database = {
           company_name?: string | null
           cpf?: string | null
           created_at?: string
+          deleted_at?: string | null
           email: string
           email_verified?: boolean | null
           first_order_at?: string | null
@@ -2397,6 +2452,7 @@ export type Database = {
           company_name?: string | null
           cpf?: string | null
           created_at?: string
+          deleted_at?: string | null
           email?: string
           email_verified?: boolean | null
           first_order_at?: string | null
@@ -6801,6 +6857,7 @@ export type Database = {
           cancelled_at: string | null
           created_at: string
           currency: string | null
+          customer_cnpj: string | null
           customer_cpf: string | null
           customer_email: string
           customer_id: string | null
@@ -6826,6 +6883,8 @@ export type Database = {
           paid_at: string | null
           payment_gateway: string | null
           payment_gateway_id: string | null
+          payment_link_expires_at: string | null
+          payment_link_url: string | null
           payment_method: Database["public"]["Enums"]["payment_method"] | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           shipped_at: string | null
@@ -6870,6 +6929,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           currency?: string | null
+          customer_cnpj?: string | null
           customer_cpf?: string | null
           customer_email: string
           customer_id?: string | null
@@ -6895,6 +6955,8 @@ export type Database = {
           paid_at?: string | null
           payment_gateway?: string | null
           payment_gateway_id?: string | null
+          payment_link_expires_at?: string | null
+          payment_link_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shipped_at?: string | null
@@ -6939,6 +7001,7 @@ export type Database = {
           cancelled_at?: string | null
           created_at?: string
           currency?: string | null
+          customer_cnpj?: string | null
           customer_cpf?: string | null
           customer_email?: string
           customer_id?: string | null
@@ -6964,6 +7027,8 @@ export type Database = {
           paid_at?: string | null
           payment_gateway?: string | null
           payment_gateway_id?: string | null
+          payment_link_expires_at?: string | null
+          payment_link_url?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"] | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           shipped_at?: string | null
@@ -7926,6 +7991,7 @@ export type Database = {
           compare_at_price: number | null
           cost_price: number | null
           created_at: string
+          deleted_at: string | null
           depth: number | null
           description: string | null
           external_reference: string | null
@@ -7973,6 +8039,7 @@ export type Database = {
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          deleted_at?: string | null
           depth?: number | null
           description?: string | null
           external_reference?: string | null
@@ -8020,6 +8087,7 @@ export type Database = {
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          deleted_at?: string | null
           depth?: number | null
           description?: string | null
           external_reference?: string | null
