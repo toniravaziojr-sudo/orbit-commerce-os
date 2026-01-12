@@ -14,11 +14,11 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   '/': 'pending',
   '/executions': 'pending',
   
-  // E-commerce
-  '/orders': 'pending',
-  '/products': 'pending',
+  // E-commerce (Core Modules - Approved ✅)
+  '/orders': 'ready',
+  '/products': 'ready',
   '/categories': 'ready',
-  '/customers': 'pending',
+  '/customers': 'ready',
   '/discounts': 'pending',
   
   // Loja Online
