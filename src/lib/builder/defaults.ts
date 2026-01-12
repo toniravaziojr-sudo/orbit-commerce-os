@@ -5,12 +5,53 @@
 import type { BlockNode } from './types';
 import { generateBlockId } from './utils';
 
-// Default Home template
+// Demo banners for HeroBanner (sistema - não entra no Meu Drive do tenant)
+const demoBannerSlides = [
+  {
+    id: 'demo-1',
+    imageDesktop: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1920&h=600&fit=crop&q=80',
+    imageMobile: 'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=768&h=400&fit=crop&q=80',
+    altText: 'Promoção Especial - Até 50% OFF',
+    linkUrl: '',
+  },
+  {
+    id: 'demo-2',
+    imageDesktop: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1920&h=600&fit=crop&q=80',
+    imageMobile: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=768&h=400&fit=crop&q=80',
+    altText: 'Novidades - Confira os lançamentos',
+    linkUrl: '',
+  },
+  {
+    id: 'demo-3',
+    imageDesktop: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=1920&h=600&fit=crop&q=80',
+    imageMobile: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=768&h=400&fit=crop&q=80',
+    altText: 'Frete Grátis em todo Brasil',
+    linkUrl: '',
+  },
+];
+
+// Demo benefícios para InfoHighlights
+const demoBenefitsItems = [
+  { id: 'benefit-1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
+  { id: 'benefit-2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
+  { id: 'benefit-3', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente 100% protegido' },
+  { id: 'benefit-4', icon: 'Package', title: 'Troca Fácil', description: '30 dias para trocar' },
+];
+
+// Demo depoimentos para Testimonials
+const demoTestimonialsItems = [
+  { name: 'Maria Silva', content: 'Produto excelente! Entrega super rápida e embalagem perfeita. Superou minhas expectativas!', rating: 5 },
+  { name: 'João Santos', content: 'Comprei para presente e adoraram! Qualidade impecável e ótimo custo-benefício.', rating: 5 },
+  { name: 'Ana Costa', content: 'Já é minha terceira compra. Atendimento nota 10 e produtos sempre conforme descrito.', rating: 5 },
+];
+
+// Default Home template - Template completo para novos tenants
 export const defaultHomeTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
   props: {},
   children: [
+    // 1. Cabeçalho
     {
       id: generateBlockId('Header'),
       type: 'Header',
@@ -19,51 +60,65 @@ export const defaultHomeTemplate: BlockNode = {
         showSearch: true,
         showCart: true,
         sticky: true,
-        noticeEnabled: false,
-        noticeText: '',
+        noticeEnabled: true,
+        noticeText: 'Frete grátis em compras acima de R$199! Aproveite nossas ofertas.',
         noticeBgColor: '#1e40af',
         noticeTextColor: '#ffffff',
       },
     },
+    // 2. Banner Principal (Carrossel)
     {
-      id: generateBlockId('Hero'),
-      type: 'Hero',
+      id: generateBlockId('HeroBanner'),
+      type: 'HeroBanner',
       props: {
-        title: 'Bem-vindo à Nossa Loja',
-        subtitle: 'Descubra produtos incríveis com os melhores preços',
-        backgroundImage: '',
-        buttonText: 'Ver Produtos',
-        buttonUrl: '/produtos',
-        alignment: 'center',
-        overlayOpacity: 50,
+        slides: demoBannerSlides,
+        autoplaySeconds: 5,
+        bannerWidth: 'full',
+        showArrows: true,
+        showDots: true,
       },
     },
+    // 3. Barra de Benefícios
+    {
+      id: generateBlockId('InfoHighlights'),
+      type: 'InfoHighlights',
+      props: {
+        items: demoBenefitsItems,
+        iconColor: '#6366f1',
+        textColor: '#1f2937',
+        layout: 'horizontal',
+      },
+    },
+    // 4. Categorias em Miniatura
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
         backgroundColor: 'transparent',
-        padding: 'lg',
+        paddingY: 48,
       },
       children: [
         {
-          id: generateBlockId('CategoryList'),
-          type: 'CategoryList',
+          id: generateBlockId('FeaturedCategories'),
+          type: 'FeaturedCategories',
           props: {
-            title: 'Categorias',
-            layout: 'grid',
-            columns: 4,
-            showDescription: false,
+            title: 'Navegue por Categorias',
+            limit: 6,
+            columns: 6,
+            showImage: true,
+            showName: true,
+            imageStyle: 'rounded',
           },
         },
       ],
     },
+    // 5. Produtos em Destaque
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
         backgroundColor: '#f9fafb',
-        padding: 'lg',
+        paddingY: 48,
       },
       children: [
         {
@@ -79,13 +134,57 @@ export const defaultHomeTemplate: BlockNode = {
         },
       ],
     },
+    // 6. Depoimentos de Clientes
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        backgroundColor: 'transparent',
+        paddingY: 48,
+      },
+      children: [
+        {
+          id: generateBlockId('Testimonials'),
+          type: 'Testimonials',
+          props: {
+            title: 'O que dizem nossos clientes',
+            items: demoTestimonialsItems,
+          },
+        },
+      ],
+    },
+    // 7. Últimos Posts do Blog
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        backgroundColor: '#f9fafb',
+        paddingY: 48,
+      },
+      children: [
+        {
+          id: generateBlockId('BlogListing'),
+          type: 'BlogListing',
+          props: {
+            title: 'Blog',
+            description: 'Dicas e novidades para você',
+            postsPerPage: 3,
+            showExcerpt: true,
+            showImage: true,
+            showTags: false,
+            showPagination: false,
+          },
+        },
+      ],
+    },
+    // 8. Rodapé
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
       props: {
         menuId: '',
         showSocial: true,
-        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
         footerBgColor: '',
         footerTextColor: '',
         noticeEnabled: false,
@@ -97,12 +196,13 @@ export const defaultHomeTemplate: BlockNode = {
   ],
 };
 
-// Default Category template
+// Default Category template - Template completo para páginas de categoria
 export const defaultCategoryTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
   props: {},
   children: [
+    // 1. Cabeçalho
     {
       id: generateBlockId('Header'),
       type: 'Header',
@@ -117,27 +217,29 @@ export const defaultCategoryTemplate: BlockNode = {
         noticeTextColor: '#ffffff',
       },
     },
+    // 2. Slot para Banner da Categoria (renderizado dinamicamente via context)
+    // O banner e título da categoria são injetados automaticamente pelo StorefrontCategory
+    // 3. Barra de Benefícios
     {
-      id: generateBlockId('Section'),
-      type: 'Section',
+      id: generateBlockId('InfoHighlights'),
+      type: 'InfoHighlights',
       props: {
-        padding: 'md',
+        items: [
+          { id: 'benefit-1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
+          { id: 'benefit-2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
+          { id: 'benefit-3', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente 100% protegido' },
+        ],
+        iconColor: '#6366f1',
+        textColor: '#1f2937',
+        layout: 'horizontal',
       },
-      children: [
-        {
-          id: generateBlockId('RichText'),
-          type: 'RichText',
-          props: {
-            content: '<h1>{{category.name}}</h1><p>{{category.description}}</p>',
-          },
-        },
-      ],
     },
+    // 4. Grid de Produtos da Categoria
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
-        padding: 'lg',
+        paddingY: 48,
       },
       children: [
         {
@@ -154,13 +256,14 @@ export const defaultCategoryTemplate: BlockNode = {
         },
       ],
     },
+    // 5. Rodapé
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
       props: {
         menuId: '',
         showSocial: true,
-        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
         footerBgColor: '',
         footerTextColor: '',
         noticeEnabled: false,
@@ -172,12 +275,13 @@ export const defaultCategoryTemplate: BlockNode = {
   ],
 };
 
-// Default Product template
+// Default Product template - Template completo para páginas de produto
 export const defaultProductTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
   props: {},
   children: [
+    // 1. Cabeçalho
     {
       id: generateBlockId('Header'),
       type: 'Header',
@@ -192,11 +296,12 @@ export const defaultProductTemplate: BlockNode = {
         noticeTextColor: '#ffffff',
       },
     },
+    // 2. Detalhes do Produto
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
-        padding: 'lg',
+        paddingY: 32,
       },
       children: [
         {
@@ -211,19 +316,36 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
+    // 3. Barra de Benefícios
+    {
+      id: generateBlockId('InfoHighlights'),
+      type: 'InfoHighlights',
+      props: {
+        items: [
+          { id: 'benefit-1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
+          { id: 'benefit-2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
+          { id: 'benefit-3', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente 100% protegido' },
+          { id: 'benefit-4', icon: 'Package', title: 'Troca Fácil', description: '30 dias para trocar' },
+        ],
+        iconColor: '#6366f1',
+        textColor: '#1f2937',
+        layout: 'horizontal',
+      },
+    },
+    // 4. Produtos Relacionados
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
         backgroundColor: '#f9fafb',
-        padding: 'lg',
+        paddingY: 48,
       },
       children: [
         {
           id: generateBlockId('ProductGrid'),
           type: 'ProductGrid',
           props: {
-            title: 'Produtos Relacionados',
+            title: 'Você também pode gostar',
             source: 'category',
             columns: 4,
             limit: 4,
@@ -232,13 +354,36 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
+    // 5. Depoimentos
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        paddingY: 48,
+      },
+      children: [
+        {
+          id: generateBlockId('Testimonials'),
+          type: 'Testimonials',
+          props: {
+            title: 'O que dizem nossos clientes',
+            items: [
+              { name: 'Maria Silva', content: 'Produto excelente! Entrega super rápida.', rating: 5 },
+              { name: 'João Santos', content: 'Qualidade impecável, recomendo!', rating: 5 },
+              { name: 'Ana Costa', content: 'Ótimo custo-benefício.', rating: 5 },
+            ],
+          },
+        },
+      ],
+    },
+    // 6. Rodapé
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
       props: {
         menuId: '',
         showSocial: true,
-        copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+        copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
         footerBgColor: '',
         footerTextColor: '',
         noticeEnabled: false,
