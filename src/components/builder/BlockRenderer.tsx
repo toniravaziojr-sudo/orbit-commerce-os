@@ -69,6 +69,8 @@ import { LogosCarouselBlock as LogosCarouselBlockComponent } from './blocks/Logo
 import { StatsNumbersBlock as StatsNumbersBlockComponent } from './blocks/StatsNumbersBlock';
 import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/ImageGalleryBlock';
 import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
+import { CartDemoBlock } from './blocks/CartDemoBlock';
+import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 
 // Storefront components
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
@@ -850,35 +852,21 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
   return <CheckoutStepWizard tenantId={tenantId} />;
 }
 
-function CartBlock({ isEditing, context }: any) {
+function CartBlock({ isEditing, context, showCrossSell, showOrderBump, showBuyTogether }: any) {
   const tenantId = context?.settings?.tenant_id || '';
 
   if (isEditing) {
-    return (
-      <div className="py-8 container mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">Carrinho de Compras</h1>
-        <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-          [Componente de carrinho completo será renderizado aqui]
-        </div>
-      </div>
-    );
+    return <CartDemoBlock showCrossSell={showCrossSell} showOrderBump={showOrderBump} showBuyTogether={showBuyTogether} isEditing />;
   }
 
   return <CartContent tenantId={tenantId} />;
 }
 
-function CheckoutBlock({ isEditing, context }: any) {
+function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any) {
   const tenantId = context?.settings?.tenant_id || '';
 
   if (isEditing) {
-    return (
-      <div className="py-8 container mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8">Finalizar Compra</h1>
-        <div className="bg-muted/50 rounded-lg p-8 text-center text-muted-foreground">
-          [Formulário de checkout completo será renderizado aqui]
-        </div>
-      </div>
-    );
+    return <CheckoutDemoBlock showOrderBump={showOrderBump} showTimeline={showTimeline} isEditing />;
   }
 
   return <CheckoutStepWizard tenantId={tenantId} />;
