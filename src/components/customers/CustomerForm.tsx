@@ -115,8 +115,8 @@ export function CustomerForm({
       ie: '',
       rg: '',
       accepts_email_marketing: true,
-      accepts_sms_marketing: false,
-      accepts_whatsapp_marketing: false,
+      accepts_sms_marketing: true,
+      accepts_whatsapp_marketing: true,
       notes: '',
       // Address defaults
       address_label: 'Principal',
@@ -150,9 +150,9 @@ export function CustomerForm({
         company_name: customer?.company_name ?? '',
         ie: customer?.ie ?? '',
         rg: customer?.rg ?? '',
-        accepts_email_marketing: customer?.accepts_email_marketing ?? true,
-        accepts_sms_marketing: customer?.accepts_sms_marketing ?? false,
-        accepts_whatsapp_marketing: customer?.accepts_whatsapp_marketing ?? false,
+        accepts_email_marketing: true,
+        accepts_sms_marketing: true,
+        accepts_whatsapp_marketing: true,
         notes: customer?.notes ?? '',
         // Address defaults - reset for new customer
         address_label: 'Principal',
@@ -244,11 +244,10 @@ export function CustomerForm({
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <ScrollArea className="max-h-[60vh] pr-4">
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-4">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
                   <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
                   <TabsTrigger value="company">PF/PJ</TabsTrigger>
                   <TabsTrigger value="address">Endereço</TabsTrigger>
-                  <TabsTrigger value="marketing">Marketing</TabsTrigger>
                 </TabsList>
 
                 {/* TAB: Dados Básicos */}
@@ -434,35 +433,19 @@ export function CustomerForm({
                         <span className="font-medium">Dados Pessoa Física</span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="cpf"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>CPF</FormLabel>
-                              <FormControl>
-                                <Input placeholder="000.000.000-00" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name="rg"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>RG</FormLabel>
-                              <FormControl>
-                                <Input placeholder="00.000.000-0" {...field} value={field.value ?? ''} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="cpf"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CPF</FormLabel>
+                            <FormControl>
+                              <Input placeholder="000.000.000-00" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
                       <div className="grid grid-cols-2 gap-4">
                         <FormField
@@ -699,106 +682,6 @@ export function CustomerForm({
                   </div>
                 </TabsContent>
 
-                {/* TAB: Marketing */}
-                <TabsContent value="marketing" className="space-y-4">
-                  <div className="text-sm text-muted-foreground mb-4">
-                    Configure os canais de comunicação que o cliente aceita receber mensagens.
-                  </div>
-
-                  <FormField
-                    control={form.control}
-                    name="accepts_marketing"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                        <div className="space-y-0.5">
-                          <FormLabel className="text-base">Aceita marketing geral</FormLabel>
-                          <FormDescription>
-                            Permissão geral para comunicações promocionais
-                          </FormDescription>
-                        </div>
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <Separator />
-
-                  <div className="text-sm font-medium mb-2">Consentimentos por canal</div>
-
-                  <FormField
-                    control={form.control}
-                    name="accepts_email_marketing"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="flex items-center gap-3">
-                          <Mail className="h-5 w-5 text-muted-foreground" />
-                          <div className="space-y-0.5">
-                            <FormLabel>E-mail</FormLabel>
-                            <FormDescription className="text-xs">
-                              Newsletters, promoções por e-mail
-                            </FormDescription>
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch 
-                            checked={field.value ?? false} 
-                            onCheckedChange={field.onChange} 
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="accepts_sms_marketing"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="flex items-center gap-3">
-                          <MessageSquare className="h-5 w-5 text-muted-foreground" />
-                          <div className="space-y-0.5">
-                            <FormLabel>SMS</FormLabel>
-                            <FormDescription className="text-xs">
-                              Mensagens de texto promocionais
-                            </FormDescription>
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch 
-                            checked={field.value ?? false} 
-                            onCheckedChange={field.onChange} 
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="accepts_whatsapp_marketing"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                        <div className="flex items-center gap-3">
-                          <Phone className="h-5 w-5 text-muted-foreground" />
-                          <div className="space-y-0.5">
-                            <FormLabel>WhatsApp</FormLabel>
-                            <FormDescription className="text-xs">
-                              Mensagens promocionais via WhatsApp
-                            </FormDescription>
-                          </div>
-                        </div>
-                        <FormControl>
-                          <Switch 
-                            checked={field.value ?? false} 
-                            onCheckedChange={field.onChange} 
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </TabsContent>
               </Tabs>
             </ScrollArea>
 
