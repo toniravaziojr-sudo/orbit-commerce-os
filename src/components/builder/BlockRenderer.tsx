@@ -1,6 +1,7 @@
 // =============================================
 // BLOCK RENDERER - Renders blocks recursively
 // Refactored: Layout and content blocks moved to separate files
+// Supports Safe Mode (?safe=1) for debugging
 // =============================================
 
 import React from 'react';
@@ -96,6 +97,7 @@ interface BlockRendererProps {
   isSelected?: boolean;
   isEditing?: boolean;
   isInteractMode?: boolean;
+  isSafeMode?: boolean; // Safe mode - render only placeholders
   onSelect?: (id: string) => void;
   onAddBlock?: (type: string, parentId: string, index: number) => void;
   onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
@@ -113,6 +115,7 @@ export function BlockRenderer({
   isSelected = false,
   isEditing = false,
   isInteractMode = false,
+  isSafeMode = false,
   onSelect,
   onAddBlock,
   onMoveBlock,
@@ -137,6 +140,35 @@ export function BlockRenderer({
 
   // Don't render hidden blocks in preview/public mode
   if (node.hidden && !isEditing) return null;
+
+  // SAFE MODE: Render simple placeholders for all blocks except layout blocks
+  // This prevents #300 errors by avoiding complex block components with hooks
+  const isLayoutBlock = ['Page', 'Section', 'Container', 'Grid', 'Column', 'Columns'].includes(node.type);
+  if (isSafeMode && !isLayoutBlock) {
+    return (
+      <div 
+        className={cn(
+          "p-4 border-2 border-dashed rounded-lg m-2 transition-all",
+          isSelected ? "border-primary bg-primary/10" : "border-muted-foreground/30 bg-muted/50"
+        )}
+        onClick={(e) => {
+          if (onSelect) {
+            e.stopPropagation();
+            onSelect(node.id);
+          }
+        }}
+      >
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs">{node.type}</span>
+          <span>{definition.label}</span>
+          {node.hidden && <span className="text-yellow-500">(oculto)</span>}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Safe Mode - Bloco simplificado para debug
+        </p>
+      </div>
+    );
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     if (isEditing && onSelect) {
@@ -178,6 +210,7 @@ export function BlockRenderer({
               context={context}
               isEditing={isEditing}
               isInteractMode={isInteractMode}
+              isSafeMode={isSafeMode}
               onSelect={onSelect}
               onAddBlock={onAddBlock}
               onMoveBlock={onMoveBlock}

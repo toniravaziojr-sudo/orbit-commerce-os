@@ -1,12 +1,14 @@
 // =============================================
 // BUILDER DEBUG PANEL - Diagnóstico visual do estado do Builder
 // Ativado por ?debug=1 na URL
+// Inclui React Instance Guard status
 // =============================================
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { ChevronDown, ChevronUp, Bug, CheckCircle, XCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronUp, Bug, CheckCircle, XCircle, Loader2, AlertTriangle, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { getReactGuardStatus, ReactGuardStatus } from '@/lib/reactInstanceGuard';
 
 export interface DebugQueryState {
   name: string;
@@ -45,15 +47,23 @@ interface BuilderDebugPanelProps {
   pageType: string;
   queries: DebugQueryState[];
   extraInfo?: Record<string, string | number | boolean | null | undefined>;
+  isSafeMode?: boolean;
 }
 
-export function BuilderDebugPanel({ pageType, queries, extraInfo }: BuilderDebugPanelProps) {
+export function BuilderDebugPanel({ pageType, queries, extraInfo, isSafeMode }: BuilderDebugPanelProps) {
   const [searchParams] = useSearchParams();
   const { user, currentTenant, isLoading: authLoading } = useAuth();
   const [isExpanded, setIsExpanded] = useState(true);
   const [errors, setErrors] = useState<SupabaseError[]>([]);
+  const [reactGuard, setReactGuard] = useState<ReactGuardStatus | null>(null);
 
   const isDebugMode = searchParams.get('debug') === '1';
+
+  // Check React Guard status on mount
+  useEffect(() => {
+    if (!isDebugMode) return;
+    setReactGuard(getReactGuardStatus());
+  }, [isDebugMode]);
 
   // Refresh errors periodically
   useEffect(() => {
@@ -97,6 +107,37 @@ export function BuilderDebugPanel({ pageType, queries, extraInfo }: BuilderDebug
 
       {isExpanded && (
         <div className="p-3 space-y-3 overflow-auto" style={{ maxHeight: 'calc(70vh - 40px)' }}>
+          {/* React Instance Guard */}
+          <section>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">React Guard</h3>
+            <div className={`rounded p-2 text-xs font-mono flex items-center gap-2 ${
+              reactGuard?.ok ? 'bg-green-500/10 text-green-600' : 'bg-destructive/10 text-destructive'
+            }`}>
+              {reactGuard?.ok ? (
+                <ShieldCheck className="h-4 w-4" />
+              ) : (
+                <ShieldAlert className="h-4 w-4" />
+              )}
+              <span>{reactGuard?.message || 'Checking...'}</span>
+            </div>
+            {reactGuard && !reactGuard.ok && (
+              <div className="bg-destructive/5 rounded p-2 mt-1 text-xs">
+                <div className="font-semibold text-destructive">⚠️ Multiple React instances detected!</div>
+                <div className="text-muted-foreground">This causes React error #300</div>
+              </div>
+            )}
+          </section>
+
+          {/* Safe Mode Status */}
+          {isSafeMode && (
+            <section>
+              <div className="bg-yellow-500/10 text-yellow-600 rounded p-2 text-xs font-mono flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Safe Mode ativo - Blocos simplificados</span>
+              </div>
+            </section>
+          )}
+
           {/* Auth Info */}
           <section>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Auth</h3>
