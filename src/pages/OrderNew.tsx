@@ -37,6 +37,8 @@ export default function OrderNew() {
     customer_name: '',
     customer_email: '',
     customer_phone: '',
+    customer_cpf: '',
+    person_type: 'pf' as 'pf' | 'pj',
     payment_method: '' as PaymentMethod | '',
     shipping_street: '',
     shipping_number: '',
@@ -46,6 +48,7 @@ export default function OrderNew() {
     shipping_state: '',
     shipping_postal_code: '',
     customer_notes: '',
+    internal_notes: '',
   });
 
   const [items, setItems] = useState<OrderItemForm[]>([]);
@@ -108,6 +111,7 @@ export default function OrderNew() {
       customer_name: formData.customer_name,
       customer_email: formData.customer_email,
       customer_phone: formData.customer_phone || null,
+      customer_cpf: formData.customer_cpf || null,
       payment_method: formData.payment_method || null,
       shipping_street: formData.shipping_street || null,
       shipping_number: formData.shipping_number || null,
@@ -117,6 +121,7 @@ export default function OrderNew() {
       shipping_state: formData.shipping_state || null,
       shipping_postal_code: formData.shipping_postal_code || null,
       customer_notes: formData.customer_notes || null,
+      internal_notes: formData.internal_notes || null,
       items: items.map(item => ({
         product_id: item.product_id,
         sku: item.sku,
@@ -180,6 +185,32 @@ export default function OrderNew() {
                 id="customer_phone"
                 value={formData.customer_phone}
                 onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="person_type">Tipo de Pessoa</Label>
+              <Select
+                value={formData.person_type}
+                onValueChange={(value) => setFormData({ ...formData, person_type: value as 'pf' | 'pj' })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pf">Pessoa Física</SelectItem>
+                  <SelectItem value="pj">Pessoa Jurídica</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer_cpf">
+                {formData.person_type === 'pj' ? 'CNPJ' : 'CPF'}
+              </Label>
+              <Input
+                id="customer_cpf"
+                value={formData.customer_cpf}
+                onChange={(e) => setFormData({ ...formData, customer_cpf: e.target.value })}
+                placeholder={formData.person_type === 'pj' ? '00.000.000/0001-00' : '000.000.000-00'}
               />
             </div>
             <div className="space-y-2">
@@ -411,14 +442,27 @@ export default function OrderNew() {
             )}
 
             {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="customer_notes">Observações do Cliente</Label>
-              <Textarea
-                id="customer_notes"
-                value={formData.customer_notes}
-                onChange={(e) => setFormData({ ...formData, customer_notes: e.target.value })}
-                placeholder="Observações ou instruções especiais..."
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="customer_notes">Observações do Cliente</Label>
+                <Textarea
+                  id="customer_notes"
+                  value={formData.customer_notes}
+                  onChange={(e) => setFormData({ ...formData, customer_notes: e.target.value })}
+                  placeholder="Observações ou instruções especiais do cliente..."
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="internal_notes">Notas Internas</Label>
+                <Textarea
+                  id="internal_notes"
+                  value={formData.internal_notes}
+                  onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
+                  placeholder="Notas internas (não visíveis ao cliente)..."
+                  rows={3}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

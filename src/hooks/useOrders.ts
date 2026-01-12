@@ -153,6 +153,7 @@ export interface CreateOrderData {
   customer_name: string;
   customer_email: string;
   customer_phone?: string | null;
+  customer_cpf?: string | null;
   payment_method?: PaymentMethod | null;
   shipping_street?: string | null;
   shipping_number?: string | null;
@@ -162,6 +163,7 @@ export interface CreateOrderData {
   shipping_state?: string | null;
   shipping_postal_code?: string | null;
   customer_notes?: string | null;
+  internal_notes?: string | null;
   items: {
     product_id: string;
     sku: string;
@@ -281,6 +283,8 @@ export function useOrders(options?: {
           shipping_state: formData.shipping_state,
           shipping_postal_code: formData.shipping_postal_code,
           customer_notes: formData.customer_notes,
+          internal_notes: formData.internal_notes,
+          customer_cpf: formData.customer_cpf,
           subtotal,
           discount_total: discountTotal,
           total,

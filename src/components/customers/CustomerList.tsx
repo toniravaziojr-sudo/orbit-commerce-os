@@ -5,7 +5,6 @@ import {
   Phone, 
   MoreHorizontal, 
   Eye, 
-  Pencil, 
   Trash2,
   Crown,
   ShoppingBag,
@@ -229,10 +228,6 @@ export function CustomerList({
                       <DropdownMenuItem onClick={() => onView(customer)}>
                         <Eye className="mr-2 h-4 w-4" />
                         Ver detalhes
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEdit(customer)}>
-                        <Pencil className="mr-2 h-4 w-4" />
-                        Editar
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
