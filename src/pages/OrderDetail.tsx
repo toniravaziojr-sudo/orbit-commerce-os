@@ -12,10 +12,13 @@ import {
   Send,
   Save,
   ExternalLink,
-  Bell
+  Bell,
+  Pencil,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -29,7 +32,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useOrderDetails, useOrders, type OrderStatus } from '@/hooks/useOrders';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useOrderDetails, useOrders, type OrderStatus, type PaymentStatus } from '@/hooks/useOrders';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 
@@ -78,13 +88,29 @@ export default function OrderDetail() {
   const [newNote, setNewNote] = useState('');
   const [trackingCode, setTrackingCode] = useState('');
   const [isEditingTracking, setIsEditingTracking] = useState(false);
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [addressData, setAddressData] = useState({
+    shipping_street: '',
+    shipping_number: '',
+    shipping_complement: '',
+    shipping_neighborhood: '',
+    shipping_city: '',
+    shipping_state: '',
+    shipping_postal_code: '',
+  });
 
-  const { order, items, history, isLoading, addNote, updateTrackingCode } = useOrderDetails(id);
+  const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
 
   const handleStatusChange = (status: OrderStatus) => {
     if (id) {
       updateOrderStatus.mutate({ orderId: id, status });
+    }
+  };
+
+  const handlePaymentStatusChange = (status: PaymentStatus) => {
+    if (id) {
+      updatePaymentStatus.mutate({ orderId: id, paymentStatus: status });
     }
   };
 
@@ -105,6 +131,26 @@ export default function OrderDetail() {
   const startEditTracking = () => {
     setTrackingCode(order?.tracking_code || '');
     setIsEditingTracking(true);
+  };
+
+  const startEditAddress = () => {
+    setAddressData({
+      shipping_street: order?.shipping_street || '',
+      shipping_number: order?.shipping_number || '',
+      shipping_complement: order?.shipping_complement || '',
+      shipping_neighborhood: order?.shipping_neighborhood || '',
+      shipping_city: order?.shipping_city || '',
+      shipping_state: order?.shipping_state || '',
+      shipping_postal_code: order?.shipping_postal_code || '',
+    });
+    setIsEditingAddress(true);
+  };
+
+  const handleSaveAddress = () => {
+    if (id) {
+      updateShippingAddress.mutate({ orderId: id, address: addressData });
+      setIsEditingAddress(false);
+    }
   };
 
   if (isLoading) {
@@ -368,16 +414,24 @@ export default function OrderDetail() {
                 <span className="text-muted-foreground">Método</span>
                 <span>{order.payment_method ? paymentMethodLabels[order.payment_method] : '-'}</span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Status</span>
-                <Badge variant={order.payment_status === 'approved' ? 'default' : 'secondary'}>
-                  {order.payment_status === 'pending' && 'Pendente'}
-                  {order.payment_status === 'processing' && 'Processando'}
-                  {order.payment_status === 'approved' && 'Aprovado'}
-                  {order.payment_status === 'declined' && 'Recusado'}
-                  {order.payment_status === 'refunded' && 'Reembolsado'}
-                  {order.payment_status === 'cancelled' && 'Cancelado'}
-                </Badge>
+                <Select 
+                  value={order.payment_status} 
+                  onValueChange={(v) => handlePaymentStatusChange(v as PaymentStatus)}
+                >
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Pendente</SelectItem>
+                    <SelectItem value="processing">Processando</SelectItem>
+                    <SelectItem value="approved">Aprovado</SelectItem>
+                    <SelectItem value="declined">Recusado</SelectItem>
+                    <SelectItem value="refunded">Reembolsado</SelectItem>
+                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               {order.payment_gateway && (
                 <div className="flex justify-between">
@@ -486,21 +540,27 @@ export default function OrderDetail() {
                 )}
               </div>
 
-              {order.shipping_street && <Separator />}
-              {order.shipping_street ? (
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
-                  <div className="text-sm">
-                    <p>{order.shipping_street}, {order.shipping_number}</p>
-                    {order.shipping_complement && <p>{order.shipping_complement}</p>}
-                    <p>{order.shipping_neighborhood}</p>
-                    <p>{order.shipping_city} - {order.shipping_state}</p>
-                    <p>{order.shipping_postal_code}</p>
+              <Separator />
+              <div className="flex items-start justify-between gap-2">
+                {order.shipping_street ? (
+                  <div className="flex items-start gap-2 flex-1">
+                    <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                    <div className="text-sm">
+                      <p>{order.shipping_street}, {order.shipping_number}</p>
+                      {order.shipping_complement && <p>{order.shipping_complement}</p>}
+                      <p>{order.shipping_neighborhood}</p>
+                      <p>{order.shipping_city} - {order.shipping_state}</p>
+                      <p>{order.shipping_postal_code}</p>
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Endereço não informado</p>
-              )}
+                ) : (
+                  <p className="text-muted-foreground text-sm flex-1">Endereço não informado</p>
+                )}
+                <Button size="sm" variant="outline" onClick={startEditAddress}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  {order.shipping_street ? 'Editar' : 'Adicionar'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -527,6 +587,91 @@ export default function OrderDetail() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Address Edit Modal */}
+      <Dialog open={isEditingAddress} onOpenChange={setIsEditingAddress}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Editar Endereço de Entrega
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label>Rua/Logradouro</Label>
+                <Input 
+                  value={addressData.shipping_street} 
+                  onChange={(e) => setAddressData({...addressData, shipping_street: e.target.value})}
+                  placeholder="Rua, Avenida, etc."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Número</Label>
+                <Input 
+                  value={addressData.shipping_number} 
+                  onChange={(e) => setAddressData({...addressData, shipping_number: e.target.value})}
+                  placeholder="123"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Complemento</Label>
+              <Input 
+                value={addressData.shipping_complement} 
+                onChange={(e) => setAddressData({...addressData, shipping_complement: e.target.value})}
+                placeholder="Apto, Bloco, Sala, etc."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Bairro</Label>
+              <Input 
+                value={addressData.shipping_neighborhood} 
+                onChange={(e) => setAddressData({...addressData, shipping_neighborhood: e.target.value})}
+                placeholder="Bairro"
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label>Cidade</Label>
+                <Input 
+                  value={addressData.shipping_city} 
+                  onChange={(e) => setAddressData({...addressData, shipping_city: e.target.value})}
+                  placeholder="Cidade"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Input 
+                  value={addressData.shipping_state} 
+                  onChange={(e) => setAddressData({...addressData, shipping_state: e.target.value})}
+                  placeholder="SP"
+                  maxLength={2}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>CEP</Label>
+              <Input 
+                value={addressData.shipping_postal_code} 
+                onChange={(e) => setAddressData({...addressData, shipping_postal_code: e.target.value})}
+                placeholder="00000-000"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditingAddress(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveAddress} disabled={updateShippingAddress.isPending}>
+              <Save className="h-4 w-4 mr-2" />
+              {updateShippingAddress.isPending ? 'Salvando...' : 'Salvar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
