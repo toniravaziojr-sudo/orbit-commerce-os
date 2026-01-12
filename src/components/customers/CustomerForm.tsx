@@ -1,5 +1,5 @@
 import { useForm } from 'react-hook-form';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2, Tag } from 'lucide-react';
+import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2, Tag, Plus } from 'lucide-react';
 import { useCepLookup } from '@/hooks/useCepLookup';
 import { toast } from 'sonner';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
@@ -97,8 +97,15 @@ interface CustomerFormProps {
   customerTagIds?: string[];
   availableTags?: CustomerTag[];
   onSubmit: (data: CustomerFormData & { tag_ids: string[] }) => void;
+  onCreateTag?: (data: { name: string; color: string }) => void;
+  isCreatingTag?: boolean;
   isLoading?: boolean;
 }
+
+const TAG_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+];
 
 export function CustomerForm({
   open,
@@ -107,10 +114,15 @@ export function CustomerForm({
   customerTagIds = [],
   availableTags = [],
   onSubmit,
+  onCreateTag,
+  isCreatingTag,
   isLoading,
 }: CustomerFormProps) {
   const isEditing = !!customer;
   const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
+  const [newTagName, setNewTagName] = useState('');
+  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [showTagInput, setShowTagInput] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(customerSchema),
@@ -379,10 +391,80 @@ export function CustomerForm({
                     name="tag_ids"
                     render={() => (
                       <FormItem>
-                        <FormLabel className="flex items-center gap-2">
-                          <Tag className="h-4 w-4" />
-                          Tags
-                        </FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel className="flex items-center gap-2">
+                            <Tag className="h-4 w-4" />
+                            Tags
+                          </FormLabel>
+                          {onCreateTag && !showTagInput && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => setShowTagInput(true)}
+                            >
+                              <Plus className="h-3 w-3" />
+                              Nova Tag
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Inline tag creation */}
+                        {showTagInput && onCreateTag && (
+                          <div className="space-y-3 p-3 border rounded-lg bg-muted/50">
+                            <div className="flex gap-2">
+                              <Input
+                                placeholder="Nome da tag"
+                                value={newTagName}
+                                onChange={(e) => setNewTagName(e.target.value)}
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={!newTagName.trim() || isCreatingTag}
+                                onClick={() => {
+                                  if (newTagName.trim()) {
+                                    onCreateTag({ name: newTagName.trim(), color: newTagColor });
+                                    setNewTagName('');
+                                    setNewTagColor(TAG_COLORS[0]);
+                                    setShowTagInput(false);
+                                  }
+                                }}
+                              >
+                                {isCreatingTag ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {TAG_COLORS.map((color) => (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  className={`h-6 w-6 rounded-full transition-all ${
+                                    newTagColor === color ? 'ring-2 ring-offset-2 ring-primary' : ''
+                                  }`}
+                                  style={{ backgroundColor: color }}
+                                  onClick={() => setNewTagColor(color)}
+                                />
+                              ))}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="w-full text-xs"
+                              onClick={() => {
+                                setShowTagInput(false);
+                                setNewTagName('');
+                              }}
+                            >
+                              Cancelar
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Existing tags */}
                         {availableTags.length > 0 ? (
                           <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/30">
                             {availableTags.map((tag) => (
@@ -416,9 +498,9 @@ export function CustomerForm({
                               />
                             ))}
                           </div>
-                        ) : (
+                        ) : !showTagInput && (
                           <div className="flex items-center justify-center p-4 border rounded-lg bg-muted/30 text-muted-foreground text-sm">
-                            <span>Nenhuma tag criada. Acesse "Gerenciar Tags" para criar.</span>
+                            <span>Nenhuma tag criada. Clique em "Nova Tag" para criar.</span>
                           </div>
                         )}
                         <FormDescription>
