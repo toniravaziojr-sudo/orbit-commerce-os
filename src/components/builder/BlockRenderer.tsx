@@ -78,6 +78,10 @@ import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeade
 import { ProductPageSections } from '@/components/storefront/ProductPageSections';
 import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { CartContent } from '@/components/storefront/cart/CartContent';
+
+// Storefront pages - import at module level to avoid require() issues with hooks
+import StorefrontOrdersListPage from '@/pages/storefront/StorefrontOrdersList';
+import StorefrontOrderDetailPage from '@/pages/storefront/StorefrontOrderDetail';
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { ThankYouContent } from '@/components/storefront/ThankYouContent';
 
@@ -1035,8 +1039,8 @@ function OrdersListBlock({ context, isEditing }: any) {
     );
   }
 
-  const StorefrontOrdersListComponent = require('@/pages/storefront/StorefrontOrdersList').default;
-  return <StorefrontOrdersListComponent />;
+  // Use statically imported component instead of require()
+  return <StorefrontOrdersListPage />;
 }
 
 function OrderDetailBlock({ context, isEditing }: any) {
@@ -1060,8 +1064,8 @@ function OrderDetailBlock({ context, isEditing }: any) {
     );
   }
 
-  const StorefrontOrderDetailComponent = require('@/pages/storefront/StorefrontOrderDetail').default;
-  return <StorefrontOrderDetailComponent />;
+  // Use statically imported component instead of require()
+  return <StorefrontOrderDetailPage />;
 }
 
 // ========== BLOCK WRAPPERS ==========
