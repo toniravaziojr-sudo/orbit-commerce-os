@@ -2,6 +2,7 @@
 // PAGE OVERRIDES HOOK - Manage page-specific settings overrides
 // =============================================
 
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
@@ -37,36 +38,76 @@ export function usePageOverrides({ tenantId, pageType, pageId }: UsePageOverride
   const isTemplate = !['institutional', 'landing_page'].includes(pageType);
   const queryKey = ['page-overrides', tenantId, pageType, pageId];
 
-  // Fetch current overrides
-  const { data: overrides, isLoading } = useQuery({
+  // Fetch current overrides - NEVER throws
+  const { data: overrides, isLoading, error, isFetched } = useQuery({
     queryKey,
-    queryFn: async () => {
-      if (isTemplate) {
-        // Fetch from storefront_page_templates
-        const { data, error } = await supabase
-          .from('storefront_page_templates')
-          .select('page_overrides')
-          .eq('tenant_id', tenantId)
-          .eq('page_type', pageType)
-          .maybeSingle();
+    queryFn: async (): Promise<PageOverrides> => {
+      console.log('[usePageOverrides] Fetching for:', { tenantId, pageType, pageId, isTemplate });
+      
+      if (!tenantId) {
+        console.warn('[usePageOverrides] No tenantId, returning empty');
+        return {};
+      }
 
-        if (error) throw error;
-        return (data?.page_overrides as PageOverrides) || {};
-      } else {
-        // Fetch from store_pages
-        if (!pageId) return {};
-        const { data, error } = await supabase
-          .from('store_pages')
-          .select('page_overrides')
-          .eq('id', pageId)
-          .maybeSingle();
+      try {
+        if (isTemplate) {
+          // Fetch from storefront_page_templates
+          const { data, error } = await supabase
+            .from('storefront_page_templates')
+            .select('page_overrides')
+            .eq('tenant_id', tenantId)
+            .eq('page_type', pageType)
+            .maybeSingle();
 
-        if (error) throw error;
-        return (data?.page_overrides as PageOverrides) || {};
+          if (error) {
+            console.error('[usePageOverrides] Template query error:', error);
+            return {};
+          }
+          
+          console.log('[usePageOverrides] Template data:', data ? 'found' : 'not found');
+          return (data?.page_overrides as PageOverrides) || {};
+        } else {
+          // Fetch from store_pages
+          if (!pageId) {
+            console.warn('[usePageOverrides] No pageId for non-template');
+            return {};
+          }
+          
+          const { data, error } = await supabase
+            .from('store_pages')
+            .select('page_overrides')
+            .eq('id', pageId)
+            .maybeSingle();
+
+          if (error) {
+            console.error('[usePageOverrides] Page query error:', error);
+            return {};
+          }
+          
+          console.log('[usePageOverrides] Page data:', data ? 'found' : 'not found');
+          return (data?.page_overrides as PageOverrides) || {};
+        }
+      } catch (err) {
+        console.error('[usePageOverrides] Unexpected error:', err);
+        return {};
       }
     },
-    enabled: !!tenantId && (isTemplate || !!pageId),
+    enabled: true, // Always enabled - handle missing data inside queryFn
+    staleTime: 30000,
+    retry: 1,
   });
+
+  // Log state for debugging
+  useEffect(() => {
+    console.log('[usePageOverrides] State:', {
+      tenantId,
+      pageType,
+      isLoading,
+      isFetched,
+      hasData: overrides !== undefined,
+      error: error?.message,
+    });
+  }, [tenantId, pageType, isLoading, isFetched, overrides, error]);
 
   // Update header overrides
   const updateHeaderOverrides = useMutation({

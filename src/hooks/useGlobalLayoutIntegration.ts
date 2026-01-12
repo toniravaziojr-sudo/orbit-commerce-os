@@ -193,42 +193,85 @@ export function extractHeaderFooter(content: BlockNode): {
 
 /**
  * Hook to fetch and manage global layout for editor context.
+ * NEVER throws - always returns valid defaults to prevent blank screens
  */
 export function useGlobalLayoutForEditor(tenantId: string | undefined) {
   const queryClient = useQueryClient();
 
-  // Fetch global layout
-  const { data: globalLayout, isLoading } = useQuery({
+  // Default layout data to prevent blank screens
+  const defaultLayoutData: GlobalLayoutData = {
+    header_config: defaultHeaderConfig,
+    footer_config: defaultFooterConfig,
+    checkout_header_config: defaultCheckoutHeaderConfig,
+    checkout_footer_config: defaultCheckoutFooterConfig,
+    header_enabled: true,
+    footer_enabled: true,
+    show_footer_1: true,
+    show_footer_2: true,
+    isDefault: true,
+    needsMigration: false,
+  };
+
+  // Fetch global layout - NEVER throws
+  const { data: globalLayout, isLoading, error, isFetched } = useQuery({
     queryKey: ['global-layout-editor', tenantId],
     queryFn: async () => {
-      if (!tenantId) throw new Error('No tenant');
+      console.log('[useGlobalLayoutForEditor] Fetching for tenant:', tenantId);
+      
+      if (!tenantId) {
+        console.warn('[useGlobalLayoutForEditor] No tenantId, returning defaults');
+        return defaultLayoutData;
+      }
 
-      const { data, error } = await supabase
-        .from('storefront_global_layout')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from('storefront_global_layout')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
 
-      if (error) throw error;
+        if (error) {
+          console.error('[useGlobalLayoutForEditor] Supabase error:', error);
+          return defaultLayoutData;
+        }
 
-      const isEmpty = !data || 
-        (!data.header_config && !data.footer_config);
+        console.log('[useGlobalLayoutForEditor] Data fetched:', data ? 'found' : 'not found');
 
-      return {
-        header_config: (data?.header_config as unknown as BlockNode) || defaultHeaderConfig,
-        footer_config: (data?.footer_config as unknown as BlockNode) || defaultFooterConfig,
-        checkout_header_config: (data?.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
-        checkout_footer_config: (data?.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
-        header_enabled: data?.header_enabled ?? true,
-        footer_enabled: data?.footer_enabled ?? true,
-        show_footer_1: data?.show_footer_1 ?? true,
-        show_footer_2: data?.show_footer_2 ?? true,
-        isDefault: !data,
-        needsMigration: isEmpty,
-      } as GlobalLayoutData;
+        const isEmpty = !data || 
+          (!data.header_config && !data.footer_config);
+
+        return {
+          header_config: (data?.header_config as unknown as BlockNode) || defaultHeaderConfig,
+          footer_config: (data?.footer_config as unknown as BlockNode) || defaultFooterConfig,
+          checkout_header_config: (data?.checkout_header_config as unknown as BlockNode) || defaultCheckoutHeaderConfig,
+          checkout_footer_config: (data?.checkout_footer_config as unknown as BlockNode) || defaultCheckoutFooterConfig,
+          header_enabled: data?.header_enabled ?? true,
+          footer_enabled: data?.footer_enabled ?? true,
+          show_footer_1: data?.show_footer_1 ?? true,
+          show_footer_2: data?.show_footer_2 ?? true,
+          isDefault: !data,
+          needsMigration: isEmpty,
+        } as GlobalLayoutData;
+      } catch (err) {
+        console.error('[useGlobalLayoutForEditor] Unexpected error:', err);
+        return defaultLayoutData;
+      }
     },
-    enabled: !!tenantId,
+    enabled: true, // Always enabled - handle missing tenantId inside queryFn
+    staleTime: 30000,
+    retry: 1,
   });
+
+  // Log state for debugging
+  useEffect(() => {
+    console.log('[useGlobalLayoutForEditor] State:', {
+      tenantId,
+      isLoading,
+      isFetched,
+      hasData: !!globalLayout,
+      error: error?.message,
+    });
+  }, [tenantId, isLoading, isFetched, globalLayout, error]);
 
   // Update global layout (header or footer)
   const updateGlobalHeader = useMutation({
