@@ -68,6 +68,19 @@ const productSchema = z.object({
   has_variants: z.boolean().default(false),
   product_format: z.enum(['simple', 'with_variants', 'with_composition']).default('simple'),
   stock_type: z.enum(['physical', 'virtual']).default('physical'),
+  
+  // New canonical fields
+  brand: z.string().max(100).nullable().optional(),
+  vendor: z.string().max(100).nullable().optional(),
+  product_type: z.string().max(100).nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
+  requires_shipping: z.boolean().nullable().optional(),
+  taxable: z.boolean().nullable().optional(),
+  tax_code: z.string().max(50).nullable().optional(),
+  cest: z.string().max(20).nullable().optional()
+    .transform(val => val ? val.replace(/[^\d]/g, '') : val),
+  origin_code: z.string().max(10).nullable().optional(),
+  uom: z.string().max(20).nullable().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -143,6 +156,18 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       has_variants: product?.has_variants ?? false,
       product_format: product?.product_format ?? 'simple',
       stock_type: product?.stock_type ?? 'physical',
+      
+      // New canonical fields
+      brand: product?.brand ?? '',
+      vendor: product?.vendor ?? '',
+      product_type: product?.product_type ?? '',
+      tags: product?.tags ?? [],
+      requires_shipping: product?.requires_shipping ?? true,
+      taxable: product?.taxable ?? true,
+      tax_code: product?.tax_code ?? '',
+      cest: product?.cest ?? '',
+      origin_code: product?.origin_code ?? '',
+      uom: product?.uom ?? '',
     },
   });
 
@@ -221,7 +246,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="basic">Básico</TabsTrigger>
               <TabsTrigger value="images" disabled={!isEditing}>
                 <ImageIcon className="h-4 w-4 mr-1" />
@@ -241,6 +266,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                 Relacionados
               </TabsTrigger>
               <TabsTrigger value="seo">SEO</TabsTrigger>
+              <TabsTrigger value="advanced">Avançado</TabsTrigger>
             </TabsList>
 
             <TabsContent value="basic" className="space-y-4 mt-4">
@@ -896,6 +922,237 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                         <FormDescription>
                           {(field.value?.length ?? 0)}/160 caracteres
                         </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Advanced Tab - New Canonical Fields */}
+            <TabsContent value="advanced" className="space-y-4 mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Marca e Fornecedor</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="brand"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Marca</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Nike"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="vendor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fornecedor</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Distribuidora XYZ"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="product_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tipo de Produto</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="Ex: Calçados"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informações Fiscais</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="cest"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>CEST</FormLabel>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              value={field.value ?? ''}
+                              placeholder="0000000"
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                field.onChange(cleaned);
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription>Código Especificador da Substituição Tributária</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="origin_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Origem Fiscal</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value ?? ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="0">0 - Nacional</SelectItem>
+                              <SelectItem value="1">1 - Estrangeira (import. direta)</SelectItem>
+                              <SelectItem value="2">2 - Estrangeira (merc. interno)</SelectItem>
+                              <SelectItem value="3">3 - Nacional (import. 40-70%)</SelectItem>
+                              <SelectItem value="4">4 - Nacional (processos básicos)</SelectItem>
+                              <SelectItem value="5">5 - Nacional (import. &lt;40%)</SelectItem>
+                              <SelectItem value="6">6 - Estrangeira (sem similar)</SelectItem>
+                              <SelectItem value="7">7 - Estrangeira (similar, merc. int.)</SelectItem>
+                              <SelectItem value="8">8 - Nacional (import. &gt;70%)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="uom"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Unidade de Medida</FormLabel>
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value ?? ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="UN">UN - Unidade</SelectItem>
+                              <SelectItem value="PC">PC - Peça</SelectItem>
+                              <SelectItem value="CX">CX - Caixa</SelectItem>
+                              <SelectItem value="KG">KG - Quilograma</SelectItem>
+                              <SelectItem value="G">G - Grama</SelectItem>
+                              <SelectItem value="L">L - Litro</SelectItem>
+                              <SelectItem value="ML">ML - Mililitro</SelectItem>
+                              <SelectItem value="M">M - Metro</SelectItem>
+                              <SelectItem value="M2">M2 - Metro Quadrado</SelectItem>
+                              <SelectItem value="M3">M3 - Metro Cúbico</SelectItem>
+                              <SelectItem value="PAR">PAR - Par</SelectItem>
+                              <SelectItem value="DZ">DZ - Dúzia</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="taxable"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Produto Tributável</FormLabel>
+                            <FormDescription>
+                              Este produto está sujeito a impostos
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value ?? true}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="requires_shipping"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                          <div className="space-y-0.5">
+                            <FormLabel className="text-base">Requer Frete</FormLabel>
+                            <FormDescription>
+                              Este produto precisa de envio físico
+                            </FormDescription>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value ?? true}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="tax_code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Código Tributário</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ''}
+                            placeholder="Código específico de tributação"
+                          />
+                        </FormControl>
+                        <FormDescription>Código adicional para integração fiscal</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
