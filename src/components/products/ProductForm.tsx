@@ -759,32 +759,6 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="ncm"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>NCM</FormLabel>
-                          <FormControl>
-                            <Input 
-                              {...field} 
-                              value={field.value ?? ''} 
-                              placeholder="Apenas números"
-                              inputMode="numeric"
-                              onChange={(e) => {
-                                // Allow only numbers
-                                const cleaned = e.target.value.replace(/[^\d]/g, '');
-                                field.onChange(cleaned);
-                              }}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Nomenclatura Comum do Mercosul (apenas números)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 </CardContent>
               </Card>
@@ -1196,7 +1170,31 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   <CardTitle>Informações Fiscais</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid gap-4 md:grid-cols-3">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <FormField
+                      control={form.control}
+                      name="ncm"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>NCM</FormLabel>
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              value={field.value ?? ''} 
+                              placeholder="00000000"
+                              inputMode="numeric"
+                              onChange={(e) => {
+                                const cleaned = e.target.value.replace(/[^\d]/g, '');
+                                field.onChange(cleaned);
+                              }}
+                            />
+                          </FormControl>
+                          <FormDescription>Nomenclatura Comum do Mercosul</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
                     <FormField
                       control={form.control}
                       name="cest"
@@ -1215,7 +1213,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                               }}
                             />
                           </FormControl>
-                          <FormDescription>Código Especificador da Substituição Tributária</FormDescription>
+                          <FormDescription>Código da Subst. Tributária</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
