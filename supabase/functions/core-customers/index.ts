@@ -1,7 +1,7 @@
 // =============================================
 // CORE-CUSTOMERS: Canonical API for Customer Operations
 // All writes to customers table must go through this API
-// Implements: validation, audit, events
+// Implements: validation, audit, events, HARD DELETE
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -115,6 +115,75 @@ Deno.serve(async (req) => {
     const correlationId = crypto.randomUUID();
 
     switch (action) {
+      // ===== CHECK DEPENDENCIES (for UI warning before delete) =====
+      case 'check_dependencies': {
+        if (!customer_id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Customer ID required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check for orders linked to this customer
+        const { data: orders, error: ordersError } = await supabase
+          .from('orders')
+          .select('id, order_number, created_at, total')
+          .eq('customer_id', customer_id)
+          .eq('tenant_id', tenantId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        const { count: orderCount } = await supabase
+          .from('orders')
+          .select('id', { count: 'exact', head: true })
+          .eq('customer_id', customer_id)
+          .eq('tenant_id', tenantId);
+
+        // Check for conversations
+        const { count: conversationCount } = await supabase
+          .from('conversations')
+          .select('id', { count: 'exact', head: true })
+          .eq('customer_id', customer_id)
+          .eq('tenant_id', tenantId);
+
+        // Check for addresses
+        const { count: addressCount } = await supabase
+          .from('customer_addresses')
+          .select('id', { count: 'exact', head: true })
+          .eq('customer_id', customer_id);
+
+        // Check for notes
+        const { count: noteCount } = await supabase
+          .from('customer_notes')
+          .select('id', { count: 'exact', head: true })
+          .eq('customer_id', customer_id);
+
+        // Check for tags
+        const { count: tagCount } = await supabase
+          .from('customer_tag_assignments')
+          .select('id', { count: 'exact', head: true })
+          .eq('customer_id', customer_id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              customer_id,
+              has_dependencies: (orderCount || 0) > 0,
+              orders: {
+                count: orderCount || 0,
+                sample: orders || [],
+              },
+              conversations: { count: conversationCount || 0 },
+              addresses: { count: addressCount || 0 },
+              notes: { count: noteCount || 0 },
+              tags: { count: tagCount || 0 },
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'create': {
         const { email, full_name, phone, cpf, cnpj, person_type, status, ...rest } = payload;
 
@@ -278,6 +347,7 @@ Deno.serve(async (req) => {
         );
       }
 
+      // ===== HARD DELETE: Physically removes customer and all related data =====
       case 'delete': {
         if (!customer_id) {
           return new Response(
@@ -300,11 +370,74 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Soft delete: set status to inactive or use deleted_at
+        // ===== CASCADE DELETE IN ORDER =====
+
+        // 1. Delete order_items for orders of this customer
+        const { data: customerOrders } = await supabase
+          .from('orders')
+          .select('id')
+          .eq('customer_id', customer_id)
+          .eq('tenant_id', tenantId);
+
+        if (customerOrders && customerOrders.length > 0) {
+          const orderIds = customerOrders.map((o: any) => o.id);
+          
+          // Delete order_items
+          await supabase
+            .from('order_items')
+            .delete()
+            .in('order_id', orderIds);
+          
+          // Delete order_history
+          await supabase
+            .from('order_history')
+            .delete()
+            .in('order_id', orderIds);
+          
+          // Delete orders
+          await supabase
+            .from('orders')
+            .delete()
+            .eq('customer_id', customer_id)
+            .eq('tenant_id', tenantId);
+        }
+
+        // 2. Delete customer_addresses
+        await supabase
+          .from('customer_addresses')
+          .delete()
+          .eq('customer_id', customer_id);
+
+        // 3. Delete customer_notes
+        await supabase
+          .from('customer_notes')
+          .delete()
+          .eq('customer_id', customer_id);
+
+        // 4. Delete customer_tag_assignments
+        await supabase
+          .from('customer_tag_assignments')
+          .delete()
+          .eq('customer_id', customer_id);
+
+        // 5. Delete customer_notifications
+        await supabase
+          .from('customer_notifications')
+          .delete()
+          .eq('customer_id', customer_id);
+
+        // 6. Update conversations to remove customer reference (don't delete conversations)
+        await supabase
+          .from('conversations')
+          .update({ customer_id: null, customer_name: `[Excluído] ${customer.full_name}` })
+          .eq('customer_id', customer_id);
+
+        // 7. Finally, delete the customer
         const { error: deleteError } = await supabase
           .from('customers')
-          .update({ status: 'inactive', deleted_at: new Date().toISOString() })
-          .eq('id', customer_id);
+          .delete()
+          .eq('id', customer_id)
+          .eq('tenant_id', tenantId);
 
         if (deleteError) {
           return new Response(
@@ -317,17 +450,30 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           entity_type: 'customer',
           entity_id: customer_id,
-          action: 'delete',
+          action: 'hard_delete',
           before_json: customer,
-          after_json: { status: 'inactive', deleted_at: new Date().toISOString() },
-          changed_fields: ['status', 'deleted_at'],
+          after_json: { deleted: true, deleted_orders: customerOrders?.length || 0 },
+          changed_fields: ['deleted'],
           actor_user_id: userId,
           source: 'core-customers',
           correlation_id: correlationId,
         });
 
+        await emitEvent(supabase, tenantId, 'customer.deleted', customer_id, {
+          customer_id,
+          email: customer.email,
+          full_name: customer.full_name,
+          deleted_orders_count: customerOrders?.length || 0,
+        }, `customer_deleted_${customer_id}`);
+
         return new Response(
-          JSON.stringify({ success: true, data: { customer_id } }),
+          JSON.stringify({ 
+            success: true, 
+            data: { 
+              customer_id,
+              deleted_orders: customerOrders?.length || 0,
+            } 
+          }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -340,7 +486,22 @@ Deno.serve(async (req) => {
           );
         }
 
-        const { label, street, number, complement, neighborhood, city, state, postal_code, is_default } = payload;
+        const { label, street, number, complement, neighborhood, city, state, postal_code, is_default, recipient_name } = payload;
+
+        // Verify customer exists
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('id, full_name')
+          .eq('id', customer_id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (!customer) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Customer not found', code: 'NOT_FOUND' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
         const addressData = {
           customer_id,
@@ -354,6 +515,7 @@ Deno.serve(async (req) => {
           postal_code,
           country: 'Brasil',
           is_default: is_default || false,
+          recipient_name: recipient_name || customer.full_name,
         };
 
         // If this is default, unset other defaults
@@ -463,7 +625,7 @@ Deno.serve(async (req) => {
           .insert({
             customer_id,
             content,
-            created_by: userId,
+            author_id: userId,
           })
           .select()
           .single();

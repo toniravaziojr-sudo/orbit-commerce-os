@@ -1,7 +1,7 @@
 // =============================================
 // CORE-PRODUCTS: Canonical API for Product Operations
 // All writes to products table must go through this API
-// Implements: validation, audit, events
+// Implements: validation, audit, events, HARD DELETE
 // =============================================
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -111,6 +111,110 @@ Deno.serve(async (req) => {
     const correlationId = crypto.randomUUID();
 
     switch (action) {
+      // ===== CHECK DEPENDENCIES (for UI warning before delete) =====
+      case 'check_dependencies': {
+        if (!product_id) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Product ID required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check for order_items linked to this product
+        const { data: orderItems, error: itemsError } = await supabase
+          .from('order_items')
+          .select(`
+            id,
+            order_id,
+            quantity,
+            unit_price,
+            orders!inner(order_number, created_at, customer_name)
+          `)
+          .eq('product_id', product_id)
+          .order('created_at', { ascending: false, foreignTable: 'orders' })
+          .limit(10);
+
+        const { count: orderItemCount } = await supabase
+          .from('order_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('product_id', product_id);
+
+        // Check for product_components (this product is part of another)
+        const { count: componentOfCount } = await supabase
+          .from('product_components')
+          .select('id', { count: 'exact', head: true })
+          .eq('component_product_id', product_id);
+
+        // Check for product_components (this product has components)
+        const { count: hasComponentsCount } = await supabase
+          .from('product_components')
+          .select('id', { count: 'exact', head: true })
+          .eq('parent_product_id', product_id);
+
+        // Check for related products
+        const { count: relatedCount } = await supabase
+          .from('related_products')
+          .select('id', { count: 'exact', head: true })
+          .or(`product_id.eq.${product_id},related_product_id.eq.${product_id}`);
+
+        // Check for buy_together_rules
+        const { count: buyTogetherCount } = await supabase
+          .from('buy_together_rules')
+          .select('id', { count: 'exact', head: true })
+          .or(`trigger_product_id.eq.${product_id},suggested_product_id.eq.${product_id}`);
+
+        // Check for product_categories
+        const { count: categoryCount } = await supabase
+          .from('product_categories')
+          .select('id', { count: 'exact', head: true })
+          .eq('product_id', product_id);
+
+        // Check for product_images
+        const { count: imageCount } = await supabase
+          .from('product_images')
+          .select('id', { count: 'exact', head: true })
+          .eq('product_id', product_id);
+
+        // Get unique customers who bought this product
+        const uniqueOrderIds = orderItems?.map((i: any) => i.order_id) || [];
+        let customerCount = 0;
+        if (uniqueOrderIds.length > 0) {
+          const { count } = await supabase
+            .from('orders')
+            .select('customer_id', { count: 'exact', head: true })
+            .in('id', uniqueOrderIds)
+            .not('customer_id', 'is', null);
+          customerCount = count || 0;
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            data: {
+              product_id,
+              has_dependencies: (orderItemCount || 0) > 0,
+              orders: {
+                count: orderItemCount || 0,
+                sample: orderItems?.map((i: any) => ({
+                  order_number: i.orders?.order_number,
+                  created_at: i.orders?.created_at,
+                  customer_name: i.orders?.customer_name,
+                  quantity: i.quantity,
+                })) || [],
+                affected_customers: customerCount,
+              },
+              component_of: { count: componentOfCount || 0 },
+              has_components: { count: hasComponentsCount || 0 },
+              related_products: { count: relatedCount || 0 },
+              buy_together: { count: buyTogetherCount || 0 },
+              categories: { count: categoryCount || 0 },
+              images: { count: imageCount || 0 },
+            },
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'create': {
         const { sku, name, slug, price, ...rest } = payload;
 
@@ -320,6 +424,7 @@ Deno.serve(async (req) => {
         );
       }
 
+      // ===== HARD DELETE: Physically removes product, marks order_items as deleted =====
       case 'delete': {
         if (!product_id) {
           return new Response(
@@ -342,11 +447,78 @@ Deno.serve(async (req) => {
           );
         }
 
-        // Soft delete: set status to archived
+        // ===== UPDATE ORDER_ITEMS to mark product as deleted (keep historical data) =====
+        const { count: affectedOrderItems } = await supabase
+          .from('order_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('product_id', product_id);
+
+        // Update order_items: set product_id to null and mark product_name
+        await supabase
+          .from('order_items')
+          .update({ 
+            product_id: null, 
+            product_name: `[Excluído] ${product.name}`,
+            product_sku: product.sku,
+          })
+          .eq('product_id', product_id);
+
+        // ===== DELETE RELATED DATA =====
+
+        // 1. Delete product_images
+        await supabase
+          .from('product_images')
+          .delete()
+          .eq('product_id', product_id);
+
+        // 2. Delete product_variants
+        await supabase
+          .from('product_variants')
+          .delete()
+          .eq('product_id', product_id);
+
+        // 3. Delete product_components (where this is parent)
+        await supabase
+          .from('product_components')
+          .delete()
+          .eq('parent_product_id', product_id);
+
+        // 4. Delete product_components (where this is component - remove from kits)
+        await supabase
+          .from('product_components')
+          .delete()
+          .eq('component_product_id', product_id);
+
+        // 5. Delete related_products
+        await supabase
+          .from('related_products')
+          .delete()
+          .or(`product_id.eq.${product_id},related_product_id.eq.${product_id}`);
+
+        // 6. Delete buy_together_rules
+        await supabase
+          .from('buy_together_rules')
+          .delete()
+          .or(`trigger_product_id.eq.${product_id},suggested_product_id.eq.${product_id}`);
+
+        // 7. Delete product_categories
+        await supabase
+          .from('product_categories')
+          .delete()
+          .eq('product_id', product_id);
+
+        // 8. Delete cart_items
+        await supabase
+          .from('cart_items')
+          .delete()
+          .eq('product_id', product_id);
+
+        // 9. Finally, delete the product
         const { error: deleteError } = await supabase
           .from('products')
-          .update({ status: 'archived', deleted_at: new Date().toISOString() })
-          .eq('id', product_id);
+          .delete()
+          .eq('id', product_id)
+          .eq('tenant_id', tenantId);
 
         if (deleteError) {
           return new Response(
@@ -359,17 +531,30 @@ Deno.serve(async (req) => {
           tenant_id: tenantId,
           entity_type: 'product',
           entity_id: product_id,
-          action: 'delete',
+          action: 'hard_delete',
           before_json: product,
-          after_json: { status: 'archived', deleted_at: new Date().toISOString() },
-          changed_fields: ['status', 'deleted_at'],
+          after_json: { deleted: true, affected_order_items: affectedOrderItems || 0 },
+          changed_fields: ['deleted'],
           actor_user_id: userId,
           source: 'core-products',
           correlation_id: correlationId,
         });
 
+        await emitEvent(supabase, tenantId, 'product.deleted', product_id, {
+          product_id,
+          sku: product.sku,
+          name: product.name,
+          affected_order_items: affectedOrderItems || 0,
+        }, `product_deleted_${product_id}`);
+
         return new Response(
-          JSON.stringify({ success: true, data: { product_id } }),
+          JSON.stringify({ 
+            success: true, 
+            data: { 
+              product_id,
+              affected_order_items: affectedOrderItems || 0,
+            } 
+          }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -502,6 +687,19 @@ Deno.serve(async (req) => {
 
           await supabase.from('related_products').insert(relations);
         }
+
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'product',
+          entity_id: product_id,
+          action: 'update_related',
+          before_json: null,
+          after_json: { related_ids },
+          changed_fields: ['related_products'],
+          actor_user_id: userId,
+          source: 'core-products',
+          correlation_id: correlationId,
+        });
 
         return new Response(
           JSON.stringify({ success: true, data: { product_id, related_count: related_ids?.length || 0 } }),
