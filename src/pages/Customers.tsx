@@ -287,6 +287,8 @@ export default function Customers() {
         customerTagIds={selectedCustomerTagIds}
         availableTags={tags}
         onSubmit={handleSubmit}
+        onCreateTag={(data) => createTag.mutate(data)}
+        isCreatingTag={createTag.isPending}
         isLoading={createCustomer.isPending || updateCustomer.isPending}
       />
 
