@@ -63,8 +63,10 @@ const productSchema = z.object({
   depth: z.coerce.number().min(0).nullable().optional(),
   gtin: z.string().max(50).nullable().optional()
     .transform(val => val ? val.replace(/[^\d]/g, '') : val),
-  ncm: z.string().max(20).nullable().optional()
-    .transform(val => val ? val.replace(/[^\d]/g, '') : val),
+  ncm: z.string()
+    .min(8, 'NCM deve ter 8 dígitos (obrigatório para NF-e)')
+    .max(8, 'NCM deve ter exatamente 8 dígitos')
+    .transform(val => val.replace(/[^\d]/g, '')),
   seo_title: z.string().max(70).nullable().optional(),
   seo_description: z.string().max(160).nullable().optional(),
   status: z.enum(['draft', 'active', 'inactive', 'archived']).default('draft'),
@@ -1176,20 +1178,21 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       name="ncm"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>NCM</FormLabel>
+                          <FormLabel>NCM *</FormLabel>
                           <FormControl>
                             <Input 
                               {...field} 
                               value={field.value ?? ''} 
                               placeholder="00000000"
                               inputMode="numeric"
+                              maxLength={8}
                               onChange={(e) => {
                                 const cleaned = e.target.value.replace(/[^\d]/g, '');
                                 field.onChange(cleaned);
                               }}
                             />
                           </FormControl>
-                          <FormDescription>Nomenclatura Comum do Mercosul</FormDescription>
+                          <FormDescription>Obrigatório para emissão de NF-e (8 dígitos)</FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
