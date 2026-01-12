@@ -14,21 +14,16 @@ import {
 } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { CustomerList } from '@/components/customers/CustomerList';
-import { CustomerFormPage } from '@/components/customers/CustomerFormPage';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
 import { CustomerImport } from '@/components/customers/CustomerImport';
-import { useCustomers, useCustomerTags, useCustomerTagAssignments, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
+import { useCustomers, useCustomerTags, type Customer } from '@/hooks/useCustomers';
 
 const PAGE_SIZE = 50;
 
-type View = 'list' | 'create' | 'edit';
-
 export default function Customers() {
   const navigate = useNavigate();
-  const [view, setView] = useState<View>('list');
   const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -51,8 +46,6 @@ export default function Customers() {
     customers, 
     totalCount, 
     isLoading, 
-    createCustomer, 
-    updateCustomer, 
     deleteCustomer, 
     refetch 
   } = useCustomers({
@@ -63,76 +56,25 @@ export default function Customers() {
   });
 
   const { tags, createTag, deleteTag } = useCustomerTags();
-  const { tagIds: selectedCustomerTagIds, updateAssignments } = useCustomerTagAssignments(selectedCustomer?.id);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const handleAddNew = () => {
-    setSelectedCustomer(null);
-    setView('create');
+    navigate('/customers/new');
   };
 
   const handleEdit = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setView('edit');
+    navigate(`/customers/${customer.id}`);
   };
 
   const handleView = (customer: Customer) => {
     navigate(`/customers/${customer.id}`);
   };
 
-  const handleCancel = () => {
-    setSelectedCustomer(null);
-    setView('list');
-  };
-
-  const handleSubmit = (data: CustomerFormData & { tag_ids: string[] }) => {
-    const { tag_ids, ...customerData } = data;
-    
-    if (selectedCustomer) {
-      updateCustomer.mutate({ id: selectedCustomer.id, ...customerData }, {
-        onSuccess: () => {
-          updateAssignments.mutate({ customerId: selectedCustomer.id, tagIds: tag_ids });
-          setView('list');
-          setSelectedCustomer(null);
-        },
-      });
-    } else {
-      createCustomer.mutate(customerData, {
-        onSuccess: (newCustomer) => {
-          if (tag_ids.length > 0 && newCustomer?.id) {
-            updateAssignments.mutate({ customerId: newCustomer.id, tagIds: tag_ids });
-          }
-          setView('list');
-          setSelectedCustomer(null);
-        },
-      });
-    }
-  };
-
   const handleDelete = (id: string) => {
     deleteCustomer.mutate(id);
   };
 
-  // Show form view
-  if (view === 'create' || view === 'edit') {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <CustomerFormPage
-          customer={selectedCustomer}
-          customerTagIds={selectedCustomerTagIds}
-          availableTags={tags}
-          onSubmit={handleSubmit}
-          onCreateTag={(data) => createTag.mutate(data)}
-          isCreatingTag={createTag.isPending}
-          isLoading={createCustomer.isPending || updateCustomer.isPending}
-          onCancel={handleCancel}
-        />
-      </div>
-    );
-  }
-
-  // Show list view
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader

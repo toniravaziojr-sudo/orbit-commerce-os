@@ -111,23 +111,31 @@ export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
+  const isNewCustomer = id === 'new';
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(!isNewCustomer);
+  const [isEditing, setIsEditing] = useState(isNewCustomer);
   const [isSaving, setIsSaving] = useState(false);
-  const [editData, setEditData] = useState<Partial<Customer>>({});
+  const [editData, setEditData] = useState<Partial<Customer>>(isNewCustomer ? {
+    status: 'active',
+    person_type: 'pf',
+    accepts_email_marketing: true,
+    accepts_sms_marketing: false,
+    accepts_whatsapp_marketing: false,
+  } : {});
   const [newNote, setNewNote] = useState('');
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
   const [deleteAddressId, setDeleteAddressId] = useState<string | null>(null);
   
-  const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(id);
-  const { addresses, isLoading: addressesLoading, createAddress, deleteAddress } = useCustomerAddresses(id);
+  const customerId = isNewCustomer ? undefined : id;
+  const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(customerId);
+  const { addresses, isLoading: addressesLoading, createAddress, deleteAddress } = useCustomerAddresses(customerId);
   const { orders, isLoading: ordersLoading } = useCustomerOrders(customer?.email);
 
   useEffect(() => {
     async function fetchCustomer() {
-      if (!id || !currentTenant?.id) return;
+      if (isNewCustomer || !id || !currentTenant?.id) return;
       
       setIsLoading(true);
       const { data, error } = await supabase
@@ -156,7 +164,7 @@ export default function CustomerDetail() {
     }
 
     fetchCustomer();
-  }, [id, currentTenant?.id, navigate]);
+  }, [id, isNewCustomer, currentTenant?.id, navigate]);
 
   const handleAddNote = () => {
     if (!newNote.trim() || !id) return;
@@ -176,51 +184,97 @@ export default function CustomerDetail() {
   };
 
   const handleSaveCustomer = async () => {
-    if (!id || !customer) return;
+    if (!editData.full_name?.trim() || !editData.email?.trim()) {
+      toast.error('Nome e email são obrigatórios');
+      return;
+    }
+
+    if (!currentTenant?.id) {
+      toast.error('Tenant não encontrado');
+      return;
+    }
     
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('customers')
-        .update({
-          full_name: editData.full_name,
-          email: editData.email,
-          phone: editData.phone,
-          cpf: editData.cpf,
-          birth_date: editData.birth_date,
-          gender: editData.gender,
-          status: editData.status,
-          person_type: editData.person_type,
-          cnpj: editData.cnpj,
-          company_name: editData.company_name,
-          ie: editData.ie,
-          rg: editData.rg,
-          accepts_marketing: editData.accepts_marketing,
-          accepts_email_marketing: editData.accepts_email_marketing,
-          accepts_sms_marketing: editData.accepts_sms_marketing,
-          accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing,
-          notes: editData.notes,
-        })
-        .eq('id', id);
+      if (isNewCustomer) {
+        // Create new customer
+        const { data: newCustomer, error } = await supabase
+          .from('customers')
+          .insert({
+            tenant_id: currentTenant.id,
+            full_name: editData.full_name,
+            email: editData.email?.toLowerCase().trim(),
+            phone: editData.phone,
+            cpf: editData.cpf,
+            birth_date: editData.birth_date,
+            gender: editData.gender,
+            status: editData.status ?? 'active',
+            person_type: editData.person_type ?? 'pf',
+            cnpj: editData.cnpj,
+            company_name: editData.company_name,
+            ie: editData.ie,
+            state_registration_is_exempt: editData.state_registration_is_exempt,
+            accepts_marketing: editData.accepts_marketing,
+            accepts_email_marketing: editData.accepts_email_marketing ?? true,
+            accepts_sms_marketing: editData.accepts_sms_marketing ?? false,
+            accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing ?? false,
+            notes: editData.notes,
+          })
+          .select()
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
 
-      // Refresh customer data
-      const { data: updated } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', id)
-        .single();
+        toast.success('Cliente criado com sucesso!');
+        navigate(`/customers/${newCustomer.id}`);
+      } else {
+        // Update existing customer
+        const { error } = await supabase
+          .from('customers')
+          .update({
+            full_name: editData.full_name,
+            email: editData.email,
+            phone: editData.phone,
+            cpf: editData.cpf,
+            birth_date: editData.birth_date,
+            gender: editData.gender,
+            status: editData.status,
+            person_type: editData.person_type,
+            cnpj: editData.cnpj,
+            company_name: editData.company_name,
+            ie: editData.ie,
+            state_registration_is_exempt: editData.state_registration_is_exempt,
+            accepts_marketing: editData.accepts_marketing,
+            accepts_email_marketing: editData.accepts_email_marketing,
+            accepts_sms_marketing: editData.accepts_sms_marketing,
+            accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing,
+            notes: editData.notes,
+          })
+          .eq('id', id);
 
-      if (updated) {
-        setCustomer(updated as Customer);
-        setEditData(updated as Customer);
+        if (error) throw error;
+
+        // Refresh customer data
+        const { data: updated } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (updated) {
+          setCustomer(updated as Customer);
+          setEditData(updated as Customer);
+        }
+        setIsEditing(false);
+        toast.success('Cliente atualizado!');
       }
-      setIsEditing(false);
-      toast.success('Cliente atualizado!');
-    } catch (error) {
-      console.error('Erro ao atualizar cliente:', error);
-      toast.error('Erro ao atualizar cliente');
+    } catch (error: any) {
+      console.error('Erro ao salvar cliente:', error);
+      if (error?.code === '23505') {
+        toast.error('Já existe um cliente com este email');
+      } else {
+        toast.error(isNewCustomer ? 'Erro ao criar cliente' : 'Erro ao atualizar cliente');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -242,7 +296,7 @@ export default function CustomerDetail() {
     });
   };
 
-  if (isLoading || !customer) {
+  if (isLoading) {
     return (
       <div className="space-y-8 animate-fade-in">
         <div className="flex items-center gap-4">
@@ -259,6 +313,227 @@ export default function CustomerDetail() {
         </div>
       </div>
     );
+  }
+
+  // For new customer mode, show a simplified create form
+  if (isNewCustomer) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/customers')}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <Avatar className="h-16 w-16">
+              <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
+                {editData.full_name ? getInitials(editData.full_name) : 'NC'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-2xl font-bold">Novo Cliente</h1>
+              <p className="text-muted-foreground">
+                Preencha os dados abaixo para criar um novo cliente
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => navigate('/customers')} disabled={isSaving}>
+              <X className="h-4 w-4 mr-2" />
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveCustomer} disabled={isSaving}>
+              <Save className="h-4 w-4 mr-2" />
+              {isSaving ? 'Criando...' : 'Criar Cliente'}
+            </Button>
+          </div>
+        </div>
+
+        {/* Form for new customer - simplified */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* Customer Info Card - Editable */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                {editData.person_type === 'pj' ? (
+                  <Building2 className="h-5 w-5" />
+                ) : (
+                  <User className="h-5 w-5" />
+                )}
+                Informações
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Nome completo *</Label>
+                <Input 
+                  value={editData.full_name ?? ''} 
+                  onChange={(e) => setEditData({...editData, full_name: e.target.value})}
+                  placeholder="Nome do cliente"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input 
+                  type="email"
+                  value={editData.email ?? ''} 
+                  onChange={(e) => setEditData({...editData, email: e.target.value})}
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Input 
+                  value={editData.phone ?? ''} 
+                  onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo de Pessoa</Label>
+                <Select 
+                  value={editData.person_type ?? 'pf'} 
+                  onValueChange={(v) => setEditData({...editData, person_type: v as 'pf' | 'pj'})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pf">Pessoa Física</SelectItem>
+                    <SelectItem value="pj">Pessoa Jurídica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {editData.person_type === 'pj' ? (
+                <>
+                  <div className="space-y-2">
+                    <Label>CNPJ</Label>
+                    <Input 
+                      value={editData.cnpj ?? ''} 
+                      onChange={(e) => setEditData({...editData, cnpj: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Razão Social</Label>
+                    <Input 
+                      value={editData.company_name ?? ''} 
+                      onChange={(e) => setEditData({...editData, company_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Inscrição Estadual</Label>
+                    <Input 
+                      value={editData.ie ?? ''} 
+                      onChange={(e) => setEditData({...editData, ie: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Isento de IE</Label>
+                    <Switch 
+                      checked={editData.state_registration_is_exempt ?? false}
+                      onCheckedChange={(v) => setEditData({...editData, state_registration_is_exempt: v})}
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>CPF</Label>
+                    <Input 
+                      value={editData.cpf ?? ''} 
+                      onChange={(e) => setEditData({...editData, cpf: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Data de nascimento</Label>
+                    <Input 
+                      type="date"
+                      value={editData.birth_date ?? ''} 
+                      onChange={(e) => setEditData({...editData, birth_date: e.target.value})}
+                    />
+                  </div>
+                </>
+              )}
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select 
+                  value={editData.status ?? 'active'} 
+                  onValueChange={(v) => setEditData({...editData, status: v as 'active' | 'inactive' | 'blocked'})}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Ativo</SelectItem>
+                    <SelectItem value="inactive">Inativo</SelectItem>
+                    <SelectItem value="blocked">Bloqueado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-base font-medium">Preferências de Marketing</Label>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Aceita Email</span>
+                  <Switch 
+                    checked={editData.accepts_email_marketing ?? true}
+                    onCheckedChange={(v) => setEditData({...editData, accepts_email_marketing: v})}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Aceita SMS</span>
+                  <Switch 
+                    checked={editData.accepts_sms_marketing ?? false}
+                    onCheckedChange={(v) => setEditData({...editData, accepts_sms_marketing: v})}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Aceita WhatsApp</span>
+                  <Switch 
+                    checked={editData.accepts_whatsapp_marketing ?? false}
+                    onCheckedChange={(v) => setEditData({...editData, accepts_whatsapp_marketing: v})}
+                  />
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label>Observações internas</Label>
+                <Textarea 
+                  value={editData.notes ?? ''} 
+                  onChange={(e) => setEditData({...editData, notes: e.target.value})}
+                  rows={3}
+                  placeholder="Notas sobre o cliente..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Info about other features */}
+          <Card className="lg:col-span-2">
+            <CardHeader>
+              <CardTitle className="text-lg">Próximos passos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">
+                Após criar o cliente, você poderá adicionar:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-muted-foreground">
+                <li>Endereços de entrega</li>
+                <li>Notas e observações</li>
+                <li>Tags para segmentação</li>
+                <li>Visualizar histórico de pedidos</li>
+                <li>Acompanhar notificações enviadas</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Existing customer view
+  if (!customer) {
+    return null;
   }
 
   return (
@@ -420,22 +695,13 @@ export default function CustomerDetail() {
                     </div>
                   </>
                 ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label>CPF</Label>
-                      <Input 
-                        value={editData.cpf ?? ''} 
-                        onChange={(e) => setEditData({...editData, cpf: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>RG</Label>
-                      <Input 
-                        value={editData.rg ?? ''} 
-                        onChange={(e) => setEditData({...editData, rg: e.target.value})}
-                      />
-                    </div>
-                  </>
+                  <div className="space-y-2">
+                    <Label>CPF</Label>
+                    <Input 
+                      value={editData.cpf ?? ''} 
+                      onChange={(e) => setEditData({...editData, cpf: e.target.value})}
+                    />
+                  </div>
                 )}
                 <div className="space-y-2">
                   <Label>Data de nascimento</Label>
