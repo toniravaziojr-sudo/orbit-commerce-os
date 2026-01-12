@@ -174,12 +174,27 @@ Deno.serve(async (req) => {
 
     // ========================================
     // Clear IMPORTED customers and related tables
+    // CRITICAL: Handle FK constraint - orders.customer_id references customers
     // ========================================
     if (shouldClearAll || modules.includes('customers')) {
       const importedCustomerIds = await getImportedIds('customers');
       console.log(`Found ${importedCustomerIds.length} imported customers to delete`);
 
       if (importedCustomerIds.length > 0) {
+        // STEP 1: Unlink orders from customers that will be deleted
+        // (set customer_id to NULL instead of failing on FK constraint)
+        const { error: unlinkError, count: unlinkCount } = await supabase
+          .from('orders')
+          .update({ customer_id: null })
+          .in('customer_id', importedCustomerIds);
+        
+        if (unlinkError) {
+          console.error('Error unlinking orders from customers:', unlinkError);
+        } else {
+          console.log(`Unlinked ${unlinkCount || 0} orders from customers`);
+        }
+
+        // STEP 2: Delete customer related data
         const { data: caDeleted } = await supabase
           .from('customer_addresses')
           .delete()
@@ -207,7 +222,32 @@ Deno.serve(async (req) => {
           .in('customer_id', importedCustomerIds)
           .select('id');
         deleted['customer_notifications'] = notifDeleted?.length || 0;
+        
+        // Also delete carts referencing these customers
+        const { data: cartsDeleted } = await supabase
+          .from('carts')
+          .delete()
+          .in('customer_id', importedCustomerIds)
+          .select('id');
+        deleted['carts'] = cartsDeleted?.length || 0;
+        
+        // Delete checkout_sessions referencing these customers
+        const { data: checkoutDeleted } = await supabase
+          .from('checkout_sessions')
+          .delete()
+          .in('customer_id', importedCustomerIds)
+          .select('id');
+        deleted['checkout_sessions'] = checkoutDeleted?.length || 0;
+        
+        // Delete conversations referencing these customers
+        const { data: convDeleted } = await supabase
+          .from('conversations')
+          .delete()
+          .in('customer_id', importedCustomerIds)
+          .select('id');
+        deleted['conversations'] = convDeleted?.length || 0;
 
+        // STEP 3: Delete customers
         const { data: customersDeleted } = await supabase
           .from('customers')
           .delete()
@@ -229,12 +269,14 @@ Deno.serve(async (req) => {
 
     // ========================================
     // Clear IMPORTED orders and related tables
+    // CRITICAL: Delete all FK-dependent tables first
     // ========================================
     if (shouldClearAll || modules.includes('orders')) {
       const importedOrderIds = await getImportedIds('orders');
       console.log(`Found ${importedOrderIds.length} imported orders to delete`);
 
       if (importedOrderIds.length > 0) {
+        // Delete order_items first
         const { data: oiDeleted } = await supabase
           .from('order_items')
           .delete()
@@ -242,18 +284,54 @@ Deno.serve(async (req) => {
           .select('id');
         deleted['order_items'] = oiDeleted?.length || 0;
 
+        // Delete order_history
         const { data: ohDeleted } = await supabase
           .from('order_history')
           .delete()
           .in('order_id', importedOrderIds)
           .select('id');
         deleted['order_history'] = ohDeleted?.length || 0;
+        
+        // Delete checkout_sessions referencing these orders
+        const { error: csError } = await supabase
+          .from('checkout_sessions')
+          .delete()
+          .in('order_id', importedOrderIds);
+        
+        if (csError) {
+          console.warn('Error deleting checkout_sessions for orders:', csError.message);
+        }
+        
+        // Delete conversations referencing these orders
+        const { error: convError } = await supabase
+          .from('conversations')
+          .delete()
+          .in('order_id', importedOrderIds);
+        
+        if (convError) {
+          console.warn('Error deleting conversations for orders:', convError.message);
+        }
+        
+        // Delete affiliate_conversions referencing these orders
+        const { error: affError } = await supabase
+          .from('affiliate_conversions')
+          .delete()
+          .in('order_id', importedOrderIds);
+        
+        if (affError) {
+          console.warn('Error deleting affiliate_conversions:', affError.message);
+        }
 
-        const { data: ordersDeleted } = await supabase
+        // Finally delete orders
+        const { data: ordersDeleted, error: ordersError } = await supabase
           .from('orders')
           .delete()
           .in('id', importedOrderIds)
           .select('id');
+        
+        if (ordersError) {
+          console.error('Error deleting orders:', ordersError);
+        }
         deleted['orders'] = ordersDeleted?.length || 0;
       } else {
         deleted['orders'] = 0;
