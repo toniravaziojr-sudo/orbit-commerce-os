@@ -52,6 +52,10 @@ export function VisualBuilder({
   initialContent,
   context,
 }: VisualBuilderProps) {
+  // Debug log on mount
+  useEffect(() => {
+    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent });
+  }, []);
   const navigate = useNavigate();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isInteractMode, setIsInteractMode] = useState(false);
