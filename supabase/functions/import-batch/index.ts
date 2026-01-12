@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-12.0100'; // Fix CSV BOM, Shopify consolidation, external_id tracking
+const DEPLOY_VERSION = '2026-01-12.0200'; // Fix price/stock/sku parsing from normalized data
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -245,20 +245,22 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
 
   let productId: string;
 
-  // Generate SKU if not provided - deterministic based on slug
-  const effectiveSku = product.sku || `IMP-${effectiveSlug.substring(0, 20)}-${hashCode(effectiveSlug + tenantId).toString(36).toUpperCase()}`;
+  // Use SKU from normalized data - only generate if truly missing
+  // CRITICAL: Prefer the original SKU from the CSV/source over generated ones
+  const effectiveSku = product.sku && product.sku.trim() 
+    ? product.sku.trim()
+    : `IMP-${effectiveSlug.substring(0, 20)}-${hashCode(effectiveSlug + tenantId).toString(36).toUpperCase()}`;
 
-  // Validate and parse price (handle Brazilian format R$ 49,90)
-  let effectivePrice = 0;
-  if (product.price !== undefined && product.price !== null) {
-    if (typeof product.price === 'string') {
-      // Remove currency symbols and normalize
-      const cleaned = product.price.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
-      effectivePrice = parseFloat(cleaned) || 0;
-    } else {
-      effectivePrice = Number(product.price) || 0;
-    }
-  }
+  // CRITICAL: Price should already be a number from normalization
+  // Only parse if it's still a string (edge case)
+  const effectivePrice = parseNumericField(product.price);
+  const effectiveComparePrice = parseNumericField(product.compare_at_price);
+  const effectiveCostPrice = parseNumericField(product.cost_price);
+  const effectiveStock = parseIntField(product.stock_quantity);
+  const effectiveWeight = parseNumericField(product.weight);
+  
+  // Debug logging to diagnose import issues
+  console.log(`[importProduct] Processing: "${productName}" | Price: ${product.price} -> ${effectivePrice} | SKU: ${product.sku} -> ${effectiveSku} | Stock: ${product.stock_quantity} -> ${effectiveStock} | Images: ${product.images?.length || 0}`);
 
   if (existing) {
     productId = existing.id;
@@ -270,15 +272,15 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
         description: product.description,
         short_description: product.short_description,
         price: effectivePrice,
-        compare_at_price: product.compare_at_price,
-        cost_price: product.cost_price,
+        compare_at_price: effectiveComparePrice || null,
+        cost_price: effectiveCostPrice || null,
         sku: effectiveSku,
         barcode: product.barcode,
-        weight: product.weight,
+        weight: effectiveWeight || null,
         width: product.width,
         height: product.height,
         depth: product.depth,
-        stock_quantity: product.stock_quantity,
+        stock_quantity: effectiveStock,
         is_featured: product.is_featured,
         status: product.status || 'active',
         seo_title: product.seo_title,
@@ -304,15 +306,15 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
         description: product.description,
         short_description: product.short_description,
         price: effectivePrice,
-        compare_at_price: product.compare_at_price,
-        cost_price: product.cost_price,
+        compare_at_price: effectiveComparePrice || null,
+        cost_price: effectiveCostPrice || null,
         sku: effectiveSku,
         barcode: product.barcode,
-        weight: product.weight,
+        weight: effectiveWeight || null,
         width: product.width,
         height: product.height,
         depth: product.depth,
-        stock_quantity: product.stock_quantity,
+        stock_quantity: effectiveStock,
         is_featured: product.is_featured,
         status: product.status || 'active',
         seo_title: product.seo_title,
@@ -396,6 +398,55 @@ function hashCode(str: string): number {
     hash = hash & hash;
   }
   return Math.abs(hash);
+}
+
+// Parse numeric field - handles both numbers and strings with currency/locale formatting
+function parseNumericField(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return value;
+  
+  let str = value.toString().trim();
+  if (!str) return 0;
+  
+  // Remove currency symbols and spaces
+  str = str.replace(/R\$\s*/gi, '').replace(/\s/g, '');
+  
+  // Handle Brazilian format: "1.234,56" or "49,90"
+  // vs International format: "1,234.56" or "49.90"
+  const hasComma = str.includes(',');
+  const hasDot = str.includes('.');
+  
+  if (hasComma && hasDot) {
+    const lastComma = str.lastIndexOf(',');
+    const lastDot = str.lastIndexOf('.');
+    if (lastComma > lastDot) {
+      // Brazilian: 1.234,56 -> 1234.56
+      str = str.replace(/\./g, '').replace(',', '.');
+    } else {
+      // International: 1,234.56 -> 1234.56
+      str = str.replace(/,/g, '');
+    }
+  } else if (hasComma) {
+    const parts = str.split(',');
+    if (parts.length === 2 && parts[1].length <= 2) {
+      // Likely decimal: 49,90 -> 49.90
+      str = str.replace(',', '.');
+    } else {
+      // Thousand separator: 1,234 -> 1234
+      str = str.replace(/,/g, '');
+    }
+  }
+  
+  const result = parseFloat(str);
+  return isNaN(result) ? 0 : result;
+}
+
+// Parse integer field with fallback
+function parseIntField(value: any): number {
+  if (value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Math.floor(value);
+  const parsed = parseInt(value.toString().replace(/\D/g, ''), 10);
+  return isNaN(parsed) ? 0 : parsed;
 }
 
 async function importCategory(supabase: any, tenantId: string, jobId: string, category: any, results: any) {
