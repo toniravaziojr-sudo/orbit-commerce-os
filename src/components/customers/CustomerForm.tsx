@@ -50,8 +50,8 @@ const customerSchema = z.object({
   status: z.enum(['active', 'inactive', 'blocked']).default('active'),
   accepts_marketing: z.boolean().default(true),
   tag_ids: z.array(z.string()).default([]),
-  // PF/PJ fields
-  person_type: z.enum(['pf', 'pj']).optional().nullable(),
+  // PF/PJ fields - person_type is required for NF-e
+  person_type: z.enum(['pf', 'pj'], { required_error: 'Tipo de pessoa é obrigatório' }),
   cnpj: z.string().optional().nullable(),
   company_name: z.string().optional().nullable(),
   ie: z.string().optional().nullable(),
@@ -71,7 +71,22 @@ const customerSchema = z.object({
   address_neighborhood: z.string().optional().nullable(),
   address_city: z.string().optional().nullable(),
   address_state: z.string().optional().nullable(),
-});
+}).refine(
+  (data) => {
+    // CPF is required for PF, CNPJ is required for PJ
+    if (data.person_type === 'pf') {
+      return data.cpf && data.cpf.trim().length >= 11;
+    }
+    if (data.person_type === 'pj') {
+      return data.cnpj && data.cnpj.trim().length >= 14;
+    }
+    return true;
+  },
+  {
+    message: 'CPF (para PF) ou CNPJ (para PJ) é obrigatório para emissão de NF-e',
+    path: ['cpf'],
+  }
+);
 
 type FormValues = z.infer<typeof customerSchema>;
 
@@ -258,7 +273,7 @@ export function CustomerForm({
                     name="person_type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tipo de Pessoa</FormLabel>
+                        <FormLabel>Tipo de Pessoa *</FormLabel>
                         <Select 
                           onValueChange={field.onChange} 
                           value={field.value ?? 'pf'}
@@ -283,6 +298,7 @@ export function CustomerForm({
                             </SelectItem>
                           </SelectContent>
                         </Select>
+                        <FormDescription>Obrigatório para emissão de NF-e</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -438,10 +454,11 @@ export function CustomerForm({
                         name="cpf"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CPF</FormLabel>
+                            <FormLabel>CPF *</FormLabel>
                             <FormControl>
                               <Input placeholder="000.000.000-00" {...field} value={field.value ?? ''} />
                             </FormControl>
+                            <FormDescription>Obrigatório para emissão de NF-e</FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -514,10 +531,11 @@ export function CustomerForm({
                           name="cnpj"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>CNPJ</FormLabel>
+                              <FormLabel>CNPJ *</FormLabel>
                               <FormControl>
                                 <Input placeholder="00.000.000/0001-00" {...field} value={field.value ?? ''} />
                               </FormControl>
+                              <FormDescription>Obrigatório para emissão de NF-e</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}

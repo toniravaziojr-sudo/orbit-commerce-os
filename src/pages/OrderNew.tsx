@@ -214,6 +214,26 @@ export default function OrderNew() {
       return;
     }
 
+    // Validate CPF/CNPJ for NF-e
+    if (!formData.customer_cpf || formData.customer_cpf.trim().length < 11) {
+      toast.error('CPF/CNPJ é obrigatório para emissão de NF-e');
+      return;
+    }
+
+    // Validate shipping address for NF-e
+    const missingAddressFields = [];
+    if (!formData.shipping_postal_code) missingAddressFields.push('CEP');
+    if (!formData.shipping_street) missingAddressFields.push('Rua');
+    if (!formData.shipping_number) missingAddressFields.push('Número');
+    if (!formData.shipping_neighborhood) missingAddressFields.push('Bairro');
+    if (!formData.shipping_city) missingAddressFields.push('Cidade');
+    if (!formData.shipping_state) missingAddressFields.push('Estado');
+
+    if (missingAddressFields.length > 0) {
+      toast.error(`Endereço completo é obrigatório para NF-e. Faltando: ${missingAddressFields.join(', ')}`);
+      return;
+    }
+
     if (items.length === 0) {
       toast.error('Adicione pelo menos um produto');
       return;
@@ -375,7 +395,7 @@ export default function OrderNew() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="person_type">Tipo de Pessoa</Label>
+                <Label htmlFor="person_type">Tipo de Pessoa *</Label>
                 <Select
                   value={formData.person_type}
                   onValueChange={(value) => setFormData({ ...formData, person_type: value as 'pf' | 'pj' })}
@@ -391,14 +411,16 @@ export default function OrderNew() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="customer_cpf">
-                  {formData.person_type === 'pj' ? 'CNPJ' : 'CPF'}
+                  {formData.person_type === 'pj' ? 'CNPJ *' : 'CPF *'}
                 </Label>
                 <Input
                   id="customer_cpf"
                   value={formData.customer_cpf}
                   onChange={(e) => setFormData({ ...formData, customer_cpf: e.target.value })}
                   placeholder={formData.person_type === 'pj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                  required
                 />
+                <p className="text-xs text-muted-foreground">Obrigatório para emissão de NF-e</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="payment_method">Método de Pagamento</Label>
@@ -456,16 +478,18 @@ export default function OrderNew() {
         {/* Shipping Address */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Endereço de Entrega</CardTitle>
+            <CardTitle>Endereço de Entrega *</CardTitle>
+            <p className="text-sm text-muted-foreground">Obrigatório para emissão de NF-e</p>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="shipping_postal_code">CEP</Label>
+              <Label htmlFor="shipping_postal_code">CEP *</Label>
               <div className="flex gap-2">
                 <Input
                   id="shipping_postal_code"
                   value={formData.shipping_postal_code}
                   onChange={(e) => setFormData({ ...formData, shipping_postal_code: e.target.value })}
+                  required
                 />
                 <Button
                   type="button"
@@ -483,19 +507,21 @@ export default function OrderNew() {
               </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="shipping_street">Rua</Label>
+              <Label htmlFor="shipping_street">Rua *</Label>
               <Input
                 id="shipping_street"
                 value={formData.shipping_street}
                 onChange={(e) => setFormData({ ...formData, shipping_street: e.target.value })}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="shipping_number">Número</Label>
+              <Label htmlFor="shipping_number">Número *</Label>
               <Input
                 id="shipping_number"
                 value={formData.shipping_number}
                 onChange={(e) => setFormData({ ...formData, shipping_number: e.target.value })}
+                required
               />
             </div>
             <div className="space-y-2">
@@ -507,29 +533,32 @@ export default function OrderNew() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="shipping_neighborhood">Bairro</Label>
+              <Label htmlFor="shipping_neighborhood">Bairro *</Label>
               <Input
                 id="shipping_neighborhood"
                 value={formData.shipping_neighborhood}
                 onChange={(e) => setFormData({ ...formData, shipping_neighborhood: e.target.value })}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="shipping_city">Cidade</Label>
+              <Label htmlFor="shipping_city">Cidade *</Label>
               <Input
                 id="shipping_city"
                 value={formData.shipping_city}
                 onChange={(e) => setFormData({ ...formData, shipping_city: e.target.value })}
+                required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="shipping_state">Estado</Label>
+              <Label htmlFor="shipping_state">Estado *</Label>
               <Input
                 id="shipping_state"
                 value={formData.shipping_state}
                 onChange={(e) => setFormData({ ...formData, shipping_state: e.target.value })}
                 maxLength={2}
                 placeholder="SP"
+                required
               />
             </div>
           </CardContent>
