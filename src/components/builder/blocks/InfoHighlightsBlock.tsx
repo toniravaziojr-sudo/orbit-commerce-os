@@ -101,7 +101,9 @@ export function InfoHighlightsBlock({
   layout = 'horizontal',
   context,
 }: InfoHighlightsBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (Rules of Hooks)
+  const deviceIsMobile = useIsMobile();
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   const effectiveLayout = isMobile ? 'vertical' : layout;
 
   if (items.length === 0) {

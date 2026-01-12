@@ -44,7 +44,9 @@ export function CollectionSectionBlock({
   isEditing = false,
 }: CollectionSectionBlockProps) {
   const showRatings = context?.showRatings !== false;
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (Rules of Hooks)
+  const deviceIsMobile = useIsMobile();
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   
   const { products, isLoading, error } = useBuilderProducts({
     tenantSlug: context?.tenantSlug || '',

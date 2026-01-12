@@ -46,7 +46,9 @@ export function FeaturedCategoriesBlock({
   context,
   isEditing = false,
 }: FeaturedCategoriesBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (Rules of Hooks)
+  const deviceIsMobile = useIsMobile();
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   const [categories, setCategories] = useState<(CategoryData & { config?: CategoryItemConfig })[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
