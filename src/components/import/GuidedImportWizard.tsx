@@ -108,7 +108,6 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       let data: any[];
       
       const platform = analysisResult?.platform?.toLowerCase() || 'generic';
-      const isShopify = platform === 'shopify' || platform.includes('shopify');
       
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
@@ -117,11 +116,19 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         // Use proper CSV parser that handles BOM and quoted fields
         const rawRows = parseCSV(text);
         
-        // CRITICAL: Shopify CSV has multiple rows per product (variants/images)
-        // Must consolidate before normalizing
-        if (isShopify && stepId === 'products') {
-          console.log(`[handleFileImport] Shopify products detected - consolidating ${rawRows.length} rows`);
+        // CRITICAL: Detect Shopify CSV structure by checking for Handle + Title columns
+        // This ensures consolidation happens even if platform detection failed
+        const hasShopifyStructure = stepId === 'products' && rawRows.length > 0 && 
+          ('Handle' in rawRows[0] || 'handle' in rawRows[0]) &&
+          ('Title' in rawRows[0] || 'title' in rawRows[0]);
+        
+        const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
+        const shouldConsolidate = hasShopifyStructure || isShopifyPlatform;
+        
+        if (shouldConsolidate && stepId === 'products') {
+          console.log(`[handleFileImport] Shopify CSV structure detected - consolidating ${rawRows.length} rows (platform: ${platform}, hasStructure: ${hasShopifyStructure})`);
           data = consolidateShopifyProducts(rawRows);
+          console.log(`[handleFileImport] Consolidated to ${data.length} products`);
         } else {
           data = rawRows;
         }
@@ -140,13 +147,19 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         }
       }
 
+      // CRITICAL: Use 'shopify' platform for normalization if Shopify structure detected
+      // This ensures correct normalization even if platform detection returned unknown
+      const hasShopifyData = stepId === 'products' && data.length > 0 && 
+        ('Handle' in data[0] || 'handle' in data[0] || 'Title' in data[0] || 'title' in data[0]);
+      const effectivePlatform = hasShopifyData ? 'shopify' : platform;
+
       const dataType = stepId === 'products' ? 'product' : stepId === 'customers' ? 'customer' : 'order';
-      const normalized = normalizeData(platform as PlatformType, dataType, data);
+      const normalized = normalizeData(effectivePlatform as PlatformType, dataType, data);
       
       // Debug: Verify normalization worked
       if (normalized.length > 0 && stepId === 'products') {
         const firstProduct = normalized[0] as any;
-        console.log(`[handleFileImport] After normalization - name: "${firstProduct.name}", slug: "${firstProduct.slug}", price: ${firstProduct.price}`);
+        console.log(`[handleFileImport] After normalization (${effectivePlatform}) - name: "${firstProduct.name}", slug: "${firstProduct.slug}", price: ${firstProduct.price}, images: ${firstProduct.images?.length || 0}`);
       }
 
       const moduleType = stepId as 'products' | 'customers' | 'orders';

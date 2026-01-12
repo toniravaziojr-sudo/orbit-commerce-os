@@ -163,19 +163,63 @@ export function removeBOM(content: string): string {
 
 /**
  * Parse CSV content into array of objects
- * CRITICAL: Handles BOM, quoted fields with commas, and multi-line values
+ * CRITICAL: Handles BOM, quoted fields with commas, and MULTI-LINE values
+ * Shopify CSV exports have descriptions with HTML that span multiple lines
  */
 export function parseCSV(content: string): Record<string, string>[] {
   // CRITICAL: Remove BOM before parsing (common in Excel/Shopify exports)
   const cleanContent = removeBOM(content);
   
-  const lines = cleanContent.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
+  // Parse CSV handling multi-line quoted values
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let inQuotes = false;
   
-  // Parse and clean headers - remove BOM from first header, remove quotes, trim
-  const headers = parseCSVLine(lines[0]).map((h, idx) => {
+  for (let i = 0; i < cleanContent.length; i++) {
+    const char = cleanContent[i];
+    const nextChar = cleanContent[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // Escaped quote ""
+        currentField += '"';
+        i++;
+      } else {
+        // Toggle quote mode
+        inQuotes = !inQuotes;
+      }
+    } else if ((char === ',' || char === ';') && !inQuotes) {
+      // Field separator
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !inQuotes) {
+      // End of row (not inside quotes)
+      if (char === '\r') i++; // Skip \n in \r\n
+      currentRow.push(currentField.trim());
+      if (currentRow.some(f => f)) { // Only add non-empty rows
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      currentField += char;
+    }
+  }
+  
+  // Push last field and row
+  if (currentField || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some(f => f)) {
+      rows.push(currentRow);
+    }
+  }
+  
+  if (rows.length < 2) return [];
+  
+  // First row is headers - clean them
+  const headers = rows[0].map((h, idx) => {
     let clean = h.replace(/^"|"$/g, '').trim();
-    // Extra BOM cleanup on first header
     if (idx === 0) {
       clean = removeBOM(clean);
     }
@@ -186,15 +230,13 @@ export function parseCSV(content: string): Record<string, string>[] {
   
   const data: Record<string, string>[] = [];
   
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]).map(v => v.replace(/^"|"$/g, ''));
-    if (values.length === headers.length || values.some(v => v.trim())) {
-      const row: Record<string, string> = {};
-      headers.forEach((header, idx) => {
-        row[header] = values[idx] || '';
-      });
-      data.push(row);
-    }
+  for (let i = 1; i < rows.length; i++) {
+    const values = rows[i].map(v => v.replace(/^"|"$/g, ''));
+    const row: Record<string, string> = {};
+    headers.forEach((header, idx) => {
+      row[header] = values[idx] || '';
+    });
+    data.push(row);
   }
   
   console.log(`[parseCSV] Parsed ${data.length} rows`);
