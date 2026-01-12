@@ -42,7 +42,7 @@ export function stripHtmlToText(html: string | null | undefined): string | null 
  */
 export function extractNumericOnly(value: string | null | undefined): string | null {
   if (!value) return null;
-  const cleaned = value.replace(/[^\\d]/g, '');
+  const cleaned = value.replace(/[^\d]/g, '');
   return cleaned.length > 0 ? cleaned : null;
 }
 
@@ -78,7 +78,7 @@ export function parseBrazilianPrice(price: string | number | null | undefined): 
   
   // Handle Brazilian format (1.234,56) vs American format (1,234.56)
   // If has comma followed by 2 digits at end, it's Brazilian
-  if (/,\\d{2}$/.test(cleaned)) {
+  if (/,\d{2}$/.test(cleaned)) {
     return parseFloat(cleaned.replace(/\./g, '').replace(',', '.')) || 0;
   }
   
@@ -154,13 +154,36 @@ export function parseCSVLine(line: string): string[] {
 }
 
 /**
+ * Remove BOM (Byte Order Mark) from string - common in Excel/Shopify CSV exports
+ */
+export function removeBOM(content: string): string {
+  // Remove UTF-8 BOM (\uFEFF) and UTF-16 BOMs
+  return content.replace(/^\uFEFF/, '').replace(/^\uFFFE/, '');
+}
+
+/**
  * Parse CSV content into array of objects
+ * CRITICAL: Handles BOM, quoted fields with commas, and multi-line values
  */
 export function parseCSV(content: string): Record<string, string>[] {
-  const lines = content.split(/\r?\n/).filter(l => l.trim());
+  // CRITICAL: Remove BOM before parsing (common in Excel/Shopify exports)
+  const cleanContent = removeBOM(content);
+  
+  const lines = cleanContent.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) return [];
   
-  const headers = parseCSVLine(lines[0]).map(h => h.replace(/^"|"$/g, '').trim());
+  // Parse and clean headers - remove BOM from first header, remove quotes, trim
+  const headers = parseCSVLine(lines[0]).map((h, idx) => {
+    let clean = h.replace(/^"|"$/g, '').trim();
+    // Extra BOM cleanup on first header
+    if (idx === 0) {
+      clean = removeBOM(clean);
+    }
+    return clean;
+  });
+  
+  console.log('[parseCSV] Headers detected:', headers.slice(0, 10).join(', '), headers.length > 10 ? `... (${headers.length} total)` : '');
+  
   const data: Record<string, string>[] = [];
   
   for (let i = 1; i < lines.length; i++) {
@@ -174,5 +197,116 @@ export function parseCSV(content: string): Record<string, string>[] {
     }
   }
   
+  console.log(`[parseCSV] Parsed ${data.length} rows`);
+  
   return data;
+}
+
+/**
+ * Consolidate Shopify CSV rows by Handle
+ * Shopify exports multiple rows per product (one per variant/image)
+ * This function groups them back into single products
+ */
+export function consolidateShopifyProducts(rows: Record<string, string>[]): Record<string, any>[] {
+  const productMap = new Map<string, any>();
+  
+  for (const row of rows) {
+    const handle = row['Handle'] || row['handle'] || '';
+    if (!handle) {
+      console.warn('[consolidateShopifyProducts] Row without Handle, skipping');
+      continue;
+    }
+    
+    if (!productMap.has(handle)) {
+      // First row for this product - use as base
+      productMap.set(handle, {
+        ...row,
+        _images: [] as string[],
+        _variants: [] as Record<string, string>[],
+      });
+    }
+    
+    const product = productMap.get(handle)!;
+    
+    // Collect image if present
+    const imageSrc = row['Image Src'] || row['image_src'] || '';
+    if (imageSrc && !product._images.includes(imageSrc)) {
+      product._images.push(imageSrc);
+    }
+    
+    // Collect variant if it has a distinct Option1 Value or SKU
+    const opt1Value = row['Option1 Value'] || '';
+    const variantSku = row['Variant SKU'] || '';
+    const variantPrice = row['Variant Price'] || '';
+    
+    // Check if this is a new variant (different Option1 Value or SKU)
+    const existingVariant = product._variants.find(
+      (v: Record<string, string>) => 
+        (v['Option1 Value'] === opt1Value && v['Variant SKU'] === variantSku)
+    );
+    
+    if (!existingVariant && (opt1Value || variantSku || variantPrice)) {
+      product._variants.push({
+        'Option1 Name': row['Option1 Name'] || '',
+        'Option1 Value': opt1Value,
+        'Option2 Name': row['Option2 Name'] || '',
+        'Option2 Value': row['Option2 Value'] || '',
+        'Option3 Name': row['Option3 Name'] || '',
+        'Option3 Value': row['Option3 Value'] || '',
+        'Variant SKU': variantSku,
+        'Variant Price': variantPrice,
+        'Variant Compare At Price': row['Variant Compare At Price'] || '',
+        'Variant Inventory Qty': row['Variant Inventory Qty'] || '',
+        'Variant Barcode': row['Variant Barcode'] || '',
+        'Variant Grams': row['Variant Grams'] || '',
+      });
+    }
+    
+    // CRITICAL: Use Title from first row that has it (not from image-only rows)
+    if (!product['Title'] && row['Title']) {
+      product['Title'] = row['Title'];
+    }
+    if (!product['Body (HTML)'] && row['Body (HTML)']) {
+      product['Body (HTML)'] = row['Body (HTML)'];
+    }
+  }
+  
+  // Convert back to array, enriching with collected data
+  const consolidated: Record<string, any>[] = [];
+  
+  for (const [handle, product] of productMap) {
+    // Create images array for the normalizer
+    const images = product._images.map((src: string, idx: number) => ({
+      src,
+      position: idx,
+      alt: null,
+    }));
+    
+    // Create variants array for the normalizer
+    const variants = product._variants.length > 0 
+      ? product._variants.map((v: Record<string, string>) => ({
+          title: v['Option1 Value'] || 'Default',
+          sku: v['Variant SKU'] || null,
+          price: v['Variant Price'] || product['Variant Price'] || '0',
+          compare_at_price: v['Variant Compare At Price'] || null,
+          inventory_quantity: parseInt(v['Variant Inventory Qty'] || '0', 10),
+          option1: v['Option1 Value'] || null,
+          option2: v['Option2 Value'] || null,
+          option3: v['Option3 Value'] || null,
+        }))
+      : undefined;
+    
+    consolidated.push({
+      ...product,
+      images: images.length > 0 ? images : undefined,
+      variants: variants,
+      // Clean up internal fields
+      _images: undefined,
+      _variants: undefined,
+    });
+  }
+  
+  console.log(`[consolidateShopifyProducts] Consolidated ${rows.length} rows into ${consolidated.length} products`);
+  
+  return consolidated;
 }
