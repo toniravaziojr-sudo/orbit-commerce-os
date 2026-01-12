@@ -39,22 +39,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useOrderDetails, useOrders, type OrderStatus, type PaymentStatus } from '@/hooks/useOrders';
+import { useOrderDetails, useOrders } from '@/hooks/useOrders';
+import { 
+  OrderStatus, 
+  PaymentStatus, 
+  ShippingStatus,
+  ORDER_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  SHIPPING_STATUS_CONFIG,
+} from '@/types/orderStatus';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
-
-
-const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Pendente', variant: 'secondary' },
-  awaiting_payment: { label: 'Aguardando Pagamento', variant: 'outline' },
-  paid: { label: 'Pago', variant: 'default' },
-  processing: { label: 'Em Separação', variant: 'default' },
-  shipped: { label: 'Enviado', variant: 'default' },
-  in_transit: { label: 'Em Trânsito', variant: 'default' },
-  delivered: { label: 'Entregue', variant: 'default' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
-  returned: { label: 'Devolvido', variant: 'destructive' },
-};
 
 const paymentMethodLabels: Record<string, string> = {
   pix: 'PIX',
@@ -182,7 +177,7 @@ export default function OrderDetail() {
     );
   }
 
-  const statusConfig = orderStatusConfig[order.status];
+  const orderStatusCfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -195,7 +190,7 @@ export default function OrderDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{order.order_number}</h1>
-              <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+              <Badge variant={orderStatusCfg.variant}>{orderStatusCfg.label}</Badge>
             </div>
             <p className="text-muted-foreground">
               Criado em {formatDate(order.created_at)}
@@ -208,9 +203,9 @@ export default function OrderDetail() {
               <SelectValue placeholder="Alterar status" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(orderStatusConfig).map(([key, config]) => (
+              {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => (
                 <SelectItem key={key} value={key}>
-                  {config.label}
+                  {cfg.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -420,16 +415,15 @@ export default function OrderDetail() {
                   value={order.payment_status} 
                   onValueChange={(v) => handlePaymentStatusChange(v as PaymentStatus)}
                 >
-                  <SelectTrigger className="w-32 h-8">
+                  <SelectTrigger className="w-40 h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Pendente</SelectItem>
-                    <SelectItem value="processing">Processando</SelectItem>
-                    <SelectItem value="approved">Aprovado</SelectItem>
-                    <SelectItem value="declined">Recusado</SelectItem>
-                    <SelectItem value="refunded">Reembolsado</SelectItem>
-                    <SelectItem value="cancelled">Cancelado</SelectItem>
+                    {Object.entries(PAYMENT_STATUS_CONFIG).map(([key, cfg]) => (
+                      <SelectItem key={key} value={key}>
+                        {cfg.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

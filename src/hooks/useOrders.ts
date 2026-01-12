@@ -2,17 +2,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { 
+  OrderStatus, 
+  PaymentStatus, 
+  ShippingStatus,
+  ORDER_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  SHIPPING_STATUS_CONFIG,
+  normalizeOrderStatus,
+  normalizePaymentStatus,
+  normalizeShippingStatus,
+} from '@/types/orderStatus';
 
-export type OrderStatus = 
-  | 'pending' 
-  | 'awaiting_payment' 
-  | 'paid' 
-  | 'processing' 
-  | 'shipped' 
-  | 'in_transit' 
-  | 'delivered' 
-  | 'cancelled' 
-  | 'returned';
+// Re-export types for backward compatibility
+export type { OrderStatus, PaymentStatus, ShippingStatus };
+export { ORDER_STATUS_CONFIG, PAYMENT_STATUS_CONFIG, SHIPPING_STATUS_CONFIG };
 
 export type PaymentMethod = 
   | 'pix' 
@@ -21,24 +25,6 @@ export type PaymentMethod =
   | 'boleto' 
   | 'mercado_pago' 
   | 'pagarme';
-
-export type PaymentStatus = 
-  | 'pending' 
-  | 'processing' 
-  | 'approved' 
-  | 'declined' 
-  | 'refunded' 
-  | 'cancelled';
-
-export type ShippingStatus = 
-  | 'pending' 
-  | 'processing' 
-  | 'shipped' 
-  | 'in_transit' 
-  | 'out_for_delivery' 
-  | 'delivered' 
-  | 'returned' 
-  | 'failed';
 
 export interface Order {
   id: string;
@@ -208,18 +194,19 @@ export function useOrders(options?: {
         .select('*', { count: 'exact' })
         .eq('tenant_id', currentTenant.id);
 
-      // Apply filters
+      // Apply filters - using 'as any' to bypass strict typing from generated Supabase types
+      // The actual DB columns accept string values
       if (search) {
         query = query.or(`order_number.ilike.%${search}%,customer_name.ilike.%${search}%,customer_email.ilike.%${search}%`);
       }
       if (status && status !== 'all') {
-        query = query.eq('status', status as OrderStatus);
+        query = query.eq('status', status as any);
       }
       if (paymentStatus && paymentStatus !== 'all') {
-        query = query.eq('payment_status', paymentStatus as PaymentStatus);
+        query = query.eq('payment_status', paymentStatus as any);
       }
       if (shippingStatus && shippingStatus !== 'all') {
-        query = query.eq('shipping_status', shippingStatus as ShippingStatus);
+        query = query.eq('shipping_status', shippingStatus as any);
       }
 
       // Date filters
@@ -346,18 +333,21 @@ export function useOrders(options?: {
 
       const updateData: Record<string, unknown> = { status };
       
-      if (status === 'cancelled') {
+      // Update related fields based on status
+      if (status === 'cancelled' || status === 'refunded') {
         updateData.cancelled_at = new Date().toISOString();
         updateData.cancellation_reason = reason;
-      } else if (status === 'shipped') {
+      } else if (status === 'dispatched') {
+        updateData.shipping_status = 'label_generated';
+      } else if (status === 'shipping') {
         updateData.shipped_at = new Date().toISOString();
         updateData.shipping_status = 'shipped';
-      } else if (status === 'delivered') {
+      } else if (status === 'completed') {
         updateData.delivered_at = new Date().toISOString();
         updateData.shipping_status = 'delivered';
-      } else if (status === 'paid') {
+      } else if (status === 'approved') {
         updateData.paid_at = new Date().toISOString();
-        updateData.payment_status = 'approved';
+        updateData.payment_status = 'paid';
       }
 
       const { data, error } = await supabase
@@ -370,16 +360,20 @@ export function useOrders(options?: {
       if (error) throw error;
 
       // Create history entry
+      const statusLabels = ORDER_STATUS_CONFIG;
+      const oldLabel = statusLabels[currentOrder.status as OrderStatus]?.label || currentOrder.status;
+      const newLabel = statusLabels[status]?.label || status;
+      
       await supabase.from('order_history').insert({
         order_id: orderId,
         action: 'status_changed',
         previous_value: { status: currentOrder.status },
         new_value: { status },
-        description: `Status alterado de ${currentOrder.status} para ${status}`,
+        description: `Status do pedido alterado de ${oldLabel} para ${newLabel}`,
       });
 
-      // Emit payment event when order is marked as paid (manual approval)
-      if (status === 'paid' && currentTenant?.id) {
+      // Emit payment event when order is marked as approved
+      if (status === 'approved' && currentTenant?.id) {
         const idempotencyKey = `payment_approved_manual_${orderId}_${Date.now()}`;
         
         await supabase.from('events_inbox').insert({
@@ -396,7 +390,7 @@ export function useOrders(options?: {
             customer_phone: data.customer_phone || '',
             order_total: data.total || 0,
             old_status: currentOrder.status,
-            new_status: 'approved',
+            new_status: 'paid',
             payment_method: data.payment_method || 'manual',
             payment_gateway: 'manual',
           },
@@ -609,8 +603,8 @@ export function useOrderDetails(orderId: string | undefined) {
         payment_status: paymentStatus,
       };
       
-      // If approved, set paid_at
-      if (paymentStatus === 'approved') {
+      // If paid, set paid_at
+      if (paymentStatus === 'paid') {
         updateData.paid_at = new Date().toISOString();
       }
       
@@ -622,20 +616,13 @@ export function useOrderDetails(orderId: string | undefined) {
       if (error) throw error;
 
       // Add history
-      const statusLabels: Record<string, string> = {
-        pending: 'Pendente',
-        processing: 'Processando',
-        approved: 'Aprovado',
-        declined: 'Recusado',
-        refunded: 'Reembolsado',
-        cancelled: 'Cancelado',
-      };
+      const statusLabel = PAYMENT_STATUS_CONFIG[paymentStatus]?.label || paymentStatus;
       
       await supabase.from('order_history').insert({
         order_id: orderId,
         author_id: user?.id,
         action: 'payment_status_updated',
-        description: `Status de pagamento alterado para: ${statusLabels[paymentStatus] || paymentStatus}`,
+        description: `Status de pagamento alterado para: ${statusLabel}`,
         new_value: { payment_status: paymentStatus },
       });
     },
