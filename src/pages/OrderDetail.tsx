@@ -32,7 +32,7 @@ import {
 import { useOrderDetails, useOrders, type OrderStatus } from '@/hooks/useOrders';
 import { ShipmentSection } from '@/components/orders/ShipmentSection';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
-import { EmitInvoiceButton } from '@/components/fiscal/EmitInvoiceButton';
+
 
 const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   pending: { label: 'Pendente', variant: 'secondary' },
@@ -157,7 +157,6 @@ export default function OrderDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {id && <EmitInvoiceButton orderId={id} orderNumber={order.order_number} />}
           <Select value={order.status} onValueChange={(v) => handleStatusChange(v as OrderStatus)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Alterar status" />
@@ -335,10 +334,11 @@ export default function OrderDetail() {
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="w-full"
+                  className="w-full gap-2"
                   onClick={() => navigate(`/customers/${order.customer_id}`)}
                 >
-                  Ver perfil do cliente
+                  <ExternalLink className="h-4 w-4" />
+                  Ver cadastro do cliente
                 </Button>
               )}
             </CardContent>
