@@ -33,6 +33,9 @@ import {
 import { usePageOverrides } from '@/hooks/usePageOverrides';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
+// Isolation modes for debugging React #300
+type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'full';
+
 interface VisualBuilderProps {
   tenantId: string;
   pageType: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'institutional' | 'landing_page' | 'tracking' | 'blog' | 'page_template';
@@ -41,6 +44,36 @@ interface VisualBuilderProps {
   pageSlug?: string; // For institutional/landing pages
   initialContent?: BlockNode;
   context: BlockRenderContext;
+  isolateMode?: IsolateMode;
+}
+
+// Minimal isolation UI for visual/canvas/blocks modes
+function VisualIsolationUI({ mode, message }: { mode: string; message: string }) {
+  return (
+    <div className="h-screen flex flex-col">
+      <div className="bg-blue-500/10 border-b border-blue-500/30 px-4 py-3">
+        <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+          🔬 Isolamento: <code className="bg-blue-500/20 px-2 py-0.5 rounded">{mode}</code> — {message}
+        </p>
+      </div>
+      <div className="flex-1 flex items-center justify-center bg-muted/50">
+        <div className="text-center space-y-4">
+          <div className="text-6xl">✅</div>
+          <h2 className="text-xl font-bold text-green-600">Camada OK</h2>
+          <p className="text-muted-foreground max-w-md">
+            Se você está vendo isso SEM erro, o problema está em uma camada posterior.
+            Teste o próximo nível.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <a href="?edit=home&isolate=visual" className="px-3 py-1.5 text-sm bg-muted rounded hover:bg-muted/80">visual</a>
+            <a href="?edit=home&isolate=canvas" className="px-3 py-1.5 text-sm bg-muted rounded hover:bg-muted/80">canvas</a>
+            <a href="?edit=home&isolate=blocks" className="px-3 py-1.5 text-sm bg-muted rounded hover:bg-muted/80">blocks</a>
+            <a href="?edit=home&isolate=full" className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90">full</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function VisualBuilder({
@@ -51,8 +84,15 @@ export function VisualBuilder({
   pageSlug,
   initialContent,
   context,
+  isolateMode,
 }: VisualBuilderProps) {
   const [searchParams] = useSearchParams();
+  
+  // ISOLATION MODE: render minimal UI for testing layers
+  // ?isolate=visual - test VisualBuilder without DnD/Canvas
+  if (isolateMode === 'visual') {
+    return <VisualIsolationUI mode="visual" message="VisualBuilder shell (sem DnD/Canvas)" />;
+  }
   
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
@@ -60,7 +100,7 @@ export function VisualBuilder({
 
   // Debug log on mount
   useEffect(() => {
-    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent, isSafeMode, isDebugMode });
+    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent, isSafeMode, isDebugMode, isolateMode });
   }, []);
   const navigate = useNavigate();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -555,6 +595,16 @@ export function VisualBuilder({
         </div>
       </>
     );
+  }
+
+  // ISOLATION MODE: canvas - render shell without BlockRenderer
+  if (isolateMode === 'canvas') {
+    return <VisualIsolationUI mode="canvas" message="Canvas (sem BlockRenderer)" />;
+  }
+
+  // ISOLATION MODE: blocks - render with single simple block
+  if (isolateMode === 'blocks') {
+    return <VisualIsolationUI mode="blocks" message="BlockRenderer com bloco simples" />;
   }
 
   return (
