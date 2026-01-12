@@ -65,6 +65,7 @@ export default function Orders() {
     totalCount, 
     isLoading, 
     updateOrderStatus,
+    deleteOrder,
   } = useOrders({
     page: currentPage,
     pageSize: PAGE_SIZE,
@@ -85,6 +86,10 @@ export default function Orders() {
 
   const handleUpdateStatus = (orderId: string, status: OrderStatus) => {
     updateOrderStatus.mutate({ orderId, status });
+  };
+
+  const handleDelete = (orderId: string) => {
+    deleteOrder.mutate(orderId);
   };
 
   // Calculate stats from current page
@@ -232,6 +237,7 @@ export default function Orders() {
             isLoading={isLoading}
             onView={handleView}
             onUpdateStatus={handleUpdateStatus}
+            onDelete={handleDelete}
           />
 
           {/* Pagination */}

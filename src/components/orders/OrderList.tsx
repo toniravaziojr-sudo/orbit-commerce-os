@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   Package, 
   MoreHorizontal, 
@@ -13,6 +14,7 @@ import {
   Tag,
   PackageCheck,
   PackageX,
+  Trash2,
 } from 'lucide-react';
 import {
   Table,
@@ -40,6 +42,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OrderSourceBadge } from './OrderSourceBadge';
@@ -50,6 +62,7 @@ interface OrderListProps {
   isLoading: boolean;
   onView: (order: Order) => void;
   onUpdateStatus: (orderId: string, status: OrderStatus) => void;
+  onDelete?: (orderId: string) => void;
 }
 
 const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock }> = {
@@ -117,7 +130,23 @@ export function OrderList({
   isLoading,
   onView,
   onUpdateStatus,
+  onDelete,
 }: OrderListProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<string | null>(null);
+
+  const handleDeleteClick = (id: string) => {
+    setOrderToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (orderToDelete && onDelete) {
+      onDelete(orderToDelete);
+    }
+    setDeleteDialogOpen(false);
+    setOrderToDelete(null);
+  };
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -259,6 +288,18 @@ export function OrderList({
                           ))}
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
+                      {onDelete && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => handleDeleteClick(order.id)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Excluir
+                          </DropdownMenuItem>
+                        </>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -268,6 +309,23 @@ export function OrderList({
           </TableBody>
         </Table>
       </div>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir pedido?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O pedido será permanentemente removido.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
