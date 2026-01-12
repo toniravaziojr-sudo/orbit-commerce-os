@@ -41,6 +41,7 @@ Deno.serve(async (req) => {
     console.log(`Starting IMPORTED data clear for tenant ${tenantId}, modules: ${modules.join(', ')}`);
 
     const deleted: Record<string, number> = {};
+    const errors: string[] = [];
     const shouldClearAll = modules.includes('all');
 
     // Helper: Get imported item IDs from import_items table
@@ -61,6 +62,29 @@ Deno.serve(async (req) => {
       return (data || []).map(item => item.internal_id).filter(Boolean);
     };
 
+    // Helper: Safe delete with error logging (doesn't fail the entire operation)
+    const safeDelete = async (table: string, column: string, ids: string[]): Promise<number> => {
+      if (ids.length === 0) return 0;
+      
+      try {
+        const { count, error } = await supabase
+          .from(table)
+          .delete({ count: 'exact' })
+          .in(column, ids);
+        
+        if (error) {
+          console.warn(`Error deleting from ${table}:`, error.message);
+          errors.push(`${table}: ${error.message}`);
+          return 0;
+        }
+        
+        return count || 0;
+      } catch (err) {
+        console.warn(`Exception deleting from ${table}:`, err);
+        return 0;
+      }
+    };
+
     // ========================================
     // Clear IMPORTED products and related tables
     // ========================================
@@ -69,63 +93,26 @@ Deno.serve(async (req) => {
       console.log(`Found ${importedProductIds.length} imported products to delete`);
 
       if (importedProductIds.length > 0) {
-        const { data: pcDeleted } = await supabase
-          .from('product_categories')
-          .delete()
-          .in('product_id', importedProductIds)
-          .select('id');
-        deleted['product_categories'] = pcDeleted?.length || 0;
-
-        const { data: piDeleted } = await supabase
-          .from('product_images')
-          .delete()
-          .in('product_id', importedProductIds)
-          .select('id');
-        deleted['product_images'] = piDeleted?.length || 0;
-
-        const { data: pvDeleted } = await supabase
-          .from('product_variants')
-          .delete()
-          .in('product_id', importedProductIds)
-          .select('id');
-        deleted['product_variants'] = pvDeleted?.length || 0;
-
-        const { data: ciDeleted } = await supabase
-          .from('cart_items')
-          .delete()
-          .in('product_id', importedProductIds)
-          .select('id');
-        deleted['cart_items'] = ciDeleted?.length || 0;
-
-        const { data: bt1Deleted } = await supabase
-          .from('buy_together_rules')
-          .delete()
-          .in('trigger_product_id', importedProductIds)
-          .select('id');
-        const { data: bt2Deleted } = await supabase
-          .from('buy_together_rules')
-          .delete()
-          .in('suggested_product_id', importedProductIds)
-          .select('id');
-        deleted['buy_together_rules'] = (bt1Deleted?.length || 0) + (bt2Deleted?.length || 0);
-
-        const { data: productsDeleted } = await supabase
-          .from('products')
-          .delete()
-          .in('id', importedProductIds)
-          .select('id');
-        deleted['products'] = productsDeleted?.length || 0;
+        deleted['product_categories'] = await safeDelete('product_categories', 'product_id', importedProductIds);
+        deleted['product_images'] = await safeDelete('product_images', 'product_id', importedProductIds);
+        deleted['product_variants'] = await safeDelete('product_variants', 'product_id', importedProductIds);
+        deleted['cart_items'] = await safeDelete('cart_items', 'product_id', importedProductIds);
+        deleted['buy_together_trigger'] = await safeDelete('buy_together_rules', 'trigger_product_id', importedProductIds);
+        deleted['buy_together_suggested'] = await safeDelete('buy_together_rules', 'suggested_product_id', importedProductIds);
+        
+        // Delete products
+        deleted['products'] = await safeDelete('products', 'id', importedProductIds);
       } else {
         deleted['products'] = 0;
       }
 
-      const { data: importItemsDeleted } = await supabase
+      // Clean import_items for products module
+      const { count } = await supabase
         .from('import_items')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('tenant_id', tenantId)
-        .eq('module', 'products')
-        .select('id');
-      deleted['import_items_products'] = importItemsDeleted?.length || 0;
+        .eq('module', 'products');
+      deleted['import_items_products'] = count || 0;
     }
 
     // ========================================
@@ -138,51 +125,33 @@ Deno.serve(async (req) => {
 
       if (importedCategoryIds.length > 0) {
         // STEP 1: Delete product_categories FIRST (to avoid FK error)
-        const { error: pcError, count: pcCount } = await supabase
-          .from('product_categories')
-          .delete({ count: 'exact' })
-          .in('category_id', importedCategoryIds);
-        
-        if (pcError) {
-          console.error('Error deleting product_categories:', pcError);
-        }
-        deleted['product_categories_from_categories'] = pcCount || 0;
+        deleted['product_categories_from_categories'] = await safeDelete('product_categories', 'category_id', importedCategoryIds);
 
         // STEP 2: Then delete categories
-        const { error: catError, count: catCount } = await supabase
-          .from('categories')
-          .delete({ count: 'exact' })
-          .in('id', importedCategoryIds);
-        
-        if (catError) {
-          console.error('Error deleting categories:', catError);
-        }
-        deleted['categories'] = catCount || 0;
+        deleted['categories'] = await safeDelete('categories', 'id', importedCategoryIds);
       } else {
         deleted['categories'] = 0;
-        deleted['product_categories_from_categories'] = 0;
       }
 
-      // STEP 3: Delete import_items for categories module
-      const { count: importItemsCount } = await supabase
+      // Clean import_items for categories module
+      const { count } = await supabase
         .from('import_items')
         .delete({ count: 'exact' })
         .eq('tenant_id', tenantId)
         .eq('module', 'categories');
-      deleted['import_items_categories'] = importItemsCount || 0;
+      deleted['import_items_categories'] = count || 0;
     }
 
     // ========================================
     // Clear IMPORTED customers and related tables
-    // CRITICAL: Handle FK constraint - orders.customer_id references customers
+    // CRITICAL: Handle ALL FK constraints properly
     // ========================================
     if (shouldClearAll || modules.includes('customers')) {
       const importedCustomerIds = await getImportedIds('customers');
       console.log(`Found ${importedCustomerIds.length} imported customers to delete`);
 
       if (importedCustomerIds.length > 0) {
-        // STEP 1: Unlink orders from customers that will be deleted
-        // (set customer_id to NULL instead of failing on FK constraint)
+        // STEP 1: Unlink orders from customers (set customer_id to NULL)
         const { error: unlinkError, count: unlinkCount } = await supabase
           .from('orders')
           .update({ customer_id: null })
@@ -190,234 +159,124 @@ Deno.serve(async (req) => {
         
         if (unlinkError) {
           console.error('Error unlinking orders from customers:', unlinkError);
+          errors.push(`orders unlink: ${unlinkError.message}`);
         } else {
           console.log(`Unlinked ${unlinkCount || 0} orders from customers`);
         }
 
-        // STEP 2: Delete customer related data
-        const { data: caDeleted } = await supabase
-          .from('customer_addresses')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['customer_addresses'] = caDeleted?.length || 0;
-
-        const { data: cnDeleted } = await supabase
-          .from('customer_notes')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['customer_notes'] = cnDeleted?.length || 0;
-
-        const { data: ctaDeleted } = await supabase
-          .from('customer_tag_assignments')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['customer_tag_assignments'] = ctaDeleted?.length || 0;
-
-        const { data: notifDeleted } = await supabase
-          .from('customer_notifications')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['customer_notifications'] = notifDeleted?.length || 0;
-        
-        // Also delete carts referencing these customers
-        const { data: cartsDeleted } = await supabase
-          .from('carts')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['carts'] = cartsDeleted?.length || 0;
-        
-        // Delete checkout_sessions referencing these customers
-        const { data: checkoutDeleted } = await supabase
-          .from('checkout_sessions')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['checkout_sessions'] = checkoutDeleted?.length || 0;
-        
-        // Delete conversations referencing these customers
-        const { data: convDeleted } = await supabase
-          .from('conversations')
-          .delete()
-          .in('customer_id', importedCustomerIds)
-          .select('id');
-        deleted['conversations'] = convDeleted?.length || 0;
+        // STEP 2: Delete all FK-dependent tables
+        deleted['customer_addresses'] = await safeDelete('customer_addresses', 'customer_id', importedCustomerIds);
+        deleted['customer_notes'] = await safeDelete('customer_notes', 'customer_id', importedCustomerIds);
+        deleted['customer_tag_assignments'] = await safeDelete('customer_tag_assignments', 'customer_id', importedCustomerIds);
+        deleted['customer_notifications'] = await safeDelete('customer_notifications', 'customer_id', importedCustomerIds);
+        deleted['carts'] = await safeDelete('carts', 'customer_id', importedCustomerIds);
+        deleted['checkouts'] = await safeDelete('checkouts', 'customer_id', importedCustomerIds);
+        deleted['checkout_sessions'] = await safeDelete('checkout_sessions', 'customer_id', importedCustomerIds);
+        deleted['product_reviews'] = await safeDelete('product_reviews', 'customer_id', importedCustomerIds);
+        deleted['notification_logs_customer'] = await safeDelete('notification_logs', 'customer_id', importedCustomerIds);
+        deleted['post_sale_backfill_items'] = await safeDelete('post_sale_backfill_items', 'customer_id', importedCustomerIds);
+        deleted['conversations_customer'] = await safeDelete('conversations', 'customer_id', importedCustomerIds);
+        deleted['conversation_participants'] = await safeDelete('conversation_participants', 'customer_id', importedCustomerIds);
 
         // STEP 3: Delete customers
-        const { data: customersDeleted } = await supabase
-          .from('customers')
-          .delete()
-          .in('id', importedCustomerIds)
-          .select('id');
-        deleted['customers'] = customersDeleted?.length || 0;
+        deleted['customers'] = await safeDelete('customers', 'id', importedCustomerIds);
       } else {
         deleted['customers'] = 0;
       }
 
-      const { data: importItemsDeleted } = await supabase
+      // Clean import_items for customers module
+      const { count } = await supabase
         .from('import_items')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('tenant_id', tenantId)
-        .eq('module', 'customers')
-        .select('id');
-      deleted['import_items_customers'] = importItemsDeleted?.length || 0;
+        .eq('module', 'customers');
+      deleted['import_items_customers'] = count || 0;
     }
 
     // ========================================
     // Clear IMPORTED orders and related tables
-    // CRITICAL: Delete all FK-dependent tables first
+    // CRITICAL: Delete ALL FK-dependent tables first
     // ========================================
     if (shouldClearAll || modules.includes('orders')) {
       const importedOrderIds = await getImportedIds('orders');
       console.log(`Found ${importedOrderIds.length} imported orders to delete`);
 
       if (importedOrderIds.length > 0) {
-        // Delete order_items first
-        const { data: oiDeleted } = await supabase
-          .from('order_items')
-          .delete()
-          .in('order_id', importedOrderIds)
-          .select('id');
-        deleted['order_items'] = oiDeleted?.length || 0;
+        // STEP 1: Delete all FK-dependent tables
+        deleted['order_items'] = await safeDelete('order_items', 'order_id', importedOrderIds);
+        deleted['order_history'] = await safeDelete('order_history', 'order_id', importedOrderIds);
+        deleted['payment_transactions'] = await safeDelete('payment_transactions', 'order_id', importedOrderIds);
+        deleted['checkout_sessions_order'] = await safeDelete('checkout_sessions', 'order_id', importedOrderIds);
+        deleted['discount_redemptions'] = await safeDelete('discount_redemptions', 'order_id', importedOrderIds);
+        deleted['shipments'] = await safeDelete('shipments', 'order_id', importedOrderIds);
+        deleted['notification_logs_order'] = await safeDelete('notification_logs', 'order_id', importedOrderIds);
+        deleted['marketing_events_log'] = await safeDelete('marketing_events_log', 'order_id', importedOrderIds);
+        deleted['order_attribution'] = await safeDelete('order_attribution', 'order_id', importedOrderIds);
+        deleted['conversations_order'] = await safeDelete('conversations', 'order_id', importedOrderIds);
+        deleted['fiscal_invoices'] = await safeDelete('fiscal_invoices', 'order_id', importedOrderIds);
+        deleted['affiliate_conversions'] = await safeDelete('affiliate_conversions', 'order_id', importedOrderIds);
 
-        // Delete order_history
-        const { data: ohDeleted } = await supabase
-          .from('order_history')
-          .delete()
-          .in('order_id', importedOrderIds)
-          .select('id');
-        deleted['order_history'] = ohDeleted?.length || 0;
-        
-        // Delete checkout_sessions referencing these orders
-        const { error: csError } = await supabase
-          .from('checkout_sessions')
-          .delete()
-          .in('order_id', importedOrderIds);
-        
-        if (csError) {
-          console.warn('Error deleting checkout_sessions for orders:', csError.message);
-        }
-        
-        // Delete conversations referencing these orders
-        const { error: convError } = await supabase
-          .from('conversations')
-          .delete()
-          .in('order_id', importedOrderIds);
-        
-        if (convError) {
-          console.warn('Error deleting conversations for orders:', convError.message);
-        }
-        
-        // Delete affiliate_conversions referencing these orders
-        const { error: affError } = await supabase
-          .from('affiliate_conversions')
-          .delete()
-          .in('order_id', importedOrderIds);
-        
-        if (affError) {
-          console.warn('Error deleting affiliate_conversions:', affError.message);
-        }
-
-        // Finally delete orders
-        const { data: ordersDeleted, error: ordersError } = await supabase
-          .from('orders')
-          .delete()
-          .in('id', importedOrderIds)
-          .select('id');
-        
-        if (ordersError) {
-          console.error('Error deleting orders:', ordersError);
-        }
-        deleted['orders'] = ordersDeleted?.length || 0;
+        // STEP 2: Delete orders
+        deleted['orders'] = await safeDelete('orders', 'id', importedOrderIds);
       } else {
         deleted['orders'] = 0;
       }
 
-      const { data: importItemsDeleted } = await supabase
+      // Clean import_items for orders module
+      const { count } = await supabase
         .from('import_items')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('tenant_id', tenantId)
-        .eq('module', 'orders')
-        .select('id');
-      deleted['import_items_orders'] = importItemsDeleted?.length || 0;
+        .eq('module', 'orders');
+      deleted['import_items_orders'] = count || 0;
     }
 
     // ========================================
     // Clear IMPORTED structure (menus, pages)
     // ========================================
     if (shouldClearAll || modules.includes('structure')) {
-      const { data: structureJobs } = await supabase
-        .from('import_jobs')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .contains('modules', ['structure']);
+      const importedMenuIds = await getImportedIds('menus');
+      const importedPageIds = await getImportedIds('pages');
 
-      if (structureJobs && structureJobs.length > 0) {
-        const importedMenuIds = await getImportedIds('menus');
-        const importedPageIds = await getImportedIds('pages');
-
-        if (importedMenuIds.length > 0) {
-          const { data: menuItemsDeleted } = await supabase
-            .from('menu_items')
-            .delete()
-            .in('menu_id', importedMenuIds)
-            .select('id');
-          deleted['menu_items'] = menuItemsDeleted?.length || 0;
-
-          const { data: menusDeleted } = await supabase
-            .from('menus')
-            .delete()
-            .in('id', importedMenuIds)
-            .select('id');
-          deleted['menus'] = menusDeleted?.length || 0;
-        }
-
-        if (importedPageIds.length > 0) {
-          const { data: templatesDeleted } = await supabase
-            .from('store_page_templates')
-            .delete()
-            .in('page_id', importedPageIds)
-            .select('id');
-          deleted['store_page_templates'] = templatesDeleted?.length || 0;
-
-          const { data: pagesDeleted } = await supabase
-            .from('store_pages')
-            .delete()
-            .in('id', importedPageIds)
-            .select('id');
-          deleted['store_pages'] = pagesDeleted?.length || 0;
-        }
-
-        await supabase
-          .from('import_items')
-          .delete()
-          .eq('tenant_id', tenantId)
-          .in('module', ['menus', 'pages']);
+      if (importedMenuIds.length > 0) {
+        deleted['menu_items'] = await safeDelete('menu_items', 'menu_id', importedMenuIds);
+        deleted['menus'] = await safeDelete('menus', 'id', importedMenuIds);
       }
+
+      if (importedPageIds.length > 0) {
+        deleted['store_page_templates'] = await safeDelete('store_page_templates', 'page_id', importedPageIds);
+        deleted['store_pages'] = await safeDelete('store_pages', 'id', importedPageIds);
+      }
+
+      // Clean import_items for structure modules
+      await supabase
+        .from('import_items')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .in('module', ['menus', 'pages']);
     }
 
     // ========================================
-    // Clean up import_jobs
+    // Clean up import_jobs when clearing all
     // ========================================
     if (shouldClearAll) {
-      const { data: jobsDeleted } = await supabase
+      const { count } = await supabase
         .from('import_jobs')
-        .delete()
-        .eq('tenant_id', tenantId)
-        .select('id');
-      deleted['import_jobs'] = jobsDeleted?.length || 0;
+        .delete({ count: 'exact' })
+        .eq('tenant_id', tenantId);
+      deleted['import_jobs'] = count || 0;
     }
 
     console.log('Clear completed:', deleted);
+    if (errors.length > 0) {
+      console.warn('Clear warnings:', errors);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
         deleted,
+        warnings: errors.length > 0 ? errors : undefined,
         message: 'Dados importados removidos com sucesso',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
