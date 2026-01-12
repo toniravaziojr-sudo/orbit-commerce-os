@@ -14,23 +14,41 @@ export function useStorefrontTemplates() {
   return useQuery({
     queryKey: ['storefront-templates', currentTenant?.id],
     queryFn: async () => {
-      if (!currentTenant?.id) throw new Error('No tenant');
+      console.log('[useStorefrontTemplates] Starting query', { tenantId: currentTenant?.id });
+      
+      if (!currentTenant?.id) {
+        console.error('[useStorefrontTemplates] No tenant ID available');
+        throw new Error('No tenant');
+      }
 
       // Try to initialize templates (may fail silently if already exists)
       try {
-        await supabase.rpc('initialize_storefront_templates', { 
+        console.log('[useStorefrontTemplates] Calling initialize_storefront_templates RPC');
+        const { data: rpcData, error: rpcError } = await supabase.rpc('initialize_storefront_templates', { 
           p_tenant_id: currentTenant.id 
         });
+        console.log('[useStorefrontTemplates] RPC result:', { rpcData, rpcError });
       } catch (e) {
-        console.log('Templates initialization skipped:', e);
+        console.log('[useStorefrontTemplates] Templates initialization skipped:', e);
       }
 
+      console.log('[useStorefrontTemplates] Fetching templates from storefront_page_templates');
       const { data, error } = await supabase
         .from('storefront_page_templates')
         .select('*')
         .eq('tenant_id', currentTenant.id);
 
-      if (error) throw error;
+      console.log('[useStorefrontTemplates] Query result:', { 
+        count: data?.length, 
+        error: error?.message,
+        errorCode: error?.code,
+        templates: data?.map(t => ({ id: t.id, page_type: t.page_type }))
+      });
+
+      if (error) {
+        console.error('[useStorefrontTemplates] Error fetching templates:', error);
+        throw error;
+      }
       return data as StorefrontTemplate[];
     },
     enabled: !!currentTenant?.id,
@@ -43,8 +61,18 @@ export function useTemplateVersion(pageType: PageType, mode: 'draft' | 'publishe
   return useQuery({
     queryKey: ['template-version', currentTenant?.id, pageType, mode],
     queryFn: async () => {
-      if (!currentTenant?.id) throw new Error('No tenant');
+      console.log('[useTemplateVersion] Starting query', { 
+        tenantId: currentTenant?.id, 
+        pageType, 
+        mode 
+      });
 
+      if (!currentTenant?.id) {
+        console.error('[useTemplateVersion] No tenant ID available');
+        throw new Error('No tenant');
+      }
+
+      console.log('[useTemplateVersion] Fetching template from storefront_page_templates');
       const { data: template, error: templateError } = await supabase
         .from('storefront_page_templates')
         .select('*')
@@ -52,13 +80,25 @@ export function useTemplateVersion(pageType: PageType, mode: 'draft' | 'publishe
         .eq('page_type', pageType)
         .maybeSingle();
 
-      if (templateError) throw templateError;
+      console.log('[useTemplateVersion] Template query result:', { 
+        template: template ? { id: template.id, page_type: template.page_type, draft_version: template.draft_version, published_version: template.published_version } : null, 
+        error: templateError?.message,
+        errorCode: templateError?.code
+      });
+
+      if (templateError) {
+        console.error('[useTemplateVersion] Error fetching template:', templateError);
+        throw templateError;
+      }
 
       const versionNumber = mode === 'draft' 
         ? template?.draft_version 
         : template?.published_version;
 
+      console.log('[useTemplateVersion] Version number:', { versionNumber, mode });
+
       if (!versionNumber) {
+        console.log('[useTemplateVersion] No version found, returning default template');
         return {
           content: getDefaultTemplate(pageType),
           version: null,
@@ -66,6 +106,7 @@ export function useTemplateVersion(pageType: PageType, mode: 'draft' | 'publishe
         };
       }
 
+      console.log('[useTemplateVersion] Fetching version from store_page_versions');
       const { data: version, error: versionError } = await supabase
         .from('store_page_versions')
         .select('*')
@@ -73,10 +114,29 @@ export function useTemplateVersion(pageType: PageType, mode: 'draft' | 'publishe
         .eq('entity_type', 'template')
         .eq('page_type', pageType)
         .eq('version', versionNumber)
-        .single();
+        .maybeSingle();
 
-      if (versionError) throw versionError;
+      console.log('[useTemplateVersion] Version query result:', { 
+        version: version ? { id: version.id, version: version.version, status: version.status } : null, 
+        error: versionError?.message,
+        errorCode: versionError?.code
+      });
 
+      if (versionError) {
+        console.error('[useTemplateVersion] Error fetching version:', versionError);
+        throw versionError;
+      }
+
+      if (!version) {
+        console.log('[useTemplateVersion] Version not found in store_page_versions, returning default');
+        return {
+          content: getDefaultTemplate(pageType),
+          version: null,
+          isDefault: true,
+        };
+      }
+
+      console.log('[useTemplateVersion] Returning version content');
       return {
         content: version.content as unknown as BlockNode,
         version: version as unknown as PageVersion,
