@@ -13,7 +13,7 @@ import {
   normalizePaymentStatus,
   normalizeShippingStatus,
 } from '@/types/orderStatus';
-import { coreOrdersApi } from '@/lib/coreApi';
+import { coreOrdersApi, type CreateOrderData } from '@/lib/coreApi';
 
 // Re-export types for backward compatibility
 export type { OrderStatus, PaymentStatus, ShippingStatus };
@@ -135,32 +135,8 @@ export interface OrderWithItems extends Order {
   items?: OrderItem[];
 }
 
-export interface CreateOrderData {
-  customer_id?: string | null;
-  customer_name: string;
-  customer_email: string;
-  customer_phone?: string | null;
-  customer_cpf?: string | null;
-  payment_method?: PaymentMethod | null;
-  shipping_street?: string | null;
-  shipping_number?: string | null;
-  shipping_complement?: string | null;
-  shipping_neighborhood?: string | null;
-  shipping_city?: string | null;
-  shipping_state?: string | null;
-  shipping_postal_code?: string | null;
-  customer_notes?: string | null;
-  internal_notes?: string | null;
-  items: {
-    product_id: string;
-    sku: string;
-    product_name: string;
-    product_image_url?: string | null;
-    quantity: number;
-    unit_price: number;
-    discount_amount?: number;
-  }[];
-}
+// Re-export CreateOrderData from coreApi
+export type { CreateOrderData };
 
 export function useOrders(options?: { 
   page?: number; 
@@ -235,81 +211,16 @@ export function useOrders(options?: {
     enabled: !!currentTenant?.id,
   });
 
+  // ===== CREATE ORDER VIA CORE API =====
   const createOrder = useMutation({
     mutationFn: async (formData: CreateOrderData) => {
-      if (!currentTenant?.id) throw new Error('Tenant não encontrado');
+      const result = await coreOrdersApi.createOrder(formData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao criar pedido');
+      }
 
-      // Generate order number
-      const { data: orderNumber, error: numberError } = await supabase
-        .rpc('generate_order_number', { p_tenant_id: currentTenant.id });
-
-      if (numberError) throw numberError;
-
-      // Calculate totals
-      const subtotal = formData.items.reduce((sum, item) => 
-        sum + (item.unit_price * item.quantity), 0);
-      const discountTotal = formData.items.reduce((sum, item) => 
-        sum + ((item.discount_amount || 0) * item.quantity), 0);
-      const total = subtotal - discountTotal;
-
-      // Create order
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .insert({
-          tenant_id: currentTenant.id,
-          order_number: orderNumber,
-          customer_id: formData.customer_id,
-          customer_name: formData.customer_name,
-          customer_email: formData.customer_email,
-          customer_phone: formData.customer_phone,
-          payment_method: formData.payment_method,
-          shipping_street: formData.shipping_street,
-          shipping_number: formData.shipping_number,
-          shipping_complement: formData.shipping_complement,
-          shipping_neighborhood: formData.shipping_neighborhood,
-          shipping_city: formData.shipping_city,
-          shipping_state: formData.shipping_state,
-          shipping_postal_code: formData.shipping_postal_code,
-          customer_notes: formData.customer_notes,
-          internal_notes: formData.internal_notes,
-          customer_cpf: formData.customer_cpf,
-          subtotal,
-          discount_total: discountTotal,
-          total,
-        })
-        .select()
-        .single();
-
-      if (orderError) throw orderError;
-
-      // Create order items
-      const items = formData.items.map(item => ({
-        order_id: order.id,
-        product_id: item.product_id,
-        sku: item.sku,
-        product_name: item.product_name,
-        product_image_url: item.product_image_url,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        discount_amount: item.discount_amount || 0,
-        total_price: (item.unit_price - (item.discount_amount || 0)) * item.quantity,
-      }));
-
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(items);
-
-      if (itemsError) throw itemsError;
-
-      // Create history entry
-      await supabase.from('order_history').insert({
-        order_id: order.id,
-        action: 'order_created',
-        description: `Pedido ${orderNumber} criado`,
-        new_value: { status: 'pending' },
-      });
-
-      return order;
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
@@ -317,13 +228,13 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao criar pedido:', error);
-      toast.error('Erro ao criar pedido');
+      toast.error(error.message || 'Erro ao criar pedido');
     },
   });
 
+  // ===== UPDATE ORDER STATUS VIA CORE API =====
   const updateOrderStatus = useMutation({
     mutationFn: async ({ orderId, status, reason }: { orderId: string; status: OrderStatus; reason?: string }) => {
-      // Use Core API for status changes with state machine validation
       const result = await coreOrdersApi.setOrderStatus(orderId, status, reason);
       
       if (!result.success) {
@@ -345,14 +256,19 @@ export function useOrders(options?: {
     },
   });
 
+  // ===== DELETE ORDER VIA CORE API =====
   const deleteOrder = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('orders')
-        .delete()
-        .eq('id', id);
+      const result = await coreOrdersApi.deleteOrder(id);
+      
+      if (!result.success) {
+        if (result.code === 'CANNOT_DELETE') {
+          throw new Error('Apenas pedidos pendentes ou cancelados podem ser excluídos');
+        }
+        throw new Error(result.error || 'Erro ao remover pedido');
+      }
 
-      if (error) throw error;
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders', currentTenant?.id] });
@@ -360,7 +276,7 @@ export function useOrders(options?: {
     },
     onError: (error: Error) => {
       console.error('Erro ao remover pedido:', error);
-      toast.error('Erro ao remover pedido');
+      toast.error(error.message || 'Erro ao remover pedido');
     },
   });
 
@@ -429,65 +345,40 @@ export function useOrderDetails(orderId: string | undefined) {
     enabled: !!orderId,
   });
 
+  // ===== ADD NOTE VIA CORE API =====
   const addNote = useMutation({
     mutationFn: async ({ orderId, note }: { orderId: string; note: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const result = await coreOrdersApi.addNote(orderId, note);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao adicionar nota');
+      }
 
-      // Update internal notes
-      const { data: order } = await supabase
-        .from('orders')
-        .select('internal_notes')
-        .eq('id', orderId)
-        .single();
-
-      const existingNotes = order?.internal_notes || '';
-      const newNotes = existingNotes 
-        ? `${existingNotes}\n\n[${new Date().toLocaleString('pt-BR')}]\n${note}`
-        : `[${new Date().toLocaleString('pt-BR')}]\n${note}`;
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ internal_notes: newNotes })
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Add history
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        author_id: user?.id,
-        action: 'note_added',
-        description: note,
-      });
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
       queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
       toast.success('Nota adicionada!');
     },
+    onError: (error: Error) => {
+      console.error('Erro ao adicionar nota:', error);
+      toast.error(error.message || 'Erro ao adicionar nota');
+    },
   });
 
+  // ===== UPDATE TRACKING VIA CORE API =====
   const updateTrackingCode = useMutation({
     mutationFn: async ({ orderId, trackingCode, carrier }: { orderId: string; trackingCode: string; carrier?: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // First, update the order with tracking code
-      const updateData: Record<string, unknown> = { tracking_code: trackingCode };
-      if (carrier) {
-        updateData.shipping_carrier = carrier;
+      const result = await coreOrdersApi.updateTracking(orderId, trackingCode, carrier);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao atualizar código de rastreio');
       }
 
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
-
-      if (error) throw error;
-
-      // Then, create/update shipment via shipment-ingest edge function
-      // This ensures the shipment appears in the tracking list
+      // Also call shipment-ingest for backwards compatibility
       try {
-        const { data: ingestResult, error: ingestError } = await supabase.functions.invoke('shipment-ingest', {
+        await supabase.functions.invoke('shipment-ingest', {
           body: {
             order_id: orderId,
             tracking_code: trackingCode,
@@ -495,26 +386,12 @@ export function useOrderDetails(orderId: string | undefined) {
             source: 'admin_manual',
           }
         });
-
-        if (ingestError) {
-          console.error('Error ingesting shipment:', ingestError);
-          // Don't fail the whole operation, order was updated
-        } else {
-          console.log('Shipment ingested:', ingestResult);
-        }
       } catch (ingestErr) {
         console.error('Exception ingesting shipment:', ingestErr);
         // Don't fail the whole operation
       }
 
-      // Add history
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        author_id: user?.id,
-        action: 'tracking_updated',
-        description: `Código de rastreio atualizado: ${trackingCode}${carrier ? ` (${carrier})` : ''}`,
-        new_value: { tracking_code: trackingCode, shipping_carrier: carrier },
-      });
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
@@ -524,13 +401,13 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar código de rastreio:', error);
-      toast.error('Erro ao atualizar código de rastreio');
+      toast.error(error.message || 'Erro ao atualizar código de rastreio');
     },
   });
 
+  // ===== UPDATE PAYMENT STATUS VIA CORE API =====
   const updatePaymentStatus = useMutation({
     mutationFn: async ({ orderId, paymentStatus }: { orderId: string; paymentStatus: PaymentStatus }) => {
-      // Use Core API for payment status changes with state machine validation
       const result = await coreOrdersApi.setPaymentStatus(orderId, paymentStatus);
       
       if (!result.success) {
@@ -553,6 +430,7 @@ export function useOrderDetails(orderId: string | undefined) {
     },
   });
 
+  // ===== UPDATE SHIPPING ADDRESS VIA CORE API =====
   const updateShippingAddress = useMutation({
     mutationFn: async ({ orderId, address }: { 
       orderId: string; 
@@ -560,29 +438,19 @@ export function useOrderDetails(orderId: string | undefined) {
         shipping_street: string;
         shipping_number: string;
         shipping_complement?: string;
-        shipping_neighborhood: string;
+        shipping_neighborhood?: string;
         shipping_city: string;
         shipping_state: string;
         shipping_postal_code: string;
       }
     }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const result = await coreOrdersApi.updateShippingAddress(orderId, address);
       
-      const { error } = await supabase
-        .from('orders')
-        .update(address)
-        .eq('id', orderId);
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao atualizar endereço');
+      }
 
-      if (error) throw error;
-
-      // Add history
-      await supabase.from('order_history').insert({
-        order_id: orderId,
-        author_id: user?.id,
-        action: 'address_updated',
-        description: `Endereço de entrega atualizado: ${address.shipping_street}, ${address.shipping_number} - ${address.shipping_city}/${address.shipping_state}`,
-        new_value: address,
-      });
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', orderId] });
@@ -591,10 +459,11 @@ export function useOrderDetails(orderId: string | undefined) {
     },
     onError: (error: Error) => {
       console.error('Erro ao atualizar endereço:', error);
-      toast.error('Erro ao atualizar endereço');
+      toast.error(error.message || 'Erro ao atualizar endereço');
     },
   });
 
+  // ===== UPDATE SHIPPING STATUS VIA CORE API =====
   const updateShippingStatus = useMutation({
     mutationFn: async ({ orderId, shippingStatus, trackingCode, carrier }: { 
       orderId: string; 
@@ -602,7 +471,6 @@ export function useOrderDetails(orderId: string | undefined) {
       trackingCode?: string;
       carrier?: string;
     }) => {
-      // Use Core API for shipping status changes with state machine validation
       const result = await coreOrdersApi.setShippingStatus(orderId, shippingStatus, {
         tracking_code: trackingCode,
         shipping_carrier: carrier,

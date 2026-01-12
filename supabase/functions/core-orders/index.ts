@@ -170,6 +170,459 @@ Deno.serve(async (req) => {
     const correlationId = crypto.randomUUID();
 
     switch (action) {
+      // ===== CREATE ORDER =====
+      case 'create_order': {
+        const { 
+          customer_id, customer_name, customer_email, customer_phone, customer_cpf,
+          payment_method, shipping_street, shipping_number, shipping_complement,
+          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code,
+          customer_notes, internal_notes, items
+        } = payload;
+
+        if (!customer_name || !customer_email || !items || items.length === 0) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'customer_name, customer_email and items are required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Generate order number
+        const { data: orderNumber, error: numberError } = await supabase
+          .rpc('generate_order_number', { p_tenant_id: tenantId });
+
+        if (numberError) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Failed to generate order number', code: 'ORDER_NUMBER_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Calculate totals
+        const subtotal = items.reduce((sum: number, item: any) => 
+          sum + (item.unit_price * item.quantity), 0);
+        const discountTotal = items.reduce((sum: number, item: any) => 
+          sum + ((item.discount_amount || 0) * item.quantity), 0);
+        const total = subtotal - discountTotal;
+
+        // Create order
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            tenant_id: tenantId,
+            order_number: orderNumber,
+            customer_id,
+            customer_name,
+            customer_email: customer_email.toLowerCase().trim(),
+            customer_phone,
+            customer_cpf,
+            payment_method,
+            shipping_street,
+            shipping_number,
+            shipping_complement,
+            shipping_neighborhood,
+            shipping_city,
+            shipping_state,
+            shipping_postal_code,
+            customer_notes,
+            internal_notes,
+            subtotal,
+            discount_total: discountTotal,
+            total,
+            status: 'pending',
+            payment_status: 'awaiting_payment',
+            shipping_status: 'awaiting_shipment',
+          })
+          .select()
+          .single();
+
+        if (orderError) {
+          return new Response(
+            JSON.stringify({ success: false, error: orderError.message, code: 'CREATE_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Create order items
+        const orderItems = items.map((item: any) => ({
+          order_id: order.id,
+          tenant_id: tenantId,
+          product_id: item.product_id,
+          sku: item.sku,
+          product_name: item.product_name,
+          product_image_url: item.product_image_url,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          discount_amount: item.discount_amount || 0,
+          total_price: (item.unit_price - (item.discount_amount || 0)) * item.quantity,
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItems);
+
+        if (itemsError) {
+          // Rollback order
+          await supabase.from('orders').delete().eq('id', order.id);
+          return new Response(
+            JSON.stringify({ success: false, error: itemsError.message, code: 'ITEMS_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Create history entry
+        await supabase.from('order_history').insert({
+          order_id: order.id,
+          action: 'order_created',
+          description: `Pedido ${orderNumber} criado`,
+          new_value: { status: 'pending' },
+          created_by: userId,
+        });
+
+        // Audit log
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'order',
+          entity_id: order.id,
+          action: 'create_order',
+          before_json: null,
+          after_json: order,
+          changed_fields: Object.keys(order),
+          actor_user_id: userId,
+          source: 'core-orders',
+          correlation_id: correlationId,
+        });
+
+        // Emit event
+        await emitEvent(supabase, tenantId, 'order.created', order.id, {
+          order_id: order.id,
+          order_number: orderNumber,
+          customer_email: customer_email.toLowerCase().trim(),
+          customer_name,
+          total,
+          items_count: items.length,
+        }, `order_created_${order.id}`);
+
+        return new Response(
+          JSON.stringify({ success: true, data: { order_id: order.id, order_number: orderNumber, order } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ===== DELETE ORDER =====
+      case 'delete_order': {
+        // Get order first
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', order_id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (orderError || !order) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Order not found', code: 'NOT_FOUND' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check if order can be deleted (only pending/cancelled orders)
+        if (!['pending', 'cancelled'].includes(order.status)) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Only pending or cancelled orders can be deleted', 
+              code: 'CANNOT_DELETE' 
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Delete related data first
+        await supabase.from('order_items').delete().eq('order_id', order_id);
+        await supabase.from('order_history').delete().eq('order_id', order_id);
+
+        // Delete the order
+        const { error: deleteError } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', order_id);
+
+        if (deleteError) {
+          return new Response(
+            JSON.stringify({ success: false, error: deleteError.message, code: 'DELETE_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Audit log
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'order',
+          entity_id: order_id,
+          action: 'delete_order',
+          before_json: order,
+          after_json: { deleted: true },
+          changed_fields: ['deleted'],
+          actor_user_id: userId,
+          source: 'core-orders',
+          correlation_id: correlationId,
+        });
+
+        // Emit event
+        await emitEvent(supabase, tenantId, 'order.deleted', order_id, {
+          order_id,
+          order_number: order.order_number,
+        }, `order_deleted_${order_id}`);
+
+        return new Response(
+          JSON.stringify({ success: true, data: { order_id, deleted: true } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ===== ADD NOTE =====
+      case 'add_note': {
+        const { note } = payload;
+
+        if (!note?.trim()) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Note is required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get current order
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('internal_notes, order_number')
+          .eq('id', order_id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (orderError || !order) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Order not found', code: 'NOT_FOUND' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Append note with timestamp
+        const existingNotes = order.internal_notes || '';
+        const timestamp = new Date().toLocaleString('pt-BR');
+        const newNotes = existingNotes 
+          ? `${existingNotes}\n\n[${timestamp}]\n${note}`
+          : `[${timestamp}]\n${note}`;
+
+        // Update order
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update({ internal_notes: newNotes })
+          .eq('id', order_id);
+
+        if (updateError) {
+          return new Response(
+            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Add history
+        await supabase.from('order_history').insert({
+          order_id,
+          author_id: userId,
+          action: 'note_added',
+          description: note,
+          created_by: userId,
+        });
+
+        // Audit log
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'order',
+          entity_id: order_id,
+          action: 'add_note',
+          before_json: { internal_notes: existingNotes },
+          after_json: { internal_notes: newNotes },
+          changed_fields: ['internal_notes'],
+          actor_user_id: userId,
+          source: 'core-orders',
+          correlation_id: correlationId,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, data: { order_id, note_added: true } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ===== UPDATE TRACKING =====
+      case 'update_tracking': {
+        const { tracking_code, carrier } = payload;
+
+        if (!tracking_code?.trim()) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Tracking code is required', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get current order
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('tracking_code, shipping_carrier, order_number')
+          .eq('id', order_id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (orderError || !order) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Order not found', code: 'NOT_FOUND' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const updateData: Record<string, any> = { tracking_code };
+        if (carrier) updateData.shipping_carrier = carrier;
+
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update(updateData)
+          .eq('id', order_id);
+
+        if (updateError) {
+          return new Response(
+            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Add history
+        await supabase.from('order_history').insert({
+          order_id,
+          author_id: userId,
+          action: 'tracking_updated',
+          description: `Código de rastreio atualizado: ${tracking_code}${carrier ? ` (${carrier})` : ''}`,
+          new_value: { tracking_code, shipping_carrier: carrier },
+          created_by: userId,
+        });
+
+        // Audit log
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'order',
+          entity_id: order_id,
+          action: 'update_tracking',
+          before_json: { tracking_code: order.tracking_code, shipping_carrier: order.shipping_carrier },
+          after_json: updateData,
+          changed_fields: Object.keys(updateData),
+          actor_user_id: userId,
+          source: 'core-orders',
+          correlation_id: correlationId,
+        });
+
+        // Emit event
+        await emitEvent(supabase, tenantId, 'order.tracking_updated', order_id, {
+          order_id,
+          order_number: order.order_number,
+          tracking_code,
+          carrier,
+        }, `tracking_${order_id}_${Date.now()}`);
+
+        return new Response(
+          JSON.stringify({ success: true, data: { order_id, tracking_code, carrier } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // ===== UPDATE SHIPPING ADDRESS =====
+      case 'update_shipping_address': {
+        const { 
+          shipping_street, shipping_number, shipping_complement,
+          shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code
+        } = payload;
+
+        if (!shipping_street || !shipping_number || !shipping_city || !shipping_state || !shipping_postal_code) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Required address fields missing', code: 'VALIDATION_ERROR' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get current order
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('shipping_street, shipping_number, shipping_complement, shipping_neighborhood, shipping_city, shipping_state, shipping_postal_code, order_number')
+          .eq('id', order_id)
+          .eq('tenant_id', tenantId)
+          .single();
+
+        if (orderError || !order) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'Order not found', code: 'NOT_FOUND' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const updateData = {
+          shipping_street,
+          shipping_number,
+          shipping_complement: shipping_complement || null,
+          shipping_neighborhood: shipping_neighborhood || null,
+          shipping_city,
+          shipping_state,
+          shipping_postal_code,
+        };
+
+        const { error: updateError } = await supabase
+          .from('orders')
+          .update(updateData)
+          .eq('id', order_id);
+
+        if (updateError) {
+          return new Response(
+            JSON.stringify({ success: false, error: updateError.message, code: 'UPDATE_FAILED' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Add history
+        await supabase.from('order_history').insert({
+          order_id,
+          author_id: userId,
+          action: 'address_updated',
+          description: `Endereço atualizado: ${shipping_street}, ${shipping_number} - ${shipping_city}/${shipping_state}`,
+          new_value: updateData,
+          created_by: userId,
+        });
+
+        // Audit log
+        await createAuditLog(supabase, {
+          tenant_id: tenantId,
+          entity_type: 'order',
+          entity_id: order_id,
+          action: 'update_shipping_address',
+          before_json: {
+            shipping_street: order.shipping_street,
+            shipping_number: order.shipping_number,
+            shipping_complement: order.shipping_complement,
+            shipping_neighborhood: order.shipping_neighborhood,
+            shipping_city: order.shipping_city,
+            shipping_state: order.shipping_state,
+            shipping_postal_code: order.shipping_postal_code,
+          },
+          after_json: updateData,
+          changed_fields: Object.keys(updateData),
+          actor_user_id: userId,
+          source: 'core-orders',
+          correlation_id: correlationId,
+        });
+
+        return new Response(
+          JSON.stringify({ success: true, data: { order_id, address_updated: true } }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       case 'set_order_status': {
         const { new_status, notes } = payload;
         

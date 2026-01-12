@@ -267,8 +267,8 @@ export default function OrderNew() {
     };
 
     createOrder.mutate(orderData, {
-      onSuccess: (order) => {
-        navigate(`/orders/${order.id}`);
+      onSuccess: (result) => {
+        navigate(`/orders/${result?.order_id}`);
       },
     });
   };
