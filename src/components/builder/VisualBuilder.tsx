@@ -107,6 +107,18 @@ export function VisualBuilder({
     pageType,
     pageId,
   });
+  // Show loading while global layout or overrides are loading
+  // MUST be early, before any conditional rendering logic
+  if (layoutLoading || overridesLoading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background fixed inset-0 z-50">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-muted-foreground">Carregando editor...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Run migration on first load if needed
   useEffect(() => {
@@ -512,17 +524,6 @@ export function VisualBuilder({
   // Dragging state for overlay
   const [draggingBlockType, setDraggingBlockType] = useState<string | null>(null);
 
-  // Show loading while global layout or overrides are loading
-  if (layoutLoading || overridesLoading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background fixed inset-0 z-50">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando editor...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <DndContext 
