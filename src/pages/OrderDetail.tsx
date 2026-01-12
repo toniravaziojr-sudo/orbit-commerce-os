@@ -94,12 +94,18 @@ export default function OrderDetail() {
     shipping_postal_code: '',
   });
 
-  const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress } = useOrderDetails(id);
+  const { order, items, history, isLoading, addNote, updateTrackingCode, updatePaymentStatus, updateShippingAddress, updateShippingStatus } = useOrderDetails(id);
   const { updateOrderStatus } = useOrders();
 
   const handleStatusChange = (status: OrderStatus) => {
     if (id) {
       updateOrderStatus.mutate({ orderId: id, status });
+    }
+  };
+
+  const handleShippingStatusChange = (status: ShippingStatus) => {
+    if (id) {
+      updateShippingStatus.mutate({ orderId: id, shippingStatus: status });
     }
   };
 
@@ -376,6 +382,9 @@ export default function OrderDetail() {
                   {order.customer_phone && (
                     <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
                   )}
+                  {order.customer_cpf && (
+                    <p className="text-sm text-muted-foreground">CPF/CNPJ: {order.customer_cpf}</p>
+                  )}
                   <span className="text-xs text-primary flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <ExternalLink className="h-3 w-3" />
                     Ver cadastro completo
@@ -387,6 +396,9 @@ export default function OrderDetail() {
                   <p className="text-sm text-muted-foreground">{order.customer_email}</p>
                   {order.customer_phone && (
                     <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                  )}
+                  {order.customer_cpf && (
+                    <p className="text-sm text-muted-foreground">CPF/CNPJ: {order.customer_cpf}</p>
                   )}
                   <p className="text-xs text-muted-foreground italic mt-2">
                     Cliente não cadastrado
@@ -442,7 +454,49 @@ export default function OrderDetail() {
             </CardContent>
           </Card>
 
-          {/* Shipments Section - NEW */}
+          {/* Shipments Section with Shipping Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Truck className="h-5 w-5" />
+                Remessa
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Status de Envio</span>
+                <Select 
+                  value={order.shipping_status} 
+                  onValueChange={(v) => handleShippingStatusChange(v as ShippingStatus)}
+                >
+                  <SelectTrigger className="w-44 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(SHIPPING_STATUS_CONFIG).map(([key, cfg]) => (
+                      <SelectItem key={key} value={key}>
+                        {cfg.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {order.shipped_at && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Enviado em</span>
+                  <span className="text-sm">{formatDate(order.shipped_at)}</span>
+                </div>
+              )}
+              {order.delivered_at && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Entregue em</span>
+                  <span className="text-sm text-green-600">{formatDate(order.delivered_at)}</span>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Shipments Tracking Details */}
           <ShipmentSection 
             orderId={order.id} 
             orderTrackingCode={order.tracking_code}
