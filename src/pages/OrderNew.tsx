@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search, UserCheck, Truck } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Truck, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,8 @@ import { Switch } from '@/components/ui/switch';
 import { useOrders, type CreateOrderData, type PaymentMethod } from '@/hooks/useOrders';
 import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
-import { useCustomers } from '@/hooks/useCustomers';
+import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
+import { useCepLookup } from '@/hooks/useCepLookup';
 import { toast } from 'sonner';
 
 interface OrderItemForm {
@@ -37,6 +38,7 @@ export default function OrderNew() {
   const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
   const { products: allProducts, isLoading: allProductsLoading } = useProducts();
   const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
+  const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
 
   // Use all products if active products are empty (fallback)
   const products = activeProducts.length > 0 ? activeProducts : allProducts.map(p => ({
@@ -95,6 +97,28 @@ export default function OrderNew() {
     ).slice(0, 10);
   }, [products, productSearch]);
 
+  // Fetch customer addresses when customer is selected
+  const { addresses: customerAddresses } = useCustomerAddresses(selectedCustomerId || undefined);
+
+  // Effect to fill address when customer is selected
+  useEffect(() => {
+    if (selectedCustomerId && customerAddresses.length > 0) {
+      const defaultAddress = customerAddresses.find(a => a.is_default) || customerAddresses[0];
+      if (defaultAddress) {
+        setFormData(prev => ({
+          ...prev,
+          shipping_street: defaultAddress.street,
+          shipping_number: defaultAddress.number,
+          shipping_complement: defaultAddress.complement || '',
+          shipping_neighborhood: defaultAddress.neighborhood,
+          shipping_city: defaultAddress.city,
+          shipping_state: defaultAddress.state,
+          shipping_postal_code: defaultAddress.postal_code,
+        }));
+      }
+    }
+  }, [selectedCustomerId, customerAddresses]);
+
   const handleSelectCustomer = (customer: typeof customers[0]) => {
     setSelectedCustomerId(customer.id);
     setFormData(prev => ({
@@ -117,7 +141,32 @@ export default function OrderNew() {
       customer_phone: '',
       customer_cpf: '',
       person_type: 'pf',
+      shipping_street: '',
+      shipping_number: '',
+      shipping_complement: '',
+      shipping_neighborhood: '',
+      shipping_city: '',
+      shipping_state: '',
+      shipping_postal_code: '',
     }));
+  };
+
+  const handleCepLookup = async () => {
+    const cep = formData.shipping_postal_code;
+    const result = await lookupCep(cep);
+    
+    if (result) {
+      setFormData(prev => ({
+        ...prev,
+        shipping_street: result.street,
+        shipping_neighborhood: result.neighborhood,
+        shipping_city: result.city,
+        shipping_state: result.state,
+      }));
+      toast.success('Endereço encontrado!');
+    } else {
+      toast.error('CEP não encontrado');
+    }
   };
 
   const handleAddProduct = (product: typeof products[0]) => {
@@ -170,6 +219,7 @@ export default function OrderNew() {
     }
 
     const orderData: CreateOrderData = {
+      customer_id: selectedCustomerId || null,
       customer_name: formData.customer_name,
       customer_email: formData.customer_email,
       customer_phone: formData.customer_phone || null,
@@ -410,11 +460,26 @@ export default function OrderNew() {
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="shipping_postal_code">CEP</Label>
-              <Input
-                id="shipping_postal_code"
-                value={formData.shipping_postal_code}
-                onChange={(e) => setFormData({ ...formData, shipping_postal_code: e.target.value })}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="shipping_postal_code"
+                  value={formData.shipping_postal_code}
+                  onChange={(e) => setFormData({ ...formData, shipping_postal_code: e.target.value })}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCepLookup}
+                  disabled={isLookingUpCep}
+                >
+                  {isLookingUpCep ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="shipping_street">Rua</Label>

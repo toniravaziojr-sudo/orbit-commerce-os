@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Search, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useCepLookup } from '@/hooks/useCepLookup';
+import { toast } from 'sonner';
 import type { CustomerAddress } from '@/hooks/useCustomers';
 
 const addressSchema = z.object({
@@ -66,6 +69,7 @@ export function CustomerAddressForm({
   isLoading,
 }: CustomerAddressFormProps) {
   const isEditing = !!address;
+  const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(addressSchema),
@@ -87,6 +91,21 @@ export function CustomerAddressForm({
       address_type: (address?.address_type as 'residential' | 'commercial' | 'other') ?? 'residential',
     },
   });
+
+  const handleCepLookup = async () => {
+    const cep = form.getValues('postal_code');
+    const result = await lookupCep(cep);
+    
+    if (result) {
+      form.setValue('street', result.street);
+      form.setValue('neighborhood', result.neighborhood);
+      form.setValue('city', result.city);
+      form.setValue('state', result.state);
+      toast.success('Endereço encontrado!');
+    } else {
+      toast.error('CEP não encontrado');
+    }
+  };
 
   const handleSubmit = (data: FormValues) => {
     onSubmit({
@@ -209,9 +228,24 @@ export function CustomerAddressForm({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>CEP *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="00000-000" {...field} />
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <FormControl>
+                        <Input placeholder="00000-000" {...field} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={handleCepLookup}
+                        disabled={isLookingUpCep}
+                      >
+                        {isLookingUpCep ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Search className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

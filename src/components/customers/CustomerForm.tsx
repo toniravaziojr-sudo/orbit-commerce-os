@@ -35,7 +35,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Building2, Mail, MessageSquare, Phone, MapPin } from 'lucide-react';
+import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2 } from 'lucide-react';
+import { useCepLookup } from '@/hooks/useCepLookup';
+import { toast } from 'sonner';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
 
 const customerSchema = z.object({
@@ -93,6 +95,7 @@ export function CustomerForm({
   isLoading,
 }: CustomerFormProps) {
   const isEditing = !!customer;
+  const { lookupCep, isLoading: isLookingUpCep } = useCepLookup();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(customerSchema),
@@ -163,6 +166,25 @@ export function CustomerForm({
       });
     }
   }, [open, customer, customerTagIds, form]);
+
+  const handleCepLookup = async () => {
+    const cep = form.getValues('address_postal_code');
+    if (!cep) {
+      toast.error('Digite o CEP primeiro');
+      return;
+    }
+    const result = await lookupCep(cep);
+    
+    if (result) {
+      form.setValue('address_street', result.street);
+      form.setValue('address_neighborhood', result.neighborhood);
+      form.setValue('address_city', result.city);
+      form.setValue('address_state', result.state);
+      toast.success('Endereço encontrado!');
+    } else {
+      toast.error('CEP não encontrado');
+    }
+  };
 
   const handleSubmit = (data: FormValues) => {
     // Build address object if any address field is filled
@@ -567,9 +589,24 @@ export function CustomerForm({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>CEP</FormLabel>
-                          <FormControl>
-                            <Input placeholder="00000-000" {...field} value={field.value ?? ''} />
-                          </FormControl>
+                          <div className="flex gap-2">
+                            <FormControl>
+                              <Input placeholder="00000-000" {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={handleCepLookup}
+                              disabled={isLookingUpCep}
+                            >
+                              {isLookingUpCep ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                           <FormMessage />
                         </FormItem>
                       )}
