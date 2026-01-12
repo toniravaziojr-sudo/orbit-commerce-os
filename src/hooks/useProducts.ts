@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { coreProductsApi } from '@/lib/coreApi';
 
 export interface Product {
   id: string;
@@ -146,17 +147,16 @@ export function useProducts() {
     mutationFn: async (product: ProductFormData) => {
       if (!currentTenant?.id) throw new Error('Nenhuma loja selecionada');
       
-      const { data, error } = await supabase
-        .from('products')
-        .insert({
-          ...product,
-          tenant_id: currentTenant.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreProductsApi.create(product);
+      
+      if (!result.success) {
+        if (result.code === 'DUPLICATE_SKU' || result.code === 'DUPLICATE_SLUG') {
+          throw new Error('duplicate key');
+        }
+        throw new Error(result.error || 'Erro ao criar produto');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
@@ -174,15 +174,13 @@ export function useProducts() {
 
   const updateProduct = useMutation({
     mutationFn: async ({ id, ...product }: Partial<Product> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('products')
-        .update(product)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreProductsApi.update(id, product);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao atualizar produto');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });
@@ -196,12 +194,11 @@ export function useProducts() {
 
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      const result = await coreProductsApi.delete(id);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao excluir produto');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products', currentTenant?.id] });

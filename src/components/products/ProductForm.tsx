@@ -391,11 +391,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
         });
 
         // Save pending data using the new product ID
-        if (result?.id) {
-          await uploadPendingImages(result.id);
-          await saveRelatedProducts(result.id);
+        const productResult = result as { id: string } | undefined;
+        if (productResult?.id) {
+          await uploadPendingImages(productResult.id);
+          await saveRelatedProducts(productResult.id);
           if (data.product_format === 'with_composition') {
-            await saveComponents(result.id);
+            await saveComponents(productResult.id);
           }
         }
 

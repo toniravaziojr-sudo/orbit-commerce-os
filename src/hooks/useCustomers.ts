@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { coreCustomersApi } from '@/lib/coreApi';
 
 export interface Customer {
   id: string;
@@ -122,23 +123,13 @@ export function useCustomerTagAssignments(customerId: string | undefined) {
 
   const updateAssignments = useMutation({
     mutationFn: async ({ customerId, tagIds }: { customerId: string; tagIds: string[] }) => {
-      // Delete all current assignments
-      await supabase
-        .from('customer_tag_assignments')
-        .delete()
-        .eq('customer_id', customerId);
-
-      // Insert new assignments
-      if (tagIds.length > 0) {
-        const { error } = await supabase
-          .from('customer_tag_assignments')
-          .insert(tagIds.map(tagId => ({
-            customer_id: customerId,
-            tag_id: tagId,
-          })));
-
-        if (error) throw error;
+      const result = await coreCustomersApi.updateTags(customerId, tagIds);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao atualizar tags');
       }
+      
+      return result.data;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['customer-tag-assignments', variables.customerId] });
@@ -196,17 +187,16 @@ export function useCustomers(options?: { page?: number; pageSize?: number; searc
     mutationFn: async (formData: CustomerFormData) => {
       if (!currentTenant?.id) throw new Error('Tenant não encontrado');
 
-      const { data, error } = await supabase
-        .from('customers')
-        .insert({
-          tenant_id: currentTenant.id,
-          ...formData,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreCustomersApi.create(formData);
+      
+      if (!result.success) {
+        if (result.code === 'DUPLICATE_EMAIL') {
+          throw new Error('unique');
+        }
+        throw new Error(result.error || 'Erro ao criar cliente');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', currentTenant?.id] });
@@ -224,15 +214,13 @@ export function useCustomers(options?: { page?: number; pageSize?: number; searc
 
   const updateCustomer = useMutation({
     mutationFn: async ({ id, ...formData }: CustomerFormData & { id: string }) => {
-      const { data, error } = await supabase
-        .from('customers')
-        .update(formData)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreCustomersApi.update(id, formData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao atualizar cliente');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', currentTenant?.id] });
@@ -246,12 +234,11 @@ export function useCustomers(options?: { page?: number; pageSize?: number; searc
 
   const deleteCustomer = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('customers')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      const result = await coreCustomersApi.delete(id);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao remover cliente');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customers', currentTenant?.id] });
@@ -376,21 +363,13 @@ export function useCustomerNotes(customerId: string | undefined) {
 
   const createNote = useMutation({
     mutationFn: async ({ content, customerId }: { content: string; customerId: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Usuário não autenticado');
-
-      const { data, error } = await supabase
-        .from('customer_notes')
-        .insert({
-          customer_id: customerId,
-          author_id: user.id,
-          content,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreCustomersApi.addNote(customerId, content);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao adicionar nota');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-notes', customerId] });
@@ -432,14 +411,13 @@ export function useCustomerAddresses(customerId: string | undefined) {
 
   const createAddress = useMutation({
     mutationFn: async (formData: Omit<CustomerAddress, 'id' | 'created_at' | 'updated_at'>) => {
-      const { data, error } = await supabase
-        .from('customer_addresses')
-        .insert(formData)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      const result = await coreCustomersApi.addAddress(formData.customer_id, formData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao adicionar endereço');
+      }
+      
+      return result.data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer-addresses', customerId] });
