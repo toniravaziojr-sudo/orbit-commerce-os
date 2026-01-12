@@ -17,23 +17,46 @@ import {
   Bell,
   Package,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight
+  Save,
+  X,
+  Building2,
+  User
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StatCard } from '@/components/ui/stat-card';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCustomerNotes, useCustomerAddresses, type Customer, type CustomerNote, type CustomerAddress } from '@/hooks/useCustomers';
-import { CustomerForm } from '@/components/customers/CustomerForm';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
+import { CustomerAddressForm } from '@/components/customers/CustomerAddressForm';
 import { toast } from 'sonner';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 
@@ -90,12 +113,16 @@ export default function CustomerDetail() {
   const { currentTenant } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [editOpen, setEditOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState<Partial<Customer>>({});
   const [newNote, setNewNote] = useState('');
+  const [addressFormOpen, setAddressFormOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
+  const [deleteAddressId, setDeleteAddressId] = useState<string | null>(null);
   
   const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(id);
-  const { addresses, isLoading: addressesLoading } = useCustomerAddresses(id);
-  // Pass customer email (not id) to useCustomerOrders - the hook filters by customer_email
+  const { addresses, isLoading: addressesLoading, createAddress, deleteAddress } = useCustomerAddresses(id);
   const { orders, isLoading: ordersLoading } = useCustomerOrders(customer?.email);
 
   useEffect(() => {
@@ -124,6 +151,7 @@ export default function CustomerDetail() {
       }
 
       setCustomer(data as Customer);
+      setEditData(data as Customer);
       setIsLoading(false);
     }
 
@@ -137,31 +165,81 @@ export default function CustomerDetail() {
     });
   };
 
-  const handleUpdateCustomer = async (data: any) => {
-    if (!id) return;
+  const handleStartEdit = () => {
+    setEditData(customer || {});
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setEditData(customer || {});
+    setIsEditing(false);
+  };
+
+  const handleSaveCustomer = async () => {
+    if (!id || !customer) return;
     
-    const { error } = await supabase
-      .from('customers')
-      .update(data)
-      .eq('id', id);
+    setIsSaving(true);
+    try {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          full_name: editData.full_name,
+          email: editData.email,
+          phone: editData.phone,
+          cpf: editData.cpf,
+          birth_date: editData.birth_date,
+          gender: editData.gender,
+          status: editData.status,
+          person_type: editData.person_type,
+          cnpj: editData.cnpj,
+          company_name: editData.company_name,
+          ie: editData.ie,
+          rg: editData.rg,
+          accepts_marketing: editData.accepts_marketing,
+          accepts_email_marketing: editData.accepts_email_marketing,
+          accepts_sms_marketing: editData.accepts_sms_marketing,
+          accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing,
+          notes: editData.notes,
+        })
+        .eq('id', id);
 
-    if (error) {
+      if (error) throw error;
+
+      // Refresh customer data
+      const { data: updated } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (updated) {
+        setCustomer(updated as Customer);
+        setEditData(updated as Customer);
+      }
+      setIsEditing(false);
+      toast.success('Cliente atualizado!');
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
       toast.error('Erro ao atualizar cliente');
-      return;
+    } finally {
+      setIsSaving(false);
     }
+  };
 
-    // Refresh customer data
-    const { data: updated } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('id', id)
-      .single();
+  const handleAddAddress = (data: Omit<CustomerAddress, 'id' | 'created_at' | 'updated_at'>) => {
+    createAddress.mutate(data, {
+      onSuccess: () => {
+        setAddressFormOpen(false);
+        setEditingAddress(null);
+      },
+    });
+  };
 
-    if (updated) {
-      setCustomer(updated as Customer);
-    }
-    setEditOpen(false);
-    toast.success('Cliente atualizado!');
+  const handleDeleteAddress = () => {
+    if (!deleteAddressId) return;
+    deleteAddress.mutate(deleteAddressId, {
+      onSuccess: () => setDeleteAddressId(null),
+    });
   };
 
   if (isLoading || !customer) {
@@ -199,8 +277,8 @@ export default function CustomerDetail() {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold">{customer.full_name}</h1>
-              <Badge variant={statusConfig[customer.status]?.variant ?? 'secondary'}>
-                {statusConfig[customer.status]?.label ?? customer.status ?? 'Sem status'}
+              <Badge variant={statusConfig[customer.status ?? 'active']?.variant ?? 'secondary'}>
+                {statusConfig[customer.status ?? 'active']?.label ?? customer.status ?? 'Sem status'}
               </Badge>
               {customer.loyalty_tier && tierConfig[customer.loyalty_tier] && (
                 <div className="flex items-center gap-1 text-sm">
@@ -213,16 +291,28 @@ export default function CustomerDetail() {
               Cliente desde {customer.first_order_at 
                 ? formatDate(customer.first_order_at) 
                 : formatDate(customer.created_at)}
-              {customer.first_order_at && (
-                <span className="text-xs ml-1">(primeiro pedido)</span>
-              )}
             </p>
           </div>
         </div>
-        <Button onClick={() => setEditOpen(true)}>
-          <Pencil className="h-4 w-4 mr-2" />
-          Editar
-        </Button>
+        <div className="flex gap-2">
+          {isEditing ? (
+            <>
+              <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                <X className="h-4 w-4 mr-2" />
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveCustomer} disabled={isSaving}>
+                <Save className="h-4 w-4 mr-2" />
+                {isSaving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleStartEdit}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}
@@ -253,43 +343,240 @@ export default function CustomerDetail() {
 
       {/* Main Content */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Customer Info Card */}
+        {/* Customer Info Card - Editable */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Informações</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              {editData.person_type === 'pj' ? (
+                <Building2 className="h-5 w-5" />
+              ) : (
+                <User className="h-5 w-5" />
+              )}
+              Informações
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{customer.email}</span>
-              {customer.email_verified && (
-                <Badge variant="outline" className="text-xs">Verificado</Badge>
-              )}
-            </div>
-            {customer.phone && (
-              <div className="flex items-center gap-3">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{customer.phone}</span>
-              </div>
+            {isEditing ? (
+              <>
+                <div className="space-y-2">
+                  <Label>Nome completo</Label>
+                  <Input 
+                    value={editData.full_name ?? ''} 
+                    onChange={(e) => setEditData({...editData, full_name: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input 
+                    type="email"
+                    value={editData.email ?? ''} 
+                    onChange={(e) => setEditData({...editData, email: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Telefone</Label>
+                  <Input 
+                    value={editData.phone ?? ''} 
+                    onChange={(e) => setEditData({...editData, phone: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tipo de Pessoa</Label>
+                  <Select 
+                    value={editData.person_type ?? 'pf'} 
+                    onValueChange={(v) => setEditData({...editData, person_type: v as 'pf' | 'pj'})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pf">Pessoa Física</SelectItem>
+                      <SelectItem value="pj">Pessoa Jurídica</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editData.person_type === 'pj' ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>CNPJ</Label>
+                      <Input 
+                        value={editData.cnpj ?? ''} 
+                        onChange={(e) => setEditData({...editData, cnpj: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Razão Social</Label>
+                      <Input 
+                        value={editData.company_name ?? ''} 
+                        onChange={(e) => setEditData({...editData, company_name: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Inscrição Estadual</Label>
+                      <Input 
+                        value={editData.ie ?? ''} 
+                        onChange={(e) => setEditData({...editData, ie: e.target.value})}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>CPF</Label>
+                      <Input 
+                        value={editData.cpf ?? ''} 
+                        onChange={(e) => setEditData({...editData, cpf: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>RG</Label>
+                      <Input 
+                        value={editData.rg ?? ''} 
+                        onChange={(e) => setEditData({...editData, rg: e.target.value})}
+                      />
+                    </div>
+                  </>
+                )}
+                <div className="space-y-2">
+                  <Label>Data de nascimento</Label>
+                  <Input 
+                    type="date"
+                    value={editData.birth_date ?? ''} 
+                    onChange={(e) => setEditData({...editData, birth_date: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select 
+                    value={editData.status ?? 'active'} 
+                    onValueChange={(v) => setEditData({...editData, status: v as 'active' | 'inactive' | 'blocked'})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Ativo</SelectItem>
+                      <SelectItem value="inactive">Inativo</SelectItem>
+                      <SelectItem value="blocked">Bloqueado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">Preferências de Marketing</Label>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Aceita Email</span>
+                    <Switch 
+                      checked={editData.accepts_email_marketing ?? true}
+                      onCheckedChange={(v) => setEditData({...editData, accepts_email_marketing: v})}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Aceita SMS</span>
+                    <Switch 
+                      checked={editData.accepts_sms_marketing ?? false}
+                      onCheckedChange={(v) => setEditData({...editData, accepts_sms_marketing: v})}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">Aceita WhatsApp</span>
+                    <Switch 
+                      checked={editData.accepts_whatsapp_marketing ?? false}
+                      onCheckedChange={(v) => setEditData({...editData, accepts_whatsapp_marketing: v})}
+                    />
+                  </div>
+                </div>
+                <Separator />
+                <div className="space-y-2">
+                  <Label>Observações internas</Label>
+                  <Textarea 
+                    value={editData.notes ?? ''} 
+                    onChange={(e) => setEditData({...editData, notes: e.target.value})}
+                    rows={3}
+                    placeholder="Notas sobre o cliente..."
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{customer.email}</span>
+                  {customer.email_verified && (
+                    <Badge variant="outline" className="text-xs">Verificado</Badge>
+                  )}
+                </div>
+                {customer.phone && (
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{customer.phone}</span>
+                  </div>
+                )}
+                {customer.person_type === 'pj' ? (
+                  <>
+                    {customer.cnpj && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-8">CNPJ</span>
+                        <span className="text-sm">{customer.cnpj}</span>
+                      </div>
+                    )}
+                    {customer.company_name && (
+                      <div className="flex items-center gap-3">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{customer.company_name}</span>
+                      </div>
+                    )}
+                    {customer.ie && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-8">IE</span>
+                        <span className="text-sm">{customer.ie}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {customer.cpf && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-8">CPF</span>
+                        <span className="text-sm">{customer.cpf}</span>
+                      </div>
+                    )}
+                    {customer.rg && (
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground w-8">RG</span>
+                        <span className="text-sm">{customer.rg}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                {customer.birth_date && (
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{formatDate(customer.birth_date)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t space-y-2">
+                  <p className="text-xs text-muted-foreground mb-2">Preferências de Marketing</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant={customer.accepts_email_marketing ? 'default' : 'secondary'}>
+                      {customer.accepts_email_marketing ? '✓ Email' : '✗ Email'}
+                    </Badge>
+                    <Badge variant={customer.accepts_sms_marketing ? 'default' : 'secondary'}>
+                      {customer.accepts_sms_marketing ? '✓ SMS' : '✗ SMS'}
+                    </Badge>
+                    <Badge variant={customer.accepts_whatsapp_marketing ? 'default' : 'secondary'}>
+                      {customer.accepts_whatsapp_marketing ? '✓ WhatsApp' : '✗ WhatsApp'}
+                    </Badge>
+                  </div>
+                </div>
+                {customer.notes && (
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-muted-foreground mb-1">Observações</p>
+                    <p className="text-sm whitespace-pre-wrap">{customer.notes}</p>
+                  </div>
+                )}
+              </>
             )}
-            {customer.cpf && (
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-4">CPF</span>
-                <span className="text-sm">{customer.cpf}</span>
-              </div>
-            )}
-            {customer.birth_date && (
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{formatDate(customer.birth_date)}</span>
-              </div>
-            )}
-            <div className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground mb-1">Preferências de Marketing</p>
-              <Badge variant={customer.accepts_marketing ? 'default' : 'secondary'}>
-                {customer.accepts_marketing ? 'Aceita emails' : 'Não aceita emails'}
-              </Badge>
-            </div>
           </CardContent>
         </Card>
 
@@ -373,6 +660,12 @@ export default function CustomerDetail() {
 
             {/* Addresses Tab */}
             <TabsContent value="addresses" className="space-y-4">
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => { setEditingAddress(null); setAddressFormOpen(true); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Endereço
+                </Button>
+              </div>
               {addressesLoading ? (
                 <Skeleton className="h-32" />
               ) : addresses.length === 0 ? (
@@ -380,6 +673,13 @@ export default function CustomerDetail() {
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>Nenhum endereço cadastrado</p>
+                    <Button 
+                      variant="link" 
+                      className="mt-2"
+                      onClick={() => { setEditingAddress(null); setAddressFormOpen(true); }}
+                    >
+                      Adicionar primeiro endereço
+                    </Button>
                   </CardContent>
                 </Card>
               ) : (
@@ -387,15 +687,22 @@ export default function CustomerDetail() {
                   <Card key={address.id}>
                     <CardContent className="pt-4">
                       <div className="flex items-start justify-between">
-                        <div>
+                        <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <span className="font-medium">{address.label}</span>
                             {address.is_default && (
                               <Badge variant="outline" className="text-xs">Principal</Badge>
                             )}
+                            {address.address_type && (
+                              <Badge variant="secondary" className="text-xs">
+                                {address.address_type === 'residential' ? 'Residencial' : 
+                                 address.address_type === 'commercial' ? 'Comercial' : 'Outro'}
+                              </Badge>
+                            )}
                           </div>
                           <p className="text-sm text-muted-foreground">
                             {address.recipient_name}
+                            {address.recipient_phone && ` • ${address.recipient_phone}`}
                           </p>
                           <p className="text-sm">
                             {address.street}, {address.number}
@@ -413,6 +720,15 @@ export default function CustomerDetail() {
                               Ref: {address.reference}
                             </p>
                           )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="icon"
+                            onClick={() => setDeleteAddressId(address.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -477,13 +793,33 @@ export default function CustomerDetail() {
         </div>
       </div>
 
-      {/* Edit Customer Modal */}
-      <CustomerForm
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        customer={customer}
-        onSubmit={handleUpdateCustomer}
+      {/* Address Form Modal */}
+      <CustomerAddressForm
+        open={addressFormOpen}
+        onOpenChange={setAddressFormOpen}
+        address={editingAddress}
+        customerId={id || ''}
+        onSubmit={handleAddAddress}
+        isLoading={createAddress.isPending}
       />
+
+      {/* Delete Address Confirmation */}
+      <AlertDialog open={!!deleteAddressId} onOpenChange={(open) => !open && setDeleteAddressId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir endereço?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O endereço será permanentemente removido.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteAddress} className="bg-destructive text-destructive-foreground">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

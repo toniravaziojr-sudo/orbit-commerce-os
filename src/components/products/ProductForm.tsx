@@ -248,7 +248,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           <Tabs defaultValue="basic" className="w-full">
             <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="basic">Básico</TabsTrigger>
-              <TabsTrigger value="images" disabled={!isEditing}>
+              <TabsTrigger value="images">
                 <ImageIcon className="h-4 w-4 mr-1" />
                 Imagens
               </TabsTrigger>
@@ -256,12 +256,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               <TabsTrigger value="inventory">Estoque</TabsTrigger>
               <TabsTrigger 
                 value="structure" 
-                disabled={!isEditing || form.watch('product_format') !== 'with_composition'}
+                disabled={form.watch('product_format') !== 'with_composition'}
+                title={form.watch('product_format') !== 'with_composition' ? 'Selecione "Com composição (Kit)" no formato para habilitar' : ''}
               >
                 <Package className="h-4 w-4 mr-1" />
                 Estrutura
               </TabsTrigger>
-              <TabsTrigger value="related" disabled={!isEditing}>
+              <TabsTrigger value="related">
                 <Link2 className="h-4 w-4 mr-1" />
                 Relacionados
               </TabsTrigger>
@@ -615,9 +616,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       onImagesChange={loadProductImages}
                     />
                   ) : (
-                    <p className="text-muted-foreground text-sm">
-                      Salve o produto primeiro para adicionar imagens
-                    </p>
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+                      <p className="text-muted-foreground font-medium">
+                        Salve o produto primeiro
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Após salvar, você poderá adicionar imagens do produto
+                      </p>
+                    </div>
                   )}
                 </CardContent>
               </Card>
