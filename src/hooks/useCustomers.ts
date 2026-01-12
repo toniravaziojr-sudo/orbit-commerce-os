@@ -26,6 +26,21 @@ export interface Customer {
   loyalty_tier: 'bronze' | 'silver' | 'gold' | 'platinum' | null;
   created_at: string;
   updated_at: string;
+  // New canonical fields (PF/PJ + marketing consents)
+  person_type: 'pf' | 'pj' | null;
+  cnpj: string | null;
+  company_name: string | null;
+  ie: string | null;
+  rg: string | null;
+  state_registration_is_exempt: boolean | null;
+  accepts_email_marketing: boolean | null;
+  accepts_sms_marketing: boolean | null;
+  accepts_whatsapp_marketing: boolean | null;
+  unsubscribed_at: string | null;
+  bounced_at: string | null;
+  last_source_platform: string | null;
+  last_external_id: string | null;
+  notes: string | null;
 }
 
 export interface CustomerAddress {
@@ -45,6 +60,11 @@ export interface CustomerAddress {
   reference: string | null;
   created_at: string;
   updated_at: string;
+  // New canonical fields
+  recipient_cpf: string | null;
+  recipient_phone: string | null;
+  ibge_code: string | null;
+  address_type: 'residential' | 'commercial' | 'other' | null;
 }
 
 export interface CustomerTag {

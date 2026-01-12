@@ -43,6 +43,16 @@ const customerSchema = z.object({
   status: z.enum(['active', 'inactive', 'blocked']).default('active'),
   accepts_marketing: z.boolean().default(true),
   tag_ids: z.array(z.string()).default([]),
+  // New canonical fields (PF/PJ + marketing consents)
+  person_type: z.enum(['pf', 'pj']).optional().nullable(),
+  cnpj: z.string().optional().nullable(),
+  company_name: z.string().optional().nullable(),
+  ie: z.string().optional().nullable(),
+  rg: z.string().optional().nullable(),
+  accepts_email_marketing: z.boolean().optional().nullable(),
+  accepts_sms_marketing: z.boolean().optional().nullable(),
+  accepts_whatsapp_marketing: z.boolean().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof customerSchema>;
@@ -80,6 +90,16 @@ export function CustomerForm({
       status: 'active',
       accepts_marketing: true,
       tag_ids: [],
+      // New fields
+      person_type: null,
+      cnpj: '',
+      company_name: '',
+      ie: '',
+      rg: '',
+      accepts_email_marketing: true,
+      accepts_sms_marketing: false,
+      accepts_whatsapp_marketing: false,
+      notes: '',
     },
   });
 
@@ -96,6 +116,16 @@ export function CustomerForm({
         status: customer?.status ?? 'active',
         accepts_marketing: customer?.accepts_marketing ?? true,
         tag_ids: customerTagIds,
+        // New fields
+        person_type: customer?.person_type ?? null,
+        cnpj: customer?.cnpj ?? '',
+        company_name: customer?.company_name ?? '',
+        ie: customer?.ie ?? '',
+        rg: customer?.rg ?? '',
+        accepts_email_marketing: customer?.accepts_email_marketing ?? true,
+        accepts_sms_marketing: customer?.accepts_sms_marketing ?? false,
+        accepts_whatsapp_marketing: customer?.accepts_whatsapp_marketing ?? false,
+        notes: customer?.notes ?? '',
       });
     }
   }, [open, customer, customerTagIds, form]);
@@ -111,7 +141,17 @@ export function CustomerForm({
       status: data.status,
       accepts_marketing: data.accepts_marketing,
       tag_ids: data.tag_ids,
-    });
+      // New fields
+      person_type: data.person_type || null,
+      cnpj: data.cnpj || null,
+      company_name: data.company_name || null,
+      ie: data.ie || null,
+      rg: data.rg || null,
+      accepts_email_marketing: data.accepts_email_marketing,
+      accepts_sms_marketing: data.accepts_sms_marketing,
+      accepts_whatsapp_marketing: data.accepts_whatsapp_marketing,
+      notes: data.notes || null,
+    } as any);
   };
 
   return (

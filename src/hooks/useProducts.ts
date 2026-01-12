@@ -36,6 +36,18 @@ export interface Product {
   stock_type: 'physical' | 'virtual';
   created_at: string;
   updated_at: string;
+  // New canonical fields
+  brand: string | null;
+  vendor: string | null;
+  product_type: string | null;
+  tags: string[] | null;
+  requires_shipping: boolean | null;
+  taxable: boolean | null;
+  tax_code: string | null;
+  cest: string | null;
+  origin_code: string | null;
+  uom: string | null;
+  published_at: string | null;
 }
 
 export interface ProductVariant {
@@ -61,6 +73,14 @@ export interface ProductVariant {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // New canonical fields
+  width: number | null;
+  height: number | null;
+  depth: number | null;
+  taxable: boolean | null;
+  requires_shipping: boolean | null;
+  position: number | null;
+  image_url: string | null;
 }
 
 export interface Category {
@@ -81,7 +101,24 @@ export interface Category {
   updated_at: string;
 }
 
-export type ProductFormData = Omit<Product, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
+// ProductFormData: base fields required, new canonical fields optional for backwards compatibility
+export type ProductFormData = Omit<Product, 
+  'id' | 'tenant_id' | 'created_at' | 'updated_at' | 
+  'brand' | 'vendor' | 'product_type' | 'tags' | 'requires_shipping' | 'taxable' | 
+  'tax_code' | 'cest' | 'origin_code' | 'uom' | 'published_at'
+> & {
+  brand?: string | null;
+  vendor?: string | null;
+  product_type?: string | null;
+  tags?: string[] | null;
+  requires_shipping?: boolean | null;
+  taxable?: boolean | null;
+  tax_code?: string | null;
+  cest?: string | null;
+  origin_code?: string | null;
+  uom?: string | null;
+  published_at?: string | null;
+};
 export type CategoryFormData = Omit<Category, 'id' | 'tenant_id' | 'created_at' | 'updated_at'>;
 
 export function useProducts() {

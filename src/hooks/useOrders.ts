@@ -95,6 +95,17 @@ export interface Order {
   marketplace_data: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+  // New canonical fields
+  currency: string | null;
+  fx_rate: number | null;
+  shipping_method_name: string | null;
+  shipping_method_code: string | null;
+  tracking_url: string | null;
+  gateway_payload: Record<string, unknown> | null;
+  source_hash: string | null;
+  customer_cpf: string | null;
+  installments: number | null;
+  installment_value: number | null;
 }
 
 export interface OrderItem {
@@ -109,6 +120,17 @@ export interface OrderItem {
   discount_amount: number;
   total_price: number;
   created_at: string;
+  // New canonical fields
+  product_slug: string | null;
+  variant_id: string | null;
+  variant_name: string | null;
+  image_file_id: string | null;
+  weight: number | null;
+  tax_amount: number | null;
+  cost_price: number | null;
+  barcode: string | null;
+  ncm: string | null;
+  tenant_id: string | null;
 }
 
 export interface OrderHistory {
