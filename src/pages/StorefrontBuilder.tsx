@@ -2,6 +2,7 @@
 // STOREFRONT BUILDER PAGE - Visual Editor page
 // =============================================
 
+import React from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
@@ -12,8 +13,82 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl } from '@/lib/publicUrls';
 import BuilderErrorBoundary from '@/components/builder/BuilderErrorBoundary';
+import { getReactGuardStatus } from '@/lib/reactInstanceGuard';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
+
+// Isolation modes for debugging React #300
+type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'full';
+
+// Isolation mode component - renders minimal content for each isolation level
+function IsolationModeUI({ mode, reactStatus }: { mode: IsolateMode; reactStatus: ReturnType<typeof getReactGuardStatus> }) {
+  return (
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6">
+          <h1 className="text-xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+            🔬 Modo de Isolamento: <code className="bg-blue-500/20 px-2 py-1 rounded">{mode}</code>
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Se você está vendo esta tela SEM erro, o problema está em uma camada posterior.
+          </p>
+        </div>
+
+        {/* React Instance Status */}
+        <div className={`border rounded-lg p-4 ${reactStatus.ok ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+          <h2 className="font-semibold mb-2">React Instance Guard</h2>
+          <div className="text-sm font-mono space-y-1">
+            <p>Status: {reactStatus.ok ? '✅ OK' : '❌ PROBLEMA'}</p>
+            <p>Versão: {reactStatus.version}</p>
+            <p>Múltiplas instâncias: {reactStatus.multipleInstances ? '⚠️ SIM' : 'Não'}</p>
+            {reactStatus.versions.length > 1 && (
+              <p>Versões detectadas: {reactStatus.versions.join(', ')}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Isolation levels explanation */}
+        <div className="bg-muted/50 rounded-lg p-4">
+          <h2 className="font-semibold mb-3">Níveis de Isolamento</h2>
+          <ul className="text-sm space-y-2">
+            <li className={mode === 'app' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=app</code> — Apenas StorefrontBuilder (sem VisualBuilder)
+            </li>
+            <li className={mode === 'visual' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=visual</code> — VisualBuilder shell (sem DnD/Canvas)
+            </li>
+            <li className={mode === 'canvas' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=canvas</code> — Canvas (sem BlockRenderer)
+            </li>
+            <li className={mode === 'blocks' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=blocks</code> — BlockRenderer com bloco simples
+            </li>
+            <li className={mode === 'full' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=full</code> ou sem param — Render normal
+            </li>
+          </ul>
+        </div>
+
+        {/* Test buttons */}
+        <div className="flex flex-wrap gap-2">
+          {(['app', 'visual', 'canvas', 'blocks', 'full'] as IsolateMode[]).map((level) => (
+            <a
+              key={level}
+              href={`?edit=home&isolate=${level}`}
+              className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                mode === level 
+                  ? 'bg-primary text-primary-foreground' 
+                  : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+              }`}
+            >
+              {level}
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const pageTypeInfo: Record<PageType, { title: string; description: string; icon: string; isSystem?: boolean }> = {
   home: { title: 'Página Inicial', description: 'Página principal da loja', icon: '🏠' },
@@ -36,6 +111,15 @@ export default function StorefrontBuilder() {
   const { settings: storeSettings, isLoading: settingsLoading } = useStoreSettings();
   
   const editingPageType = searchParams.get('edit') as PageType | null;
+  const isolateMode = searchParams.get('isolate') as IsolateMode | null;
+  
+  // Get React guard status for diagnostics
+  const reactStatus = getReactGuardStatus();
+  
+  // ISOLATION MODE: If ?isolate=app, render minimal UI to test this layer
+  if (isolateMode === 'app') {
+    return <IsolationModeUI mode="app" reactStatus={reactStatus} />;
+  }
   
   // If no edit parameter, redirect to storefront settings page
   if (!editingPageType) {
@@ -221,6 +305,7 @@ export default function StorefrontBuilder() {
           pageSlug={systemPageSlug || undefined}
           initialContent={systemPageData.content as unknown as BlockNode | undefined}
           context={context}
+          isolateMode={isolateMode || undefined}
         />
       </BuilderErrorBoundary>
     );
@@ -234,6 +319,7 @@ export default function StorefrontBuilder() {
         pageType={editingPageType}
         initialContent={templateData?.content}
         context={context}
+        isolateMode={isolateMode || undefined}
       />
     </BuilderErrorBoundary>
   );
