@@ -4,7 +4,7 @@
 // =============================================
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
@@ -921,7 +921,24 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
 
 function AccountHubBlock({ context, isEditing }: any) {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const tenantSlug = context?.tenantSlug || '';
+  
+  // Import utilities at module level or use inline
+  const getWhatsAppHref = (phone: string, message: string) => {
+    const cleanPhone = phone.replace(/\D/g, '');
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
+  
+  const getStoreBaseUrl = (slug: string) => slug ? `/loja/${slug}` : '';
+  
+  // Get settings from context
+  const storeSettings = context?.settings || {};
+  const isDemoMode = searchParams.has('demoAccount');
+  const basePath = getStoreBaseUrl(tenantSlug);
+  
+  const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
+  const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
   
   if (isEditing) {
     return (
@@ -948,19 +965,6 @@ function AccountHubBlock({ context, isEditing }: any) {
       </div>
     );
   }
-
-  const { useSearchParams, Link } = require('react-router-dom');
-  const { usePublicStorefront } = require('@/hooks/useStorefront');
-  const { getWhatsAppHref } = require('@/lib/contactHelpers');
-  const { getStoreBaseUrl } = require('@/lib/publicUrls');
-  
-  const [searchParams] = useSearchParams();
-  const isDemoMode = searchParams.has('demoAccount');
-  const { storeSettings } = usePublicStorefront(tenantSlug);
-  const basePath = getStoreBaseUrl(tenantSlug);
-  
-  const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
-  const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
 
   return (
     <div className="container mx-auto max-w-2xl py-8 px-4">
