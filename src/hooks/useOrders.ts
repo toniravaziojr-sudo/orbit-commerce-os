@@ -679,6 +679,50 @@ export function useOrderDetails(orderId: string | undefined) {
     },
   });
 
+  const updateShippingStatus = useMutation({
+    mutationFn: async ({ orderId, shippingStatus }: { orderId: string; shippingStatus: ShippingStatus }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const updateData: Record<string, unknown> = { 
+        shipping_status: shippingStatus,
+      };
+      
+      // Update related timestamps based on status
+      if (shippingStatus === 'shipped') {
+        updateData.shipped_at = new Date().toISOString();
+      } else if (shippingStatus === 'delivered') {
+        updateData.delivered_at = new Date().toISOString();
+      }
+      
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Add history
+      const statusLabel = SHIPPING_STATUS_CONFIG[shippingStatus]?.label || shippingStatus;
+      
+      await supabase.from('order_history').insert({
+        order_id: orderId,
+        author_id: user?.id,
+        action: 'shipping_status_updated',
+        description: `Status de envio alterado para: ${statusLabel}`,
+        new_value: { shipping_status: shippingStatus },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      toast.success('Status de envio atualizado!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar status de envio:', error);
+      toast.error('Erro ao atualizar status de envio');
+    },
+  });
+
   return {
     order: orderQuery.data,
     items: itemsQuery.data ?? [],
@@ -688,6 +732,7 @@ export function useOrderDetails(orderId: string | undefined) {
     updateTrackingCode,
     updatePaymentStatus,
     updateShippingAddress,
+    updateShippingStatus,
   };
 }
 
