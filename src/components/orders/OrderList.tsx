@@ -55,7 +55,15 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { OrderSourceBadge } from './OrderSourceBadge';
-import type { Order, OrderStatus, ShippingStatus } from '@/hooks/useOrders';
+import type { Order } from '@/hooks/useOrders';
+import { 
+  OrderStatus, 
+  PaymentStatus, 
+  ShippingStatus,
+  ORDER_STATUS_CONFIG,
+  PAYMENT_STATUS_CONFIG,
+  SHIPPING_STATUS_CONFIG,
+} from '@/types/orderStatus';
 
 interface OrderListProps {
   orders: Order[];
@@ -65,41 +73,28 @@ interface OrderListProps {
   onDelete?: (orderId: string) => void;
 }
 
-const orderStatusConfig: Record<OrderStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock }> = {
-  pending: { label: 'Pendente', variant: 'secondary', icon: Clock },
-  awaiting_payment: { label: 'Aguardando Pagamento', variant: 'outline', icon: CreditCard },
-  paid: { label: 'Pago', variant: 'default', icon: CheckCircle },
-  processing: { label: 'Em Separação', variant: 'default', icon: Package },
-  shipped: { label: 'Enviado', variant: 'default', icon: Truck },
-  in_transit: { label: 'Em Trânsito', variant: 'default', icon: Truck },
-  delivered: { label: 'Entregue', variant: 'default', icon: CheckCircle },
-  cancelled: { label: 'Cancelado', variant: 'destructive', icon: XCircle },
-  returned: { label: 'Devolvido', variant: 'destructive', icon: RotateCcw },
+const orderStatusIcons: Record<OrderStatus, typeof Clock> = {
+  pending: Clock,
+  approved: CheckCircle,
+  dispatched: Tag,
+  shipping: Truck,
+  completed: PackageCheck,
+  cancelled: XCircle,
+  returned: RotateCcw,
+  refunded: RotateCcw,
 };
 
-const paymentStatusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
-  pending: { label: 'Pendente', variant: 'secondary' },
-  processing: { label: 'Processando', variant: 'outline' },
-  approved: { label: 'Aprovado', variant: 'default' },
-  declined: { label: 'Recusado', variant: 'destructive' },
-  refunded: { label: 'Reembolsado', variant: 'destructive' },
-  cancelled: { label: 'Cancelado', variant: 'destructive' },
-};
-
-// Extended type to include both database values and UI-specific values
-type ExtendedShippingStatus = ShippingStatus | 'unknown' | 'posted';
-
-const shippingStatusConfig: Record<ExtendedShippingStatus, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Truck }> = {
-  pending: { label: 'Sem rastreio', variant: 'outline', icon: Package },
-  processing: { label: 'Etiqueta gerada', variant: 'secondary', icon: Tag },
-  posted: { label: 'Postado', variant: 'default', icon: Truck },
-  shipped: { label: 'Postado', variant: 'default', icon: Truck },
-  in_transit: { label: 'Em trânsito', variant: 'default', icon: Truck },
-  out_for_delivery: { label: 'Saiu p/ entrega', variant: 'default', icon: MapPin },
-  delivered: { label: 'Entregue', variant: 'default', icon: PackageCheck },
-  returned: { label: 'Devolvido', variant: 'destructive', icon: RotateCcw },
-  failed: { label: 'Falha', variant: 'destructive', icon: AlertTriangle },
-  unknown: { label: 'Sem rastreio', variant: 'outline', icon: PackageX },
+const shippingStatusIcons: Record<ShippingStatus, typeof Truck> = {
+  awaiting_shipment: Package,
+  label_generated: Tag,
+  shipped: Truck,
+  in_transit: Truck,
+  arriving: MapPin,
+  delivered: PackageCheck,
+  problem: AlertTriangle,
+  awaiting_pickup: Clock,
+  returning: RotateCcw,
+  returned: RotateCcw,
 };
 
 function maskTrackingCode(code: string | null): string {
@@ -192,14 +187,14 @@ export function OrderList({
           </TableHeader>
           <TableBody>
             {orders.map((order) => {
-              const statusConfig = orderStatusConfig[order.status];
-              const paymentConfig = paymentStatusConfig[order.payment_status];
-              const StatusIcon = statusConfig.icon;
+              const orderStatusCfg = ORDER_STATUS_CONFIG[order.status as OrderStatus] || ORDER_STATUS_CONFIG.pending;
+              const paymentStatusCfg = PAYMENT_STATUS_CONFIG[order.payment_status as PaymentStatus] || PAYMENT_STATUS_CONFIG.awaiting_payment;
+              const StatusIcon = orderStatusIcons[order.status as OrderStatus] || Clock;
               
-              // Shipping status with fallback (cast to extended type to handle all possible values)
-              const shippingStatus = (order.shipping_status || 'unknown') as ExtendedShippingStatus;
-              const shippingConfig = shippingStatusConfig[shippingStatus] || shippingStatusConfig['unknown'];
-              const ShippingIcon = shippingConfig.icon;
+              // Shipping status with fallback
+              const shippingStatusVal = (order.shipping_status || 'awaiting_shipment') as ShippingStatus;
+              const shippingStatusCfg = SHIPPING_STATUS_CONFIG[shippingStatusVal] || SHIPPING_STATUS_CONFIG.awaiting_shipment;
+              const ShippingIcon = shippingStatusIcons[shippingStatusVal] || Package;
 
               return (
                 <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50">
@@ -226,17 +221,17 @@ export function OrderList({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={statusConfig.variant} className="gap-1">
+                    <Badge variant={orderStatusCfg.variant} className="gap-1">
                       <StatusIcon className="h-3 w-3" />
-                      {statusConfig.label}
+                      {orderStatusCfg.label}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Badge variant={shippingConfig.variant} className="gap-1 cursor-help">
+                        <Badge variant={shippingStatusCfg.variant} className="gap-1 cursor-help">
                           <ShippingIcon className="h-3 w-3" />
-                          {shippingConfig.label}
+                          {shippingStatusCfg.label}
                         </Badge>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="text-xs">
@@ -248,8 +243,8 @@ export function OrderList({
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={paymentConfig.variant}>
-                      {paymentConfig.label}
+                    <Badge variant={paymentStatusCfg.variant}>
+                      {paymentStatusCfg.label}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
@@ -276,16 +271,19 @@ export function OrderList({
                           Alterar status
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent>
-                          {Object.entries(orderStatusConfig).map(([key, config]) => (
-                            <DropdownMenuItem
-                              key={key}
-                              onClick={() => onUpdateStatus(order.id, key as OrderStatus)}
-                              disabled={order.status === key}
-                            >
-                              <config.icon className="mr-2 h-4 w-4" />
-                              {config.label}
-                            </DropdownMenuItem>
-                          ))}
+                          {Object.entries(ORDER_STATUS_CONFIG).map(([key, cfg]) => {
+                            const Icon = orderStatusIcons[key as OrderStatus] || Clock;
+                            return (
+                              <DropdownMenuItem
+                                key={key}
+                                onClick={() => onUpdateStatus(order.id, key as OrderStatus)}
+                                disabled={order.status === key}
+                              >
+                                <Icon className="mr-2 h-4 w-4" />
+                                {cfg.label}
+                              </DropdownMenuItem>
+                            );
+                          })}
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
                       {onDelete && (

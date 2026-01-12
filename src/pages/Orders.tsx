@@ -93,9 +93,9 @@ export default function Orders() {
   };
 
   // Calculate stats from current page
-  const pendingCount = orders.filter(o => o.status === 'pending' || o.status === 'awaiting_payment').length;
-  const processingCount = orders.filter(o => o.status === 'processing' || o.status === 'paid').length;
-  const shippedCount = orders.filter(o => o.status === 'shipped' || o.status === 'in_transit').length;
+  const pendingCount = orders.filter(o => o.status === 'pending').length;
+  const processingCount = orders.filter(o => o.status === 'approved' || o.status === 'dispatched').length;
+  const shippedCount = orders.filter(o => o.status === 'shipping').length;
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -171,49 +171,50 @@ export default function Orders() {
                 onDateFieldChange={setDateField}
               />
               <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Status" />
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Status Pedido" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos status</SelectItem>
                   <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="awaiting_payment">Aguardando Pgto</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
-                  <SelectItem value="processing">Em Separação</SelectItem>
-                  <SelectItem value="shipped">Enviado</SelectItem>
-                  <SelectItem value="in_transit">Em Trânsito</SelectItem>
-                  <SelectItem value="delivered">Entregue</SelectItem>
+                  <SelectItem value="approved">Aprovado</SelectItem>
+                  <SelectItem value="dispatched">Despachado</SelectItem>
+                  <SelectItem value="shipping">A caminho</SelectItem>
+                  <SelectItem value="completed">Concluído</SelectItem>
                   <SelectItem value="cancelled">Cancelado</SelectItem>
                   <SelectItem value="returned">Devolvido</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={shippingFilter} onValueChange={handleShippingChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Envio" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos envios</SelectItem>
-                  <SelectItem value="pending">Sem rastreio</SelectItem>
-                  <SelectItem value="processing">Etiqueta gerada</SelectItem>
-                  <SelectItem value="shipped">Postado</SelectItem>
-                  <SelectItem value="in_transit">Em trânsito</SelectItem>
-                  <SelectItem value="out_for_delivery">Saiu p/ entrega</SelectItem>
-                  <SelectItem value="delivered">Entregue</SelectItem>
-                  <SelectItem value="failed">Falha</SelectItem>
-                  <SelectItem value="returned">Devolvido</SelectItem>
+                  <SelectItem value="refunded">Estornado</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={paymentFilter} onValueChange={handlePaymentChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Pagamento" />
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Status Pgto" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="processing">Processando</SelectItem>
-                  <SelectItem value="approved">Aprovado</SelectItem>
+                  <SelectItem value="all">Todos pgtos</SelectItem>
+                  <SelectItem value="awaiting_payment">Aguardando</SelectItem>
+                  <SelectItem value="paid">Pago</SelectItem>
                   <SelectItem value="declined">Recusado</SelectItem>
-                  <SelectItem value="refunded">Reembolsado</SelectItem>
+                  <SelectItem value="cancelled">Cancelado</SelectItem>
+                  <SelectItem value="refunded">Estornado</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={shippingFilter} onValueChange={handleShippingChange}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="Status Envio" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos envios</SelectItem>
+                  <SelectItem value="awaiting_shipment">Aguardando envio</SelectItem>
+                  <SelectItem value="label_generated">Etiqueta gerada</SelectItem>
+                  <SelectItem value="shipped">Enviado</SelectItem>
+                  <SelectItem value="in_transit">Em trânsito</SelectItem>
+                  <SelectItem value="arriving">Chegando</SelectItem>
+                  <SelectItem value="delivered">Entregue</SelectItem>
+                  <SelectItem value="problem">Problema</SelectItem>
+                  <SelectItem value="awaiting_pickup">Aguardando retirada</SelectItem>
+                  <SelectItem value="returning">Em devolução</SelectItem>
+                  <SelectItem value="returned">Devolvido</SelectItem>
                 </SelectContent>
               </Select>
             </div>
