@@ -29,9 +29,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Loader2, ArrowLeft, ImageIcon, Link2, Package } from 'lucide-react';
 import { ProductImageManager } from './ProductImageManager';
+import { ProductImageUploader, type PendingImage } from './ProductImageUploader';
 import { RelatedProductsSelect } from './RelatedProductsSelect';
+import { RelatedProductsPicker } from './RelatedProductsPicker';
 import { ProductStructureEditor } from './ProductStructureEditor';
+import { ProductComponentsPicker, type PendingComponent } from './ProductComponentsPicker';
 import { validateSlugFormat, generateSlug as generateSlugFromPolicy, RESERVED_SLUGS } from '@/lib/slugPolicy';
+import { useToast } from '@/hooks/use-toast';
 
 const productSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(200),
@@ -102,13 +106,22 @@ interface ProductImage {
 export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) {
   const { createProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
+  const { toast } = useToast();
   const isEditing = !!product;
   const [productImages, setProductImages] = useState<ProductImage[]>([]);
+  
+  // State for new product creation - local data until saved
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [pendingRelatedIds, setPendingRelatedIds] = useState<string[]>([]);
+  const [pendingComponents, setPendingComponents] = useState<PendingComponent[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Load product images
+  // Load product images for editing
   useEffect(() => {
     if (product?.id) {
       loadProductImages();
+      loadRelatedProducts();
+      loadComponents();
     }
   }, [product?.id]);
 
@@ -123,6 +136,47 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
 
     if (!error && data) {
       setProductImages(data);
+    }
+  };
+
+  const loadRelatedProducts = async () => {
+    if (!product?.id) return;
+    
+    const { data } = await supabase
+      .from('related_products')
+      .select('related_product_id')
+      .eq('product_id', product.id)
+      .order('position');
+
+    if (data) {
+      setPendingRelatedIds(data.map(r => r.related_product_id));
+    }
+  };
+
+  const loadComponents = async () => {
+    if (!product?.id) return;
+    
+    const { data } = await supabase
+      .from('product_components')
+      .select(`
+        id,
+        component_product_id,
+        quantity,
+        cost_price,
+        sale_price,
+        sort_order,
+        component:products!product_components_component_product_id_fkey(
+          id, name, sku, price, cost_price, stock_quantity
+        )
+      `)
+      .eq('parent_product_id', product.id)
+      .order('sort_order');
+
+    if (data) {
+      setPendingComponents(data.map(c => ({
+        ...c,
+        component: c.component as any,
+      })));
     }
   };
 
@@ -171,7 +225,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     },
   });
 
-  const isLoading = createProduct.isPending || updateProduct.isPending;
+  const isLoading = createProduct.isPending || updateProduct.isPending || isSaving;
 
   // Use centralized slug generation from slugPolicy
   const generateSlug = generateSlugFromPolicy;
@@ -183,12 +237,127 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
     }
   };
 
+  // Upload pending images to storage and return URLs
+  const uploadPendingImages = async (productId: string): Promise<void> => {
+    for (const image of pendingImages) {
+      try {
+        let imageUrl = image.url;
+
+        // If it's a file, upload to storage
+        if (image.type === 'file' && image.file) {
+          const fileExt = image.file.name.split('.').pop();
+          const fileName = `${productId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('product-images')
+            .upload(fileName, image.file);
+
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            continue;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(fileName);
+
+          imageUrl = publicUrl;
+        }
+
+        // Insert image record
+        await supabase.from('product_images').insert({
+          product_id: productId,
+          url: imageUrl,
+          alt_text: image.alt_text,
+          is_primary: image.is_primary,
+          sort_order: image.sort_order,
+        });
+      } catch (error) {
+        console.error('Error saving image:', error);
+      }
+    }
+  };
+
+  // Save related products
+  const saveRelatedProducts = async (productId: string): Promise<void> => {
+    if (pendingRelatedIds.length === 0) return;
+
+    const relations = pendingRelatedIds.map((relatedId, index) => ({
+      product_id: productId,
+      related_product_id: relatedId,
+      position: index,
+    }));
+
+    await supabase.from('related_products').insert(relations);
+  };
+
+  // Save product components (for kits)
+  const saveComponents = async (productId: string): Promise<void> => {
+    if (pendingComponents.length === 0) return;
+
+    const components = pendingComponents.map((comp, index) => ({
+      parent_product_id: productId,
+      component_product_id: comp.component_product_id,
+      quantity: comp.quantity,
+      cost_price: comp.cost_price,
+      sale_price: comp.sale_price,
+      sort_order: index,
+    }));
+
+    await supabase.from('product_components').insert(components);
+  };
+
+  // Update related products for editing
+  const updateRelatedProducts = async (productId: string): Promise<void> => {
+    // Delete existing
+    await supabase.from('related_products').delete().eq('product_id', productId);
+    
+    // Insert new
+    if (pendingRelatedIds.length > 0) {
+      const relations = pendingRelatedIds.map((relatedId, index) => ({
+        product_id: productId,
+        related_product_id: relatedId,
+        position: index,
+      }));
+      await supabase.from('related_products').insert(relations);
+    }
+  };
+
+  // Update components for editing
+  const updateComponents = async (productId: string): Promise<void> => {
+    // Delete existing
+    await supabase.from('product_components').delete().eq('parent_product_id', productId);
+    
+    // Insert new
+    if (pendingComponents.length > 0) {
+      const components = pendingComponents.map((comp, index) => ({
+        parent_product_id: productId,
+        component_product_id: comp.component_product_id,
+        quantity: comp.quantity,
+        cost_price: comp.cost_price,
+        sale_price: comp.sale_price,
+        sort_order: index,
+      }));
+      await supabase.from('product_components').insert(components);
+    }
+  };
+
   const handleSubmit = async (data: ProductFormData) => {
+    setIsSaving(true);
     try {
       if (isEditing && product) {
         await updateProduct.mutateAsync({ id: product.id, ...data });
+        
+        // Update related products and components
+        await updateRelatedProducts(product.id);
+        if (data.product_format === 'with_composition') {
+          await updateComponents(product.id);
+        }
+        
+        toast({ title: 'Produto atualizado com sucesso!' });
       } else {
-        await createProduct.mutateAsync({
+        // Create product first
+        const result = await createProduct.mutateAsync({
           sku: data.sku,
           name: data.name,
           slug: data.slug,
@@ -218,10 +387,28 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
           product_format: data.product_format,
           stock_type: data.stock_type,
         });
+
+        // Save pending data using the new product ID
+        if (result?.id) {
+          await uploadPendingImages(result.id);
+          await saveRelatedProducts(result.id);
+          if (data.product_format === 'with_composition') {
+            await saveComponents(result.id);
+          }
+        }
+
+        toast({ title: 'Produto criado com sucesso!' });
       }
       onSuccess();
     } catch (error) {
-      // Error handled by mutation
+      console.error('Error saving product:', error);
+      toast({ 
+        title: 'Erro ao salvar produto', 
+        description: 'Tente novamente',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -616,15 +803,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       onImagesChange={loadProductImages}
                     />
                   ) : (
-                    <div className="text-center py-12 border-2 border-dashed rounded-lg space-y-4">
-                      <ImageIcon className="h-16 w-16 mx-auto text-muted-foreground/40" />
-                      <div>
-                        <p className="text-lg font-medium">Salve o produto primeiro</p>
-                        <p className="text-muted-foreground text-sm mt-1">
-                          Para adicionar imagens, primeiro salve o produto clicando em "Criar Produto"
-                        </p>
-                      </div>
-                    </div>
+                    <ProductImageUploader
+                      images={pendingImages}
+                      onImagesChange={setPendingImages}
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -852,23 +1034,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     onStockTypeChange={(type) => form.setValue('stock_type', type)}
                   />
                 ) : (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Package className="h-5 w-5" />
-                        Estrutura do Kit
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                        <Package className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-                        <p className="text-lg font-medium">Salve o produto primeiro</p>
-                        <p className="text-muted-foreground text-sm mt-1">
-                          Para configurar os componentes do kit, primeiro salve o produto
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <ProductComponentsPicker
+                    components={pendingComponents}
+                    onComponentsChange={setPendingComponents}
+                    stockType={form.watch('stock_type')}
+                    onStockTypeChange={(type) => form.setValue('stock_type', type)}
+                  />
                 )
               ) : (
                 <Card>
@@ -882,7 +1053,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                     <div className="text-center py-8 border-2 border-dashed rounded-lg">
                       <Package className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
                       <p className="text-muted-foreground">
-                        Selecione o formato "<strong>Com composição (Kit)</strong>" na aba Básico para habilitar a configuração de componentes
+                        Selecione o formato "<strong>Com composição (Kit)</strong>" na aba Básico para habilitar
                       </p>
                     </div>
                   </CardContent>
@@ -894,23 +1065,10 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
               {isEditing && product ? (
                 <RelatedProductsSelect productId={product.id} />
               ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Link2 className="h-5 w-5" />
-                      Produtos Relacionados
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <Link2 className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-                      <p className="text-lg font-medium">Salve o produto primeiro</p>
-                      <p className="text-muted-foreground text-sm mt-1">
-                        Para adicionar produtos relacionados, primeiro salve o produto
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <RelatedProductsPicker
+                  selectedIds={pendingRelatedIds}
+                  onSelectionChange={setPendingRelatedIds}
+                />
               )}
             </TabsContent>
 
