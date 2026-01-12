@@ -39,7 +39,9 @@ export function TextBannersBlock({
   layout = 'text-left',
   context,
 }: TextBannersBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (Rules of Hooks)
+  const deviceIsMobile = useIsMobile();
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   
   const image1 = isMobile && imageMobile1 ? imageMobile1 : imageDesktop1;
   const image2 = isMobile && imageMobile2 ? imageMobile2 : imageDesktop2;

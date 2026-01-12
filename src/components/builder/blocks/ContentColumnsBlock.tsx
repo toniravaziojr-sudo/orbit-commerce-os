@@ -85,7 +85,9 @@ export function ContentColumnsBlock({
   textColor,
   context,
 }: ContentColumnsBlockProps) {
-  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && useIsMobile());
+  // Hook must be called unconditionally (Rules of Hooks)
+  const deviceIsMobile = useIsMobile();
+  const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   
   // Use mobile image if available, else fall back to desktop
   const displayImage = isMobile && imageMobile ? imageMobile : imageDesktop;
