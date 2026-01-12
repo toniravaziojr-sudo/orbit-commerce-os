@@ -14,16 +14,18 @@ import {
 } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { CustomerList } from '@/components/customers/CustomerList';
-import { CustomerForm } from '@/components/customers/CustomerForm';
+import { CustomerFormPage } from '@/components/customers/CustomerFormPage';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
 import { CustomerImport } from '@/components/customers/CustomerImport';
 import { useCustomers, useCustomerTags, useCustomerTagAssignments, type Customer, type CustomerFormData } from '@/hooks/useCustomers';
 
 const PAGE_SIZE = 50;
 
+type View = 'list' | 'create' | 'edit';
+
 export default function Customers() {
   const navigate = useNavigate();
-  const [formOpen, setFormOpen] = useState(false);
+  const [view, setView] = useState<View>('list');
   const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -32,19 +34,17 @@ export default function Customers() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Debounce search
   const handleSearchChange = (value: string) => {
     setSearchQuery(value);
-    // Simple debounce
     setTimeout(() => {
       setDebouncedSearch(value);
-      setCurrentPage(1); // Reset to first page on search
+      setCurrentPage(1);
     }, 300);
   };
 
   const handleStatusChange = (value: string) => {
     setStatusFilter(value);
-    setCurrentPage(1); // Reset to first page on filter change
+    setCurrentPage(1);
   };
 
   const { 
@@ -65,21 +65,25 @@ export default function Customers() {
   const { tags, createTag, deleteTag } = useCustomerTags();
   const { tagIds: selectedCustomerTagIds, updateAssignments } = useCustomerTagAssignments(selectedCustomer?.id);
 
-  // Pagination calculations
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const handleAddNew = () => {
     setSelectedCustomer(null);
-    setFormOpen(true);
+    setView('create');
   };
 
   const handleEdit = (customer: Customer) => {
     setSelectedCustomer(customer);
-    setFormOpen(true);
+    setView('edit');
   };
 
   const handleView = (customer: Customer) => {
     navigate(`/customers/${customer.id}`);
+  };
+
+  const handleCancel = () => {
+    setSelectedCustomer(null);
+    setView('list');
   };
 
   const handleSubmit = (data: CustomerFormData & { tag_ids: string[] }) => {
@@ -89,7 +93,8 @@ export default function Customers() {
       updateCustomer.mutate({ id: selectedCustomer.id, ...customerData }, {
         onSuccess: () => {
           updateAssignments.mutate({ customerId: selectedCustomer.id, tagIds: tag_ids });
-          setFormOpen(false);
+          setView('list');
+          setSelectedCustomer(null);
         },
       });
     } else {
@@ -98,7 +103,8 @@ export default function Customers() {
           if (tag_ids.length > 0 && newCustomer?.id) {
             updateAssignments.mutate({ customerId: newCustomer.id, tagIds: tag_ids });
           }
-          setFormOpen(false);
+          setView('list');
+          setSelectedCustomer(null);
         },
       });
     }
@@ -108,13 +114,25 @@ export default function Customers() {
     deleteCustomer.mutate(id);
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
+  // Show form view
+  if (view === 'create' || view === 'edit') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <CustomerFormPage
+          customer={selectedCustomer}
+          customerTagIds={selectedCustomerTagIds}
+          availableTags={tags}
+          onSubmit={handleSubmit}
+          onCreateTag={(data) => createTag.mutate(data)}
+          isCreatingTag={createTag.isPending}
+          isLoading={createCustomer.isPending || updateCustomer.isPending}
+          onCancel={handleCancel}
+        />
+      </div>
+    );
+  }
 
+  // Show list view
   return (
     <div className="space-y-8 animate-fade-in">
       <PageHeader
@@ -238,7 +256,6 @@ export default function Customers() {
                   Anterior
                 </Button>
                 <div className="flex items-center gap-1">
-                  {/* Page numbers */}
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     let pageNum: number;
                     if (totalPages <= 5) {
@@ -278,19 +295,6 @@ export default function Customers() {
           )}
         </CardContent>
       </Card>
-
-      {/* Customer Form Modal */}
-      <CustomerForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        customer={selectedCustomer}
-        customerTagIds={selectedCustomerTagIds}
-        availableTags={tags}
-        onSubmit={handleSubmit}
-        onCreateTag={(data) => createTag.mutate(data)}
-        isCreatingTag={createTag.isPending}
-        isLoading={createCustomer.isPending || updateCustomer.isPending}
-      />
 
       {/* Tags Manager Modal */}
       <CustomerTagsManager
