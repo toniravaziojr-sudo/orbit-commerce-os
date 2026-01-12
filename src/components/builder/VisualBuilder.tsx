@@ -21,6 +21,7 @@ import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
+import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Layers, LayoutGrid } from 'lucide-react';
@@ -512,23 +513,44 @@ export function VisualBuilder({
   // Dragging state for overlay
   const [draggingBlockType, setDraggingBlockType] = useState<string | null>(null);
 
+  // Debug panel query states
+  const debugQueries: DebugQueryState[] = [
+    {
+      name: 'globalLayout',
+      isLoading: layoutLoading,
+      isError: !globalLayout && !layoutLoading,
+      dataPreview: globalLayout ? 'loaded' : 'empty',
+    },
+    {
+      name: 'pageOverrides',
+      isLoading: overridesLoading,
+      isError: false,
+      dataPreview: pageOverrides ? JSON.stringify(pageOverrides).slice(0, 50) : 'empty',
+    },
+  ];
+
   // Loading state - MUST be after all hooks to avoid React rules violation
   // Only show loading if actually loading AND data not yet available
   const isActuallyLoading = (layoutLoading && !globalLayout) || (overridesLoading && !pageOverrides);
   
   if (isActuallyLoading) {
     return (
-      <div className="h-screen w-screen flex items-center justify-center bg-background fixed inset-0 z-50">
-        <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-muted-foreground">Carregando editor...</p>
+      <>
+        <BuilderDebugPanel pageType={pageType} queries={debugQueries} />
+        <div className="h-screen w-screen flex items-center justify-center bg-background fixed inset-0 z-50">
+          <div className="text-center">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando editor...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <DndContext 
+    <>
+    <BuilderDebugPanel pageType={pageType} queries={debugQueries} />
+    <DndContext
       sensors={sensors}
       onDragStart={(event) => {
         const blockType = event.active.data.current?.blockType;
@@ -712,5 +734,6 @@ export function VisualBuilder({
       </DragOverlay>
     </div>
     </DndContext>
+    </>
   );
 }

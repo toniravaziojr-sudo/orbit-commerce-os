@@ -11,6 +11,7 @@ import { BlockRenderContext, BlockNode } from '@/lib/builder/types';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl } from '@/lib/publicUrls';
+import BuilderErrorBoundary from '@/components/builder/BuilderErrorBoundary';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
@@ -211,25 +212,29 @@ export default function StorefrontBuilder() {
   // For system pages, use the system page data
   if (isSystemPage && systemPageData) {
     return (
-      <VisualBuilder
-        tenantId={currentTenant.id}
-        pageType={editingPageType}
-        pageId={systemPageData.id}
-        pageTitle={pageTypeInfo[editingPageType]?.title}
-        pageSlug={systemPageSlug || undefined}
-        initialContent={systemPageData.content as unknown as BlockNode | undefined}
-        context={context}
-      />
+      <BuilderErrorBoundary>
+        <VisualBuilder
+          tenantId={currentTenant.id}
+          pageType={editingPageType}
+          pageId={systemPageData.id}
+          pageTitle={pageTypeInfo[editingPageType]?.title}
+          pageSlug={systemPageSlug || undefined}
+          initialContent={systemPageData.content as unknown as BlockNode | undefined}
+          context={context}
+        />
+      </BuilderErrorBoundary>
     );
   }
 
   // For regular templates
   return (
-    <VisualBuilder
-      tenantId={currentTenant.id}
-      pageType={editingPageType}
-      initialContent={templateData?.content}
-      context={context}
-    />
+    <BuilderErrorBoundary>
+      <VisualBuilder
+        tenantId={currentTenant.id}
+        pageType={editingPageType}
+        initialContent={templateData?.content}
+        context={context}
+      />
+    </BuilderErrorBoundary>
   );
 }
