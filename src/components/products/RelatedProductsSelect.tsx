@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 
 interface RelatedProductsSelectProps {
   productId: string;
-  disabled?: boolean;
 }
 
 interface ProductItem {
@@ -29,29 +28,10 @@ interface ProductItem {
   product_images: { url: string; is_primary: boolean }[];
 }
 
-export function RelatedProductsSelect({ productId, disabled = false }: RelatedProductsSelectProps) {
+export function RelatedProductsSelect({ productId }: RelatedProductsSelectProps) {
   const { currentTenant } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-
-  // If disabled, show placeholder message
-  if (disabled) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Link2 className="h-5 w-5" />
-            Produtos Relacionados
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground text-sm">
-            Os produtos relacionados serão salvos junto com o produto
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   // Fetch all products (excluding current)
   const { data: products, isLoading: productsLoading } = useQuery({
