@@ -14,6 +14,7 @@ import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
+import { BlockRenderer } from './BlockRenderer';
 import { BlockPalette } from './BlockPalette';
 import { BlockTree } from './BlockTree';
 import { PropsEditor } from './PropsEditor';
@@ -34,7 +35,7 @@ import { usePageOverrides } from '@/hooks/usePageOverrides';
 import { DndContext, DragOverlay, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 
 // Isolation modes for debugging React #300
-type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'full';
+type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
 
 interface VisualBuilderProps {
   tenantId: string;
@@ -602,9 +603,84 @@ export function VisualBuilder({
     return <VisualIsolationUI mode="canvas" message="Canvas (sem BlockRenderer)" />;
   }
 
-  // ISOLATION MODE: blocks - render with single simple block
+// ISOLATION MODE: blocks - render with single simple block
   if (isolateMode === 'blocks') {
     return <VisualIsolationUI mode="blocks" message="BlockRenderer com bloco simples" />;
+  }
+  
+  // ISOLATION MODE: blocks-real - render real blocks one by one to find the culprit
+  // Usage: ?edit=home&isolate=blocks-real&blockIndex=0 (increment blockIndex to test each block)
+  const blockIndexParam = searchParams.get('blockIndex');
+  if (isolateMode === 'blocks-real') {
+    const blockIndex = parseInt(blockIndexParam || '0', 10);
+    const realBlocks = store.content?.children || [];
+    
+    // Get list of block types for debugging
+    const blockList = realBlocks.map((b, i) => `${i}: ${b.type}`).join(', ');
+    
+    if (blockIndex >= realBlocks.length) {
+      return (
+        <div className="h-screen flex flex-col">
+          <div className="bg-green-500/10 border-b border-green-500/30 px-4 py-3">
+            <p className="text-sm font-medium text-green-600">
+              ✅ Todos os blocos testados ({realBlocks.length} blocos) — Nenhum erro individual detectado
+            </p>
+          </div>
+          <div className="flex-1 flex items-center justify-center bg-muted/50 p-8">
+            <div className="text-center space-y-4 max-w-xl">
+              <div className="text-6xl">🎉</div>
+              <p className="text-muted-foreground">
+                Blocos testados: {blockList || 'Nenhum'}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                O erro pode estar na interação entre blocos ou no layout/DnD.
+                Teste <code className="bg-muted px-2 py-0.5 rounded">?isolate=full</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    const testBlock = realBlocks[blockIndex];
+    
+    return (
+      <div className="h-screen flex flex-col">
+        <div className="bg-orange-500/10 border-b border-orange-500/30 px-4 py-3">
+          <p className="text-sm font-medium text-orange-600">
+            🔬 Testando bloco {blockIndex + 1}/{realBlocks.length}: <code className="bg-orange-500/20 px-2 py-0.5 rounded">{testBlock.type}</code>
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Se der erro, este bloco ({testBlock.type}) é o problema. Caso contrário, teste o próximo: 
+            <a href={`?edit=home&isolate=blocks-real&blockIndex=${blockIndex + 1}`} className="text-primary underline ml-1">blockIndex={blockIndex + 1}</a>
+          </p>
+        </div>
+        <div className="flex-1 overflow-auto p-4 bg-muted/50">
+          <div className="bg-background rounded-lg shadow-sm p-4 max-w-4xl mx-auto">
+            <BlockRenderer
+              node={testBlock}
+              context={builderContext}
+              isEditing={true}
+              isInteractMode={false}
+              isSafeMode={false}
+            />
+          </div>
+        </div>
+        <div className="border-t bg-background px-4 py-2">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {realBlocks.map((b, i) => (
+              <a 
+                key={i}
+                href={`?edit=home&isolate=blocks-real&blockIndex=${i}`}
+                className={`px-2 py-1 rounded ${i === blockIndex ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'}`}
+              >
+                {i}: {b.type}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -18,7 +18,7 @@ import { getReactGuardStatus } from '@/lib/reactInstanceGuard';
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
 // Isolation modes for debugging React #300
-type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'full';
+type IsolateMode = 'app' | 'visual' | 'canvas' | 'blocks' | 'blocks-real' | 'full';
 
 // Isolation mode component - renders minimal content for each isolation level
 function IsolationModeUI({ mode, reactStatus }: { mode: IsolateMode; reactStatus: ReturnType<typeof getReactGuardStatus> }) {
@@ -63,6 +63,9 @@ function IsolationModeUI({ mode, reactStatus }: { mode: IsolateMode; reactStatus
             <li className={mode === 'blocks' ? 'font-bold text-primary' : 'text-muted-foreground'}>
               <code>?isolate=blocks</code> — BlockRenderer com bloco simples
             </li>
+            <li className={mode === 'blocks-real' ? 'font-bold text-primary' : 'text-muted-foreground'}>
+              <code>?isolate=blocks-real&blockIndex=0</code> — Blocos reais um a um
+            </li>
             <li className={mode === 'full' ? 'font-bold text-primary' : 'text-muted-foreground'}>
               <code>?isolate=full</code> ou sem param — Render normal
             </li>
@@ -71,10 +74,10 @@ function IsolationModeUI({ mode, reactStatus }: { mode: IsolateMode; reactStatus
 
         {/* Test buttons */}
         <div className="flex flex-wrap gap-2">
-          {(['app', 'visual', 'canvas', 'blocks', 'full'] as IsolateMode[]).map((level) => (
+          {(['app', 'visual', 'canvas', 'blocks', 'blocks-real', 'full'] as IsolateMode[]).map((level) => (
             <a
               key={level}
-              href={`?edit=home&isolate=${level}`}
+              href={level === 'blocks-real' ? `?edit=home&isolate=${level}&blockIndex=0` : `?edit=home&isolate=${level}`}
               className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
                 mode === level 
                   ? 'bg-primary text-primary-foreground' 
