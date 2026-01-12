@@ -11,6 +11,7 @@ interface ErrorState {
   error: Error | null;
   errorInfo: ErrorInfo | null;
   globalErrors: Array<{ message: string; source?: string; timestamp: Date }>;
+  showDetails: boolean;
 }
 
 interface Props {
@@ -61,14 +62,12 @@ export function useGlobalErrorCapture() {
 }
 
 class BuilderErrorBoundary extends Component<Props, ErrorState> {
-  constructor(props: Props) {
-    super(props);
-    this.state = {
-      error: null,
-      errorInfo: null,
-      globalErrors: [],
-    };
-  }
+  state: ErrorState = {
+    error: null,
+    errorInfo: null,
+    globalErrors: [],
+    showDetails: false,
+  };
 
   static getDerivedStateFromError(error: Error): Partial<ErrorState> {
     return { error };
@@ -108,9 +107,12 @@ class BuilderErrorBoundary extends Component<Props, ErrorState> {
     window.location.reload();
   };
 
+  toggleDetails = () => {
+    this.setState(prev => ({ showDetails: !prev.showDetails }));
+  };
+
   render() {
-    const { error, errorInfo, globalErrors } = this.state;
-    const [showDetails, setShowDetails] = React.useState(false);
+    const { error, errorInfo, globalErrors, showDetails } = this.state;
 
     if (error) {
       return (
@@ -137,7 +139,7 @@ class BuilderErrorBoundary extends Component<Props, ErrorState> {
 
               {/* Stack trace toggle */}
               <button
-                onClick={() => setShowDetails(!showDetails)}
+                onClick={this.toggleDetails}
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 {showDetails ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
