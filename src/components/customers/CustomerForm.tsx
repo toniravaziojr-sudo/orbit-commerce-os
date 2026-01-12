@@ -20,6 +20,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -31,6 +32,10 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { User, Building2, Mail, MessageSquare, Phone } from 'lucide-react';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
 
 const customerSchema = z.object({
@@ -43,15 +48,17 @@ const customerSchema = z.object({
   status: z.enum(['active', 'inactive', 'blocked']).default('active'),
   accepts_marketing: z.boolean().default(true),
   tag_ids: z.array(z.string()).default([]),
-  // New canonical fields (PF/PJ + marketing consents)
+  // PF/PJ fields
   person_type: z.enum(['pf', 'pj']).optional().nullable(),
   cnpj: z.string().optional().nullable(),
   company_name: z.string().optional().nullable(),
   ie: z.string().optional().nullable(),
   rg: z.string().optional().nullable(),
+  // Marketing consents by channel
   accepts_email_marketing: z.boolean().optional().nullable(),
   accepts_sms_marketing: z.boolean().optional().nullable(),
   accepts_whatsapp_marketing: z.boolean().optional().nullable(),
+  // Notes
   notes: z.string().optional().nullable(),
 });
 
@@ -90,8 +97,7 @@ export function CustomerForm({
       status: 'active',
       accepts_marketing: true,
       tag_ids: [],
-      // New fields
-      person_type: null,
+      person_type: 'pf',
       cnpj: '',
       company_name: '',
       ie: '',
@@ -102,6 +108,8 @@ export function CustomerForm({
       notes: '',
     },
   });
+
+  const personType = form.watch('person_type');
 
   // Reset form when customer changes or dialog opens
   useEffect(() => {
@@ -116,8 +124,7 @@ export function CustomerForm({
         status: customer?.status ?? 'active',
         accepts_marketing: customer?.accepts_marketing ?? true,
         tag_ids: customerTagIds,
-        // New fields
-        person_type: customer?.person_type ?? null,
+        person_type: customer?.person_type ?? 'pf',
         cnpj: customer?.cnpj ?? '',
         company_name: customer?.company_name ?? '',
         ie: customer?.ie ?? '',
@@ -141,7 +148,6 @@ export function CustomerForm({
       status: data.status,
       accepts_marketing: data.accepts_marketing,
       tag_ids: data.tag_ids,
-      // New fields
       person_type: data.person_type || null,
       cnpj: data.cnpj || null,
       company_name: data.company_name || null,
@@ -156,7 +162,7 @@ export function CustomerForm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[650px] max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Editar Cliente' : 'Novo Cliente'}
@@ -169,192 +175,429 @@ export function CustomerForm({
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="full_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome completo *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="João da Silva" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={form.handleSubmit(handleSubmit)}>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              <Tabs defaultValue="basic" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 mb-4">
+                  <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
+                  <TabsTrigger value="company">PF/PJ</TabsTrigger>
+                  <TabsTrigger value="marketing">Marketing</TabsTrigger>
+                </TabsList>
 
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email *</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="joao@email.com" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                {/* TAB: Dados Básicos */}
+                <TabsContent value="basic" className="space-y-4">
+                  {/* Tipo de Pessoa */}
+                  <FormField
+                    control={form.control}
+                    name="person_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Pessoa</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          value={field.value ?? 'pf'}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecione" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="pf">
+                              <span className="flex items-center gap-2">
+                                <User className="h-4 w-4" />
+                                Pessoa Física
+                              </span>
+                            </SelectItem>
+                            <SelectItem value="pj">
+                              <span className="flex items-center gap-2">
+                                <Building2 className="h-4 w-4" />
+                                Pessoa Jurídica
+                              </span>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="cpf"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>CPF</FormLabel>
-                    <FormControl>
-                      <Input placeholder="000.000.000-00" {...field} value={field.value ?? ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <FormField
+                    control={form.control}
+                    name="full_name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>
+                          {personType === 'pj' ? 'Nome Fantasia / Contato *' : 'Nome completo *'}
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="João da Silva" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Telefone</FormLabel>
-                    <FormControl>
-                      <Input placeholder="(11) 99999-9999" {...field} value={field.value ?? ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email *</FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="joao@email.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="birth_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Data de nascimento</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} value={field.value ?? ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Telefone</FormLabel>
+                          <FormControl>
+                            <Input placeholder="(11) 99999-9999" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-              <FormField
-                control={form.control}
-                name="gender"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Gênero</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value ?? 'not_informed'}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="not_informed">Não informado</SelectItem>
-                        <SelectItem value="male">Masculino</SelectItem>
-                        <SelectItem value="female">Feminino</SelectItem>
-                        <SelectItem value="other">Outro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="status"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Status</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="active">Ativo</SelectItem>
-                      <SelectItem value="inactive">Inativo</SelectItem>
-                      <SelectItem value="blocked">Bloqueado</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="accepts_marketing"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Aceita marketing</FormLabel>
-                    <FormDescription>
-                      Cliente aceita receber comunicações promocionais
-                    </FormDescription>
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Status</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="active">Ativo</SelectItem>
+                              <SelectItem value="inactive">Inativo</SelectItem>
+                              <SelectItem value="blocked">Bloqueado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
 
-            {availableTags.length > 0 && (
-              <FormField
-                control={form.control}
-                name="tag_ids"
-                render={() => (
-                  <FormItem>
-                    <FormLabel>Tags</FormLabel>
-                    <div className="flex flex-wrap gap-2 p-3 border rounded-lg">
-                      {availableTags.map((tag) => (
+                  {/* Tags */}
+                  {availableTags.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="tag_ids"
+                      render={() => (
+                        <FormItem>
+                          <FormLabel>Tags</FormLabel>
+                          <div className="flex flex-wrap gap-2 p-3 border rounded-lg">
+                            {availableTags.map((tag) => (
+                              <FormField
+                                key={tag.id}
+                                control={form.control}
+                                name="tag_ids"
+                                render={({ field }) => (
+                                  <FormItem className="flex items-center space-x-2 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(tag.id)}
+                                        onCheckedChange={(checked) => {
+                                          if (checked) {
+                                            field.onChange([...field.value, tag.id]);
+                                          } else {
+                                            field.onChange(field.value?.filter((id) => id !== tag.id));
+                                          }
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <Badge 
+                                      variant="secondary" 
+                                      style={{ backgroundColor: tag.color + '20', borderColor: tag.color }}
+                                      className="cursor-pointer border"
+                                    >
+                                      <span style={{ color: tag.color }}>{tag.name}</span>
+                                    </Badge>
+                                  </FormItem>
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* Notes */}
+                  <FormField
+                    control={form.control}
+                    name="notes"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Observações</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Anotações internas sobre o cliente..."
+                            rows={3}
+                            {...field} 
+                            value={field.value ?? ''} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+
+                {/* TAB: PF/PJ */}
+                <TabsContent value="company" className="space-y-4">
+                  {personType === 'pf' ? (
+                    <>
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <User className="h-5 w-5" />
+                        <span className="font-medium">Dados Pessoa Física</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
                         <FormField
-                          key={tag.id}
                           control={form.control}
-                          name="tag_ids"
+                          name="cpf"
                           render={({ field }) => (
-                            <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormItem>
+                              <FormLabel>CPF</FormLabel>
                               <FormControl>
-                                <Checkbox
-                                  checked={field.value?.includes(tag.id)}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      field.onChange([...field.value, tag.id]);
-                                    } else {
-                                      field.onChange(field.value?.filter((id) => id !== tag.id));
-                                    }
-                                  }}
-                                />
+                                <Input placeholder="000.000.000-00" {...field} value={field.value ?? ''} />
                               </FormControl>
-                              <Badge 
-                                variant="secondary" 
-                                style={{ backgroundColor: tag.color + '20', borderColor: tag.color }}
-                                className="cursor-pointer border"
-                              >
-                                <span style={{ color: tag.color }}>{tag.name}</span>
-                              </Badge>
+                              <FormMessage />
                             </FormItem>
                           )}
                         />
-                      ))}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
 
-            <DialogFooter>
+                        <FormField
+                          control={form.control}
+                          name="rg"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>RG</FormLabel>
+                              <FormControl>
+                                <Input placeholder="00.000.000-0" {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="birth_date"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Data de nascimento</FormLabel>
+                              <FormControl>
+                                <Input type="date" {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="gender"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Gênero</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value ?? 'not_informed'}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Selecione" />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="not_informed">Não informado</SelectItem>
+                                  <SelectItem value="male">Masculino</SelectItem>
+                                  <SelectItem value="female">Feminino</SelectItem>
+                                  <SelectItem value="other">Outro</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                        <Building2 className="h-5 w-5" />
+                        <span className="font-medium">Dados Pessoa Jurídica</span>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="company_name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Razão Social</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Empresa Ltda." {...field} value={field.value ?? ''} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="cnpj"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>CNPJ</FormLabel>
+                              <FormControl>
+                                <Input placeholder="00.000.000/0001-00" {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="ie"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Inscrição Estadual</FormLabel>
+                              <FormControl>
+                                <Input placeholder="000.000.000.000" {...field} value={field.value ?? ''} />
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                Deixe vazio se isento
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+
+                {/* TAB: Marketing */}
+                <TabsContent value="marketing" className="space-y-4">
+                  <div className="text-sm text-muted-foreground mb-4">
+                    Configure os canais de comunicação que o cliente aceita receber mensagens.
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="accepts_marketing"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                          <FormLabel className="text-base">Aceita marketing geral</FormLabel>
+                          <FormDescription>
+                            Permissão geral para comunicações promocionais
+                          </FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <Separator />
+
+                  <div className="text-sm font-medium mb-2">Consentimentos por canal</div>
+
+                  <FormField
+                    control={form.control}
+                    name="accepts_email_marketing"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-3">
+                          <Mail className="h-5 w-5 text-muted-foreground" />
+                          <div className="space-y-0.5">
+                            <FormLabel>E-mail</FormLabel>
+                            <FormDescription className="text-xs">
+                              Newsletters, promoções por e-mail
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch 
+                            checked={field.value ?? false} 
+                            onCheckedChange={field.onChange} 
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="accepts_sms_marketing"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-3">
+                          <MessageSquare className="h-5 w-5 text-muted-foreground" />
+                          <div className="space-y-0.5">
+                            <FormLabel>SMS</FormLabel>
+                            <FormDescription className="text-xs">
+                              Mensagens de texto promocionais
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch 
+                            checked={field.value ?? false} 
+                            onCheckedChange={field.onChange} 
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="accepts_whatsapp_marketing"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                        <div className="flex items-center gap-3">
+                          <Phone className="h-5 w-5 text-muted-foreground" />
+                          <div className="space-y-0.5">
+                            <FormLabel>WhatsApp</FormLabel>
+                            <FormDescription className="text-xs">
+                              Mensagens promocionais via WhatsApp
+                            </FormDescription>
+                          </div>
+                        </div>
+                        <FormControl>
+                          <Switch 
+                            checked={field.value ?? false} 
+                            onCheckedChange={field.onChange} 
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </TabsContent>
+              </Tabs>
+            </ScrollArea>
+
+            <DialogFooter className="mt-4 pt-4 border-t">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
