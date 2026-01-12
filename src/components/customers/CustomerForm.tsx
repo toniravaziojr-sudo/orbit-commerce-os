@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2 } from 'lucide-react';
+import { User, Building2, Mail, MessageSquare, Phone, MapPin, Search, Loader2, Tag } from 'lucide-react';
 import { useCepLookup } from '@/hooks/useCepLookup';
 import { toast } from 'sonner';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
@@ -374,14 +374,17 @@ export function CustomerForm({
                   </div>
 
                   {/* Tags */}
-                  {availableTags.length > 0 && (
-                    <FormField
-                      control={form.control}
-                      name="tag_ids"
-                      render={() => (
-                        <FormItem>
-                          <FormLabel>Tags</FormLabel>
-                          <div className="flex flex-wrap gap-2 p-3 border rounded-lg">
+                  <FormField
+                    control={form.control}
+                    name="tag_ids"
+                    render={() => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <Tag className="h-4 w-4" />
+                          Tags
+                        </FormLabel>
+                        {availableTags.length > 0 ? (
+                          <div className="flex flex-wrap gap-2 p-3 border rounded-lg bg-muted/30">
                             {availableTags.map((tag) => (
                               <FormField
                                 key={tag.id}
@@ -413,11 +416,18 @@ export function CustomerForm({
                               />
                             ))}
                           </div>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
+                        ) : (
+                          <div className="flex items-center justify-center p-4 border rounded-lg bg-muted/30 text-muted-foreground text-sm">
+                            <span>Nenhuma tag criada. Acesse "Gerenciar Tags" para criar.</span>
+                          </div>
+                        )}
+                        <FormDescription>
+                          Use tags para segmentar clientes em campanhas de email marketing
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   {/* Notes */}
                   <FormField
