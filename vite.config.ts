@@ -14,5 +14,11 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // CRITICAL: Ensure single React instance to prevent #300 errors
+    dedupe: ['react', 'react-dom', 'react/jsx-runtime'],
+  },
+  // Enable source maps for debugging minified errors
+  build: {
+    sourcemap: mode !== 'production',
   },
 }));

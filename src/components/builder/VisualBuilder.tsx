@@ -3,7 +3,7 @@
 // =============================================
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
@@ -52,9 +52,15 @@ export function VisualBuilder({
   initialContent,
   context,
 }: VisualBuilderProps) {
+  const [searchParams] = useSearchParams();
+  
+  // Safe Mode: ?safe=1 renders placeholders only (for debugging)
+  const isSafeMode = searchParams.get('safe') === '1';
+  const isDebugMode = searchParams.get('debug') === '1';
+
   // Debug log on mount
   useEffect(() => {
-    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent });
+    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent, isSafeMode, isDebugMode });
   }, []);
   const navigate = useNavigate();
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -540,7 +546,7 @@ export function VisualBuilder({
   if (isActuallyLoading) {
     return (
       <>
-        <BuilderDebugPanel pageType={pageType} queries={debugQueries} />
+        <BuilderDebugPanel pageType={pageType} queries={debugQueries} isSafeMode={isSafeMode} />
         <div className="h-screen w-screen flex items-center justify-center bg-background fixed inset-0 z-50">
           <div className="text-center">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
@@ -553,7 +559,7 @@ export function VisualBuilder({
 
   return (
     <>
-    <BuilderDebugPanel pageType={pageType} queries={debugQueries} />
+    <BuilderDebugPanel pageType={pageType} queries={debugQueries} isSafeMode={isSafeMode} />
     <DndContext
       sensors={sensors}
       onDragStart={(event) => {
@@ -670,6 +676,7 @@ export function VisualBuilder({
             onToggleHidden={handleToggleHidden}
             isPreviewMode={isPreviewMode}
             isInteractMode={isInteractMode}
+            isSafeMode={isSafeMode}
             viewport={canvasViewport}
             onViewportChange={setCanvasViewport}
           />

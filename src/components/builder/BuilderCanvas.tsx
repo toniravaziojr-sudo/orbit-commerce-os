@@ -28,6 +28,7 @@ interface BuilderCanvasProps {
   onToggleHidden?: (blockId: string) => void;
   isPreviewMode?: boolean;
   isInteractMode?: boolean;
+  isSafeMode?: boolean;
   viewport?: ViewportSize;
   onViewportChange?: (viewport: ViewportSize) => void;
 }
@@ -55,6 +56,7 @@ export function BuilderCanvas({
   onToggleHidden,
   isPreviewMode = false,
   isInteractMode = false,
+  isSafeMode = false,
   viewport: controlledViewport,
   onViewportChange,
 }: BuilderCanvasProps) {
@@ -124,8 +126,17 @@ export function BuilderCanvas({
 
   return (
     <div className="h-full flex flex-col">
+      {/* Safe Mode Banner */}
+      {isSafeMode && (
+        <div className="bg-yellow-500/20 border-b border-yellow-500/40 px-3 py-2 text-center">
+          <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+            🛡️ Safe Mode — Blocos simplificados para evitar erro #300. Remove ?safe=1 da URL para voltar ao normal.
+          </span>
+        </div>
+      )}
+
       {/* Interact Mode Banner */}
-      {isInteractMode && !isPreviewMode && (
+      {isInteractMode && !isPreviewMode && !isSafeMode && (
         <div className="bg-primary/10 border-b border-primary/20 px-3 py-1 text-center">
           <span className="text-xs font-medium text-primary">
             🖱️ Modo Testar ativo — ESC ou "Editar" para voltar
@@ -230,6 +241,7 @@ export function BuilderCanvas({
               isSelected={selectedBlockId === content.id}
               isEditing={!isPreviewMode && !isInteractMode}
               isInteractMode={isInteractMode}
+              isSafeMode={isSafeMode}
               onSelect={isInteractMode ? undefined : onSelectBlock}
               onAddBlock={isInteractMode ? undefined : onAddBlock}
               onMoveBlock={isInteractMode ? undefined : onMoveBlock}
