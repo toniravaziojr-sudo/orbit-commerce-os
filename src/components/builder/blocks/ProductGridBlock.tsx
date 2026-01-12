@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
+import { demoProducts, getDemoFeaturedProducts, getDemoProductsByCategory } from '@/lib/builder/demoData';
 
 interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
@@ -195,112 +196,103 @@ export function ProductGridBlock({
     );
   }
 
-  if (!products?.length) {
-    // Demo placeholder products when none exist
-    const placeholderProducts = [
-      { id: 'demo-1', name: 'Produto de Exemplo', price: 99.90, image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&q=80' },
-      { id: 'demo-2', name: 'Produto Premium', price: 149.90, image: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&h=400&fit=crop&q=80' },
-      { id: 'demo-3', name: 'Lançamento', price: 199.90, image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop&q=80' },
-      { id: 'demo-4', name: 'Mais Vendido', price: 89.90, image: 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=400&h=400&fit=crop&q=80' },
-    ];
+  // Use demo products from demoData when no real products exist
+  const displayProducts = useMemo(() => {
+    if (products && products.length > 0) return products;
     
+    // Get demo products based on source
+    let demoProds = source === 'featured' 
+      ? getDemoFeaturedProducts() 
+      : source === 'category' && context?.category?.slug
+        ? getDemoProductsByCategory(context.category.slug)
+        : demoProducts;
+    
+    // Limit demo products
+    return demoProds.slice(0, Math.min(limit, 8)).map(p => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price,
+      compare_at_price: p.compare_at_price || null,
+      is_featured: p.is_featured || false,
+      product_images: [{ url: p.image, is_primary: true }],
+    })) as Product[];
+  }, [products, source, limit, context?.category?.slug]);
+
+  const isDemo = !products || products.length === 0;
+
+  if (displayProducts.length === 0) {
     return (
-      <div className="relative p-4">
-        {/* Placeholder grid with opacity */}
-        <div className={cn('grid gap-4 opacity-50', gridCols)}>
-          {placeholderProducts.slice(0, limit > 4 ? 4 : limit).map((product) => (
-            <div key={product.id} className="bg-card rounded-lg overflow-hidden border">
-              <div className="aspect-square overflow-hidden bg-muted">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <div className="p-3">
-                <h3 className="font-medium text-sm line-clamp-2 text-foreground">{product.name}</h3>
-                {showPrice && (
-                  <span className="text-sm font-semibold text-primary mt-1 block">
-                    {formatPrice(product.price)}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        {/* Overlay with CTA */}
-        <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-lg">
-          <div className="text-center p-6 rounded-lg bg-card shadow-lg border">
-            <p className="text-muted-foreground mb-3">
-              {source === 'featured' ? 'Seus produtos em destaque aparecerão aqui' : 'Seus produtos aparecerão aqui'}
-            </p>
-            {isEditing && (
-              <p className="text-xs text-muted-foreground">
-                {source === 'featured' 
-                  ? 'Marque produtos como "Em destaque" no cadastro de produtos'
-                  : 'Adicione produtos no menu Produtos → Lista de Produtos'}
-              </p>
-            )}
-          </div>
-        </div>
+      <div className="p-4 text-center text-muted-foreground">
+        <p>Nenhum produto encontrado.</p>
       </div>
     );
   }
 
   return (
-    <div className={cn('grid gap-4 p-4', gridCols)}>
-      {products.map((product) => {
-        const rating = ratingsMap?.get(product.id);
-        return (
-          <a
-            key={product.id}
-            href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
-            className={cn(
-              'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
-              isEditing && 'pointer-events-none'
-            )}
-          >
-            <div className="aspect-square overflow-hidden bg-muted">
-              <img
-                src={getProductImage(product)}
-                alt={product.name}
-                className="w-full h-full object-cover transition-transform group-hover:scale-105"
-              />
-            </div>
-            <div className="p-3">
-              {/* Rating - above product name (respects showRatings setting) */}
-              {showRatings && rating && rating.count > 0 && (
-                <RatingSummary
-                  average={rating.average}
-                  count={rating.count}
-                  variant="card"
-                  className="mb-1"
+    <div className="relative p-4">
+      {isDemo && isEditing && (
+        <div className="absolute -top-1 right-4 z-10">
+          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+            Demonstrativo
+          </span>
+        </div>
+      )}
+      <div className={cn('grid gap-4', gridCols)}>
+        {displayProducts.map((product) => {
+          const rating = ratingsMap?.get(product.id);
+          const isProductDemo = product.id.startsWith('demo-');
+          
+          return (
+            <a
+              key={product.id}
+              href={(isEditing || isProductDemo) ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+              className={cn(
+                'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
+                (isEditing || isProductDemo) && 'pointer-events-none'
+              )}
+            >
+              <div className="aspect-square overflow-hidden bg-muted">
+                <img
+                  src={getProductImage(product)}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
                 />
-              )}
-              <h3 className="font-medium text-sm line-clamp-2 text-foreground">
-                {product.name}
-              </h3>
-              {showPrice && (
-                <div className="mt-1 flex items-center gap-2">
-                  {product.compare_at_price && product.compare_at_price > product.price && (
-                    <span className="text-xs text-muted-foreground line-through">
-                      {formatPrice(product.compare_at_price)}
+              </div>
+              <div className="p-3">
+                {showRatings && rating && rating.count > 0 && (
+                  <RatingSummary
+                    average={rating.average}
+                    count={rating.count}
+                    variant="card"
+                    className="mb-1"
+                  />
+                )}
+                <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                  {product.name}
+                </h3>
+                {showPrice && (
+                  <div className="mt-1 flex items-center gap-2">
+                    {product.compare_at_price && product.compare_at_price > product.price && (
+                      <span className="text-xs text-muted-foreground line-through">
+                        {formatPrice(product.compare_at_price)}
+                      </span>
+                    )}
+                    <span className="text-sm font-semibold text-primary">
+                      {formatPrice(product.price)}
                     </span>
-                  )}
-                  <span className="text-sm font-semibold text-primary">
-                    {formatPrice(product.price)}
-                  </span>
-                </div>
-              )}
-              {showButton && (
-                <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
-                  {buttonText}
-                </button>
-              )}
-            </div>
-          </a>
-        );
-      })}
+                  </div>
+                )}
+                {showButton && (
+                  <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                    {buttonText}
+                  </button>
+                )}
+              </div>
+            </a>
+          );
+        })}
+      </div>
     </div>
   );
 }

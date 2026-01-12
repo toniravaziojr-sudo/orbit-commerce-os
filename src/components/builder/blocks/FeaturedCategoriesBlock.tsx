@@ -11,6 +11,7 @@ import useEmblaCarousel from 'embla-carousel-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { getPublicCategoryUrl } from '@/lib/publicUrls';
+import { demoCategories } from '@/lib/builder/demoData';
 
 interface CategoryItemConfig {
   categoryId: string;
@@ -125,72 +126,29 @@ export function FeaturedCategoriesBlock({
     );
   }
 
-  if (categories.length === 0) {
-    // Demo placeholder categories when none exist
-    const placeholderCategories = [
-      { id: 'demo-1', name: 'Categoria 1', slug: '#', image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop&q=80' },
-      { id: 'demo-2', name: 'Categoria 2', slug: '#', image_url: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=200&h=200&fit=crop&q=80' },
-      { id: 'demo-3', name: 'Categoria 3', slug: '#', image_url: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=200&h=200&fit=crop&q=80' },
-      { id: 'demo-4', name: 'Categoria 4', slug: '#', image_url: 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=200&h=200&fit=crop&q=80' },
-      { id: 'demo-5', name: 'Categoria 5', slug: '#', image_url: 'https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=200&h=200&fit=crop&q=80' },
-      { id: 'demo-6', name: 'Categoria 6', slug: '#', image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop&q=80' },
-    ];
+  // Use demo categories from demoData when no real categories exist
+  const displayCategories = categories.length > 0 
+    ? categories 
+    : demoCategories.map(c => ({
+        id: c.id,
+        name: c.name,
+        slug: c.slug,
+        image_url: c.image_url,
+      }));
 
-    return (
-      <section className="py-8">
-        <div className="max-w-7xl mx-auto px-4">
-          {title && (
-            <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>
-          )}
-          {/* Show placeholder grid with overlay */}
-          <div className="relative">
-            <div className={cn(
-              'grid gap-6 justify-items-center opacity-50',
-              isMobile 
-                ? 'grid-cols-3' 
-                : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6'
-            )}>
-              {placeholderCategories.map((cat) => (
-                <div key={cat.id} className="flex flex-col items-center">
-                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent">
-                    <img
-                      src={cat.image_url}
-                      alt={cat.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <span className="text-sm font-medium text-center mt-1">{cat.name}</span>
-                </div>
-              ))}
-            </div>
-            {/* Overlay with CTA */}
-            <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-lg">
-              <div className="text-center p-6 rounded-lg bg-card shadow-lg border">
-                <p className="text-muted-foreground mb-3">Suas categorias aparecerão aqui</p>
-                {isEditing && (
-                  <p className="text-xs text-muted-foreground">
-                    Crie categorias no menu Produtos → Categorias
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const isDemo = categories.length === 0;
 
   const CategoryCard = ({ category }: { category: CategoryData & { config?: CategoryItemConfig } }) => {
-    // Priority: mini image (viewport-aware) > category.image_url > placeholder
     const miniImage = isMobile && category.config?.miniImageMobile 
       ? category.config.miniImageMobile 
       : (category.config?.miniImageDesktop || null);
     
     const imageUrl = miniImage || category.image_url;
+    const isCategoryDemo = category.id.startsWith('demo-');
 
     const cardContent = (
       <>
-        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent group-hover:ring-primary transition-all">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -199,20 +157,19 @@ export function FeaturedCategoriesBlock({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+              <ImageIcon className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground/30" />
             </div>
           )}
         </div>
         {showName && (
-          <span className="text-sm font-medium text-center mt-1 group-hover:text-primary transition-colors">
+          <span className="text-xs sm:text-sm font-medium text-center mt-1 group-hover:text-primary transition-colors line-clamp-2">
             {category.name}
           </span>
         )}
       </>
     );
 
-    // In editor mode, don't use Link to prevent navigation
-    if (isEditing) {
+    if (isEditing || isCategoryDemo) {
       return (
         <div className="group flex flex-col items-center cursor-pointer">
           {cardContent}
@@ -233,34 +190,31 @@ export function FeaturedCategoriesBlock({
   const useCarousel = isMobile && mobileStyle === 'carousel';
 
   return (
-    <section className="py-8">
+    <section className="py-6 sm:py-8">
       <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold">{title}</h2>
-          {useCarousel && categories.length > 6 && (
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <h2 className="text-xl sm:text-2xl font-bold">{title}</h2>
+          {isDemo && isEditing && (
+            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
+              Demonstrativo
+            </span>
+          )}
+          {useCarousel && displayCategories.length > 6 && (
             <div className="flex gap-2">
-              <button
-                onClick={scrollPrev}
-                className="p-2 rounded-full border hover:bg-muted transition-colors"
-              >
+              <button onClick={scrollPrev} className="p-2 rounded-full border hover:bg-muted transition-colors">
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <button
-                onClick={scrollNext}
-                className="p-2 rounded-full border hover:bg-muted transition-colors"
-              >
+              <button onClick={scrollNext} className="p-2 rounded-full border hover:bg-muted transition-colors">
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
         </div>
 
-        {/* Categories */}
         {useCarousel ? (
           <div className="overflow-hidden" ref={emblaRef}>
-            <div className="flex gap-6">
-              {categories.map((category) => (
+            <div className="flex gap-4 sm:gap-6">
+              {displayCategories.map((category) => (
                 <div key={category.id} className="flex-shrink-0">
                   <CategoryCard category={category} />
                 </div>
@@ -269,19 +223,16 @@ export function FeaturedCategoriesBlock({
           </div>
         ) : (
           <div className={cn(
-            'grid gap-6 justify-items-center',
-            isMobile 
-              ? 'grid-cols-3' 
-              : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7'
+            'grid gap-4 sm:gap-6 justify-items-center',
+            isMobile ? 'grid-cols-3' : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6'
           )}>
-            {categories.map((category) => (
+            {displayCategories.map((category) => (
               <CategoryCard key={category.id} category={category} />
             ))}
           </div>
         )}
 
-        {/* Dots indicator for carousel */}
-        {useCarousel && categories.length > 1 && (
+        {useCarousel && displayCategories.length > 1 && (
           <div className="flex justify-center gap-1.5 mt-4">
             <span className="w-2 h-2 rounded-full bg-primary" />
             <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
