@@ -189,6 +189,7 @@ Deno.serve(async (req) => {
 // ========== Import Functions ==========
 
 // Helper: Track imported item in import_items table
+// CRITICAL: external_id MUST NEVER be null for the UNIQUE constraint to work
 async function trackImportedItem(
   supabase: any, 
   tenantId: string, 
@@ -198,11 +199,13 @@ async function trackImportedItem(
   externalId?: string
 ) {
   try {
-    // Use external_id for conflict resolution (unique index: tenant_id, module, external_id)
-    // If no external_id, use internal_id as external_id fallback for tracking
-    const effectiveExternalId = externalId || internalId;
+    // CRITICAL FIX: external_id MUST be non-null for UNIQUE constraint
+    // If no external_id provided, use internal_id (UUID) as fallback
+    const effectiveExternalId = (externalId && externalId.trim()) ? externalId.trim() : `internal:${internalId}`;
     
-    await supabase.from('import_items').upsert({
+    console.log(`[import-batch] Tracking: module=${module}, internal_id=${internalId}, external_id=${effectiveExternalId}`);
+    
+    const { error } = await supabase.from('import_items').upsert({
       tenant_id: tenantId,
       job_id: jobId,
       module,
@@ -213,8 +216,12 @@ async function trackImportedItem(
       onConflict: 'tenant_id,module,external_id',
       ignoreDuplicates: false,
     });
-  } catch (error) {
-    console.warn(`[import-batch] Could not track imported item:`, error);
+    
+    if (error) {
+      console.error(`[import-batch] Failed to track item:`, error.message);
+    }
+  } catch (error: any) {
+    console.error(`[import-batch] Exception tracking item:`, error?.message || error);
   }
 }
 
