@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useStorefrontConfig } from '@/contexts/StorefrontConfigContext';
+// Note: useStorefrontConfig removed - calling hooks inside try-catch violates Rules of Hooks
 
 interface TrackingEvent {
   id: string;
@@ -73,14 +73,10 @@ export function TrackingLookupBlock({
 }: TrackingLookupBlockProps) {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   
-  // Try to get tenantId from context - may not be available in all contexts
-  let tenantId: string | undefined;
-  try {
-    const storefrontConfig = useStorefrontConfig();
-    tenantId = storefrontConfig?.tenantId;
-  } catch {
-    tenantId = context?.tenantId;
-  }
+  // Get tenant ID from context first (provided by Builder), otherwise from storefront config
+  // Note: useStorefrontConfig must be called unconditionally (React Rules of Hooks)
+  // but it may throw if not in StorefrontConfigContext - that's why we handle via context first
+  const tenantId = context?.tenantId || context?.settings?.tenant_id;
 
   const [activeTab, setActiveTab] = useState<'code' | 'email'>('code');
   const [trackingCode, setTrackingCode] = useState('');

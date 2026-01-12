@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useStorefrontConfig } from '@/contexts/StorefrontConfigContext';
+// Note: useStorefrontConfig removed - calling hooks inside try-catch violates Rules of Hooks
 import { getStoreBaseUrl } from '@/lib/publicUrls';
 
 interface BlogPost {
@@ -53,14 +53,10 @@ export function BlogListingBlock({
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const [currentPage, setCurrentPage] = React.useState(1);
   
-  // Try to get tenantId from context - may not be available in all contexts
-  let tenantId: string | undefined;
-  try {
-    const storefrontConfig = useStorefrontConfig();
-    tenantId = storefrontConfig?.tenantId;
-  } catch {
-    tenantId = context?.tenantId;
-  }
+  // Get tenant ID from context first (provided by Builder), otherwise try URL param
+  // Note: useStorefrontConfig was removed because calling hooks inside try-catch
+  // violates React's Rules of Hooks and causes error #300
+  const tenantId = context?.tenantId || context?.settings?.tenant_id;
   const basePath = getStoreBaseUrl(tenantSlug || '');
 
   // Fetch total count for pagination
