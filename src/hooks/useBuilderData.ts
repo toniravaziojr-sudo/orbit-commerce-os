@@ -16,9 +16,14 @@ export function useStorefrontTemplates() {
     queryFn: async () => {
       if (!currentTenant?.id) throw new Error('No tenant');
 
-      await supabase.rpc('initialize_storefront_templates', { 
-        p_tenant_id: currentTenant.id 
-      });
+      // Try to initialize templates (may fail silently if already exists)
+      try {
+        await supabase.rpc('initialize_storefront_templates', { 
+          p_tenant_id: currentTenant.id 
+        });
+      } catch (e) {
+        console.log('Templates initialization skipped:', e);
+      }
 
       const { data, error } = await supabase
         .from('storefront_page_templates')
@@ -45,9 +50,9 @@ export function useTemplateVersion(pageType: PageType, mode: 'draft' | 'publishe
         .select('*')
         .eq('tenant_id', currentTenant.id)
         .eq('page_type', pageType)
-        .single();
+        .maybeSingle();
 
-      if (templateError && templateError.code !== 'PGRST116') throw templateError;
+      if (templateError) throw templateError;
 
       const versionNumber = mode === 'draft' 
         ? template?.draft_version 
