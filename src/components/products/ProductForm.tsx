@@ -616,15 +616,12 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       onImagesChange={loadProductImages}
                     />
                   ) : (
-                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                      <p className="text-muted-foreground font-medium">
-                        Salve o produto primeiro
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Após salvar, você poderá adicionar imagens do produto
-                      </p>
-                    </div>
+                    <ProductImageManager
+                      productId=""
+                      images={[]}
+                      onImagesChange={() => {}}
+                      disabled
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -851,15 +848,13 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                   onStockTypeChange={(type) => form.setValue('stock_type', type)}
                 />
               ) : (
-                <Card>
+              <Card>
                   <CardHeader>
                     <CardTitle>Estrutura do Produto</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <p className="text-muted-foreground text-sm">
-                      {!isEditing 
-                        ? 'Salve o produto primeiro para configurar a estrutura'
-                        : 'Selecione o formato "Com composição (Kit)" para habilitar esta aba'}
+                      Selecione o formato "Com composição (Kit)" na aba Básico para habilitar a configuração de componentes
                     </p>
                   </CardContent>
                 </Card>
@@ -867,20 +862,7 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             </TabsContent>
 
             <TabsContent value="related" className="space-y-4 mt-4">
-              {isEditing && product ? (
-                <RelatedProductsSelect productId={product.id} />
-              ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Produtos Relacionados</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground text-sm">
-                      Salve o produto primeiro para configurar produtos relacionados
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+              <RelatedProductsSelect productId={product?.id ?? ''} disabled={!isEditing} />
             </TabsContent>
 
             <TabsContent value="seo" className="space-y-4 mt-4">

@@ -64,6 +64,7 @@ interface ProductImageManagerProps {
   productId: string;
   images: ProductImage[];
   onImagesChange: () => void;
+  disabled?: boolean;
 }
 
 interface SortableImageCardProps {
@@ -148,7 +149,7 @@ function SortableImageCard({ image, onSetPrimary, onDelete }: SortableImageCardP
   );
 }
 
-export function ProductImageManager({ productId, images, onImagesChange }: ProductImageManagerProps) {
+export function ProductImageManager({ productId, images, onImagesChange, disabled = false }: ProductImageManagerProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
@@ -156,6 +157,18 @@ export function ProductImageManager({ productId, images, onImagesChange }: Produ
   const [imageUrl, setImageUrl] = useState('');
   const [altText, setAltText] = useState('');
   const [deleteImageId, setDeleteImageId] = useState<string | null>(null);
+
+  // If disabled, show placeholder message
+  if (disabled) {
+    return (
+      <div className="text-center py-8 border-2 border-dashed rounded-lg">
+        <ImagePlus className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+        <p className="text-muted-foreground">
+          As imagens serão salvas junto com o produto
+        </p>
+      </div>
+    );
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
