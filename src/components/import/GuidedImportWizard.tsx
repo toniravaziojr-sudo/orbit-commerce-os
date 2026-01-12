@@ -9,7 +9,7 @@ import { useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeData } from '@/lib/import/platforms';
-import { parseCSV, consolidateShopifyProducts } from '@/lib/import/utils';
+import { parseCSV, consolidateShopifyProducts, consolidateShopifyCustomers, consolidateShopifyOrders } from '@/lib/import/utils';
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -108,6 +108,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       let data: any[];
       
       const platform = analysisResult?.platform?.toLowerCase() || 'generic';
+      const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
       
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
@@ -116,19 +117,47 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
         // Use proper CSV parser that handles BOM and quoted fields
         const rawRows = parseCSV(text);
         
-        // CRITICAL: Detect Shopify CSV structure by checking for Handle + Title columns
-        // This ensures consolidation happens even if platform detection failed
-        const hasShopifyStructure = stepId === 'products' && rawRows.length > 0 && 
-          ('Handle' in rawRows[0] || 'handle' in rawRows[0]) &&
-          ('Title' in rawRows[0] || 'title' in rawRows[0]);
+        console.log(`[handleFileImport] Parsed ${rawRows.length} rows for ${stepId} (platform: ${platform})`);
         
-        const isShopifyPlatform = platform === 'shopify' || platform.includes('shopify');
-        const shouldConsolidate = hasShopifyStructure || isShopifyPlatform;
-        
-        if (shouldConsolidate && stepId === 'products') {
-          console.log(`[handleFileImport] Shopify CSV structure detected - consolidating ${rawRows.length} rows (platform: ${platform}, hasStructure: ${hasShopifyStructure})`);
-          data = consolidateShopifyProducts(rawRows);
-          console.log(`[handleFileImport] Consolidated to ${data.length} products`);
+        // CRITICAL: Consolidate Shopify CSVs by module type
+        // This prevents each row from being treated as a separate item
+        if (stepId === 'products') {
+          // Detect Shopify product CSV by Handle + Title columns
+          const hasShopifyStructure = rawRows.length > 0 && 
+            ('Handle' in rawRows[0] || 'handle' in rawRows[0]) &&
+            ('Title' in rawRows[0] || 'title' in rawRows[0]);
+          
+          if (hasShopifyStructure || isShopifyPlatform) {
+            console.log(`[handleFileImport] Shopify products - consolidating ${rawRows.length} rows`);
+            data = consolidateShopifyProducts(rawRows);
+            console.log(`[handleFileImport] Consolidated to ${data.length} products`);
+          } else {
+            data = rawRows;
+          }
+        } else if (stepId === 'customers') {
+          // Detect Shopify customer CSV by Email + First Name columns
+          const hasShopifyCustomerStructure = rawRows.length > 0 && 
+            ('Email' in rawRows[0] || 'email' in rawRows[0]);
+          
+          if (hasShopifyCustomerStructure || isShopifyPlatform) {
+            console.log(`[handleFileImport] Shopify customers - consolidating ${rawRows.length} rows`);
+            data = consolidateShopifyCustomers(rawRows);
+            console.log(`[handleFileImport] Consolidated to ${data.length} customers`);
+          } else {
+            data = rawRows;
+          }
+        } else if (stepId === 'orders') {
+          // Detect Shopify order CSV by Name/Order Number column
+          const hasShopifyOrderStructure = rawRows.length > 0 && 
+            ('Name' in rawRows[0] || 'Order Number' in rawRows[0] || 'Número do Pedido' in rawRows[0]);
+          
+          if (hasShopifyOrderStructure || isShopifyPlatform) {
+            console.log(`[handleFileImport] Shopify orders - consolidating ${rawRows.length} rows`);
+            data = consolidateShopifyOrders(rawRows);
+            console.log(`[handleFileImport] Consolidated to ${data.length} orders`);
+          } else {
+            data = rawRows;
+          }
         } else {
           data = rawRows;
         }

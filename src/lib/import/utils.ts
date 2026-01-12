@@ -390,3 +390,144 @@ export function consolidateShopifyProducts(rows: Record<string, string>[]): Reco
   
   return consolidated;
 }
+
+/**
+ * Consolidate Shopify Customer CSV rows by Email
+ * Shopify may export multiple rows per customer (one per address)
+ * This function groups them by email into single customers
+ */
+export function consolidateShopifyCustomers(rows: Record<string, string>[]): Record<string, any>[] {
+  const customerMap = new Map<string, any>();
+  
+  for (const row of rows) {
+    // Get email - normalize to lowercase
+    const rawEmail = row['Email'] || row['email'] || row['Customer Email'] || row['E-mail'] || '';
+    const email = rawEmail.toString().toLowerCase().trim();
+    
+    if (!email) {
+      console.warn('[consolidateShopifyCustomers] Row without email, skipping');
+      continue;
+    }
+    
+    if (!customerMap.has(email)) {
+      // First row for this customer - use as base
+      customerMap.set(email, {
+        ...row,
+        _addresses: [] as Record<string, string>[],
+      });
+    }
+    
+    const customer = customerMap.get(email)!;
+    
+    // Collect address if present (different from first)
+    const address1 = row['Address1'] || row['Default Address Address1'] || '';
+    const city = row['City'] || row['Default Address City'] || '';
+    
+    if (address1 && city) {
+      // Check if this address is already collected
+      const existingAddr = customer._addresses.find(
+        (a: Record<string, string>) => 
+          a['Address1'] === address1 && a['City'] === city
+      );
+      
+      if (!existingAddr) {
+        customer._addresses.push({
+          'Address1': address1,
+          'Address2': row['Address2'] || row['Default Address Address2'] || '',
+          'City': city,
+          'Province': row['Province'] || row['Default Address Province'] || '',
+          'Province Code': row['Province Code'] || row['Default Address Province Code'] || '',
+          'Country': row['Country'] || row['Default Address Country'] || '',
+          'Country Code': row['Country Code'] || row['Default Address Country Code'] || '',
+          'Zip': row['Zip'] || row['Default Address Zip'] || '',
+          'Phone': row['Default Address Phone'] || row['Phone'] || '',
+          'Company': row['Company'] || row['Default Address Company'] || '',
+        });
+      }
+    }
+    
+    // Update fields if they were empty in base row
+    if (!customer['First Name'] && row['First Name']) customer['First Name'] = row['First Name'];
+    if (!customer['Last Name'] && row['Last Name']) customer['Last Name'] = row['Last Name'];
+    if (!customer['Phone'] && row['Phone']) customer['Phone'] = row['Phone'];
+  }
+  
+  // Convert back to array
+  const consolidated: Record<string, any>[] = [];
+  
+  for (const [email, customer] of customerMap) {
+    const enrichedCustomer = {
+      ...customer,
+      addresses: customer._addresses.length > 0 ? customer._addresses : undefined,
+    };
+    
+    delete enrichedCustomer._addresses;
+    consolidated.push(enrichedCustomer);
+  }
+  
+  console.log(`[consolidateShopifyCustomers] Consolidated ${rows.length} rows into ${consolidated.length} customers`);
+  
+  return consolidated;
+}
+
+/**
+ * Consolidate Shopify Order CSV rows by Order Name/Number
+ * Shopify exports multiple rows per order (one per line item)
+ * This function groups them back into single orders
+ */
+export function consolidateShopifyOrders(rows: Record<string, string>[]): Record<string, any>[] {
+  const orderMap = new Map<string, any>();
+  
+  for (const row of rows) {
+    // Get order name/number
+    const orderName = row['Name'] || row['Order Number'] || row['Número do Pedido'] || row['Pedido'] || '';
+    
+    if (!orderName) {
+      console.warn('[consolidateShopifyOrders] Row without order name, skipping');
+      continue;
+    }
+    
+    if (!orderMap.has(orderName)) {
+      // First row for this order - use as base
+      orderMap.set(orderName, {
+        ...row,
+        _lineItems: [] as Record<string, string>[],
+      });
+    }
+    
+    const order = orderMap.get(orderName)!;
+    
+    // Collect line item if present
+    const lineItemName = row['Lineitem name'] || '';
+    const lineItemQty = row['Lineitem quantity'] || '';
+    const lineItemPrice = row['Lineitem price'] || '';
+    
+    if (lineItemName || lineItemQty || lineItemPrice) {
+      order._lineItems.push({
+        'Lineitem name': lineItemName,
+        'Lineitem quantity': lineItemQty,
+        'Lineitem price': lineItemPrice,
+        'Lineitem sku': row['Lineitem sku'] || '',
+        'Lineitem discount': row['Lineitem discount'] || '',
+        'Lineitem compare at price': row['Lineitem compare at price'] || '',
+      });
+    }
+  }
+  
+  // Convert back to array
+  const consolidated: Record<string, any>[] = [];
+  
+  for (const [orderName, order] of orderMap) {
+    const enrichedOrder = {
+      ...order,
+      line_items: order._lineItems.length > 0 ? order._lineItems : undefined,
+    };
+    
+    delete enrichedOrder._lineItems;
+    consolidated.push(enrichedOrder);
+  }
+  
+  console.log(`[consolidateShopifyOrders] Consolidated ${rows.length} rows into ${consolidated.length} orders`);
+  
+  return consolidated;
+}
