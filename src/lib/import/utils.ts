@@ -219,19 +219,31 @@ export function consolidateShopifyProducts(rows: Record<string, string>[]): Reco
     
     if (!productMap.has(handle)) {
       // First row for this product - use as base
+      // CRITICAL: Store base variant info (price/sku/stock) from first row
       productMap.set(handle, {
         ...row,
         _images: [] as string[],
+        _imageAlts: new Map<string, string>(),
         _variants: [] as Record<string, string>[],
+        _basePrice: row['Variant Price'] || row['Price'] || '',
+        _baseSku: row['Variant SKU'] || row['SKU'] || '',
+        _baseStock: row['Variant Inventory Qty'] || row['Inventory'] || '0',
+        _baseComparePrice: row['Variant Compare At Price'] || row['Compare At Price'] || '',
+        _baseBarcode: row['Variant Barcode'] || '',
+        _baseGrams: row['Variant Grams'] || '',
       });
     }
     
     const product = productMap.get(handle)!;
     
-    // Collect image if present
+    // Collect image if present (with alt text)
     const imageSrc = row['Image Src'] || row['image_src'] || '';
     if (imageSrc && !product._images.includes(imageSrc)) {
       product._images.push(imageSrc);
+      const imageAlt = row['Image Alt Text'] || '';
+      if (imageAlt) {
+        product._imageAlts.set(imageSrc, imageAlt);
+      }
     }
     
     // Collect variant if it has a distinct Option1 Value or SKU
@@ -279,7 +291,7 @@ export function consolidateShopifyProducts(rows: Record<string, string>[]): Reco
     const images = product._images.map((src: string, idx: number) => ({
       src,
       position: idx,
-      alt: null,
+      alt: product._imageAlts.get(src) || null,
     }));
     
     // Create variants array for the normalizer
@@ -287,7 +299,7 @@ export function consolidateShopifyProducts(rows: Record<string, string>[]): Reco
       ? product._variants.map((v: Record<string, string>) => ({
           title: v['Option1 Value'] || 'Default',
           sku: v['Variant SKU'] || null,
-          price: v['Variant Price'] || product['Variant Price'] || '0',
+          price: v['Variant Price'] || product._basePrice || '0',
           compare_at_price: v['Variant Compare At Price'] || null,
           inventory_quantity: parseInt(v['Variant Inventory Qty'] || '0', 10),
           option1: v['Option1 Value'] || null,
@@ -296,17 +308,43 @@ export function consolidateShopifyProducts(rows: Record<string, string>[]): Reco
         }))
       : undefined;
     
-    consolidated.push({
+    // CRITICAL: Ensure base product fields are populated from stored values
+    // This is where price/sku/stock were being lost!
+    const enrichedProduct = {
       ...product,
+      // Ensure these fields are explicitly set (not just inherited from first row)
+      'Variant Price': product._basePrice || product['Variant Price'] || '',
+      'Variant SKU': product._baseSku || product['Variant SKU'] || '',
+      'Variant Inventory Qty': product._baseStock || product['Variant Inventory Qty'] || '0',
+      'Variant Compare At Price': product._baseComparePrice || product['Variant Compare At Price'] || '',
+      'Variant Barcode': product._baseBarcode || product['Variant Barcode'] || '',
+      'Variant Grams': product._baseGrams || product['Variant Grams'] || '',
+      // Attach parsed arrays
       images: images.length > 0 ? images : undefined,
       variants: variants,
-      // Clean up internal fields
-      _images: undefined,
-      _variants: undefined,
-    });
+    };
+    
+    // Clean up internal fields
+    delete enrichedProduct._images;
+    delete enrichedProduct._imageAlts;
+    delete enrichedProduct._variants;
+    delete enrichedProduct._basePrice;
+    delete enrichedProduct._baseSku;
+    delete enrichedProduct._baseStock;
+    delete enrichedProduct._baseComparePrice;
+    delete enrichedProduct._baseBarcode;
+    delete enrichedProduct._baseGrams;
+    
+    consolidated.push(enrichedProduct);
   }
   
   console.log(`[consolidateShopifyProducts] Consolidated ${rows.length} rows into ${consolidated.length} products`);
+  
+  // Debug: Log first product to verify fields
+  if (consolidated.length > 0) {
+    const first = consolidated[0];
+    console.log(`[consolidateShopifyProducts] First product check: Title="${first['Title']}", Price="${first['Variant Price']}", SKU="${first['Variant SKU']}", Images=${first.images?.length || 0}`);
+  }
   
   return consolidated;
 }
