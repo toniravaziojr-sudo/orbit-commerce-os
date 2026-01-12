@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Truck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,8 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useOrders, type CreateOrderData, type PaymentMethod } from '@/hooks/useOrders';
 import { useProductsWithImages } from '@/hooks/useProducts';
+import { useProducts } from '@/hooks/useProducts';
+import { useCustomers } from '@/hooks/useCustomers';
 import { toast } from 'sonner';
 
 interface OrderItemForm {
@@ -31,7 +34,19 @@ interface OrderItemForm {
 export default function OrderNew() {
   const navigate = useNavigate();
   const { createOrder } = useOrders();
-  const { products } = useProductsWithImages();
+  const { products: activeProducts, isLoading: productsLoading } = useProductsWithImages();
+  const { products: allProducts, isLoading: allProductsLoading } = useProducts();
+  const { customers, isLoading: customersLoading } = useCustomers({ pageSize: 500 });
+
+  // Use all products if active products are empty (fallback)
+  const products = activeProducts.length > 0 ? activeProducts : allProducts.map(p => ({
+    ...p,
+    primary_image_url: null,
+  }));
+
+  const [useExistingCustomer, setUseExistingCustomer] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
 
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -49,15 +64,61 @@ export default function OrderNew() {
     shipping_postal_code: '',
     customer_notes: '',
     internal_notes: '',
+    // Shipping method fields
+    shipping_method: '' as '' | 'correios' | 'transportadora' | 'retirada' | 'motoboy' | 'proprio',
+    shipping_carrier: '',
+    shipping_tracking_code: '',
+    shipping_cost: 0,
   });
 
   const [items, setItems] = useState<OrderItemForm[]>([]);
   const [productSearch, setProductSearch] = useState('');
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.sku?.toLowerCase().includes(productSearch.toLowerCase())
-  );
+  // Filter customers by search
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch) return [];
+    const searchLower = customerSearch.toLowerCase();
+    return customers.filter(c => 
+      c.full_name.toLowerCase().includes(searchLower) ||
+      c.email.toLowerCase().includes(searchLower) ||
+      c.phone?.toLowerCase().includes(searchLower)
+    ).slice(0, 10);
+  }, [customers, customerSearch]);
+
+  // Filter products by search
+  const filteredProducts = useMemo(() => {
+    if (!productSearch) return [];
+    const searchLower = productSearch.toLowerCase();
+    return products.filter(p => 
+      p.name.toLowerCase().includes(searchLower) ||
+      p.sku?.toLowerCase().includes(searchLower)
+    ).slice(0, 10);
+  }, [products, productSearch]);
+
+  const handleSelectCustomer = (customer: typeof customers[0]) => {
+    setSelectedCustomerId(customer.id);
+    setFormData(prev => ({
+      ...prev,
+      customer_name: customer.full_name,
+      customer_email: customer.email,
+      customer_phone: customer.phone || '',
+      customer_cpf: customer.cpf || '',
+      person_type: customer.person_type || 'pf',
+    }));
+    setCustomerSearch('');
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomerId('');
+    setFormData(prev => ({
+      ...prev,
+      customer_name: '',
+      customer_email: '',
+      customer_phone: '',
+      customer_cpf: '',
+      person_type: 'pf',
+    }));
+  };
 
   const handleAddProduct = (product: typeof products[0]) => {
     const existingIndex = items.findIndex(i => i.product_id === product.id);
@@ -92,7 +153,8 @@ export default function OrderNew() {
 
   const subtotal = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
   const discountTotal = items.reduce((sum, item) => sum + (item.discount_amount * item.quantity), 0);
-  const total = subtotal - discountTotal;
+  const shippingCost = formData.shipping_cost || 0;
+  const total = subtotal - discountTotal + shippingCost;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -140,6 +202,8 @@ export default function OrderNew() {
     });
   };
 
+  const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
@@ -157,78 +221,151 @@ export default function OrderNew() {
         {/* Customer Info */}
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Dados do Cliente</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Dados do Cliente</CardTitle>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="use-existing" className="text-sm text-muted-foreground cursor-pointer">
+                  Selecionar cliente existente
+                </Label>
+                <Switch 
+                  id="use-existing"
+                  checked={useExistingCustomer}
+                  onCheckedChange={(checked) => {
+                    setUseExistingCustomer(checked);
+                    if (!checked) handleClearCustomer();
+                  }}
+                />
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="customer_name">Nome *</Label>
-              <Input
-                id="customer_name"
-                value={formData.customer_name}
-                onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer_email">Email *</Label>
-              <Input
-                id="customer_email"
-                type="email"
-                value={formData.customer_email}
-                onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer_phone">Telefone</Label>
-              <Input
-                id="customer_phone"
-                value={formData.customer_phone}
-                onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="person_type">Tipo de Pessoa</Label>
-              <Select
-                value={formData.person_type}
-                onValueChange={(value) => setFormData({ ...formData, person_type: value as 'pf' | 'pj' })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pf">Pessoa Física</SelectItem>
-                  <SelectItem value="pj">Pessoa Jurídica</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="customer_cpf">
-                {formData.person_type === 'pj' ? 'CNPJ' : 'CPF'}
-              </Label>
-              <Input
-                id="customer_cpf"
-                value={formData.customer_cpf}
-                onChange={(e) => setFormData({ ...formData, customer_cpf: e.target.value })}
-                placeholder={formData.person_type === 'pj' ? '00.000.000/0001-00' : '000.000.000-00'}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="payment_method">Método de Pagamento</Label>
-              <Select
-                value={formData.payment_method}
-                onValueChange={(value) => setFormData({ ...formData, payment_method: value as PaymentMethod })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pix">PIX</SelectItem>
-                  <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                  <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                  <SelectItem value="boleto">Boleto</SelectItem>
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-4">
+            {/* Customer Search */}
+            {useExistingCustomer && (
+              <div className="relative">
+                {selectedCustomer ? (
+                  <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
+                    <UserCheck className="h-5 w-5 text-primary" />
+                    <div className="flex-1">
+                      <p className="font-medium">{selectedCustomer.full_name}</p>
+                      <p className="text-sm text-muted-foreground">{selectedCustomer.email}</p>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={handleClearCustomer}>
+                      Trocar
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar cliente por nome, email ou telefone..."
+                      className="pl-9"
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                    />
+                    {customerSearch && filteredCustomers.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {filteredCustomers.map(customer => (
+                          <button
+                            key={customer.id}
+                            type="button"
+                            className="w-full px-4 py-2 text-left hover:bg-muted flex items-center gap-3"
+                            onClick={() => handleSelectCustomer(customer)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{customer.full_name}</p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {customer.email} {customer.phone && `• ${customer.phone}`}
+                              </p>
+                            </div>
+                            <Plus className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {customerSearch && filteredCustomers.length === 0 && !customersLoading && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg p-4 text-center text-muted-foreground">
+                        Nenhum cliente encontrado
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Customer Form Fields */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="customer_name">Nome *</Label>
+                <Input
+                  id="customer_name"
+                  value={formData.customer_name}
+                  onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
+                  required
+                  disabled={useExistingCustomer && !!selectedCustomerId}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_email">Email *</Label>
+                <Input
+                  id="customer_email"
+                  type="email"
+                  value={formData.customer_email}
+                  onChange={(e) => setFormData({ ...formData, customer_email: e.target.value })}
+                  required
+                  disabled={useExistingCustomer && !!selectedCustomerId}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_phone">Telefone</Label>
+                <Input
+                  id="customer_phone"
+                  value={formData.customer_phone}
+                  onChange={(e) => setFormData({ ...formData, customer_phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="person_type">Tipo de Pessoa</Label>
+                <Select
+                  value={formData.person_type}
+                  onValueChange={(value) => setFormData({ ...formData, person_type: value as 'pf' | 'pj' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pf">Pessoa Física</SelectItem>
+                    <SelectItem value="pj">Pessoa Jurídica</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customer_cpf">
+                  {formData.person_type === 'pj' ? 'CNPJ' : 'CPF'}
+                </Label>
+                <Input
+                  id="customer_cpf"
+                  value={formData.customer_cpf}
+                  onChange={(e) => setFormData({ ...formData, customer_cpf: e.target.value })}
+                  placeholder={formData.person_type === 'pj' ? '00.000.000/0001-00' : '000.000.000-00'}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="payment_method">Método de Pagamento</Label>
+                <Select
+                  value={formData.payment_method}
+                  onValueChange={(value) => setFormData({ ...formData, payment_method: value as PaymentMethod })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix">PIX</SelectItem>
+                    <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
+                    <SelectItem value="debit_card">Cartão de Débito</SelectItem>
+                    <SelectItem value="boleto">Boleto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -246,6 +383,10 @@ export default function OrderNew() {
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Desconto</span>
               <span className="text-destructive">- R$ {discountTotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Frete</span>
+              <span>R$ {shippingCost.toFixed(2)}</span>
             </div>
             <div className="border-t pt-4 flex justify-between font-semibold">
               <span>Total</span>
@@ -328,6 +469,61 @@ export default function OrderNew() {
           </CardContent>
         </Card>
 
+        {/* Shipping Method */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Truck className="h-5 w-5" />
+              Método de Envio
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="shipping_method">Tipo de Envio</Label>
+              <Select
+                value={formData.shipping_method}
+                onValueChange={(value) => setFormData({ ...formData, shipping_method: value as typeof formData.shipping_method })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o método" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="correios">Correios</SelectItem>
+                  <SelectItem value="transportadora">Transportadora</SelectItem>
+                  <SelectItem value="motoboy">Motoboy</SelectItem>
+                  <SelectItem value="proprio">Entrega Própria</SelectItem>
+                  <SelectItem value="retirada">Retirada na Loja</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {formData.shipping_method && formData.shipping_method !== 'retirada' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="shipping_carrier">Transportadora / Descrição</Label>
+                  <Input
+                    id="shipping_carrier"
+                    value={formData.shipping_carrier}
+                    onChange={(e) => setFormData({ ...formData, shipping_carrier: e.target.value })}
+                    placeholder="Ex: SEDEX, PAC, Jadlog..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="shipping_cost">Custo do Frete (R$)</Label>
+                  <Input
+                    id="shipping_cost"
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={formData.shipping_cost}
+                    onChange={(e) => setFormData({ ...formData, shipping_cost: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Products */}
         <Card className="lg:col-span-3">
           <CardHeader>
@@ -345,7 +541,7 @@ export default function OrderNew() {
               />
               {productSearch && filteredProducts.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto">
-                  {filteredProducts.slice(0, 10).map(product => (
+                  {filteredProducts.map(product => (
                     <button
                       key={product.id}
                       type="button"
@@ -364,6 +560,11 @@ export default function OrderNew() {
                       <Plus className="h-4 w-4 text-muted-foreground" />
                     </button>
                   ))}
+                </div>
+              )}
+              {productSearch && filteredProducts.length === 0 && !productsLoading && !allProductsLoading && (
+                <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg p-4 text-center text-muted-foreground">
+                  Nenhum produto encontrado. Verifique se há produtos cadastrados.
                 </div>
               )}
             </div>

@@ -35,7 +35,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { User, Building2, Mail, MessageSquare, Phone } from 'lucide-react';
+import { User, Building2, Mail, MessageSquare, Phone, MapPin } from 'lucide-react';
 import type { Customer, CustomerFormData, CustomerTag } from '@/hooks/useCustomers';
 
 const customerSchema = z.object({
@@ -60,6 +60,15 @@ const customerSchema = z.object({
   accepts_whatsapp_marketing: z.boolean().optional().nullable(),
   // Notes
   notes: z.string().optional().nullable(),
+  // Address fields (inline)
+  address_label: z.string().optional().nullable(),
+  address_postal_code: z.string().optional().nullable(),
+  address_street: z.string().optional().nullable(),
+  address_number: z.string().optional().nullable(),
+  address_complement: z.string().optional().nullable(),
+  address_neighborhood: z.string().optional().nullable(),
+  address_city: z.string().optional().nullable(),
+  address_state: z.string().optional().nullable(),
 });
 
 type FormValues = z.infer<typeof customerSchema>;
@@ -106,6 +115,15 @@ export function CustomerForm({
       accepts_sms_marketing: false,
       accepts_whatsapp_marketing: false,
       notes: '',
+      // Address defaults
+      address_label: 'Principal',
+      address_postal_code: '',
+      address_street: '',
+      address_number: '',
+      address_complement: '',
+      address_neighborhood: '',
+      address_city: '',
+      address_state: '',
     },
   });
 
@@ -133,11 +151,36 @@ export function CustomerForm({
         accepts_sms_marketing: customer?.accepts_sms_marketing ?? false,
         accepts_whatsapp_marketing: customer?.accepts_whatsapp_marketing ?? false,
         notes: customer?.notes ?? '',
+        // Address defaults - reset for new customer
+        address_label: 'Principal',
+        address_postal_code: '',
+        address_street: '',
+        address_number: '',
+        address_complement: '',
+        address_neighborhood: '',
+        address_city: '',
+        address_state: '',
       });
     }
   }, [open, customer, customerTagIds, form]);
 
   const handleSubmit = (data: FormValues) => {
+    // Build address object if any address field is filled
+    const hasAddress = data.address_street || data.address_city || data.address_postal_code;
+    const address = hasAddress ? {
+      label: data.address_label || 'Principal',
+      postal_code: data.address_postal_code || '',
+      street: data.address_street || '',
+      number: data.address_number || '',
+      complement: data.address_complement || null,
+      neighborhood: data.address_neighborhood || '',
+      city: data.address_city || '',
+      state: data.address_state || '',
+      country: 'Brasil',
+      recipient_name: data.full_name,
+      is_default: true,
+    } : null;
+
     onSubmit({
       full_name: data.full_name,
       email: data.email,
@@ -157,6 +200,7 @@ export function CustomerForm({
       accepts_sms_marketing: data.accepts_sms_marketing,
       accepts_whatsapp_marketing: data.accepts_whatsapp_marketing,
       notes: data.notes || null,
+      address, // Pass address to parent
     } as any);
   };
 
@@ -178,9 +222,10 @@ export function CustomerForm({
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <ScrollArea className="max-h-[60vh] pr-4">
               <Tabs defaultValue="basic" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 mb-4">
+                <TabsList className="grid w-full grid-cols-4 mb-4">
                   <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
                   <TabsTrigger value="company">PF/PJ</TabsTrigger>
+                  <TabsTrigger value="address">Endereço</TabsTrigger>
                   <TabsTrigger value="marketing">Marketing</TabsTrigger>
                 </TabsList>
 
@@ -492,6 +537,129 @@ export function CustomerForm({
                       </div>
                     </>
                   )}
+                </TabsContent>
+
+                {/* TAB: Endereço */}
+                <TabsContent value="address" className="space-y-4">
+                  <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                    <MapPin className="h-5 w-5" />
+                    <span className="font-medium">Endereço Principal</span>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="address_label"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rótulo do endereço</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ex: Casa, Trabalho..." {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="address_postal_code"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>CEP</FormLabel>
+                          <FormControl>
+                            <Input placeholder="00000-000" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address_state"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Estado</FormLabel>
+                          <FormControl>
+                            <Input placeholder="SP" maxLength={2} {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="address_street"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rua / Logradouro</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Rua das Flores" {...field} value={field.value ?? ''} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="address_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Número</FormLabel>
+                          <FormControl>
+                            <Input placeholder="123" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address_complement"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Complemento</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Apto 101" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="address_neighborhood"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Bairro</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Centro" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="address_city"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Cidade</FormLabel>
+                          <FormControl>
+                            <Input placeholder="São Paulo" {...field} value={field.value ?? ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </TabsContent>
 
                 {/* TAB: Marketing */}
