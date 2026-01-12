@@ -54,11 +54,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCustomerNotes, useCustomerAddresses, type Customer, type CustomerNote, type CustomerAddress } from '@/hooks/useCustomers';
+import { useCustomerNotes, useCustomerAddresses, useCustomerTags, useCustomerTagAssignments, type Customer, type CustomerNote, type CustomerAddress, type CustomerTag } from '@/hooks/useCustomers';
 import { useCustomerOrders } from '@/hooks/useCustomerOrders';
 import { CustomerAddressForm } from '@/components/customers/CustomerAddressForm';
 import { toast } from 'sonner';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
+import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
   active: { label: 'Ativo', variant: 'default' },
@@ -127,11 +128,14 @@ export default function CustomerDetail() {
   const [addressFormOpen, setAddressFormOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<CustomerAddress | null>(null);
   const [deleteAddressId, setDeleteAddressId] = useState<string | null>(null);
+  const [tagsManagerOpen, setTagsManagerOpen] = useState(false);
   
   const customerId = isNewCustomer ? undefined : id;
   const { notes, isLoading: notesLoading, createNote } = useCustomerNotes(customerId);
   const { addresses, isLoading: addressesLoading, createAddress, deleteAddress } = useCustomerAddresses(customerId);
   const { orders, isLoading: ordersLoading } = useCustomerOrders(customer?.email);
+  const { tags, isLoading: tagsLoading, createTag, deleteTag } = useCustomerTags();
+  const { tagIds: customerTagIds, isLoading: assignmentsLoading, updateAssignments } = useCustomerTagAssignments(customerId);
 
   useEffect(() => {
     async function fetchCustomer() {
@@ -862,6 +866,10 @@ export default function CustomerDetail() {
                 <MessageSquare className="h-4 w-4" />
                 Notas ({notes.length})
               </TabsTrigger>
+              <TabsTrigger value="tags" className="gap-2">
+                <Tag className="h-4 w-4" />
+                Tags ({customerTagIds.length})
+              </TabsTrigger>
               <TabsTrigger value="notifications" className="gap-2">
                 <Bell className="h-4 w-4" />
                 Notificações
@@ -1047,6 +1055,69 @@ export default function CustomerDetail() {
               )}
             </TabsContent>
 
+            {/* Tags Tab */}
+            <TabsContent value="tags" className="space-y-4">
+              <div className="flex justify-end">
+                <Button size="sm" onClick={() => setTagsManagerOpen(true)}>
+                  <Tag className="h-4 w-4 mr-2" />
+                  Gerenciar Tags
+                </Button>
+              </div>
+              {assignmentsLoading || tagsLoading ? (
+                <Skeleton className="h-32" />
+              ) : (
+                <Card>
+                  <CardContent className="pt-4">
+                    {tags.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Tag className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                        <p>Nenhuma tag criada</p>
+                        <Button 
+                          variant="link" 
+                          className="mt-2"
+                          onClick={() => setTagsManagerOpen(true)}
+                        >
+                          Criar primeira tag
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Selecione as tags para este cliente:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {tags.map((tag) => {
+                            const isSelected = customerTagIds.includes(tag.id);
+                            return (
+                              <Badge
+                                key={tag.id}
+                                variant={isSelected ? "default" : "outline"}
+                                className="cursor-pointer gap-2 py-1.5 px-3 transition-all"
+                                style={isSelected ? { backgroundColor: tag.color, borderColor: tag.color } : { borderColor: tag.color, color: tag.color }}
+                                onClick={() => {
+                                  if (!id) return;
+                                  const newTagIds = isSelected
+                                    ? customerTagIds.filter(tid => tid !== tag.id)
+                                    : [...customerTagIds, tag.id];
+                                  updateAssignments.mutate({ customerId: id, tagIds: newTagIds });
+                                }}
+                              >
+                                <span
+                                  className="h-2 w-2 rounded-full"
+                                  style={{ backgroundColor: isSelected ? '#fff' : tag.color }}
+                                />
+                                {tag.name}
+                              </Badge>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
             {/* Notifications Tab */}
             <TabsContent value="notifications">
               <NotificationLogsPanel
@@ -1067,6 +1138,16 @@ export default function CustomerDetail() {
         customerId={id || ''}
         onSubmit={handleAddAddress}
         isLoading={createAddress.isPending}
+      />
+
+      {/* Tags Manager Modal */}
+      <CustomerTagsManager
+        open={tagsManagerOpen}
+        onOpenChange={setTagsManagerOpen}
+        tags={tags}
+        onCreateTag={(data) => createTag.mutate(data)}
+        onDeleteTag={(tagId) => deleteTag.mutate(tagId)}
+        isLoading={createTag.isPending || deleteTag.isPending}
       />
 
       {/* Delete Address Confirmation */}
