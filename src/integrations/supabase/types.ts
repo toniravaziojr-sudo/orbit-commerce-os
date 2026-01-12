@@ -2055,54 +2055,66 @@ export type Database = {
       }
       customer_addresses: {
         Row: {
+          address_type: string | null
           city: string
           complement: string | null
           country: string
           created_at: string
           customer_id: string
+          ibge_code: string | null
           id: string
           is_default: boolean | null
           label: string
           neighborhood: string
           number: string
           postal_code: string
+          recipient_cpf: string | null
           recipient_name: string
+          recipient_phone: string | null
           reference: string | null
           state: string
           street: string
           updated_at: string
         }
         Insert: {
+          address_type?: string | null
           city: string
           complement?: string | null
           country?: string
           created_at?: string
           customer_id: string
+          ibge_code?: string | null
           id?: string
           is_default?: boolean | null
           label?: string
           neighborhood: string
           number: string
           postal_code: string
+          recipient_cpf?: string | null
           recipient_name: string
+          recipient_phone?: string | null
           reference?: string | null
           state: string
           street: string
           updated_at?: string
         }
         Update: {
+          address_type?: string | null
           city?: string
           complement?: string | null
           country?: string
           created_at?: string
           customer_id?: string
+          ibge_code?: string | null
           id?: string
           is_default?: boolean | null
           label?: string
           neighborhood?: string
           number?: string
           postal_code?: string
+          recipient_cpf?: string | null
           recipient_name?: string
+          recipient_phone?: string | null
           reference?: string | null
           state?: string
           street?: string
@@ -2297,10 +2309,16 @@ export type Database = {
       }
       customers: {
         Row: {
+          accepts_email_marketing: boolean | null
           accepts_marketing: boolean | null
+          accepts_sms_marketing: boolean | null
+          accepts_whatsapp_marketing: boolean | null
           auth_user_id: string | null
           average_ticket: number | null
           birth_date: string | null
+          bounced_at: string | null
+          cnpj: string | null
+          company_name: string | null
           cpf: string | null
           created_at: string
           email: string
@@ -2309,22 +2327,36 @@ export type Database = {
           full_name: string
           gender: string | null
           id: string
+          ie: string | null
+          last_external_id: string | null
           last_order_at: string | null
+          last_source_platform: string | null
           loyalty_points: number | null
           loyalty_tier: string | null
+          notes: string | null
+          person_type: string | null
           phone: string | null
           phone_verified: boolean | null
+          rg: string | null
+          state_registration_is_exempt: boolean | null
           status: string
           tenant_id: string
           total_orders: number | null
           total_spent: number | null
+          unsubscribed_at: string | null
           updated_at: string
         }
         Insert: {
+          accepts_email_marketing?: boolean | null
           accepts_marketing?: boolean | null
+          accepts_sms_marketing?: boolean | null
+          accepts_whatsapp_marketing?: boolean | null
           auth_user_id?: string | null
           average_ticket?: number | null
           birth_date?: string | null
+          bounced_at?: string | null
+          cnpj?: string | null
+          company_name?: string | null
           cpf?: string | null
           created_at?: string
           email: string
@@ -2333,22 +2365,36 @@ export type Database = {
           full_name: string
           gender?: string | null
           id?: string
+          ie?: string | null
+          last_external_id?: string | null
           last_order_at?: string | null
+          last_source_platform?: string | null
           loyalty_points?: number | null
           loyalty_tier?: string | null
+          notes?: string | null
+          person_type?: string | null
           phone?: string | null
           phone_verified?: boolean | null
+          rg?: string | null
+          state_registration_is_exempt?: boolean | null
           status?: string
           tenant_id: string
           total_orders?: number | null
           total_spent?: number | null
+          unsubscribed_at?: string | null
           updated_at?: string
         }
         Update: {
+          accepts_email_marketing?: boolean | null
           accepts_marketing?: boolean | null
+          accepts_sms_marketing?: boolean | null
+          accepts_whatsapp_marketing?: boolean | null
           auth_user_id?: string | null
           average_ticket?: number | null
           birth_date?: string | null
+          bounced_at?: string | null
+          cnpj?: string | null
+          company_name?: string | null
           cpf?: string | null
           created_at?: string
           email?: string
@@ -2357,15 +2403,23 @@ export type Database = {
           full_name?: string
           gender?: string | null
           id?: string
+          ie?: string | null
+          last_external_id?: string | null
           last_order_at?: string | null
+          last_source_platform?: string | null
           loyalty_points?: number | null
           loyalty_tier?: string | null
+          notes?: string | null
+          person_type?: string | null
           phone?: string | null
           phone_verified?: boolean | null
+          rg?: string | null
+          state_registration_is_exempt?: boolean | null
           status?: string
           tenant_id?: string
           total_orders?: number | null
           total_spent?: number | null
+          unsubscribed_at?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -3368,6 +3422,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "events_inbox_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_entity_mappings: {
+        Row: {
+          created_at: string
+          entity_type: string
+          external_id: string
+          external_parent_id: string | null
+          id: string
+          internal_id: string
+          raw: Json | null
+          source_platform: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entity_type: string
+          external_id: string
+          external_parent_id?: string | null
+          id?: string
+          internal_id: string
+          raw?: Json | null
+          source_platform: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entity_type?: string
+          external_id?: string
+          external_parent_id?: string | null
+          id?: string
+          internal_id?: string
+          raw?: Json | null
+          source_platform?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_entity_mappings_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -6580,45 +6681,82 @@ export type Database = {
       }
       order_items: {
         Row: {
+          barcode: string | null
+          cost_price: number | null
           created_at: string
           discount_amount: number
           id: string
+          image_file_id: string | null
+          ncm: string | null
           order_id: string
           product_id: string | null
           product_image_url: string | null
           product_name: string
+          product_slug: string | null
           quantity: number
           sku: string
+          tax_amount: number | null
+          tenant_id: string | null
           total_price: number
           unit_price: number
+          variant_id: string | null
+          variant_name: string | null
+          weight: number | null
         }
         Insert: {
+          barcode?: string | null
+          cost_price?: number | null
           created_at?: string
           discount_amount?: number
           id?: string
+          image_file_id?: string | null
+          ncm?: string | null
           order_id: string
           product_id?: string | null
           product_image_url?: string | null
           product_name: string
+          product_slug?: string | null
           quantity?: number
           sku: string
+          tax_amount?: number | null
+          tenant_id?: string | null
           total_price: number
           unit_price: number
+          variant_id?: string | null
+          variant_name?: string | null
+          weight?: number | null
         }
         Update: {
+          barcode?: string | null
+          cost_price?: number | null
           created_at?: string
           discount_amount?: number
           id?: string
+          image_file_id?: string | null
+          ncm?: string | null
           order_id?: string
           product_id?: string | null
           product_image_url?: string | null
           product_name?: string
+          product_slug?: string | null
           quantity?: number
           sku?: string
+          tax_amount?: number | null
+          tenant_id?: string | null
           total_price?: number
           unit_price?: number
+          variant_id?: string | null
+          variant_name?: string | null
+          weight?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "order_items_image_file_id_fkey"
+            columns: ["image_file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "order_items_order_id_fkey"
             columns: ["order_id"]
@@ -6631,6 +6769,20 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "product_variants"
             referencedColumns: ["id"]
           },
         ]
@@ -6648,6 +6800,8 @@ export type Database = {
           cancellation_reason: string | null
           cancelled_at: string | null
           created_at: string
+          currency: string | null
+          customer_cpf: string | null
           customer_email: string
           customer_id: string | null
           customer_name: string
@@ -6659,7 +6813,11 @@ export type Database = {
           discount_total: number
           discount_type: string | null
           free_shipping: boolean
+          fx_rate: number | null
+          gateway_payload: Json | null
           id: string
+          installment_value: number | null
+          installments: number | null
           internal_notes: string | null
           marketplace_data: Json | null
           marketplace_order_id: string | null
@@ -6676,6 +6834,8 @@ export type Database = {
           shipping_complement: string | null
           shipping_country: string | null
           shipping_estimated_days: number | null
+          shipping_method_code: string | null
+          shipping_method_name: string | null
           shipping_neighborhood: string | null
           shipping_number: string | null
           shipping_postal_code: string | null
@@ -6685,6 +6845,7 @@ export type Database = {
           shipping_status: Database["public"]["Enums"]["shipping_status"]
           shipping_street: string | null
           shipping_total: number
+          source_hash: string | null
           source_order_number: string | null
           source_platform: string | null
           status: Database["public"]["Enums"]["order_status"]
@@ -6693,6 +6854,7 @@ export type Database = {
           tenant_id: string
           total: number
           tracking_code: string | null
+          tracking_url: string | null
           updated_at: string
         }
         Insert: {
@@ -6707,6 +6869,8 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           created_at?: string
+          currency?: string | null
+          customer_cpf?: string | null
           customer_email: string
           customer_id?: string | null
           customer_name: string
@@ -6718,7 +6882,11 @@ export type Database = {
           discount_total?: number
           discount_type?: string | null
           free_shipping?: boolean
+          fx_rate?: number | null
+          gateway_payload?: Json | null
           id?: string
+          installment_value?: number | null
+          installments?: number | null
           internal_notes?: string | null
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
@@ -6735,6 +6903,8 @@ export type Database = {
           shipping_complement?: string | null
           shipping_country?: string | null
           shipping_estimated_days?: number | null
+          shipping_method_code?: string | null
+          shipping_method_name?: string | null
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
@@ -6744,6 +6914,7 @@ export type Database = {
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null
           shipping_total?: number
+          source_hash?: string | null
           source_order_number?: string | null
           source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -6752,6 +6923,7 @@ export type Database = {
           tenant_id: string
           total?: number
           tracking_code?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Update: {
@@ -6766,6 +6938,8 @@ export type Database = {
           cancellation_reason?: string | null
           cancelled_at?: string | null
           created_at?: string
+          currency?: string | null
+          customer_cpf?: string | null
           customer_email?: string
           customer_id?: string | null
           customer_name?: string
@@ -6777,7 +6951,11 @@ export type Database = {
           discount_total?: number
           discount_type?: string | null
           free_shipping?: boolean
+          fx_rate?: number | null
+          gateway_payload?: Json | null
           id?: string
+          installment_value?: number | null
+          installments?: number | null
           internal_notes?: string | null
           marketplace_data?: Json | null
           marketplace_order_id?: string | null
@@ -6794,6 +6972,8 @@ export type Database = {
           shipping_complement?: string | null
           shipping_country?: string | null
           shipping_estimated_days?: number | null
+          shipping_method_code?: string | null
+          shipping_method_name?: string | null
           shipping_neighborhood?: string | null
           shipping_number?: string | null
           shipping_postal_code?: string | null
@@ -6803,6 +6983,7 @@ export type Database = {
           shipping_status?: Database["public"]["Enums"]["shipping_status"]
           shipping_street?: string | null
           shipping_total?: number
+          source_hash?: string | null
           source_order_number?: string | null
           source_platform?: string | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -6811,6 +6992,7 @@ export type Database = {
           tenant_id?: string
           total?: number
           tracking_code?: string | null
+          tracking_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7491,39 +7673,59 @@ export type Database = {
         Row: {
           alt_text: string | null
           created_at: string
+          file_id: string | null
           id: string
           is_primary: boolean | null
           product_id: string
           sort_order: number | null
+          tenant_id: string | null
           url: string
           variant_id: string | null
         }
         Insert: {
           alt_text?: string | null
           created_at?: string
+          file_id?: string | null
           id?: string
           is_primary?: boolean | null
           product_id: string
           sort_order?: number | null
+          tenant_id?: string | null
           url: string
           variant_id?: string | null
         }
         Update: {
           alt_text?: string | null
           created_at?: string
+          file_id?: string | null
           id?: string
           is_primary?: boolean | null
           product_id?: string
           sort_order?: number | null
+          tenant_id?: string | null
           url?: string
           variant_id?: string | null
         }
         Relationships: [
           {
+            foreignKeyName: "product_images_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "product_images_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_images_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
           {
@@ -7617,8 +7819,11 @@ export type Database = {
           compare_at_price: number | null
           cost_price: number | null
           created_at: string
+          depth: number | null
           gtin: string | null
+          height: number | null
           id: string
+          image_url: string | null
           is_active: boolean | null
           name: string
           option1_name: string | null
@@ -7627,22 +7832,29 @@ export type Database = {
           option2_value: string | null
           option3_name: string | null
           option3_value: string | null
+          position: number | null
           price: number | null
           product_id: string
           promotion_end_date: string | null
           promotion_start_date: string | null
+          requires_shipping: boolean | null
           sku: string
           stock_quantity: number
+          taxable: boolean | null
           updated_at: string
           weight: number | null
+          width: number | null
         }
         Insert: {
           barcode?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          depth?: number | null
           gtin?: string | null
+          height?: number | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name: string
           option1_name?: string | null
@@ -7651,22 +7863,29 @@ export type Database = {
           option2_value?: string | null
           option3_name?: string | null
           option3_value?: string | null
+          position?: number | null
           price?: number | null
           product_id: string
           promotion_end_date?: string | null
           promotion_start_date?: string | null
+          requires_shipping?: boolean | null
           sku: string
           stock_quantity?: number
+          taxable?: boolean | null
           updated_at?: string
           weight?: number | null
+          width?: number | null
         }
         Update: {
           barcode?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
+          depth?: number | null
           gtin?: string | null
+          height?: number | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name?: string
           option1_name?: string | null
@@ -7675,14 +7894,18 @@ export type Database = {
           option2_value?: string | null
           option3_name?: string | null
           option3_value?: string | null
+          position?: number | null
           price?: number | null
           product_id?: string
           promotion_end_date?: string | null
           promotion_start_date?: string | null
+          requires_shipping?: boolean | null
           sku?: string
           stock_quantity?: number
+          taxable?: boolean | null
           updated_at?: string
           weight?: number | null
+          width?: number | null
         }
         Relationships: [
           {
@@ -7698,11 +7921,14 @@ export type Database = {
         Row: {
           allow_backorder: boolean | null
           barcode: string | null
+          brand: string | null
+          cest: string | null
           compare_at_price: number | null
           cost_price: number | null
           created_at: string
           depth: number | null
           description: string | null
+          external_reference: string | null
           gtin: string | null
           has_variants: boolean | null
           height: number | null
@@ -7710,12 +7936,17 @@ export type Database = {
           is_featured: boolean | null
           low_stock_threshold: number | null
           manage_stock: boolean | null
+          meta_keywords: string | null
           name: string
           ncm: string | null
+          origin_code: string | null
           price: number
           product_format: string | null
+          product_type: string | null
           promotion_end_date: string | null
           promotion_start_date: string | null
+          published_at: string | null
+          requires_shipping: boolean | null
           seo_description: string | null
           seo_title: string | null
           short_description: string | null
@@ -7724,19 +7955,27 @@ export type Database = {
           status: string
           stock_quantity: number
           stock_type: string | null
+          tags: string[] | null
+          tax_code: string | null
+          taxable: boolean | null
           tenant_id: string
+          uom: string | null
           updated_at: string
+          vendor: string | null
           weight: number | null
           width: number | null
         }
         Insert: {
           allow_backorder?: boolean | null
           barcode?: string | null
+          brand?: string | null
+          cest?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
           depth?: number | null
           description?: string | null
+          external_reference?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -7744,12 +7983,17 @@ export type Database = {
           is_featured?: boolean | null
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
+          meta_keywords?: string | null
           name: string
           ncm?: string | null
+          origin_code?: string | null
           price: number
           product_format?: string | null
+          product_type?: string | null
           promotion_end_date?: string | null
           promotion_start_date?: string | null
+          published_at?: string | null
+          requires_shipping?: boolean | null
           seo_description?: string | null
           seo_title?: string | null
           short_description?: string | null
@@ -7758,19 +8002,27 @@ export type Database = {
           status?: string
           stock_quantity?: number
           stock_type?: string | null
+          tags?: string[] | null
+          tax_code?: string | null
+          taxable?: boolean | null
           tenant_id: string
+          uom?: string | null
           updated_at?: string
+          vendor?: string | null
           weight?: number | null
           width?: number | null
         }
         Update: {
           allow_backorder?: boolean | null
           barcode?: string | null
+          brand?: string | null
+          cest?: string | null
           compare_at_price?: number | null
           cost_price?: number | null
           created_at?: string
           depth?: number | null
           description?: string | null
+          external_reference?: string | null
           gtin?: string | null
           has_variants?: boolean | null
           height?: number | null
@@ -7778,12 +8030,17 @@ export type Database = {
           is_featured?: boolean | null
           low_stock_threshold?: number | null
           manage_stock?: boolean | null
+          meta_keywords?: string | null
           name?: string
           ncm?: string | null
+          origin_code?: string | null
           price?: number
           product_format?: string | null
+          product_type?: string | null
           promotion_end_date?: string | null
           promotion_start_date?: string | null
+          published_at?: string | null
+          requires_shipping?: boolean | null
           seo_description?: string | null
           seo_title?: string | null
           short_description?: string | null
@@ -7792,8 +8049,13 @@ export type Database = {
           status?: string
           stock_quantity?: number
           stock_type?: string | null
+          tags?: string[] | null
+          tax_code?: string | null
+          taxable?: boolean | null
           tenant_id?: string
+          uom?: string | null
           updated_at?: string
+          vendor?: string | null
           weight?: number | null
           width?: number | null
         }
