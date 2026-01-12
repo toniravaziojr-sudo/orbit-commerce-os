@@ -83,8 +83,46 @@ export const coreOrdersApi = {
   },
 };
 
+// ===== DEPENDENCY CHECK TYPES =====
+export interface CustomerDependencies {
+  customer_id: string;
+  has_dependencies: boolean;
+  orders: { count: number; sample: Array<{ order_number: string; created_at: string; total: number }> };
+  conversations: { count: number };
+  addresses: { count: number };
+  notes: { count: number };
+  tags: { count: number };
+}
+
+export interface ProductDependencies {
+  product_id: string;
+  has_dependencies: boolean;
+  orders: { 
+    count: number; 
+    sample: Array<{ order_number: string; created_at: string; customer_name: string; quantity: number }>;
+    affected_customers: number;
+  };
+  component_of: { count: number };
+  has_components: { count: number };
+  related_products: { count: number };
+  buy_together: { count: number };
+  categories: { count: number };
+  images: { count: number };
+}
+
 // ===== CUSTOMERS API =====
 export const coreCustomersApi = {
+  checkDependencies: async (customerId: string): Promise<CoreApiResponse<CustomerDependencies>> => {
+    const { data, error } = await supabase.functions.invoke('core-customers', {
+      body: {
+        action: 'check_dependencies',
+        customer_id: customerId,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
   create: async (customerData: Record<string, unknown>): Promise<CoreApiResponse> => {
     const { data, error } = await supabase.functions.invoke('core-customers', {
       body: {
@@ -170,6 +208,17 @@ export const coreCustomersApi = {
 
 // ===== PRODUCTS API =====
 export const coreProductsApi = {
+  checkDependencies: async (productId: string): Promise<CoreApiResponse<ProductDependencies>> => {
+    const { data, error } = await supabase.functions.invoke('core-products', {
+      body: {
+        action: 'check_dependencies',
+        product_id: productId,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
   create: async (productData: Record<string, unknown>): Promise<CoreApiResponse> => {
     const { data, error } = await supabase.functions.invoke('core-products', {
       body: {
