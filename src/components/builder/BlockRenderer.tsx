@@ -79,9 +79,10 @@ import { ProductPageSections } from '@/components/storefront/ProductPageSections
 import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { CartContent } from '@/components/storefront/cart/CartContent';
 
-// Storefront pages - import at module level to avoid require() issues with hooks
-import StorefrontOrdersListPage from '@/pages/storefront/StorefrontOrdersList';
-import StorefrontOrderDetailPage from '@/pages/storefront/StorefrontOrderDetail';
+// Note: StorefrontOrdersList and StorefrontOrderDetail are NOT imported here
+// to avoid circular dependency (they import BlockRenderer).
+// The OrdersListBlock and OrderDetailBlock only render placeholders in edit mode,
+// and in production they are rendered by StorefrontOrdersList/StorefrontOrderDetail pages directly.
 import { CheckoutStepWizard } from '@/components/storefront/checkout/CheckoutStepWizard';
 import { ThankYouContent } from '@/components/storefront/ThankYouContent';
 
@@ -1017,55 +1018,59 @@ function AccountHubBlock({ context, isEditing }: any) {
 }
 
 function OrdersListBlock({ context, isEditing }: any) {
-  if (isEditing) {
-    return (
-      <div className="container mx-auto max-w-3xl py-8 px-4">
-        <h1 className="text-2xl font-bold mb-6">Meus Pedidos</h1>
-        <div className="space-y-4">
-          {[1, 2].map(i => (
-            <div key={i} className="p-4 bg-card border rounded-lg">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="font-semibold">Pedido #100{i}</p>
-                  <p className="text-sm text-muted-foreground">15 de Dez de 2024</p>
-                </div>
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Em andamento</span>
+  // This block only renders a placeholder in the Builder.
+  // In production, the actual StorefrontOrdersList page is used directly.
+  return (
+    <div className="container mx-auto max-w-3xl py-8 px-4">
+      <h1 className="text-2xl font-bold mb-6">Meus Pedidos</h1>
+      <div className="space-y-4">
+        {[1, 2].map(i => (
+          <div key={i} className="p-4 bg-card border rounded-lg">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="font-semibold">Pedido #100{i}</p>
+                <p className="text-sm text-muted-foreground">15 de Dez de 2024</p>
               </div>
-              <div className="h-9 px-4 border rounded flex items-center text-sm">Ver detalhes →</div>
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Em andamento</span>
+            </div>
+            <div className="h-9 px-4 border rounded flex items-center text-sm">Ver detalhes →</div>
+          </div>
+        ))}
+      </div>
+      {isEditing && (
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          [Este bloco mostra a lista de pedidos do cliente na loja publicada]
+        </p>
+      )}
+    </div>
+  );
+}
+
+function OrderDetailBlock({ context, isEditing }: any) {
+  // This block only renders a placeholder in the Builder.
+  // In production, the actual StorefrontOrderDetail page is used directly.
+  return (
+    <div className="container mx-auto max-w-3xl py-8 px-4">
+      <h1 className="text-2xl font-bold">Pedido #1001</h1>
+      <p className="text-muted-foreground mb-6">15 de Dezembro de 2024</p>
+      <div className="p-4 bg-card border rounded-lg">
+        <p className="font-semibold mb-4">Acompanhamento</p>
+        <div className="space-y-3">
+          {['Pedido confirmado', 'Em separação'].map((step, i) => (
+            <div key={step} className="flex items-center gap-3">
+              <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-xs">✓</div>
+              <span>{step}</span>
             </div>
           ))}
         </div>
       </div>
-    );
-  }
-
-  // Use statically imported component instead of require()
-  return <StorefrontOrdersListPage />;
-}
-
-function OrderDetailBlock({ context, isEditing }: any) {
-  if (isEditing) {
-    return (
-      <div className="container mx-auto max-w-3xl py-8 px-4">
-        <h1 className="text-2xl font-bold">Pedido #1001</h1>
-        <p className="text-muted-foreground mb-6">15 de Dezembro de 2024</p>
-        <div className="p-4 bg-card border rounded-lg">
-          <p className="font-semibold mb-4">Acompanhamento</p>
-          <div className="space-y-3">
-            {['Pedido confirmado', 'Em separação'].map((step, i) => (
-              <div key={step} className="flex items-center gap-3">
-                <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-xs">✓</div>
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Use statically imported component instead of require()
-  return <StorefrontOrderDetailPage />;
+      {isEditing && (
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          [Este bloco mostra os detalhes do pedido na loja publicada]
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ========== BLOCK WRAPPERS ==========
