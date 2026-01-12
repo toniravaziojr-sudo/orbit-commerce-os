@@ -126,14 +126,54 @@ export function FeaturedCategoriesBlock({
   }
 
   if (categories.length === 0) {
+    // Demo placeholder categories when none exist
+    const placeholderCategories = [
+      { id: 'demo-1', name: 'Categoria 1', slug: '#', image_url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200&h=200&fit=crop&q=80' },
+      { id: 'demo-2', name: 'Categoria 2', slug: '#', image_url: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=200&h=200&fit=crop&q=80' },
+      { id: 'demo-3', name: 'Categoria 3', slug: '#', image_url: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=200&h=200&fit=crop&q=80' },
+      { id: 'demo-4', name: 'Categoria 4', slug: '#', image_url: 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=200&h=200&fit=crop&q=80' },
+      { id: 'demo-5', name: 'Categoria 5', slug: '#', image_url: 'https://images.unsplash.com/photo-1585386959984-a4155224a1ad?w=200&h=200&fit=crop&q=80' },
+      { id: 'demo-6', name: 'Categoria 6', slug: '#', image_url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200&h=200&fit=crop&q=80' },
+    ];
+
     return (
       <section className="py-8">
         <div className="max-w-7xl mx-auto px-4">
           {title && (
             <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>
           )}
-          <div className="text-center py-8 text-muted-foreground">
-            <p>Selecione categorias nas propriedades do bloco</p>
+          {/* Show placeholder grid with overlay */}
+          <div className="relative">
+            <div className={cn(
+              'grid gap-6 justify-items-center opacity-50',
+              isMobile 
+                ? 'grid-cols-3' 
+                : 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6'
+            )}>
+              {placeholderCategories.map((cat) => (
+                <div key={cat.id} className="flex flex-col items-center">
+                  <div className="w-20 h-20 md:w-24 md:h-24 rounded-full bg-muted/30 overflow-hidden mb-2 ring-2 ring-transparent">
+                    <img
+                      src={cat.image_url}
+                      alt={cat.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-sm font-medium text-center mt-1">{cat.name}</span>
+                </div>
+              ))}
+            </div>
+            {/* Overlay with CTA */}
+            <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-lg">
+              <div className="text-center p-6 rounded-lg bg-card shadow-lg border">
+                <p className="text-muted-foreground mb-3">Suas categorias aparecerão aqui</p>
+                {isEditing && (
+                  <p className="text-xs text-muted-foreground">
+                    Crie categorias no menu Produtos → Categorias
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </section>

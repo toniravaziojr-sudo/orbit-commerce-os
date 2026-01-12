@@ -196,12 +196,53 @@ export function ProductGridBlock({
   }
 
   if (!products?.length) {
+    // Demo placeholder products when none exist
+    const placeholderProducts = [
+      { id: 'demo-1', name: 'Produto de Exemplo', price: 99.90, image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop&q=80' },
+      { id: 'demo-2', name: 'Produto Premium', price: 149.90, image: 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&h=400&fit=crop&q=80' },
+      { id: 'demo-3', name: 'Lançamento', price: 199.90, image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=400&h=400&fit=crop&q=80' },
+      { id: 'demo-4', name: 'Mais Vendido', price: 89.90, image: 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=400&h=400&fit=crop&q=80' },
+    ];
+    
     return (
-      <div className="p-8 text-center text-muted-foreground">
-        <p className="text-sm">Nenhum produto encontrado</p>
-        {isEditing && (
-          <p className="text-xs mt-1">Adicione produtos na seção de Produtos do admin</p>
-        )}
+      <div className="relative p-4">
+        {/* Placeholder grid with opacity */}
+        <div className={cn('grid gap-4 opacity-50', gridCols)}>
+          {placeholderProducts.slice(0, limit > 4 ? 4 : limit).map((product) => (
+            <div key={product.id} className="bg-card rounded-lg overflow-hidden border">
+              <div className="aspect-square overflow-hidden bg-muted">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="p-3">
+                <h3 className="font-medium text-sm line-clamp-2 text-foreground">{product.name}</h3>
+                {showPrice && (
+                  <span className="text-sm font-semibold text-primary mt-1 block">
+                    {formatPrice(product.price)}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Overlay with CTA */}
+        <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-lg">
+          <div className="text-center p-6 rounded-lg bg-card shadow-lg border">
+            <p className="text-muted-foreground mb-3">
+              {source === 'featured' ? 'Seus produtos em destaque aparecerão aqui' : 'Seus produtos aparecerão aqui'}
+            </p>
+            {isEditing && (
+              <p className="text-xs text-muted-foreground">
+                {source === 'featured' 
+                  ? 'Marque produtos como "Em destaque" no cadastro de produtos'
+                  : 'Adicione produtos no menu Produtos → Lista de Produtos'}
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
