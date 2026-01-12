@@ -616,12 +616,15 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
                       onImagesChange={loadProductImages}
                     />
                   ) : (
-                    <ProductImageManager
-                      productId=""
-                      images={[]}
-                      onImagesChange={() => {}}
-                      disabled
-                    />
+                    <div className="text-center py-12 border-2 border-dashed rounded-lg space-y-4">
+                      <ImageIcon className="h-16 w-16 mx-auto text-muted-foreground/40" />
+                      <div>
+                        <p className="text-lg font-medium">Salve o produto primeiro</p>
+                        <p className="text-muted-foreground text-sm mt-1">
+                          Para adicionar imagens, primeiro salve o produto clicando em "Criar Produto"
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -841,28 +844,74 @@ export function ProductForm({ product, onCancel, onSuccess }: ProductFormProps) 
             </TabsContent>
 
             <TabsContent value="structure" className="space-y-4 mt-4">
-              {isEditing && product && form.watch('product_format') === 'with_composition' ? (
-                <ProductStructureEditor
-                  productId={product.id}
-                  stockType={form.watch('stock_type')}
-                  onStockTypeChange={(type) => form.setValue('stock_type', type)}
-                />
+              {form.watch('product_format') === 'with_composition' ? (
+                isEditing && product ? (
+                  <ProductStructureEditor
+                    productId={product.id}
+                    stockType={form.watch('stock_type')}
+                    onStockTypeChange={(type) => form.setValue('stock_type', type)}
+                  />
+                ) : (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Package className="h-5 w-5" />
+                        Estrutura do Kit
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                        <Package className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                        <p className="text-lg font-medium">Salve o produto primeiro</p>
+                        <p className="text-muted-foreground text-sm mt-1">
+                          Para configurar os componentes do kit, primeiro salve o produto
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
               ) : (
-              <Card>
+                <Card>
                   <CardHeader>
-                    <CardTitle>Estrutura do Produto</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      Estrutura do Produto
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground text-sm">
-                      Selecione o formato "Com composição (Kit)" na aba Básico para habilitar a configuração de componentes
-                    </p>
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <Package className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                      <p className="text-muted-foreground">
+                        Selecione o formato "<strong>Com composição (Kit)</strong>" na aba Básico para habilitar a configuração de componentes
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               )}
             </TabsContent>
 
             <TabsContent value="related" className="space-y-4 mt-4">
-              <RelatedProductsSelect productId={product?.id ?? ''} disabled={!isEditing} />
+              {isEditing && product ? (
+                <RelatedProductsSelect productId={product.id} />
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Link2 className="h-5 w-5" />
+                      Produtos Relacionados
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <Link2 className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
+                      <p className="text-lg font-medium">Salve o produto primeiro</p>
+                      <p className="text-muted-foreground text-sm mt-1">
+                        Para adicionar produtos relacionados, primeiro salve o produto
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="seo" className="space-y-4 mt-4">
