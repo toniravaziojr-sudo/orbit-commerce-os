@@ -38,8 +38,16 @@ export default function StorefrontBuilder() {
   
   // If no edit parameter, redirect to storefront settings page
   if (!editingPageType) {
-    navigate('/storefront', { replace: true });
-    return null;
+    // Use useEffect to avoid navigation during render
+    setTimeout(() => navigate('/storefront', { replace: true }), 0);
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto mb-4" />
+          <p className="text-muted-foreground">Redirecionando...</p>
+        </div>
+      </div>
+    );
   }
   
   // Check if editing a system page (tracking or blog)
