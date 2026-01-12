@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, Trash2, Search, UserCheck, Truck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Search, UserCheck, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import { useProductsWithImages } from '@/hooks/useProducts';
 import { useProducts } from '@/hooks/useProducts';
 import { useCustomers, useCustomerAddresses } from '@/hooks/useCustomers';
 import { useCepLookup } from '@/hooks/useCepLookup';
+import { OrderShippingMethod } from '@/components/orders/OrderShippingMethod';
 import { toast } from 'sonner';
 
 interface OrderItemForm {
@@ -535,59 +536,31 @@ export default function OrderNew() {
         </Card>
 
         {/* Shipping Method */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Truck className="h-5 w-5" />
-              Método de Envio
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="shipping_method">Tipo de Envio</Label>
-              <Select
-                value={formData.shipping_method}
-                onValueChange={(value) => setFormData({ ...formData, shipping_method: value as typeof formData.shipping_method })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o método" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="correios">Correios</SelectItem>
-                  <SelectItem value="transportadora">Transportadora</SelectItem>
-                  <SelectItem value="motoboy">Motoboy</SelectItem>
-                  <SelectItem value="proprio">Entrega Própria</SelectItem>
-                  <SelectItem value="retirada">Retirada na Loja</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.shipping_method && formData.shipping_method !== 'retirada' && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping_carrier">Transportadora / Descrição</Label>
-                  <Input
-                    id="shipping_carrier"
-                    value={formData.shipping_carrier}
-                    onChange={(e) => setFormData({ ...formData, shipping_carrier: e.target.value })}
-                    placeholder="Ex: SEDEX, PAC, Jadlog..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping_cost">Custo do Frete (R$)</Label>
-                  <Input
-                    id="shipping_cost"
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={formData.shipping_cost}
-                    onChange={(e) => setFormData({ ...formData, shipping_cost: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        <OrderShippingMethod
+          address={{
+            postal_code: formData.shipping_postal_code,
+            street: formData.shipping_street,
+            number: formData.shipping_number,
+            city: formData.shipping_city,
+            state: formData.shipping_state,
+          }}
+          items={items.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+          }))}
+          value={{
+            shipping_method: formData.shipping_method,
+            shipping_carrier: formData.shipping_carrier,
+            shipping_cost: formData.shipping_cost,
+          }}
+          onChange={(data) => setFormData(prev => ({
+            ...prev,
+            shipping_method: data.shipping_method as typeof prev.shipping_method,
+            shipping_carrier: data.shipping_carrier,
+            shipping_cost: data.shipping_cost,
+          }))}
+        />
 
         {/* Products */}
         <Card className="lg:col-span-3">
