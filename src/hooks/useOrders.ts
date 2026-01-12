@@ -601,6 +601,97 @@ export function useOrderDetails(orderId: string | undefined) {
     },
   });
 
+  const updatePaymentStatus = useMutation({
+    mutationFn: async ({ orderId, paymentStatus }: { orderId: string; paymentStatus: PaymentStatus }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const updateData: Record<string, unknown> = { 
+        payment_status: paymentStatus,
+      };
+      
+      // If approved, set paid_at
+      if (paymentStatus === 'approved') {
+        updateData.paid_at = new Date().toISOString();
+      }
+      
+      const { error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Add history
+      const statusLabels: Record<string, string> = {
+        pending: 'Pendente',
+        processing: 'Processando',
+        approved: 'Aprovado',
+        declined: 'Recusado',
+        refunded: 'Reembolsado',
+        cancelled: 'Cancelado',
+      };
+      
+      await supabase.from('order_history').insert({
+        order_id: orderId,
+        author_id: user?.id,
+        action: 'payment_status_updated',
+        description: `Status de pagamento alterado para: ${statusLabels[paymentStatus] || paymentStatus}`,
+        new_value: { payment_status: paymentStatus },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      toast.success('Status de pagamento atualizado!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar status de pagamento:', error);
+      toast.error('Erro ao atualizar status de pagamento');
+    },
+  });
+
+  const updateShippingAddress = useMutation({
+    mutationFn: async ({ orderId, address }: { 
+      orderId: string; 
+      address: {
+        shipping_street: string;
+        shipping_number: string;
+        shipping_complement?: string;
+        shipping_neighborhood: string;
+        shipping_city: string;
+        shipping_state: string;
+        shipping_postal_code: string;
+      }
+    }) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const { error } = await supabase
+        .from('orders')
+        .update(address)
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      // Add history
+      await supabase.from('order_history').insert({
+        order_id: orderId,
+        author_id: user?.id,
+        action: 'address_updated',
+        description: `Endereço de entrega atualizado: ${address.shipping_street}, ${address.shipping_number} - ${address.shipping_city}/${address.shipping_state}`,
+        new_value: address,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['order-history', orderId] });
+      toast.success('Endereço atualizado!');
+    },
+    onError: (error: Error) => {
+      console.error('Erro ao atualizar endereço:', error);
+      toast.error('Erro ao atualizar endereço');
+    },
+  });
+
   return {
     order: orderQuery.data,
     items: itemsQuery.data ?? [],
@@ -608,6 +699,8 @@ export function useOrderDetails(orderId: string | undefined) {
     isLoading: orderQuery.isLoading || itemsQuery.isLoading,
     addNote,
     updateTrackingCode,
+    updatePaymentStatus,
+    updateShippingAddress,
   };
 }
 
