@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-12.0200'; // Fix price/stock/sku parsing from normalized data
+const DEPLOY_VERSION = '2026-01-12.0900'; // Fix tracking + batch performance for customers/orders
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -203,8 +203,6 @@ async function trackImportedItem(
     // If no external_id provided, use internal_id (UUID) as fallback
     const effectiveExternalId = (externalId && externalId.trim()) ? externalId.trim() : `internal:${internalId}`;
     
-    console.log(`[import-batch] Tracking: module=${module}, internal_id=${internalId}, external_id=${effectiveExternalId}`);
-    
     const { error } = await supabase.from('import_items').upsert({
       tenant_id: tenantId,
       job_id: jobId,
@@ -222,6 +220,41 @@ async function trackImportedItem(
     }
   } catch (error: any) {
     console.error(`[import-batch] Exception tracking item:`, error?.message || error);
+  }
+}
+
+// Helper: BATCH track imported items (much faster than individual calls)
+async function trackImportedItemsBatch(
+  supabase: any,
+  tenantId: string,
+  jobId: string,
+  module: string,
+  items: { internalId: string; externalId?: string }[]
+) {
+  if (items.length === 0) return;
+  
+  try {
+    const upsertData = items.map(item => ({
+      tenant_id: tenantId,
+      job_id: jobId,
+      module,
+      internal_id: item.internalId,
+      external_id: (item.externalId && item.externalId.trim()) 
+        ? item.externalId.trim() 
+        : `internal:${item.internalId}`,
+      status: 'success',
+    }));
+    
+    const { error } = await supabase.from('import_items').upsert(upsertData, {
+      onConflict: 'tenant_id,module,external_id',
+      ignoreDuplicates: false,
+    });
+    
+    if (error) {
+      console.error(`[import-batch] Batch track error:`, error.message);
+    }
+  } catch (error: any) {
+    console.error(`[import-batch] Batch track exception:`, error?.message || error);
   }
 }
 
@@ -540,7 +573,7 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
   const existingMap = new Map((existingCustomers || []).map((c: any) => [c.email, c.id]));
 
   const toInsert: any[] = [];
-  const toUpdate: { id: string; data: any; externalId?: string }[] = [];
+  const toUpdate: { id: string; email: string; data: any; externalId?: string }[] = [];
 
   for (const customer of customers) {
     const email = (customer.email || '').toString().trim().toLowerCase();
@@ -561,12 +594,16 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
       total_spent: customer.total_spent || null,
     };
 
+    // Generate external_id for tracking
+    const externalId = customer.external_id || `shopify:customer:${email}`;
+
     const existingId = existingMap.get(email) as string | undefined;
     if (existingId) {
       toUpdate.push({ 
         id: existingId as string, 
+        email,
         data: { ...customerData, updated_at: new Date().toISOString() },
-        externalId: customer.external_id,
+        externalId,
       });
     } else {
       toInsert.push({
@@ -574,17 +611,23 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
         email,
         ...customerData,
         _addresses: customer.addresses || [],
-        _externalId: customer.external_id,
+        _externalId: externalId,
       });
     }
   }
 
-  // Batch update existing customers
-  for (const upd of toUpdate) {
-    await supabase.from('customers').update(upd.data).eq('id', upd.id);
-    // Track updated customer
-    await trackImportedItem(supabase, tenantId, jobId, 'customers', upd.id, upd.externalId);
-    results.updated++;
+  // OPTIMIZATION: Batch update existing customers (collect for tracking)
+  const trackingItems: { internalId: string; externalId?: string }[] = [];
+  
+  // Use bulk update if supported, otherwise sequential (but track in batch)
+  if (toUpdate.length > 0) {
+    // Sequential updates (Supabase doesn't support bulk update by different IDs)
+    // But we batch the tracking at the end
+    for (const upd of toUpdate) {
+      await supabase.from('customers').update(upd.data).eq('id', upd.id);
+      trackingItems.push({ internalId: upd.id, externalId: upd.externalId });
+      results.updated++;
+    }
   }
 
   // Batch insert new customers
@@ -604,11 +647,14 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
       // Map emails to new IDs for address insertion and tracking
       const emailToId = new Map(inserted.map((c: any) => [c.email, c.id]));
       
-      // Track all imported customers
+      // Collect tracking data for all imported customers
       for (const cust of toInsert) {
         const customerId = emailToId.get(cust.email);
         if (customerId) {
-          await trackImportedItem(supabase, tenantId, jobId, 'customers', customerId as string, cust._externalId);
+          trackingItems.push({ 
+            internalId: customerId as string, 
+            externalId: cust._externalId 
+          });
         }
       }
 
@@ -642,6 +688,11 @@ async function importCustomersBatch(supabase: any, tenantId: string, jobId: stri
         await supabase.from('customer_addresses').insert(allAddresses);
       }
     }
+  }
+
+  // CRITICAL: Batch track ALL customers (new + updated) at once
+  if (trackingItems.length > 0) {
+    await trackImportedItemsBatch(supabase, tenantId, jobId, 'customers', trackingItems);
   }
 }
 
@@ -1134,9 +1185,28 @@ async function importOrdersBatch(supabase: any, tenantId: string, jobId: string,
       // Build order_number -> id map for items
       const orderIdMap = new Map(insertedOrders.map((o: any) => [o.order_number, o.id]));
       
-      // Track all imported orders
+      // CRITICAL: Batch track all imported orders with proper external_id
+      // Map internal order_number (#1, #2) to source_order_number for tracking
+      const trackingItems: { internalId: string; externalId?: string }[] = [];
+      
+      // Build source_order_number map from orderInserts
+      const sourceNumberMap = new Map<string, string>();
+      for (const order of orderInserts) {
+        sourceNumberMap.set(order.order_number, order.source_order_number);
+      }
+      
       for (const insertedOrder of insertedOrders) {
-        await trackImportedItem(supabase, tenantId, jobId, 'orders', insertedOrder.id);
+        const sourceOrderNumber = sourceNumberMap.get(insertedOrder.order_number) || '';
+        const externalId = `shopify:order:${sourceOrderNumber || insertedOrder.id}`;
+        trackingItems.push({ 
+          internalId: insertedOrder.id, 
+          externalId 
+        });
+      }
+      
+      // Batch track all orders at once
+      if (trackingItems.length > 0) {
+        await trackImportedItemsBatch(supabase, tenantId, jobId, 'orders', trackingItems);
       }
 
       // Collect all order items
