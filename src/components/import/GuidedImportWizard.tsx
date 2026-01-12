@@ -9,7 +9,7 @@ import { useImportData } from '@/hooks/useImportJobs';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeData } from '@/lib/import/platforms';
-import { parseCSV } from '@/lib/import/utils';
+import { parseCSV, consolidateShopifyProducts } from '@/lib/import/utils';
 import type { PlatformType } from '@/lib/import/types';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -107,23 +107,47 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       const text = await file.text();
       let data: any[];
       
+      const platform = analysisResult?.platform?.toLowerCase() || 'generic';
+      const isShopify = platform === 'shopify' || platform.includes('shopify');
+      
       if (file.name.endsWith('.json')) {
         const parsed = JSON.parse(text);
         data = Array.isArray(parsed) ? parsed : parsed.products || parsed.customers || parsed.orders || [parsed];
       } else {
-        // Use proper CSV parser that handles quoted fields with commas
-        data = parseCSV(text);
+        // Use proper CSV parser that handles BOM and quoted fields
+        const rawRows = parseCSV(text);
+        
+        // CRITICAL: Shopify CSV has multiple rows per product (variants/images)
+        // Must consolidate before normalizing
+        if (isShopify && stepId === 'products') {
+          console.log(`[handleFileImport] Shopify products detected - consolidating ${rawRows.length} rows`);
+          data = consolidateShopifyProducts(rawRows);
+        } else {
+          data = rawRows;
+        }
       }
 
       // Debug: Log first few items to verify parsing
-      console.log(`[handleFileImport] Parsed ${data.length} items from ${file.name}`);
+      console.log(`[handleFileImport] Processing ${data.length} items from ${file.name} (platform: ${platform})`);
       if (data.length > 0) {
-        console.log('[handleFileImport] First item sample:', JSON.stringify(data[0]).substring(0, 500));
+        const sample = JSON.stringify(data[0]);
+        console.log('[handleFileImport] First item sample:', sample.substring(0, 800));
+        // Verify Title is present for products
+        if (stepId === 'products') {
+          const title = data[0]['Title'] || data[0]['title'] || data[0]['name'];
+          const handle = data[0]['Handle'] || data[0]['handle'];
+          console.log(`[handleFileImport] Product check - Title: "${title}", Handle: "${handle}"`);
+        }
       }
 
-      const platform = analysisResult?.platform?.toLowerCase() || 'generic';
       const dataType = stepId === 'products' ? 'product' : stepId === 'customers' ? 'customer' : 'order';
       const normalized = normalizeData(platform as PlatformType, dataType, data);
+      
+      // Debug: Verify normalization worked
+      if (normalized.length > 0 && stepId === 'products') {
+        const firstProduct = normalized[0] as any;
+        console.log(`[handleFileImport] After normalization - name: "${firstProduct.name}", slug: "${firstProduct.slug}", price: ${firstProduct.price}`);
+      }
 
       const moduleType = stepId as 'products' | 'customers' | 'orders';
       const result = await importData(platform, moduleType, normalized);
@@ -142,6 +166,7 @@ export function GuidedImportWizard({ onComplete }: GuidedImportWizardProps) {
       
       toast.success(`${importedCount} ${stepId} importados`);
     } catch (error: any) {
+      console.error(`[handleFileImport] Error:`, error);
       setFileStepStatuses(prev => ({ ...prev, [stepId]: { status: 'error', errorMessage: error.message } }));
       toast.error(`Erro: ${error.message}`);
     }

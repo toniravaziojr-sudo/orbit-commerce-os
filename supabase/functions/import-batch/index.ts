@@ -4,7 +4,7 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const DEPLOY_VERSION = '2026-01-09.2300'; // source_order_number + internal sequential numbering
+const DEPLOY_VERSION = '2026-01-12.0100'; // Fix CSV BOM, Shopify consolidation, external_id tracking
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -289,8 +289,9 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
 
     if (error) throw error;
     
-    // Track the updated product as imported
-    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, product.external_id);
+    // Track the updated product as imported (use external_id or fallback to handle/slug)
+    const trackingId = product.external_id || `shopify:product:${effectiveSlug}`;
+    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, trackingId);
     results.updated++;
   } else {
     // Insert new product
@@ -323,8 +324,9 @@ async function importProduct(supabase: any, tenantId: string, jobId: string, pro
     if (error) throw error;
     productId = newProduct.id;
 
-    // Track the new product as imported
-    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, product.external_id);
+    // Track the new product as imported (use external_id or fallback to handle/slug)
+    const trackingId = product.external_id || `shopify:product:${effectiveSlug}`;
+    await trackImportedItem(supabase, tenantId, jobId, 'products', productId, trackingId);
 
     // Import images if available
     if (product.images?.length > 0) {

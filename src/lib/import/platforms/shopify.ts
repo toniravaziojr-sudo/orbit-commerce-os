@@ -486,11 +486,23 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
   const categories = productType ? [slugify(productType)] : [];
   
   // ===== NOME EFETIVO (nunca vazio) =====
-  const effectiveName = title.trim() || handle || 'Produto sem nome';
+  // CRITICAL: Se não houver título, é erro de parsing (não usar handle como nome)
+  const effectiveName = title.trim();
+  
+  // Debug: Log when falling back to handle (indicates parsing issue)
+  if (!effectiveName && handle) {
+    console.warn(`[normalizeShopifyProduct] WARNING: Product with handle "${handle}" has no Title - parsing may have failed`);
+  }
+  
+  // Generate external_id for tracking (stable key based on handle)
+  const externalId = handle ? `shopify:product:${handle}` : null;
+  
+  // If no title AND no handle, skip this product (likely image-only row that wasn't consolidated)
+  const finalName = effectiveName || handle || 'Produto sem nome';
   
   return {
-    name: effectiveName,
-    slug: handle || slugify(effectiveName),
+    name: finalName,
+    slug: handle || slugify(finalName),
     description,
     short_description: null,
     price,
@@ -510,6 +522,7 @@ export function normalizeShopifyProduct(raw: ShopifyProduct): NormalizedProduct 
     images,
     variants,
     categories,
+    external_id: externalId,
   };
 }
 
