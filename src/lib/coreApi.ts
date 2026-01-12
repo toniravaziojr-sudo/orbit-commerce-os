@@ -14,8 +14,116 @@ export interface CoreApiResponse<T = unknown> {
   code?: string;
 }
 
+// ===== ORDER ITEM TYPE =====
+export interface CreateOrderItem {
+  product_id: string;
+  sku: string;
+  product_name: string;
+  product_image_url?: string | null;
+  quantity: number;
+  unit_price: number;
+  discount_amount?: number;
+}
+
+// ===== CREATE ORDER DATA TYPE =====
+export interface CreateOrderData {
+  customer_id?: string | null;
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string | null;
+  customer_cpf?: string | null;
+  payment_method?: string | null;
+  shipping_street?: string | null;
+  shipping_number?: string | null;
+  shipping_complement?: string | null;
+  shipping_neighborhood?: string | null;
+  shipping_city?: string | null;
+  shipping_state?: string | null;
+  shipping_postal_code?: string | null;
+  customer_notes?: string | null;
+  internal_notes?: string | null;
+  items: CreateOrderItem[];
+}
+
+// ===== SHIPPING ADDRESS TYPE =====
+export interface ShippingAddressData {
+  shipping_street: string;
+  shipping_number: string;
+  shipping_complement?: string;
+  shipping_neighborhood?: string;
+  shipping_city: string;
+  shipping_state: string;
+  shipping_postal_code: string;
+}
+
 // ===== ORDERS API =====
 export const coreOrdersApi = {
+  createOrder: async (orderData: CreateOrderData): Promise<CoreApiResponse<{ order_id: string; order_number: string; order: any }>> => {
+    const { data, error } = await supabase.functions.invoke('core-orders', {
+      body: {
+        action: 'create_order',
+        ...orderData,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
+  deleteOrder: async (orderId: string): Promise<CoreApiResponse> => {
+    const { data, error } = await supabase.functions.invoke('core-orders', {
+      body: {
+        action: 'delete_order',
+        order_id: orderId,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
+  addNote: async (orderId: string, note: string): Promise<CoreApiResponse> => {
+    const { data, error } = await supabase.functions.invoke('core-orders', {
+      body: {
+        action: 'add_note',
+        order_id: orderId,
+        note,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
+  updateTracking: async (
+    orderId: string,
+    trackingCode: string,
+    carrier?: string
+  ): Promise<CoreApiResponse> => {
+    const { data, error } = await supabase.functions.invoke('core-orders', {
+      body: {
+        action: 'update_tracking',
+        order_id: orderId,
+        tracking_code: trackingCode,
+        carrier,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
+  updateShippingAddress: async (
+    orderId: string,
+    address: ShippingAddressData
+  ): Promise<CoreApiResponse> => {
+    const { data, error } = await supabase.functions.invoke('core-orders', {
+      body: {
+        action: 'update_shipping_address',
+        order_id: orderId,
+        ...address,
+      },
+    });
+    if (error) return { success: false, error: error.message, code: 'INVOKE_ERROR' };
+    return data;
+  },
+
   setOrderStatus: async (
     orderId: string,
     newStatus: OrderStatus,
@@ -123,7 +231,7 @@ export const coreCustomersApi = {
     return data;
   },
 
-  create: async (customerData: Record<string, unknown>): Promise<CoreApiResponse> => {
+  create: async (customerData: Record<string, unknown>): Promise<CoreApiResponse<{ customer_id: string; customer: any }>> => {
     const { data, error } = await supabase.functions.invoke('core-customers', {
       body: {
         action: 'create',

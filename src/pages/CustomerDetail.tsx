@@ -60,6 +60,7 @@ import { CustomerAddressForm } from '@/components/customers/CustomerAddressForm'
 import { toast } from 'sonner';
 import { NotificationLogsPanel } from '@/components/notifications/NotificationLogsPanel';
 import { CustomerTagsManager } from '@/components/customers/CustomerTagsManager';
+import { coreCustomersApi } from '@/lib/coreApi';
 
 const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' }> = {
   active: { label: 'Ativo', variant: 'default' },
@@ -201,62 +202,61 @@ export default function CustomerDetail() {
     setIsSaving(true);
     try {
       if (isNewCustomer) {
-        // Create new customer
-        const { data: newCustomer, error } = await supabase
-          .from('customers')
-          .insert({
-            tenant_id: currentTenant.id,
-            full_name: editData.full_name,
-            email: editData.email?.toLowerCase().trim(),
-            phone: editData.phone,
-            cpf: editData.cpf,
-            birth_date: editData.birth_date,
-            gender: editData.gender,
-            status: editData.status ?? 'active',
-            person_type: editData.person_type ?? 'pf',
-            cnpj: editData.cnpj,
-            company_name: editData.company_name,
-            ie: editData.ie,
-            state_registration_is_exempt: editData.state_registration_is_exempt,
-            accepts_marketing: editData.accepts_marketing,
-            accepts_email_marketing: editData.accepts_email_marketing ?? true,
-            accepts_sms_marketing: editData.accepts_sms_marketing ?? false,
-            accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing ?? false,
-            notes: editData.notes,
-          })
-          .select()
-          .single();
+        // Create new customer via Core API
+        const result = await coreCustomersApi.create({
+          full_name: editData.full_name,
+          email: editData.email?.toLowerCase().trim(),
+          phone: editData.phone,
+          cpf: editData.cpf,
+          birth_date: editData.birth_date,
+          gender: editData.gender,
+          status: editData.status ?? 'active',
+          person_type: editData.person_type ?? 'pf',
+          cnpj: editData.cnpj,
+          company_name: editData.company_name,
+          ie: editData.ie,
+          state_registration_is_exempt: editData.state_registration_is_exempt,
+          accepts_marketing: editData.accepts_marketing,
+          accepts_email_marketing: editData.accepts_email_marketing ?? true,
+          accepts_sms_marketing: editData.accepts_sms_marketing ?? false,
+          accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing ?? false,
+          notes: editData.notes,
+        });
 
-        if (error) throw error;
+        if (!result.success) {
+          if (result.code === 'DUPLICATE_EMAIL') {
+            throw { code: '23505' };
+          }
+          throw new Error(result.error || 'Erro ao criar cliente');
+        }
 
         toast.success('Cliente criado com sucesso!');
-        navigate(`/customers/${newCustomer.id}`);
+        navigate(`/customers/${result.data?.customer_id}`);
       } else {
-        // Update existing customer
-        const { error } = await supabase
-          .from('customers')
-          .update({
-            full_name: editData.full_name,
-            email: editData.email,
-            phone: editData.phone,
-            cpf: editData.cpf,
-            birth_date: editData.birth_date,
-            gender: editData.gender,
-            status: editData.status,
-            person_type: editData.person_type,
-            cnpj: editData.cnpj,
-            company_name: editData.company_name,
-            ie: editData.ie,
-            state_registration_is_exempt: editData.state_registration_is_exempt,
-            accepts_marketing: editData.accepts_marketing,
-            accepts_email_marketing: editData.accepts_email_marketing,
-            accepts_sms_marketing: editData.accepts_sms_marketing,
-            accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing,
-            notes: editData.notes,
-          })
-          .eq('id', id);
+        // Update existing customer via Core API
+        const result = await coreCustomersApi.update(id!, {
+          full_name: editData.full_name,
+          email: editData.email,
+          phone: editData.phone,
+          cpf: editData.cpf,
+          birth_date: editData.birth_date,
+          gender: editData.gender,
+          status: editData.status,
+          person_type: editData.person_type,
+          cnpj: editData.cnpj,
+          company_name: editData.company_name,
+          ie: editData.ie,
+          state_registration_is_exempt: editData.state_registration_is_exempt,
+          accepts_marketing: editData.accepts_marketing,
+          accepts_email_marketing: editData.accepts_email_marketing,
+          accepts_sms_marketing: editData.accepts_sms_marketing,
+          accepts_whatsapp_marketing: editData.accepts_whatsapp_marketing,
+          notes: editData.notes,
+        });
 
-        if (error) throw error;
+        if (!result.success) {
+          throw new Error(result.error || 'Erro ao atualizar cliente');
+        }
 
         // Refresh customer data
         const { data: updated } = await supabase
