@@ -323,23 +323,34 @@ export default function OrderDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div>
-                <p className="font-medium">{order.customer_name}</p>
-                <p className="text-sm text-muted-foreground">{order.customer_email}</p>
-                {order.customer_phone && (
-                  <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
-                )}
-              </div>
-              {order.customer_id && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full gap-2"
+              {order.customer_id ? (
+                <button 
                   onClick={() => navigate(`/customers/${order.customer_id}`)}
+                  className="text-left w-full hover:bg-muted/50 -mx-2 px-2 py-1 rounded transition-colors group"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  Ver cadastro do cliente
-                </Button>
+                  <p className="font-medium group-hover:text-primary transition-colors">
+                    {order.customer_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{order.customer_email}</p>
+                  {order.customer_phone && (
+                    <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                  )}
+                  <span className="text-xs text-primary flex items-center gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ExternalLink className="h-3 w-3" />
+                    Ver cadastro completo
+                  </span>
+                </button>
+              ) : (
+                <div>
+                  <p className="font-medium">{order.customer_name}</p>
+                  <p className="text-sm text-muted-foreground">{order.customer_email}</p>
+                  {order.customer_phone && (
+                    <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground italic mt-2">
+                    Cliente não cadastrado
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>
