@@ -390,10 +390,10 @@ export function StorefrontFooterContent({
         - Desktop (md+): full container
       */}
       <div className="w-full py-10 md:py-12">
-        {/* Mobile: single column, stacked layout with centered content - WIDE + centered */}
-        <div className="flex flex-col gap-6 md:hidden px-5 sm:px-6">
-          {/* Inner container for mobile - centered with larger max-width for better horizontal fill */}
-          <div className="w-full max-w-md mx-auto space-y-6">
+        {/* Mobile: single column, stacked layout with full width and proper padding */}
+        <div className="flex flex-col gap-8 md:hidden px-6">
+          {/* Inner container for mobile - full width for better horizontal fill */}
+          <div className="w-full space-y-8">
             
             {/* MOBILE BLOCO 1: Informações do Negócio */}
             <div className="flex flex-col items-center text-center">
@@ -451,16 +451,16 @@ export function StorefrontFooterContent({
               </div>
             </div>
 
-            {/* MOBILE BLOCO 2: Atendimento (SAC) - LEFT ALIGNED text but centered block */}
+            {/* MOBILE BLOCO 2: Atendimento (SAC) - Full width, left aligned for readability */}
             {showSac && hasContact && (
-              <div className="flex flex-col w-full">
+              <div className="flex flex-col w-full bg-muted/20 rounded-lg p-4">
                 <h4 
-                  className="font-semibold mb-3 text-center"
+                  className="font-semibold mb-4 text-base"
                   style={footerTextColor ? { color: footerTextColor } : {}}
                 >
                   {sacTitle}
                 </h4>
-                <div className="flex flex-col gap-2.5 w-full">
+                <div className="flex flex-col gap-3 w-full">
                   {whatsAppHref && (
                     <a
                       href={whatsAppHref}
@@ -520,14 +520,14 @@ export function StorefrontFooterContent({
 
             {/* MOBILE BLOCO 3: Redes Sociais */}
             {showSocial && hasSocialMedia && (
-              <div className="flex flex-col items-center text-center">
+              <div className="flex flex-col items-center">
                 <h4 
-                  className="font-semibold mb-3"
+                  className="font-semibold mb-4 text-base"
                   style={footerTextColor ? { color: footerTextColor } : {}}
                 >
                   Redes Sociais
                 </h4>
-                <div className="flex gap-5 justify-center flex-wrap">
+                <div className="flex gap-6 justify-center flex-wrap">
                   {socialFacebook && (
                     <a
                       href={socialFacebook}
