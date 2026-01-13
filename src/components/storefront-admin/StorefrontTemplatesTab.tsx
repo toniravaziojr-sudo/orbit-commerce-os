@@ -160,6 +160,19 @@ export function StorefrontTemplatesTab() {
         </a>
       </div>
 
+      {/* Botão Personalizar Loja - Acima do tema ativo */}
+      {publishedTemplate && (
+        <div className="flex justify-end">
+          <Button 
+            onClick={() => navigate('/storefront/builder?edit=home')}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Personalizar loja
+          </Button>
+        </div>
+      )}
+
       {/* Seção A: Tema Ativo */}
       <section className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 items-start">
         {/* Coluna esquerda - Info */}
