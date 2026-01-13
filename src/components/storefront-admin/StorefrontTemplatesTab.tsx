@@ -181,21 +181,11 @@ export function StorefrontTemplatesTab() {
         <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
           {publishedTemplate ? (
             <>
-              {/* Header do card */}
+              {/* Header do card - nome + badge */}
               <div className="flex items-center justify-between p-5 border-b bg-muted/30">
-                <h4 className="text-lg font-semibold">{publishedTemplate.name}</h4>
-                <div className="flex items-center gap-2">
-                  <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                    <Button variant="outline" size="sm">
-                      Ver loja modelo
-                    </Button>
-                  </a>
-                  <Button 
-                    size="sm"
-                    onClick={() => handleEditTemplate(publishedTemplate.id)}
-                  >
-                    Personalizar
-                  </Button>
+                <div className="flex items-center gap-3">
+                  <h4 className="text-lg font-semibold">{publishedTemplate.name}</h4>
+                  <Badge className="bg-emerald-500 text-white">Ativo</Badge>
                 </div>
               </div>
 
@@ -206,20 +196,17 @@ export function StorefrontTemplatesTab() {
                   alt={`Preview do ${publishedTemplate.name}`}
                   className="w-full h-full object-cover"
                 />
-                {/* Overlay com info */}
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
-                  <Badge className="bg-emerald-500 text-white shadow-lg">
-                    Ativo
-                  </Badge>
-                  {publishedTemplate.last_edited_at && (
+                {/* Overlay com info de edição */}
+                {publishedTemplate.last_edited_at && (
+                  <div className="absolute bottom-4 right-4">
                     <span className="text-xs text-white/90 bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
                       Editado {formatDistanceToNow(new Date(publishedTemplate.last_edited_at), {
                         addSuffix: true,
                         locale: ptBR,
                       })}
                     </span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Preview devices (simulação visual igual Yampi) */}
@@ -241,11 +228,11 @@ export function StorefrontTemplatesTab() {
               </div>
             </>
           ) : (
-            <div className="p-12 text-center">
-              <LayoutTemplate className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h4 className="font-medium text-lg mb-2">Nenhum tema ativo</h4>
-              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-                Escolha um tema abaixo para ativar na sua loja virtual.
+            <div className="p-12 text-center border-2 border-dashed border-primary/30 rounded-lg bg-primary/5">
+              <LayoutTemplate className="h-16 w-16 text-primary/50 mx-auto mb-4" />
+              <h4 className="font-medium text-lg mb-2">Selecione abaixo o template para a sua loja virtual</h4>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Escolha um dos temas disponíveis para começar a personalizar sua loja.
               </p>
             </div>
           )}
