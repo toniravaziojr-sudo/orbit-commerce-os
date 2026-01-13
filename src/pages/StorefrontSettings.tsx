@@ -1,20 +1,13 @@
-import { Link } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { PageHeader } from '@/components/ui/page-header';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, LayoutTemplate, Settings, Palette } from 'lucide-react';
-import { getPublicHomeUrl } from '@/lib/publicUrls';
+import { LayoutTemplate, Settings } from 'lucide-react';
 import { StorefrontTemplatesTab } from '@/components/storefront-admin/StorefrontTemplatesTab';
 import { StorefrontConfigTab } from '@/components/storefront-admin/StorefrontConfigTab';
 
 export default function StorefrontSettings() {
-  const { currentTenant } = useAuth();
-  const { settings, isLoading } = useStoreSettings();
-
-  const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
+  const { isLoading } = useStoreSettings();
 
   if (isLoading) {
     return (
@@ -31,22 +24,6 @@ export default function StorefrontSettings() {
       <PageHeader
         title="Loja Virtual"
         description="Gerencie templates e configurações da sua loja"
-        actions={
-          <div className="flex gap-2">
-            <Link to="/storefront/builder?edit=home">
-              <Button variant="outline">
-                <Palette className="mr-2 h-4 w-4" />
-                Abrir Editor
-              </Button>
-            </Link>
-            <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline">
-                <Eye className="mr-2 h-4 w-4" />
-                Preview
-              </Button>
-            </a>
-          </div>
-        }
       />
 
       <Tabs defaultValue="templates" className="w-full">
