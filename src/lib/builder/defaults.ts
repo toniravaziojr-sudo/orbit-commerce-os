@@ -50,7 +50,10 @@ export const blankHomeTemplate: BlockNode = {
 };
 
 // Helper to get blank template for any page type
+// IMPORTANT: Blank templates must be truly empty - only Header and Footer, no content blocks
 export function getBlankTemplate(pageType: string): BlockNode {
+  // For blank preset, return minimal structure with ONLY header/footer
+  // No banners, no product grids, no testimonials, no demo content!
   return {
     id: 'root',
     type: 'Page',
@@ -65,7 +68,20 @@ export function getBlankTemplate(pageType: string): BlockNode {
           showCart: true,
           sticky: true,
           noticeEnabled: false,
+          noticeText: '',
+          noticeBgColor: '#1e40af',
+          noticeTextColor: '#ffffff',
         },
+      },
+      // Add a placeholder Section for the user to start adding blocks
+      {
+        id: generateBlockId('Section'),
+        type: 'Section',
+        props: {
+          paddingY: 48,
+          backgroundColor: 'transparent',
+        },
+        children: [],
       },
       {
         id: generateBlockId('Footer'),
@@ -74,6 +90,9 @@ export function getBlankTemplate(pageType: string): BlockNode {
           menuId: '',
           showSocial: true,
           copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
+          footerBgColor: '',
+          footerTextColor: '',
+          noticeEnabled: false,
         },
       },
     ],

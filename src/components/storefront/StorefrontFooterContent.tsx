@@ -384,20 +384,20 @@ export function StorefrontFooterContent({
       className="border-t bg-muted/30"
       style={footerStyle}
     >
-      <div className="container mx-auto px-4 py-8 md:py-12">
+      <div className="container mx-auto px-6 sm:px-8 py-10 md:py-12">
         {/* 
           Main Footer Grid - Responsive Layout:
-          - Mobile: 1 column, stacked vertically, full width
+          - Mobile: 1 column, stacked vertically, full width, centered
           - Desktop: 4 columns grid (Col1: Negócio, Col2: Atendimento+Redes, Col3: Menu1, Col4: Menu2)
         */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6">
           
           {/* ============================================ */}
           {/* COLUNA 1: Informações do Negócio */}
-          {/* Mobile: 100% width, stacked first */}
+          {/* Mobile: 100% width, centered content, stacked first */}
           {/* Desktop: first column, left-aligned */}
           {/* ============================================ */}
-          <div className="text-center md:text-left">
+          <div className="text-center md:text-left flex flex-col items-center md:items-start">
             {/* Logo */}
             {showLogo && (
               <div className="mb-4">
@@ -406,11 +406,11 @@ export function StorefrontFooterContent({
                     <img
                       src={logoUrl}
                       alt={storeName}
-                      className="h-10 md:h-12 max-w-[160px] md:max-w-[200px] object-contain mx-auto md:mx-0"
+                      className="h-12 md:h-12 max-w-[180px] md:max-w-[200px] object-contain"
                     />
                   ) : (
                     <span
-                      className="text-xl md:text-2xl font-bold"
+                      className="text-xl md:text-2xl font-bold block"
                       style={{ color: footerTextColor || primaryColor }}
                     >
                       {storeName}
@@ -421,7 +421,7 @@ export function StorefrontFooterContent({
             )}
             
             {/* Nome Fantasia / Descrição */}
-            <div className="space-y-2">
+            <div className="space-y-2 w-full max-w-sm">
               {!showLogo && storeName && (
                 <h4 
                   className="text-lg font-semibold"
@@ -433,7 +433,7 @@ export function StorefrontFooterContent({
               
               {storeDescription && (
                 <p 
-                  className="text-sm text-muted-foreground max-w-xs mx-auto md:mx-0"
+                  className="text-sm text-muted-foreground leading-relaxed"
                   style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                 >
                   {storeDescription}
@@ -443,7 +443,7 @@ export function StorefrontFooterContent({
               {/* CNPJ (formatted) */}
               {cnpj && (
                 <p 
-                  className="text-xs text-muted-foreground"
+                  className="text-xs text-muted-foreground pt-1"
                   style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
                 >
                   CNPJ: {formatCnpj(cnpj)}

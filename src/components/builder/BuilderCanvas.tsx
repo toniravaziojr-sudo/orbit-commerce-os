@@ -8,8 +8,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { Monitor, Smartphone, ZoomIn, ZoomOut } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
+import { hexToHsl } from '@/contexts/ThemeContext';
 
 // Zoom constants
 const ZOOM_MIN = 25;
@@ -31,6 +32,12 @@ interface BuilderCanvasProps {
   isSafeMode?: boolean;
   viewport?: ViewportSize;
   onViewportChange?: (viewport: ViewportSize) => void;
+  /** Store settings for theme colors */
+  storeSettings?: {
+    primary_color?: string | null;
+    secondary_color?: string | null;
+    accent_color?: string | null;
+  } | null;
 }
 
 type ViewportSize = 'desktop' | 'mobile';
@@ -59,11 +66,42 @@ export function BuilderCanvas({
   isSafeMode = false,
   viewport: controlledViewport,
   onViewportChange,
+  storeSettings,
 }: BuilderCanvasProps) {
   const [internalViewport, setInternalViewport] = useState<ViewportSize>('desktop');
   const [zoom, setZoom] = useState<number>(100);
   const viewport = controlledViewport ?? internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  // Generate CSS variables for theme colors
+  const themeStyles = useMemo(() => {
+    const vars: Record<string, string> = {};
+    
+    if (storeSettings?.primary_color) {
+      vars['--theme-primary'] = storeSettings.primary_color;
+      // Also set HSL version for Tailwind compatibility
+      const hsl = hexToHsl(storeSettings.primary_color);
+      if (hsl && !hsl.startsWith('#')) {
+        vars['--primary'] = hsl;
+      }
+    }
+    if (storeSettings?.secondary_color) {
+      vars['--theme-secondary'] = storeSettings.secondary_color;
+      const hsl = hexToHsl(storeSettings.secondary_color);
+      if (hsl && !hsl.startsWith('#')) {
+        vars['--secondary'] = hsl;
+      }
+    }
+    if (storeSettings?.accent_color) {
+      vars['--theme-accent'] = storeSettings.accent_color;
+      const hsl = hexToHsl(storeSettings.accent_color);
+      if (hsl && !hsl.startsWith('#')) {
+        vars['--accent'] = hsl;
+      }
+    }
+    
+    return vars as React.CSSProperties;
+  }, [storeSettings]);
 
   const handleViewportChange = (newViewport: ViewportSize) => {
     if (onViewportChange) {
@@ -233,6 +271,7 @@ export function BuilderCanvas({
               minHeight: 'calc(100vh - 220px)',
               transform: `scale(${zoom / 100})`,
               transformOrigin: 'top center',
+              ...themeStyles, // Apply theme CSS variables
             }}
           >
             <BlockRenderer
