@@ -520,7 +520,7 @@ const blockDefinitions: BlockDefinition[] = [
   },
   {
     type: 'Footer',
-    label: 'Rodapé',
+    label: 'Rodapé da Loja',
     category: 'header-footer',
     icon: 'PanelBottom',
     defaultProps: {
@@ -611,7 +611,7 @@ const blockDefinitions: BlockDefinition[] = [
   // ========== CONTENT BLOCKS ==========
   {
     type: 'Hero',
-    label: 'Hero Banner',
+    label: 'Banner de Destaque',
     category: 'content',
     icon: 'Image',
     defaultProps: {
@@ -1783,6 +1783,65 @@ const blockDefinitions: BlockDefinition[] = [
         type: 'color',
         label: 'Cor do Texto',
         placeholder: 'Padrão do tema',
+      },
+    },
+    canHaveChildren: false,
+  },
+  {
+    type: 'CategoryBanner',
+    label: 'Banner da Categoria',
+    category: 'ecommerce',
+    icon: 'Image',
+    defaultProps: {
+      fallbackImageDesktop: '',
+      fallbackImageMobile: '',
+      showTitle: true,
+      titlePosition: 'center',
+      overlayOpacity: 40,
+      height: 'md',
+    },
+    propsSchema: {
+      fallbackImageDesktop: {
+        type: 'image',
+        label: 'Imagem Fallback (Desktop)',
+        helpText: 'Usada quando a categoria não tem banner. Recomendado: 1920×400px',
+      },
+      fallbackImageMobile: {
+        type: 'image',
+        label: 'Imagem Fallback (Mobile)',
+        helpText: 'Usada quando a categoria não tem banner. Recomendado: 768×300px',
+      },
+      showTitle: {
+        type: 'boolean',
+        label: 'Mostrar Título da Categoria',
+        defaultValue: true,
+      },
+      titlePosition: {
+        type: 'select',
+        label: 'Posição do Título',
+        defaultValue: 'center',
+        options: [
+          { label: 'Esquerda', value: 'left' },
+          { label: 'Centro', value: 'center' },
+          { label: 'Direita', value: 'right' },
+        ],
+      },
+      overlayOpacity: {
+        type: 'number',
+        label: 'Opacidade do Overlay (%)',
+        defaultValue: 40,
+        min: 0,
+        max: 100,
+      },
+      height: {
+        type: 'select',
+        label: 'Altura do Banner',
+        defaultValue: 'md',
+        options: [
+          { label: 'Pequeno', value: 'sm' },
+          { label: 'Médio', value: 'md' },
+          { label: 'Grande', value: 'lg' },
+        ],
       },
     },
     canHaveChildren: false,
