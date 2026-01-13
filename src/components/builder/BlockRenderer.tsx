@@ -76,6 +76,9 @@ import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
 import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
 
+// Offer Slot Blocks
+import { CompreJuntoSlotBlock, CrossSellSlotBlock, OrderBumpSlotBlock, UpsellSlotBlock } from './blocks/slots';
+
 // Storefront components
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
 import { StorefrontHeaderContent } from '@/components/storefront/StorefrontHeaderContent';
@@ -393,6 +396,12 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     StatsNumbers: StatsNumbersBlockWrapper,
     ImageGallery: ImageGalleryBlockWrapper,
     AccordionBlock: AccordionBlockBlockWrapper,
+    
+    // Offer Slot Blocks
+    CompreJuntoSlot: (props: any) => <CompreJuntoSlotBlock {...props} isEditing={props.isEditing} />,
+    CrossSellSlot: (props: any) => <CrossSellSlotBlock {...props} isEditing={props.isEditing} />,
+    OrderBumpSlot: (props: any) => <OrderBumpSlotBlock {...props} isEditing={props.isEditing} />,
+    UpsellSlot: (props: any) => <UpsellSlotBlock {...props} isEditing={props.isEditing} />,
   };
 
   return components[type] || FallbackBlock;
