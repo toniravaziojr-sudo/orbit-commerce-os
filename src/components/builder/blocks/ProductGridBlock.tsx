@@ -130,24 +130,38 @@ export function ProductGridBlock({
     enabled: !!tenantId && (source !== 'category' || !!effectiveCategoryId),
   });
 
-  // Get product IDs for batch rating fetch
-  const productIdsForRating = useMemo(() => (products || []).map(p => p.id), [products]);
+  // Use demo products from demoData when no real products exist
+  // NOTE: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURN
+  const displayProducts = useMemo(() => {
+    if (products && products.length > 0) return products;
+    
+    // Get demo products based on source
+    let demoProds = source === 'featured' 
+      ? getDemoFeaturedProducts() 
+      : source === 'category' && context?.category?.slug
+        ? getDemoProductsByCategory(context.category.slug)
+        : demoProducts;
+    
+    // Limit demo products
+    return demoProds.slice(0, Math.min(limit, 8)).map(p => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      price: p.price,
+      compare_at_price: p.compare_at_price || null,
+      is_featured: p.is_featured || false,
+      product_images: [{ url: p.image, is_primary: true }],
+    })) as Product[];
+  }, [products, source, limit, context?.category?.slug]);
+
+  // Get product IDs for batch rating fetch - always compute even if loading
+  const productIdsForRating = useMemo(() => displayProducts.map(p => p.id), [displayProducts]);
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
 
-  const getProductImage = (product: Product) => {
-    const primary = product.product_images?.find(img => img.is_primary);
-    return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(price);
-  };
+  const isDemo = !products || products.length === 0;
 
   // Compute grid columns based on viewport context or responsive fallback
-  const getGridCols = () => {
+  const gridCols = useMemo(() => {
     // If viewport is set (in builder), use explicit values
     if (viewport) {
       if (isMobileViewport) {
@@ -178,10 +192,23 @@ export function ProductGridBlock({
       5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
       6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
     }[columns] || 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4';
+  }, [viewport, isMobileViewport, isTabletViewport, columns]);
+
+  // Helper functions (pure, no hooks)
+  const getProductImage = (product: Product) => {
+    const primary = product.product_images?.find(img => img.is_primary);
+    return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
   };
 
-  const gridCols = getGridCols();
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(price);
+  };
 
+  // === CONDITIONAL RETURNS AFTER ALL HOOKS ===
+  
   if (isLoading) {
     return (
       <div className={cn('grid gap-4 p-4', gridCols)}>
@@ -195,31 +222,6 @@ export function ProductGridBlock({
       </div>
     );
   }
-
-  // Use demo products from demoData when no real products exist
-  const displayProducts = useMemo(() => {
-    if (products && products.length > 0) return products;
-    
-    // Get demo products based on source
-    let demoProds = source === 'featured' 
-      ? getDemoFeaturedProducts() 
-      : source === 'category' && context?.category?.slug
-        ? getDemoProductsByCategory(context.category.slug)
-        : demoProducts;
-    
-    // Limit demo products
-    return demoProds.slice(0, Math.min(limit, 8)).map(p => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      compare_at_price: p.compare_at_price || null,
-      is_featured: p.is_featured || false,
-      product_images: [{ url: p.image, is_primary: true }],
-    })) as Product[];
-  }, [products, source, limit, context?.category?.slug]);
-
-  const isDemo = !products || products.length === 0;
 
   if (displayProducts.length === 0) {
     return (
