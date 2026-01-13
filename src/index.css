@@ -214,3 +214,167 @@
     background: hsl(var(--muted-foreground) / 0.5);
   }
 }
+
+/* =============================================
+   CONTAINER QUERIES - Responsive layouts for Builder & Storefront
+   Blocks respond to container width, not window width
+   This enables correct mobile preview in the Builder
+   ============================================= */
+
+/* Storefront container marker */
+.storefront-container {
+  container-type: inline-size;
+  container-name: storefront;
+}
+
+/* Container query breakpoints (matching Tailwind) */
+/* Mobile: < 640px, Desktop: >= 640px */
+
+/* Header - mobile layout when container < 640px */
+@container storefront (max-width: 639px) {
+  .sf-header-nav { display: none !important; }
+  .sf-header-search-desktop { display: none !important; }
+  .sf-header-mobile-menu { display: flex !important; }
+  .sf-header-logo { justify-content: center; }
+}
+
+@container storefront (min-width: 640px) {
+  .sf-header-nav { display: flex !important; }
+  .sf-header-search-desktop { display: flex !important; }
+  .sf-header-mobile-menu { display: none !important; }
+}
+
+/* Footer - stack on mobile */
+@container storefront (max-width: 639px) {
+  .sf-footer-grid {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 2rem !important;
+  }
+  .sf-footer-column {
+    text-align: center !important;
+  }
+  .sf-footer-socials {
+    justify-content: center !important;
+  }
+}
+
+@container storefront (min-width: 640px) {
+  .sf-footer-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 2rem !important;
+  }
+  .sf-footer-column {
+    text-align: left !important;
+  }
+}
+
+/* Cart - 2 columns on desktop, 1 on mobile */
+@container storefront (max-width: 767px) {
+  .sf-cart-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+  }
+  .sf-cart-summary {
+    order: 2 !important;
+  }
+}
+
+@container storefront (min-width: 768px) {
+  .sf-cart-layout {
+    display: grid !important;
+    grid-template-columns: 1fr 360px !important;
+    gap: 2rem !important;
+  }
+}
+
+/* Checkout - stack on mobile */
+@container storefront (max-width: 767px) {
+  .sf-checkout-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+  }
+}
+
+@container storefront (min-width: 768px) {
+  .sf-checkout-layout {
+    display: grid !important;
+    grid-template-columns: 1fr 380px !important;
+    gap: 2rem !important;
+  }
+}
+
+/* Product page - stack on mobile */
+@container storefront (max-width: 767px) {
+  .sf-product-layout {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1.5rem !important;
+  }
+  .sf-product-gallery {
+    order: 1 !important;
+  }
+  .sf-product-info {
+    order: 2 !important;
+  }
+}
+
+@container storefront (min-width: 768px) {
+  .sf-product-layout {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 2.5rem !important;
+    align-items: start !important;
+  }
+}
+
+/* Category grid - 2 cols on mobile, 3-4 on desktop */
+@container storefront (max-width: 639px) {
+  .sf-product-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+}
+
+@container storefront (min-width: 640px) and (max-width: 1023px) {
+  .sf-product-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 1.25rem !important;
+  }
+}
+
+@container storefront (min-width: 1024px) {
+  .sf-product-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 1.5rem !important;
+  }
+}
+
+/* Columns block - stack on mobile */
+@container storefront (max-width: 639px) {
+  .sf-columns-stack {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 1rem !important;
+  }
+}
+
+/* General responsive utilities */
+@container storefront (max-width: 639px) {
+  .sf-hide-mobile { display: none !important; }
+  .sf-show-mobile { display: block !important; }
+  .sf-full-width-mobile { width: 100% !important; }
+  .sf-text-center-mobile { text-align: center !important; }
+  .sf-px-mobile { padding-left: 1rem !important; padding-right: 1rem !important; }
+}
+
+@container storefront (min-width: 640px) {
+  .sf-hide-desktop { display: none !important; }
+  .sf-show-desktop { display: block !important; }
+}

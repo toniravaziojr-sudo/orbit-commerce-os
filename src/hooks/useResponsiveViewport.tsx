@@ -1,37 +1,30 @@
 // =============================================
 // RESPONSIVE VIEWPORT HOOK
-// Unified hook for responsive behavior in Builder and Storefront
+// For conditional JS logic when CSS-only isn't sufficient
 // 
-// IMPORTANT: With the new iframe-based Builder preview, Tailwind 
-// breakpoints work naturally inside the iframe. This hook is now
-// mainly used for:
-// 1. Conditional rendering in JS (when CSS-only isn't sufficient)
-// 2. Legacy support during transition
+// PREFERRED: Use CSS container queries (@container) for responsive layouts
+// This hook is for JS-only scenarios (dynamic data, etc.)
 // =============================================
 
-import { useContext, createContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { useContext, createContext, useState, useEffect, ReactNode } from 'react';
 
-export type ViewportMode = 'desktop' | 'tablet' | 'mobile';
+export type ViewportMode = 'desktop' | 'mobile';
 
-// Breakpoints (same as Tailwind defaults)
+// Breakpoints
 export const BREAKPOINTS = {
-  mobile: 640,  // sm breakpoint
-  tablet: 768,  // md breakpoint
-  desktop: 1024, // lg breakpoint
+  mobile: 640,
+  desktop: 1024,
 } as const;
 
 /**
- * Determines the viewport mode based on width
+ * Determines viewport mode based on width
  */
 export function getViewportFromWidth(width: number): ViewportMode {
-  if (width < BREAKPOINTS.mobile) return 'mobile';
-  if (width < BREAKPOINTS.tablet) return 'mobile'; // Treat tablet-ish as mobile for most purposes
-  return 'desktop';
+  return width < BREAKPOINTS.mobile ? 'mobile' : 'desktop';
 }
 
 /**
- * Hook that uses actual window size to determine viewport
- * This works correctly inside iframes since they have their own window
+ * Hook that uses actual window size
  */
 export function useActualViewport(): ViewportMode {
   const [viewport, setViewport] = useState<ViewportMode>(() => {
@@ -46,9 +39,7 @@ export function useActualViewport(): ViewportMode {
       setViewport(getViewportFromWidth(window.innerWidth));
     };
 
-    // Initial check
     handleResize();
-
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -57,100 +48,24 @@ export function useActualViewport(): ViewportMode {
 }
 
 /**
- * Hook to check if current viewport matches a mode
- * 
- * RECOMMENDED APPROACH:
- * - In the new iframe-based Builder, let Tailwind handle breakpoints via CSS
- * - Use this hook only when you need conditional JS logic
- * 
- * @param viewportOverride - Optional override from Builder context (legacy)
+ * Hook to check viewport mode
  */
 export function useResponsiveCheck(viewportOverride?: ViewportMode) {
   const actualViewport = useActualViewport();
-  
-  // Use override if provided (legacy Builder support), otherwise use actual
   const viewport = viewportOverride || actualViewport;
   
   return {
     isMobile: viewport === 'mobile',
     isDesktop: viewport === 'desktop',
-    isTablet: viewport === 'tablet',
     viewport,
   };
 }
 
 /**
- * Gets responsive grid columns based on viewport
- * 
- * NOTE: With iframe-based Builder, prefer using Tailwind responsive classes
- * directly (e.g., `grid-cols-2 md:grid-cols-4`) instead of this function
- */
-export function getResponsiveColumns(
-  viewport: ViewportMode | undefined,
-  options: {
-    mobile?: number;
-    tablet?: number;
-    desktop: number;
-  }
-): number {
-  const { mobile = 2, tablet, desktop } = options;
-  
-  if (!viewport) return desktop;
-  
-  switch (viewport) {
-    case 'mobile':
-      return mobile;
-    case 'tablet':
-      return tablet ?? mobile;
-    case 'desktop':
-    default:
-      return desktop;
-  }
-}
-
-/**
- * Gets responsive CSS class for grid columns
- * 
- * IMPORTANT: With the iframe-based Builder, this should now return
- * pure Tailwind responsive classes that work via CSS, not JS overrides.
- * The iframe has its own viewport, so CSS media queries work correctly.
- */
-export function getResponsiveGridClass(
-  viewport: ViewportMode | undefined,
-  options: {
-    mobile?: number;
-    tablet?: number;
-    desktop: number;
-  }
-): string {
-  const { mobile = 2, tablet, desktop } = options;
-  
-  // ALWAYS return responsive Tailwind classes now
-  // The iframe-based Builder makes CSS breakpoints work correctly
-  const tabletCols = tablet ?? Math.min(mobile + 1, desktop);
-  
-  return `grid-cols-${mobile} sm:grid-cols-${tabletCols} lg:grid-cols-${desktop}`;
-}
-
-/**
- * Type guard to check if we're in Builder mode
- * 
- * NOTE: With iframe-based preview, this is less important since
- * CSS breakpoints work. Use only for features that need to know
- * they're in the editor (e.g., showing edit controls)
- */
-export function isBuilderMode(viewport: ViewportMode | undefined): viewport is ViewportMode {
-  return !!viewport;
-}
-
-/**
- * Context for providing viewport override in legacy scenarios
+ * Context for viewport override (Builder)
  */
 export const ViewportContext = createContext<ViewportMode | undefined>(undefined);
 
-/**
- * Provider for viewport context
- */
 export function ViewportProvider({ 
   viewport, 
   children 
@@ -165,9 +80,6 @@ export function ViewportProvider({
   );
 }
 
-/**
- * Hook to get viewport from context
- */
 export function useViewportContext(): ViewportMode | undefined {
   return useContext(ViewportContext);
 }

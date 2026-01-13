@@ -170,14 +170,10 @@ export function CategoryPageLayout({
     return primary?.url || product.product_images?.[0]?.url || '/placeholder.svg';
   };
 
+  // Use container query class for responsive grid
   const getGridCols = () => {
-    if (viewport) {
-      if (isMobile) return 'grid-cols-2';
-      return showFilters ? 'grid-cols-3' : `grid-cols-${Math.min(columns, 4)}`;
-    }
-    return showFilters 
-      ? 'grid-cols-2 lg:grid-cols-3' 
-      : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+    // sf-product-grid handles responsiveness via container queries
+    return 'sf-product-grid';
   };
 
   if (isLoading) {

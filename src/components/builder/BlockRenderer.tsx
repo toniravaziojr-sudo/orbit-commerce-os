@@ -696,17 +696,12 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
   const selectedImage = allImages[selectedImageIndex] || allImages[0];
   const hasMultipleImages = allImages.length > 1;
 
-  const gridClasses = viewportOverride 
-    ? (isMobileView ? 'flex flex-col gap-6' : 'grid grid-cols-2 gap-8')
-    : 'flex flex-col gap-6 md:grid md:grid-cols-2 md:gap-8';
+  // Use container query classes for responsive layout
+  // sf-product-layout responds to storefront container width
+  const gridClasses = 'sf-product-layout';
   
-  const titleClasses = viewportOverride
-    ? (isMobileView ? 'text-2xl' : 'text-3xl')
-    : 'text-2xl md:text-3xl';
-  
-  const priceClasses = viewportOverride
-    ? (isMobileView ? 'text-xl' : 'text-2xl')
-    : 'text-xl md:text-2xl';
+  const titleClasses = 'text-2xl md:text-3xl';
+  const priceClasses = 'text-xl md:text-2xl';
 
   if (isLoading && isEditing) {
     return (
@@ -765,7 +760,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
     <div className="py-6 md:py-8 px-4">
       <div className={gridClasses}>
         {showGallery && (
-          <div className="w-full">
+          <div className="sf-product-gallery w-full">
             <div className="aspect-square bg-muted rounded-lg overflow-hidden">
               {selectedImage?.url ? (
                 <img src={selectedImage.url} alt={selectedImage.alt || productName} className="w-full h-full object-cover" />
@@ -799,7 +794,7 @@ function ProductDetailsBlock({ exampleProductId, context, isEditing, isInteractM
           </div>
         )}
         
-        <div className="space-y-4">
+        <div className="sf-product-info space-y-4">
           <div>
             <h1 className={`${titleClasses} font-bold leading-tight`}>{productName}</h1>
             {showReviews && product?.id && (
