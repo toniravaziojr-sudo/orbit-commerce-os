@@ -93,25 +93,64 @@ export function CompreJuntoSlotBlock({
     enabled: !!productId && !isEditing,
   });
 
-  // In editing mode, show empty state placeholder (no demo data)
+  // In editing mode, show EXAMPLE CARD demonstration (visual preview)
   if (isEditing) {
     return (
       <section className="py-6 border-t">
-        <Card className="border-dashed border-2 bg-muted/20">
-          <CardContent className="p-6 text-center">
-            <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <h3 className="font-semibold mb-2">{title}</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              [Slot de Compre Junto] Ofertas aparecem aqui quando configuradas em Aumentar Ticket.
-            </p>
-            <Button variant="outline" size="sm" asChild>
-              <a href={ctaHref}>
-                <Settings className="h-4 w-4 mr-2" />
-                {ctaLabel}
-              </a>
-            </Button>
-          </CardContent>
-        </Card>
+        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Gift className="h-5 w-5 text-primary" />
+          {title}
+        </h2>
+        <div className="bg-muted/30 rounded-lg p-4 md:p-6">
+          {/* Demo visual - product cards layout */}
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            {/* Product 1 placeholder */}
+            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1 w-full">
+              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                <ShoppingCart className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="font-medium text-sm text-muted-foreground">Produto Atual</p>
+                <p className="text-primary font-bold">R$ 129,90</p>
+              </div>
+            </div>
+
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <Plus className="h-5 w-5 text-primary" />
+            </div>
+
+            {/* Product 2 placeholder */}
+            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1 w-full">
+              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                <Gift className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+              <div>
+                <p className="font-medium text-sm text-muted-foreground">Produto Sugerido</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground line-through">R$ 89,90</span>
+                  <span className="text-primary font-bold">R$ 69,90</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="pl-4 md:border-l border-border min-w-[160px] text-center w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0">
+              <p className="text-xs text-muted-foreground line-through">R$ 219,80</p>
+              <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
+              <p className="text-xl font-bold text-primary">R$ 199,80</p>
+              <p className="text-sm text-green-600 font-medium">Economize R$ 20,00</p>
+              <Button disabled className="w-full mt-2" size="lg">
+                Adquirir oferta
+              </Button>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-center text-muted-foreground mt-3">
+          [Exemplo demonstrativo] Configure ofertas reais em{' '}
+          <a href={ctaHref} className="text-primary underline hover:no-underline">
+            Aumentar Ticket
+          </a>
+        </p>
       </section>
     );
   }

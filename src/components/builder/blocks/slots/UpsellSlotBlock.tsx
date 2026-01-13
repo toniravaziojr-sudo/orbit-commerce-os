@@ -106,22 +106,48 @@ export function UpsellSlotBlock({
     return product.price;
   };
 
-  // In editing mode, show empty state placeholder (no demo data)
+  // In editing mode, show EXAMPLE CARD demonstration (visual preview)
   if (isEditing) {
     return (
-      <Card className="border-dashed border-2 bg-muted/20 my-6">
-        <CardContent className="p-6 text-center">
-          <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-          <h3 className="font-semibold mb-2">{title}</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            [Slot de Upsell] Ofertas pós-compra aparecem aqui quando configuradas em Aumentar Ticket.
-          </p>
-          <Button variant="outline" size="sm" asChild>
-            <a href={ctaHref}>
-              <Settings className="h-4 w-4 mr-2" />
-              {ctaLabel}
+      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent my-6">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Gift className="h-5 w-5 text-primary" />
+            <h3 className="font-semibold text-lg">{title}</h3>
+            <Badge variant="destructive" className="ml-auto">-20%</Badge>
+          </div>
+
+          <p className="text-sm text-muted-foreground mb-4">Aproveite esta oferta exclusiva pós-compra!</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].slice(0, maxItems).map((i) => (
+              <Card key={i} className="overflow-hidden h-full">
+                <div className="aspect-square relative bg-muted flex items-center justify-center">
+                  <ShoppingCart className="h-8 w-8 text-muted-foreground/40" />
+                </div>
+                <CardContent className="p-3">
+                  <h4 className="font-medium text-sm line-clamp-2 mb-2 text-muted-foreground">
+                    Produto Upsell {i}
+                  </h4>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground line-through">
+                      R$ {(99.90 + i * 20).toFixed(2).replace('.', ',')}
+                    </span>
+                    <span className="text-base font-bold text-primary">
+                      R$ {((99.90 + i * 20) * 0.8).toFixed(2).replace('.', ',')}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          <p className="text-xs text-center text-muted-foreground mt-4">
+            [Exemplo demonstrativo] Configure ofertas reais em{' '}
+            <a href={ctaHref} className="text-primary underline hover:no-underline">
+              Aumentar Ticket
             </a>
-          </Button>
+          </p>
         </CardContent>
       </Card>
     );
