@@ -182,60 +182,19 @@ export function BlogListingBlock({
     );
   }
 
-  // Empty state with placeholders
+  // Empty state - sem demo posts interno
   if (!posts || posts.length === 0) {
-    // Demo placeholder posts
-    const placeholderPosts = [
-      { id: 'demo-1', title: 'Como escolher o produto ideal', image: 'https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=600&h=400&fit=crop&q=80' },
-      { id: 'demo-2', title: 'Dicas para economizar', image: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=600&h=400&fit=crop&q=80' },
-      { id: 'demo-3', title: 'Novidades do mês', image: 'https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=600&h=400&fit=crop&q=80' },
-    ];
-
     return (
-      <div className="container mx-auto py-8 px-4 relative">
-        <div className="text-center mb-12">
+      <div className="container mx-auto py-8 px-4">
+        <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-3">{title}</h1>
           {description && <p className="text-xl text-muted-foreground">{description}</p>}
         </div>
 
-        {/* Placeholder grid with opacity */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 opacity-50">
-          {placeholderPosts.map((post) => (
-            <Card key={post.id} className="overflow-hidden">
-              {showImage && (
-                <div className="aspect-video overflow-hidden">
-                  <img
-                    src={post.image}
-                    alt={post.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-              <CardHeader>
-                <CardTitle className="line-clamp-2">{post.title}</CardTitle>
-                <CardDescription className="flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />
-                    15 de Dez, 2024
-                  </span>
-                </CardDescription>
-              </CardHeader>
-              {showExcerpt && (
-                <CardContent>
-                  <p className="text-muted-foreground text-sm line-clamp-2">
-                    Este é um exemplo de resumo do post que aparece aqui.
-                  </p>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </div>
-
-        {/* Overlay with CTA */}
-        <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-[1px] rounded-lg">
-          <div className="text-center p-6 rounded-lg bg-card shadow-lg border">
-            <p className="text-muted-foreground mb-3">Seus posts do blog aparecerão aqui</p>
-            <p className="text-xs text-muted-foreground">
+        <div className="flex items-center justify-center py-16 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/10">
+          <div className="text-center">
+            <p className="text-muted-foreground mb-3">Nenhum post publicado ainda</p>
+            <p className="text-sm text-muted-foreground">
               Crie posts no menu Marketing → Blog
             </p>
           </div>

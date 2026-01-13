@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
-import { demoProducts, getDemoProductsByCategory, demoCategories } from '@/lib/builder/demoData';
+
 
 interface Product {
   id: string;
@@ -103,44 +103,16 @@ export function CategoryPageLayout({
     enabled: !!tenantId && !!categoryId,
   });
 
-  // Use demo products if no real products
+  // Sem fallback interno de demoProducts - empty state se não houver produtos
   const displayProducts = useMemo(() => {
     if (products && products.length > 0) return products;
-    
-    // Use demo products filtered by category slug
-    if (categorySlug) {
-      const demoProds = getDemoProductsByCategory(categorySlug);
-      if (demoProds.length > 0) {
-        return demoProds.map(p => ({
-          id: p.id,
-          name: p.name,
-          slug: p.slug,
-          price: p.price,
-          compare_at_price: p.compare_at_price || null,
-          product_images: [{ url: p.image, is_primary: true }],
-          tags: p.tags,
-        }));
-      }
-    }
-    
-    // Fallback: show all demo products
-    return demoProducts.slice(0, 8).map(p => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      compare_at_price: p.compare_at_price || null,
-      product_images: [{ url: p.image, is_primary: true }],
-      tags: p.tags,
-    }));
-  }, [products, categorySlug]);
-
-  const isDemo = !products || products.length === 0;
+    return [] as Product[];
+  }, [products]);
 
   // Get product IDs for ratings
   const productIdsForRating = useMemo(() => 
-    isDemo ? [] : displayProducts.map(p => p.id), 
-    [displayProducts, isDemo]
+    displayProducts.length === 0 ? [] : displayProducts.map(p => p.id), 
+    [displayProducts]
   );
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
 
@@ -265,33 +237,27 @@ export function CategoryPageLayout({
 
         {/* Products grid */}
         <div className="flex-1 relative">
-          {isDemo && (
-            <div className="absolute -top-2 right-0 z-10">
-              <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
-                Produtos demonstrativos
-              </span>
-            </div>
-          )}
-
           {filteredProducts.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
-                Nenhum produto encontrado com os filtros selecionados.
+                {displayProducts.length === 0 
+                  ? 'Nenhum produto nesta categoria.' 
+                  : 'Nenhum produto encontrado com os filtros selecionados.'
+                }
               </p>
             </div>
           ) : (
             <div className={cn('grid gap-4', getGridCols())}>
               {filteredProducts.map((product) => {
                 const rating = ratingsMap?.get(product.id);
-                const isProductDemo = product.id.startsWith('demo-');
                 
                 return (
                   <a
                     key={product.id}
-                    href={isEditing || isProductDemo ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+                    href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
                     className={cn(
                       'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
-                      (isEditing || isProductDemo) && 'pointer-events-none'
+                      isEditing && 'pointer-events-none'
                     )}
                   >
                     <div className="aspect-square overflow-hidden bg-muted">

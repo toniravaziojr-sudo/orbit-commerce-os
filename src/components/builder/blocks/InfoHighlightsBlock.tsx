@@ -88,25 +88,35 @@ const iconMap: Record<string, LucideIcon> = {
   alert_circle: AlertCircle,
 };
 
-const defaultItems: HighlightItem[] = [
-  { id: '1', icon: 'Truck', title: 'Envio rápido e garantido', description: 'para todo Brasil' },
-  { id: '2', icon: 'CreditCard', title: 'Parcele suas compras', description: 'com cartão de crédito' },
-  { id: '3', icon: 'Shield', title: 'Loja confiável', description: 'com tecnologia 100% segura' },
-];
-
 export function InfoHighlightsBlock({
-  items = defaultItems,
+  items = [],
   iconColor = '#6366f1',
   textColor = '#1f2937',
   layout = 'horizontal',
   context,
-}: InfoHighlightsBlockProps) {
+  isEditing = false,
+}: InfoHighlightsBlockProps & { isEditing?: boolean }) {
   // Hook must be called unconditionally (Rules of Hooks)
   const deviceIsMobile = useIsMobile();
   const isMobile = context?.viewport === 'mobile' || (context?.viewport !== 'desktop' && context?.viewport !== 'tablet' && deviceIsMobile);
   const effectiveLayout = isMobile ? 'vertical' : layout;
 
-  if (items.length === 0) {
+  // Sem fallback interno - empty state se não houver items
+  if (!items || items.length === 0) {
+    if (isEditing) {
+      return (
+        <section className="py-6 border-y bg-muted/20">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex items-center justify-center py-6 border-2 border-dashed border-muted-foreground/30 rounded-lg">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-1">Benefícios da Loja</p>
+                <p className="text-sm text-muted-foreground">Configure os benefícios no painel lateral</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
     return null;
   }
 

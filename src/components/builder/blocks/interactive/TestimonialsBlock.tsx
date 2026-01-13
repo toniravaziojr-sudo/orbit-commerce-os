@@ -19,14 +19,26 @@ interface TestimonialsBlockProps {
   isEditing?: boolean;
 }
 
-const defaultItems: TestimonialItem[] = [
-  { name: 'Maria Silva', content: 'Produto excelente! Superou minhas expectativas.', rating: 5 },
-  { name: 'João Santos', content: 'Entrega rápida e produto de qualidade. Recomendo!', rating: 5 },
-  { name: 'Ana Costa', content: 'Ótimo atendimento e produto conforme descrito.', rating: 4 },
-];
+export function TestimonialsBlock({ title = 'O que dizem nossos clientes', items = [], isEditing }: TestimonialsBlockProps) {
+  // Sem fallback interno - empty state se não houver items
+  if (!items || items.length === 0) {
+    if (isEditing) {
+      return (
+        <div className="py-8 container mx-auto px-4">
+          {title && <h2 className="text-2xl font-bold mb-6 text-center">{title}</h2>}
+          <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-2">Nenhum depoimento configurado</p>
+              <p className="text-sm text-muted-foreground">Configure os depoimentos no painel lateral</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
-export function TestimonialsBlock({ title = 'O que dizem nossos clientes', items = defaultItems, isEditing }: TestimonialsBlockProps) {
-  const testimonialItems = items?.length > 0 ? items : defaultItems;
+  const testimonialItems = items;
 
   return (
     <div className="py-8 container mx-auto px-4">
