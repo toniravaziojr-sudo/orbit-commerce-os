@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { BlockNode } from '@/lib/builder/types';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 
-type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you';
+type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'tracking' | 'blog';
 
 interface PreviewTemplateResult {
   content: BlockNode;
