@@ -727,9 +727,9 @@ export function CheckoutStepWizard({ tenantId }: CheckoutStepWizardProps) {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="sf-checkout-layout">
         {/* Main column - Step content */}
-        <div className="lg:col-span-2">
+        <div>
           <div className="bg-card border rounded-lg p-6">
             {currentStep === 1 && (
               <Step1PersonalData 

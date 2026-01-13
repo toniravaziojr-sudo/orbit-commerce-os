@@ -115,7 +115,7 @@ export function BlogListingBlock({
           {description && <p className="text-xl text-muted-foreground">{description}</p>}
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="sf-blog-grid">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="overflow-hidden group cursor-pointer hover:shadow-lg transition-shadow">
               {showImage && (
@@ -163,7 +163,7 @@ export function BlogListingBlock({
           <Skeleton className="h-6 w-64 mx-auto" />
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="sf-blog-grid">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="overflow-hidden">
               <Skeleton className="aspect-video" />
@@ -210,7 +210,7 @@ export function BlogListingBlock({
         {description && <p className="text-xl text-muted-foreground">{description}</p>}
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="sf-blog-grid">
         {posts.map((post) => (
           <Link key={post.id} to={`${basePath}/blog/${post.slug}`}>
             <Card className="overflow-hidden h-full group cursor-pointer hover:shadow-lg transition-shadow">

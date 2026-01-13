@@ -391,7 +391,7 @@ export function StorefrontFooterContent({
       */}
       <div className="w-full py-10 md:py-12">
         {/* Mobile: single column, stacked layout with full width and proper padding */}
-        <div className="flex flex-col gap-8 md:hidden px-6">
+        <div className="sf-footer-mobile px-6">
           {/* Inner container for mobile - full width for better horizontal fill */}
           <div className="w-full space-y-8">
             
@@ -651,7 +651,7 @@ export function StorefrontFooterContent({
         </div>
 
         {/* Desktop: 4-column grid */}
-        <div className="hidden md:grid md:grid-cols-4 gap-6 container mx-auto">
+        <div className="sf-footer-desktop container mx-auto px-4">
           
           {/* ============================================ */}
           {/* COLUNA 1: Informações do Negócio */}

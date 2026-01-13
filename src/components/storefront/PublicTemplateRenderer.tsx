@@ -244,7 +244,7 @@ export function PublicTemplateRenderer({
       )}
       
       {/* Page container */}
-      <div className="min-h-screen flex flex-col">
+      <div className="storefront-container min-h-screen flex flex-col">
         {/* 1. HEADER - rendered first */}
         {headerNode && (
           <BlockRenderer
