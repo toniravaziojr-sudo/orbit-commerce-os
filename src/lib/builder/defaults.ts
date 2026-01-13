@@ -200,21 +200,7 @@ export const defaultCategoryTemplate: BlockNode = {
     },
     // 2. Slot para Banner da Categoria (renderizado dinamicamente via context)
     // O banner e título da categoria são injetados automaticamente pelo StorefrontCategory
-    // 3. Barra de Benefícios
-    {
-      id: generateBlockId('InfoHighlights'),
-      type: 'InfoHighlights',
-      props: {
-        items: [
-          { id: 'benefit-1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
-          { id: 'benefit-2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
-          { id: 'benefit-3', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente 100% protegido' },
-        ],
-        iconColor: '#6366f1',
-        textColor: '#1f2937',
-        layout: 'horizontal',
-      },
-    },
+    // NOTA: InfoHighlights REMOVIDO - fica somente na Home
     // 4. Grid de Produtos da Categoria
     {
       id: generateBlockId('Section'),
