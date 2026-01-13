@@ -119,7 +119,7 @@ export function UpsellSlotBlock({
 
           <p className="text-sm text-muted-foreground mb-4">Aproveite esta oferta exclusiva pós-compra!</p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="sf-offers-grid">
             {[1, 2, 3, 4].slice(0, maxItems).map((i) => (
               <Card key={i} className="overflow-hidden h-full">
                 <div className="aspect-square relative bg-muted flex items-center justify-center">
@@ -211,7 +211,7 @@ export function UpsellSlotBlock({
           </p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="sf-offers-grid">
           {products.map((product) => {
             const finalPrice = getDiscountedPrice(product);
             const hasSavings = finalPrice < product.price;

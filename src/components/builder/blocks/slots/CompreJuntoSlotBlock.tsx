@@ -101,32 +101,32 @@ export function CompreJuntoSlotBlock({
           <Gift className="h-5 w-5 text-primary" />
           {title}
         </h2>
-        <div className="bg-muted/30 rounded-lg p-4 md:p-6">
-          {/* Demo visual - product cards layout */}
-          <div className="flex flex-col md:flex-row items-center gap-4">
+        <div className="bg-muted/30 rounded-lg p-4">
+          {/* Demo visual - product cards layout - using container query class */}
+          <div className="sf-compre-junto">
             {/* Product 1 placeholder */}
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1 w-full">
+            <div className="sf-compre-junto-card flex items-center gap-3 p-3 bg-background rounded-lg border">
               <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                 <ShoppingCart className="h-6 w-6 text-muted-foreground/50" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm text-muted-foreground">Produto Atual</p>
                 <p className="text-primary font-bold">R$ 129,90</p>
               </div>
             </div>
 
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 self-center">
               <Plus className="h-5 w-5 text-primary" />
             </div>
 
             {/* Product 2 placeholder */}
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1 w-full">
+            <div className="sf-compre-junto-card flex items-center gap-3 p-3 bg-background rounded-lg border">
               <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                 <Gift className="h-6 w-6 text-muted-foreground/50" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-sm text-muted-foreground">Produto Sugerido</p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs text-muted-foreground line-through">R$ 89,90</span>
                   <span className="text-primary font-bold">R$ 69,90</span>
                 </div>
@@ -134,7 +134,7 @@ export function CompreJuntoSlotBlock({
             </div>
 
             {/* Total */}
-            <div className="pl-4 md:border-l border-border min-w-[160px] text-center w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0">
+            <div className="sf-compre-junto-total text-center">
               <p className="text-xs text-muted-foreground line-through">R$ 219,80</p>
               <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
               <p className="text-xl font-bold text-primary">R$ 199,80</p>
@@ -246,67 +246,11 @@ export function CompreJuntoSlotBlock({
         {rule.title || title}
       </h2>
 
-      <div className="bg-muted/30 rounded-lg p-4 md:p-6">
-        {/* Desktop */}
-        <div className="hidden md:flex items-center gap-4">
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
-              {currentProductImage ? (
-                <img src={currentProductImage} alt={currentProduct.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Sem imagem</div>
-              )}
-            </div>
-            <div>
-              <p className="font-medium text-sm line-clamp-2">{currentProduct.name}</p>
-              <p className="text-primary font-bold">{formatCurrency(currentPrice)}</p>
-            </div>
-          </div>
-
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Plus className="h-5 w-5 text-primary" />
-          </div>
-
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
-            <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
-              {suggestedProductImage ? (
-                <img src={suggestedProductImage} alt={suggestedProduct.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">Sem imagem</div>
-              )}
-            </div>
-            <div>
-              <p className="font-medium text-sm line-clamp-2">{suggestedProduct.name}</p>
-              <div className="flex items-center gap-2">
-                {hasDiscount && (
-                  <span className="text-xs text-muted-foreground line-through">{formatCurrency(suggestedOriginalPrice)}</span>
-                )}
-                <span className="text-primary font-bold">{formatCurrency(suggestedDiscountedPrice)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pl-4 border-l border-border min-w-[160px] text-center">
-            {hasDiscount && (
-              <div>
-                <p className="text-xs text-muted-foreground">Preço Total:</p>
-                <p className="text-sm text-muted-foreground line-through">{formatCurrency(totalOriginal)}</p>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
-            <p className="text-xl font-bold text-primary">{formatCurrency(totalDiscounted)}</p>
-            {hasDiscount && (
-              <p className="text-sm text-green-600 font-medium">Economize {formatCurrency(savings)}</p>
-            )}
-            <Button onClick={handleAddTogether} disabled={isAdding} className="w-full mt-2" size="lg">
-              {isAdding ? 'Adicionando...' : 'Adquirir oferta'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile */}
-        <div className="flex flex-col gap-3 md:hidden">
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border">
+      <div className="bg-muted/30 rounded-lg p-4">
+        {/* Unified layout using container queries */}
+        <div className="sf-compre-junto">
+          {/* Product 1 */}
+          <div className="sf-compre-junto-card flex items-center gap-3 p-3 bg-background rounded-lg border">
             <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
               {currentProductImage ? (
                 <img src={currentProductImage} alt={currentProduct.name} className="w-full h-full object-cover" />
@@ -320,13 +264,12 @@ export function CompreJuntoSlotBlock({
             </div>
           </div>
 
-          <div className="flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Plus className="h-4 w-4 text-primary" />
-            </div>
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 self-center">
+            <Plus className="h-5 w-5 text-primary" />
           </div>
 
-          <div className="flex items-center gap-3 p-3 bg-background rounded-lg border">
+          {/* Product 2 */}
+          <div className="sf-compre-junto-card flex items-center gap-3 p-3 bg-background rounded-lg border">
             <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
               {suggestedProductImage ? (
                 <img src={suggestedProductImage} alt={suggestedProduct.name} className="w-full h-full object-cover" />
@@ -345,16 +288,20 @@ export function CompreJuntoSlotBlock({
             </div>
           </div>
 
-          <div className="pt-4 border-t border-border text-center">
+          {/* Total */}
+          <div className="sf-compre-junto-total text-center">
             {hasDiscount && (
-              <p className="text-sm text-muted-foreground line-through">{formatCurrency(totalOriginal)}</p>
+              <div>
+                <p className="text-xs text-muted-foreground">Preço Total:</p>
+                <p className="text-sm text-muted-foreground line-through">{formatCurrency(totalOriginal)}</p>
+              </div>
             )}
             <p className="text-xs text-muted-foreground font-medium">COMPRANDO JUNTO:</p>
             <p className="text-xl font-bold text-primary">{formatCurrency(totalDiscounted)}</p>
             {hasDiscount && (
               <p className="text-sm text-green-600 font-medium">Economize {formatCurrency(savings)}</p>
             )}
-            <Button onClick={handleAddTogether} disabled={isAdding} className="w-full mt-3" size="lg">
+            <Button onClick={handleAddTogether} disabled={isAdding} className="w-full mt-2" size="lg">
               {isAdding ? 'Adicionando...' : 'Adquirir oferta'}
             </Button>
           </div>

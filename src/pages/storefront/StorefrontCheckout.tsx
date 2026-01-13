@@ -47,7 +47,7 @@ export default function StorefrontCheckout() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="storefront-container min-h-screen flex flex-col">
       {/* Simplified header for checkout */}
       <header className="border-b bg-background">
         <div className="container mx-auto px-4 py-4 flex items-center justify-center">

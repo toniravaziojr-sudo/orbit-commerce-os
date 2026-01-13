@@ -99,7 +99,7 @@ export function CrossSellSlotBlock({
         <h3 className="font-semibold text-lg mb-4">{title}</h3>
         {subtitle && <p className="text-sm text-muted-foreground mb-4">{subtitle}</p>}
         
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="sf-offers-grid">
           {[1, 2, 3, 4].slice(0, maxItems).map((i) => (
             <div key={i} className="border rounded-lg p-3 hover:shadow-md transition-shadow bg-background">
               <div className="aspect-square bg-muted rounded-md mb-2 flex items-center justify-center">
@@ -184,7 +184,7 @@ export function CrossSellSlotBlock({
         <p className="text-sm text-muted-foreground mb-4">{activeRule.description || subtitle}</p>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="sf-offers-grid">
         {availableProducts.slice(0, maxItems).map(product => (
           <div
             key={product.id}
