@@ -266,12 +266,6 @@ export function VisualBuilder({
     }
   }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store]);
 
-  // ISOLATION MODE: render minimal UI for testing layers
-  // ?isolate=visual - test VisualBuilder without DnD/Canvas
-  // NOTE: This conditional return is AFTER all hooks have been called
-  if (isolateMode === 'visual') {
-    return <VisualIsolationUI mode="visual" message="VisualBuilder shell (sem DnD/Canvas)" />;
-  }
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -587,6 +581,13 @@ export function VisualBuilder({
   // Only show loading if actually loading AND data not yet available
   const isActuallyLoading = (layoutLoading && !globalLayout) || (overridesLoading && !pageOverrides);
   
+  // ISOLATION MODE: render minimal UI for testing layers
+  // ?isolate=visual - test VisualBuilder without DnD/Canvas
+  // NOTE: All hooks have been called before this point
+  if (isolateMode === 'visual') {
+    return <VisualIsolationUI mode="visual" message="VisualBuilder shell (sem DnD/Canvas)" />;
+  }
+
   if (isActuallyLoading) {
     return (
       <>
