@@ -10,6 +10,7 @@ import { useSearchParams, Link } from 'react-router-dom';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
+import { isBlockRequired, getRequiredBlockInfo, canDeleteBlock } from '@/lib/builder/pageContracts';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -251,8 +252,23 @@ export function BlockRenderer({
   const isRemovable = definition.isRemovable !== false;
   
   const pageType = context.pageType || 'home';
+  
+  // Check both essential blocks (old system) and required blocks (new page contracts)
   const isEssential = isEssentialBlock(node.type, pageType);
-  const essentialReason = isEssential ? getEssentialBlockReason(node.type, pageType) : undefined;
+  const isRequired = isBlockRequired(pageType, node.type);
+  const isLockedBlock = isEssential || isRequired;
+  
+  // Get reason for locked status
+  let essentialReason: string | undefined;
+  if (isEssential) {
+    essentialReason = getEssentialBlockReason(node.type, pageType) || undefined;
+  } else if (isRequired) {
+    const requiredInfo = getRequiredBlockInfo(pageType, node.type);
+    essentialReason = requiredInfo ? `Estrutura obrigatória: ${requiredInfo.description}` : 'Este bloco é necessário para o funcionamento da página';
+  }
+  
+  // Block cannot be deleted if it's locked
+  const canDelete = canDeleteBlock(pageType, node.type) && !isEssential;
 
   return (
     <div
@@ -276,9 +292,9 @@ export function BlockRenderer({
         <BlockQuickActions
           blockId={node.id}
           blockType={node.type}
-          isRemovable={isRemovable}
-          isEssential={isEssential}
-          essentialReason={essentialReason || undefined}
+          isRemovable={isRemovable && canDelete}
+          isEssential={isLockedBlock}
+          essentialReason={essentialReason}
           isHidden={node.hidden}
           canMoveUp={canMoveUp}
           canMoveDown={canMoveDown}

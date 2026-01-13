@@ -119,19 +119,24 @@ function ActionButtons({
         </Button>
       )}
 
-      {/* Essential block indicator */}
+      {/* Essential/Required block indicator */}
       {isEssential && (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={cn(buttonSize, "flex items-center justify-center text-muted-foreground")}>
+              <div className={cn(buttonSize, "flex items-center justify-center text-amber-600 dark:text-amber-400")}>
                 <Lock className={iconSize} />
               </div>
             </TooltipTrigger>
-            <TooltipContent side={isMobile ? "top" : "left"} className="max-w-[200px]">
-              <p className="text-xs">
-                {essentialReason || 'Bloco essencial do template – não pode ser removido'}
-              </p>
+            <TooltipContent side={isMobile ? "top" : "left"} className="max-w-[240px]">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                  🔒 Estrutura obrigatória
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {essentialReason || 'Este bloco é necessário para o funcionamento da página e não pode ser removido.'}
+                </p>
+              </div>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

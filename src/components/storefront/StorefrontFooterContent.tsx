@@ -384,22 +384,25 @@ export function StorefrontFooterContent({
       className="border-t bg-muted/30"
       style={footerStyle}
     >
-      {/* Mobile: centered container with good horizontal fill */}
-      {/* Desktop: full container aligned left */}
-      <div className="w-full px-5 sm:px-8 md:container md:mx-auto py-10 md:py-12">
+      {/* 
+        Footer Container:
+        - Mobile (xs/sm): px-6 for good horizontal fill, max-w-lg for comfortable width
+        - Desktop (md+): full container, aligned left
+      */}
+      <div className="w-full px-6 sm:px-8 md:container md:mx-auto py-10 md:py-12">
         {/* 
           Main Footer Grid - Responsive Layout:
-          - Mobile: 1 column, stacked, centered, good horizontal fill (max-w-md mx-auto)
+          - Mobile: 1 column, stacked, centered, good horizontal fill
           - Desktop: 4 columns grid aligned left
         */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6">
           
           {/* ============================================ */}
           {/* COLUNA 1: Informações do Negócio */}
           {/* Mobile: centered, full width with max constraint */}
           {/* Desktop: left-aligned */}
           {/* ============================================ */}
-          <div className="flex flex-col items-center md:items-start text-center md:text-left w-full max-w-md mx-auto md:max-w-none md:mx-0">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left w-full max-w-lg mx-auto md:max-w-none md:mx-0">
             {/* Logo */}
             {showLogo && (
               <div className="mb-4">
@@ -459,7 +462,7 @@ export function StorefrontFooterContent({
           {/* Mobile: centered, full width with max constraint */}
           {/* Desktop: left-aligned */}
           {/* ============================================ */}
-          <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-6 w-full max-w-md mx-auto md:max-w-none md:mx-0">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-6 w-full max-w-lg mx-auto md:max-w-none md:mx-0">
             
             {/* Sub-bloco 2.1: Atendimento (SAC) */}
             {showSac && hasContact && (
@@ -508,11 +511,20 @@ export function StorefrontFooterContent({
                   )}
                   {address && (
                     <div 
-                      className="text-sm text-muted-foreground flex items-start gap-2 justify-center md:justify-start"
+                      className="text-sm text-muted-foreground flex items-start gap-2 justify-center md:justify-start w-full"
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
-                      <span className="break-words" style={{ overflowWrap: 'break-word', wordBreak: 'normal' }}>{address}</span>
+                      <span 
+                        className="flex-1 min-w-0" 
+                        style={{ 
+                          overflowWrap: 'break-word', 
+                          wordBreak: 'break-word',
+                          hyphens: 'auto',
+                        }}
+                      >
+                        {address}
+                      </span>
                     </div>
                   )}
                   {supportHours && (
