@@ -290,6 +290,7 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.cosmetics}
             badge={PRESET_INFO.cosmetics.badge}
             badgeVariant={PRESET_INFO.cosmetics.badgeVariant}
+            isInstalled={publishedTemplate?.base_preset === 'cosmetics'}
             onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
             onInstall={() => setCreatePreset('cosmetics')}
           />
@@ -300,6 +301,7 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.blank}
             badge={PRESET_INFO.blank.badge}
             badgeVariant={PRESET_INFO.blank.badgeVariant}
+            isInstalled={publishedTemplate?.base_preset === 'blank'}
             onPreview={() => navigate('/storefront/builder?preset=blank&mode=preview')}
             onInstall={() => setCreatePreset('blank')}
           />
@@ -452,16 +454,18 @@ interface PresetCardProps {
   thumbnail: string;
   badge?: string;
   badgeVariant?: 'default' | 'secondary' | 'outline';
+  isInstalled?: boolean;
   onPreview: () => void;
   onInstall: () => void;
 }
 
-function PresetCard({ 
+function PresetCard({
   name, 
   description, 
   thumbnail, 
   badge, 
   badgeVariant = 'secondary',
+  isInstalled = false,
   onPreview, 
   onInstall,
 }: PresetCardProps) {
@@ -493,8 +497,14 @@ function PresetCard({
         <Button variant="outline" size="sm" className="flex-1" onClick={onPreview}>
           Ver loja modelo
         </Button>
-        <Button size="sm" className="flex-1" onClick={onInstall}>
-          Instalar
+        <Button 
+          size="sm" 
+          className="flex-1" 
+          onClick={onInstall}
+          disabled={isInstalled}
+          variant={isInstalled ? 'secondary' : 'default'}
+        >
+          {isInstalled ? 'Instalado' : 'Instalar'}
         </Button>
       </div>
     </div>
