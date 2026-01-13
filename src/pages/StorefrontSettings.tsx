@@ -5,9 +5,9 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, LayoutGrid, Settings, Palette } from 'lucide-react';
+import { Eye, LayoutTemplate, Settings, Palette } from 'lucide-react';
 import { getPublicHomeUrl } from '@/lib/publicUrls';
-import { StorefrontPagesTab } from '@/components/storefront-admin/StorefrontPagesTab';
+import { StorefrontTemplatesTab } from '@/components/storefront-admin/StorefrontTemplatesTab';
 import { StorefrontConfigTab } from '@/components/storefront-admin/StorefrontConfigTab';
 
 export default function StorefrontSettings() {
@@ -34,7 +34,7 @@ export default function StorefrontSettings() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <PageHeader
         title="Loja Virtual"
-        description="Gerencie páginas e configurações da sua loja"
+        description="Gerencie templates e configurações da sua loja"
         actions={
           <div className="flex gap-2">
             <Link to="/storefront/builder?edit=home">
@@ -56,11 +56,11 @@ export default function StorefrontSettings() {
         }
       />
 
-      <Tabs defaultValue="pages" className="w-full">
+      <Tabs defaultValue="templates" className="w-full">
         <TabsList>
-          <TabsTrigger value="pages" className="gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            Páginas
+          <TabsTrigger value="templates" className="gap-2">
+            <LayoutTemplate className="h-4 w-4" />
+            Templates
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
@@ -68,8 +68,8 @@ export default function StorefrontSettings() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pages" className="mt-6">
-          <StorefrontPagesTab />
+        <TabsContent value="templates" className="mt-6">
+          <StorefrontTemplatesTab />
         </TabsContent>
 
         <TabsContent value="settings" className="mt-6">
