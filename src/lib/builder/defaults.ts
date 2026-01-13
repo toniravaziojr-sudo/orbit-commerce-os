@@ -198,10 +198,18 @@ export const defaultCategoryTemplate: BlockNode = {
         noticeTextColor: '#ffffff',
       },
     },
-    // 2. Slot para Banner da Categoria (renderizado dinamicamente via context)
-    // O banner e título da categoria são injetados automaticamente pelo StorefrontCategory
-    // NOTA: InfoHighlights REMOVIDO - fica somente na Home
-    // 4. Grid de Produtos da Categoria
+    // 2. Banner da Categoria (bloco editável)
+    {
+      id: generateBlockId('CategoryBanner'),
+      type: 'CategoryBanner',
+      props: {
+        showTitle: true,
+        titlePosition: 'center',
+        overlayOpacity: 40,
+        height: 'md',
+      },
+    },
+    // 3. Grid de Produtos da Categoria
     {
       id: generateBlockId('Section'),
       type: 'Section',
@@ -283,23 +291,7 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
-    // 3. Barra de Benefícios
-    {
-      id: generateBlockId('InfoHighlights'),
-      type: 'InfoHighlights',
-      props: {
-        items: [
-          { id: 'benefit-1', icon: 'Truck', title: 'Frete Grátis', description: 'Em compras acima de R$199' },
-          { id: 'benefit-2', icon: 'CreditCard', title: 'Parcelamento', description: 'Em até 12x sem juros' },
-          { id: 'benefit-3', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente 100% protegido' },
-          { id: 'benefit-4', icon: 'Package', title: 'Troca Fácil', description: '30 dias para trocar' },
-        ],
-        iconColor: '#6366f1',
-        textColor: '#1f2937',
-        layout: 'horizontal',
-      },
-    },
-    // 4. Produtos Relacionados
+    // 3. Produtos Relacionados
     {
       id: generateBlockId('Section'),
       type: 'Section',
@@ -382,21 +374,6 @@ export const defaultCartTemplate: BlockNode = {
         noticeTextColor: '#ffffff',
       },
     },
-    // Barra de benefícios
-    {
-      id: generateBlockId('InfoHighlights'),
-      type: 'InfoHighlights',
-      props: {
-        items: [
-          { id: 'benefit-1', icon: 'Shield', title: 'Compra Segura', description: 'Ambiente protegido' },
-          { id: 'benefit-2', icon: 'CreditCard', title: '12x sem juros', description: 'No cartão' },
-          { id: 'benefit-3', icon: 'Truck', title: 'Frete Grátis', description: 'Acima de R$199' },
-        ],
-        iconColor: '#6366f1',
-        textColor: '#1f2937',
-        layout: 'horizontal',
-      },
-    },
     // Carrinho principal
     {
       id: generateBlockId('Section'),
@@ -410,8 +387,8 @@ export const defaultCartTemplate: BlockNode = {
           type: 'Cart',
           props: {
             showCrossSell: true,
-            showOrderBump: true,
-            showBuyTogether: true,
+            showOrderBump: false,
+            showBuyTogether: false,
           },
         },
       ],
@@ -474,21 +451,6 @@ export const defaultCheckoutTemplate: BlockNode = {
         noticeText: 'Compra 100% segura • Seus dados protegidos',
         noticeBgColor: '#059669',
         noticeTextColor: '#ffffff',
-      },
-    },
-    // Barra de segurança
-    {
-      id: generateBlockId('InfoHighlights'),
-      type: 'InfoHighlights',
-      props: {
-        items: [
-          { id: 'sec-1', icon: 'Lock', title: 'Pagamento Seguro', description: 'Criptografia SSL' },
-          { id: 'sec-2', icon: 'Shield', title: 'Dados Protegidos', description: 'Privacidade garantida' },
-          { id: 'sec-3', icon: 'BadgeCheck', title: 'Loja Verificada', description: 'Empresa confiável' },
-        ],
-        iconColor: '#059669',
-        textColor: '#1f2937',
-        layout: 'horizontal',
       },
     },
     // Checkout principal

@@ -74,6 +74,7 @@ import { ImageGalleryBlock as ImageGalleryBlockComponent } from './blocks/ImageG
 import { AccordionBlock as AccordionBlockComponent } from './blocks/AccordionBlock';
 import { CartDemoBlock } from './blocks/CartDemoBlock';
 import { CheckoutDemoBlock } from './blocks/CheckoutDemoBlock';
+import { CategoryBannerBlock as CategoryBannerBlockComponent } from './blocks/CategoryBannerBlock';
 
 // Storefront components
 import { StorefrontFooterContent } from '@/components/storefront/StorefrontFooterContent';
@@ -367,6 +368,7 @@ function getBlockComponent(type: string): React.ComponentType<any> {
     FeaturedCategories: FeaturedCategoriesBlockWrapper,
     TextBanners: TextBannersBlockWrapper,
     VideoUpload: VideoUploadBlockWrapper,
+    CategoryBanner: CategoryBannerBlockWrapper,
     
     // Account blocks
     AccountHub: AccountHubBlock,
@@ -1162,6 +1164,10 @@ function TextBannersBlockWrapper({ context, ...props }: any) {
 
 function VideoUploadBlockWrapper({ context, ...props }: any) {
   return <VideoUploadBlockComponent {...props} context={context} />;
+}
+
+function CategoryBannerBlockWrapper({ context, isEditing, ...props }: any) {
+  return <CategoryBannerBlockComponent {...props} context={context} isEditing={isEditing} />;
 }
 
 function VideoCarouselBlockWrapper({ context, ...props }: any) {

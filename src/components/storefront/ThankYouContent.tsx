@@ -14,6 +14,7 @@ import { formatCurrency } from '@/lib/cartTotals';
 import { useOrderDetails } from '@/hooks/useOrderDetails';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
 import { CreateAccountSection } from '@/components/storefront/CreateAccountSection';
+import { UpsellSection } from '@/components/storefront/sections/UpsellSection';
 import { useMarketingEvents } from '@/hooks/useMarketingEvents';
 import { useCheckoutConfig } from '@/contexts/StorefrontConfigContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -466,6 +467,9 @@ export function ThankYouContent({ tenantSlug, isPreview, whatsAppNumber }: Thank
           </div>
         </div>
       </div>
+
+      {/* Upsell Section - Post-purchase offer from Aumentar Ticket */}
+      <UpsellSection tenantId={undefined} orderId={order?.id} />
 
       {/* Actions */}
       <div className="flex flex-col gap-3">
