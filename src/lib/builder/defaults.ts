@@ -266,9 +266,6 @@ export const defaultProductTemplate: BlockNode = {
         showCart: true,
         sticky: true,
         noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
     // 2. Detalhes do Produto
@@ -291,12 +288,33 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
-    // 3. Produtos Relacionados
+    // 3. Compre Junto (slot - busca de /offers)
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
+        paddingY: 32,
         backgroundColor: '#f9fafb',
+      },
+      children: [
+        {
+          id: generateBlockId('CompreJuntoSlot'),
+          type: 'CompreJuntoSlot',
+          props: {
+            title: 'Compre Junto e Economize',
+            subtitle: 'Aproveite o desconto levando mais',
+            maxItems: 3,
+            variant: 'normal',
+            showWhenEmpty: true,
+          },
+        },
+      ],
+    },
+    // 4. Produtos Relacionados
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
         paddingY: 48,
       },
       children: [
@@ -313,29 +331,7 @@ export const defaultProductTemplate: BlockNode = {
         },
       ],
     },
-    // 5. Depoimentos
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        paddingY: 48,
-      },
-      children: [
-        {
-          id: generateBlockId('Testimonials'),
-          type: 'Testimonials',
-          props: {
-            title: 'O que dizem nossos clientes',
-            items: [
-              { name: 'Maria Silva', content: 'Produto excelente! Entrega super rápida.', rating: 5 },
-              { name: 'João Santos', content: 'Qualidade impecável, recomendo!', rating: 5 },
-              { name: 'Ana Costa', content: 'Ótimo custo-benefício.', rating: 5 },
-            ],
-          },
-        },
-      ],
-    },
-    // 6. Rodapé
+    // 5. Rodapé
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
@@ -343,18 +339,12 @@ export const defaultProductTemplate: BlockNode = {
         menuId: '',
         showSocial: true,
         copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
-        footerBgColor: '',
-        footerTextColor: '',
-        noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
   ],
 };
 
-// Default Cart template - Com demonstração de Cross-sell e Order Bump
+// Default Cart template - Com Cross-sell slot
 export const defaultCartTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
@@ -385,15 +375,11 @@ export const defaultCartTemplate: BlockNode = {
         {
           id: generateBlockId('Cart'),
           type: 'Cart',
-          props: {
-            showCrossSell: true,
-            showOrderBump: false,
-            showBuyTogether: false,
-          },
+          props: {},
         },
       ],
     },
-    // Cross-sell "Você também pode gostar"
+    // Cross-sell Slot (busca de /offers)
     {
       id: generateBlockId('Section'),
       type: 'Section',
@@ -403,14 +389,13 @@ export const defaultCartTemplate: BlockNode = {
       },
       children: [
         {
-          id: generateBlockId('ProductGrid'),
-          type: 'ProductGrid',
+          id: generateBlockId('CrossSellSlot'),
+          type: 'CrossSellSlot',
           props: {
             title: 'Você também pode gostar',
-            source: 'featured',
-            columns: 4,
-            limit: 4,
-            showPrice: true,
+            maxItems: 4,
+            variant: 'normal',
+            showWhenEmpty: true,
           },
         },
       ],
@@ -422,18 +407,12 @@ export const defaultCartTemplate: BlockNode = {
         menuId: '',
         showSocial: true,
         copyrightText: '© 2024 Beleza Natural. Todos os direitos reservados.',
-        footerBgColor: '',
-        footerTextColor: '',
-        noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
   ],
 };
 
-// Default Checkout template - Com demonstração de Order Bump e Upsell
+// Default Checkout template - Com Order Bump slot
 export const defaultCheckoutTemplate: BlockNode = {
   id: 'root',
   type: 'Page',
@@ -465,8 +444,28 @@ export const defaultCheckoutTemplate: BlockNode = {
           id: generateBlockId('Checkout'),
           type: 'Checkout',
           props: {
-            showOrderBump: true,
             showTimeline: true,
+          },
+        },
+      ],
+    },
+    // Order Bump Slot (busca de /offers)
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        paddingY: 16,
+      },
+      children: [
+        {
+          id: generateBlockId('OrderBumpSlot'),
+          type: 'OrderBumpSlot',
+          props: {
+            title: 'Aproveite e adicione',
+            subtitle: 'Oferta exclusiva para você',
+            maxItems: 2,
+            variant: 'compact',
+            showWhenEmpty: false,
           },
         },
       ],
@@ -478,12 +477,6 @@ export const defaultCheckoutTemplate: BlockNode = {
         menuId: '',
         showSocial: false,
         copyrightText: '© 2024 Beleza Natural. Todos os direitos reservados.',
-        footerBgColor: '',
-        footerTextColor: '',
-        noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
   ],
@@ -504,16 +497,13 @@ export const defaultThankYouTemplate: BlockNode = {
         showCart: false,
         sticky: true,
         noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
     {
       id: generateBlockId('Section'),
       type: 'Section',
       props: {
-        padding: 'lg',
+        paddingY: 32,
       },
       children: [
         {
@@ -527,6 +517,28 @@ export const defaultThankYouTemplate: BlockNode = {
         },
       ],
     },
+    // Upsell Slot (busca de /offers)
+    {
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: {
+        backgroundColor: '#f9fafb',
+        paddingY: 48,
+      },
+      children: [
+        {
+          id: generateBlockId('UpsellSlot'),
+          type: 'UpsellSlot',
+          props: {
+            title: 'Oferta Especial para Você',
+            subtitle: 'Aproveite esta oferta exclusiva!',
+            maxItems: 3,
+            variant: 'normal',
+            showWhenEmpty: true,
+          },
+        },
+      ],
+    },
     {
       id: generateBlockId('Footer'),
       type: 'Footer',
@@ -534,12 +546,6 @@ export const defaultThankYouTemplate: BlockNode = {
         menuId: '',
         showSocial: true,
         copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
-        footerBgColor: '',
-        footerTextColor: '',
-        noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
   ],

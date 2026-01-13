@@ -161,37 +161,33 @@ export function ProductGridBlock({
   const isDemo = !products || products.length === 0;
 
   // Compute grid columns based on viewport context or responsive fallback
+  // Desktop: 4 cols, Tablet: 3 cols, Mobile: 2 cols (with configurable max)
   const gridCols = useMemo(() => {
     // If viewport is set (in builder), use explicit values
     if (viewport) {
       if (isMobileViewport) {
-        // Mobile: 2 columns max, 1 for small column counts
-        return columns <= 2 ? 'grid-cols-1' : 'grid-cols-2';
+        // Mobile: always 2 columns
+        return 'grid-cols-2';
       }
       if (isTabletViewport) {
-        // Tablet: intermediate
-        return columns <= 2 ? 'grid-cols-2' : 'grid-cols-3';
+        // Tablet: 3 columns max
+        return columns <= 3 ? `grid-cols-${Math.min(columns, 3)}` : 'grid-cols-3';
       }
-      // Desktop: use configured columns
-      return {
-        1: 'grid-cols-1',
-        2: 'grid-cols-2',
-        3: 'grid-cols-3',
-        4: 'grid-cols-4',
-        5: 'grid-cols-5',
-        6: 'grid-cols-6',
-      }[columns] || 'grid-cols-4';
+      // Desktop: use configured columns (max 4 for reasonable card sizes)
+      const desktopCols = Math.min(columns, 4);
+      return `grid-cols-${desktopCols}`;
     }
     
     // Fallback to responsive CSS classes for public storefront
+    // Pattern: 2 cols mobile, 3 cols tablet (md), 4 cols desktop (lg)
     return {
       1: 'grid-cols-1',
-      2: 'grid-cols-2 sm:grid-cols-2',
-      3: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
-      4: 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4',
-      5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
-      6: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6',
-    }[columns] || 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-4';
+      2: 'grid-cols-2',
+      3: 'grid-cols-2 md:grid-cols-3',
+      4: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+      5: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+      6: 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
+    }[columns] || 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4';
   }, [viewport, isMobileViewport, isTabletViewport, columns]);
 
   // Helper functions (pure, no hooks)
@@ -232,7 +228,7 @@ export function ProductGridBlock({
   }
 
   return (
-    <div className="relative p-4">
+    <div className="relative">
       {isDemo && isEditing && (
         <div className="absolute -top-1 right-4 z-10">
           <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
@@ -240,7 +236,7 @@ export function ProductGridBlock({
           </span>
         </div>
       )}
-      <div className={cn('grid gap-4', gridCols)}>
+      <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
         {displayProducts.map((product) => {
           const rating = ratingsMap?.get(product.id);
           const isProductDemo = product.id.startsWith('demo-');
@@ -259,9 +255,10 @@ export function ProductGridBlock({
                   src={getProductImage(product)}
                   alt={product.name}
                   className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                  loading="lazy"
                 />
               </div>
-              <div className="p-3">
+              <div className="p-2 sm:p-3">
                 {showRatings && rating && rating.count > 0 && (
                   <RatingSummary
                     average={rating.average}
@@ -270,23 +267,23 @@ export function ProductGridBlock({
                     className="mb-1"
                   />
                 )}
-                <h3 className="font-medium text-sm line-clamp-2 text-foreground">
+                <h3 className="font-medium text-xs sm:text-sm line-clamp-2 text-foreground">
                   {product.name}
                 </h3>
                 {showPrice && (
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex flex-wrap items-center gap-1 sm:gap-2">
                     {product.compare_at_price && product.compare_at_price > product.price && (
-                      <span className="text-xs text-muted-foreground line-through">
+                      <span className="text-[10px] sm:text-xs text-muted-foreground line-through">
                         {formatPrice(product.compare_at_price)}
                       </span>
                     )}
-                    <span className="text-sm font-semibold text-primary">
+                    <span className="text-xs sm:text-sm font-semibold text-primary">
                       {formatPrice(product.price)}
                     </span>
                   </div>
                 )}
                 {showButton && (
-                  <button className="mt-2 w-full py-1.5 px-3 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
+                  <button className="mt-2 w-full py-1 sm:py-1.5 px-2 sm:px-3 text-[10px] sm:text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors">
                     {buttonText}
                   </button>
                 )}
