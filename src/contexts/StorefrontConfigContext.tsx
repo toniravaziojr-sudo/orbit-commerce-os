@@ -52,7 +52,13 @@ const ShippingContext = createContext<ShippingContextValue | null>(null);
 export function useShipping() {
   const context = useContext(ShippingContext);
   if (!context) {
-    throw new Error('useShipping must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      config: defaultShippingConfig,
+      isLoading: false,
+      quote: () => [],
+      quoteAsync: async () => [],
+    } as ShippingContextValue;
   }
   return context;
 }
@@ -76,7 +82,12 @@ const BenefitContext = createContext<BenefitContextValue | null>(null);
 export function useBenefit() {
   const context = useContext(BenefitContext);
   if (!context) {
-    throw new Error('useBenefit must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      config: defaultBenefitConfig,
+      isLoading: false,
+      getProgress: () => ({ enabled: false, progress: 0, remaining: 0, achieved: false, label: '' }),
+    } as BenefitContextValue;
   }
   return context;
 }
@@ -93,7 +104,11 @@ const OffersContext = createContext<OffersContextValue | null>(null);
 export function useOffers() {
   const context = useContext(OffersContext);
   if (!context) {
-    throw new Error('useOffers must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      config: defaultOffersConfig,
+      isLoading: false,
+    } as OffersContextValue;
   }
   return context;
 }
@@ -110,7 +125,11 @@ const CartConfigContext = createContext<CartConfigContextValue | null>(null);
 export function useCartConfig() {
   const context = useContext(CartConfigContext);
   if (!context) {
-    throw new Error('useCartConfig must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      config: defaultCartConfig,
+      isLoading: false,
+    } as CartConfigContextValue;
   }
   return context;
 }
@@ -127,7 +146,11 @@ const CheckoutConfigContext = createContext<CheckoutConfigContextValue | null>(n
 export function useCheckoutConfig() {
   const context = useContext(CheckoutConfigContext);
   if (!context) {
-    throw new Error('useCheckoutConfig must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      config: defaultCheckoutConfig,
+      isLoading: false,
+    } as CheckoutConfigContextValue;
   }
   return context;
 }
@@ -143,7 +166,10 @@ const CanonicalDomainContext = createContext<CanonicalDomainContextValue | null>
 export function useCanonicalDomain() {
   const context = useContext(CanonicalDomainContext);
   if (!context) {
-    throw new Error('useCanonicalDomain must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      customDomain: null,
+    } as CanonicalDomainContextValue;
   }
   return context;
 }
@@ -159,7 +185,10 @@ const StorefrontConfigContext = createContext<StorefrontConfigContextValue | nul
 export function useStorefrontConfig() {
   const context = useContext(StorefrontConfigContext);
   if (!context) {
-    throw new Error('useStorefrontConfig must be used within StorefrontConfigProvider');
+    // Return safe defaults for editing mode (builder preview)
+    return {
+      tenantId: '',
+    } as StorefrontConfigContextValue;
   }
   return context;
 }
