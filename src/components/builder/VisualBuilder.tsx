@@ -88,22 +88,13 @@ export function VisualBuilder({
   isolateMode,
 }: VisualBuilderProps) {
   const [searchParams] = useSearchParams();
-  
-  // ISOLATION MODE: render minimal UI for testing layers
-  // ?isolate=visual - test VisualBuilder without DnD/Canvas
-  if (isolateMode === 'visual') {
-    return <VisualIsolationUI mode="visual" message="VisualBuilder shell (sem DnD/Canvas)" />;
-  }
+  const navigate = useNavigate();
   
   // Safe Mode: ?safe=1 renders placeholders only (for debugging)
   const isSafeMode = searchParams.get('safe') === '1';
   const isDebugMode = searchParams.get('debug') === '1';
-
-  // Debug log on mount
-  useEffect(() => {
-    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent, isSafeMode, isDebugMode, isolateMode });
-  }, []);
-  const navigate = useNavigate();
+  
+  // All hooks must be called before any conditional returns
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isInteractMode, setIsInteractMode] = useState(false);
   const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
@@ -160,13 +151,6 @@ export function VisualBuilder({
     pageId,
   });
 
-  // Run migration on first load if needed
-  useEffect(() => {
-    if (globalLayout?.needsMigration && !layoutLoading) {
-      migrateFromHome.mutate();
-    }
-  }, [globalLayout?.needsMigration, layoutLoading]);
-
   // Get initial content from prop or default template
   const startingContent = useMemo(() => 
     initialContent || getDefaultTemplate(pageType),
@@ -185,15 +169,6 @@ export function VisualBuilder({
 
   // Builder store for state management
   const store = useBuilderStore(contentWithGlobalLayout);
-
-  // Sync content when template or global layout changes
-  // Use preserveSelection to avoid losing sidebar when overrides change
-  useEffect(() => {
-    if (!layoutLoading && !overridesLoading) {
-      // Preserve selection when only pageOverrides change (to keep sidebar visible)
-      store.setContent(contentWithGlobalLayout, true);
-    }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading]);
 
   // Data mutations
   const { saveDraft, publish } = useBuilderData(tenantId);
@@ -269,6 +244,34 @@ export function VisualBuilder({
     
     return ctx;
   }, [context, pageType, selectedCategory, categoryHeaderSlot, canvasViewport, productSettings]);
+
+  // Debug log on mount
+  useEffect(() => {
+    console.log('[VisualBuilder] Mounted with:', { tenantId, pageType, pageId, hasInitialContent: !!initialContent, isSafeMode, isDebugMode, isolateMode });
+  }, [tenantId, pageType, pageId, initialContent, isSafeMode, isDebugMode, isolateMode]);
+
+  // Run migration on first load if needed
+  useEffect(() => {
+    if (globalLayout?.needsMigration && !layoutLoading) {
+      migrateFromHome.mutate();
+    }
+  }, [globalLayout?.needsMigration, layoutLoading, migrateFromHome]);
+
+  // Sync content when template or global layout changes
+  // Use preserveSelection to avoid losing sidebar when overrides change
+  useEffect(() => {
+    if (!layoutLoading && !overridesLoading) {
+      // Preserve selection when only pageOverrides change (to keep sidebar visible)
+      store.setContent(contentWithGlobalLayout, true);
+    }
+  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store]);
+
+  // ISOLATION MODE: render minimal UI for testing layers
+  // ?isolate=visual - test VisualBuilder without DnD/Canvas
+  // NOTE: This conditional return is AFTER all hooks have been called
+  if (isolateMode === 'visual') {
+    return <VisualIsolationUI mode="visual" message="VisualBuilder shell (sem DnD/Canvas)" />;
+  }
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
