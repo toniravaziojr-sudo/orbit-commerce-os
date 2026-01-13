@@ -1,7 +1,8 @@
 // =============================================
 // CART DEMO BLOCK - Demo cart with Cross-sell
 // Bloco de demonstração do carrinho para uso no Builder
-// Props editáveis via UI - sem conteúdo hardcoded
+// Props editáveis via UI - SEM IMPORT de demoData
+// Dados demo são passados via props/defaultProps do registry
 // =============================================
 
 import React from 'react';
@@ -10,7 +11,22 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { demoProducts } from '@/lib/builder/demoData';
+
+interface DemoCartItem {
+  id: string;
+  name: string;
+  price: number;
+  compare_at_price?: number | null;
+  image: string;
+  quantity: number;
+}
+
+interface DemoProduct {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+}
 
 interface CartDemoBlockProps {
   // Layout & Display
@@ -30,9 +46,38 @@ interface CartDemoBlockProps {
   trustBadge1Label?: string;
   trustBadge2Label?: string;
   trustBadge3Label?: string;
+  // Demo items (via props, não hardcoded)
+  demoCartItems?: DemoCartItem[];
+  demoCrossSellProducts?: DemoProduct[];
   // Editor
   isEditing?: boolean;
 }
+
+// Default demo items (usados apenas quando não há props)
+const defaultCartItems: DemoCartItem[] = [
+  {
+    id: 'cart-1',
+    name: 'Produto Exemplo 1',
+    price: 89.90,
+    compare_at_price: 129.90,
+    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&h=200&fit=crop',
+    quantity: 2,
+  },
+  {
+    id: 'cart-2',
+    name: 'Produto Exemplo 2',
+    price: 59.90,
+    image: 'https://images.unsplash.com/photo-1570194065650-d99fb4b38b17?w=200&h=200&fit=crop',
+    quantity: 1,
+  },
+];
+
+const defaultCrossSellProducts: DemoProduct[] = [
+  { id: 'cs-1', name: 'Sugestão 1', price: 39.90, image: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=200&h=200&fit=crop' },
+  { id: 'cs-2', name: 'Sugestão 2', price: 49.90, image: 'https://images.unsplash.com/photo-1617897903246-719242758050?w=200&h=200&fit=crop' },
+  { id: 'cs-3', name: 'Sugestão 3', price: 29.90, image: 'https://images.unsplash.com/photo-1599305090598-fe179d501227?w=200&h=200&fit=crop' },
+  { id: 'cs-4', name: 'Sugestão 4', price: 69.90, image: 'https://images.unsplash.com/photo-1591360236480-4ed861025fa1?w=200&h=200&fit=crop' },
+];
 
 export function CartDemoBlock({
   showCrossSell = true,
@@ -48,27 +93,23 @@ export function CartDemoBlock({
   trustBadge1Label = 'Frete Grátis',
   trustBadge2Label = 'Compra Segura',
   trustBadge3Label = '12x s/ juros',
+  demoCartItems = defaultCartItems,
+  demoCrossSellProducts = defaultCrossSellProducts,
   isEditing,
 }: CartDemoBlockProps) {
-  // Demo cart items (2 products from demo data)
-  const cartItems = [
-    { ...demoProducts[0], quantity: 2 },
-    { ...demoProducts[2], quantity: 1 },
-  ];
-
-  // Demo cross-sell products (máximo 4)
-  const crossSellProducts = demoProducts.slice(4, 8);
+  const cartItems = demoCartItems;
+  const crossSellProducts = demoCrossSellProducts.slice(0, 4);
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const discount = 0;
-  const shipping = subtotal >= 199 ? 0 : 19.90;
+  const shipping = subtotal >= freeShippingThreshold ? 0 : 19.90;
   const total = subtotal - discount + shipping;
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-8">
         <ShoppingCart className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">Carrinho de Compras</h1>
+        <h1 className="text-3xl font-bold">{title}</h1>
         <Badge variant="secondary" className="ml-2">{cartItems.length} itens</Badge>
       </div>
 
@@ -129,8 +170,8 @@ export function CartDemoBlock({
             </CardContent>
           </Card>
 
-          {/* Cross-sell - ÚNICO tipo de oferta no carrinho */}
-          {showCrossSell && (
+          {/* Cross-sell */}
+          {showCrossSell && crossSellProducts.length > 0 && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg">Você também pode gostar</CardTitle>
@@ -168,19 +209,21 @@ export function CartDemoBlock({
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Coupon input */}
-              <div className="flex gap-2">
-                <div className="flex-1 relative">
-                  <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <input
-                    type="text"
-                    placeholder="Cupom de desconto"
-                    className="w-full h-10 pl-9 pr-3 border rounded-lg text-sm bg-background"
-                  />
+              {showCouponField && (
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <input
+                      type="text"
+                      placeholder={couponPlaceholder}
+                      className="w-full h-10 pl-9 pr-3 border rounded-lg text-sm bg-background"
+                    />
+                  </div>
+                  <Button variant="secondary" size="sm" className="h-10">
+                    {couponButtonText}
+                  </Button>
                 </div>
-                <Button variant="secondary" size="sm" className="h-10">
-                  Aplicar
-                </Button>
-              </div>
+              )}
 
               <Separator />
 
@@ -199,7 +242,7 @@ export function CartDemoBlock({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Frete</span>
                   {shipping === 0 ? (
-                    <span className="text-green-600 font-medium">Grátis</span>
+                    <span className="text-green-600 font-medium">{freeShippingLabel}</span>
                   ) : (
                     <span>R$ {shipping.toFixed(2)}</span>
                   )}
@@ -218,28 +261,30 @@ export function CartDemoBlock({
               </p>
 
               <Button className="w-full" size="lg">
-                Finalizar Compra
+                {checkoutButtonText}
               </Button>
 
               <Button variant="outline" className="w-full">
-                Continuar Comprando
+                {continueShoppingText}
               </Button>
 
               {/* Trust badges */}
-              <div className="grid grid-cols-3 gap-2 pt-4 border-t">
-                <div className="text-center">
-                  <Truck className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Frete Grátis</p>
+              {showTrustBadges && (
+                <div className="grid grid-cols-3 gap-2 pt-4 border-t">
+                  <div className="text-center">
+                    <Truck className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                    <p className="text-[10px] text-muted-foreground">{trustBadge1Label}</p>
+                  </div>
+                  <div className="text-center">
+                    <Shield className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                    <p className="text-[10px] text-muted-foreground">{trustBadge2Label}</p>
+                  </div>
+                  <div className="text-center">
+                    <CreditCard className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                    <p className="text-[10px] text-muted-foreground">{trustBadge3Label}</p>
+                  </div>
                 </div>
-                <div className="text-center">
-                  <Shield className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                  <p className="text-[10px] text-muted-foreground">Compra Segura</p>
-                </div>
-                <div className="text-center">
-                  <CreditCard className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
-                  <p className="text-[10px] text-muted-foreground">12x s/ juros</p>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -247,7 +292,7 @@ export function CartDemoBlock({
 
       {isEditing && (
         <p className="text-center text-xs text-muted-foreground mt-8">
-          [Prévia do carrinho com Cross-sell]
+          [Prévia do carrinho - edite as props para personalizar]
         </p>
       )}
     </div>

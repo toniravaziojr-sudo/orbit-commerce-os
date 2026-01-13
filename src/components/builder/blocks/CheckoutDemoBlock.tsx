@@ -1,11 +1,12 @@
 // =============================================
 // CHECKOUT DEMO BLOCK - Demo checkout with order bump
 // Bloco de demonstração do checkout para uso no Builder
-// Props editáveis via UI - sem conteúdo hardcoded
+// Props editáveis via UI - SEM IMPORT de demoData
+// Dados demo são passados via props/defaultProps do registry
 // =============================================
 
 import React from 'react';
-import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package, Settings } from 'lucide-react';
+import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +16,24 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { cn } from '@/lib/utils';
-import { demoProducts } from '@/lib/builder/demoData';
+
+interface DemoCartItem {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
+}
+
+interface DemoOrderBump {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  compare_at_price?: number | null;
+  image: string;
+  discountLabel: string;
+}
 
 interface CheckoutDemoBlockProps {
   // Layout & Display
@@ -38,9 +56,40 @@ interface CheckoutDemoBlockProps {
   pixLabel?: string;
   boletoLabel?: string;
   pixDiscount?: string;
+  // Demo items (via props, não hardcoded)
+  demoCartItems?: DemoCartItem[];
+  demoOrderBump?: DemoOrderBump;
   // Editor
   isEditing?: boolean;
 }
+
+// Default demo items
+const defaultCartItems: DemoCartItem[] = [
+  {
+    id: 'checkout-1',
+    name: 'Produto Exemplo 1',
+    price: 89.90,
+    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&h=200&fit=crop',
+    quantity: 1,
+  },
+  {
+    id: 'checkout-2',
+    name: 'Produto Exemplo 2',
+    price: 59.90,
+    image: 'https://images.unsplash.com/photo-1570194065650-d99fb4b38b17?w=200&h=200&fit=crop',
+    quantity: 1,
+  },
+];
+
+const defaultOrderBump: DemoOrderBump = {
+  id: 'bump-1',
+  name: 'Kit Viagem Completo',
+  description: 'Tamanho ideal para viagem',
+  price: 29.90,
+  compare_at_price: 49.90,
+  image: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=200&h=200&fit=crop',
+  discountLabel: '-40%',
+};
 
 export function CheckoutDemoBlock({
   showOrderBump = true,
@@ -59,25 +108,21 @@ export function CheckoutDemoBlock({
   pixLabel = 'PIX',
   boletoLabel = 'Boleto Bancário',
   pixDiscount = '5% OFF',
+  demoCartItems = defaultCartItems,
+  demoOrderBump = defaultOrderBump,
   isEditing,
 }: CheckoutDemoBlockProps) {
-  // Demo cart items
-  const cartItems = [
-    { ...demoProducts[0], quantity: 1 },
-    { ...demoProducts[2], quantity: 1 },
-  ];
-
-  // Demo order bump
-  const orderBumpProduct = demoProducts[5]; // Mini tamanho viagem
+  const cartItems = demoCartItems;
+  const orderBumpProduct = demoOrderBump;
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   const shipping = 0; // Free
   const total = subtotal + shipping;
 
   const steps = [
-    { id: 'contact', label: 'Contato', icon: User, completed: true },
-    { id: 'shipping', label: 'Entrega', icon: Truck, completed: true },
-    { id: 'payment', label: 'Pagamento', icon: CreditCard, completed: false, active: true },
+    { id: 'contact', label: stepContactLabel, icon: User, completed: true },
+    { id: 'shipping', label: stepShippingLabel, icon: Truck, completed: true },
+    { id: 'payment', label: stepPaymentLabel, icon: CreditCard, completed: false, active: true },
   ];
 
   return (
@@ -118,14 +163,14 @@ export function CheckoutDemoBlock({
                 <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                   <Check className="h-3 w-3 text-green-600" />
                 </div>
-                Informações de Contato
+                {contactTitle}
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between text-sm">
                 <div>
-                  <p className="font-medium">Maria Silva</p>
-                  <p className="text-muted-foreground">maria@email.com • (11) 99999-9999</p>
+                  <p className="font-medium">Cliente Exemplo</p>
+                  <p className="text-muted-foreground">cliente@email.com • (11) 99999-9999</p>
                 </div>
                 <Button variant="ghost" size="sm">Alterar</Button>
               </div>
@@ -139,7 +184,7 @@ export function CheckoutDemoBlock({
                 <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
                   <Check className="h-3 w-3 text-green-600" />
                 </div>
-                Endereço de Entrega
+                {shippingTitle}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -147,8 +192,8 @@ export function CheckoutDemoBlock({
                 <div className="flex items-start gap-3">
                   <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
-                    <p className="font-medium">Rua das Flores, 123 - Apto 45</p>
-                    <p className="text-muted-foreground">Jardim Paulista, São Paulo - SP, 01310-100</p>
+                    <p className="font-medium">Rua Exemplo, 123 - Apto 45</p>
+                    <p className="text-muted-foreground">Centro, São Paulo - SP, 01310-100</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="sm">Alterar</Button>
@@ -170,89 +215,91 @@ export function CheckoutDemoBlock({
           </Card>
 
           {/* Payment (active step) */}
-          <Card className="border-primary">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
-                  <CreditCard className="h-3 w-3 text-primary-foreground" />
-                </div>
-                Forma de Pagamento
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <RadioGroup defaultValue="credit" className="space-y-3">
-                <div className="flex items-center space-x-3 border rounded-lg p-3 bg-primary/5 border-primary">
-                  <RadioGroupItem value="credit" id="credit" />
-                  <Label htmlFor="credit" className="flex-1 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="h-4 w-4" />
-                        <span className="font-medium">Cartão de Crédito</span>
+          {showPaymentOptions && (
+            <Card className="border-primary">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary flex items-center justify-center">
+                    <CreditCard className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                  {paymentTitle}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <RadioGroup defaultValue="credit" className="space-y-3">
+                  <div className="flex items-center space-x-3 border rounded-lg p-3 bg-primary/5 border-primary">
+                    <RadioGroupItem value="credit" id="credit" />
+                    <Label htmlFor="credit" className="flex-1 cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4" />
+                          <span className="font-medium">{creditCardLabel}</span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">até 12x sem juros</span>
                       </div>
-                      <span className="text-xs text-muted-foreground">até 12x sem juros</span>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 border rounded-lg p-3">
-                  <RadioGroupItem value="pix" id="pix" />
-                  <Label htmlFor="pix" className="flex-1 cursor-pointer">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">⚡</span>
-                        <span className="font-medium">PIX</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 border rounded-lg p-3">
+                    <RadioGroupItem value="pix" id="pix" />
+                    <Label htmlFor="pix" className="flex-1 cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">⚡</span>
+                          <span className="font-medium">{pixLabel}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-green-600 text-xs">{pixDiscount}</Badge>
                       </div>
-                      <Badge variant="secondary" className="text-green-600 text-xs">5% OFF</Badge>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 border rounded-lg p-3">
-                  <RadioGroupItem value="boleto" id="boleto" />
-                  <Label htmlFor="boleto" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📄</span>
-                      <span className="font-medium">Boleto Bancário</span>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-3 border rounded-lg p-3">
+                    <RadioGroupItem value="boleto" id="boleto" />
+                    <Label htmlFor="boleto" className="flex-1 cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">📄</span>
+                        <span className="font-medium">{boletoLabel}</span>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
 
-              {/* Credit card form */}
-              <div className="space-y-4 pt-4 border-t">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label htmlFor="card-number">Número do Cartão</Label>
-                    <Input id="card-number" placeholder="0000 0000 0000 0000" />
+                {/* Credit card form */}
+                <div className="space-y-4 pt-4 border-t">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <Label htmlFor="card-number">Número do Cartão</Label>
+                      <Input id="card-number" placeholder="0000 0000 0000 0000" />
+                    </div>
+                    <div>
+                      <Label htmlFor="expiry">Validade</Label>
+                      <Input id="expiry" placeholder="MM/AA" />
+                    </div>
+                    <div>
+                      <Label htmlFor="cvv">CVV</Label>
+                      <Input id="cvv" placeholder="123" />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="card-name">Nome no Cartão</Label>
+                      <Input id="card-name" placeholder="Como está no cartão" />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="expiry">Validade</Label>
-                    <Input id="expiry" placeholder="MM/AA" />
-                  </div>
-                  <div>
-                    <Label htmlFor="cvv">CVV</Label>
-                    <Input id="cvv" placeholder="123" />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="card-name">Nome no Cartão</Label>
-                    <Input id="card-name" placeholder="Como está no cartão" />
-                  </div>
-                </div>
 
-                <div>
-                  <Label>Parcelas</Label>
-                  <select className="w-full h-10 border rounded-lg px-3 mt-1 bg-background">
-                    <option>1x de R$ {total.toFixed(2)} sem juros</option>
-                    <option>2x de R$ {(total / 2).toFixed(2)} sem juros</option>
-                    <option>3x de R$ {(total / 3).toFixed(2)} sem juros</option>
-                    <option>6x de R$ {(total / 6).toFixed(2)} sem juros</option>
-                    <option>12x de R$ {(total / 12).toFixed(2)} sem juros</option>
-                  </select>
+                  <div>
+                    <Label>Parcelas</Label>
+                    <select className="w-full h-10 border rounded-lg px-3 mt-1 bg-background">
+                      <option>1x de R$ {total.toFixed(2)} sem juros</option>
+                      <option>2x de R$ {(total / 2).toFixed(2)} sem juros</option>
+                      <option>3x de R$ {(total / 3).toFixed(2)} sem juros</option>
+                      <option>6x de R$ {(total / 6).toFixed(2)} sem juros</option>
+                      <option>12x de R$ {(total / 12).toFixed(2)} sem juros</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Order Bump */}
-          {showOrderBump && (
+          {showOrderBump && orderBumpProduct && (
             <Card className="border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
               <CardContent className="pt-4">
                 <div className="flex items-start gap-3">
@@ -263,7 +310,7 @@ export function CheckoutDemoBlock({
                       <span className="font-semibold text-sm text-amber-700 dark:text-amber-400">
                         ADICIONE E ECONOMIZE!
                       </span>
-                      <Badge className="bg-amber-500 text-white text-xs">-40%</Badge>
+                      <Badge className="bg-amber-500 text-white text-xs">{orderBumpProduct.discountLabel}</Badge>
                     </div>
                     <div className="flex gap-3">
                       <img
@@ -273,11 +320,13 @@ export function CheckoutDemoBlock({
                       />
                       <div>
                         <p className="font-medium text-sm">{orderBumpProduct.name}</p>
-                        <p className="text-xs text-muted-foreground">Kit completo para viagem</p>
+                        <p className="text-xs text-muted-foreground">{orderBumpProduct.description}</p>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs line-through text-muted-foreground">
-                            R$ {orderBumpProduct.compare_at_price?.toFixed(2)}
-                          </span>
+                          {orderBumpProduct.compare_at_price && (
+                            <span className="text-xs line-through text-muted-foreground">
+                              R$ {orderBumpProduct.compare_at_price.toFixed(2)}
+                            </span>
+                          )}
                           <span className="font-bold text-amber-600">
                             + R$ {orderBumpProduct.price.toFixed(2)}
                           </span>
@@ -297,7 +346,7 @@ export function CheckoutDemoBlock({
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Package className="h-5 w-5" />
-                Resumo do Pedido
+                {orderSummaryTitle}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -350,24 +399,26 @@ export function CheckoutDemoBlock({
 
               <Button className="w-full" size="lg">
                 <Lock className="h-4 w-4 mr-2" />
-                Finalizar Compra
+                {checkoutButtonText}
               </Button>
 
               {/* Trust badges */}
-              <div className="flex items-center justify-center gap-4 pt-4 border-t">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Lock className="h-3 w-3" />
-                  <span>SSL</span>
+              {showTrustBadges && (
+                <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Lock className="h-3 w-3" />
+                    <span>SSL</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Shield className="h-3 w-3" />
+                    <span>Seguro</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <BadgeCheck className="h-3 w-3" />
+                    <span>Verificado</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Shield className="h-3 w-3" />
-                  <span>Seguro</span>
-                </div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <BadgeCheck className="h-3 w-3" />
-                  <span>Verificado</span>
-                </div>
-              </div>
+              )}
 
               {/* Payment icons */}
               <div className="flex items-center justify-center gap-2 text-muted-foreground">
@@ -382,7 +433,7 @@ export function CheckoutDemoBlock({
 
       {isEditing && (
         <p className="text-center text-xs text-muted-foreground mt-8">
-          [Prévia do checkout com Order Bump e Timeline de progresso]
+          [Prévia do checkout - edite as props para personalizar]
         </p>
       )}
     </div>

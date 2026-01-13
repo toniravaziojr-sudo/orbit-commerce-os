@@ -2,13 +2,13 @@
 // UPSELL SECTION - Post-purchase upsell offers
 // Appears ONLY on Thank You page
 // Source of truth: Aumentar Ticket (/offers) module via useActiveOfferRules
+// SEM IMPORT de demoData - sem preview demo em código
 // =============================================
 
 import { Gift, ShoppingCart, ArrowRight, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { demoProducts } from '@/lib/builder/demoData';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,8 +38,9 @@ interface UpsellProduct {
  * REGRA: Upsell aparece SOMENTE na página de Obrigado
  * A configuração real vem do módulo Aumentar Ticket (/offers) - tabela offer_rules
  * 
- * Se não houver oferta configurada, não renderiza nada em produção
- * ou mostra placeholder no modo de edição.
+ * Se não houver oferta configurada:
+ * - Em produção: não renderiza nada
+ * - Em edição: empty state com CTA para /offers
  */
 export function UpsellSection({ isEditing }: UpsellSectionProps) {
   const tenantSlug = useTenantSlug();
@@ -103,62 +104,24 @@ export function UpsellSection({ isEditing }: UpsellSectionProps) {
     return product.price;
   };
 
-  // Demo product for editing preview
-  const demoProduct = demoProducts[5]; // Hidratante Facial
-  const discountPercent = 20;
-  const discountedPrice = demoProduct.price * (1 - discountPercent / 100);
-  const savings = demoProduct.price - discountedPrice;
-
-  // In editing mode, always show demo placeholder
-  if (isEditing) {
+  // In editing mode without active rules, show empty state with CTA
+  if (isEditing && (!activeRule || products.length === 0)) {
     return (
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent my-6">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Gift className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-lg">Oferta Especial para Você!</h3>
-            <Badge variant="destructive" className="ml-auto">-{discountPercent}%</Badge>
+      <Card className="border-dashed border-2 border-muted-foreground/30 bg-muted/20 my-6">
+        <CardContent className="p-8 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-muted flex items-center justify-center">
+            <Gift className="h-6 w-6 text-muted-foreground" />
           </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            {/* Product Image */}
-            <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              <img 
-                src={demoProduct.image} 
-                alt={demoProduct.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {/* Product Info */}
-            <div className="flex-1 text-center sm:text-left">
-              <h4 className="font-medium text-base mb-1">{demoProduct.name}</h4>
-              <p className="text-sm text-muted-foreground mb-2">
-                Aproveite esta oferta exclusiva pós-compra!
-              </p>
-              <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <span className="text-sm text-muted-foreground line-through">
-                  R$ {demoProduct.price.toFixed(2)}
-                </span>
-                <span className="text-xl font-bold text-primary">
-                  R$ {discountedPrice.toFixed(2)}
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  Economize R$ {savings.toFixed(2)}
-                </Badge>
-              </div>
-            </div>
-
-            {/* CTA Button */}
-            <Button className="gap-2 flex-shrink-0" size="lg">
-              Aproveitar Oferta
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-4 pt-4 border-t">
-            [Demonstrativo] Configure ofertas de upsell em <strong>Aumentar Ticket</strong>
+          <h3 className="font-semibold text-lg mb-2">Slot: Upsell (Pós-compra)</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Configure ofertas de upsell para aparecerem aqui após a compra.
           </p>
+          <Link to="/offers">
+            <Button variant="outline" size="sm" className="gap-2">
+              <Settings className="h-4 w-4" />
+              Configurar em Aumentar Ticket
+            </Button>
+          </Link>
         </CardContent>
       </Card>
     );
