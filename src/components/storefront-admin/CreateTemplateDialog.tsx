@@ -44,8 +44,8 @@ export function CreateTemplateDialog({
       }
     : {
         icon: <FileText className="h-5 w-5" />,
-        title: 'Novo Template do Zero',
-        description: 'Estrutura mínima com apenas header e footer para você construir.',
+        title: 'Criar Novo Modelo',
+        description: 'Comece do zero com uma estrutura limpa. A Home fica vazia para você personalizar, e as páginas padrão (produto, carrinho, checkout, etc.) já vêm com a estrutura básica funcional.',
       };
 
   return (
