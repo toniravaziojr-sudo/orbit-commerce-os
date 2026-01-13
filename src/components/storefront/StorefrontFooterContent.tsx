@@ -384,20 +384,22 @@ export function StorefrontFooterContent({
       className="border-t bg-muted/30"
       style={footerStyle}
     >
-      <div className="container mx-auto px-6 sm:px-8 py-10 md:py-12">
+      {/* Mobile: centered container with good horizontal fill */}
+      {/* Desktop: full container aligned left */}
+      <div className="w-full px-5 sm:px-8 md:container md:mx-auto py-10 md:py-12">
         {/* 
           Main Footer Grid - Responsive Layout:
-          - Mobile: 1 column, stacked vertically, full width, centered
-          - Desktop: 4 columns grid (Col1: Negócio, Col2: Atendimento+Redes, Col3: Menu1, Col4: Menu2)
+          - Mobile: 1 column, stacked, centered, good horizontal fill (max-w-md mx-auto)
+          - Desktop: 4 columns grid aligned left
         */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
           
           {/* ============================================ */}
           {/* COLUNA 1: Informações do Negócio */}
-          {/* Mobile: 100% width, centered content, stacked first */}
-          {/* Desktop: first column, left-aligned */}
+          {/* Mobile: centered, full width with max constraint */}
+          {/* Desktop: left-aligned */}
           {/* ============================================ */}
-          <div className="text-center md:text-left flex flex-col items-center md:items-start">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left w-full max-w-md mx-auto md:max-w-none md:mx-0">
             {/* Logo */}
             {showLogo && (
               <div className="mb-4">
@@ -406,7 +408,7 @@ export function StorefrontFooterContent({
                     <img
                       src={logoUrl}
                       alt={storeName}
-                      className="h-12 md:h-12 max-w-[180px] md:max-w-[200px] object-contain"
+                      className="h-12 max-w-[180px] object-contain"
                     />
                   ) : (
                     <span
@@ -421,7 +423,7 @@ export function StorefrontFooterContent({
             )}
             
             {/* Nome Fantasia / Descrição */}
-            <div className="space-y-2 w-full max-w-sm">
+            <div className="space-y-2 w-full">
               {!showLogo && storeName && (
                 <h4 
                   className="text-lg font-semibold"
@@ -454,27 +456,27 @@ export function StorefrontFooterContent({
 
           {/* ============================================ */}
           {/* COLUNA 2: Atendimento + Redes Sociais */}
-          {/* Mobile: 100% width, stacked second */}
-          {/* Desktop: second column */}
+          {/* Mobile: centered, full width with max constraint */}
+          {/* Desktop: left-aligned */}
           {/* ============================================ */}
-          <div className="text-center md:text-left space-y-6">
+          <div className="flex flex-col items-center md:items-start text-center md:text-left space-y-6 w-full max-w-md mx-auto md:max-w-none md:mx-0">
             
             {/* Sub-bloco 2.1: Atendimento (SAC) */}
             {showSac && hasContact && (
-              <div>
+              <div className="w-full">
                 <h4 
                   className="font-semibold mb-3"
                   style={footerTextColor ? { color: footerTextColor } : {}}
                 >
                   {sacTitle}
                 </h4>
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2.5">
                   {whatsAppHref && (
                     <a
                       href={whatsAppHref}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 justify-center md:justify-start"
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2 justify-center md:justify-start"
                       onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
@@ -485,7 +487,7 @@ export function StorefrontFooterContent({
                   {phoneHref && (
                     <a
                       href={phoneHref}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 justify-center md:justify-start"
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2 justify-center md:justify-start"
                       onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
@@ -496,31 +498,31 @@ export function StorefrontFooterContent({
                   {emailHref && (
                     <a
                       href={emailHref}
-                      className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2 justify-center md:justify-start"
+                      className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-2 justify-center md:justify-start"
                       onClick={e => isEditing && e.preventDefault()}
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
                       <Mail className="h-4 w-4 text-red-600 flex-shrink-0" />
-                      <span>{email}</span>
+                      <span className="break-all">{email}</span>
                     </a>
                   )}
                   {address && (
-                    <p 
+                    <div 
                       className="text-sm text-muted-foreground flex items-start gap-2 justify-center md:justify-start"
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                     >
-                      <span className="text-xs">📍</span>
-                      <span>{address}</span>
-                    </p>
+                      <span className="text-xs flex-shrink-0 pt-0.5">📍</span>
+                      <span className="break-words" style={{ overflowWrap: 'break-word', wordBreak: 'normal' }}>{address}</span>
+                    </div>
                   )}
                   {supportHours && (
-                    <p 
-                      className="text-sm text-muted-foreground flex items-center gap-2 justify-center md:justify-start"
+                    <div 
+                      className="text-sm text-muted-foreground inline-flex items-center gap-2 justify-center md:justify-start"
                       style={footerTextColor ? { color: footerTextColor, opacity: 0.7 } : {}}
                     >
-                      <span className="text-xs">🕐</span>
+                      <span className="text-xs flex-shrink-0">🕐</span>
                       <span>{supportHours}</span>
-                    </p>
+                    </div>
                   )}
                 </div>
               </div>
@@ -528,14 +530,14 @@ export function StorefrontFooterContent({
 
             {/* Sub-bloco 2.2: Redes Sociais - Siga-nos */}
             {showSocial && hasSocialMedia && (
-              <div>
+              <div className="w-full">
                 <h4 
                   className="font-semibold mb-3"
                   style={footerTextColor ? { color: footerTextColor } : {}}
                 >
-                  Redes Sociais — Siga-nos
+                  Redes Sociais
                 </h4>
-                <div className="flex gap-4 justify-center md:justify-start">
+                <div className="flex gap-5 justify-center md:justify-start flex-wrap">
                   {socialFacebook && (
                     <a
                       href={socialFacebook}

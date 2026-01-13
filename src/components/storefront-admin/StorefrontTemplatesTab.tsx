@@ -292,6 +292,7 @@ export function StorefrontTemplatesTab() {
             badgeVariant={PRESET_INFO.cosmetics.badgeVariant}
             onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
             onInstall={() => setCreatePreset('cosmetics')}
+            installLabel="Instalar"
           />
 
           <PresetCard
@@ -302,6 +303,7 @@ export function StorefrontTemplatesTab() {
             badgeVariant={PRESET_INFO.blank.badgeVariant}
             onPreview={() => navigate('/storefront/builder?preset=blank&mode=preview')}
             onInstall={() => setCreatePreset('blank')}
+            installLabel="Criar novo modelo"
           />
         </div>
       </section>
@@ -454,6 +456,7 @@ interface PresetCardProps {
   badgeVariant?: 'default' | 'secondary' | 'outline';
   onPreview: () => void;
   onInstall: () => void;
+  installLabel?: string;
 }
 
 function PresetCard({
@@ -464,6 +467,7 @@ function PresetCard({
   badgeVariant = 'secondary',
   onPreview, 
   onInstall,
+  installLabel = 'Instalar',
 }: PresetCardProps) {
   return (
     <div className="group rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow border-dashed border-primary/30">
@@ -498,7 +502,7 @@ function PresetCard({
           className="flex-1" 
           onClick={onInstall}
         >
-          Instalar
+          {installLabel}
         </Button>
       </div>
     </div>
