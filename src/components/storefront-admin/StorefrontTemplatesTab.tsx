@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
+import { useStorefrontTemplates } from '@/hooks/useBuilderData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,7 +13,9 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Globe
+  Globe,
+  Pencil,
+  Eye
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -25,16 +28,42 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from 'sonner';
+import { getPublicHomeUrl } from '@/lib/publicUrls';
 
 export function StorefrontTemplatesTab() {
   const { currentTenant } = useAuth();
   const { settings } = useStoreSettings();
+  const { data: templates } = useStorefrontTemplates();
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [showBlankDialog, setShowBlankDialog] = useState(false);
   
-  // Check if template is already applied (has content)
-  const hasExistingTemplate = settings?.is_published || false;
-  const lastEdited = settings?.updated_at 
+  // Find the home template to check if it has been published
+  const homeTemplate = templates?.find(t => t.page_type === 'home');
+  const hasExistingTemplate = homeTemplate?.published_version != null && homeTemplate.published_version > 0;
+  const hasDraft = homeTemplate?.draft_version != null && homeTemplate.draft_version > 0;
+  
+  // Get template name based on published status
+  const getCurrentTemplateName = () => {
+    if (!homeTemplate) return null;
+    if (hasExistingTemplate) {
+      return 'Template Cosméticos';
+    } else if (hasDraft) {
+      return 'Rascunho';
+    }
+    return null;
+  };
+  
+  const currentTemplateName = getCurrentTemplateName();
+  
+  const lastEdited = homeTemplate?.updated_at 
+    ? new Date(homeTemplate.updated_at).toLocaleDateString('pt-BR', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    : settings?.updated_at 
     ? new Date(settings.updated_at).toLocaleDateString('pt-BR', { 
         day: '2-digit', 
         month: '2-digit', 
@@ -43,6 +72,8 @@ export function StorefrontTemplatesTab() {
         minute: '2-digit'
       })
     : null;
+    
+  const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
 
   const handleApplyTemplate = () => {
     // For now, just navigate to builder with template
@@ -86,6 +117,47 @@ export function StorefrontTemplatesTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Current Template Card - only show if has published template */}
+      {currentTemplateName && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <LayoutTemplate className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-medium">Template Atual</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-2">
+                    {currentTemplateName}
+                    {hasExistingTemplate && (
+                      <Badge variant="default" className="text-xs">Publicado</Badge>
+                    )}
+                    {!hasExistingTemplate && hasDraft && (
+                      <Badge variant="secondary" className="text-xs">Rascunho</Badge>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link to="/storefront/builder?edit=home">
+                  <Button variant="outline" size="sm">
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Editar
+                  </Button>
+                </Link>
+                <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                  <Button variant="outline" size="sm">
+                    <Eye className="mr-2 h-4 w-4" />
+                    Ver Loja
+                  </Button>
+                </a>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Templates Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
