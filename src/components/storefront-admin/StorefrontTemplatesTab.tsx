@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
-import { useStorefrontTemplates } from '@/hooks/useBuilderData';
+import { useTemplateSets } from '@/hooks/useTemplatesSets';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,13 +10,24 @@ import {
   LayoutTemplate, 
   Sparkles,
   FileText,
-  AlertTriangle,
   CheckCircle2,
   Clock,
   Globe,
   Pencil,
-  Eye
+  Eye,
+  Copy,
+  Trash2,
+  MoreVertical,
+  Plus,
+  ExternalLink,
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,77 +37,87 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from 'sonner';
+} from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { getPublicHomeUrl } from '@/lib/publicUrls';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+import { CreateTemplateDialog } from './CreateTemplateDialog';
+import { RenameTemplateDialog } from './RenameTemplateDialog';
+import { PublishTemplateDialog } from './PublishTemplateDialog';
 
 export function StorefrontTemplatesTab() {
+  const navigate = useNavigate();
   const { currentTenant } = useAuth();
   const { settings } = useStoreSettings();
-  const { data: templates } = useStorefrontTemplates();
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [showBlankDialog, setShowBlankDialog] = useState(false);
-  
-  // Find the home template to check if it has been published
-  const homeTemplate = templates?.find(t => t.page_type === 'home');
-  const hasPublishedVersion = homeTemplate?.published_version != null && homeTemplate.published_version > 0;
-  const hasDraftVersion = homeTemplate?.draft_version != null && homeTemplate.draft_version > 0;
-  
-  // Consider store as having template if:
-  // 1. Has published_version > 0, OR
-  // 2. Store is published (is_published = true), OR
-  // 3. Template exists (was initialized)
-  const hasExistingTemplate = hasPublishedVersion || settings?.is_published || !!homeTemplate;
-  const hasDraft = hasDraftVersion;
-  
-  // Get template name based on published status
-  const getCurrentTemplateName = () => {
-    if (!homeTemplate) return null;
-    // If store is published, assume template is in use
-    if (settings?.is_published || hasPublishedVersion) {
-      return 'Template Cosméticos';
-    } else if (hasDraft) {
-      return 'Rascunho';
-    } else if (homeTemplate) {
-      return 'Template Padrão';
-    }
-    return null;
-  };
-  
-  const currentTemplateName = getCurrentTemplateName();
-  
-  const lastEdited = homeTemplate?.updated_at 
-    ? new Date(homeTemplate.updated_at).toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : settings?.updated_at 
-    ? new Date(settings.updated_at).toLocaleDateString('pt-BR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : null;
-    
+  const { 
+    templates, 
+    publishedTemplateId, 
+    publishedTemplate,
+    isStorePublished,
+    isLoading,
+    createTemplate,
+    renameTemplate,
+    duplicateTemplate,
+    deleteTemplate,
+    setPublishedTemplate,
+  } = useTemplateSets();
+
+  // Dialog states
+  const [createPreset, setCreatePreset] = useState<'cosmetics' | 'blank' | null>(null);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
+  const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
 
-  const handleApplyTemplate = () => {
-    // For now, just navigate to builder with template
-    toast.success('Template aplicado! Abrindo o editor...');
-    setShowTemplateDialog(false);
-    window.location.href = '/storefront/builder?edit=home';
+  const handleCreateTemplate = async (name: string) => {
+    if (!createPreset) return;
+    const result = await createTemplate.mutateAsync({ name, basePreset: createPreset });
+    setCreatePreset(null);
+    // Navigate to editor with new template
+    navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
   };
 
-  const handleStartBlank = () => {
-    toast.success('Estrutura limpa criada! Abrindo o editor...');
-    setShowBlankDialog(false);
-    window.location.href = '/storefront/builder?edit=home&blank=true';
+  const handleRenameTemplate = async (newName: string) => {
+    if (!renameTarget) return;
+    await renameTemplate.mutateAsync({ templateId: renameTarget.id, newName });
+    setRenameTarget(null);
   };
+
+  const handlePublishTemplate = async () => {
+    if (!publishTarget) return;
+    await setPublishedTemplate.mutateAsync(publishTarget.id);
+    setPublishTarget(null);
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!deleteTarget) return;
+    await deleteTemplate.mutateAsync(deleteTarget.id);
+    setDeleteTarget(null);
+  };
+
+  const handleDuplicateTemplate = async (templateId: string) => {
+    await duplicateTemplate.mutateAsync(templateId);
+  };
+
+  const handleEditTemplate = (templateId: string) => {
+    navigate(`/storefront/builder?templateId=${templateId}&edit=home`);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-48 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -108,14 +129,19 @@ export function StorefrontTemplatesTab() {
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">Status:</span>
-                <Badge variant={settings?.is_published ? 'default' : 'secondary'}>
-                  {settings?.is_published ? 'Publicada' : 'Rascunho'}
+                <Badge variant={isStorePublished ? 'default' : 'secondary'}>
+                  {isStorePublished ? 'Publicada' : 'Rascunho'}
                 </Badge>
               </div>
-              {lastEdited && (
+              {publishedTemplate && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>Última edição: {lastEdited}</span>
+                  <span>
+                    Última edição: {formatDistanceToNow(new Date(publishedTemplate.last_edited_at), {
+                      addSuffix: true,
+                      locale: ptBR,
+                    })}
+                  </span>
                 </div>
               )}
             </div>
@@ -128,38 +154,49 @@ export function StorefrontTemplatesTab() {
         </CardContent>
       </Card>
 
-      {/* Current Template Card - only show if has published template */}
-      {currentTemplateName && (
+      {/* Published Template Section */}
+      {publishedTemplate && (
         <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Globe className="h-4 w-4 text-primary" />
+              Template Publicado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-primary/10">
                   <LayoutTemplate className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium">Template Atual</p>
+                  <p className="font-medium">{publishedTemplate.name}</p>
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    {currentTemplateName}
-                    {settings?.is_published && (
-                      <Badge variant="default" className="text-xs">Publicado</Badge>
+                    <Badge variant="default" className="text-xs bg-emerald-500">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Ativo
+                    </Badge>
+                    {publishedTemplate.base_preset === 'cosmetics' && (
+                      <span className="text-xs">• Template Cosméticos</span>
                     )}
-                    {!settings?.is_published && (
-                      <Badge variant="secondary" className="text-xs">Rascunho</Badge>
+                    {publishedTemplate.base_preset === 'blank' && (
+                      <span className="text-xs">• Criado do zero</span>
                     )}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Link to="/storefront/builder?edit=home">
-                  <Button variant="outline" size="sm">
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Editar
-                  </Button>
-                </Link>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleEditTemplate(publishedTemplate.id)}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
                 <a href={previewUrl} target="_blank" rel="noopener noreferrer">
                   <Button variant="outline" size="sm">
-                    <Eye className="mr-2 h-4 w-4" />
+                    <ExternalLink className="mr-2 h-4 w-4" />
                     Ver Loja
                   </Button>
                 </a>
@@ -169,106 +206,156 @@ export function StorefrontTemplatesTab() {
         </Card>
       )}
 
-      {/* Templates Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Template Card */}
-        <Card className="relative overflow-hidden border-2 hover:border-primary/50 transition-colors">
-          <div className="absolute top-3 right-3">
-            <Badge variant="secondary" className="bg-primary/10 text-primary">
-              Recomendado
-            </Badge>
+      {/* Templates List Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Meus Templates</CardTitle>
+              <CardDescription>
+                Gerencie seus templates de loja. Cada template é independente.
+              </CardDescription>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Template
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setCreatePreset('cosmetics')}>
+                  <LayoutTemplate className="mr-2 h-4 w-4" />
+                  Template Cosméticos
+                  <Badge variant="secondary" className="ml-2 text-xs">Recomendado</Badge>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setCreatePreset('blank')}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Iniciar do Zero
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <LayoutTemplate className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Template Cosméticos</CardTitle>
-                <CardDescription>Layout profissional pronto para usar</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {templates.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed rounded-lg">
+              <LayoutTemplate className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="font-medium mb-2">Nenhum template ainda</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Crie seu primeiro template para começar a construir sua loja.
+              </p>
+              <div className="flex justify-center gap-2">
+                <Button onClick={() => setCreatePreset('cosmetics')}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Template Cosméticos
+                </Button>
+                <Button variant="outline" onClick={() => setCreatePreset('blank')}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Iniciar do Zero
+                </Button>
               </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Cria um layout inicial completo e editável com blocos e seções prontas para loja de cosméticos. 
-              Inclui hero banner, vitrines, categorias e muito mais.
-            </p>
-            <ul className="text-sm space-y-2">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Home com banner e vitrines</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Páginas de categoria e produto</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>Carrinho, checkout e obrigado</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-                <span>100% editável no Builder</span>
-              </li>
-            </ul>
-            <Button 
-              className="w-full" 
-              onClick={() => hasExistingTemplate ? setShowTemplateDialog(true) : handleApplyTemplate()}
-            >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {hasExistingTemplate ? 'Trocar Template' : 'Aplicar Template'}
-            </Button>
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="divide-y divide-border rounded-lg border">
+              {templates.map((template) => {
+                const isPublished = template.id === publishedTemplateId;
+                const hasPublishedContent = !!template.published_content;
 
-        {/* Blank Card */}
-        <Card className="border-2 hover:border-muted-foreground/30 transition-colors">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-muted">
-                <FileText className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Iniciar do Zero</CardTitle>
-                <CardDescription>Página em branco para criar</CardDescription>
-              </div>
+                return (
+                  <div 
+                    key={template.id}
+                    className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isPublished ? 'bg-primary/10' : 'bg-muted'}`}>
+                        <LayoutTemplate className={`h-5 w-5 ${isPublished ? 'text-primary' : 'text-muted-foreground'}`} />
+                      </div>
+                      <div>
+                        <p className="font-medium flex items-center gap-2">
+                          {template.name}
+                          {isPublished && (
+                            <Badge variant="default" className="text-xs bg-emerald-500">
+                              Publicado
+                            </Badge>
+                          )}
+                          {!isPublished && hasPublishedContent && (
+                            <Badge variant="secondary" className="text-xs">
+                              Já foi publicado
+                            </Badge>
+                          )}
+                          {!isPublished && !hasPublishedContent && (
+                            <Badge variant="outline" className="text-xs">
+                              Rascunho
+                            </Badge>
+                          )}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {template.base_preset === 'cosmetics' ? 'Template Cosméticos' : 'Criado do zero'}
+                          {' · '}
+                          Editado {formatDistanceToNow(new Date(template.last_edited_at), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditTemplate(template.id)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditTemplate(template.id)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setRenameTarget({ id: template.id, name: template.name })}>
+                            <FileText className="mr-2 h-4 w-4" />
+                            Renomear
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDuplicateTemplate(template.id)}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplicar
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {!isPublished && (
+                            <DropdownMenuItem onClick={() => setPublishTarget({ id: template.id, name: template.name })}>
+                              <Globe className="mr-2 h-4 w-4" />
+                              Definir como publicado
+                            </DropdownMenuItem>
+                          )}
+                          {!isPublished && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                className="text-destructive"
+                                onClick={() => setDeleteTarget({ id: template.id, name: template.name })}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Comece com uma estrutura mínima (apenas header e footer) e adicione os blocos que quiser. 
-              Ideal para quem quer controle total do layout.
-            </p>
-            <ul className="text-sm space-y-2 text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Estrutura mínima</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Header e footer inclusos</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Adicione blocos livremente</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4" />
-                <span>Controle total do design</span>
-              </li>
-            </ul>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => hasExistingTemplate ? setShowBlankDialog(true) : handleStartBlank()}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              {hasExistingTemplate ? 'Reiniciar do Zero' : 'Criar do Zero'}
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Info Card */}
       <Card className="bg-muted/50">
@@ -280,55 +367,58 @@ export function StorefrontTemplatesTab() {
             <div className="space-y-1">
               <p className="text-sm font-medium">Como funciona?</p>
               <p className="text-sm text-muted-foreground">
-                Escolha um template ou comece do zero. Depois, use o <strong>Editor Visual</strong> para 
+                Crie quantos templates quiser — cada um é independente. Use o <strong>Editor Visual</strong> para 
                 personalizar cada página: Home, Categoria, Produto, Carrinho, Checkout, Obrigado, Blog e Rastreio.
-                A seleção de páginas é feita dentro do editor através do menu dropdown.
+                Ao publicar um template, ele se torna a versão ativa da sua loja.
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Replace Template Dialog */}
-      <AlertDialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Trocar Template
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Isso substituirá o layout atual da sua loja pelo template selecionado. 
-              Suas configurações (logo, cores, contato) serão mantidas, mas os blocos e seções 
-              personalizados serão substituídos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleApplyTemplate}>
-              Aplicar Template
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Dialogs */}
+      <CreateTemplateDialog
+        open={createPreset !== null}
+        onOpenChange={(open) => !open && setCreatePreset(null)}
+        onConfirm={handleCreateTemplate}
+        preset={createPreset || 'blank'}
+        isLoading={createTemplate.isPending}
+      />
 
-      {/* Start Blank Dialog */}
-      <AlertDialog open={showBlankDialog} onOpenChange={setShowBlankDialog}>
+      <RenameTemplateDialog
+        open={renameTarget !== null}
+        onOpenChange={(open) => !open && setRenameTarget(null)}
+        onConfirm={handleRenameTemplate}
+        currentName={renameTarget?.name || ''}
+        isLoading={renameTemplate.isPending}
+      />
+
+      <PublishTemplateDialog
+        open={publishTarget !== null}
+        onOpenChange={(open) => !open && setPublishTarget(null)}
+        onConfirm={handlePublishTemplate}
+        templateName={publishTarget?.name || ''}
+        isStorePublished={isStorePublished}
+        isLoading={setPublishedTemplate.isPending}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Reiniciar do Zero
-            </AlertDialogTitle>
+            <AlertDialogTitle>Excluir template?</AlertDialogTitle>
             <AlertDialogDescription>
-              Isso removerá todo o conteúdo atual das páginas da loja, mantendo apenas a estrutura 
-              básica (header e footer). Suas configurações serão mantidas.
+              Tem certeza que deseja excluir o template "{deleteTarget?.name}"? 
+              Esta ação não pode ser desfeita.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleStartBlank} className="bg-destructive hover:bg-destructive/90">
-              Reiniciar
+            <AlertDialogAction 
+              onClick={handleDeleteTemplate}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

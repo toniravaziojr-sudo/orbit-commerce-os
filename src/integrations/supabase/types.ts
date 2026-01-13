@@ -9265,6 +9265,7 @@ export type Database = {
           logo_url: string | null
           offers_config: Json | null
           primary_color: string | null
+          published_template_id: string | null
           secondary_color: string | null
           seo_description: string | null
           seo_keywords: string[] | null
@@ -9307,6 +9308,7 @@ export type Database = {
           logo_url?: string | null
           offers_config?: Json | null
           primary_color?: string | null
+          published_template_id?: string | null
           secondary_color?: string | null
           seo_description?: string | null
           seo_keywords?: string[] | null
@@ -9349,6 +9351,7 @@ export type Database = {
           logo_url?: string | null
           offers_config?: Json | null
           primary_color?: string | null
+          published_template_id?: string | null
           secondary_color?: string | null
           seo_description?: string | null
           seo_keywords?: string[] | null
@@ -9378,6 +9381,13 @@ export type Database = {
             columns: ["logo_file_id"]
             isOneToOne: false
             referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_settings_published_template_id_fkey"
+            columns: ["published_template_id"]
+            isOneToOne: false
+            referencedRelation: "storefront_template_sets"
             referencedColumns: ["id"]
           },
           {
@@ -9520,6 +9530,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "storefront_runtime_violations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      storefront_template_sets: {
+        Row: {
+          base_preset: string
+          created_at: string
+          draft_content: Json | null
+          id: string
+          is_archived: boolean | null
+          is_published: boolean | null
+          last_edited_at: string
+          name: string
+          published_content: Json | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_preset?: string
+          created_at?: string
+          draft_content?: Json | null
+          id?: string
+          is_archived?: boolean | null
+          is_published?: boolean | null
+          last_edited_at?: string
+          name: string
+          published_content?: Json | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_preset?: string
+          created_at?: string
+          draft_content?: Json | null
+          id?: string
+          is_archived?: boolean | null
+          is_published?: boolean | null
+          last_edited_at?: string
+          name?: string
+          published_content?: Json | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "storefront_template_sets_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
@@ -11290,6 +11350,7 @@ export type Database = {
         Args: { _tenant_id: string; _user_id: string }
         Returns: boolean
       }
+      migrate_existing_templates_to_sets: { Args: never; Returns: undefined }
       normalize_email: { Args: { p_email: string }; Returns: string }
       record_ai_usage: {
         Args: { p_tenant_id: string; p_usage_cents: number }

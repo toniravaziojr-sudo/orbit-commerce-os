@@ -2,7 +2,7 @@
 // STOREFRONT BUILDER PAGE - Visual Editor page
 // =============================================
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
@@ -14,7 +14,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl } from '@/lib/publicUrls';
 import BuilderErrorBoundary from '@/components/builder/BuilderErrorBoundary';
 import { getReactGuardStatus } from '@/lib/reactInstanceGuard';
-import { getBlankTemplate } from '@/lib/builder/defaults';
+import { getBlankTemplate, getDefaultTemplate } from '@/lib/builder/defaults';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
@@ -115,6 +118,7 @@ export default function StorefrontBuilder() {
   const { settings: storeSettings, isLoading: settingsLoading } = useStoreSettings();
   
   const editingPageType = searchParams.get('edit') as PageType | null;
+  const templateId = searchParams.get('templateId');
   const isolateMode = searchParams.get('isolate') as IsolateMode | null;
   const isBlankStart = searchParams.get('blank') === 'true';
   
@@ -125,6 +129,33 @@ export default function StorefrontBuilder() {
   if (isolateMode === 'app') {
     return <IsolationModeUI mode="app" reactStatus={reactStatus} />;
   }
+  
+  // Fetch template set content if templateId is provided (new multi-template system)
+  const { data: templateSetData, isLoading: templateSetLoading } = useQuery({
+    queryKey: ['template-set-content', templateId, editingPageType],
+    queryFn: async () => {
+      if (!templateId || !editingPageType) return null;
+      
+      const { data, error } = await supabase
+        .from('storefront_template_sets')
+        .select('id, name, draft_content, published_content')
+        .eq('id', templateId)
+        .single();
+      
+      if (error) throw error;
+      
+      // Get the content for the specific page type
+      const draftContent = data.draft_content as unknown as Record<string, BlockNode | null> | null;
+      const pageContent = draftContent?.[editingPageType];
+      
+      return {
+        templateId: data.id,
+        templateName: data.name,
+        content: pageContent,
+      };
+    },
+    enabled: !!templateId && !!editingPageType && !!currentTenant?.id,
+  });
   
   // If no edit parameter, redirect to storefront settings page
   if (!editingPageType) {
@@ -181,7 +212,7 @@ export default function StorefrontBuilder() {
     enabled: !!currentTenant?.id && isSystemPage && !!systemPageSlug,
   });
   
-  // Use template version only for non-system pages
+  // Use template version only for non-system pages AND when NOT using templateId
   const { data: templateData, isLoading: templateLoading } = useTemplateVersion(
     !isSystemPage ? editingPageType : 'home', 
     'draft'
@@ -284,8 +315,12 @@ export default function StorefrontBuilder() {
     })) || [],
   };
 
-  // Loading state - check both template and system page loading
-  const isEditorLoading = isSystemPage ? systemPageLoading : templateLoading;
+  // Determine loading state based on what we're editing
+  const isEditorLoading = isSystemPage 
+    ? systemPageLoading 
+    : templateId 
+      ? templateSetLoading 
+      : templateLoading;
   
   if (isEditorLoading) {
     return (
@@ -316,10 +351,19 @@ export default function StorefrontBuilder() {
     );
   }
 
-  // For regular templates - use blank template if starting from scratch
-  const contentToUse = isBlankStart 
-    ? getBlankTemplate(editingPageType) 
-    : templateData?.content;
+  // Determine content to use based on source
+  let contentToUse: BlockNode | undefined;
+  
+  if (templateId && templateSetData) {
+    // Multi-template system: use content from template set
+    contentToUse = templateSetData.content || getBlankTemplate(editingPageType);
+  } else if (isBlankStart) {
+    // Legacy blank start
+    contentToUse = getBlankTemplate(editingPageType);
+  } else {
+    // Legacy: use template data
+    contentToUse = templateData?.content;
+  }
 
   return (
     <BuilderErrorBoundary>
@@ -329,6 +373,9 @@ export default function StorefrontBuilder() {
         initialContent={contentToUse}
         context={context}
         isolateMode={isolateMode || undefined}
+        // Pass templateId for new multi-template save logic
+        // @ts-ignore - will be added to VisualBuilder props
+        templateSetId={templateId}
       />
     </BuilderErrorBoundary>
   );
