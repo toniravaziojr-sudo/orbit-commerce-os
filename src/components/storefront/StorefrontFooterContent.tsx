@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { getStoreBaseUrl, getPublicCategoryUrl, getPublicPageUrl, getPublicLandingUrl } from '@/lib/publicUrls';
 import { getWhatsAppHref, getPhoneHref, getEmailHref, isValidWhatsApp, isValidPhone, isValidEmail } from '@/lib/contactHelpers';
+import { formatCnpj } from '@/lib/formatCnpj';
 import type { BlockNode } from '@/lib/builder/types';
 
 // TikTok icon component (not in lucide)
@@ -384,13 +385,17 @@ export function StorefrontFooterContent({
       style={footerStyle}
     >
       <div className="container mx-auto px-4 py-8 md:py-12">
-        {/* Main Footer Grid - 2 sections on desktop, stacked on mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+        {/* 
+          Main Footer Grid - Responsive Layout:
+          - Mobile: 1 column, stacked vertically, full width
+          - Desktop: 4 columns grid (Col1: Negócio, Col2: Atendimento+Redes, Col3: Menu1, Col4: Menu2)
+        */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
           
           {/* ============================================ */}
-          {/* SEÇÃO 1: Informações do Negócio */}
-          {/* Desktop: primeiro bloco (esquerda) */}
-          {/* Mobile: primeiro nível */}
+          {/* COLUNA 1: Informações do Negócio */}
+          {/* Mobile: 100% width, stacked first */}
+          {/* Desktop: first column, left-aligned */}
           {/* ============================================ */}
           <div className="text-center md:text-left">
             {/* Logo */}
@@ -428,29 +433,29 @@ export function StorefrontFooterContent({
               
               {storeDescription && (
                 <p 
-                  className="text-sm text-muted-foreground max-w-md mx-auto md:mx-0"
+                  className="text-sm text-muted-foreground max-w-xs mx-auto md:mx-0"
                   style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                 >
                   {storeDescription}
                 </p>
               )}
               
-              {/* CNPJ (discreto) */}
+              {/* CNPJ (formatted) */}
               {cnpj && (
                 <p 
                   className="text-xs text-muted-foreground"
                   style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
                 >
-                  CNPJ: {cnpj}
+                  CNPJ: {formatCnpj(cnpj)}
                 </p>
               )}
             </div>
           </div>
 
           {/* ============================================ */}
-          {/* SEÇÃO 2: Atendimento + Redes Sociais */}
-          {/* Desktop: segundo bloco (direita) */}
-          {/* Mobile: segundo nível */}
+          {/* COLUNA 2: Atendimento + Redes Sociais */}
+          {/* Mobile: 100% width, stacked second */}
+          {/* Desktop: second column */}
           {/* ============================================ */}
           <div className="text-center md:text-left space-y-6">
             
@@ -597,67 +602,70 @@ export function StorefrontFooterContent({
                     >
                       {social.label}
                     </a>
-                  ))}
+              ))}
                 </div>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Footer Menus (Categorias / Páginas institucionais) - Optional */}
-        {(showFooter1 && footer1Items.length > 0) || (showFooter2 && footer2Items.length > 0) ? (
-          <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
-              {showFooter1 && footer1Items.length > 0 && (
-                <div className="text-center md:text-left">
-                  <h4 
-                    className="font-semibold mb-3"
-                    style={footerTextColor ? { color: footerTextColor } : {}}
+          {/* ============================================ */}
+          {/* COLUNA 3: Footer Menu 1 */}
+          {/* Mobile: 100% width, stacked third */}
+          {/* Desktop: third column */}
+          {/* ============================================ */}
+          {showFooter1 && footer1Items.length > 0 && (
+            <div className="text-center md:text-left">
+              <h4 
+                className="font-semibold mb-3"
+                style={footerTextColor ? { color: footerTextColor } : {}}
+              >
+                {footer1Name}
+              </h4>
+              <nav className="flex flex-col gap-2">
+                {footer1Items.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={getMenuItemUrl(item)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={e => isEditing && e.preventDefault()}
+                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
                   >
-                    {footer1Name}
-                  </h4>
-                  <nav className="flex flex-col gap-2">
-                    {footer1Items.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={getMenuItemUrl(item)}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={e => isEditing && e.preventDefault()}
-                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </nav>
-                </div>
-              )}
-              
-              {showFooter2 && footer2Items.length > 0 && (
-                <div className="text-center md:text-left">
-                  <h4 
-                    className="font-semibold mb-3"
-                    style={footerTextColor ? { color: footerTextColor } : {}}
-                  >
-                    {footer2Name}
-                  </h4>
-                  <nav className="flex flex-col gap-2">
-                    {footer2Items.map((item) => (
-                      <Link
-                        key={item.id}
-                        to={getMenuItemUrl(item)}
-                        className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={e => isEditing && e.preventDefault()}
-                        style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </nav>
-                </div>
-              )}
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
             </div>
-          </div>
-        ) : null}
+          )}
+
+          {/* ============================================ */}
+          {/* COLUNA 4: Footer Menu 2 */}
+          {/* Mobile: 100% width, stacked fourth */}
+          {/* Desktop: fourth column */}
+          {/* ============================================ */}
+          {showFooter2 && footer2Items.length > 0 && (
+            <div className="text-center md:text-left">
+              <h4 
+                className="font-semibold mb-3"
+                style={footerTextColor ? { color: footerTextColor } : {}}
+              >
+                {footer2Name}
+              </h4>
+              <nav className="flex flex-col gap-2">
+                {footer2Items.map((item) => (
+                  <Link
+                    key={item.id}
+                    to={getMenuItemUrl(item)}
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={e => isEditing && e.preventDefault()}
+                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          )}
+        </div>
 
         {/* Image Sections: Payment, Security, Shipping, Official Stores */}
         {hasImageSections && (

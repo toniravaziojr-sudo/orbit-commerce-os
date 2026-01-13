@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useStoreSettings, type CustomSocialLink } from '@/hooks/useStoreSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { ImageUpload } from '@/components/settings/ImageUpload';
 import { CustomSocialLinks } from '@/components/settings/CustomSocialLinks';
 import { toast } from 'sonner';
+import { formatCnpj, handleCnpjInput, isValidCnpjLength } from '@/lib/formatCnpj';
 import { 
   Save, 
   Palette, 
@@ -81,7 +82,7 @@ export function StorefrontConfigTab() {
         business_legal_name: settings.business_legal_name || '',
         store_name: settings.store_name || '',
         store_description: settings.store_description || '',
-        business_cnpj: settings.business_cnpj || '',
+        business_cnpj: formatCnpj(settings.business_cnpj), // Format CNPJ on load
         logo_url: settings.logo_url || '',
         favicon_url: settings.favicon_url || '',
         contact_phone: settings.contact_phone || '',
@@ -101,6 +102,13 @@ export function StorefrontConfigTab() {
       setHasChanges(false);
     }
   }, [settings]);
+
+  // Special handler for CNPJ with mask
+  const handleCnpjChange = useCallback((value: string) => {
+    const maskedValue = handleCnpjInput(value);
+    setFormData(prev => ({ ...prev, business_cnpj: maskedValue }));
+    setHasChanges(true);
+  }, []);
 
   const handleChange = (field: string, value: string | CustomSocialLink[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -150,33 +158,35 @@ export function StorefrontConfigTab() {
     setIsEditing(false);
   };
 
-  const handleLogoUpload = async (file: File) => {
+  // AJUSTE 2: Upload handlers that don't reset form state
+  // Uses PATCH semantics - only updates the changed fields
+  const handleLogoUpload = useCallback(async (file: File) => {
     const result = await uploadAsset(file, 'logo');
     if (result) {
-      // Save BOTH logo_url AND logo_file_id immediately to DB
+      // Save ONLY logo_url and logo_file_id - PATCH semantics
       await upsertSettings.mutateAsync({ 
         logo_url: result.url,
         logo_file_id: result.fileId 
       });
-      // Update local form state to reflect the saved value
+      // Update ONLY the logo_url in local form state (don't reset other fields)
       setFormData(prev => ({ ...prev, logo_url: result.url }));
     }
     return result?.url || null;
-  };
+  }, [uploadAsset, upsertSettings]);
 
-  const handleFaviconUpload = async (file: File) => {
+  const handleFaviconUpload = useCallback(async (file: File) => {
     const result = await uploadAsset(file, 'favicon');
     if (result) {
-      // Save BOTH favicon_url AND favicon_file_id immediately to DB
+      // Save ONLY favicon_url and favicon_file_id - PATCH semantics
       await upsertSettings.mutateAsync({ 
         favicon_url: result.url,
         favicon_file_id: result.fileId 
       });
-      // Update local form state to reflect the saved value
+      // Update ONLY the favicon_url in local form state (don't reset other fields)
       setFormData(prev => ({ ...prev, favicon_url: result.url }));
     }
     return result?.url || null;
-  };
+  }, [uploadAsset, upsertSettings]);
 
   if (isLoading) {
     return (
@@ -270,10 +280,14 @@ export function StorefrontConfigTab() {
             <Input
               id="business_cnpj"
               value={formData.business_cnpj}
-              onChange={(e) => handleChange('business_cnpj', e.target.value)}
+              onChange={(e) => handleCnpjChange(e.target.value)}
               placeholder="00.000.000/0000-00"
               disabled={!isEditing}
+              maxLength={18} // 14 digits + 4 separators
             />
+            {formData.business_cnpj && !isValidCnpjLength(formData.business_cnpj) && (
+              <p className="text-xs text-destructive mt-1">CNPJ deve ter 14 dígitos</p>
+            )}
           </div>
           
           <Separator />
