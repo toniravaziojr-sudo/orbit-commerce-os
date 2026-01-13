@@ -80,7 +80,8 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
         .maybeSingle();
 
       if (error) throw error;
-      return data as {
+      // Cast to unknown first to handle types not yet regenerated
+      return data as unknown as {
         favicon_url: string | null;
         favicon_files: Record<string, string> | null;
         store_name: string | null;
