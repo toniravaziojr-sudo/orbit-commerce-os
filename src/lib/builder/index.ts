@@ -13,3 +13,6 @@ export * from './utils';
 
 // Default templates
 export * from './defaults';
+
+// Page Contracts (structural requirements)
+export * from './pageContracts';

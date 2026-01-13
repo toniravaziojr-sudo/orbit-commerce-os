@@ -6,17 +6,65 @@
 import type { BlockNode } from './types';
 import { generateBlockId } from './utils';
 import { demoBanners, demoBenefits, demoTestimonials } from './demoData';
+import { PAGE_CONTRACTS } from './pageContracts';
 
 // =============================================
-// BLANK TEMPLATES - Only header + footer for "start from scratch"
+// BLANK TEMPLATES - System pages with required blocks only (no cosmetics content)
 // =============================================
 
-// Blank Home template - Just header and footer
-export const blankHomeTemplate: BlockNode = {
-  id: 'root',
-  type: 'Page',
-  props: {},
-  children: [
+/**
+ * Get blank template for any page type
+ * For "Iniciar do Zero" preset:
+ * - Home: empty (just header + empty section + footer)
+ * - System pages (category, product, cart, checkout, etc.): include ONLY required blocks per contract
+ *   No banners, no demo content, no cosmetics imagery
+ */
+export function getBlankTemplate(pageType: string): BlockNode {
+  const contract = PAGE_CONTRACTS[pageType];
+  
+  // For Home or pages without contracts, return minimal structure
+  if (!contract || !contract.isSystemPage) {
+    return {
+      id: 'root',
+      type: 'Page',
+      props: {},
+      children: [
+        {
+          id: generateBlockId('Header'),
+          type: 'Header',
+          props: {
+            menuId: '',
+            showSearch: true,
+            showCart: true,
+            sticky: true,
+            noticeEnabled: false,
+          },
+        },
+        // Empty section for user to start adding blocks
+        {
+          id: generateBlockId('Section'),
+          type: 'Section',
+          props: {
+            paddingY: 48,
+            backgroundColor: 'transparent',
+          },
+          children: [],
+        },
+        {
+          id: generateBlockId('Footer'),
+          type: 'Footer',
+          props: {
+            menuId: '',
+            showSocial: true,
+            copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
+          },
+        },
+      ],
+    };
+  }
+  
+  // For system pages, build with required blocks (no demo/cosmetics content)
+  const children: BlockNode[] = [
     {
       id: generateBlockId('Header'),
       type: 'Header',
@@ -26,78 +74,88 @@ export const blankHomeTemplate: BlockNode = {
         showCart: true,
         sticky: true,
         noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
       },
     },
-    {
-      id: generateBlockId('Footer'),
-      type: 'Footer',
-      props: {
-        menuId: '',
-        showSocial: true,
-        copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
-        footerBgColor: '',
-        footerTextColor: '',
-        noticeEnabled: false,
-        noticeText: '',
-        noticeBgColor: '#1e40af',
-        noticeTextColor: '#ffffff',
-      },
+  ];
+  
+  // Add sections with required blocks
+  for (const requiredBlock of contract.requiredBlocks) {
+    children.push({
+      id: generateBlockId('Section'),
+      type: 'Section',
+      props: { paddingY: 32 },
+      children: [
+        {
+          id: generateBlockId(requiredBlock.type),
+          type: requiredBlock.type,
+          props: getCleanDefaultProps(requiredBlock.type),
+        },
+      ],
+    });
+  }
+  
+  // Add optional slots that are enabled by default (without demo content)
+  for (const slot of contract.optionalSlots) {
+    if (slot.defaultEnabled) {
+      children.push({
+        id: generateBlockId('Section'),
+        type: 'Section',
+        props: { paddingY: 32, backgroundColor: '#f9fafb' },
+        children: [
+          {
+            id: generateBlockId(slot.type),
+            type: slot.type,
+            props: getCleanDefaultProps(slot.type),
+          },
+        ],
+      });
+    }
+  }
+  
+  children.push({
+    id: generateBlockId('Footer'),
+    type: 'Footer',
+    props: {
+      menuId: '',
+      showSocial: true,
+      copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
     },
-  ],
-};
-
-// Helper to get blank template for any page type
-// IMPORTANT: Blank templates must be truly empty - only Header and Footer, no content blocks
-export function getBlankTemplate(pageType: string): BlockNode {
-  // For blank preset, return minimal structure with ONLY header/footer
-  // No banners, no product grids, no testimonials, no demo content!
+  });
+  
   return {
     id: 'root',
     type: 'Page',
     props: {},
-    children: [
-      {
-        id: generateBlockId('Header'),
-        type: 'Header',
-        props: {
-          menuId: '',
-          showSearch: true,
-          showCart: true,
-          sticky: true,
-          noticeEnabled: false,
-          noticeText: '',
-          noticeBgColor: '#1e40af',
-          noticeTextColor: '#ffffff',
-        },
-      },
-      // Add a placeholder Section for the user to start adding blocks
-      {
-        id: generateBlockId('Section'),
-        type: 'Section',
-        props: {
-          paddingY: 48,
-          backgroundColor: 'transparent',
-        },
-        children: [],
-      },
-      {
-        id: generateBlockId('Footer'),
-        type: 'Footer',
-        props: {
-          menuId: '',
-          showSocial: true,
-          copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
-          footerBgColor: '',
-          footerTextColor: '',
-          noticeEnabled: false,
-        },
-      },
-    ],
+    children,
   };
 }
+
+/**
+ * Get clean default props for blocks (no demo data, no cosmetics content)
+ */
+function getCleanDefaultProps(blockType: string): Record<string, unknown> {
+  const props: Record<string, Record<string, unknown>> = {
+    ProductDetails: { showGallery: true, showDescription: true, showVariants: true, showStock: true },
+    CategoryBanner: { showTitle: true, titlePosition: 'center', overlayOpacity: 40, height: 'md' },
+    ProductGrid: { title: '', source: 'category', columns: 4, limit: 24, showPrice: true },
+    Cart: {},
+    Checkout: { showTimeline: true },
+    ThankYou: { showTimeline: true, showWhatsApp: false },
+    AccountHub: {},
+    OrdersList: {},
+    OrderDetail: {},
+    TrackingLookup: { title: 'Rastrear Pedido', description: 'Acompanhe o status da sua entrega' },
+    BlogListing: { title: 'Blog', postsPerPage: 9, showExcerpt: true, showImage: true, showTags: true, showPagination: true },
+    CompreJuntoSlot: { title: 'Compre Junto', maxItems: 3, variant: 'normal', showWhenEmpty: false },
+    CrossSellSlot: { title: 'Você também pode gostar', maxItems: 4, variant: 'normal', showWhenEmpty: false },
+    OrderBumpSlot: { title: 'Aproveite', maxItems: 2, variant: 'compact', showWhenEmpty: false },
+    UpsellSlot: { title: 'Oferta Especial', maxItems: 3, variant: 'normal', showWhenEmpty: false },
+  };
+  return props[blockType] || {};
+}
+
+// Blank Home template - Just header and footer (legacy export)
+export const blankHomeTemplate: BlockNode = getBlankTemplate('home');
 
 // Demo banners para HeroBanner (dados de cosméticos)
 const demoBannerSlides = demoBanners.map(b => ({
