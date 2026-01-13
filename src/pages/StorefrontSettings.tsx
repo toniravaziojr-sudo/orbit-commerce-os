@@ -12,11 +12,7 @@ import { StorefrontConfigTab } from '@/components/storefront-admin/StorefrontCon
 
 export default function StorefrontSettings() {
   const { currentTenant } = useAuth();
-  const { settings, isLoading, togglePublish } = useStoreSettings();
-
-  const handleTogglePublish = async () => {
-    await togglePublish.mutateAsync(!settings?.is_published);
-  };
+  const { settings, isLoading } = useStoreSettings();
 
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
 
@@ -49,9 +45,6 @@ export default function StorefrontSettings() {
                 Preview
               </Button>
             </a>
-            <Button onClick={handleTogglePublish} variant={settings?.is_published ? 'destructive' : 'default'}>
-              {settings?.is_published ? 'Despublicar' : 'Publicar Loja'}
-            </Button>
           </div>
         }
       />

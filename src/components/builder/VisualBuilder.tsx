@@ -570,7 +570,7 @@ export function VisualBuilder({
         return;
       }
     }
-    navigate('/storefront/builder');
+    navigate('/storefront');
   }, [navigate, store.isDirty]);
 
   const pageTypeLabels: Record<string, string> = {
