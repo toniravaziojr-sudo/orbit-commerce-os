@@ -27,6 +27,17 @@ import {
   Youtube
 } from 'lucide-react';
 
+// Helper function to calculate luminance for text contrast
+function getLuminance(hex: string): number {
+  if (!hex || !hex.startsWith('#')) return 0.5;
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return 0.5;
+  const r = parseInt(result[1], 16) / 255;
+  const g = parseInt(result[2], 16) / 255;
+  const b = parseInt(result[3], 16) / 255;
+  return (0.299 * r + 0.587 * g + 0.114 * b);
+}
+
 export function StorefrontConfigTab() {
   const { currentTenant } = useAuth();
   const { settings, isLoading, upsertSettings, togglePublish, uploadAsset } = useStoreSettings();
@@ -457,13 +468,14 @@ export function StorefrontConfigTab() {
             <Palette className="h-5 w-5 text-muted-foreground" />
             <CardTitle>Cores Padrões do Tema</CardTitle>
           </div>
-          <CardDescription>Cores principais usadas na sua loja</CardDescription>
+          <CardDescription>Cores aplicadas automaticamente nos elementos da sua loja</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
+            {/* Cor Primária */}
+            <div className="space-y-2">
               <Label>Cor Primária</Label>
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2">
                 <Input
                   type="color"
                   value={formData.primary_color}
@@ -478,10 +490,15 @@ export function StorefrontConfigTab() {
                   disabled={!isEditing}
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Identidade da marca: header, footer, botões principais ("Comprar agora", "Adicionar ao carrinho")
+              </p>
             </div>
-            <div>
+            
+            {/* Cor Secundária */}
+            <div className="space-y-2">
               <Label>Cor Secundária</Label>
-              <div className="flex gap-2 mt-1">
+              <div className="flex gap-2">
                 <Input
                   type="color"
                   value={formData.secondary_color}
@@ -496,10 +513,15 @@ export function StorefrontConfigTab() {
                   disabled={!isEditing}
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Complementar: botões secundários, backgrounds alternados, estados de hover
+              </p>
             </div>
-            <div>
-              <Label>Cor de Destaque</Label>
-              <div className="flex gap-2 mt-1">
+            
+            {/* Cor de Destaque */}
+            <div className="space-y-2">
+              <Label>Cor de Destaque (Accent)</Label>
+              <div className="flex gap-2">
                 <Input
                   type="color"
                   value={formData.accent_color}
@@ -513,6 +535,74 @@ export function StorefrontConfigTab() {
                   placeholder="#f59e0b"
                   disabled={!isEditing}
                 />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Chamar atenção: alertas, badges de promoção, preços com desconto, ofertas
+              </p>
+            </div>
+          </div>
+          
+          {/* Preview das cores */}
+          <div className="pt-4 border-t">
+            <Label className="mb-3 block">Pré-visualização</Label>
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex flex-col items-center gap-1">
+                <div 
+                  className="w-16 h-10 rounded flex items-center justify-center text-xs font-medium"
+                  style={{ 
+                    backgroundColor: formData.primary_color,
+                    color: getLuminance(formData.primary_color) > 0.5 ? '#000' : '#fff'
+                  }}
+                >
+                  Primária
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div 
+                  className="w-16 h-10 rounded flex items-center justify-center text-xs font-medium"
+                  style={{ 
+                    backgroundColor: formData.secondary_color,
+                    color: getLuminance(formData.secondary_color) > 0.5 ? '#000' : '#fff'
+                  }}
+                >
+                  Secundária
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <div 
+                  className="w-16 h-10 rounded flex items-center justify-center text-xs font-medium"
+                  style={{ 
+                    backgroundColor: formData.accent_color,
+                    color: getLuminance(formData.accent_color) > 0.5 ? '#000' : '#fff'
+                  }}
+                >
+                  Destaque
+                </div>
+              </div>
+              <div className="flex flex-col items-center gap-1 ml-4">
+                <button 
+                  className="px-4 py-2 rounded text-xs font-semibold transition-colors"
+                  style={{ 
+                    backgroundColor: formData.primary_color,
+                    color: getLuminance(formData.primary_color) > 0.5 ? '#000' : '#fff'
+                  }}
+                  disabled
+                >
+                  Botão Primário
+                </button>
+              </div>
+              <div className="flex flex-col items-center gap-1">
+                <button 
+                  className="px-4 py-2 rounded text-xs font-semibold border-2 transition-colors"
+                  style={{ 
+                    borderColor: formData.primary_color,
+                    color: formData.primary_color,
+                    backgroundColor: 'transparent'
+                  }}
+                  disabled
+                >
+                  Botão Secundário
+                </button>
               </div>
             </div>
           </div>

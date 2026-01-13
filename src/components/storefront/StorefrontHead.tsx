@@ -75,52 +75,105 @@ export function StorefrontHead({ tenantId, pageTitle, pageDescription }: Storefr
     queryFn: async () => {
       const { data, error } = await supabase
         .from('store_settings')
-        .select('favicon_url, store_name, seo_title, seo_description, primary_color, secondary_color, accent_color')
+        .select('favicon_url, favicon_files, store_name, seo_title, seo_description, primary_color, secondary_color, accent_color')
         .eq('tenant_id', tenantId)
         .maybeSingle();
 
       if (error) throw error;
-      return data;
+      return data as {
+        favicon_url: string | null;
+        favicon_files: Record<string, string> | null;
+        store_name: string | null;
+        seo_title: string | null;
+        seo_description: string | null;
+        primary_color: string | null;
+        secondary_color: string | null;
+        accent_color: string | null;
+      } | null;
     },
     enabled: !!tenantId,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
 
-  // Apply favicon
+  // Apply favicon (simple or multi-size)
   useEffect(() => {
-    if (!storeSettings?.favicon_url) return;
-
-    // Find existing favicon link or create new one
-    let faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    const faviconFiles = storeSettings?.favicon_files as Record<string, string> | null;
+    const defaultFavicon = storeSettings?.favicon_url;
     
-    if (!faviconLink) {
-      faviconLink = document.createElement('link');
-      faviconLink.rel = 'icon';
-      document.head.appendChild(faviconLink);
+    if (!faviconFiles && !defaultFavicon) return;
+
+    const createdElements: HTMLLinkElement[] = [];
+
+    // Multi-size favicon support
+    if (faviconFiles && Object.keys(faviconFiles).length > 0) {
+      // Remove existing favicon links first
+      document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach(el => el.remove());
+      
+      // Add each size
+      const sizeMap: Record<string, { sizes: string; rel: string }> = {
+        '16': { sizes: '16x16', rel: 'icon' },
+        '32': { sizes: '32x32', rel: 'icon' },
+        '48': { sizes: '48x48', rel: 'icon' },
+        '180': { sizes: '180x180', rel: 'apple-touch-icon' },
+      };
+      
+      Object.entries(faviconFiles).forEach(([size, url]) => {
+        if (!url) return;
+        const config = sizeMap[size];
+        if (config) {
+          const link = document.createElement('link');
+          link.rel = config.rel;
+          link.type = 'image/png';
+          link.sizes = config.sizes;
+          link.href = url;
+          document.head.appendChild(link);
+          createdElements.push(link);
+        }
+      });
+      
+      // Also add a default icon for fallback
+      if (faviconFiles['32'] || faviconFiles['16'] || defaultFavicon) {
+        const fallbackLink = document.createElement('link');
+        fallbackLink.rel = 'shortcut icon';
+        fallbackLink.href = faviconFiles['32'] || faviconFiles['16'] || defaultFavicon || '/favicon.png';
+        document.head.appendChild(fallbackLink);
+        createdElements.push(fallbackLink);
+      }
+    } else if (defaultFavicon) {
+      // Simple single favicon
+      let faviconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      
+      if (!faviconLink) {
+        faviconLink = document.createElement('link');
+        faviconLink.rel = 'icon';
+        document.head.appendChild(faviconLink);
+        createdElements.push(faviconLink);
+      }
+      faviconLink.href = defaultFavicon;
+      
+      let shortcutLink = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
+      if (!shortcutLink) {
+        shortcutLink = document.createElement('link');
+        shortcutLink.rel = 'shortcut icon';
+        document.head.appendChild(shortcutLink);
+        createdElements.push(shortcutLink);
+      }
+      shortcutLink.href = defaultFavicon;
     }
 
-    // Update href
-    faviconLink.href = storeSettings.favicon_url;
-    
-    // Also set shortcut icon for older browsers
-    let shortcutLink = document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
-    if (!shortcutLink) {
-      shortcutLink = document.createElement('link');
-      shortcutLink.rel = 'shortcut icon';
-      document.head.appendChild(shortcutLink);
-    }
-    shortcutLink.href = storeSettings.favicon_url;
-
-    // Cleanup on unmount - restore default favicon
+    // Cleanup on unmount
     return () => {
-      if (faviconLink) {
-        faviconLink.href = '/favicon.png';
+      createdElements.forEach(el => el.remove());
+      // Restore default favicon
+      let defaultLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      if (!defaultLink) {
+        defaultLink = document.createElement('link');
+        defaultLink.rel = 'icon';
+        document.head.appendChild(defaultLink);
       }
-      if (shortcutLink) {
-        shortcutLink.href = '/favicon.png';
-      }
+      defaultLink.href = '/favicon.png';
     };
-  }, [storeSettings?.favicon_url]);
+  }, [storeSettings?.favicon_url, storeSettings?.favicon_files]);
 
   // Apply document title
   useEffect(() => {

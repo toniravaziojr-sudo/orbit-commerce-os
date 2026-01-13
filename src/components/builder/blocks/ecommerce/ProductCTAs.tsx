@@ -164,11 +164,11 @@ export function ProductCTAs({
           </button>
         </div>
         
-        {/* Comprar Agora */}
+        {/* Comprar Agora - Uses primary color */}
         <Button
           onClick={handleBuyNow}
           disabled={isOutOfStock || isAddingToCart || disableInteraction}
-          className="flex-1 h-10 rounded-full bg-foreground text-background hover:bg-foreground/90 font-semibold uppercase tracking-wide text-sm"
+          className="flex-1 h-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-semibold uppercase tracking-wide text-sm"
         >
           {isAddingToCart ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -178,12 +178,12 @@ export function ProductCTAs({
         </Button>
       </div>
       
-      {/* Adicionar ao Carrinho */}
+      {/* Adicionar ao Carrinho - Uses primary color for border */}
       <Button
         variant="outline"
         onClick={handleAddToCart}
         disabled={isOutOfStock || isAddingToCart || disableInteraction}
-        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2"
+        className="w-full h-12 rounded-full font-semibold uppercase tracking-wide text-sm border-2 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
       >
         {isAddingToCart ? (
           <Loader2 className="w-4 h-4 animate-spin mr-2" />
