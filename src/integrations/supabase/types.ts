@@ -9255,6 +9255,7 @@ export type Database = {
           custom_scripts: string | null
           facebook_pixel_id: string | null
           favicon_file_id: string | null
+          favicon_files: Json | null
           favicon_url: string | null
           footer_style: string | null
           google_analytics_id: string | null
@@ -9298,6 +9299,7 @@ export type Database = {
           custom_scripts?: string | null
           facebook_pixel_id?: string | null
           favicon_file_id?: string | null
+          favicon_files?: Json | null
           favicon_url?: string | null
           footer_style?: string | null
           google_analytics_id?: string | null
@@ -9341,6 +9343,7 @@ export type Database = {
           custom_scripts?: string | null
           facebook_pixel_id?: string | null
           favicon_file_id?: string | null
+          favicon_files?: Json | null
           favicon_url?: string | null
           footer_style?: string | null
           google_analytics_id?: string | null
