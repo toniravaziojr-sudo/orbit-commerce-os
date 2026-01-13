@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { buildMenuItemUrl } from '@/lib/publicUrls';
 import BuilderErrorBoundary from '@/components/builder/BuilderErrorBoundary';
 import { getReactGuardStatus } from '@/lib/reactInstanceGuard';
+import { getBlankTemplate } from '@/lib/builder/defaults';
 
 type PageType = 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail' | 'tracking' | 'blog';
 
@@ -115,6 +116,7 @@ export default function StorefrontBuilder() {
   
   const editingPageType = searchParams.get('edit') as PageType | null;
   const isolateMode = searchParams.get('isolate') as IsolateMode | null;
+  const isBlankStart = searchParams.get('blank') === 'true';
   
   // Get React guard status for diagnostics
   const reactStatus = getReactGuardStatus();
@@ -314,13 +316,17 @@ export default function StorefrontBuilder() {
     );
   }
 
-  // For regular templates
+  // For regular templates - use blank template if starting from scratch
+  const contentToUse = isBlankStart 
+    ? getBlankTemplate(editingPageType) 
+    : templateData?.content;
+
   return (
     <BuilderErrorBoundary>
       <VisualBuilder
         tenantId={currentTenant.id}
         pageType={editingPageType}
-        initialContent={templateData?.content}
+        initialContent={contentToUse}
         context={context}
         isolateMode={isolateMode || undefined}
       />
