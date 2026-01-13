@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStorefrontTemplates } from '@/hooks/useBuilderData';
+import { useTemplateSets } from '@/hooks/useTemplatesSets';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -38,10 +39,16 @@ export function StorefrontPagesTab() {
   const { currentTenant } = useAuth();
   const { primaryOrigin } = usePrimaryPublicHost(currentTenant?.id, currentTenant?.slug);
   const { data: templates, isLoading: templatesLoading } = useStorefrontTemplates();
+  const { publishedTemplateId } = useTemplateSets();
 
   const getPreviewUrl = (pageType: PageType) => {
     if (!currentTenant) return '#';
     return getPreviewUrlForEditor(currentTenant.slug, pageType);
+  };
+
+  const navigateToBuilder = (pageType: PageType) => {
+    const templateParam = publishedTemplateId ? `&templateId=${publishedTemplateId}` : '';
+    navigate(`/storefront/builder?edit=${pageType}${templateParam}`);
   };
 
   if (templatesLoading) {
@@ -126,7 +133,7 @@ export function StorefrontPagesTab() {
                     )}
                     <div className="flex gap-1">
                       <Button
-                        onClick={() => navigate(`/storefront/builder?edit=${pageType}`)}
+                        onClick={() => navigateToBuilder(pageType)}
                         variant="ghost"
                         size="sm"
                       >

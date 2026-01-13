@@ -747,6 +747,7 @@ export function VisualBuilder({
         pageId={pageId}
         tenantSlug={context.tenantSlug}
         pageSlug={pageSlug}
+        templateSetId={templateSetId}
         isDirty={store.isDirty}
         isPreviewMode={isPreviewMode}
         isInteractMode={isInteractMode}
