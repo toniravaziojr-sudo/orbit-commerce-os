@@ -39,16 +39,26 @@ export function StorefrontTemplatesTab() {
   
   // Find the home template to check if it has been published
   const homeTemplate = templates?.find(t => t.page_type === 'home');
-  const hasExistingTemplate = homeTemplate?.published_version != null && homeTemplate.published_version > 0;
-  const hasDraft = homeTemplate?.draft_version != null && homeTemplate.draft_version > 0;
+  const hasPublishedVersion = homeTemplate?.published_version != null && homeTemplate.published_version > 0;
+  const hasDraftVersion = homeTemplate?.draft_version != null && homeTemplate.draft_version > 0;
+  
+  // Consider store as having template if:
+  // 1. Has published_version > 0, OR
+  // 2. Store is published (is_published = true), OR
+  // 3. Template exists (was initialized)
+  const hasExistingTemplate = hasPublishedVersion || settings?.is_published || !!homeTemplate;
+  const hasDraft = hasDraftVersion;
   
   // Get template name based on published status
   const getCurrentTemplateName = () => {
     if (!homeTemplate) return null;
-    if (hasExistingTemplate) {
+    // If store is published, assume template is in use
+    if (settings?.is_published || hasPublishedVersion) {
       return 'Template Cosméticos';
     } else if (hasDraft) {
       return 'Rascunho';
+    } else if (homeTemplate) {
+      return 'Template Padrão';
     }
     return null;
   };
@@ -131,10 +141,10 @@ export function StorefrontTemplatesTab() {
                   <p className="font-medium">Template Atual</p>
                   <p className="text-sm text-muted-foreground flex items-center gap-2">
                     {currentTemplateName}
-                    {hasExistingTemplate && (
+                    {settings?.is_published && (
                       <Badge variant="default" className="text-xs">Publicado</Badge>
                     )}
-                    {!hasExistingTemplate && hasDraft && (
+                    {!settings?.is_published && (
                       <Badge variant="secondary" className="text-xs">Rascunho</Badge>
                     )}
                   </p>
