@@ -99,11 +99,12 @@ export function useTemplateSetSave() {
 
       if (updateError) throw updateError;
 
-      // Set this template as the published template in store_settings
+      // Set this template as the published template in store_settings AND mark store as published
       const { error: settingsError } = await supabase
         .from('store_settings')
         .update({
           published_template_id: templateSetId,
+          is_published: true, // CRITICAL: Enable public storefront
           updated_at: new Date().toISOString(),
         })
         .eq('tenant_id', currentTenant.id);

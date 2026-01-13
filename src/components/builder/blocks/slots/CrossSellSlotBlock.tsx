@@ -92,25 +92,35 @@ export function CrossSellSlotBlock({
 
   const isLoading = rulesLoading || productsLoading;
 
-  // In editing mode, show empty state placeholder (no demo data)
+  // In editing mode, show EXAMPLE CARD demonstration (visual preview)
   if (isEditing) {
     return (
       <section className="py-6">
-        <Card className="border-dashed border-2 bg-muted/20">
-          <CardContent className="p-6 text-center">
-            <ShoppingBag className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-            <h3 className="font-semibold mb-2">{title}</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              [Slot de Cross-sell] Sugestões aparecem aqui quando configuradas em Aumentar Ticket.
-            </p>
-            <Button variant="outline" size="sm" asChild>
-              <a href={ctaHref}>
-                <Settings className="h-4 w-4 mr-2" />
-                {ctaLabel}
-              </a>
-            </Button>
-          </CardContent>
-        </Card>
+        <h3 className="font-semibold text-lg mb-4">{title}</h3>
+        {subtitle && <p className="text-sm text-muted-foreground mb-4">{subtitle}</p>}
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].slice(0, maxItems).map((i) => (
+            <div key={i} className="border rounded-lg p-3 hover:shadow-md transition-shadow bg-background">
+              <div className="aspect-square bg-muted rounded-md mb-2 flex items-center justify-center">
+                <ShoppingBag className="h-8 w-8 text-muted-foreground/40" />
+              </div>
+              <p className="text-sm font-medium line-clamp-2 mb-1 text-muted-foreground">Produto Sugerido {i}</p>
+              <p className="text-sm font-semibold mb-2">R$ {(49.90 + i * 10).toFixed(2).replace('.', ',')}</p>
+              <Button size="sm" variant="outline" className="w-full" disabled>
+                <Plus className="h-4 w-4 mr-1" />
+                Adicionar
+              </Button>
+            </div>
+          ))}
+        </div>
+        
+        <p className="text-xs text-center text-muted-foreground mt-4">
+          [Exemplo demonstrativo] Configure ofertas reais em{' '}
+          <a href={ctaHref} className="text-primary underline hover:no-underline">
+            Aumentar Ticket
+          </a>
+        </p>
       </section>
     );
   }

@@ -139,25 +139,41 @@ export function OrderBumpSlotBlock({
     });
   };
 
-  // In editing mode, show empty state placeholder (no demo data)
+  // In editing mode, show EXAMPLE CARD demonstration (visual preview)
   if (isEditing) {
     return (
-      <section className="py-4">
-        <Card className="border-dashed border-2 bg-muted/20">
-          <CardContent className="p-4 text-center">
-            <Zap className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-            <h3 className="font-semibold text-sm mb-1">{title}</h3>
-            <p className="text-xs text-muted-foreground mb-3">
-              [Slot de Order Bump] Ofertas aparecem aqui quando configuradas em Aumentar Ticket.
-            </p>
-            <Button variant="outline" size="sm" asChild>
-              <a href={ctaHref}>
-                <Settings className="h-4 w-4 mr-2" />
-                {ctaLabel}
-              </a>
-            </Button>
+      <section className="py-4 space-y-3">
+        {/* Demo Order Bump Card */}
+        <Card className="overflow-hidden border-primary/30 bg-gradient-to-r from-primary/5 to-transparent">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Checkbox checked disabled className="mt-1" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span className="font-medium text-sm">Oferta Especial!</span>
+                  <Badge variant="destructive" className="text-xs">-15%</Badge>
+                </div>
+                <p className="text-sm font-medium line-clamp-1">Produto Adicional Premium</p>
+                <p className="text-xs text-muted-foreground mb-2 line-clamp-1">Aproveite esta oferta exclusiva!</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground line-through">R$ 59,90</span>
+                  <span className="text-sm font-bold text-primary">R$ 50,90</span>
+                </div>
+              </div>
+              <div className="w-16 h-16 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                <Zap className="h-6 w-6 text-muted-foreground/50" />
+              </div>
+            </div>
           </CardContent>
         </Card>
+        
+        <p className="text-xs text-center text-muted-foreground">
+          [Exemplo demonstrativo] Configure ofertas reais em{' '}
+          <a href={ctaHref} className="text-primary underline hover:no-underline">
+            Aumentar Ticket
+          </a>
+        </p>
       </section>
     );
   }

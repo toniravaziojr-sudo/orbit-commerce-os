@@ -706,20 +706,20 @@ export function StorefrontHeaderContent({
             </div>
           )}
 
-          {/* Desktop Search */}
+          {/* Desktop Search - subtle and compact */}
           {showSearch && (forceDesktop || !forceMobile) && (
             <div className={cn(
-              "flex-1 max-w-md",
+              "max-w-[200px]",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
               <div className="relative w-full">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="search"
-                  placeholder="Buscar produtos..."
+                  placeholder="O que está buscando?"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-muted/50 border-border"
+                  className="h-8 pl-8 pr-3 text-sm bg-muted/30 border-muted-foreground/20 focus:border-primary/50 placeholder:text-muted-foreground/60"
                 />
               </div>
             </div>
