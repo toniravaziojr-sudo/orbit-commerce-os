@@ -2,9 +2,10 @@
 // ORDER BUMP SLOT BLOCK - Order bump offers in Checkout
 // Source of truth: Aumentar Ticket (/offers) module
 // Shows real offers when configured, or empty state with CTA
+// NO DEMO DATA - preview via props only
 // =============================================
 
-import { Zap, Check, Settings, Loader2 } from 'lucide-react';
+import { Zap, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,7 +17,6 @@ import { useCart } from '@/contexts/CartContext';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { useState, useEffect } from 'react';
-import { demoProducts } from '@/lib/builder/demoData';
 
 interface OrderBumpSlotBlockProps {
   title?: string;
@@ -139,42 +139,23 @@ export function OrderBumpSlotBlock({
     });
   };
 
-  // Demo data for editing mode
-  const demoProduct = demoProducts[3];
-
-  // In editing mode, always show demo
+  // In editing mode, show empty state placeholder (no demo data)
   if (isEditing) {
     return (
       <section className="py-4">
-        <Card className="border-primary/30 bg-gradient-to-r from-primary/5 to-transparent overflow-hidden">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <Checkbox checked className="mt-1" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <span className="font-medium text-sm">Oferta Especial!</span>
-                  <Badge variant="destructive" className="text-xs">-15%</Badge>
-                </div>
-                <p className="text-sm font-medium line-clamp-1">{demoProduct.name}</p>
-                <p className="text-xs text-muted-foreground mb-2">Aproveite esta oferta exclusiva!</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground line-through">
-                    {formatCurrency(demoProduct.price)}
-                  </span>
-                  <span className="text-sm font-bold text-primary">
-                    {formatCurrency(demoProduct.price * 0.85)}
-                  </span>
-                </div>
-              </div>
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                <img src={demoProduct.image} alt={demoProduct.name} className="w-full h-full object-cover" />
-              </div>
-            </div>
-
-            <p className="text-center text-xs text-muted-foreground mt-4 pt-3 border-t">
-              [Demonstrativo] Configure ofertas de Order Bump em <strong>Aumentar Ticket</strong>
+        <Card className="border-dashed border-2 bg-muted/20">
+          <CardContent className="p-4 text-center">
+            <Zap className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+            <h3 className="font-semibold text-sm mb-1">{title}</h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              [Slot de Order Bump] Ofertas aparecem aqui quando configuradas em Aumentar Ticket.
             </p>
+            <Button variant="outline" size="sm" asChild>
+              <a href={ctaHref}>
+                <Settings className="h-4 w-4 mr-2" />
+                {ctaLabel}
+              </a>
+            </Button>
           </CardContent>
         </Card>
       </section>

@@ -2,6 +2,7 @@
 // CROSS-SELL SLOT BLOCK - Cross-sell offers in Cart
 // Source of truth: Aumentar Ticket (/offers) module
 // Shows real offers when configured, or empty state with CTA
+// NO DEMO DATA - preview via props only
 // =============================================
 
 import { ShoppingBag, Plus, Settings, Loader2 } from 'lucide-react';
@@ -14,7 +15,6 @@ import { useCart } from '@/contexts/CartContext';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { toast } from 'sonner';
-import { demoProducts } from '@/lib/builder/demoData';
 
 interface CrossSellSlotBlockProps {
   title?: string;
@@ -92,44 +92,25 @@ export function CrossSellSlotBlock({
 
   const isLoading = rulesLoading || productsLoading;
 
-  // Demo data for editing mode
-  const demoProductsSlice = demoProducts.slice(0, maxItems);
-
-  // In editing mode, always show demo
+  // In editing mode, show empty state placeholder (no demo data)
   if (isEditing) {
     return (
       <section className="py-6">
-        <h3 className="font-semibold text-lg mb-4">{title}</h3>
-        {subtitle && <p className="text-sm text-muted-foreground mb-4">{subtitle}</p>}
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {demoProductsSlice.map(product => (
-            <div
-              key={product.id}
-              className="border rounded-lg p-3 hover:shadow-md transition-shadow"
-            >
-              <div className="aspect-square bg-muted rounded-md mb-2 overflow-hidden">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <p className="text-sm font-medium line-clamp-2 mb-1">{product.name}</p>
-              <p className="text-sm font-semibold mb-2">
-                {formatCurrency(product.price)}
-              </p>
-              <Button size="sm" variant="outline" className="w-full">
-                <Plus className="h-4 w-4 mr-1" />
-                Adicionar
-              </Button>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-center text-xs text-muted-foreground mt-4 pt-4 border-t">
-          [Demonstrativo] Configure ofertas de cross-sell em <strong>Aumentar Ticket</strong>
-        </p>
+        <Card className="border-dashed border-2 bg-muted/20">
+          <CardContent className="p-6 text-center">
+            <ShoppingBag className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <h3 className="font-semibold mb-2">{title}</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              [Slot de Cross-sell] Sugestões aparecem aqui quando configuradas em Aumentar Ticket.
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <a href={ctaHref}>
+                <Settings className="h-4 w-4 mr-2" />
+                {ctaLabel}
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
     );
   }
