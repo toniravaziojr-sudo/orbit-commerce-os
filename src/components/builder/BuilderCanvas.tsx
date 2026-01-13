@@ -1,18 +1,25 @@
 // =============================================
-// BUILDER CANVAS - Preview area with IFRAME for real responsive breakpoints
-// Uses iframe to ensure Tailwind breakpoints respond to simulated viewport
+// BUILDER CANVAS - Preview area with Container Queries for real responsive breakpoints
+// Uses CSS container queries so blocks respond to canvas width, not window width
 // =============================================
 
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
-import { BuilderViewportFrame, VIEWPORT_SIZES, ViewportMode } from './BuilderViewportFrame';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import { Monitor, Smartphone, Tablet, ZoomIn, ZoomOut, LayoutTemplate } from 'lucide-react';
+import { Monitor, Smartphone, ZoomIn, ZoomOut } from 'lucide-react';
 import { useState, useCallback, useMemo } from 'react';
 import { useDndMonitor, useDroppable, DragEndEvent } from '@dnd-kit/core';
 import { hexToHsl } from '@/contexts/ThemeContext';
+
+// Viewport dimensions
+const VIEWPORT_SIZES = {
+  desktop: { width: 1280, label: 'Desktop' },
+  mobile: { width: 390, label: 'Mobile' },
+} as const;
+
+type ViewportMode = keyof typeof VIEWPORT_SIZES;
 
 // Zoom constants
 const ZOOM_MIN = 25;
@@ -34,25 +41,12 @@ interface BuilderCanvasProps {
   isSafeMode?: boolean;
   viewport?: 'desktop' | 'mobile';
   onViewportChange?: (viewport: 'desktop' | 'mobile') => void;
-  /** Store settings for theme colors */
   storeSettings?: {
     primary_color?: string | null;
     secondary_color?: string | null;
     accent_color?: string | null;
   } | null;
 }
-
-// Extended viewport options for the new iframe system
-type ExtendedViewport = ViewportMode;
-
-const viewportConfig: Record<ExtendedViewport, { icon: typeof Monitor; label: string }> = {
-  desktop: { icon: Monitor, label: 'Desktop' },
-  tablet: { icon: Tablet, label: 'Tablet' },
-  mobile: { icon: Smartphone, label: 'Mobile' },
-};
-
-// Legacy mode toggle - set to false to use new iframe system
-const USE_LEGACY_MODE = false;
 
 export function BuilderCanvas({ 
   content, 
@@ -71,17 +65,13 @@ export function BuilderCanvas({
   onViewportChange,
   storeSettings,
 }: BuilderCanvasProps) {
-  const [internalViewport, setInternalViewport] = useState<ExtendedViewport>('desktop');
+  const [internalViewport, setInternalViewport] = useState<ViewportMode>('desktop');
   const [zoom, setZoom] = useState<number>(100);
-  const [useLegacy, setUseLegacy] = useState(USE_LEGACY_MODE);
   
-  // Map controlled viewport to extended viewport
-  const viewport: ExtendedViewport = controlledViewport === 'mobile' ? 'mobile' : 
-    (internalViewport === 'tablet' ? 'tablet' : controlledViewport || 'desktop');
-  
+  const viewport: ViewportMode = controlledViewport || internalViewport;
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
-  // Generate CSS variables for theme colors (used in legacy mode)
+  // Generate CSS variables for theme colors
   const themeStyles = useMemo(() => {
     const vars: Record<string, string> = {};
     
@@ -110,15 +100,12 @@ export function BuilderCanvas({
     return vars as React.CSSProperties;
   }, [storeSettings]);
 
-  const handleViewportChange = (newViewport: ExtendedViewport) => {
+  const handleViewportChange = (newViewport: ViewportMode) => {
     setInternalViewport(newViewport);
-    // Also update parent if needed (map tablet to desktop for parent)
-    if (onViewportChange) {
-      onViewportChange(newViewport === 'mobile' ? 'mobile' : 'desktop');
-    }
+    onViewportChange?.(newViewport);
   };
 
-  // Droppable for the canvas (legacy mode only)
+  // Droppable for the canvas
   const { setNodeRef, isOver } = useDroppable({
     id: 'canvas-drop-area',
     data: {
@@ -163,7 +150,6 @@ export function BuilderCanvas({
     }
   };
 
-  // Get current viewport info
   const currentViewportSize = VIEWPORT_SIZES[viewport];
 
   return (
@@ -186,55 +172,42 @@ export function BuilderCanvas({
         </div>
       )}
 
-      {/* Viewport Controls */}
+      {/* Viewport Controls - Clean UI like Yampi */}
       {!isPreviewMode && (
-        <div className="flex flex-col border-b bg-background">
-          {/* Viewport Controls */}
-          <div className="flex items-center justify-center gap-1 py-1.5 px-3">
-            {(Object.entries(viewportConfig) as [ExtendedViewport, typeof viewportConfig.desktop][]).map(
-              ([size, { icon: Icon, label }]) => (
-                <button
-                  key={size}
-                  onClick={() => handleViewportChange(size)}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
-                    viewport === size
-                      ? 'bg-primary text-primary-foreground'
-                      : 'hover:bg-muted text-muted-foreground'
-                  )}
-                  title={`${label} (${VIEWPORT_SIZES[size].width}px)`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-              )
-            )}
-            
-            {/* Separator */}
-            <div className="w-px h-4 bg-border mx-2" />
-            
-            {/* Mode toggle */}
+        <div className="flex items-center justify-center gap-4 py-2 px-3 border-b bg-background">
+          {/* Viewport Toggle - Simple icons */}
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
             <button
-              onClick={() => setUseLegacy(!useLegacy)}
+              onClick={() => handleViewportChange('desktop')}
               className={cn(
-                'flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors',
-                useLegacy 
-                  ? 'bg-amber-500/20 text-amber-600' 
-                  : 'bg-emerald-500/20 text-emerald-600'
+                'p-1.5 rounded-md transition-colors',
+                viewport === 'desktop'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
               )}
-              title={useLegacy ? 'Modo legado (sem responsividade real)' : 'Modo iframe (responsividade real)'}
+              title="Desktop"
             >
-              <LayoutTemplate className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{useLegacy ? 'Legado' : 'Real'}</span>
+              <Monitor className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => handleViewportChange('mobile')}
+              className={cn(
+                'p-1.5 rounded-md transition-colors',
+                viewport === 'mobile'
+                  ? 'bg-background shadow-sm text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+              title="Mobile"
+            >
+              <Smartphone className="h-4 w-4" />
             </button>
           </div>
           
           {/* Zoom Controls */}
-          <div className="flex items-center justify-center gap-2 py-1.5 px-3 border-t border-border/50">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setZoom(Math.max(ZOOM_MIN, zoom - ZOOM_STEP))}
-              className="p-1 rounded hover:bg-muted text-muted-foreground"
-              title="Diminuir zoom"
+              className="p-1 rounded hover:bg-muted text-muted-foreground disabled:opacity-50"
               disabled={zoom <= ZOOM_MIN}
             >
               <ZoomOut className="h-3.5 w-3.5" />
@@ -245,70 +218,71 @@ export function BuilderCanvas({
               min={ZOOM_MIN}
               max={ZOOM_MAX}
               step={ZOOM_STEP}
-              className="w-28"
+              className="w-24"
             />
             <button
               onClick={() => setZoom(Math.min(ZOOM_MAX, zoom + ZOOM_STEP))}
-              className="p-1 rounded hover:bg-muted text-muted-foreground"
-              title="Aumentar zoom"
+              className="p-1 rounded hover:bg-muted text-muted-foreground disabled:opacity-50"
               disabled={zoom >= ZOOM_MAX}
             >
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
-            <span className="text-xs text-muted-foreground w-10 text-center font-mono">{zoom}%</span>
             <button 
               onClick={() => setZoom(100)} 
               className={cn(
-                "text-xs px-2 py-0.5 rounded transition-colors",
+                "text-xs px-2 py-0.5 rounded transition-colors min-w-[40px]",
                 zoom === 100 
                   ? "bg-primary/10 text-primary" 
                   : "hover:bg-muted text-muted-foreground"
               )}
-              title="Resetar zoom para 100%"
             >
-              100%
+              {zoom}%
             </button>
-          </div>
-          
-          {/* Viewport info */}
-          <div className="text-center py-1 border-t border-border/30 bg-muted/30">
-            <span className="text-[10px] text-muted-foreground">
-              {currentViewportSize.width} × {currentViewportSize.height}px
-              {!useLegacy && <span className="ml-2 text-emerald-600">• Breakpoints reais</span>}
-            </span>
           </div>
         </div>
       )}
 
-      {/* Canvas Area */}
+      {/* Canvas Area - Centered with container queries */}
       <ScrollArea className="flex-1 bg-muted/50">
-        {useLegacy ? (
-          // Legacy mode: direct rendering (breakpoints don't respond correctly)
-          <div 
-            className={cn(
-              "min-h-full p-3 flex justify-center",
-              isOver && "bg-primary/5"
-            )}
-            onClick={handleCanvasClick}
+        <div 
+          className={cn(
+            "min-h-full p-4 flex justify-center",
+            isOver && "bg-primary/5"
+          )}
+          onClick={handleCanvasClick}
+        >
+          {/* Zoom wrapper - centered with transform-origin top center */}
+          <div
+            style={{ 
+              transform: `scale(${zoom / 100})`,
+              transformOrigin: 'top center',
+            }}
           >
+            {/* Container query wrapper - this is the key to responsive preview */}
             <div
               ref={setNodeRef}
               className={cn(
-                'bg-background transition-all duration-300 origin-top',
-                viewport !== 'desktop' && 'rounded-lg shadow-xl border',
-                viewport === 'desktop' && 'shadow-sm'
+                'storefront-container bg-background transition-all duration-300',
+                viewport === 'mobile' && 'rounded-2xl shadow-xl border-4 border-muted/50'
               )}
               style={{ 
                 width: `${currentViewportSize.width}px`,
-                minHeight: 'calc(100vh - 220px)',
-                transform: `scale(${zoom / 100})`,
-                transformOrigin: 'top center',
+                minHeight: viewport === 'mobile' ? '700px' : '600px',
+                containerType: 'inline-size',
+                containerName: 'storefront',
                 ...themeStyles,
               }}
             >
+              {/* Mobile notch decoration */}
+              {viewport === 'mobile' && (
+                <div className="h-6 bg-muted/20 flex items-center justify-center rounded-t-xl">
+                  <div className="w-20 h-1 bg-muted rounded-full" />
+                </div>
+              )}
+              
               <BlockRenderer
                 node={content}
-                context={{ ...context, viewport: viewport === 'mobile' ? 'mobile' : 'desktop' }}
+                context={{ ...context, viewport }}
                 isSelected={selectedBlockId === content.id}
                 isEditing={!isPreviewMode && !isInteractMode}
                 isInteractMode={isInteractMode}
@@ -322,26 +296,7 @@ export function BuilderCanvas({
               />
             </div>
           </div>
-        ) : (
-          // New iframe mode: real breakpoints
-          <BuilderViewportFrame
-            content={content}
-            context={context}
-            viewport={viewport}
-            zoom={zoom}
-            selectedBlockId={selectedBlockId}
-            onSelectBlock={onSelectBlock}
-            onAddBlock={onAddBlock}
-            onMoveBlock={onMoveBlock}
-            onDuplicateBlock={onDuplicateBlock}
-            onDeleteBlock={onDeleteBlock}
-            onToggleHidden={onToggleHidden}
-            isPreviewMode={isPreviewMode}
-            isInteractMode={isInteractMode}
-            isSafeMode={isSafeMode}
-            storeSettings={storeSettings}
-          />
-        )}
+        </div>
       </ScrollArea>
 
       {/* Status Bar */}
@@ -356,15 +311,7 @@ export function BuilderCanvas({
               'Arraste blocos ou clique para editar'
             )}
           </span>
-          <span className="flex items-center gap-2">
-            <span className={cn(
-              "px-1.5 py-0.5 rounded text-[9px] font-medium",
-              useLegacy ? "bg-amber-500/20 text-amber-600" : "bg-emerald-500/20 text-emerald-600"
-            )}>
-              {useLegacy ? 'Legacy' : 'Iframe'}
-            </span>
-            <span className="opacity-50">{viewport} • {currentViewportSize.width}px</span>
-          </span>
+          <span className="opacity-50">{currentViewportSize.width}px</span>
         </div>
       )}
     </div>

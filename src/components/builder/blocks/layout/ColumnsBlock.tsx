@@ -1,5 +1,6 @@
 // =============================================
 // COLUMNS BLOCK - Multi-column layout with mobile stacking
+// Uses container queries for responsive behavior in Builder
 // =============================================
 
 import React from 'react';
@@ -24,11 +25,12 @@ export function ColumnsBlock({
     <div 
       className={cn(
         'grid',
-        stackOnMobile && 'grid-cols-1 md:grid-cols-[var(--cols)]'
+        // Use sf-columns-stack for container query based stacking
+        stackOnMobile && 'sf-columns-stack'
       )}
       style={{ 
-        '--cols': `repeat(${columns}, minmax(0, 1fr))`,
-        gridTemplateColumns: stackOnMobile ? undefined : `repeat(${columns}, minmax(0, 1fr))`,
+        // Desktop: use grid columns
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
         gap: `${gap}px`,
         alignItems: alignItems,
       } as React.CSSProperties}

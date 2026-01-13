@@ -54,19 +54,20 @@ export function CartContent({ tenantId }: CartContentProps) {
         <BenefitProgressBar />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Column - Cart Items + Cross-sell APENAS */}
-        <div className="lg:col-span-2 space-y-8">
+      {/* Cart Layout - uses container query class for responsive behavior */}
+      <div className="sf-cart-layout">
+        {/* Main Column - Cart Items + Cross-sell */}
+        <div className="space-y-6">
           <CartItemsList />
 
-          {/* Shipping Estimator - Conditional based on cart_config */}
+          {/* Shipping Estimator */}
           {cartConfig.shippingCalculatorEnabled && (
             <div className="border rounded-lg p-4">
               <ShippingEstimator />
             </div>
           )}
 
-          {/* Coupon Input - Conditional based on cart_config */}
+          {/* Coupon Input */}
           {cartConfig.couponEnabled && (
             <div className="border rounded-lg p-4">
               <h3 className="text-sm font-medium mb-3">Cupom de desconto</h3>
@@ -82,23 +83,23 @@ export function CartContent({ tenantId }: CartContentProps) {
             </div>
           )}
 
-          {/* APENAS Cross-sell no carrinho - ofertas vêm do Aumentar Ticket */}
+          {/* Cross-sell */}
           {cartConfig.crossSellEnabled && (
             <CrossSellSection tenantId={tenantId} />
           )}
         </div>
 
-        {/* Sidebar - Order Summary (Sticky on desktop) */}
-        <div className="hidden lg:block">
+        {/* Sidebar - Order Summary */}
+        <div className="sf-cart-summary">
           <CartSummary variant="sticky" />
         </div>
       </div>
 
-      {/* Mobile Bottom Bar */}
+      {/* Mobile Bottom Bar - shows on small screens */}
       <CartSummary variant="mobile-bar" />
 
-      {/* Mobile spacer to prevent content being hidden behind bottom bar */}
-      <div className="h-24 lg:hidden" />
+      {/* Mobile spacer */}
+      <div className="h-24 sf-show-mobile sf-hide-desktop" />
     </div>
   );
 }
