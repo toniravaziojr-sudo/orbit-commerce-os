@@ -31,6 +31,17 @@ export function CartContent({ tenantId }: CartContentProps) {
   // Use centralized store host helper - always sends actual browser host
   const storeHost = getStoreHost();
 
+  // Empty cart - single unified empty state (anti-duplication)
+  if (!hasItems) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <CartPromoBanner config={cartConfig} />
+        <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
+        <CartSummary variant="default" />
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Cart Promo Banner - Conditional based on cart_config */}
@@ -39,11 +50,9 @@ export function CartContent({ tenantId }: CartContentProps) {
       <h1 className="text-2xl font-bold mb-6">Meu Carrinho</h1>
 
       {/* Benefit Progress Bar - Always at top when has items */}
-      {hasItems && (
-        <div className="mb-6">
-          <BenefitProgressBar />
-        </div>
-      )}
+      <div className="mb-6">
+        <BenefitProgressBar />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Column - Cart Items + Cross-sell APENAS */}
@@ -51,14 +60,14 @@ export function CartContent({ tenantId }: CartContentProps) {
           <CartItemsList />
 
           {/* Shipping Estimator - Conditional based on cart_config */}
-          {hasItems && cartConfig.shippingCalculatorEnabled && (
+          {cartConfig.shippingCalculatorEnabled && (
             <div className="border rounded-lg p-4">
               <ShippingEstimator />
             </div>
           )}
 
           {/* Coupon Input - Conditional based on cart_config */}
-          {hasItems && cartConfig.couponEnabled && (
+          {cartConfig.couponEnabled && (
             <div className="border rounded-lg p-4">
               <h3 className="text-sm font-medium mb-3">Cupom de desconto</h3>
               <CouponInput
@@ -74,14 +83,9 @@ export function CartContent({ tenantId }: CartContentProps) {
           )}
 
           {/* APENAS Cross-sell no carrinho - ofertas vêm do Aumentar Ticket */}
-          {hasItems && cartConfig.crossSellEnabled && (
+          {cartConfig.crossSellEnabled && (
             <CrossSellSection tenantId={tenantId} />
           )}
-          
-          {/* REMOVIDO: BundlesSection e BuyTogetherSection
-           * - Bundles/Buy Together ficam na página do PRODUTO
-           * - Order Bump fica no CHECKOUT
-           */}
         </div>
 
         {/* Sidebar - Order Summary (Sticky on desktop) */}
@@ -94,7 +98,7 @@ export function CartContent({ tenantId }: CartContentProps) {
       <CartSummary variant="mobile-bar" />
 
       {/* Mobile spacer to prevent content being hidden behind bottom bar */}
-      {hasItems && <div className="h-24 lg:hidden" />}
+      <div className="h-24 lg:hidden" />
     </div>
   );
 }
