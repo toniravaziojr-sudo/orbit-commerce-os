@@ -1317,7 +1317,7 @@ const blockDefinitions: BlockDefinition[] = [
   },
   {
     type: 'ProductGrid',
-    label: 'Grade de Produtos',
+    label: 'Vitrine de Produtos',
     category: 'ecommerce',
     icon: 'LayoutGrid',
     defaultProps: {
@@ -1612,7 +1612,7 @@ const blockDefinitions: BlockDefinition[] = [
   // ========== ESSENTIAL BLOCKS (8 novos) ==========
   {
     type: 'HeroBanner',
-    label: 'Banner Principal',
+    label: 'Carrossel de Banners',
     category: 'media',
     icon: 'Image',
     defaultProps: {
@@ -1746,7 +1746,7 @@ const blockDefinitions: BlockDefinition[] = [
   },
   {
     type: 'InfoHighlights',
-    label: 'Destaques Informativos',
+    label: 'Benefícios da Loja',
     category: 'content',
     icon: 'Award',
     defaultProps: {
@@ -2272,7 +2272,7 @@ const blockDefinitions: BlockDefinition[] = [
   // ========== SYSTEM BLOCKS (Rastreio, Blog) ==========
   {
     type: 'TrackingLookup',
-    label: 'Consulta de Rastreio',
+    label: 'Rastrear Pedido',
     category: 'ecommerce',
     icon: 'Package',
     defaultProps: {

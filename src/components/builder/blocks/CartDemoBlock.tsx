@@ -1,27 +1,26 @@
 // =============================================
-// CART DEMO BLOCK - Demo cart with upsell/cross-sell/order bump
+// CART DEMO BLOCK - Demo cart with Cross-sell ONLY
+// Order Bump fica no CHECKOUT
+// Buy Together fica na página do PRODUTO
 // =============================================
 
 import React from 'react';
-import { ShoppingCart, Trash2, Plus, Minus, Tag, Sparkles, Gift, ShoppingBag, Truck, Shield, CreditCard } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Tag, ShoppingBag, Truck, Shield, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { demoProducts, demoBenefits } from '@/lib/builder/demoData';
+import { demoProducts } from '@/lib/builder/demoData';
 
 interface CartDemoBlockProps {
   showCrossSell?: boolean;
-  showOrderBump?: boolean;
-  showBuyTogether?: boolean;
+  showOrderBump?: boolean; // Mantido por compatibilidade, mas ignorado
+  showBuyTogether?: boolean; // Mantido por compatibilidade, mas ignorado
   isEditing?: boolean;
 }
 
 export function CartDemoBlock({
   showCrossSell = true,
-  showOrderBump = true,
-  showBuyTogether = true,
   isEditing,
 }: CartDemoBlockProps) {
   // Demo cart items (2 products from demo data)
@@ -30,13 +29,7 @@ export function CartDemoBlock({
     { ...demoProducts[2], quantity: 1 },
   ];
 
-  // Demo order bump product
-  const orderBumpProduct = demoProducts[6]; // Sérum Vitamina C
-
-  // Demo buy together products
-  const buyTogetherProducts = [demoProducts[1], demoProducts[3]];
-
-  // Demo cross-sell products
+  // Demo cross-sell products (máximo 4)
   const crossSellProducts = demoProducts.slice(4, 8);
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -109,99 +102,7 @@ export function CartDemoBlock({
             </CardContent>
           </Card>
 
-          {/* Order Bump */}
-          {showOrderBump && (
-            <Card className="border-primary/30 bg-primary/5">
-              <CardContent className="pt-4">
-                <div className="flex items-start gap-3">
-                  <Checkbox id="order-bump" className="mt-1" />
-                  <label htmlFor="order-bump" className="flex-1 cursor-pointer">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      <span className="font-semibold text-sm text-primary">OFERTA ESPECIAL!</span>
-                      <Badge variant="destructive" className="text-xs">-30%</Badge>
-                    </div>
-                    <div className="flex gap-3">
-                      <img
-                        src={orderBumpProduct.image}
-                        alt={orderBumpProduct.name}
-                        className="w-16 h-16 rounded-lg object-cover"
-                      />
-                      <div>
-                        <p className="font-medium text-sm">{orderBumpProduct.name}</p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{orderBumpProduct.description}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs line-through text-muted-foreground">
-                            R$ {orderBumpProduct.compare_at_price?.toFixed(2)}
-                          </span>
-                          <span className="font-bold text-primary">
-                            R$ {orderBumpProduct.price.toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </label>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Buy Together */}
-          {showBuyTogether && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Gift className="h-5 w-5 text-primary" />
-                  Compre Junto e Economize
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap items-center gap-4 justify-center">
-                  {/* Current product */}
-                  <div className="text-center">
-                    <img
-                      src={cartItems[0].image}
-                      alt={cartItems[0].name}
-                      className="w-20 h-20 rounded-lg object-cover mx-auto"
-                    />
-                    <p className="text-xs mt-1 line-clamp-1 max-w-[80px]">{cartItems[0].name}</p>
-                  </div>
-                  
-                  <span className="text-2xl font-bold text-muted-foreground">+</span>
-                  
-                  {buyTogetherProducts.map((product, idx) => (
-                    <React.Fragment key={product.id}>
-                      <div className="text-center">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-20 h-20 rounded-lg object-cover mx-auto border-2 border-dashed border-primary/30"
-                        />
-                        <p className="text-xs mt-1 line-clamp-1 max-w-[80px]">{product.name}</p>
-                      </div>
-                      {idx < buyTogetherProducts.length - 1 && (
-                        <span className="text-2xl font-bold text-muted-foreground">+</span>
-                      )}
-                    </React.Fragment>
-                  ))}
-                  
-                  <span className="text-2xl font-bold text-muted-foreground">=</span>
-                  
-                  <div className="text-center bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
-                    <p className="text-xs text-muted-foreground line-through">R$ 347,00</p>
-                    <p className="text-xl font-bold text-green-600">R$ 279,90</p>
-                    <Badge variant="secondary" className="mt-1 text-xs">Economize R$ 67,10</Badge>
-                  </div>
-                </div>
-                <Button className="w-full mt-4" variant="outline">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Adicionar Combo ao Carrinho
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Cross-sell */}
+          {/* Cross-sell - ÚNICO tipo de oferta no carrinho */}
           {showCrossSell && (
             <Card>
               <CardHeader className="pb-2">
@@ -319,7 +220,7 @@ export function CartDemoBlock({
 
       {isEditing && (
         <p className="text-center text-xs text-muted-foreground mt-8">
-          [Prévia do carrinho com Order Bump, Compre Junto e Cross-sell]
+          [Prévia do carrinho com Cross-sell]
         </p>
       )}
     </div>

@@ -1,6 +1,9 @@
 // =============================================
 // CART CONTENT - Main cart page content
 // Respects cart_config settings
+// REGRA: Carrinho tem APENAS Cross-sell
+// Order Bump fica no CHECKOUT
+// Compre Junto fica na página do PRODUTO
 // =============================================
 
 import { CartItemsList } from './CartItemsList';
@@ -8,8 +11,6 @@ import { CartSummary } from './CartSummary';
 import { ShippingEstimator } from './ShippingEstimator';
 import { BenefitProgressBar } from './BenefitProgressBar';
 import { CrossSellSection } from './CrossSellSection';
-import { BundlesSection } from './BundlesSection';
-import { BuyTogetherSection } from './BuyTogetherSection';
 import { CartPromoBanner } from './CartPromoBanner';
 import { CouponInput } from '@/components/storefront/CouponInput';
 import { useCart } from '@/contexts/CartContext';
@@ -45,7 +46,7 @@ export function CartContent({ tenantId }: CartContentProps) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Column - Cart Items + AOV */}
+        {/* Main Column - Cart Items + Cross-sell APENAS */}
         <div className="lg:col-span-2 space-y-8">
           <CartItemsList />
 
@@ -72,14 +73,15 @@ export function CartContent({ tenantId }: CartContentProps) {
             </div>
           )}
 
-          {/* AOV Sections - Conditional based on cart_config */}
+          {/* APENAS Cross-sell no carrinho - ofertas vêm do Aumentar Ticket */}
           {hasItems && cartConfig.crossSellEnabled && (
-            <>
-              <CrossSellSection tenantId={tenantId} />
-              <BundlesSection tenantId={tenantId} />
-              <BuyTogetherSection tenantId={tenantId} />
-            </>
+            <CrossSellSection tenantId={tenantId} />
           )}
+          
+          {/* REMOVIDO: BundlesSection e BuyTogetherSection
+           * - Bundles/Buy Together ficam na página do PRODUTO
+           * - Order Bump fica no CHECKOUT
+           */}
         </div>
 
         {/* Sidebar - Order Summary (Sticky on desktop) */}
