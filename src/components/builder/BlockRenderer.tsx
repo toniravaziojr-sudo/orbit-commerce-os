@@ -2,10 +2,11 @@
 // BLOCK RENDERER - Renders blocks recursively
 // Refactored: Layout and content blocks moved to separate files
 // Supports Safe Mode (?safe=1) for debugging
+// Wrapped with BlockErrorBoundary for diagnostics
 // =============================================
 
 import React from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
@@ -14,10 +15,11 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AddBlockButton } from './AddBlockButton';
 import { BlockQuickActions } from './BlockQuickActions';
+import { BlockErrorBoundary } from './BlockErrorBoundary';
 
 // Layout blocks (refactored)
 import { 
-  PageBlock, 
+  PageBlock,
   SectionBlock, 
   ContainerBlock, 
   GridBlock, 
@@ -285,15 +287,23 @@ export function BlockRenderer({
         />
       )}
       
-      <BlockComponent 
-        {...node.props} 
-        context={context}
+      <BlockErrorBoundary
+        blockId={node.id}
+        blockType={node.type}
+        pageType={pageType}
         isEditing={isEditing}
-        isInteractMode={isInteractMode}
-        block={node}
+        isSafeMode={isSafeMode}
       >
-        {renderChildren()}
-      </BlockComponent>
+        <BlockComponent 
+          {...node.props} 
+          context={context}
+          isEditing={isEditing}
+          isInteractMode={isInteractMode}
+          block={node}
+        >
+          {renderChildren()}
+        </BlockComponent>
+      </BlockErrorBoundary>
     </div>
   );
 }
@@ -958,11 +968,12 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
 // ========== ACCOUNT BLOCKS ==========
 
 function AccountHubBlock({ context, isEditing }: any) {
-  const navigate = useNavigate();
+  // NOTE: All hooks MUST be called before any conditional return
   const [searchParams] = useSearchParams();
+  
   const tenantSlug = context?.tenantSlug || '';
   
-  // Import utilities at module level or use inline
+  // Helper functions (not hooks - can be defined anywhere)
   const getWhatsAppHref = (phone: string, message: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -978,6 +989,7 @@ function AccountHubBlock({ context, isEditing }: any) {
   const whatsappNumber = storeSettings?.social_whatsapp || '+5511919555920';
   const whatsappHref = getWhatsAppHref(whatsappNumber, 'Olá! Preciso de suporte.');
   
+  // CONDITIONAL RETURN - after all hooks have been called
   if (isEditing) {
     return (
       <div className="container mx-auto max-w-2xl py-8 px-4">
