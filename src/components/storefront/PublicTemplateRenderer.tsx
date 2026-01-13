@@ -38,7 +38,7 @@ interface PublicTemplateRendererProps {
   canPreview?: boolean;
   isCheckout?: boolean;
   // For page overrides
-  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page';
+  pageType?: 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'institutional' | 'landing_page' | 'tracking' | 'blog';
   pageId?: string; // For institutional/landing_page
 }
 
