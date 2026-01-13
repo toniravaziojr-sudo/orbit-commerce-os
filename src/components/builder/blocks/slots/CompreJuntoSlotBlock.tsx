@@ -2,12 +2,12 @@
 // COMPRE JUNTO SLOT BLOCK - Buy Together offers on Product page
 // Source of truth: Aumentar Ticket (/offers) module
 // Shows real offers when configured, or empty state with CTA
+// NO DEMO DATA - preview via props only
 // =============================================
 
 import { Gift, Plus, ShoppingCart, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +15,6 @@ import { formatCurrency } from '@/lib/cartTotals';
 import { useCart } from '@/contexts/CartContext';
 import { toast } from 'sonner';
 import { useState } from 'react';
-import { demoProducts } from '@/lib/builder/demoData';
 
 interface CompreJuntoSlotBlockProps {
   productId?: string;
@@ -94,67 +93,25 @@ export function CompreJuntoSlotBlock({
     enabled: !!productId && !isEditing,
   });
 
-  // Demo data for editing mode
-  const demoProduct = demoProducts[2];
-  const demoCurrent = demoProducts[0];
-
-  // In editing mode, always show demo
+  // In editing mode, show empty state placeholder (no demo data)
   if (isEditing) {
     return (
       <section className="py-6 border-t">
-        <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-          <ShoppingCart className="h-5 w-5" />
-          {title}
-        </h2>
-
-        <div className="bg-muted/30 rounded-lg p-4">
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            {/* Current Product */}
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
-                <img src={demoCurrent.image} alt={demoCurrent.name} className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <p className="font-medium text-sm line-clamp-2">{demoCurrent.name}</p>
-                <p className="text-primary font-bold">{formatCurrency(demoCurrent.price)}</p>
-              </div>
-            </div>
-
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Plus className="h-4 w-4 text-primary" />
-            </div>
-
-            {/* Suggested Product */}
-            <div className="flex items-center gap-3 p-3 bg-background rounded-lg border flex-1">
-              <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted">
-                <img src={demoProduct.image} alt={demoProduct.name} className="w-full h-full object-cover" />
-              </div>
-              <div>
-                <p className="font-medium text-sm line-clamp-2">{demoProduct.name}</p>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground line-through">{formatCurrency(demoProduct.price)}</span>
-                  <span className="text-primary font-bold">{formatCurrency(demoProduct.price * 0.85)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Total */}
-            <div className="text-center p-4 border-l min-w-[160px]">
-              <p className="text-xs text-muted-foreground">COMPRANDO JUNTO:</p>
-              <p className="text-xl font-bold text-primary">
-                {formatCurrency(demoCurrent.price + demoProduct.price * 0.85)}
-              </p>
-              <p className="text-sm text-green-600 font-medium">
-                Economize {formatCurrency(demoProduct.price * 0.15)}
-              </p>
-              <Button className="w-full mt-2" size="sm">Adicionar</Button>
-            </div>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-4 pt-4 border-t">
-            [Demonstrativo] Configure ofertas em <strong>Aumentar Ticket</strong>
-          </p>
-        </div>
+        <Card className="border-dashed border-2 bg-muted/20">
+          <CardContent className="p-6 text-center">
+            <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <h3 className="font-semibold mb-2">{title}</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              [Slot de Compre Junto] Ofertas aparecem aqui quando configuradas em Aumentar Ticket.
+            </p>
+            <Button variant="outline" size="sm" asChild>
+              <a href={ctaHref}>
+                <Settings className="h-4 w-4 mr-2" />
+                {ctaLabel}
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
       </section>
     );
   }

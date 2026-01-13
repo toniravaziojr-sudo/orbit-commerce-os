@@ -911,11 +911,11 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
   return <CheckoutStepWizard tenantId={tenantId} />;
 }
 
-function CartBlock({ isEditing, context, showCrossSell, showOrderBump, showBuyTogether }: any) {
+function CartBlock({ isEditing, context, showCrossSell }: any) {
   const tenantId = context?.settings?.tenant_id || '';
 
   if (isEditing) {
-    return <CartDemoBlock showCrossSell={showCrossSell} showOrderBump={showOrderBump} showBuyTogether={showBuyTogether} isEditing />;
+    return <CartDemoBlock showCrossSell={showCrossSell} isEditing />;
   }
 
   return <CartContent tenantId={tenantId} />;

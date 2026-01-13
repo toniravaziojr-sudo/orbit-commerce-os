@@ -1,9 +1,11 @@
 // =============================================
-// CHECKOUT DEMO BLOCK - Demo checkout with order bump and upsell
+// CHECKOUT DEMO BLOCK - Demo checkout with order bump
+// Bloco de demonstração do checkout para uso no Builder
+// Props editáveis via UI - sem conteúdo hardcoded
 // =============================================
 
 import React from 'react';
-import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package } from 'lucide-react';
+import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,18 +14,51 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { demoProducts } from '@/lib/builder/demoData';
 import { cn } from '@/lib/utils';
+import { demoProducts } from '@/lib/builder/demoData';
 
 interface CheckoutDemoBlockProps {
+  // Layout & Display
   showOrderBump?: boolean;
   showTimeline?: boolean;
+  showPaymentOptions?: boolean;
+  showTrustBadges?: boolean;
+  // Textos editáveis
+  contactTitle?: string;
+  shippingTitle?: string;
+  paymentTitle?: string;
+  orderSummaryTitle?: string;
+  checkoutButtonText?: string;
+  // Steps labels
+  stepContactLabel?: string;
+  stepShippingLabel?: string;
+  stepPaymentLabel?: string;
+  // Payment options
+  creditCardLabel?: string;
+  pixLabel?: string;
+  boletoLabel?: string;
+  pixDiscount?: string;
+  // Editor
   isEditing?: boolean;
 }
 
 export function CheckoutDemoBlock({
   showOrderBump = true,
   showTimeline = true,
+  showPaymentOptions = true,
+  showTrustBadges = true,
+  contactTitle = 'Informações de Contato',
+  shippingTitle = 'Endereço de Entrega',
+  paymentTitle = 'Forma de Pagamento',
+  orderSummaryTitle = 'Resumo do Pedido',
+  checkoutButtonText = 'Finalizar Compra',
+  stepContactLabel = 'Contato',
+  stepShippingLabel = 'Entrega',
+  stepPaymentLabel = 'Pagamento',
+  creditCardLabel = 'Cartão de Crédito',
+  pixLabel = 'PIX',
+  boletoLabel = 'Boleto Bancário',
+  pixDiscount = '5% OFF',
   isEditing,
 }: CheckoutDemoBlockProps) {
   // Demo cart items

@@ -1,11 +1,11 @@
 // =============================================
-// CART DEMO BLOCK - Demo cart with Cross-sell ONLY
-// Order Bump fica no CHECKOUT
-// Buy Together fica na página do PRODUTO
+// CART DEMO BLOCK - Demo cart with Cross-sell
+// Bloco de demonstração do carrinho para uso no Builder
+// Props editáveis via UI - sem conteúdo hardcoded
 // =============================================
 
 import React from 'react';
-import { ShoppingCart, Trash2, Plus, Minus, Tag, ShoppingBag, Truck, Shield, CreditCard } from 'lucide-react';
+import { ShoppingCart, Trash2, Plus, Minus, Tag, ShoppingBag, Truck, Shield, CreditCard, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,14 +13,41 @@ import { Separator } from '@/components/ui/separator';
 import { demoProducts } from '@/lib/builder/demoData';
 
 interface CartDemoBlockProps {
+  // Layout & Display
   showCrossSell?: boolean;
-  showOrderBump?: boolean; // Mantido por compatibilidade, mas ignorado
-  showBuyTogether?: boolean; // Mantido por compatibilidade, mas ignorado
+  showCouponField?: boolean;
+  showTrustBadges?: boolean;
+  // Textos editáveis
+  title?: string;
+  checkoutButtonText?: string;
+  continueShoppingText?: string;
+  couponPlaceholder?: string;
+  couponButtonText?: string;
+  // Frete grátis
+  freeShippingThreshold?: number;
+  freeShippingLabel?: string;
+  // Trust badges
+  trustBadge1Label?: string;
+  trustBadge2Label?: string;
+  trustBadge3Label?: string;
+  // Editor
   isEditing?: boolean;
 }
 
 export function CartDemoBlock({
   showCrossSell = true,
+  showCouponField = true,
+  showTrustBadges = true,
+  title = 'Carrinho de Compras',
+  checkoutButtonText = 'Finalizar Compra',
+  continueShoppingText = 'Continuar Comprando',
+  couponPlaceholder = 'Cupom de desconto',
+  couponButtonText = 'Aplicar',
+  freeShippingThreshold = 199,
+  freeShippingLabel = 'Frete Grátis',
+  trustBadge1Label = 'Frete Grátis',
+  trustBadge2Label = 'Compra Segura',
+  trustBadge3Label = '12x s/ juros',
   isEditing,
 }: CartDemoBlockProps) {
   // Demo cart items (2 products from demo data)

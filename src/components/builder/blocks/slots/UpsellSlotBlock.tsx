@@ -3,6 +3,7 @@
 // Source of truth: Aumentar Ticket (/offers) module
 // Shows real offers when configured, or empty state with CTA
 // Appears ONLY on Thank You page
+// NO DEMO DATA - preview via props only
 // =============================================
 
 import { Gift, ShoppingCart, ArrowRight, Settings, Loader2 } from 'lucide-react';
@@ -16,7 +17,6 @@ import { useTenantSlug } from '@/hooks/useTenantSlug';
 import { useActiveOfferRules, OfferRule } from '@/hooks/useOfferRules';
 import { Link } from 'react-router-dom';
 import { useStorefrontUrls } from '@/hooks/useStorefrontUrls';
-import { demoProducts } from '@/lib/builder/demoData';
 
 interface UpsellSlotBlockProps {
   title?: string;
@@ -106,62 +106,22 @@ export function UpsellSlotBlock({
     return product.price;
   };
 
-  // Demo product for editing preview
-  const demoProduct = demoProducts[5];
-  const discountPercent = 20;
-  const discountedPrice = demoProduct.price * (1 - discountPercent / 100);
-  const savings = demoProduct.price - discountedPrice;
-
-  // In editing mode, always show demo placeholder
+  // In editing mode, show empty state placeholder (no demo data)
   if (isEditing) {
     return (
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent my-6">
-        <CardContent className="p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <Gift className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-lg">{title}</h3>
-            <Badge variant="destructive" className="ml-auto">-{discountPercent}%</Badge>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-4 items-center">
-            {/* Product Image */}
-            <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              <img
-                src={demoProduct.image}
-                alt={demoProduct.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-
-            {/* Product Info */}
-            <div className="flex-1 text-center sm:text-left">
-              <h4 className="font-medium text-base mb-1">{demoProduct.name}</h4>
-              <p className="text-sm text-muted-foreground mb-2">
-                Aproveite esta oferta exclusiva pós-compra!
-              </p>
-              <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <span className="text-sm text-muted-foreground line-through">
-                  {formatCurrency(demoProduct.price)}
-                </span>
-                <span className="text-xl font-bold text-primary">
-                  {formatCurrency(discountedPrice)}
-                </span>
-                <Badge variant="secondary" className="text-xs">
-                  Economize {formatCurrency(savings)}
-                </Badge>
-              </div>
-            </div>
-
-            {/* CTA Button */}
-            <Button className="gap-2 flex-shrink-0" size="lg">
-              Aproveitar Oferta
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-4 pt-4 border-t">
-            [Demonstrativo] Configure ofertas de upsell em <strong>Aumentar Ticket</strong>
+      <Card className="border-dashed border-2 bg-muted/20 my-6">
+        <CardContent className="p-6 text-center">
+          <Gift className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+          <h3 className="font-semibold mb-2">{title}</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            [Slot de Upsell] Ofertas pós-compra aparecem aqui quando configuradas em Aumentar Ticket.
           </p>
+          <Button variant="outline" size="sm" asChild>
+            <a href={ctaHref}>
+              <Settings className="h-4 w-4 mr-2" />
+              {ctaLabel}
+            </a>
+          </Button>
         </CardContent>
       </Card>
     );
