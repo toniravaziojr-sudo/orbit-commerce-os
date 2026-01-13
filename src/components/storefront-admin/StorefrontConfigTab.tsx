@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useStoreSettings, type CustomSocialLink } from '@/hooks/useStoreSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +11,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { ImageUpload } from '@/components/settings/ImageUpload';
 import { CustomSocialLinks } from '@/components/settings/CustomSocialLinks';
+import { toast } from 'sonner';
 import { 
   Save, 
   Palette, 
-  ArrowRight,
+  Pencil,
   Building2,
   Phone,
   Share2,
@@ -30,6 +30,9 @@ import {
 export function StorefrontConfigTab() {
   const { currentTenant } = useAuth();
   const { settings, isLoading, upsertSettings, togglePublish, uploadAsset } = useStoreSettings();
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -99,15 +102,47 @@ export function StorefrontConfigTab() {
       social_custom: formData.social_custom as unknown as import('@/integrations/supabase/types').Json,
     });
     setHasChanges(false);
-    // Force UI refresh by updating local state with latest values
-    // This ensures images display correctly after save
+    setIsEditing(false);
+    toast.success('Configurações salvas com sucesso!');
+  };
+
+  const handleStartEditing = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEditing = () => {
+    // Reset form to saved settings
+    if (settings) {
+      setFormData({
+        business_legal_name: settings.business_legal_name || '',
+        store_name: settings.store_name || '',
+        store_description: settings.store_description || '',
+        business_cnpj: settings.business_cnpj || '',
+        logo_url: settings.logo_url || '',
+        favicon_url: settings.favicon_url || '',
+        contact_phone: settings.contact_phone || '',
+        contact_email: settings.contact_email || '',
+        contact_address: settings.contact_address || '',
+        contact_support_hours: settings.contact_support_hours || '',
+        social_whatsapp: settings.social_whatsapp || '',
+        social_facebook: settings.social_facebook || '',
+        social_instagram: settings.social_instagram || '',
+        social_tiktok: settings.social_tiktok || '',
+        social_youtube: settings.social_youtube || '',
+        social_custom: settings.social_custom || [],
+        primary_color: settings.primary_color || '#6366f1',
+        secondary_color: settings.secondary_color || '#8b5cf6',
+        accent_color: settings.accent_color || '#f59e0b',
+      });
+    }
+    setHasChanges(false);
+    setIsEditing(false);
   };
 
   const handleLogoUpload = async (file: File) => {
     const result = await uploadAsset(file, 'logo');
     if (result) {
       // Save BOTH logo_url AND logo_file_id immediately to DB
-      // This ensures the new image is persisted right away
       await upsertSettings.mutateAsync({ 
         logo_url: result.url,
         logo_file_id: result.fileId 
@@ -122,7 +157,6 @@ export function StorefrontConfigTab() {
     const result = await uploadAsset(file, 'favicon');
     if (result) {
       // Save BOTH favicon_url AND favicon_file_id immediately to DB
-      // This ensures the new image is persisted right away
       await upsertSettings.mutateAsync({ 
         favicon_url: result.url,
         favicon_file_id: result.fileId 
@@ -144,6 +178,22 @@ export function StorefrontConfigTab() {
 
   return (
     <div className="space-y-6">
+      {/* Header with Edit Button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Configurações da loja</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure as informações que aparecem na sua loja virtual
+          </p>
+        </div>
+        {!isEditing && (
+          <Button onClick={handleStartEditing} variant="outline" className="gap-2">
+            <Pencil className="h-4 w-4" />
+            Editar configurações
+          </Button>
+        )}
+      </div>
+
       {/* Status */}
       <Card>
         <CardContent className="p-4 flex items-center justify-between">
@@ -177,6 +227,7 @@ export function StorefrontConfigTab() {
                 value={formData.business_legal_name}
                 onChange={(e) => handleChange('business_legal_name', e.target.value)}
                 placeholder="Razão social da empresa"
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -186,6 +237,7 @@ export function StorefrontConfigTab() {
                 value={formData.store_name}
                 onChange={(e) => handleChange('store_name', e.target.value)}
                 placeholder="Nome que aparecerá para os clientes"
+                disabled={!isEditing}
               />
             </div>
           </div>
@@ -198,6 +250,7 @@ export function StorefrontConfigTab() {
               onChange={(e) => handleChange('store_description', e.target.value)}
               placeholder="Breve descrição da sua loja (aparece no rodapé e SEO)"
               rows={3}
+              disabled={!isEditing}
             />
           </div>
           
@@ -208,6 +261,7 @@ export function StorefrontConfigTab() {
               value={formData.business_cnpj}
               onChange={(e) => handleChange('business_cnpj', e.target.value)}
               placeholder="00.000.000/0000-00"
+              disabled={!isEditing}
             />
           </div>
           
@@ -221,6 +275,7 @@ export function StorefrontConfigTab() {
               onChange={(url) => handleChange('logo_url', url || '')}
               onUpload={handleLogoUpload}
               accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              disabled={!isEditing}
             />
             
             <ImageUpload
@@ -230,6 +285,7 @@ export function StorefrontConfigTab() {
               onChange={(url) => handleChange('favicon_url', url || '')}
               onUpload={handleFaviconUpload}
               accept="image/png,image/x-icon,image/webp"
+              disabled={!isEditing}
             />
           </div>
         </CardContent>
@@ -256,6 +312,7 @@ export function StorefrontConfigTab() {
                 value={formData.contact_phone}
                 onChange={(e) => handleChange('contact_phone', e.target.value)}
                 placeholder="(11) 3000-0000"
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -267,6 +324,7 @@ export function StorefrontConfigTab() {
                 value={formData.social_whatsapp}
                 onChange={(e) => handleChange('social_whatsapp', e.target.value)}
                 placeholder="5511999999999"
+                disabled={!isEditing}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Formato: código do país + DDD + número (sem espaços)
@@ -285,6 +343,7 @@ export function StorefrontConfigTab() {
               value={formData.contact_email}
               onChange={(e) => handleChange('contact_email', e.target.value)}
               placeholder="contato@sualoja.com.br"
+              disabled={!isEditing}
             />
           </div>
           
@@ -299,6 +358,7 @@ export function StorefrontConfigTab() {
               onChange={(e) => handleChange('contact_address', e.target.value)}
               placeholder="Rua, número, bairro - Cidade/UF"
               rows={2}
+              disabled={!isEditing}
             />
           </div>
           
@@ -312,6 +372,7 @@ export function StorefrontConfigTab() {
               value={formData.contact_support_hours}
               onChange={(e) => handleChange('contact_support_hours', e.target.value)}
               placeholder="De segunda a sexta, das 9h às 18h"
+              disabled={!isEditing}
             />
           </div>
         </CardContent>
@@ -338,6 +399,7 @@ export function StorefrontConfigTab() {
                 value={formData.social_facebook}
                 onChange={(e) => handleChange('social_facebook', e.target.value)}
                 placeholder="https://facebook.com/sualoja"
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -350,6 +412,7 @@ export function StorefrontConfigTab() {
                 value={formData.social_instagram}
                 onChange={(e) => handleChange('social_instagram', e.target.value)}
                 placeholder="https://instagram.com/sualoja"
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -359,6 +422,7 @@ export function StorefrontConfigTab() {
                 value={formData.social_tiktok}
                 onChange={(e) => handleChange('social_tiktok', e.target.value)}
                 placeholder="https://tiktok.com/@sualoja"
+                disabled={!isEditing}
               />
             </div>
             <div>
@@ -371,6 +435,7 @@ export function StorefrontConfigTab() {
                 value={formData.social_youtube}
                 onChange={(e) => handleChange('social_youtube', e.target.value)}
                 placeholder="https://youtube.com/@sualoja"
+                disabled={!isEditing}
               />
             </div>
           </div>
@@ -380,6 +445,7 @@ export function StorefrontConfigTab() {
           <CustomSocialLinks
             value={formData.social_custom}
             onChange={(links) => handleChange('social_custom', links)}
+            disabled={!isEditing}
           />
         </CardContent>
       </Card>
@@ -403,11 +469,13 @@ export function StorefrontConfigTab() {
                   value={formData.primary_color}
                   onChange={(e) => handleChange('primary_color', e.target.value)}
                   className="w-14 h-10 p-1 cursor-pointer"
+                  disabled={!isEditing}
                 />
                 <Input
                   value={formData.primary_color}
                   onChange={(e) => handleChange('primary_color', e.target.value)}
                   placeholder="#6366f1"
+                  disabled={!isEditing}
                 />
               </div>
             </div>
@@ -419,11 +487,13 @@ export function StorefrontConfigTab() {
                   value={formData.secondary_color}
                   onChange={(e) => handleChange('secondary_color', e.target.value)}
                   className="w-14 h-10 p-1 cursor-pointer"
+                  disabled={!isEditing}
                 />
                 <Input
                   value={formData.secondary_color}
                   onChange={(e) => handleChange('secondary_color', e.target.value)}
                   placeholder="#8b5cf6"
+                  disabled={!isEditing}
                 />
               </div>
             </div>
@@ -435,11 +505,13 @@ export function StorefrontConfigTab() {
                   value={formData.accent_color}
                   onChange={(e) => handleChange('accent_color', e.target.value)}
                   className="w-14 h-10 p-1 cursor-pointer"
+                  disabled={!isEditing}
                 />
                 <Input
                   value={formData.accent_color}
                   onChange={(e) => handleChange('accent_color', e.target.value)}
                   placeholder="#f59e0b"
+                  disabled={!isEditing}
                 />
               </div>
             </div>
@@ -447,11 +519,22 @@ export function StorefrontConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Sticky Save Button */}
-      {hasChanges && (
-        <div className="sticky bottom-4 flex justify-end">
-          <Button onClick={handleSave} disabled={upsertSettings.isPending} size="lg" className="shadow-lg">
-            <Save className="mr-2 h-4 w-4" />
+      {/* Action Buttons - Fixed at bottom of form (only in edit mode) */}
+      {isEditing && (
+        <div className="flex justify-end gap-3 pt-4 border-t">
+          <Button 
+            variant="outline" 
+            onClick={handleCancelEditing}
+            disabled={upsertSettings.isPending}
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSave} 
+            disabled={upsertSettings.isPending || !hasChanges}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
             {upsertSettings.isPending ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
         </div>
