@@ -3,23 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { useTemplateSets } from '@/hooks/useTemplatesSets';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   LayoutTemplate, 
   Sparkles,
   FileText,
-  CheckCircle2,
   Clock,
-  Globe,
-  Pencil,
   Eye,
   Copy,
   Trash2,
   MoreVertical,
-  Plus,
   ExternalLink,
+  Play,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -47,6 +43,28 @@ import { CreateTemplateDialog } from './CreateTemplateDialog';
 import { RenameTemplateDialog } from './RenameTemplateDialog';
 import { PublishTemplateDialog } from './PublishTemplateDialog';
 
+// Preset thumbnails - ilustrações estáticas para cada tipo de template
+const PRESET_THUMBNAILS: Record<string, string> = {
+  cosmetics: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&h=400&fit=crop&q=80',
+  blank: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&h=400&fit=crop&q=80',
+  custom: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&h=400&fit=crop&q=80',
+};
+
+const PRESET_INFO = {
+  cosmetics: {
+    name: 'Template Cosméticos',
+    description: 'Template elegante para lojas de beleza e cosméticos, com seções para produtos em destaque, categorias e promoções.',
+    badge: 'Recomendado',
+    badgeVariant: 'default' as const,
+  },
+  blank: {
+    name: 'Iniciar do Zero',
+    description: 'Comece com uma estrutura limpa e personalize completamente sua loja do jeito que quiser.',
+    badge: 'Novo',
+    badgeVariant: 'secondary' as const,
+  },
+};
+
 export function StorefrontTemplatesTab() {
   const navigate = useNavigate();
   const { currentTenant } = useAuth();
@@ -70,13 +88,13 @@ export function StorefrontTemplatesTab() {
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
+  const storeUrl = getPublicHomeUrl(currentTenant?.slug || '', false);
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
 
   const handleCreateTemplate = async (name: string) => {
     if (!createPreset) return;
     const result = await createTemplate.mutateAsync({ name, basePreset: createPreset });
     setCreatePreset(null);
-    // Navigate to editor with new template
     navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
   };
 
@@ -106,275 +124,187 @@ export function StorefrontTemplatesTab() {
     navigate(`/storefront/builder?templateId=${templateId}&edit=home`);
   };
 
+  const handlePreviewTemplate = (templateId: string) => {
+    navigate(`/storefront/builder?templateId=${templateId}&edit=home&mode=preview`);
+  };
+
+  // Templates que NÃO são o publicado
+  const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId);
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-48 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Skeleton className="h-64 w-full" />
-          <Skeleton className="h-64 w-full" />
+      <div className="space-y-8">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-9 w-36" />
         </div>
+        <Skeleton className="h-[400px] w-full" />
+        <Skeleton className="h-[300px] w-full" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Store Status Card */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm font-medium">Status:</span>
-                <Badge variant={isStorePublished ? 'default' : 'secondary'}>
-                  {isStorePublished ? 'Publicada' : 'Rascunho'}
-                </Badge>
-              </div>
-              {publishedTemplate && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>
-                    Última edição: {formatDistanceToNow(new Date(publishedTemplate.last_edited_at), {
-                      addSuffix: true,
-                      locale: ptBR,
-                    })}
-                  </span>
-                </div>
-              )}
-            </div>
-            {currentTenant?.slug && (
-              <div className="text-sm text-muted-foreground">
-                Domínio: <span className="font-mono">{currentTenant.slug}.comandocentral.com.br</span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-10">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b pb-4">
+        <h2 className="text-2xl font-semibold tracking-tight">Temas</h2>
+        <a 
+          href={storeUrl} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Eye className="h-4 w-4" />
+          Ver minha loja virtual
+        </a>
+      </div>
 
-      {/* Published Template Section */}
-      {publishedTemplate && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Globe className="h-4 w-4 text-primary" />
-              Template Publicado
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <LayoutTemplate className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium">{publishedTemplate.name}</p>
-                  <p className="text-sm text-muted-foreground flex items-center gap-2">
-                    <Badge variant="default" className="text-xs bg-emerald-500">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Ativo
-                    </Badge>
-                    {publishedTemplate.base_preset === 'cosmetics' && (
-                      <span className="text-xs">• Template Cosméticos</span>
-                    )}
-                    {publishedTemplate.base_preset === 'blank' && (
-                      <span className="text-xs">• Criado do zero</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleEditTemplate(publishedTemplate.id)}
-                >
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-                <a href={previewUrl} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Ver Loja
-                  </Button>
-                </a>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Seção A: Tema Ativo */}
+      <section className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 items-start">
+        {/* Coluna esquerda - Info */}
+        <div className="space-y-3">
+          <h3 className="text-lg font-medium">Tema ativo na loja virtual</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Este é o tema que seus clientes verão quando visitarem a sua loja.
+          </p>
+          <a 
+            href="#" 
+            className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+          >
+            <Play className="h-4 w-4" />
+            Veja como configurar o tema da sua loja
+          </a>
+        </div>
 
-      {/* Templates List Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">Meus Templates</CardTitle>
-              <CardDescription>
-                Gerencie seus templates de loja. Cada template é independente.
-              </CardDescription>
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo Template
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setCreatePreset('cosmetics')}>
-                  <LayoutTemplate className="mr-2 h-4 w-4" />
-                  Template Cosméticos
-                  <Badge variant="secondary" className="ml-2 text-xs">Recomendado</Badge>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setCreatePreset('blank')}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Iniciar do Zero
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {templates.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-              <LayoutTemplate className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-medium mb-2">Nenhum template ainda</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Crie seu primeiro template para começar a construir sua loja.
-              </p>
-              <div className="flex justify-center gap-2">
-                <Button onClick={() => setCreatePreset('cosmetics')}>
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  Template Cosméticos
-                </Button>
-                <Button variant="outline" onClick={() => setCreatePreset('blank')}>
-                  <FileText className="mr-2 h-4 w-4" />
-                  Iniciar do Zero
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="divide-y divide-border rounded-lg border">
-              {templates.map((template) => {
-                const isPublished = template.id === publishedTemplateId;
-                const hasPublishedContent = !!template.published_content;
-
-                return (
-                  <div 
-                    key={template.id}
-                    className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors"
+        {/* Coluna direita - Card do tema ativo */}
+        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+          {publishedTemplate ? (
+            <>
+              {/* Header do card */}
+              <div className="flex items-center justify-between p-5 border-b bg-muted/30">
+                <h4 className="text-lg font-semibold">{publishedTemplate.name}</h4>
+                <div className="flex items-center gap-2">
+                  <a href={previewUrl} target="_blank" rel="noopener noreferrer">
+                    <Button variant="outline" size="sm">
+                      Ver loja modelo
+                    </Button>
+                  </a>
+                  <Button 
+                    size="sm"
+                    onClick={() => handleEditTemplate(publishedTemplate.id)}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${isPublished ? 'bg-primary/10' : 'bg-muted'}`}>
-                        <LayoutTemplate className={`h-5 w-5 ${isPublished ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </div>
-                      <div>
-                        <p className="font-medium flex items-center gap-2">
-                          {template.name}
-                          {isPublished && (
-                            <Badge variant="default" className="text-xs bg-emerald-500">
-                              Publicado
-                            </Badge>
-                          )}
-                          {!isPublished && hasPublishedContent && (
-                            <Badge variant="secondary" className="text-xs">
-                              Já foi publicado
-                            </Badge>
-                          )}
-                          {!isPublished && !hasPublishedContent && (
-                            <Badge variant="outline" className="text-xs">
-                              Rascunho
-                            </Badge>
-                          )}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {template.base_preset === 'cosmetics' ? 'Template Cosméticos' : 'Criado do zero'}
-                          {' · '}
-                          Editado {formatDistanceToNow(new Date(template.last_edited_at), {
-                            addSuffix: true,
-                            locale: ptBR,
-                          })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleEditTemplate(template.id)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditTemplate(template.id)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setRenameTarget({ id: template.id, name: template.name })}>
-                            <FileText className="mr-2 h-4 w-4" />
-                            Renomear
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDuplicateTemplate(template.id)}>
-                            <Copy className="mr-2 h-4 w-4" />
-                            Duplicar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          {!isPublished && (
-                            <DropdownMenuItem onClick={() => setPublishTarget({ id: template.id, name: template.name })}>
-                              <Globe className="mr-2 h-4 w-4" />
-                              Definir como publicado
-                            </DropdownMenuItem>
-                          )}
-                          {!isPublished && (
-                            <>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => setDeleteTarget({ id: template.id, name: template.name })}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                );
-              })}
+                    Personalizar
+                  </Button>
+                </div>
+              </div>
+
+              {/* Preview do template */}
+              <div className="relative aspect-[16/9] bg-muted">
+                <img 
+                  src={PRESET_THUMBNAILS[publishedTemplate.base_preset] || PRESET_THUMBNAILS.custom}
+                  alt={`Preview do ${publishedTemplate.name}`}
+                  className="w-full h-full object-cover"
+                />
+                {/* Overlay com info */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between">
+                  <Badge className="bg-emerald-500 text-white shadow-lg">
+                    Ativo
+                  </Badge>
+                  {publishedTemplate.last_edited_at && (
+                    <span className="text-xs text-white/90 bg-black/50 px-2 py-1 rounded backdrop-blur-sm">
+                      Editado {formatDistanceToNow(new Date(publishedTemplate.last_edited_at), {
+                        addSuffix: true,
+                        locale: ptBR,
+                      })}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Preview devices (simulação visual igual Yampi) */}
+              <div className="p-4 bg-muted/20 border-t flex items-center justify-center gap-4">
+                <div className="w-48 h-28 rounded-lg border bg-card shadow-sm overflow-hidden">
+                  <img 
+                    src={PRESET_THUMBNAILS[publishedTemplate.base_preset] || PRESET_THUMBNAILS.custom}
+                    alt="Desktop preview"
+                    className="w-full h-full object-cover object-top"
+                  />
+                </div>
+                <div className="w-16 h-28 rounded-lg border bg-card shadow-sm overflow-hidden">
+                  <img 
+                    src={PRESET_THUMBNAILS[publishedTemplate.base_preset] || PRESET_THUMBNAILS.custom}
+                    alt="Mobile preview"
+                    className="w-full h-full object-cover object-top"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-12 text-center">
+              <LayoutTemplate className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h4 className="font-medium text-lg mb-2">Nenhum tema ativo</h4>
+              <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                Escolha um tema abaixo para ativar na sua loja virtual.
+              </p>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </section>
 
-      {/* Info Card */}
-      <Card className="bg-muted/50">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="p-1.5 rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Como funciona?</p>
-              <p className="text-sm text-muted-foreground">
-                Crie quantos templates quiser — cada um é independente. Use o <strong>Editor Visual</strong> para 
-                personalizar cada página: Home, Categoria, Produto, Carrinho, Checkout, Obrigado, Blog e Rastreio.
-                Ao publicar um template, ele se torna a versão ativa da sua loja.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Seção B: Outros Temas */}
+      <section className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-8 items-start">
+        {/* Coluna esquerda - Info */}
+        <div className="space-y-3">
+          <h3 className="text-lg font-medium">Outros temas</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            Você pode escolher outros temas para personalizar a sua loja.
+          </p>
+        </div>
+
+        {/* Coluna direita - Grid de temas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Templates existentes do tenant (que não são o publicado) */}
+          {otherTemplates.map((template) => (
+            <TemplateCard
+              key={template.id}
+              name={template.name}
+              thumbnail={PRESET_THUMBNAILS[template.base_preset] || PRESET_THUMBNAILS.custom}
+              editedAt={template.last_edited_at}
+              badge={template.published_content ? 'Já publicado' : undefined}
+              badgeVariant="secondary"
+              onPreview={() => handlePreviewTemplate(template.id)}
+              onInstall={() => setPublishTarget({ id: template.id, name: template.name })}
+              menuActions={[
+                { label: 'Renomear', icon: FileText, onClick: () => setRenameTarget({ id: template.id, name: template.name }) },
+                { label: 'Duplicar', icon: Copy, onClick: () => handleDuplicateTemplate(template.id) },
+                { label: 'Excluir', icon: Trash2, onClick: () => setDeleteTarget({ id: template.id, name: template.name }), destructive: true },
+              ]}
+            />
+          ))}
+
+          {/* Presets disponíveis para criar novos templates */}
+          <PresetCard
+            name={PRESET_INFO.cosmetics.name}
+            description={PRESET_INFO.cosmetics.description}
+            thumbnail={PRESET_THUMBNAILS.cosmetics}
+            badge={PRESET_INFO.cosmetics.badge}
+            badgeVariant={PRESET_INFO.cosmetics.badgeVariant}
+            onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
+            onInstall={() => setCreatePreset('cosmetics')}
+          />
+
+          <PresetCard
+            name={PRESET_INFO.blank.name}
+            description={PRESET_INFO.blank.description}
+            thumbnail={PRESET_THUMBNAILS.blank}
+            badge={PRESET_INFO.blank.badge}
+            badgeVariant={PRESET_INFO.blank.badgeVariant}
+            onPreview={() => navigate('/storefront/builder?preset=blank&mode=preview')}
+            onInstall={() => setCreatePreset('blank')}
+          />
+        </div>
+      </section>
 
       {/* Dialogs */}
       <CreateTemplateDialog
@@ -423,6 +353,150 @@ export function StorefrontTemplatesTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// ============= Sub-componentes =============
+
+interface TemplateCardProps {
+  name: string;
+  thumbnail: string;
+  editedAt?: string;
+  badge?: string;
+  badgeVariant?: 'default' | 'secondary' | 'outline';
+  onPreview: () => void;
+  onInstall: () => void;
+  menuActions?: {
+    label: string;
+    icon: React.ElementType;
+    onClick: () => void;
+    destructive?: boolean;
+  }[];
+}
+
+function TemplateCard({ 
+  name, 
+  thumbnail, 
+  editedAt, 
+  badge, 
+  badgeVariant = 'secondary',
+  onPreview, 
+  onInstall,
+  menuActions,
+}: TemplateCardProps) {
+  return (
+    <div className="group rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+      {/* Header com nome e menu */}
+      <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center gap-2">
+          <h4 className="font-medium">{name}</h4>
+          {badge && <Badge variant={badgeVariant}>{badge}</Badge>}
+        </div>
+        {menuActions && menuActions.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {menuActions.map((action, index) => (
+                <DropdownMenuItem 
+                  key={action.label}
+                  onClick={action.onClick}
+                  className={action.destructive ? 'text-destructive' : undefined}
+                >
+                  <action.icon className="mr-2 h-4 w-4" />
+                  {action.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </div>
+
+      {/* Thumbnail */}
+      <div className="relative aspect-[4/3] bg-muted">
+        <img 
+          src={thumbnail}
+          alt={`Preview de ${name}`}
+          className="w-full h-full object-cover"
+        />
+        {editedAt && (
+          <div className="absolute bottom-2 left-2">
+            <span className="text-xs text-white/90 bg-black/50 px-2 py-1 rounded backdrop-blur-sm flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Editado {formatDistanceToNow(new Date(editedAt), { addSuffix: true, locale: ptBR })}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Ações */}
+      <div className="flex items-center gap-2 p-4 border-t bg-muted/20">
+        <Button variant="outline" size="sm" className="flex-1" onClick={onPreview}>
+          Ver loja modelo
+        </Button>
+        <Button size="sm" className="flex-1" onClick={onInstall}>
+          Instalar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+interface PresetCardProps {
+  name: string;
+  description: string;
+  thumbnail: string;
+  badge?: string;
+  badgeVariant?: 'default' | 'secondary' | 'outline';
+  onPreview: () => void;
+  onInstall: () => void;
+}
+
+function PresetCard({ 
+  name, 
+  description, 
+  thumbnail, 
+  badge, 
+  badgeVariant = 'secondary',
+  onPreview, 
+  onInstall,
+}: PresetCardProps) {
+  return (
+    <div className="group rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow border-dashed border-primary/30">
+      {/* Header com nome */}
+      <div className="flex items-center gap-2 p-4 border-b">
+        <Sparkles className="h-4 w-4 text-primary" />
+        <h4 className="font-medium">{name}</h4>
+        {badge && <Badge variant={badgeVariant}>{badge}</Badge>}
+      </div>
+
+      {/* Thumbnail */}
+      <div className="relative aspect-[4/3] bg-muted">
+        <img 
+          src={thumbnail}
+          alt={`Preview de ${name}`}
+          className="w-full h-full object-cover"
+        />
+        {/* Overlay com gradiente */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+        <div className="absolute bottom-3 left-3 right-3">
+          <p className="text-xs text-white/90 line-clamp-2">{description}</p>
+        </div>
+      </div>
+
+      {/* Ações */}
+      <div className="flex items-center gap-2 p-4 border-t bg-muted/20">
+        <Button variant="outline" size="sm" className="flex-1" onClick={onPreview}>
+          Ver loja modelo
+        </Button>
+        <Button size="sm" className="flex-1" onClick={onInstall}>
+          Instalar
+        </Button>
+      </div>
     </div>
   );
 }
