@@ -7,6 +7,79 @@ import type { BlockNode } from './types';
 import { generateBlockId } from './utils';
 import { demoBanners, demoBenefits, demoTestimonials } from './demoData';
 
+// =============================================
+// BLANK TEMPLATES - Only header + footer for "start from scratch"
+// =============================================
+
+// Blank Home template - Just header and footer
+export const blankHomeTemplate: BlockNode = {
+  id: 'root',
+  type: 'Page',
+  props: {},
+  children: [
+    {
+      id: generateBlockId('Header'),
+      type: 'Header',
+      props: {
+        menuId: '',
+        showSearch: true,
+        showCart: true,
+        sticky: true,
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+    {
+      id: generateBlockId('Footer'),
+      type: 'Footer',
+      props: {
+        menuId: '',
+        showSocial: true,
+        copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
+        footerBgColor: '',
+        footerTextColor: '',
+        noticeEnabled: false,
+        noticeText: '',
+        noticeBgColor: '#1e40af',
+        noticeTextColor: '#ffffff',
+      },
+    },
+  ],
+};
+
+// Helper to get blank template for any page type
+export function getBlankTemplate(pageType: string): BlockNode {
+  return {
+    id: 'root',
+    type: 'Page',
+    props: {},
+    children: [
+      {
+        id: generateBlockId('Header'),
+        type: 'Header',
+        props: {
+          menuId: '',
+          showSearch: true,
+          showCart: true,
+          sticky: true,
+          noticeEnabled: false,
+        },
+      },
+      {
+        id: generateBlockId('Footer'),
+        type: 'Footer',
+        props: {
+          menuId: '',
+          showSocial: true,
+          copyrightText: '© 2024 Sua Loja. Todos os direitos reservados.',
+        },
+      },
+    ],
+  };
+}
+
 // Demo banners para HeroBanner (dados de cosméticos)
 const demoBannerSlides = demoBanners.map(b => ({
   id: b.id,
