@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { getPublicProductUrl } from '@/lib/publicUrls';
 import { useProductRatings } from '@/hooks/useProductRating';
 import { RatingSummary } from '@/components/storefront/RatingSummary';
-import { demoProducts, getDemoFeaturedProducts, getDemoProductsByCategory } from '@/lib/builder/demoData';
+
 
 interface ProductGridBlockProps {
   source?: 'all' | 'featured' | 'category';
@@ -130,35 +130,15 @@ export function ProductGridBlock({
     enabled: !!tenantId && (source !== 'category' || !!effectiveCategoryId),
   });
 
-  // Use demo products from demoData when no real products exist
-  // NOTE: ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURN
+  // Sem fallback interno de demoProducts - empty state se não houver produtos
   const displayProducts = useMemo(() => {
     if (products && products.length > 0) return products;
-    
-    // Get demo products based on source
-    let demoProds = source === 'featured' 
-      ? getDemoFeaturedProducts() 
-      : source === 'category' && context?.category?.slug
-        ? getDemoProductsByCategory(context.category.slug)
-        : demoProducts;
-    
-    // Limit demo products
-    return demoProds.slice(0, Math.min(limit, 8)).map(p => ({
-      id: p.id,
-      name: p.name,
-      slug: p.slug,
-      price: p.price,
-      compare_at_price: p.compare_at_price || null,
-      is_featured: p.is_featured || false,
-      product_images: [{ url: p.image, is_primary: true }],
-    })) as Product[];
-  }, [products, source, limit, context?.category?.slug]);
+    return [] as Product[];
+  }, [products]);
 
   // Get product IDs for batch rating fetch - always compute even if loading
   const productIdsForRating = useMemo(() => displayProducts.map(p => p.id), [displayProducts]);
   const { data: ratingsMap } = useProductRatings(productIdsForRating);
-
-  const isDemo = !products || products.length === 0;
 
   // Compute grid columns based on viewport context or responsive fallback
   // Desktop: 4 cols, Tablet: 3 cols, Mobile: 2 cols (with configurable max)
@@ -220,6 +200,18 @@ export function ProductGridBlock({
   }
 
   if (displayProducts.length === 0) {
+    if (isEditing) {
+      return (
+        <div className="p-4">
+          <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-2">Nenhum produto encontrado</p>
+              <p className="text-sm text-muted-foreground">Adicione produtos em Produtos → Todos os Produtos</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="p-4 text-center text-muted-foreground">
         <p>Nenhum produto encontrado.</p>
@@ -229,25 +221,17 @@ export function ProductGridBlock({
 
   return (
     <div className="relative">
-      {isDemo && isEditing && (
-        <div className="absolute -top-1 right-4 z-10">
-          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
-            Demonstrativo
-          </span>
-        </div>
-      )}
       <div className={cn('grid gap-3 sm:gap-4', gridCols)}>
         {displayProducts.map((product) => {
           const rating = ratingsMap?.get(product.id);
-          const isProductDemo = product.id.startsWith('demo-');
           
           return (
             <a
               key={product.id}
-              href={(isEditing || isProductDemo) ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
+              href={isEditing ? undefined : getPublicProductUrl(tenantSlug, product.slug) || undefined}
               className={cn(
                 'group block bg-card rounded-lg overflow-hidden border transition-shadow hover:shadow-md',
-                (isEditing || isProductDemo) && 'pointer-events-none'
+                isEditing && 'pointer-events-none'
               )}
             >
               <div className="aspect-square overflow-hidden bg-muted">

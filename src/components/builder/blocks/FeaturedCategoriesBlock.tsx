@@ -11,7 +11,7 @@ import useEmblaCarousel from 'embla-carousel-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Link } from 'react-router-dom';
 import { getPublicCategoryUrl } from '@/lib/publicUrls';
-import { demoCategories } from '@/lib/builder/demoData';
+
 
 interface CategoryItemConfig {
   categoryId: string;
@@ -128,17 +128,27 @@ export function FeaturedCategoriesBlock({
     );
   }
 
-  // Use demo categories from demoData when no real categories exist
-  const displayCategories = categories.length > 0 
-    ? categories 
-    : demoCategories.map(c => ({
-        id: c.id,
-        name: c.name,
-        slug: c.slug,
-        image_url: c.image_url,
-      }));
+  // Sem fallback interno de demoCategories - empty state se não houver categorias
+  if (categories.length === 0) {
+    if (isEditing) {
+      return (
+        <section className="py-6 sm:py-8">
+          <div className="max-w-7xl mx-auto px-4">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4">{title}</h2>
+            <div className="flex items-center justify-center py-12 border-2 border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-2">Nenhuma categoria selecionada</p>
+                <p className="text-sm text-muted-foreground">Selecione categorias no painel lateral ou crie categorias em Produtos → Categorias</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    }
+    return null;
+  }
 
-  const isDemo = categories.length === 0;
+  const displayCategories = categories;
 
   const CategoryCard = ({ category }: { category: CategoryData & { config?: CategoryItemConfig } }) => {
     const miniImage = isMobile && category.config?.miniImageMobile 
@@ -196,11 +206,6 @@ export function FeaturedCategoriesBlock({
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold">{title}</h2>
-          {isDemo && isEditing && (
-            <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full">
-              Demonstrativo
-            </span>
-          )}
           {useCarousel && displayCategories.length > 6 && (
             <div className="flex gap-2">
               <button onClick={scrollPrev} className="p-2 rounded-full border hover:bg-muted transition-colors">
