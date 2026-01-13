@@ -59,6 +59,7 @@ interface BuilderToolbarProps {
   pageId?: string; // For institutional/landing pages (page ID)
   tenantSlug?: string;
   pageSlug?: string; // For institutional/landing pages
+  templateSetId?: string; // For multi-template system - preserve across page changes
   isDirty: boolean;
   isPreviewMode: boolean;
   isInteractMode: boolean;
@@ -89,6 +90,7 @@ export function BuilderToolbar({
   pageId,
   tenantSlug,
   pageSlug,
+  templateSetId,
   isDirty,
   isPreviewMode,
   isInteractMode,
@@ -248,7 +250,9 @@ export function BuilderToolbar({
       const pageId = value.replace('page:', '');
       navigate(`/pages/${pageId}/builder`);
     } else {
-      navigate(`/storefront/builder?edit=${value}`);
+      // Preserve templateSetId when switching pages in multi-template system
+      const templateParam = templateSetId ? `&templateId=${templateSetId}` : '';
+      navigate(`/storefront/builder?edit=${value}${templateParam}`);
     }
   };
 

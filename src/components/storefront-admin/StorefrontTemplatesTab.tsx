@@ -164,7 +164,7 @@ export function StorefrontTemplatesTab() {
       {publishedTemplate && (
         <div className="flex justify-end">
           <Button 
-            onClick={() => navigate('/storefront/builder?edit=home')}
+            onClick={() => navigate(`/storefront/builder?templateId=${publishedTemplate.id}&edit=home`)}
             className="gap-2"
           >
             <Sparkles className="h-4 w-4" />
@@ -283,14 +283,13 @@ export function StorefrontTemplatesTab() {
             />
           ))}
 
-          {/* Presets disponíveis para criar novos templates */}
+          {/* Presets disponíveis para criar novos templates - sempre disponíveis para criar mais templates */}
           <PresetCard
             name={PRESET_INFO.cosmetics.name}
             description={PRESET_INFO.cosmetics.description}
             thumbnail={PRESET_THUMBNAILS.cosmetics}
             badge={PRESET_INFO.cosmetics.badge}
             badgeVariant={PRESET_INFO.cosmetics.badgeVariant}
-            isInstalled={publishedTemplate?.base_preset === 'cosmetics'}
             onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
             onInstall={() => setCreatePreset('cosmetics')}
           />
@@ -301,7 +300,6 @@ export function StorefrontTemplatesTab() {
             thumbnail={PRESET_THUMBNAILS.blank}
             badge={PRESET_INFO.blank.badge}
             badgeVariant={PRESET_INFO.blank.badgeVariant}
-            isInstalled={publishedTemplate?.base_preset === 'blank'}
             onPreview={() => navigate('/storefront/builder?preset=blank&mode=preview')}
             onInstall={() => setCreatePreset('blank')}
           />
@@ -454,7 +452,6 @@ interface PresetCardProps {
   thumbnail: string;
   badge?: string;
   badgeVariant?: 'default' | 'secondary' | 'outline';
-  isInstalled?: boolean;
   onPreview: () => void;
   onInstall: () => void;
 }
@@ -465,7 +462,6 @@ function PresetCard({
   thumbnail, 
   badge, 
   badgeVariant = 'secondary',
-  isInstalled = false,
   onPreview, 
   onInstall,
 }: PresetCardProps) {
@@ -501,10 +497,8 @@ function PresetCard({
           size="sm" 
           className="flex-1" 
           onClick={onInstall}
-          disabled={isInstalled}
-          variant={isInstalled ? 'secondary' : 'default'}
         >
-          {isInstalled ? 'Instalado' : 'Instalar'}
+          Instalar
         </Button>
       </div>
     </div>

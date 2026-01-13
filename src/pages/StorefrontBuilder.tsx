@@ -302,6 +302,8 @@ export default function StorefrontBuilder() {
       store_name: storeSettings?.store_name || currentTenant.name,
       logo_url: storeSettings?.logo_url || undefined,
       primary_color: storeSettings?.primary_color || undefined,
+      secondary_color: storeSettings?.secondary_color || undefined,
+      accent_color: storeSettings?.accent_color || undefined,
     },
     // Include header menu in editor context (with resolved URLs)
     headerMenu: headerMenuData?.map(item => ({
