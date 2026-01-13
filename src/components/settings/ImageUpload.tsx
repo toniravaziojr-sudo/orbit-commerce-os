@@ -13,6 +13,7 @@ interface ImageUploadProps {
   accept?: string;
   className?: string;
   description?: string;
+  disabled?: boolean;
 }
 
 export function ImageUpload({
@@ -23,6 +24,7 @@ export function ImageUpload({
   accept = 'image/png,image/jpeg,image/webp',
   className,
   description,
+  disabled = false,
 }: ImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -91,11 +93,12 @@ export function ImageUpload({
         className={cn(
           'border-2 border-dashed rounded-lg p-4 transition-colors',
           dragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25',
-          isUploading && 'opacity-50 pointer-events-none'
+          isUploading && 'opacity-50 pointer-events-none',
+          disabled && 'opacity-60 pointer-events-none bg-muted/30'
         )}
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
+        onDrop={disabled ? undefined : handleDrop}
+        onDragOver={disabled ? undefined : handleDragOver}
+        onDragLeave={disabled ? undefined : handleDragLeave}
       >
         {value ? (
           <div className="flex items-center gap-4">
@@ -113,15 +116,17 @@ export function ImageUpload({
               <p className="text-sm font-medium truncate">{label}</p>
               <p className="text-xs text-muted-foreground truncate max-w-[200px]">Imagem carregada</p>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={handleRemove}
-              className="shrink-0"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+            {!disabled && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={handleRemove}
+                className="shrink-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center gap-2 py-4">
@@ -133,17 +138,19 @@ export function ImageUpload({
               <>
                 <ImageIcon className="h-8 w-8 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground text-center">
-                  Arraste uma imagem ou clique para selecionar
+                  {disabled ? 'Clique em "Editar configurações" para alterar' : 'Arraste uma imagem ou clique para selecionar'}
                 </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => inputRef.current?.click()}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Selecionar arquivo
-                </Button>
+                {!disabled && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => inputRef.current?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Selecionar arquivo
+                  </Button>
+                )}
               </>
             )}
           </div>

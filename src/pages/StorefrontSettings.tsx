@@ -34,7 +34,7 @@ export default function StorefrontSettings() {
           </TabsTrigger>
           <TabsTrigger value="settings" className="gap-2">
             <Settings className="h-4 w-4" />
-            Configurações
+            Configurações da loja
           </TabsTrigger>
         </TabsList>
 

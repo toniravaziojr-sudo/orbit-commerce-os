@@ -7,9 +7,10 @@ import type { CustomSocialLink } from '@/hooks/useStoreSettings';
 interface CustomSocialLinksProps {
   value: CustomSocialLink[];
   onChange: (links: CustomSocialLink[]) => void;
+  disabled?: boolean;
 }
 
-export function CustomSocialLinks({ value, onChange }: CustomSocialLinksProps) {
+export function CustomSocialLinks({ value, onChange, disabled = false }: CustomSocialLinksProps) {
   const addLink = () => {
     onChange([...value, { label: '', url: '' }]);
   };
@@ -28,15 +29,17 @@ export function CustomSocialLinks({ value, onChange }: CustomSocialLinksProps) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <Label>Outras redes sociais</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addLink}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Adicionar rede
-        </Button>
+        {!disabled && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addLink}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Adicionar rede
+          </Button>
+        )}
       </div>
       
       {value.length === 0 ? (
@@ -57,23 +60,27 @@ export function CustomSocialLinks({ value, onChange }: CustomSocialLinksProps) {
                   placeholder="Nome (ex: X, LinkedIn)"
                   value={link.label}
                   onChange={(e) => updateLink(index, 'label', e.target.value)}
+                  disabled={disabled}
                 />
                 <Input
                   placeholder="URL (https://...)"
                   value={link.url}
                   onChange={(e) => updateLink(index, 'url', e.target.value)}
+                  disabled={disabled}
                 />
               </div>
               
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={() => removeLink(index)}
-                className="shrink-0 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              {!disabled && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeLink(index)}
+                  className="shrink-0 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           ))}
         </div>
