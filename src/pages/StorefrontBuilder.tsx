@@ -373,9 +373,7 @@ export default function StorefrontBuilder() {
         initialContent={contentToUse}
         context={context}
         isolateMode={isolateMode || undefined}
-        // Pass templateId for new multi-template save logic
-        // @ts-ignore - will be added to VisualBuilder props
-        templateSetId={templateId}
+        templateSetId={templateId || undefined}
       />
     </BuilderErrorBoundary>
   );

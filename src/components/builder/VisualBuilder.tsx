@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useBuilderStore } from '@/hooks/useBuilderStore';
 import { useBuilderData } from '@/hooks/useBuilderData';
+import { useTemplateSetSave } from '@/hooks/useTemplateSetSave';
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
@@ -46,6 +47,7 @@ interface VisualBuilderProps {
   initialContent?: BlockNode;
   context: BlockRenderContext;
   isolateMode?: IsolateMode;
+  templateSetId?: string; // For multi-template system
 }
 
 // Minimal isolation UI for visual/canvas/blocks modes
@@ -86,6 +88,7 @@ export function VisualBuilder({
   initialContent,
   context,
   isolateMode,
+  templateSetId,
 }: VisualBuilderProps) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -170,8 +173,11 @@ export function VisualBuilder({
   // Builder store for state management
   const store = useBuilderStore(contentWithGlobalLayout);
 
-  // Data mutations
+  // Data mutations - legacy system
   const { saveDraft, publish } = useBuilderData(tenantId);
+  
+  // Data mutations - new multi-template system
+  const { saveDraft: saveTemplateSetDraft, publishTemplateSet } = useTemplateSetSave();
 
   // Build category header slot (banner + name) for afterHeaderSlot
   // Use context.viewport to determine which image to show in the editor
@@ -363,6 +369,19 @@ export function VisualBuilder({
         };
       }
 
+      // NEW MULTI-TEMPLATE SYSTEM: If templateSetId is present, save to template set
+      if (templateSetId && ['home', 'category', 'product', 'cart', 'checkout', 'thank_you', 'account', 'account_orders', 'account_order_detail'].includes(pageType)) {
+        await saveTemplateSetDraft.mutateAsync({
+          templateSetId,
+          pageType: pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail',
+          content: contentToSave,
+        });
+        store.markClean();
+        toast.success('Rascunho salvo!');
+        return;
+      }
+
+      // LEGACY: Save to old system
       await saveDraft.mutateAsync({
         entityType,
         pageType: (entityType === 'template' || pageType === 'page_template') ? pageType : undefined,
@@ -374,7 +393,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao salvar rascunho');
     }
-  }, [saveDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
+  }, [saveDraft, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId]);
 
   // Handle publishing - same governance as save
   const handlePublish = useCallback(async () => {
@@ -411,6 +430,21 @@ export function VisualBuilder({
         };
       }
 
+      // NEW MULTI-TEMPLATE SYSTEM: If templateSetId is present, save draft and publish
+      if (templateSetId && ['home', 'category', 'product', 'cart', 'checkout', 'thank_you', 'account', 'account_orders', 'account_order_detail'].includes(pageType)) {
+        // First save the draft
+        await saveTemplateSetDraft.mutateAsync({
+          templateSetId,
+          pageType: pageType as 'home' | 'category' | 'product' | 'cart' | 'checkout' | 'thank_you' | 'account' | 'account_orders' | 'account_order_detail',
+          content: contentToSave,
+        });
+        // Then publish the template set
+        await publishTemplateSet.mutateAsync({ templateSetId });
+        store.markClean();
+        return;
+      }
+
+      // LEGACY: Publish to old system
       await publish.mutateAsync({
         entityType,
         pageType: (entityType === 'template' || pageType === 'page_template') ? pageType : undefined,
@@ -422,7 +456,7 @@ export function VisualBuilder({
     } catch (error) {
       toast.error('Erro ao publicar página');
     }
-  }, [publish, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter]);
+  }, [publish, publishTemplateSet, saveTemplateSetDraft, entityType, pageType, pageId, store, isHomePage, isCheckoutPage, updateGlobalHeader, updateGlobalFooter, updateCheckoutHeader, updateCheckoutFooter, templateSetId]);
 
   // Handle deleting selected block
   const handleDeleteBlock = useCallback(() => {
