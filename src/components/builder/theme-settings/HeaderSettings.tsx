@@ -16,11 +16,29 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Palette, ChevronDown, Smartphone, User, Tag, Bell } from 'lucide-react';
 import { toast } from 'sonner';
+import type { BlockNode } from '@/lib/builder/types';
+import type { Json } from '@/integrations/supabase/types';
 
 interface HeaderSettingsProps {
   tenantId: string;
   templateSetId?: string;
 }
+
+// Default header config to ensure we always have valid structure
+const defaultHeaderConfig: BlockNode = {
+  id: 'global-header',
+  type: 'Header',
+  props: {
+    menuId: '',
+    showSearch: true,
+    showCart: true,
+    sticky: true,
+    stickyOnMobile: true,
+    noticeEnabled: false,
+    customerAreaEnabled: false,
+    featuredPromosEnabled: false,
+  },
+};
 
 // Color input component
 function ColorInput({ 
@@ -75,43 +93,47 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     notice: false,
   });
 
-  // Fetch current header props from global layout
+  // Fetch current header config from global layout
   // Header config is stored as a BlockNode: { id, type, props: {...} }
-  const { data: headerProps, isLoading } = useQuery({
+  const { data: headerConfig, isLoading } = useQuery({
     queryKey: ['header-settings', tenantId],
     queryFn: async () => {
-      if (!tenantId) return {};
+      if (!tenantId) return defaultHeaderConfig;
       
-      const { data: layout } = await supabase
+      const { data: layout, error } = await supabase
         .from('storefront_global_layout')
         .select('header_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
+      
+      if (error) {
+        console.error('[HeaderSettings] Error fetching:', error);
+        return defaultHeaderConfig;
+      }
       
       // header_config is a BlockNode with { id, type, props }
-      const config = layout?.header_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
-      return config?.props || {};
+      const config = layout?.header_config as unknown as BlockNode | null;
+      if (!config) return defaultHeaderConfig;
+      
+      return {
+        id: config.id || 'global-header',
+        type: config.type || 'Header',
+        props: { ...defaultHeaderConfig.props, ...config.props },
+      } as BlockNode;
     },
     enabled: !!tenantId,
+    staleTime: 10000,
   });
 
-  // Save header props - must preserve BlockNode structure
+  // Save header config - preserves BlockNode structure
   const saveMutation = useMutation({
     mutationFn: async (newProps: Record<string, unknown>) => {
-      // First fetch current config to preserve structure
-      const { data: currentLayout } = await supabase
-        .from('storefront_global_layout')
-        .select('header_config')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      const currentConfig = currentLayout?.header_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
-      
-      // Build updated BlockNode preserving id/type
-      const updatedConfig = {
-        id: currentConfig?.id || 'global-header',
-        type: currentConfig?.type || 'Header',
-        props: { ...currentConfig?.props, ...newProps },
+      // Merge with current config
+      const currentConfig = headerConfig || defaultHeaderConfig;
+      const updatedConfig: BlockNode = {
+        id: currentConfig.id || 'global-header',
+        type: currentConfig.type || 'Header',
+        props: { ...currentConfig.props, ...newProps },
       };
       
       // Check if row exists
@@ -122,29 +144,32 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
         .maybeSingle();
       
       if (existing) {
-        await supabase
+        const { error } = await supabase
           .from('storefront_global_layout')
-          .update({ header_config: updatedConfig as unknown as Record<string, never> })
+          .update({ header_config: updatedConfig as unknown as Json })
           .eq('tenant_id', tenantId);
+        if (error) throw error;
       } else {
-        await supabase
+        const { error } = await supabase
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            header_config: updatedConfig as unknown as Record<string, never>,
+            header_config: updatedConfig as unknown as Json,
           });
+        if (error) throw error;
       }
       
-      return newProps;
+      return updatedConfig;
     },
     onSuccess: () => {
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['header-settings', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-      queryClient.invalidateQueries({ queryKey: ['builder-content'] });
       toast.success('Configurações salvas');
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('[HeaderSettings] Save error:', error);
       toast.error('Erro ao salvar configurações');
     },
   });
@@ -178,7 +203,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
   }
 
-  const props = headerProps || {};
+  const props = headerConfig?.props || {};
 
   return (
     <div className="space-y-2">

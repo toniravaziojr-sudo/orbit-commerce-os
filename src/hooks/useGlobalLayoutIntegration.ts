@@ -257,9 +257,10 @@ export function useGlobalLayoutForEditor(tenantId: string | undefined) {
         return defaultLayoutData;
       }
     },
-    enabled: true, // Always enabled - handle missing tenantId inside queryFn
-    staleTime: 30000,
+    enabled: !!tenantId,
+    staleTime: 5000, // Reduced to allow faster updates from settings panel
     retry: 1,
+    refetchOnWindowFocus: false,
   });
 
   // Log state for debugging
