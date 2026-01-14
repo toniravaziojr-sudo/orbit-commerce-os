@@ -122,9 +122,17 @@ function BlockItem({
   block: BlockDefinition & { type: string };
   onAdd: () => void;
 }) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent any parent handlers from interfering
+    e.preventDefault();
+    console.log('[BlockItem] Clicked:', block.type);
+    onAdd();
+  };
+
   return (
     <button
-      onClick={onAdd}
+      onClick={handleClick}
+      type="button"
       className={cn(
         'flex items-center gap-2 w-full px-3 py-2 rounded-md border bg-background',
         'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
@@ -194,17 +202,18 @@ export function AddBlockDrawer({
 
   return (
     <>
-      {/* Semi-transparent overlay - clicking closes the drawer */}
+      {/* Semi-transparent overlay - visual only, pointer-events disabled to allow canvas interaction */}
+      {/* Close only via X button, ArrowLeft, or ESC - Yampi style */}
       <div 
-        className="fixed inset-0 bg-black/20 z-40 transition-opacity duration-200"
-        onClick={() => onOpenChange(false)}
+        className="fixed inset-0 bg-black/10 z-40 transition-opacity duration-200 pointer-events-none"
+        aria-hidden="true"
       />
       
       {/* Sliding panel - overlays on top of sidebar */}
       <div 
         className={cn(
           'fixed left-0 top-0 h-full w-72 bg-background border-r shadow-xl z-50',
-          'transform transition-transform duration-200 ease-out',
+          'transform transition-transform duration-200 ease-out pointer-events-auto',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
