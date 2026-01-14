@@ -16,8 +16,9 @@ import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essenti
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockRenderer } from './BlockRenderer';
-import { BlockPalette } from './BlockPalette';
-import { BlockTree } from './BlockTree';
+import { BuilderSidebar } from './BuilderSidebar';
+import { AddBlockDrawer } from './AddBlockDrawer';
+import { ThemeSettingsPanel } from './ThemeSettingsPanel';
 import { PropsEditor } from './PropsEditor';
 import { HeaderFooterPropsEditor } from './HeaderFooterPropsEditor';
 import { VersionHistoryDialog } from './VersionHistoryDialog';
@@ -25,8 +26,7 @@ import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPa
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
 import { toast } from 'sonner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Layers, LayoutGrid } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { 
   useGlobalLayoutForEditor, 
   applyGlobalLayout, 
@@ -100,8 +100,9 @@ export function VisualBuilder({
   // All hooks must be called before any conditional returns
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [isInteractMode, setIsInteractMode] = useState(false);
-  const [leftTab, setLeftTab] = useState<'blocks' | 'tree'>('blocks');
   const [showVersionHistory, setShowVersionHistory] = useState(false);
+  const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
+  const [showThemeSettings, setShowThemeSettings] = useState(false);
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
   
   // Example selectors state (for Product/Category templates)
@@ -771,7 +772,7 @@ export function VisualBuilder({
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Block Palette + Tree */}
+        {/* Left Sidebar - Unified Structure (Yampi-style) */}
         {!isPreviewMode && (
           <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
             {/* Category Settings Panel - Only for Category template */}
@@ -792,40 +793,42 @@ export function VisualBuilder({
               />
             )}
             
-            <Tabs value={leftTab} onValueChange={(v) => setLeftTab(v as 'blocks' | 'tree')} className="flex flex-col h-full">
-              <TabsList className="w-full justify-start rounded-none border-b bg-background px-1 py-0 h-9">
-                <TabsTrigger 
-                  value="blocks" 
-                  className="gap-1 data-[state=active]:bg-primary/10 rounded-md px-2 text-xs"
-                >
-                  <LayoutGrid className="h-3.5 w-3.5" />
-                  <span>Blocos</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="tree" 
-                  className="gap-1 data-[state=active]:bg-primary/10 rounded-md px-2 text-xs"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>Estrutura</span>
-                </TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="blocks" className="flex-1 m-0 overflow-hidden">
-                <BlockPalette onAddBlock={handleAddBlock} />
-              </TabsContent>
-              
-              <TabsContent value="tree" className="flex-1 m-0 overflow-hidden">
-                <BlockTree
-                  content={store.content}
-                  selectedBlockId={store.selectedBlockId}
-                  onSelectBlock={store.selectBlock}
-                  onMoveBlock={handleMoveBlock}
-                  onScrollToBlock={handleScrollToBlock}
-                />
-              </TabsContent>
-            </Tabs>
+            {/* Unified Sidebar */}
+            <BuilderSidebar
+              content={store.content}
+              selectedBlockId={store.selectedBlockId}
+              pageType={pageType}
+              onSelectBlock={store.selectBlock}
+              onMoveBlock={handleMoveBlock}
+              onToggleHidden={handleToggleHidden}
+              onDeleteBlock={handleDeleteBlockById}
+              onOpenAddBlock={() => setShowAddBlockDrawer(true)}
+              onOpenThemeSettings={() => setShowThemeSettings(true)}
+              templateName={pageTypeLabels[pageType] || 'Tema'}
+            />
           </div>
         )}
+
+        {/* Add Block Drawer */}
+        <AddBlockDrawer
+          open={showAddBlockDrawer}
+          onOpenChange={setShowAddBlockDrawer}
+          onAddBlock={handleAddBlock}
+        />
+
+        {/* Theme Settings Panel */}
+        <ThemeSettingsPanel
+          open={showThemeSettings}
+          onOpenChange={setShowThemeSettings}
+          tenantId={tenantId}
+          templateSetId={templateSetId}
+          onNavigateToPage={(newPageType) => {
+            // Navigate to edit different page type
+            const url = new URL(window.location.href);
+            url.searchParams.set('edit', newPageType);
+            navigate(url.pathname + url.search);
+          }}
+        />
 
         {/* Center - Canvas */}
         <div className="flex-1 overflow-hidden">
