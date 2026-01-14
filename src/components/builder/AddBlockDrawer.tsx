@@ -192,8 +192,10 @@ export function AddBlockDrawer({
   ];
 
   const handleAddBlock = (type: string) => {
-    console.log('[AddBlockDrawer] Adding block:', type);
+    console.log('[AddBlockDrawer] handleAddBlock called with type:', type);
+    console.log('[AddBlockDrawer] Calling onAddBlock...');
     onAddBlock(type);
+    console.log('[AddBlockDrawer] onAddBlock completed');
     // Keep drawer open so user can add more blocks if desired
     // User can close manually with X or clicking outside
   };
