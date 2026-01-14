@@ -131,9 +131,9 @@ export function CheckoutOrderSummary({
     </div>
   );
 
-  // Desktop version - sidebar
+  // Desktop version - sidebar (uses container query class sf-checkout-summary-desktop)
   const DesktopSummary = () => (
-    <div className="hidden lg:block sticky top-4">
+    <div className="sf-checkout-summary-desktop sticky top-4">
       <div className="p-6 border rounded-lg bg-card">
         <h3 className="font-semibold text-lg mb-4">Resumo do pedido</h3>
         
@@ -162,9 +162,9 @@ export function CheckoutOrderSummary({
     </div>
   );
 
-  // Mobile version - collapsible with always visible total
+  // Mobile version - collapsible with always visible total (uses container query class sf-checkout-summary-mobile)
   const MobileSummary = () => (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-background border-t z-50">
+    <div className="sf-checkout-summary-mobile fixed bottom-0 left-0 right-0 bg-background border-t z-50">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
           <button className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">

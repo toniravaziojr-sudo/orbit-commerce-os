@@ -63,27 +63,27 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
     );
   }
 
-  // Mobile bottom bar variant
+  // Mobile bottom bar variant - uses container query class sf-show-mobile
   if (variant === 'mobile-bar') {
     return (
-      <div className="fixed bottom-0 left-0 right-0 bg-background border-t p-4 pb-safe z-50 md:hidden">
+      <div className="sf-show-mobile fixed bottom-0 left-0 right-0 bg-background border-t p-4 pb-safe z-50">
         <div className="flex items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm text-muted-foreground">Total</p>
             <p className="text-xl font-bold">{formatCurrency(totals.grandTotal)}</p>
             {appliedDiscount && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <Tag className="h-3 w-3" />
-                {appliedDiscount.discount_code}
+              <p className="text-xs text-green-600 flex items-center gap-1 truncate">
+                <Tag className="h-3 w-3 shrink-0" />
+                <span className="truncate">{appliedDiscount.discount_code}</span>
               </p>
             )}
           </div>
           <Button 
             size="lg" 
             onClick={handleCheckout}
-            className="flex-1 max-w-[200px]"
+            className="shrink-0"
           >
-            Finalizar compra
+            Finalizar
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
@@ -91,10 +91,10 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
     );
   }
 
-  // Sticky desktop variant
+  // Sticky desktop variant - uses container query class sf-show-desktop
   if (variant === 'sticky') {
     return (
-      <div className="sticky top-4">
+      <div className="sf-show-desktop sticky top-4">
         <div className="p-6 border rounded-lg bg-card">
           <h3 className="font-semibold text-lg mb-4">Resumo do pedido</h3>
           
@@ -106,18 +106,18 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
             {appliedDiscount && totals.discountTotal > 0 && (
               <div className="flex justify-between text-green-600">
-                <span className="flex items-center gap-1">
-                  <Tag className="h-3 w-3" />
-                  Desconto ({appliedDiscount.discount_code})
+                <span className="flex items-center gap-1 min-w-0">
+                  <Tag className="h-3 w-3 shrink-0" />
+                  <span className="truncate">Desconto ({appliedDiscount.discount_code})</span>
                 </span>
-                <span>-{formatCurrency(totals.discountTotal)}</span>
+                <span className="shrink-0">-{formatCurrency(totals.discountTotal)}</span>
               </div>
             )}
 
             {effectiveShipping && (
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Frete ({effectiveShipping.label})</span>
-                <span>
+                <span className="text-muted-foreground truncate">Frete ({effectiveShipping.label})</span>
+                <span className="shrink-0">
                   {effectiveShipping.isFree ? (
                     <span className="text-green-600">Grátis</span>
                   ) : (
@@ -129,8 +129,8 @@ export function CartSummary({ variant = 'default' }: CartSummaryProps) {
 
             {appliedDiscount?.free_shipping && (
               <div className="text-xs text-green-600 flex items-center gap-1">
-                <Tag className="h-3 w-3" />
-                Frete grátis aplicado via cupom
+                <Tag className="h-3 w-3 shrink-0" />
+                <span className="truncate">Frete grátis aplicado via cupom</span>
               </div>
             )}
 
