@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Smartphone, User, Tag, Bell } from 'lucide-react';
+import { Palette, ChevronDown, Smartphone, User, Tag, Bell, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -36,24 +36,8 @@ const defaultHeaderProps: Record<string, unknown> = {
   featuredPromosEnabled: false,
 };
 
-// Debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  
-  return debouncedValue;
-}
-
-// Color input component with local state
+// Color input component with INSTANT preview (no debounce)
+// Shows preview in real-time, only saves on "Apply" button
 function ColorInput({ 
   value, 
   onChange, 
@@ -66,24 +50,31 @@ function ColorInput({
   placeholder?: string;
 }) {
   const [localValue, setLocalValue] = useState(value);
-  const debouncedValue = useDebounce(localValue, 500);
-  const isFirstRender = useRef(true);
+  const [isDirty, setIsDirty] = useState(false);
   
-  // Sync with external value when it changes (e.g., on initial load)
+  // Sync with external value when it changes (on initial load or after save)
   useEffect(() => {
     setLocalValue(value);
+    setIsDirty(false);
   }, [value]);
   
-  // Only trigger onChange when debounced value changes (not on first render)
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+  const handleChange = (newValue: string) => {
+    setLocalValue(newValue);
+    setIsDirty(newValue !== value);
+  };
+  
+  const handleApply = () => {
+    if (isDirty) {
+      onChange(localValue);
+      setIsDirty(false);
     }
-    if (debouncedValue !== value) {
-      onChange(debouncedValue);
-    }
-  }, [debouncedValue, onChange, value]);
+  };
+  
+  const handleClear = () => {
+    setLocalValue('');
+    onChange('');
+    setIsDirty(false);
+  };
   
   return (
     <div className="space-y-1">
@@ -92,23 +83,31 @@ function ColorInput({
         <input
           type="color"
           value={localValue || '#000000'}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
           value={localValue || ''}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {localValue && (
+        {isDirty && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleApply}
+            className="h-7 px-2 text-xs gap-1"
+          >
+            <Check className="h-3 w-3" />
+            Aplicar
+          </Button>
+        )}
+        {localValue && !isDirty && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setLocalValue('');
-              onChange('');
-            }}
+            onClick={handleClear}
             className="h-7 px-1.5 text-xs"
           >
             ✕
@@ -154,7 +153,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
       return config?.props || null;
     },
     enabled: !!tenantId,
-    staleTime: 30000, // Keep data fresh for 30s to avoid refetch loops
+    staleTime: 30000,
   });
 
   // Initialize local state from fetched data (only once)
@@ -214,15 +213,12 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     },
   });
 
-  // Update a single prop with optimistic update
+  // Update a single prop - immediate for switches, with save
   const updateProp = useCallback((key: string, value: unknown) => {
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      // Save after state update
-      saveMutation.mutate(updated);
-      return updated;
-    });
-  }, [saveMutation]);
+    const updated = { ...localProps, [key]: value };
+    setLocalProps(updated);
+    saveMutation.mutate(updated);
+  }, [localProps, saveMutation]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -470,37 +466,38 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                 value={(props.noticeTextColor as string) || '#ffffff'}
                 onChange={(v) => updateProp('noticeTextColor', v)}
               />
-              
-              <Separator className="my-2" />
-              
               <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Exibir Ação</Label>
+                <Label className="text-[11px]">Exibir Link</Label>
                 <Switch className="scale-90"
-                  checked={Boolean(props.noticeActionEnabled)}
-                  onCheckedChange={(v) => updateProp('noticeActionEnabled', v)}
+                  checked={Boolean(props.noticeLinkEnabled)}
+                  onCheckedChange={(v) => updateProp('noticeLinkEnabled', v)}
                 />
               </div>
-
-              {props.noticeActionEnabled && (
+              {props.noticeLinkEnabled && (
                 <>
                   <div className="space-y-1">
-                    <Label className="text-[10px]">Texto da Ação</Label>
+                    <Label className="text-[10px]">Texto do Link</Label>
                     <Input
-                      value={(props.noticeActionLabel as string) || ''}
-                      onChange={(e) => updateProp('noticeActionLabel', e.target.value)}
+                      value={(props.noticeLinkText as string) || 'Clique Aqui'}
+                      onChange={(e) => updateProp('noticeLinkText', e.target.value)}
                       placeholder="Ex: Saiba mais"
                       className="h-7 text-xs"
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[10px]">URL da Ação</Label>
+                    <Label className="text-[10px]">URL do Link</Label>
                     <Input
-                      value={(props.noticeActionUrl as string) || ''}
-                      onChange={(e) => updateProp('noticeActionUrl', e.target.value)}
+                      value={(props.noticeLinkUrl as string) || ''}
+                      onChange={(e) => updateProp('noticeLinkUrl', e.target.value)}
                       placeholder="Ex: /promocoes"
                       className="h-7 text-xs"
                     />
                   </div>
+                  <ColorInput
+                    label="Cor do Link"
+                    value={(props.noticeLinkColor as string) || '#93c5fd'}
+                    onChange={(v) => updateProp('noticeLinkColor', v)}
+                  />
                 </>
               )}
             </>

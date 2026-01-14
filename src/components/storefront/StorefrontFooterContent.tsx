@@ -227,8 +227,12 @@ export function StorefrontFooterContent({
   const baseUrl = getStoreBaseUrl(tenantSlug);
   const footer1Items: MenuItem[] = footerMenus?.footer1?.items || [];
   const footer2Items: MenuItem[] = footerMenus?.footer2?.items || [];
-  const footer1Name = footerMenus?.footer1?.name || 'Menu';
-  const footer2Name = footerMenus?.footer2?.name || 'Políticas';
+  // Footer menu titles: config override > menu name > default
+  const footerConfigProps = (footerConfig?.props || {}) as Record<string, unknown>;
+  const footer1TitleConfig = typeof footerConfigProps.footer1Title === 'string' ? footerConfigProps.footer1Title : '';
+  const footer2TitleConfig = typeof footerConfigProps.footer2Title === 'string' ? footerConfigProps.footer2Title : '';
+  const footer1Name = footer1TitleConfig || footerMenus?.footer1?.name || 'Menu';
+  const footer2Name = footer2TitleConfig || footerMenus?.footer2?.name || 'Políticas';
 
   // Helper to resolve menu item URLs (supports 'link' as fallback for 'external')
   const getMenuItemUrl = (item: MenuItem): string => {
@@ -277,6 +281,10 @@ export function StorefrontFooterContent({
   const showLogo = getBoolean('showLogo', true);
   const showSac = getBoolean('showSac', true);
   const showSocial = getBoolean('showSocial', true);
+  const showStoreInfo = getBoolean('showStoreInfo', true);
+  const showCopyright = getBoolean('showCopyright', true);
+  // Legacy: showLegal is now split into showStoreInfo + showCopyright
+  // Keep for backwards compatibility
   const showLegal = getBoolean('showLegal', true);
   
   // Footer menu visibility
@@ -292,7 +300,11 @@ export function StorefrontFooterContent({
   // CONTENT OVERRIDES
   // ============================================
   const sacTitle = getString('sacTitle', null, 'Atendimento (SAC)') || 'Atendimento (SAC)';
-  const legalTextOverride = getString('legalTextOverride', null, '');
+  const footer1TitleOverride = getString('footer1Title', null, '');
+  const footer2TitleOverride = getString('footer2Title', null, '');
+  const copyrightTextOverride = getString('copyrightText', null, '');
+  // Legacy support
+  const legalTextOverride = copyrightTextOverride || getString('legalTextOverride', null, '');
   
   // ============================================
   // STYLE
@@ -419,36 +431,38 @@ export function StorefrontFooterContent({
                 </div>
               )}
               
-              {/* Nome Fantasia / Descrição */}
-              <div className="space-y-2">
-                {!showLogo && storeName && (
-                  <h4 
-                    className="text-lg font-semibold"
-                    style={footerTextColor ? { color: footerTextColor } : {}}
-                  >
-                    {storeName}
-                  </h4>
-                )}
-                
-                {storeDescription && (
-                  <p 
-                    className="text-sm text-muted-foreground leading-relaxed"
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                  >
-                    {storeDescription}
-                  </p>
-                )}
-                
-                {/* CNPJ (formatted) */}
-                {cnpj && (
-                  <p 
-                    className="text-xs text-muted-foreground pt-1"
-                    style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
-                  >
-                    CNPJ: {formatCnpj(cnpj)}
-                  </p>
-                )}
-              </div>
+              {/* Nome Fantasia / Descrição - respects showStoreInfo */}
+              {showStoreInfo && (
+                <div className="space-y-2">
+                  {!showLogo && storeName && (
+                    <h4 
+                      className="text-lg font-semibold"
+                      style={footerTextColor ? { color: footerTextColor } : {}}
+                    >
+                      {storeName}
+                    </h4>
+                  )}
+                  
+                  {storeDescription && (
+                    <p 
+                      className="text-sm text-muted-foreground leading-relaxed"
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                    >
+                      {storeDescription}
+                    </p>
+                  )}
+                  
+                  {/* CNPJ (formatted) */}
+                  {cnpj && (
+                    <p 
+                      className="text-xs text-muted-foreground pt-1"
+                      style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
+                    >
+                      CNPJ: {formatCnpj(cnpj)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* MOBILE BLOCO 2: Atendimento (SAC) - Full width, left aligned for readability */}
@@ -1035,10 +1049,10 @@ export function StorefrontFooterContent({
           </div>
         )}
 
-        {/* Legal info / Copyright - respects showLegal toggle */}
-        {showLegal && (
+        {/* Legal info / Copyright - respects showCopyright toggle */}
+        {showCopyright && (
           <div className="border-t mt-6 md:mt-8 pt-6 md:pt-8 text-center px-6 md:px-0 md:container md:mx-auto">
-            {/* Custom legal text override OR default copyright */}
+            {/* Custom copyright text override OR default copyright */}
             {legalTextOverride ? (
               <p 
                 className="text-sm text-muted-foreground" 
