@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Type, Check } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Type } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -34,9 +34,10 @@ const defaultFooterProps: Record<string, unknown> = {
   sacTitle: '',
   footer1Title: '',
   footer2Title: '',
+  footerTitlesColor: '',
 };
 
-// Color input component with INSTANT preview + Apply button
+// Color input component - instant preview with auto-save
 function ColorInput({ 
   value, 
   onChange, 
@@ -49,30 +50,20 @@ function ColorInput({
   placeholder?: string;
 }) {
   const [localValue, setLocalValue] = useState(value);
-  const [isDirty, setIsDirty] = useState(false);
   
-  // Sync with external value when it changes
+  // Sync with external value on initial load only
   useEffect(() => {
     setLocalValue(value);
-    setIsDirty(false);
   }, [value]);
   
   const handleChange = (newValue: string) => {
     setLocalValue(newValue);
-    setIsDirty(newValue !== value);
-  };
-  
-  const handleApply = () => {
-    if (isDirty) {
-      onChange(localValue);
-      setIsDirty(false);
-    }
+    onChange(newValue); // Instant callback
   };
   
   const handleClear = () => {
     setLocalValue('');
     onChange('');
-    setIsDirty(false);
   };
   
   return (
@@ -91,18 +82,7 @@ function ColorInput({
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {isDirty && (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleApply}
-            className="h-7 px-2 text-xs gap-1"
-          >
-            <Check className="h-3 w-3" />
-            Aplicar
-          </Button>
-        )}
-        {localValue && !isDirty && (
+        {localValue && (
           <Button
             variant="ghost"
             size="sm"
@@ -128,6 +108,8 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
   // Local state for optimistic updates
   const [localProps, setLocalProps] = useState<Record<string, unknown>>(defaultFooterProps);
   const initialLoadDone = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedPropsRef = useRef<string>('');
 
   // Fetch current footer config from global layout
   const { data: footerConfig, isLoading } = useQuery({
@@ -150,16 +132,19 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
       return config?.props || null;
     },
     enabled: !!tenantId,
-    staleTime: 30000,
+    staleTime: 60000,
   });
 
   // Initialize local state from fetched data (only once)
   useEffect(() => {
     if (footerConfig && !initialLoadDone.current) {
-      setLocalProps({ ...defaultFooterProps, ...footerConfig });
+      const merged = { ...defaultFooterProps, ...footerConfig };
+      setLocalProps(merged);
+      lastSavedPropsRef.current = JSON.stringify(merged);
       initialLoadDone.current = true;
     } else if (!footerConfig && !isLoading && !initialLoadDone.current) {
       setLocalProps(defaultFooterProps);
+      lastSavedPropsRef.current = JSON.stringify(defaultFooterProps);
       initialLoadDone.current = true;
     }
   }, [footerConfig, isLoading]);
@@ -202,7 +187,6 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
       // Invalidate queries to update builder canvas
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-      toast.success('Configurações salvas');
     },
     onError: (error) => {
       console.error('[FooterSettings] Save error:', error);
@@ -210,12 +194,63 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     },
   });
 
-  // Update a single prop - immediate for switches
+  // Update cache immediately for instant preview
+  const updateCacheOptimistically = useCallback((propsToSave: Record<string, unknown>) => {
+    const updatedConfig: BlockNode = {
+      id: 'global-footer',
+      type: 'Footer',
+      props: propsToSave,
+    };
+    
+    // Update the global layout cache immediately
+    queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+      if (!old || typeof old !== 'object') return old;
+      return { ...old, footer_config: updatedConfig };
+    });
+  }, [queryClient, tenantId]);
+
+  // Debounced save function to prevent spam
+  const debouncedSave = useCallback((propsToSave: Record<string, unknown>) => {
+    const propsJson = JSON.stringify(propsToSave);
+    if (propsJson === lastSavedPropsRef.current) return;
+    
+    // Update cache immediately for instant preview
+    updateCacheOptimistically(propsToSave);
+    
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      lastSavedPropsRef.current = propsJson;
+      saveMutation.mutate(propsToSave);
+    }, 400);
+  }, [saveMutation, updateCacheOptimistically]);
+
+  // Update a single prop - immediate UI, debounced save
   const updateProp = useCallback((key: string, value: unknown) => {
-    const updated = { ...localProps, [key]: value };
-    setLocalProps(updated);
-    saveMutation.mutate(updated);
-  }, [localProps, saveMutation]);
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      debouncedSave(updated);
+      return updated;
+    });
+  }, [debouncedSave]);
+
+  // Update prop immediately (for switches - no extra debounce needed)
+  const updatePropImmediate = useCallback((key: string, value: unknown) => {
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      // Clear any pending debounce and save immediately
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      // Update cache immediately for instant preview
+      updateCacheOptimistically(updated);
+      lastSavedPropsRef.current = JSON.stringify(updated);
+      saveMutation.mutate(updated);
+      return updated;
+    });
+  }, [saveMutation, updateCacheOptimistically]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -251,6 +286,12 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             value={(props.footerTextColor as string) || ''}
             onChange={(v) => updateProp('footerTextColor', v)}
           />
+          <ColorInput
+            label="Cor dos Títulos"
+            value={(props.footerTitlesColor as string) || ''}
+            onChange={(v) => updateProp('footerTitlesColor', v)}
+            placeholder="Padrão: mesma cor do texto"
+          />
         </CollapsibleContent>
       </Collapsible>
 
@@ -275,7 +316,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </div>
             <Switch className="scale-90"
               checked={Boolean(props.showLogo ?? true)}
-              onCheckedChange={(v) => updateProp('showLogo', v)}
+              onCheckedChange={(v) => updatePropImmediate('showLogo', v)}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -285,7 +326,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </div>
             <Switch className="scale-90"
               checked={Boolean(props.showStoreInfo ?? true)}
-              onCheckedChange={(v) => updateProp('showStoreInfo', v)}
+              onCheckedChange={(v) => updatePropImmediate('showStoreInfo', v)}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -295,7 +336,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </div>
             <Switch className="scale-90"
               checked={Boolean(props.showSac ?? true)}
-              onCheckedChange={(v) => updateProp('showSac', v)}
+              onCheckedChange={(v) => updatePropImmediate('showSac', v)}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -305,7 +346,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </div>
             <Switch className="scale-90"
               checked={Boolean(props.showSocial ?? true)}
-              onCheckedChange={(v) => updateProp('showSocial', v)}
+              onCheckedChange={(v) => updatePropImmediate('showSocial', v)}
             />
           </div>
           <div className="flex items-center justify-between">
@@ -315,7 +356,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             </div>
             <Switch className="scale-90"
               checked={Boolean(props.showCopyright ?? true)}
-              onCheckedChange={(v) => updateProp('showCopyright', v)}
+              onCheckedChange={(v) => updatePropImmediate('showCopyright', v)}
             />
           </div>
         </CollapsibleContent>

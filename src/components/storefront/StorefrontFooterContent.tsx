@@ -311,6 +311,7 @@ export function StorefrontFooterContent({
   // ============================================
   const footerBgColor = getString('footerBgColor', null);
   const footerTextColor = getString('footerTextColor', null);
+  const footerTitlesColor = getString('footerTitlesColor', null) || footerTextColor;
   
   // Primary color: config > settings > default
   const primaryColor = getString('primaryColor', storeSettings?.primary_color, '#6366f1') || '#6366f1';
@@ -437,7 +438,7 @@ export function StorefrontFooterContent({
                   {!showLogo && storeName && (
                     <h4 
                       className="text-lg font-semibold"
-                      style={footerTextColor ? { color: footerTextColor } : {}}
+                      style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                     >
                       {storeName}
                     </h4>
@@ -470,7 +471,7 @@ export function StorefrontFooterContent({
               <div className="flex flex-col w-full bg-muted/20 rounded-lg p-4">
                 <h4 
                   className="font-semibold mb-4 text-base"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   {sacTitle}
                 </h4>
@@ -537,7 +538,7 @@ export function StorefrontFooterContent({
               <div className="flex flex-col items-center">
                 <h4 
                   className="font-semibold mb-4 text-base"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   Redes Sociais
                 </h4>
@@ -616,7 +617,7 @@ export function StorefrontFooterContent({
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   {footer1Name}
                 </h4>
@@ -641,7 +642,7 @@ export function StorefrontFooterContent({
               <div className="flex flex-col items-center text-center">
                 <h4 
                   className="font-semibold mb-3"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   {footer2Name}
                 </h4>
@@ -693,36 +694,38 @@ export function StorefrontFooterContent({
               </div>
             )}
             
-            {/* Nome Fantasia / Descrição */}
-            <div className="space-y-2 w-full">
-              {!showLogo && storeName && (
-                <h4 
-                  className="text-lg font-semibold"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
-                >
-                  {storeName}
-                </h4>
-              )}
-              
-              {storeDescription && (
-                <p 
-                  className="text-sm text-muted-foreground leading-relaxed"
-                  style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
-                >
-                  {storeDescription}
-                </p>
-              )}
-              
-              {/* CNPJ (formatted) */}
-              {cnpj && (
-                <p 
-                  className="text-xs text-muted-foreground pt-1"
-                  style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
-                >
-                  CNPJ: {formatCnpj(cnpj)}
-                </p>
-              )}
-            </div>
+            {/* Nome Fantasia / Descrição - respects showStoreInfo */}
+            {showStoreInfo && (
+              <div className="space-y-2 w-full">
+                {!showLogo && storeName && (
+                  <h4 
+                    className="text-lg font-semibold"
+                    style={footerTitlesColor ? { color: footerTitlesColor } : {}}
+                  >
+                    {storeName}
+                  </h4>
+                )}
+                
+                {storeDescription && (
+                  <p 
+                    className="text-sm text-muted-foreground leading-relaxed"
+                    style={footerTextColor ? { color: footerTextColor, opacity: 0.8 } : {}}
+                  >
+                    {storeDescription}
+                  </p>
+                )}
+                
+                {/* CNPJ (formatted) */}
+                {cnpj && (
+                  <p 
+                    className="text-xs text-muted-foreground pt-1"
+                    style={footerTextColor ? { color: footerTextColor, opacity: 0.6 } : {}}
+                  >
+                    CNPJ: {formatCnpj(cnpj)}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* ============================================ */}
@@ -735,7 +738,7 @@ export function StorefrontFooterContent({
               <div className="w-full">
                 <h4 
                   className="font-semibold mb-3"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   {sacTitle}
                 </h4>
@@ -802,7 +805,7 @@ export function StorefrontFooterContent({
               <div className="w-full">
                 <h4 
                   className="font-semibold mb-3"
-                  style={footerTextColor ? { color: footerTextColor } : {}}
+                  style={footerTitlesColor ? { color: footerTitlesColor } : {}}
                 >
                   Redes Sociais
                 </h4>
@@ -885,7 +888,7 @@ export function StorefrontFooterContent({
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
-                style={footerTextColor ? { color: footerTextColor } : {}}
+                style={footerTitlesColor ? { color: footerTitlesColor } : {}}
               >
                 {footer1Name}
               </h4>
@@ -912,7 +915,7 @@ export function StorefrontFooterContent({
             <div className="text-left">
               <h4 
                 className="font-semibold mb-3"
-                style={footerTextColor ? { color: footerTextColor } : {}}
+                style={footerTitlesColor ? { color: footerTitlesColor } : {}}
               >
                 {footer2Name}
               </h4>
