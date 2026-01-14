@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Palette, ChevronDown, Settings, Info } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Type, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -28,28 +28,15 @@ const defaultFooterProps: Record<string, unknown> = {
   showSocial: true,
   showLogo: true,
   showSac: true,
-  showLegal: true,
-  copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+  showStoreInfo: true,
+  showCopyright: true,
+  copyrightText: '',
+  sacTitle: '',
+  footer1Title: '',
+  footer2Title: '',
 };
 
-// Debounce hook
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  
-  return debouncedValue;
-}
-
-// Color input component with local state and debounce
+// Color input component with INSTANT preview + Apply button
 function ColorInput({ 
   value, 
   onChange, 
@@ -62,24 +49,31 @@ function ColorInput({
   placeholder?: string;
 }) {
   const [localValue, setLocalValue] = useState(value);
-  const debouncedValue = useDebounce(localValue, 500);
-  const isFirstRender = useRef(true);
+  const [isDirty, setIsDirty] = useState(false);
   
   // Sync with external value when it changes
   useEffect(() => {
     setLocalValue(value);
+    setIsDirty(false);
   }, [value]);
   
-  // Only trigger onChange when debounced value changes (not on first render)
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+  const handleChange = (newValue: string) => {
+    setLocalValue(newValue);
+    setIsDirty(newValue !== value);
+  };
+  
+  const handleApply = () => {
+    if (isDirty) {
+      onChange(localValue);
+      setIsDirty(false);
     }
-    if (debouncedValue !== value) {
-      onChange(debouncedValue);
-    }
-  }, [debouncedValue, onChange, value]);
+  };
+  
+  const handleClear = () => {
+    setLocalValue('');
+    onChange('');
+    setIsDirty(false);
+  };
   
   return (
     <div className="space-y-1">
@@ -88,23 +82,31 @@ function ColorInput({
         <input
           type="color"
           value={localValue || '#000000'}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
           value={localValue || ''}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {localValue && (
+        {isDirty && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleApply}
+            className="h-7 px-2 text-xs gap-1"
+          >
+            <Check className="h-3 w-3" />
+            Aplicar
+          </Button>
+        )}
+        {localValue && !isDirty && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              setLocalValue('');
-              onChange('');
-            }}
+            onClick={handleClear}
             className="h-7 px-1.5 text-xs"
           >
             ✕
@@ -148,7 +150,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
       return config?.props || null;
     },
     enabled: !!tenantId,
-    staleTime: 30000, // Keep data fresh for 30s to avoid refetch loops
+    staleTime: 30000,
   });
 
   // Initialize local state from fetched data (only once)
@@ -208,15 +210,12 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     },
   });
 
-  // Update a single prop with optimistic update
+  // Update a single prop - immediate for switches
   const updateProp = useCallback((key: string, value: unknown) => {
-    setLocalProps(prev => {
-      const updated = { ...prev, [key]: value };
-      // Save after state update
-      saveMutation.mutate(updated);
-      return updated;
-    });
-  }, [saveMutation]);
+    const updated = { ...localProps, [key]: value };
+    setLocalProps(updated);
+    saveMutation.mutate(updated);
+  }, [localProps, saveMutation]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -281,6 +280,16 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0">
+              <Label className="text-[11px]">Mostrar Informações da Loja</Label>
+              <p className="text-[10px] text-muted-foreground">Exibe nome, CNPJ e descrição</p>
+            </div>
+            <Switch className="scale-90"
+              checked={Boolean(props.showStoreInfo ?? true)}
+              onCheckedChange={(v) => updateProp('showStoreInfo', v)}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0">
               <Label className="text-[11px]">Mostrar Atendimento (SAC)</Label>
               <p className="text-[10px] text-muted-foreground">Exibe seção de contato</p>
             </div>
@@ -301,12 +310,12 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
           </div>
           <div className="flex items-center justify-between">
             <div className="space-y-0">
-              <Label className="text-[11px]">Mostrar Informações Legais</Label>
-              <p className="text-[10px] text-muted-foreground">Exibe CNPJ, endereço, copyright</p>
+              <Label className="text-[11px]">Mostrar Copyright</Label>
+              <p className="text-[10px] text-muted-foreground">Exibe texto de direitos autorais</p>
             </div>
             <Switch className="scale-90"
-              checked={Boolean(props.showLegal ?? true)}
-              onCheckedChange={(v) => updateProp('showLegal', v)}
+              checked={Boolean(props.showCopyright ?? true)}
+              onCheckedChange={(v) => updateProp('showCopyright', v)}
             />
           </div>
         </CollapsibleContent>
@@ -314,20 +323,20 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
 
       <Separator />
 
-      {/* === TEXTOS PERSONALIZADOS === */}
+      {/* === PERSONALIZAR TÍTULOS RODAPÉ === */}
       <Collapsible open={openSections.texts} onOpenChange={() => toggleSection('texts')}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
             <div className="flex items-center gap-1.5">
-              <Info className="h-3.5 w-3.5 text-primary" />
-              <span className="font-medium">Textos Personalizados</span>
+              <Type className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium">Personalizar Títulos Rodapé</span>
             </div>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.texts ? 'rotate-180' : ''}`} />
           </Button>
         </CollapsibleTrigger>
         <CollapsibleContent className="px-2 pb-3 space-y-2.5">
           <div className="space-y-1">
-            <Label className="text-[10px]">Título do SAC</Label>
+            <Label className="text-[10px]">Título Atendimento</Label>
             <Input
               value={(props.sacTitle as string) || ''}
               onChange={(e) => updateProp('sacTitle', e.target.value)}
@@ -337,13 +346,34 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
             <p className="text-[10px] text-muted-foreground">Deixe vazio para usar o padrão</p>
           </div>
           <div className="space-y-1">
-            <Label className="text-[10px]">Texto Legal Personalizado</Label>
-            <textarea
-              value={(props.legalTextOverride as string) || ''}
-              onChange={(e) => updateProp('legalTextOverride', e.target.value)}
-              placeholder="Deixe vazio para usar: © {ano} {nome}. Todos os direitos reservados. CNPJ: ..."
-              className="w-full h-20 px-2 py-1 text-xs rounded-md border border-input bg-background resize-none"
+            <Label className="text-[10px]">Título Footer 1</Label>
+            <Input
+              value={(props.footer1Title as string) || ''}
+              onChange={(e) => updateProp('footer1Title', e.target.value)}
+              placeholder="Categorias"
+              className="h-7 text-xs"
             />
+            <p className="text-[10px] text-muted-foreground">Primeira coluna de links</p>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Título Footer 2</Label>
+            <Input
+              value={(props.footer2Title as string) || ''}
+              onChange={(e) => updateProp('footer2Title', e.target.value)}
+              placeholder="Institucional"
+              className="h-7 text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">Segunda coluna de links</p>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px]">Texto do Copyright</Label>
+            <textarea
+              value={(props.copyrightText as string) || ''}
+              onChange={(e) => updateProp('copyrightText', e.target.value)}
+              placeholder="© {ano} {nome da loja}. Todos os direitos reservados. CNPJ: ..."
+              className="w-full h-16 px-2 py-1 text-xs rounded-md border border-input bg-background resize-none"
+            />
+            <p className="text-[10px] text-muted-foreground">Deixe vazio para usar o padrão automático</p>
           </div>
         </CollapsibleContent>
       </Collapsible>
