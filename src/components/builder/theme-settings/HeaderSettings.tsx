@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Palette, ChevronDown, Smartphone, User, Tag, Bell, Check } from 'lucide-react';
+import { Palette, ChevronDown, Settings, Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import type { BlockNode } from '@/lib/builder/types';
 import type { Json } from '@/integrations/supabase/types';
@@ -36,8 +36,17 @@ const defaultHeaderProps: Record<string, unknown> = {
   featuredPromosEnabled: false,
 };
 
-// Color input component with INSTANT preview (no debounce)
-// Shows preview in real-time, only saves on "Apply" button
+// Debounce hook for delayed save
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
+// Color input component with INSTANT preview and debounced auto-save
 function ColorInput({ 
   value, 
   onChange, 
@@ -50,30 +59,34 @@ function ColorInput({
   placeholder?: string;
 }) {
   const [localValue, setLocalValue] = useState(value);
-  const [isDirty, setIsDirty] = useState(false);
+  const debouncedValue = useDebounce(localValue, 600);
+  const isFirstRender = useRef(true);
+  const lastSavedValue = useRef(value);
   
-  // Sync with external value when it changes (on initial load or after save)
+  // Sync with external value on initial load
   useEffect(() => {
-    setLocalValue(value);
-    setIsDirty(false);
+    if (value !== lastSavedValue.current) {
+      setLocalValue(value);
+      lastSavedValue.current = value;
+    }
   }, [value]);
   
-  const handleChange = (newValue: string) => {
-    setLocalValue(newValue);
-    setIsDirty(newValue !== value);
-  };
-  
-  const handleApply = () => {
-    if (isDirty) {
-      onChange(localValue);
-      setIsDirty(false);
+  // Auto-save after debounce (not on first render)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
-  };
+    if (debouncedValue !== lastSavedValue.current) {
+      lastSavedValue.current = debouncedValue;
+      onChange(debouncedValue);
+    }
+  }, [debouncedValue, onChange]);
   
   const handleClear = () => {
     setLocalValue('');
+    lastSavedValue.current = '';
     onChange('');
-    setIsDirty(false);
   };
   
   return (
@@ -83,27 +96,16 @@ function ColorInput({
         <input
           type="color"
           value={localValue || '#000000'}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => setLocalValue(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
           value={localValue || ''}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => setLocalValue(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {isDirty && (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleApply}
-            className="h-7 px-2 text-xs gap-1"
-          >
-            <Check className="h-3 w-3" />
-            Aplicar
-          </Button>
-        )}
-        {localValue && !isDirty && (
+        {localValue && (
           <Button
             variant="ghost"
             size="sm"
@@ -123,14 +125,14 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     colors: true,
     general: false,
-    customerArea: false,
-    promos: false,
     notice: false,
   });
   
   // Local state for optimistic updates
   const [localProps, setLocalProps] = useState<Record<string, unknown>>(defaultHeaderProps);
   const initialLoadDone = useRef(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedPropsRef = useRef<string>('');
 
   // Fetch current header config from global layout
   const { data: headerConfig, isLoading } = useQuery({
@@ -153,16 +155,19 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
       return config?.props || null;
     },
     enabled: !!tenantId,
-    staleTime: 30000,
+    staleTime: 60000,
   });
 
   // Initialize local state from fetched data (only once)
   useEffect(() => {
     if (headerConfig && !initialLoadDone.current) {
-      setLocalProps({ ...defaultHeaderProps, ...headerConfig });
+      const merged = { ...defaultHeaderProps, ...headerConfig };
+      setLocalProps(merged);
+      lastSavedPropsRef.current = JSON.stringify(merged);
       initialLoadDone.current = true;
     } else if (!headerConfig && !isLoading && !initialLoadDone.current) {
       setLocalProps(defaultHeaderProps);
+      lastSavedPropsRef.current = JSON.stringify(defaultHeaderProps);
       initialLoadDone.current = true;
     }
   }, [headerConfig, isLoading]);
@@ -205,7 +210,6 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
       // Invalidate queries to update builder canvas
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-      toast.success('Configurações salvas');
     },
     onError: (error) => {
       console.error('[HeaderSettings] Save error:', error);
@@ -213,12 +217,43 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     },
   });
 
-  // Update a single prop - immediate for switches, with save
+  // Debounced save function to prevent spam
+  const debouncedSave = useCallback((propsToSave: Record<string, unknown>) => {
+    const propsJson = JSON.stringify(propsToSave);
+    if (propsJson === lastSavedPropsRef.current) return;
+    
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    
+    saveTimeoutRef.current = setTimeout(() => {
+      lastSavedPropsRef.current = propsJson;
+      saveMutation.mutate(propsToSave);
+    }, 300);
+  }, [saveMutation]);
+
+  // Update a single prop - immediate UI, debounced save
   const updateProp = useCallback((key: string, value: unknown) => {
-    const updated = { ...localProps, [key]: value };
-    setLocalProps(updated);
-    saveMutation.mutate(updated);
-  }, [localProps, saveMutation]);
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      debouncedSave(updated);
+      return updated;
+    });
+  }, [debouncedSave]);
+
+  // Update prop immediately (for switches - no extra debounce needed)
+  const updatePropImmediate = useCallback((key: string, value: unknown) => {
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      // Clear any pending debounce and save immediately
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      lastSavedPropsRef.current = JSON.stringify(updated);
+      saveMutation.mutate(updated);
+      return updated;
+    });
+  }, [saveMutation]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -249,13 +284,13 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
 
   return (
     <div className="space-y-2">
-      {/* === CORES DO CABEÇALHO === */}
+      {/* === CORES === */}
       <Collapsible open={openSections.colors} onOpenChange={() => toggleSection('colors')}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
             <div className="flex items-center gap-1.5">
               <Palette className="h-3.5 w-3.5 text-primary" />
-              <span className="font-medium">Cores do Cabeçalho</span>
+              <span className="font-medium">Cores</span>
             </div>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.colors ? 'rotate-180' : ''}`} />
           </Button>
@@ -281,12 +316,97 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
 
       <Separator />
 
+      {/* === BARRA SUPERIOR === */}
+      <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
+        <CollapsibleTrigger asChild>
+          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
+            <div className="flex items-center gap-1.5">
+              <Bell className="h-3.5 w-3.5 text-primary" />
+              <span className="font-medium">Barra Superior</span>
+              {props.noticeEnabled && (
+                <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
+              )}
+            </div>
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-[11px]">Exibir Barra Superior</Label>
+            <Switch className="scale-90"
+              checked={Boolean(props.noticeEnabled)}
+              onCheckedChange={(v) => updatePropImmediate('noticeEnabled', v)}
+            />
+          </div>
+          
+          {props.noticeEnabled && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-[10px]">Texto do Aviso</Label>
+                <Input
+                  value={(props.noticeText as string) || ''}
+                  onChange={(e) => updateProp('noticeText', e.target.value)}
+                  placeholder="Ex: Frete grátis em compras acima de R$199!"
+                  className="h-7 text-xs"
+                />
+              </div>
+              <ColorInput
+                label="Cor de Fundo"
+                value={(props.noticeBgColor as string) || '#1e40af'}
+                onChange={(v) => updateProp('noticeBgColor', v)}
+              />
+              <ColorInput
+                label="Cor do Texto"
+                value={(props.noticeTextColor as string) || '#ffffff'}
+                onChange={(v) => updateProp('noticeTextColor', v)}
+              />
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px]">Exibir Link</Label>
+                <Switch className="scale-90"
+                  checked={Boolean(props.noticeLinkEnabled)}
+                  onCheckedChange={(v) => updatePropImmediate('noticeLinkEnabled', v)}
+                />
+              </div>
+              {props.noticeLinkEnabled && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">Texto do Link</Label>
+                    <Input
+                      value={(props.noticeLinkLabel as string) || 'Clique Aqui'}
+                      onChange={(e) => updateProp('noticeLinkLabel', e.target.value)}
+                      placeholder="Ex: Clique Aqui"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px]">URL do Link</Label>
+                    <Input
+                      value={(props.noticeLinkUrl as string) || ''}
+                      onChange={(e) => updateProp('noticeLinkUrl', e.target.value)}
+                      placeholder="Ex: /promocoes"
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                  <ColorInput
+                    label="Cor do Link"
+                    value={(props.noticeLinkColor as string) || '#60a5fa'}
+                    onChange={(v) => updateProp('noticeLinkColor', v)}
+                  />
+                </>
+              )}
+            </>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Separator />
+
       {/* === CONFIGURAÇÕES GERAIS === */}
       <Collapsible open={openSections.general} onOpenChange={() => toggleSection('general')}>
         <CollapsibleTrigger asChild>
           <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
             <div className="flex items-center gap-1.5">
-              <Smartphone className="h-3.5 w-3.5 text-primary" />
+              <Settings className="h-3.5 w-3.5 text-primary" />
               <span className="font-medium">Configurações Gerais</span>
             </div>
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.general ? 'rotate-180' : ''}`} />
@@ -297,82 +417,48 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
             <Label className="text-[11px]">Fixar ao rolar (Mobile)</Label>
             <Switch className="scale-90"
               checked={Boolean(props.stickyOnMobile ?? true)}
-              onCheckedChange={(v) => updateProp('stickyOnMobile', v)}
+              onCheckedChange={(v) => updatePropImmediate('stickyOnMobile', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Fixo no Topo (Desktop)</Label>
             <Switch className="scale-90"
               checked={Boolean(props.sticky ?? true)}
-              onCheckedChange={(v) => updateProp('sticky', v)}
+              onCheckedChange={(v) => updatePropImmediate('sticky', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Mostrar Busca</Label>
             <Switch className="scale-90"
               checked={Boolean(props.showSearch ?? true)}
-              onCheckedChange={(v) => updateProp('showSearch', v)}
+              onCheckedChange={(v) => updatePropImmediate('showSearch', v)}
             />
           </div>
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Mostrar Carrinho</Label>
             <Switch className="scale-90"
               checked={Boolean(props.showCart ?? true)}
-              onCheckedChange={(v) => updateProp('showCart', v)}
+              onCheckedChange={(v) => updatePropImmediate('showCart', v)}
             />
           </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Separator />
-
-      {/* === MINHA CONTA === */}
-      <Collapsible open={openSections.customerArea} onOpenChange={() => toggleSection('customerArea')}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
-            <div className="flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-primary" />
-              <span className="font-medium">Minha Conta</span>
-              {props.customerAreaEnabled && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
-              )}
-            </div>
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.customerArea ? 'rotate-180' : ''}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+          
+          <Separator className="my-2" />
+          
           <div className="flex items-center justify-between">
             <Label className="text-[11px]">Exibir "Minha Conta"</Label>
             <Switch className="scale-90"
               checked={Boolean(props.customerAreaEnabled)}
-              onCheckedChange={(v) => updateProp('customerAreaEnabled', v)}
+              onCheckedChange={(v) => updatePropImmediate('customerAreaEnabled', v)}
             />
           </div>
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Separator />
-
-      {/* === PROMOÇÕES EM DESTAQUE === */}
-      <Collapsible open={openSections.promos} onOpenChange={() => toggleSection('promos')}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
-            <div className="flex items-center gap-1.5">
-              <Tag className="h-3.5 w-3.5 text-amber-500" />
-              <span className="font-medium">Promoções em Destaque</span>
-              {props.featuredPromosEnabled && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
-              )}
-            </div>
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.promos ? 'rotate-180' : ''}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="px-2 pb-3 space-y-2.5">
+          
+          <Separator className="my-2" />
+          
           <div className="flex items-center justify-between">
-            <Label className="text-[11px]">Exibir link de Promoções</Label>
+            <Label className="text-[11px]">Exibir Promoções em Destaque</Label>
             <Switch className="scale-90"
               checked={Boolean(props.featuredPromosEnabled)}
-              onCheckedChange={(v) => updateProp('featuredPromosEnabled', v)}
+              onCheckedChange={(v) => updatePropImmediate('featuredPromosEnabled', v)}
             />
           </div>
           
@@ -414,91 +500,6 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                     </SelectContent>
                   </Select>
                 </div>
-              )}
-            </>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-
-      <Separator />
-
-      {/* === BARRA SUPERIOR (AVISO GERAL) === */}
-      <Collapsible open={openSections.notice} onOpenChange={() => toggleSection('notice')}>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" className="w-full justify-between p-2 h-auto text-xs">
-            <div className="flex items-center gap-1.5">
-              <Bell className="h-3.5 w-3.5 text-primary" />
-              <span className="font-medium">Barra Superior</span>
-              {props.noticeEnabled && (
-                <Badge variant="secondary" className="text-[10px] px-1 py-0">Ativo</Badge>
-              )}
-            </div>
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${openSections.notice ? 'rotate-180' : ''}`} />
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="px-2 pb-3 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <Label className="text-[11px]">Exibir Barra Superior</Label>
-            <Switch className="scale-90"
-              checked={Boolean(props.noticeEnabled)}
-              onCheckedChange={(v) => updateProp('noticeEnabled', v)}
-            />
-          </div>
-          
-          {props.noticeEnabled && (
-            <>
-              <div className="space-y-1">
-                <Label className="text-[10px]">Texto do Aviso</Label>
-                <Input
-                  value={(props.noticeText as string) || ''}
-                  onChange={(e) => updateProp('noticeText', e.target.value)}
-                  placeholder="Ex: Frete grátis em compras acima de R$199!"
-                  className="h-7 text-xs"
-                />
-              </div>
-              <ColorInput
-                label="Cor de Fundo"
-                value={(props.noticeBgColor as string) || '#1e40af'}
-                onChange={(v) => updateProp('noticeBgColor', v)}
-              />
-              <ColorInput
-                label="Cor do Texto"
-                value={(props.noticeTextColor as string) || '#ffffff'}
-                onChange={(v) => updateProp('noticeTextColor', v)}
-              />
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px]">Exibir Link</Label>
-                <Switch className="scale-90"
-                  checked={Boolean(props.noticeLinkEnabled)}
-                  onCheckedChange={(v) => updateProp('noticeLinkEnabled', v)}
-                />
-              </div>
-              {props.noticeLinkEnabled && (
-                <>
-                  <div className="space-y-1">
-                    <Label className="text-[10px]">Texto do Link</Label>
-                    <Input
-                      value={(props.noticeLinkText as string) || 'Clique Aqui'}
-                      onChange={(e) => updateProp('noticeLinkText', e.target.value)}
-                      placeholder="Ex: Saiba mais"
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px]">URL do Link</Label>
-                    <Input
-                      value={(props.noticeLinkUrl as string) || ''}
-                      onChange={(e) => updateProp('noticeLinkUrl', e.target.value)}
-                      placeholder="Ex: /promocoes"
-                      className="h-7 text-xs"
-                    />
-                  </div>
-                  <ColorInput
-                    label="Cor do Link"
-                    value={(props.noticeLinkColor as string) || '#93c5fd'}
-                    onChange={(v) => updateProp('noticeLinkColor', v)}
-                  />
-                </>
               )}
             </>
           )}
