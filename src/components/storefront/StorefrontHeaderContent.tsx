@@ -4,9 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { buildMenuItemUrl, getStoreBaseUrl, getPublicMyOrdersUrl, getPublicPageUrl } from '@/lib/publicUrls';
+import { buildMenuItemUrl, getStoreBaseUrl } from '@/lib/publicUrls';
 import { cn } from '@/lib/utils';
 import { 
   getWhatsAppHref, 
@@ -52,6 +50,7 @@ interface MenuItemWithChildren extends MenuItem {
 interface Category {
   id: string;
   slug: string;
+  name?: string;
 }
 
 interface PageData {
@@ -133,26 +132,28 @@ export function StorefrontHeaderContent({
   const featuredPromosEnabled = Boolean(props.featuredPromosEnabled);
   const featuredPromosLabel = String(props.featuredPromosLabel || 'Promoções');
   const featuredPromosTextColor = String(props.featuredPromosTextColor || '#d97706');
-  const featuredPromosPageId = String(props.featuredPromosPageId || '');
+  const featuredPromosDestination = String(props.featuredPromosDestination || '');
   
   // Social media - from store_settings
   const socialFacebook = storeSettings?.social_facebook || null;
   const socialInstagram = storeSettings?.social_instagram || null;
 
-  // Fetch promo page
-  const { data: promoPage } = useQuery({
-    queryKey: ['header-promo-page', featuredPromosPageId],
-    queryFn: async () => {
-      if (!featuredPromosPageId) return null;
-      const { data } = await supabase
-        .from('store_pages')
-        .select('slug')
-        .eq('id', featuredPromosPageId)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!featuredPromosPageId && featuredPromosEnabled,
-  });
+  // Parse featured promos destination to generate URL
+  const getFeaturedPromosUrl = (): string | null => {
+    if (!featuredPromosDestination || !tenantSlug) return null;
+    
+    if (featuredPromosDestination.startsWith('category:')) {
+      const categorySlug = featuredPromosDestination.replace('category:', '');
+      return `${baseUrl}/category/${categorySlug}`;
+    }
+    if (featuredPromosDestination.startsWith('page:')) {
+      const pageSlug = featuredPromosDestination.replace('page:', '');
+      return `${baseUrl}/page/${pageSlug}`;
+    }
+    return null;
+  };
+  
+  const featuredPromosUrl = featuredPromosEnabled ? getFeaturedPromosUrl() : null;
 
   // Animation effect for notice bar
   useEffect(() => {
@@ -441,9 +442,9 @@ export function StorefrontHeaderContent({
                       ))}
                       
                       {/* Featured Promos (Mobile) */}
-                      {featuredPromosEnabled && promoPage?.slug && (
+                      {featuredPromosEnabled && featuredPromosUrl && (
                         <LinkWrapper
-                          to={`${baseUrl}/page/${promoPage.slug}`}
+                          to={featuredPromosUrl}
                           onClick={() => setMobileMenuOpen(false)}
                           className="py-3 px-4 text-sm font-bold rounded-lg"
                           style={{ color: featuredPromosTextColor }}
@@ -687,59 +688,36 @@ export function StorefrontHeaderContent({
           )}
         </div>
         
-        {/* === DESKTOP NAVIGATION BAR (separate row) === */}
-        {(forceDesktop || !forceMobile) && showHeaderMenu && hierarchicalMenuItems.length > 0 && (
+        {/* === DESKTOP SECONDARY NAV BAR: Categories + Featured Promos === */}
+        {(forceDesktop || !forceMobile) && (categories.length > 0 || featuredPromosUrl) && (
           <nav className={cn(
-            "flex items-center justify-center gap-6 py-2 border-t border-muted/50",
+            "flex items-center justify-between py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
-          )}>
-            {hierarchicalMenuItems.map((item) => (
-              <div
-                key={item.id}
-                className="relative"
-                onMouseEnter={() => item.children.length > 0 && handleDropdownEnter(item.id)}
-                onMouseLeave={handleDropdownLeave}
-              >
+          )}
+          style={{ 
+            backgroundColor: headerBgColor ? `${headerBgColor}` : undefined,
+            minHeight: '32px'
+          }}
+          >
+            {/* Categories Navigation - Left side */}
+            <div className="flex items-center gap-4 flex-1">
+              {categories.map((category) => (
                 <LinkWrapper
-                  to={getMenuItemUrl(item)}
-                  className={cn(
-                    "text-sm font-medium hover:opacity-70 transition-colors flex items-center gap-1",
-                    item.children.length > 0 && "cursor-pointer"
-                  )}
+                  key={category.id}
+                  to={`${baseUrl}/category/${category.slug}`}
+                  className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap"
                   style={{ color: headerTextColor || undefined }}
                 >
-                  {item.label}
-                  {item.children.length > 0 && (
-                    <ChevronDown className="h-3.5 w-3.5" />
-                  )}
+                  {category.name || category.slug}
                 </LinkWrapper>
-                
-                {/* Dropdown Menu */}
-                {item.children.length > 0 && openDropdown === item.id && (
-                  <div 
-                    className="absolute top-full left-0 mt-1 py-2 min-w-[200px] bg-background border rounded-lg shadow-lg z-50"
-                    onMouseEnter={() => handleDropdownEnter(item.id)}
-                    onMouseLeave={handleDropdownLeave}
-                  >
-                    {item.children.map((child) => (
-                      <LinkWrapper
-                        key={child.id}
-                        to={getMenuItemUrl(child)}
-                        className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                      >
-                        {child.label}
-                      </LinkWrapper>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
             
-            {/* Featured Promos - Desktop */}
-            {featuredPromosEnabled && promoPage?.slug && (
+            {/* Featured Promos - Right side */}
+            {featuredPromosEnabled && featuredPromosUrl && (
               <LinkWrapper
-                to={`${baseUrl}/page/${promoPage.slug}`}
-                className="text-sm font-bold hover:opacity-80"
+                to={featuredPromosUrl}
+                className="text-xs font-bold hover:opacity-80 ml-4 whitespace-nowrap"
                 style={{ color: featuredPromosTextColor }}
               >
                 {featuredPromosLabel}
