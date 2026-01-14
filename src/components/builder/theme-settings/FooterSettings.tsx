@@ -3,7 +3,7 @@
 // Inside ThemeSettingsPanel, replaces right-panel HeaderFooterPropsEditor
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Label } from '@/components/ui/label';
@@ -22,21 +22,34 @@ interface FooterSettingsProps {
   templateSetId?: string;
 }
 
-// Default footer config to ensure we always have valid structure
-const defaultFooterConfig: BlockNode = {
-  id: 'global-footer',
-  type: 'Footer',
-  props: {
-    menuId: '',
-    showSocial: true,
-    showLogo: true,
-    showSac: true,
-    showLegal: true,
-    copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
-  },
+// Default footer props
+const defaultFooterProps: Record<string, unknown> = {
+  menuId: '',
+  showSocial: true,
+  showLogo: true,
+  showSac: true,
+  showLegal: true,
+  copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
 };
 
-// Color input component
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
+
+// Color input component with local state and debounce
 function ColorInput({ 
   value, 
   onChange, 
@@ -48,27 +61,50 @@ function ColorInput({
   label: string;
   placeholder?: string;
 }) {
+  const [localValue, setLocalValue] = useState(value);
+  const debouncedValue = useDebounce(localValue, 500);
+  const isFirstRender = useRef(true);
+  
+  // Sync with external value when it changes
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+  
+  // Only trigger onChange when debounced value changes (not on first render)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (debouncedValue !== value) {
+      onChange(debouncedValue);
+    }
+  }, [debouncedValue, onChange, value]);
+  
   return (
     <div className="space-y-1">
       <Label className="text-[10px]">{label}</Label>
       <div className="flex gap-1.5">
         <input
           type="color"
-          value={value || '#000000'}
-          onChange={(e) => onChange(e.target.value)}
+          value={localValue || '#000000'}
+          onChange={(e) => setLocalValue(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
+          value={localValue || ''}
+          onChange={(e) => setLocalValue(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
-        {value && (
+        {localValue && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onChange('')}
+            onClick={() => {
+              setLocalValue('');
+              onChange('');
+            }}
             className="h-7 px-1.5 text-xs"
           >
             ✕
@@ -86,13 +122,16 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     general: false,
     texts: false,
   });
+  
+  // Local state for optimistic updates
+  const [localProps, setLocalProps] = useState<Record<string, unknown>>(defaultFooterProps);
+  const initialLoadDone = useRef(false);
 
   // Fetch current footer config from global layout
-  // Footer config is stored as a BlockNode: { id, type, props: {...} }
   const { data: footerConfig, isLoading } = useQuery({
     queryKey: ['footer-settings', tenantId],
     queryFn: async () => {
-      if (!tenantId) return defaultFooterConfig;
+      if (!tenantId) return null;
       
       const { data: layout, error } = await supabase
         .from('storefront_global_layout')
@@ -102,32 +141,34 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
       
       if (error) {
         console.error('[FooterSettings] Error fetching:', error);
-        return defaultFooterConfig;
+        return null;
       }
       
-      // footer_config is a BlockNode with { id, type, props }
       const config = layout?.footer_config as unknown as BlockNode | null;
-      if (!config) return defaultFooterConfig;
-      
-      return {
-        id: config.id || 'global-footer',
-        type: config.type || 'Footer',
-        props: { ...defaultFooterConfig.props, ...config.props },
-      } as BlockNode;
+      return config?.props || null;
     },
     enabled: !!tenantId,
-    staleTime: 10000,
+    staleTime: 30000, // Keep data fresh for 30s to avoid refetch loops
   });
+
+  // Initialize local state from fetched data (only once)
+  useEffect(() => {
+    if (footerConfig && !initialLoadDone.current) {
+      setLocalProps({ ...defaultFooterProps, ...footerConfig });
+      initialLoadDone.current = true;
+    } else if (!footerConfig && !isLoading && !initialLoadDone.current) {
+      setLocalProps(defaultFooterProps);
+      initialLoadDone.current = true;
+    }
+  }, [footerConfig, isLoading]);
 
   // Save footer config - preserves BlockNode structure
   const saveMutation = useMutation({
-    mutationFn: async (newProps: Record<string, unknown>) => {
-      // Merge with current config
-      const currentConfig = footerConfig || defaultFooterConfig;
+    mutationFn: async (allProps: Record<string, unknown>) => {
       const updatedConfig: BlockNode = {
-        id: currentConfig.id || 'global-footer',
-        type: currentConfig.type || 'Footer',
-        props: { ...currentConfig.props, ...newProps },
+        id: 'global-footer',
+        type: 'Footer',
+        props: allProps,
       };
       
       // Check if row exists
@@ -156,8 +197,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
       return updatedConfig;
     },
     onSuccess: () => {
-      // Invalidate all related queries
-      queryClient.invalidateQueries({ queryKey: ['footer-settings', tenantId] });
+      // Invalidate queries to update builder canvas
       queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
       toast.success('Configurações salvas');
@@ -168,9 +208,15 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     },
   });
 
-  const updateProp = (key: string, value: unknown) => {
-    saveMutation.mutate({ [key]: value });
-  };
+  // Update a single prop with optimistic update
+  const updateProp = useCallback((key: string, value: unknown) => {
+    setLocalProps(prev => {
+      const updated = { ...prev, [key]: value };
+      // Save after state update
+      saveMutation.mutate(updated);
+      return updated;
+    });
+  }, [saveMutation]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -180,7 +226,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
   }
 
-  const props = footerConfig?.props || {};
+  const props = localProps;
 
   return (
     <div className="space-y-2">
