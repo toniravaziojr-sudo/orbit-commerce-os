@@ -872,22 +872,19 @@ export function VisualBuilder({
         {!isPreviewMode && (
           <div className="w-72 flex-shrink-0 bg-background shadow-sm">
             {store.selectedBlock && store.selectedBlockDefinition ? (
-              // Use specialized editor for Header/Footer blocks (governance)
+              // Header/Footer: Show message to use Theme Settings instead
               store.selectedBlock.type === 'Header' || store.selectedBlock.type === 'Footer' ? (
-                <HeaderFooterPropsEditor
-                  definition={store.selectedBlockDefinition}
-                  props={store.selectedBlock.props}
-                  onChange={handlePropsChange}
-                  onDelete={handleDeleteBlock}
-                  onDuplicate={handleDuplicateBlock}
-                  canDelete={store.selectedBlockDefinition.isRemovable !== false}
-                  isHomePage={isHomePage}
-                  isCheckoutPage={isCheckoutPage}
-                  blockType={store.selectedBlock.type as 'Header' | 'Footer'}
-                  tenantId={tenantId}
-                  pageType={pageType}
-                  pageId={pageId}
-                />
+                <div className="h-full flex items-center justify-center p-6 border-l">
+                  <div className="text-center text-muted-foreground">
+                    <LayoutGrid className="h-10 w-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm font-medium">
+                      {store.selectedBlock.type === 'Header' ? 'Cabeçalho' : 'Rodapé'}
+                    </p>
+                    <p className="text-xs mt-1">
+                      Configure em <strong>Configurações do tema</strong> no menu esquerdo
+                    </p>
+                  </div>
+                </div>
               ) : (
                 <PropsEditor
                   definition={store.selectedBlockDefinition}
