@@ -16,6 +16,7 @@ import {
   isValidPhone,
   isValidEmail
 } from '@/lib/contactHelpers';
+import { HeaderAttendanceDropdown } from './HeaderAttendanceDropdown';
 
 interface HeaderConfig {
   props?: Record<string, any>;
@@ -120,9 +121,12 @@ export function StorefrontHeaderContent({
   const showEmail = Boolean(props.showEmail);
   const emailAddress = String(props.emailAddress || storeSettings?.contact_email || '');
   
+  // Extended contact props for attendance dropdown
+  const storeAddress = String(props.storeAddress || '');
+  const businessHours = String(props.businessHours || '');
+  
   // Customer area props
   const customerAreaEnabled = Boolean(props.customerAreaEnabled);
-  // Label fixo: apenas ícone no mobile, "Minha Conta" no desktop
   
   // Header menu visibility (from page overrides)
   const showHeaderMenu = props.showHeaderMenu !== undefined ? Boolean(props.showHeaderMenu) : true;
@@ -206,14 +210,11 @@ export function StorefrontHeaderContent({
     // Second pass: organize into hierarchy
     menuItems.forEach(item => {
       const itemWithChildren = itemMap.get(item.id)!;
-      // Check if item has a parent and the parent exists in our map
       const hasParent = item.parent_id !== null && item.parent_id !== undefined && item.parent_id !== '';
       
       if (hasParent && itemMap.has(item.parent_id!)) {
-        // This is a child item - add to parent's children
         itemMap.get(item.parent_id!)!.children.push(itemWithChildren);
       } else {
-        // This is a root item (no parent or parent not found)
         rootItems.push(itemWithChildren);
       }
     });
@@ -267,6 +268,9 @@ export function StorefrontHeaderContent({
   const isPhoneValidFlag = showPhone && isValidPhone(phoneNumber);
   const isEmailValid = showEmail && isValidEmail(emailAddress);
   
+  // Check if any contact info is available for the dropdown
+  const hasContactInfo = isWhatsAppValid || isPhoneValidFlag || isEmailValid || storeAddress || businessHours;
+  
   // Get animation styles
   const getNoticeAnimationStyles = (): React.CSSProperties => {
     if (noticeAnimation === 'none') return { opacity: 1, transform: 'translateY(0)' };
@@ -311,10 +315,8 @@ export function StorefrontHeaderContent({
   };
 
   // Determine layout mode based on viewportOverride (from builder) or CSS will handle it for public
-  // If viewportOverride is set, we use it; otherwise we render both and CSS decides
   const forceMobile = viewportOverride === 'mobile' || viewportOverride === 'tablet';
   const forceDesktop = viewportOverride === 'desktop';
-
 
   return (
     <header 
@@ -353,10 +355,13 @@ export function StorefrontHeaderContent({
       )}
 
       <div className="container mx-auto px-4">
+        {/* 
+          DESKTOP LAYOUT: 3 regions - LEFT (Search) | CENTER (Logo) | RIGHT (Atendimento + Account + Cart)
+          MOBILE LAYOUT: Standard mobile header with hamburger
+        */}
         <div className="flex h-16 items-center justify-between gap-4">
           
           {/* === MOBILE LAYOUT === */}
-          {/* Rendered when viewportOverride forces mobile OR via CSS on real mobile */}
           {(forceMobile || !forceDesktop) && (
             <div className={cn(
               "flex items-center",
@@ -384,13 +389,12 @@ export function StorefrontHeaderContent({
                       </div>
                     )}
 
-                    {/* Mobile Navigation with hierarchy - respects showHeaderMenu */}
+                    {/* Mobile Navigation with hierarchy */}
                     {showHeaderMenu && <nav className="flex flex-col gap-1">
                       {hierarchicalMenuItems.map((item) => (
                         <div key={item.id}>
                           {item.children.length > 0 ? (
                             <>
-                              {/* Parent item with link + separate toggle button */}
                               <div className="flex items-center">
                                 <LinkWrapper
                                   to={getMenuItemUrl(item)}
@@ -411,7 +415,6 @@ export function StorefrontHeaderContent({
                                   )} />
                                 </button>
                               </div>
-                              {/* Show children when open */}
                               {openMobileDropdowns.has(item.id) && (
                                 <div className="ml-4 border-l-2 border-muted">
                                   {item.children.map((child) => (
@@ -451,7 +454,7 @@ export function StorefrontHeaderContent({
                         </LinkWrapper>
                       )}
                       
-                      {/* Customer Area (Mobile) - Minha Conta */}
+                      {/* Customer Area (Mobile) */}
                       {customerAreaEnabled && (
                         <LinkWrapper
                           to={`${baseUrl}/conta`}
@@ -541,13 +544,40 @@ export function StorefrontHeaderContent({
             </div>
           )}
 
-          {/* Logo - Centered on mobile, left on desktop */}
+          {/* === DESKTOP LEFT REGION: Search === */}
+          {(forceDesktop || !forceMobile) && (
+            <div className={cn(
+              "flex items-center gap-4 flex-1",
+              forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
+            )}>
+              {/* Search - now on the left */}
+              {showSearch && (
+                <div className="max-w-[220px] w-full">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      placeholder="Pesquisar"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="h-9 pl-8 pr-3 text-sm bg-muted/30 border-muted-foreground/20 focus:border-primary/50 placeholder:text-muted-foreground/60"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* === CENTER REGION: Logo (always centered) === */}
           <LinkWrapper 
             to={baseUrl || '/'} 
             className={cn(
-              "flex items-center gap-2",
+              "flex items-center gap-2 shrink-0",
+              // Mobile: centered absolutely
               forceMobile ? "absolute left-1/2 -translate-x-1/2" : 
+              // Desktop: centered via flex
               forceDesktop ? "static translate-x-0" : 
+              // Responsive: mobile centered, desktop static
               "absolute left-1/2 -translate-x-1/2 md:static md:translate-x-0"
             )}
           >
@@ -567,211 +597,163 @@ export function StorefrontHeaderContent({
             )}
           </LinkWrapper>
 
-          {/* === DESKTOP NAVIGATION === */}
-          {/* Rendered when viewportOverride forces desktop OR via CSS on real desktop */}
+          {/* === DESKTOP RIGHT REGION: Attendance Dropdown + Account Icon + Cart Icon === */}
           {(forceDesktop || !forceMobile) && (
-            <nav className={cn(
-              "items-center gap-6",
+            <div className={cn(
+              "flex items-center justify-end gap-3 flex-1",
               forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
             )}>
-              {/* Menu items - respects showHeaderMenu */}
-              {showHeaderMenu && hierarchicalMenuItems.map((item) => (
-                <div
-                  key={item.id}
-                  className="relative"
-                  onMouseEnter={() => item.children.length > 0 && handleDropdownEnter(item.id)}
-                  onMouseLeave={handleDropdownLeave}
-                >
-                  <LinkWrapper
-                    to={getMenuItemUrl(item)}
-                    className={cn(
-                      "text-sm font-medium hover:opacity-70 transition-colors",
-                      item.children.length > 0 && "cursor-pointer"
-                    )}
-                    style={{ color: headerTextColor || undefined }}
-                  >
-                    {item.label}
-                  </LinkWrapper>
-                  
-                  {/* Dropdown Menu */}
-                  {item.children.length > 0 && openDropdown === item.id && (
-                    <div 
-                      className="absolute top-full left-0 mt-1 py-2 min-w-[200px] bg-background border rounded-lg shadow-lg z-50"
-                      onMouseEnter={() => handleDropdownEnter(item.id)}
-                      onMouseLeave={handleDropdownLeave}
-                    >
-                      {item.children.map((child) => (
-                        <LinkWrapper
-                          key={child.id}
-                          to={getMenuItemUrl(child)}
-                          className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
-                        >
-                          {child.label}
-                        </LinkWrapper>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {/* Featured Promos */}
-              {featuredPromosEnabled && promoPage?.slug && (
-                <LinkWrapper
-                  to={`${baseUrl}/page/${promoPage.slug}`}
-                  className="text-sm font-bold hover:opacity-80"
-                  style={{ color: featuredPromosTextColor }}
-                >
-                  {featuredPromosLabel}
-                </LinkWrapper>
+              {/* Attendance Dropdown */}
+              {hasContactInfo && (
+                <HeaderAttendanceDropdown
+                  phoneNumber={phoneNumber}
+                  phoneLabel={phoneLabel}
+                  whatsAppNumber={whatsAppNumber}
+                  whatsAppLabel={whatsAppLabel}
+                  emailAddress={emailAddress}
+                  address={storeAddress}
+                  businessHours={businessHours}
+                  headerTextColor={headerTextColor}
+                  headerIconColor={headerIconColor}
+                  isEditing={isEditing}
+                  showPhone={showPhone}
+                  showWhatsApp={showWhatsApp}
+                  showEmail={showEmail}
+                />
               )}
               
-              {/* Customer Area - Desktop: texto "Minha Conta" */}
+              {/* Customer Area - Icon only on desktop */}
               {customerAreaEnabled && (
                 <LinkWrapper
                   to={`${baseUrl}/conta`}
-                  className="text-sm font-medium hover:opacity-70 flex items-center gap-1"
-                  style={{ color: headerTextColor || undefined }}
+                  className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                  title="Minha Conta"
                 >
-                  <User className="h-4 w-4" style={iconStyle} />
-                  Minha Conta
+                  <User className="h-5 w-5" style={iconStyle} />
                 </LinkWrapper>
               )}
-            </nav>
-          )}
-
-          {/* Contact Items - Desktop only */}
-          {(forceDesktop || !forceMobile) && (
-            <div className={cn(
-              "items-center gap-4",
-              forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden lg:flex")
-            )}>
-              {isWhatsAppValid && whatsAppHref && (
-                <a
-                  href={whatsAppHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm hover:opacity-70"
-                  style={{ color: headerTextColor || undefined }}
-                  onClick={handleLinkClick}
-                >
-                  <MessageCircle className="h-4 w-4" style={iconStyle} />
-                  <span>{whatsAppLabel || 'WhatsApp'}</span>
-                </a>
-              )}
-              {isPhoneValidFlag && phoneHref && (
-                <a
-                  href={phoneHref}
-                  className="flex items-center gap-1 text-sm hover:opacity-70"
-                  style={{ color: headerTextColor || undefined }}
-                  onClick={handleLinkClick}
-                >
-                  <Phone className="h-4 w-4" style={iconStyle} />
-                  <span>{phoneLabel || phoneNumber}</span>
-                </a>
-              )}
-              {isEmailValid && emailHref && (
-                <a
-                  href={emailHref}
-                  className="flex items-center gap-1 text-sm hover:opacity-70"
-                  style={{ color: headerTextColor || undefined }}
-                  onClick={handleLinkClick}
-                >
-                  <Mail className="h-4 w-4" style={iconStyle} />
-                  <span>Email</span>
-                </a>
-              )}
-              {/* Social Media Icons */}
-              {socialFacebook && (
-                <a
-                  href={socialFacebook}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:opacity-70"
-                  onClick={handleLinkClick}
-                >
-                  <Facebook className="h-4 w-4" style={iconStyle} />
-                </a>
-              )}
-              {socialInstagram && (
-                <a
-                  href={socialInstagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:opacity-70"
-                  onClick={handleLinkClick}
-                >
-                  <Instagram className="h-4 w-4" style={iconStyle} />
-                </a>
+              
+              {/* Cart */}
+              {showCart && (
+                <LinkWrapper to={`${baseUrl}/cart`}>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <ShoppingCart className="h-5 w-5" style={iconStyle} />
+                    {totalCartItems > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs font-bold text-white flex items-center justify-center"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {totalCartItems}
+                      </span>
+                    )}
+                  </Button>
+                </LinkWrapper>
               )}
             </div>
           )}
 
-          {/* Desktop Search - subtle and compact */}
-          {showSearch && (forceDesktop || !forceMobile) && (
+          {/* === MOBILE RIGHT REGION: Actions === */}
+          {(forceMobile || !forceDesktop) && (
             <div className={cn(
-              "max-w-[200px]",
-              forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
+              "flex items-center gap-2",
+              forceDesktop ? "hidden" : (forceMobile ? "flex" : "flex md:hidden")
             )}>
-              <div className="relative w-full">
-                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="O que está buscando?"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8 pl-8 pr-3 text-sm bg-muted/30 border-muted-foreground/20 focus:border-primary/50 placeholder:text-muted-foreground/60"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Actions - Right side */}
-          <div className="flex items-center gap-2">
-            {/* Mobile search icon (opens dialog) - only on mobile */}
-            {showSearch && (forceMobile || !forceDesktop) && (
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className={cn(
-                  forceDesktop ? "hidden" : (forceMobile ? "flex" : "flex md:hidden")
-                )}
-              >
-                <Search className="h-5 w-5" style={iconStyle} />
-              </Button>
-            )}
-            
-            {/* Customer area icon - Minha Conta */}
-            {customerAreaEnabled && (forceMobile || !forceDesktop) && (
-              <LinkWrapper 
-                to={`${baseUrl}/conta`}
-                className={cn(
-                  forceDesktop ? "hidden" : (forceMobile ? "block" : "block md:hidden")
-                )}
-              >
+              {/* Mobile search icon */}
+              {showSearch && (
                 <Button variant="ghost" size="icon">
-                  <User className="h-5 w-5" style={iconStyle} />
+                  <Search className="h-5 w-5" style={iconStyle} />
                 </Button>
-              </LinkWrapper>
-            )}
-            
-            {/* Cart */}
-            {showCart && (
-              <LinkWrapper to={`${baseUrl}/cart`}>
-                <Button variant="ghost" size="icon" className="relative">
-                  <ShoppingCart className="h-5 w-5" style={iconStyle} />
-                  {totalCartItems > 0 && (
-                    <span
-                      className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs font-bold text-white flex items-center justify-center"
-                      style={{ backgroundColor: primaryColor }}
-                    >
-                      {totalCartItems}
-                    </span>
-                  )}
-                </Button>
-              </LinkWrapper>
-            )}
-          </div>
+              )}
+              
+              {/* Customer area icon - Mobile */}
+              {customerAreaEnabled && (
+                <LinkWrapper to={`${baseUrl}/conta`}>
+                  <Button variant="ghost" size="icon">
+                    <User className="h-5 w-5" style={iconStyle} />
+                  </Button>
+                </LinkWrapper>
+              )}
+              
+              {/* Cart - Mobile */}
+              {showCart && (
+                <LinkWrapper to={`${baseUrl}/cart`}>
+                  <Button variant="ghost" size="icon" className="relative">
+                    <ShoppingCart className="h-5 w-5" style={iconStyle} />
+                    {totalCartItems > 0 && (
+                      <span
+                        className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs font-bold text-white flex items-center justify-center"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        {totalCartItems}
+                      </span>
+                    )}
+                  </Button>
+                </LinkWrapper>
+              )}
+            </div>
+          )}
         </div>
+        
+        {/* === DESKTOP NAVIGATION BAR (separate row) === */}
+        {(forceDesktop || !forceMobile) && showHeaderMenu && hierarchicalMenuItems.length > 0 && (
+          <nav className={cn(
+            "flex items-center justify-center gap-6 py-2 border-t border-muted/50",
+            forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
+          )}>
+            {hierarchicalMenuItems.map((item) => (
+              <div
+                key={item.id}
+                className="relative"
+                onMouseEnter={() => item.children.length > 0 && handleDropdownEnter(item.id)}
+                onMouseLeave={handleDropdownLeave}
+              >
+                <LinkWrapper
+                  to={getMenuItemUrl(item)}
+                  className={cn(
+                    "text-sm font-medium hover:opacity-70 transition-colors flex items-center gap-1",
+                    item.children.length > 0 && "cursor-pointer"
+                  )}
+                  style={{ color: headerTextColor || undefined }}
+                >
+                  {item.label}
+                  {item.children.length > 0 && (
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  )}
+                </LinkWrapper>
+                
+                {/* Dropdown Menu */}
+                {item.children.length > 0 && openDropdown === item.id && (
+                  <div 
+                    className="absolute top-full left-0 mt-1 py-2 min-w-[200px] bg-background border rounded-lg shadow-lg z-50"
+                    onMouseEnter={() => handleDropdownEnter(item.id)}
+                    onMouseLeave={handleDropdownLeave}
+                  >
+                    {item.children.map((child) => (
+                      <LinkWrapper
+                        key={child.id}
+                        to={getMenuItemUrl(child)}
+                        className="block px-4 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      >
+                        {child.label}
+                      </LinkWrapper>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {/* Featured Promos - Desktop */}
+            {featuredPromosEnabled && promoPage?.slug && (
+              <LinkWrapper
+                to={`${baseUrl}/page/${promoPage.slug}`}
+                className="text-sm font-bold hover:opacity-80"
+                style={{ color: featuredPromosTextColor }}
+              >
+                {featuredPromosLabel}
+              </LinkWrapper>
+            )}
+          </nav>
+        )}
       </div>
     </header>
   );
