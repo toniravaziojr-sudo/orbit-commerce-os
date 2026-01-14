@@ -652,13 +652,6 @@ export function StorefrontHeaderContent({
               "flex items-center gap-2",
               forceDesktop ? "hidden" : (forceMobile ? "flex" : "flex md:hidden")
             )}>
-              {/* Mobile search icon */}
-              {showSearch && (
-                <Button variant="ghost" size="icon">
-                  <Search className="h-5 w-5" style={iconStyle} />
-                </Button>
-              )}
-              
               {/* Customer area icon - Mobile */}
               {customerAreaEnabled && (
                 <LinkWrapper to={`${baseUrl}/conta`}>
@@ -687,6 +680,53 @@ export function StorefrontHeaderContent({
             </div>
           )}
         </div>
+        
+        {/* === MOBILE SECONDARY BAR: Search + Featured Promos === */}
+        {(forceMobile || !forceDesktop) && (showSearch || (featuredPromosEnabled && featuredPromosUrl)) && (
+          <div 
+            className={cn(
+              "flex items-center py-2 border-t border-muted/30 gap-3 px-1",
+              forceDesktop ? "hidden" : (forceMobile ? "flex" : "flex md:hidden"),
+              // If only one is enabled, center it
+              showSearch && !(featuredPromosEnabled && featuredPromosUrl) ? "justify-center" : "",
+              !showSearch && (featuredPromosEnabled && featuredPromosUrl) ? "justify-center" : "",
+              showSearch && (featuredPromosEnabled && featuredPromosUrl) ? "justify-between" : ""
+            )}
+            style={{ 
+              backgroundColor: headerBgColor || undefined,
+              minHeight: '36px'
+            }}
+          >
+            {/* Search Field - Left side (or centered if alone) */}
+            {showSearch && (
+              <div className="relative flex-1 max-w-[200px]">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2" style={iconStyle} />
+                <Input
+                  type="search"
+                  placeholder="Pesquisar"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8 pl-8 text-xs rounded-md"
+                  style={{ 
+                    backgroundColor: 'rgba(0,0,0,0.05)',
+                    borderColor: 'transparent'
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Featured Promos - Right side (or centered if alone) */}
+            {featuredPromosEnabled && featuredPromosUrl && (
+              <LinkWrapper
+                to={featuredPromosUrl}
+                className="text-xs font-bold hover:opacity-80 whitespace-nowrap px-2"
+                style={{ color: featuredPromosTextColor }}
+              >
+                {featuredPromosLabel}
+              </LinkWrapper>
+            )}
+          </div>
+        )}
         
         {/* === DESKTOP SECONDARY NAV BAR: Categories + Featured Promos === */}
         {(forceDesktop || !forceMobile) && (categories.length > 0 || featuredPromosUrl) && (
