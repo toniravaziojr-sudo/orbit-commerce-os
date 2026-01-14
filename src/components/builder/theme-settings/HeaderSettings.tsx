@@ -272,6 +272,23 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     enabled: !!tenantId,
   });
 
+  // Fetch categories for promos selection
+  const { data: categories } = useQuery({
+    queryKey: ['admin-categories-for-promos', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!tenantId,
+  });
+
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
   }
@@ -477,22 +494,41 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
                 placeholder="Ex: #d97706 (dourado)"
               />
               
-              {pages && pages.length > 0 && (
+              {((pages && pages.length > 0) || (categories && categories.length > 0)) && (
                 <div className="space-y-1">
-                  <Label className="text-[10px]">Página de destino</Label>
+                  <Label className="text-[10px]">Destino do link</Label>
                   <Select
-                    value={(props.featuredPromosPageId as string) || ''}
-                    onValueChange={(v) => updateProp('featuredPromosPageId', v)}
+                    value={(props.featuredPromosDestination as string) || ''}
+                    onValueChange={(v) => updateProp('featuredPromosDestination', v)}
                   >
                     <SelectTrigger className="w-full h-7 text-xs">
-                      <SelectValue placeholder="Selecione uma página" />
+                      <SelectValue placeholder="Selecione página ou categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      {pages.map((page) => (
-                        <SelectItem key={page.id} value={page.id}>
-                          {page.title}
-                        </SelectItem>
-                      ))}
+                      {categories && categories.length > 0 && (
+                        <>
+                          <SelectItem value="__categories_header" disabled className="text-xs font-semibold text-muted-foreground">
+                            Categorias
+                          </SelectItem>
+                          {categories.map((cat) => (
+                            <SelectItem key={`cat-${cat.id}`} value={`category:${cat.slug}`}>
+                              {cat.name}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
+                      {pages && pages.length > 0 && (
+                        <>
+                          <SelectItem value="__pages_header" disabled className="text-xs font-semibold text-muted-foreground">
+                            Páginas
+                          </SelectItem>
+                          {pages.map((page) => (
+                            <SelectItem key={`page-${page.id}`} value={`page:${page.slug}`}>
+                              {page.title}
+                            </SelectItem>
+                          ))}
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
