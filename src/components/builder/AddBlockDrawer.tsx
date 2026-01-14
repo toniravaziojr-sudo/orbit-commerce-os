@@ -1,14 +1,14 @@
 // =============================================
 // ADD BLOCK DRAWER - Overlay panel with block library
 // Canvas stays visible behind for real-time preview
-// Supports both click-to-add and drag-and-drop
+// Click-to-add only (drag-and-drop removed for stability)
 // =============================================
 
 import { useMemo } from 'react';
 import { blockRegistry } from '@/lib/builder/registry';
 import { BlockDefinition } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
-import { Plus, X, ArrowLeft, GripVertical } from 'lucide-react';
+import { Plus, X, ArrowLeft } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,7 +17,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { useDraggable } from '@dnd-kit/core';
 
 interface AddBlockDrawerProps {
   open: boolean;
@@ -116,7 +115,7 @@ const visibleBlockTypes = new Set([
   'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
 
-// Block item component - supports both click and drag
+// Block item component - click to add only
 function BlockItem({
   block,
   onAdd,
@@ -124,53 +123,26 @@ function BlockItem({
   block: BlockDefinition & { type: string };
   onAdd: () => void;
 }) {
-  // Setup draggable for drag-and-drop
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `add-block-${block.type}`,
-    data: {
-      blockType: block.type,
-      isNewBlock: true,
-    },
-  });
-
   const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent any parent handlers from interfering
+    e.stopPropagation();
     e.preventDefault();
-    console.log('[BlockItem] Clicked:', block.type);
     onAdd();
   };
 
   return (
-    <div
-      ref={setNodeRef}
+    <button
+      onClick={handleClick}
+      type="button"
       className={cn(
         'flex items-center gap-2 w-full px-3 py-2 rounded-md border bg-background',
         'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
-        'transition-all duration-150 group text-left',
-        isDragging && 'opacity-50 shadow-lg'
+        'transition-all duration-150 group text-left cursor-pointer'
       )}
     >
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-0.5 rounded hover:bg-muted flex-shrink-0"
-        title="Arraste para adicionar"
-      >
-        <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-      </div>
-      
-      {/* Clickable content */}
-      <button
-        onClick={handleClick}
-        type="button"
-        className="flex items-center gap-2 flex-1 text-left cursor-pointer min-w-0"
-      >
-        <span className="text-base flex-shrink-0">{block.icon}</span>
-        <span className="text-sm font-medium flex-1 truncate">{block.label}</span>
-        <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-      </button>
-    </div>
+      <span className="text-base flex-shrink-0">{block.icon}</span>
+      <span className="text-sm font-medium flex-1 truncate">{block.label}</span>
+      <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+    </button>
   );
 }
 
@@ -310,7 +282,7 @@ export function AddBlockDrawer({
           
           {/* Helper text */}
           <div className="px-4 py-3 text-xs text-muted-foreground border-t mt-2">
-            Clique em um bloco para adicioná-lo ao final da página.
+            Clique em um bloco para adicioná-lo à página.
           </div>
         </ScrollArea>
       </div>
