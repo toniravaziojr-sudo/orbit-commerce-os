@@ -499,6 +499,29 @@
   }
 }
 
+/* Checkout form grid - 2 cols on desktop, 1 on mobile */
+@container storefront (max-width: 639px) {
+  .sf-checkout-form-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+  .sf-checkout-form-grid .col-span-2 {
+    grid-column: span 1 !important;
+  }
+}
+
+@container storefront (min-width: 640px) {
+  .sf-checkout-form-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 1rem !important;
+  }
+  .sf-checkout-form-grid .col-span-2 {
+    grid-column: span 2 !important;
+  }
+}
+
 /* General responsive utilities */
 @container storefront (max-width: 639px) {
   .sf-hide-mobile { display: none !important; }
