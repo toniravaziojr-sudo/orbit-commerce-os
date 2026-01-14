@@ -6,7 +6,8 @@ import type { BlockNode } from './types';
 import { blockRegistry } from './registry';
 
 // Structural block types that are "infrastructure" and hidden from user management
-export const STRUCTURAL_BLOCK_TYPES = new Set(['Header', 'Footer', 'Page']);
+// Section is included to hide the "LayoutDashboard Seção" from sidebar while keeping it as internal container
+export const STRUCTURAL_BLOCK_TYPES = new Set(['Header', 'Footer', 'Page', 'Section']);
 
 // Generate unique ID
 export function generateBlockId(type: string): string {

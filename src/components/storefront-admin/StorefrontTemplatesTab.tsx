@@ -54,8 +54,7 @@ const PRESET_INFO = {
   cosmetics: {
     name: 'Template Cosméticos',
     description: 'Template elegante para lojas de beleza e cosméticos, com seções para produtos em destaque, categorias e promoções.',
-    badge: 'Recomendado',
-    badgeVariant: 'default' as const,
+    // Removed badge - install directly without dialog
   },
   blank: {
     name: 'Iniciar do Zero',
@@ -288,10 +287,16 @@ export function StorefrontTemplatesTab() {
             name={PRESET_INFO.cosmetics.name}
             description={PRESET_INFO.cosmetics.description}
             thumbnail={PRESET_THUMBNAILS.cosmetics}
-            badge={PRESET_INFO.cosmetics.badge}
-            badgeVariant={PRESET_INFO.cosmetics.badgeVariant}
+            // No badge for cosmetics - install directly
             onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
-            onInstall={() => setCreatePreset('cosmetics')}
+            onInstall={async () => {
+              // Install directly with auto-generated unique name
+              const baseName = 'Template Cosméticos';
+              const existingCount = templates.filter(t => t.name.startsWith(baseName)).length;
+              const uniqueName = existingCount > 0 ? `${baseName} (${existingCount + 1})` : baseName;
+              const result = await createTemplate.mutateAsync({ name: uniqueName, basePreset: 'cosmetics' });
+              navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
+            }}
             installLabel="Instalar"
           />
 
