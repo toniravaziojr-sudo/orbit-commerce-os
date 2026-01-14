@@ -127,7 +127,8 @@ function SortableBlockItem({
   onDelete: () => void;
 }) {
   const definition = blockRegistry.get(block.type);
-  const isHidden = block.props?.hidden === true;
+  // Check both block.hidden (canonical) and props.hidden for backwards compatibility
+  const isHidden = block.hidden === true || block.props?.hidden === true;
   
   const {
     attributes,
@@ -146,7 +147,8 @@ function SortableBlockItem({
     transition,
   };
 
-  // Get display name - use block label or custom title from props
+  // Get display name - use custom title from props, or block label (without icon prefix)
+  // Only show the label name, not the block type prefix
   const displayName = (block.props?.title as string) || 
                       (block.props?.heading as string) || 
                       definition?.label || 
@@ -190,12 +192,11 @@ function SortableBlockItem({
         )}
       </div>
 
-      {/* Block icon + name */}
+      {/* Block name only (no icon prefix) */}
       <button
         onClick={onSelect}
         className="flex-1 flex items-center gap-1.5 text-left min-w-0"
       >
-        <span className="text-sm flex-shrink-0">{definition?.icon || '📦'}</span>
         <span className="text-xs font-medium truncate">{displayName}</span>
       </button>
 
