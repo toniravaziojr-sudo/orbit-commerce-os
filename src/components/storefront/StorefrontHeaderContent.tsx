@@ -138,23 +138,6 @@ export function StorefrontHeaderContent({
   const socialFacebook = storeSettings?.social_facebook || null;
   const socialInstagram = storeSettings?.social_instagram || null;
 
-  // Parse featured promos destination to generate URL
-  const getFeaturedPromosUrl = (): string | null => {
-    if (!featuredPromosDestination || !tenantSlug) return null;
-    
-    if (featuredPromosDestination.startsWith('category:')) {
-      const categorySlug = featuredPromosDestination.replace('category:', '');
-      return `${baseUrl}/category/${categorySlug}`;
-    }
-    if (featuredPromosDestination.startsWith('page:')) {
-      const pageSlug = featuredPromosDestination.replace('page:', '');
-      return `${baseUrl}/page/${pageSlug}`;
-    }
-    return null;
-  };
-  
-  const featuredPromosUrl = featuredPromosEnabled ? getFeaturedPromosUrl() : null;
-
   // Animation effect for notice bar
   useEffect(() => {
     if (!noticeEnabled) {
@@ -181,6 +164,23 @@ export function StorefrontHeaderContent({
 
   // Use centralized URL builder
   const baseUrl = getStoreBaseUrl(tenantSlug || '');
+
+  // Parse featured promos destination to generate URL
+  const getFeaturedPromosUrl = (): string | null => {
+    if (!featuredPromosDestination || !tenantSlug) return null;
+    
+    if (featuredPromosDestination.startsWith('category:')) {
+      const categorySlug = featuredPromosDestination.replace('category:', '');
+      return `${baseUrl}/category/${categorySlug}`;
+    }
+    if (featuredPromosDestination.startsWith('page:')) {
+      const pageSlug = featuredPromosDestination.replace('page:', '');
+      return `${baseUrl}/page/${pageSlug}`;
+    }
+    return null;
+  };
+  
+  const featuredPromosUrl = featuredPromosEnabled ? getFeaturedPromosUrl() : null;
 
   const getMenuItemUrl = (item: MenuItem): string => {
     if (!tenantSlug) return '/';
