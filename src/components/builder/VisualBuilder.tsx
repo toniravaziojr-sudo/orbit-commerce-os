@@ -775,25 +775,8 @@ export function VisualBuilder({
         {/* Left Sidebar - Unified Structure (Yampi-style) */}
         {!isPreviewMode && (
           <div className="w-56 flex-shrink-0 border-r bg-background flex flex-col shadow-sm">
-            {/* Category Settings Panel - Only for Category template */}
-            {isCategoryPage && (
-              <CategorySettingsPanel
-                tenantId={tenantId}
-                settings={categorySettings}
-                onChange={setCategorySettings}
-              />
-            )}
-            
-            {/* Product Settings Panel - Only for Product template */}
-            {isProductPage && (
-              <ProductSettingsPanel
-                tenantId={tenantId}
-                settings={productSettings}
-                onChange={setProductSettings}
-              />
-            )}
-            
-            {/* Unified Sidebar */}
+            {/* Unified Sidebar - No more page-specific settings here */}
+            {/* Settings moved to ThemeSettingsPanel > Páginas */}
             <BuilderSidebar
               content={store.content}
               selectedBlockId={store.selectedBlockId}

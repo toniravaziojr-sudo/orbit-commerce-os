@@ -1,20 +1,15 @@
 // =============================================
-// ADD BLOCK DRAWER - Modal/Sheet with block library
+// ADD BLOCK DRAWER - Overlay panel with block library
+// Canvas stays visible behind for real-time preview
 // =============================================
 
 import { useMemo } from 'react';
 import { blockRegistry } from '@/lib/builder/registry';
 import { BlockDefinition } from '@/lib/builder/types';
 import { cn } from '@/lib/utils';
-import { Plus, X } from 'lucide-react';
+import { Plus, X, ArrowLeft } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import {
   Accordion,
   AccordionContent,
@@ -133,7 +128,7 @@ function BlockItem({
       className={cn(
         'flex items-center gap-2 w-full px-3 py-2 rounded-md border bg-background',
         'hover:border-primary hover:bg-primary/5 hover:shadow-sm',
-        'transition-all duration-150 group text-left'
+        'transition-all duration-150 group text-left cursor-pointer'
       )}
     >
       <span className="text-base flex-shrink-0">{block.icon}</span>
@@ -189,21 +184,56 @@ export function AddBlockDrawer({
   ];
 
   const handleAddBlock = (type: string) => {
+    console.log('[AddBlockDrawer] Adding block:', type);
     onAddBlock(type);
-    onOpenChange(false);
+    // Keep drawer open so user can add more blocks if desired
+    // User can close manually with X or clicking outside
   };
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="left" className="w-80 p-0">
-        <SheetHeader className="p-4 border-b">
-          <SheetTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Adicionar seção
-          </SheetTitle>
-        </SheetHeader>
+  if (!open) return null;
 
-        <ScrollArea className="h-[calc(100vh-65px)]">
+  return (
+    <>
+      {/* Semi-transparent overlay - clicking closes the drawer */}
+      <div 
+        className="fixed inset-0 bg-black/20 z-40 transition-opacity duration-200"
+        onClick={() => onOpenChange(false)}
+      />
+      
+      {/* Sliding panel - overlays on top of sidebar */}
+      <div 
+        className={cn(
+          'fixed left-0 top-0 h-full w-72 bg-background border-r shadow-xl z-50',
+          'transform transition-transform duration-200 ease-out',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 p-3 border-b">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onOpenChange(false)}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2 flex-1">
+            <Plus className="h-4 w-4" />
+            <span className="font-semibold text-sm">Adicionar seção</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onOpenChange(false)}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Block categories */}
+        <ScrollArea className="h-[calc(100vh-57px)]">
           <Accordion 
             type="multiple" 
             defaultValue={['banners', 'products']}
@@ -238,8 +268,13 @@ export function AddBlockDrawer({
               );
             })}
           </Accordion>
+          
+          {/* Helper text */}
+          <div className="px-4 py-3 text-xs text-muted-foreground border-t mt-2">
+            Clique em um bloco para adicioná-lo ao final da página.
+          </div>
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }
