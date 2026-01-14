@@ -14,11 +14,27 @@ import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Palette, ChevronDown, Settings, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import type { BlockNode } from '@/lib/builder/types';
+import type { Json } from '@/integrations/supabase/types';
 
 interface FooterSettingsProps {
   tenantId: string;
   templateSetId?: string;
 }
+
+// Default footer config to ensure we always have valid structure
+const defaultFooterConfig: BlockNode = {
+  id: 'global-footer',
+  type: 'Footer',
+  props: {
+    menuId: '',
+    showSocial: true,
+    showLogo: true,
+    showSac: true,
+    showLegal: true,
+    copyrightText: '© 2024 Minha Loja. Todos os direitos reservados.',
+  },
+};
 
 // Color input component
 function ColorInput({ 
@@ -71,43 +87,47 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     texts: false,
   });
 
-  // Fetch current footer props from global layout
+  // Fetch current footer config from global layout
   // Footer config is stored as a BlockNode: { id, type, props: {...} }
-  const { data: footerProps, isLoading } = useQuery({
+  const { data: footerConfig, isLoading } = useQuery({
     queryKey: ['footer-settings', tenantId],
     queryFn: async () => {
-      if (!tenantId) return {};
+      if (!tenantId) return defaultFooterConfig;
       
-      const { data: layout } = await supabase
+      const { data: layout, error } = await supabase
         .from('storefront_global_layout')
         .select('footer_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
+      
+      if (error) {
+        console.error('[FooterSettings] Error fetching:', error);
+        return defaultFooterConfig;
+      }
       
       // footer_config is a BlockNode with { id, type, props }
-      const config = layout?.footer_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
-      return config?.props || {};
+      const config = layout?.footer_config as unknown as BlockNode | null;
+      if (!config) return defaultFooterConfig;
+      
+      return {
+        id: config.id || 'global-footer',
+        type: config.type || 'Footer',
+        props: { ...defaultFooterConfig.props, ...config.props },
+      } as BlockNode;
     },
     enabled: !!tenantId,
+    staleTime: 10000,
   });
 
-  // Save footer props - must preserve BlockNode structure
+  // Save footer config - preserves BlockNode structure
   const saveMutation = useMutation({
     mutationFn: async (newProps: Record<string, unknown>) => {
-      // First fetch current config to preserve structure
-      const { data: currentLayout } = await supabase
-        .from('storefront_global_layout')
-        .select('footer_config')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
-      
-      const currentConfig = currentLayout?.footer_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
-      
-      // Build updated BlockNode preserving id/type
-      const updatedConfig = {
-        id: currentConfig?.id || 'global-footer',
-        type: currentConfig?.type || 'Footer',
-        props: { ...currentConfig?.props, ...newProps },
+      // Merge with current config
+      const currentConfig = footerConfig || defaultFooterConfig;
+      const updatedConfig: BlockNode = {
+        id: currentConfig.id || 'global-footer',
+        type: currentConfig.type || 'Footer',
+        props: { ...currentConfig.props, ...newProps },
       };
       
       // Check if row exists
@@ -118,29 +138,32 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
         .maybeSingle();
       
       if (existing) {
-        await supabase
+        const { error } = await supabase
           .from('storefront_global_layout')
-          .update({ footer_config: updatedConfig as unknown as Record<string, never> })
+          .update({ footer_config: updatedConfig as unknown as Json })
           .eq('tenant_id', tenantId);
+        if (error) throw error;
       } else {
-        await supabase
+        const { error } = await supabase
           .from('storefront_global_layout')
           .insert({
             tenant_id: tenantId,
-            footer_config: updatedConfig as unknown as Record<string, never>,
+            footer_config: updatedConfig as unknown as Json,
           });
+        if (error) throw error;
       }
       
-      return newProps;
+      return updatedConfig;
     },
     onSuccess: () => {
+      // Invalidate all related queries
       queryClient.invalidateQueries({ queryKey: ['footer-settings', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      queryClient.invalidateQueries({ queryKey: ['global-layout-editor', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
-      queryClient.invalidateQueries({ queryKey: ['builder-content'] });
       toast.success('Configurações salvas');
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('[FooterSettings] Save error:', error);
       toast.error('Erro ao salvar configurações');
     },
   });
@@ -157,7 +180,7 @@ export function FooterSettings({ tenantId, templateSetId }: FooterSettingsProps)
     return <div className="p-4 text-sm text-muted-foreground">Carregando...</div>;
   }
 
-  const props = footerProps || {};
+  const props = footerConfig?.props || {};
 
   return (
     <div className="space-y-2">

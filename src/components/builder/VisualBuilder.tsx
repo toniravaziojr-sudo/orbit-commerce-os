@@ -266,20 +266,36 @@ export function VisualBuilder({
   }, [globalLayout?.needsMigration, layoutLoading, migrateFromHome]);
 
   // Sync content when template or global layout changes
-  // CRITICAL: Only sync when NOT dirty to prevent overwriting user changes (blocks added/moved)
-  // Use preserveSelection to avoid losing sidebar when overrides change
+  // When globalLayout changes (header/footer settings), we need to update those blocks
+  // even if isDirty, but preserve other user changes
   useEffect(() => {
     if (!layoutLoading && !overridesLoading) {
-      // GUARD: Do NOT overwrite if user has made changes (isDirty)
-      // This prevents the "added block disappears" bug
       if (store.isDirty) {
-        console.log('[VisualBuilder] Skipping content sync - store is dirty (user has unsaved changes)');
+        // When dirty, only update header/footer blocks from globalLayout
+        // to reflect settings changes without losing user's other edits
+        const currentContent = store.content;
+        if (currentContent?.children && globalLayout) {
+          const updatedChildren = currentContent.children.map(child => {
+            if (child.type === 'Header') {
+              return { ...globalLayout.header_config, id: child.id, hidden: child.hidden };
+            }
+            if (child.type === 'Footer') {
+              return { ...globalLayout.footer_config, id: child.id, hidden: child.hidden };
+            }
+            return child;
+          });
+          // Only update if header/footer actually changed
+          const hasChanges = JSON.stringify(currentContent.children) !== JSON.stringify(updatedChildren);
+          if (hasChanges) {
+            store.setContent({ ...currentContent, children: updatedChildren }, true);
+          }
+        }
         return;
       }
       // Preserve selection when only pageOverrides change (to keep sidebar visible)
       store.setContent(contentWithGlobalLayout, true);
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty]);
+  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty, globalLayout]);
 
 
   // Warn before leaving with unsaved changes
