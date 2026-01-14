@@ -139,7 +139,6 @@ function BlockItem({
         'transition-all duration-150 group text-left cursor-pointer'
       )}
     >
-      <span className="text-base flex-shrink-0">{block.icon}</span>
       <span className="text-sm font-medium flex-1 truncate">{block.label}</span>
       <Plus className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
     </button>
