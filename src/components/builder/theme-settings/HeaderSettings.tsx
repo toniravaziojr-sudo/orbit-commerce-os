@@ -75,89 +75,72 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     notice: false,
   });
 
-  // Fetch current header props from template set or global layout
+  // Fetch current header props from global layout
+  // Header config is stored as a BlockNode: { id, type, props: {...} }
   const { data: headerProps, isLoading } = useQuery({
-    queryKey: ['header-settings', tenantId, templateSetId],
+    queryKey: ['header-settings', tenantId],
     queryFn: async () => {
       if (!tenantId) return {};
       
-      // Try template set first
-      if (templateSetId) {
-        const { data, error } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        
-        if (data?.draft_content) {
-          const content = data.draft_content as { blocks?: Array<{ type: string; props: Record<string, unknown> }> };
-          const headerBlock = content.blocks?.find((b: { type: string }) => b.type === 'Header');
-          if (headerBlock) {
-            return headerBlock.props || {};
-          }
-        }
-      }
-      
-      // Fallback to global layout
       const { data: layout } = await supabase
         .from('storefront_global_layout')
         .select('header_config')
         .eq('tenant_id', tenantId)
         .maybeSingle();
       
-      return ((layout?.header_config as Record<string, unknown>) || {});
+      // header_config is a BlockNode with { id, type, props }
+      const config = layout?.header_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
+      return config?.props || {};
     },
     enabled: !!tenantId,
   });
 
-  // Save header props
+  // Save header props - must preserve BlockNode structure
   const saveMutation = useMutation({
     mutationFn: async (newProps: Record<string, unknown>) => {
-      if (templateSetId) {
-        // Update template set draft
-        const { data: current } = await supabase
-          .from('storefront_template_sets')
-          .select('draft_content')
-          .eq('id', templateSetId)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        
-        const content = current?.draft_content as Record<string, unknown> | null;
-        const blocks = (content?.blocks as Array<{ type: string; props: Record<string, unknown> }>) || [];
-        const headerIdx = blocks.findIndex((b) => b.type === 'Header');
-        
-        if (headerIdx >= 0) {
-          blocks[headerIdx] = { ...blocks[headerIdx], props: { ...blocks[headerIdx].props, ...newProps } };
-        }
-        
+      // First fetch current config to preserve structure
+      const { data: currentLayout } = await supabase
+        .from('storefront_global_layout')
+        .select('header_config')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      
+      const currentConfig = currentLayout?.header_config as { id?: string; type?: string; props?: Record<string, unknown> } | null;
+      
+      // Build updated BlockNode preserving id/type
+      const updatedConfig = {
+        id: currentConfig?.id || 'global-header',
+        type: currentConfig?.type || 'Header',
+        props: { ...currentConfig?.props, ...newProps },
+      };
+      
+      // Check if row exists
+      const { data: existing } = await supabase
+        .from('storefront_global_layout')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+      
+      if (existing) {
         await supabase
-          .from('storefront_template_sets')
-          .update({ draft_content: { ...content, blocks } as unknown as Record<string, never> })
-          .eq('id', templateSetId)
+          .from('storefront_global_layout')
+          .update({ header_config: updatedConfig as unknown as Record<string, never> })
           .eq('tenant_id', tenantId);
       } else {
-        // Update global layout
-        const { data: current } = await supabase
-          .from('storefront_global_layout')
-          .select('header_config')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-        
-        const currentProps = (current?.header_config as Record<string, unknown>) || {};
-        
         await supabase
           .from('storefront_global_layout')
-          .upsert({
+          .insert({
             tenant_id: tenantId,
-            header_config: { ...currentProps, ...newProps } as unknown as Record<string, never>,
+            header_config: updatedConfig as unknown as Record<string, never>,
           });
       }
       
       return newProps;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['header-settings', tenantId, templateSetId] });
+      queryClient.invalidateQueries({ queryKey: ['header-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['global-layout-editor'] });
+      queryClient.invalidateQueries({ queryKey: ['public-global-layout'] });
       queryClient.invalidateQueries({ queryKey: ['builder-content'] });
       toast.success('Configurações salvas');
     },
@@ -167,7 +150,7 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
   });
 
   const updateProp = (key: string, value: unknown) => {
-    saveMutation.mutate({ ...headerProps, [key]: value });
+    saveMutation.mutate({ [key]: value });
   };
 
   const toggleSection = (key: string) => {
