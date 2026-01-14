@@ -5,6 +5,7 @@ import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { useTemplateSets } from '@/hooks/useTemplatesSets';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import { 
   LayoutTemplate, 
   Sparkles,
@@ -16,6 +17,7 @@ import {
   MoreVertical,
   ExternalLink,
   Play,
+  Check,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -86,9 +88,15 @@ export function StorefrontTemplatesTab() {
   const [renameTarget, setRenameTarget] = useState<{ id: string; name: string } | null>(null);
   const [publishTarget, setPublishTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [installPresetTarget, setInstallPresetTarget] = useState<'cosmetics' | null>(null);
+  const [isInstallingPreset, setIsInstallingPreset] = useState(false);
 
   const storeUrl = getPublicHomeUrl(currentTenant?.slug || '', false);
   const previewUrl = getPublicHomeUrl(currentTenant?.slug || '', true);
+
+  // Check if cosmetics template is already installed and active
+  const cosmeticsTemplate = templates.find(t => t.base_preset === 'cosmetics');
+  const isCosmeticsActive = cosmeticsTemplate?.id === publishedTemplateId;
 
   const handleCreateTemplate = async (name: string) => {
     if (!createPreset) return;
@@ -115,6 +123,38 @@ export function StorefrontTemplatesTab() {
     setDeleteTarget(null);
   };
 
+  // Install a preset template (cosmetics)
+  // If template already exists, just activate it. If not, create and activate.
+  const handleInstallPreset = async () => {
+    if (!installPresetTarget) return;
+    
+    setIsInstallingPreset(true);
+    try {
+      let templateId: string;
+      
+      // Check if template already exists
+      const existingTemplate = templates.find(t => t.base_preset === installPresetTarget);
+      
+      if (existingTemplate) {
+        // Just activate the existing template
+        templateId = existingTemplate.id;
+      } else {
+        // Create new template with preset
+        const result = await createTemplate.mutateAsync({ 
+          name: 'Template Cosméticos', 
+          basePreset: installPresetTarget 
+        });
+        templateId = result.id;
+      }
+      
+      // Set as published/active template
+      await setPublishedTemplate.mutateAsync(templateId);
+      setInstallPresetTarget(null);
+    } finally {
+      setIsInstallingPreset(false);
+    }
+  };
+
   const handleDuplicateTemplate = async (templateId: string) => {
     await duplicateTemplate.mutateAsync(templateId);
   };
@@ -127,8 +167,8 @@ export function StorefrontTemplatesTab() {
     navigate(`/storefront/builder?templateId=${templateId}&edit=home&mode=preview`);
   };
 
-  // Templates que NÃO são o publicado
-  const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId);
+  // Templates que NÃO são o publicado e NÃO são presets (cosmetics já tem card próprio)
+  const otherTemplates = templates.filter((t) => t.id !== publishedTemplateId && t.base_preset !== 'cosmetics');
 
   if (isLoading) {
     return (
@@ -282,24 +322,30 @@ export function StorefrontTemplatesTab() {
             />
           ))}
 
-          {/* Presets disponíveis para criar novos templates - sempre disponíveis para criar mais templates */}
+          {/* Template Cosméticos - Preset pronto */}
           <PresetCard
             name={PRESET_INFO.cosmetics.name}
             description={PRESET_INFO.cosmetics.description}
             thumbnail={PRESET_THUMBNAILS.cosmetics}
-            // No badge for cosmetics - install directly
+            badge={isCosmeticsActive ? 'Em uso' : undefined}
+            badgeVariant={isCosmeticsActive ? 'default' : 'secondary'}
             onPreview={() => navigate('/storefront/builder?preset=cosmetics&mode=preview')}
-            onInstall={async () => {
-              // Install directly with auto-generated unique name
-              const baseName = 'Template Cosméticos';
-              const existingCount = templates.filter(t => t.name.startsWith(baseName)).length;
-              const uniqueName = existingCount > 0 ? `${baseName} (${existingCount + 1})` : baseName;
-              const result = await createTemplate.mutateAsync({ name: uniqueName, basePreset: 'cosmetics' });
-              navigate(`/storefront/builder?templateId=${result.id}&edit=home`);
+            onInstall={() => {
+              if (isCosmeticsActive) {
+                // Already active, go to editor
+                if (cosmeticsTemplate) {
+                  navigate(`/storefront/builder?templateId=${cosmeticsTemplate.id}&edit=home`);
+                }
+              } else {
+                // Show confirmation dialog
+                setInstallPresetTarget('cosmetics');
+              }
             }}
-            installLabel="Instalar"
+            installLabel={isCosmeticsActive ? 'Instalado' : 'Instalar'}
+            isInstalled={isCosmeticsActive}
           />
 
+          {/* Iniciar do Zero - Cria novo template */}
           <PresetCard
             name={PRESET_INFO.blank.name}
             description={PRESET_INFO.blank.description}
@@ -356,6 +402,35 @@ export function StorefrontTemplatesTab() {
               className="bg-destructive hover:bg-destructive/90"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Install Preset Confirmation Dialog */}
+      <AlertDialog open={installPresetTarget !== null} onOpenChange={(open) => !open && setInstallPresetTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Instalar Template Cosméticos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {publishedTemplate ? (
+                <>
+                  Isso vai substituir o tema ativo atual "<strong>{publishedTemplate.name}</strong>" pelo Template Cosméticos.
+                  <br /><br />
+                  O tema atual continuará disponível na lista de "Outros temas" e poderá ser reativado a qualquer momento.
+                </>
+              ) : (
+                'O Template Cosméticos será instalado e ativado como tema da sua loja.'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isInstallingPreset}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleInstallPreset}
+              disabled={isInstallingPreset}
+            >
+              {isInstallingPreset ? 'Instalando...' : 'Instalar e ativar'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -462,6 +537,7 @@ interface PresetCardProps {
   onPreview: () => void;
   onInstall: () => void;
   installLabel?: string;
+  isInstalled?: boolean;
 }
 
 function PresetCard({
@@ -473,14 +549,27 @@ function PresetCard({
   onPreview, 
   onInstall,
   installLabel = 'Instalar',
+  isInstalled = false,
 }: PresetCardProps) {
   return (
-    <div className="group rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow border-dashed border-primary/30">
+    <div className={cn(
+      "group rounded-xl border bg-card shadow-sm overflow-hidden hover:shadow-md transition-shadow",
+      isInstalled 
+        ? "border-emerald-500/50 border-solid" 
+        : "border-dashed border-primary/30"
+    )}>
       {/* Header com nome */}
       <div className="flex items-center gap-2 p-4 border-b">
         <Sparkles className="h-4 w-4 text-primary" />
         <h4 className="font-medium">{name}</h4>
-        {badge && <Badge variant={badgeVariant}>{badge}</Badge>}
+        {badge && (
+          <Badge 
+            variant={badgeVariant}
+            className={isInstalled ? "bg-emerald-500 text-white" : undefined}
+          >
+            {badge}
+          </Badge>
+        )}
       </div>
 
       {/* Thumbnail */}
@@ -504,8 +593,12 @@ function PresetCard({
         </Button>
         <Button 
           size="sm" 
-          className="flex-1" 
+          className={cn(
+            "flex-1",
+            isInstalled && "bg-emerald-500 hover:bg-emerald-600"
+          )}
           onClick={onInstall}
+          disabled={isInstalled}
         >
           {installLabel}
         </Button>
