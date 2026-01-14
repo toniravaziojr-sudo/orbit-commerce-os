@@ -266,13 +266,20 @@ export function VisualBuilder({
   }, [globalLayout?.needsMigration, layoutLoading, migrateFromHome]);
 
   // Sync content when template or global layout changes
+  // CRITICAL: Only sync when NOT dirty to prevent overwriting user changes (blocks added/moved)
   // Use preserveSelection to avoid losing sidebar when overrides change
   useEffect(() => {
     if (!layoutLoading && !overridesLoading) {
+      // GUARD: Do NOT overwrite if user has made changes (isDirty)
+      // This prevents the "added block disappears" bug
+      if (store.isDirty) {
+        console.log('[VisualBuilder] Skipping content sync - store is dirty (user has unsaved changes)');
+        return;
+      }
       // Preserve selection when only pageOverrides change (to keep sidebar visible)
       store.setContent(contentWithGlobalLayout, true);
     }
-  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store]);
+  }, [pageType, contentWithGlobalLayout, layoutLoading, overridesLoading, store, store.isDirty]);
 
 
   // Warn before leaving with unsaved changes
@@ -323,23 +330,28 @@ export function VisualBuilder({
   const handleAddBlock = useCallback((type: string, parentId?: string, index?: number) => {
     console.log('[handleAddBlock] Called with:', { type, parentId, index });
     
-    // The store.addBlock now uses functional setState internally,
-    // so it will always use the current content. We just pass the explicit
-    // parent/index if provided, otherwise let the store resolve from current state.
+    // The store.addBlock now uses functional setState internally with structuredClone,
+    // ensuring full immutability and new references. It returns { ok, blockId, reason }.
+    
+    let result: { ok: boolean; blockId?: string; reason?: string };
     
     if (parentId !== undefined && index !== undefined) {
       // Explicit parent and index provided (e.g., from drag-and-drop)
       console.log('[handleAddBlock] Using explicit parent/index:', { parentId, index });
-      store.addBlock(type, parentId, index);
+      result = store.addBlock(type, parentId, index);
     } else {
       // Let resolveInsertTarget determine the best location
-      // This needs to use store.content which might be stale, so we'll pass undefined
-      // and let the store handle the default insertion logic
       console.log('[handleAddBlock] Using default insertion (root)');
-      store.addBlock(type);
+      result = store.addBlock(type);
     }
     
-    toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
+    // Provide user feedback based on result
+    if (result.ok) {
+      toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
+    } else {
+      toast.error(`Erro ao adicionar bloco: ${result.reason || 'Falha desconhecida'}`);
+      console.error('[handleAddBlock] Failed to add block:', result);
+    }
   }, [store]);
 
   // Determine entity type based on pageType

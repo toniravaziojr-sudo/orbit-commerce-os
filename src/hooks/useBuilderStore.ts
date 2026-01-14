@@ -97,11 +97,12 @@ export function useBuilderStore(initialContent?: BlockNode) {
   }, []);
 
   // Add a new block - uses functional setState to avoid stale closure
-  const addBlock = useCallback((type: string, parentId?: string, index?: number) => {
+  // Returns { ok: boolean, blockId?: string, reason?: string } for feedback
+  const addBlock = useCallback((type: string, parentId?: string, index?: number): { ok: boolean; blockId?: string; reason?: string } => {
     const definition = blockRegistry.get(type);
     if (!definition) {
       console.warn(`[addBlock] Block type "${type}" not found in registry`);
-      return;
+      return { ok: false, reason: `Tipo de bloco "${type}" não encontrado` };
     }
 
     const newBlock: BlockNode = {
@@ -113,7 +114,12 @@ export function useBuilderStore(initialContent?: BlockNode) {
 
     console.log('[addBlock] Creating block:', { type, parentId, index, newBlockId: newBlock.id });
 
+    let result: { ok: boolean; blockId?: string; reason?: string } = { ok: false, reason: 'Erro desconhecido' };
+
     setState(prev => {
+      // CRITICAL: Use structuredClone for full immutability (new reference)
+      const clonedContent = structuredClone(prev.content);
+      
       // Resolve the correct parent and index using current state
       let targetParentId: string;
       let targetIndex: number | undefined;
@@ -124,37 +130,51 @@ export function useBuilderStore(initialContent?: BlockNode) {
         targetIndex = index;
       } else {
         // Resolve the best insert target based on current selection
-        const resolved = resolveInsertTarget(prev.content, prev.selectedBlockId);
+        const resolved = resolveInsertTarget(clonedContent, prev.selectedBlockId);
         targetParentId = resolved.parentId;
         targetIndex = resolved.index;
       }
       
       console.log('[addBlock] Current content:', { 
-        contentId: prev.content.id, 
-        contentType: prev.content.type,
-        childrenCount: prev.content.children?.length,
+        contentId: clonedContent.id, 
+        contentType: clonedContent.type,
+        childrenCount: clonedContent.children?.length,
         targetParentId,
         targetIndex,
         selectedBlockId: prev.selectedBlockId
       });
       
-      const newContent = addBlockChild(prev.content, targetParentId, newBlock, targetIndex);
+      const newContent = addBlockChild(clonedContent, targetParentId, newBlock, targetIndex);
       
-      // Verify block was added
+      // Verify block was added AND reference changed
       const addedBlock = findBlockById(newContent, newBlock.id);
+      const referenceChanged = newContent !== prev.content;
+      
       if (!addedBlock) {
-        console.error('[addBlock] Block was NOT added! Check addBlockChild logic.');
+        console.error('[addBlock] Block was NOT added! Parent not found or addBlockChild failed.');
+        console.groupCollapsed('[ADD_BLOCK_FAIL] Diagnostic');
+        console.log('targetParentId:', targetParentId);
+        console.log('targetIndex:', targetIndex);
+        console.log('prevContentId:', prev.content.id);
+        console.log('newContentId:', newContent.id);
+        console.log('childrenCount before:', prev.content.children?.length);
+        console.log('childrenCount after:', newContent.children?.length);
+        console.groupEnd();
+        result = { ok: false, reason: `Não foi possível inserir no container "${targetParentId}"` };
         return prev;
       }
       
       console.log('[addBlock] Block added successfully:', { 
         newBlockId: newBlock.id, 
-        newChildrenCount: newContent.children?.length 
+        newChildrenCount: newContent.children?.length,
+        referenceChanged 
       });
       
       const newHistory = prev.history.slice(0, prev.historyIndex + 1);
       newHistory.push(cloneBlockNode(newContent));
       if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      
+      result = { ok: true, blockId: newBlock.id };
       
       return {
         ...prev,
@@ -165,6 +185,8 @@ export function useBuilderStore(initialContent?: BlockNode) {
         isDirty: true,
       };
     });
+
+    return result;
   }, []);
 
   // Remove a block - uses functional setState to avoid stale closure
