@@ -124,11 +124,18 @@ export interface CartItemContext {
 
 // Store settings context
 export interface StoreSettingsContext {
+  tenant_id?: string;
   store_name?: string;
   logo_url?: string;
   primary_color?: string;
   secondary_color?: string;
   accent_color?: string;
+  // Contact info
+  contact_phone?: string;
+  contact_email?: string;
+  contact_address?: string;
+  contact_support_hours?: string;
+  // Social
   social_instagram?: string;
   social_facebook?: string;
   social_whatsapp?: string;

@@ -455,6 +455,8 @@ function HeaderBlock({ context, isEditing, block }: any) {
     social_whatsapp: settings.social_whatsapp,
     contact_phone: settings.contact_phone,
     contact_email: settings.contact_email,
+    contact_address: settings.contact_address,
+    contact_support_hours: settings.contact_support_hours,
     social_facebook: settings.social_facebook,
     social_instagram: settings.social_instagram,
   } : null;

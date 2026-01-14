@@ -299,11 +299,20 @@ export default function StorefrontBuilder() {
     tenantSlug: currentTenant.slug,
     isPreview: false,
     settings: {
+      tenant_id: currentTenant.id,
       store_name: storeSettings?.store_name || currentTenant.name,
       logo_url: storeSettings?.logo_url || undefined,
       primary_color: storeSettings?.primary_color || undefined,
       secondary_color: storeSettings?.secondary_color || undefined,
       accent_color: storeSettings?.accent_color || undefined,
+      // Contact info for header/footer
+      contact_phone: storeSettings?.contact_phone || undefined,
+      contact_email: storeSettings?.contact_email || undefined,
+      contact_address: storeSettings?.contact_address || undefined,
+      contact_support_hours: storeSettings?.contact_support_hours || undefined,
+      social_whatsapp: storeSettings?.social_whatsapp || undefined,
+      social_facebook: storeSettings?.social_facebook || undefined,
+      social_instagram: storeSettings?.social_instagram || undefined,
     },
     // Include header menu in editor context (with resolved URLs)
     headerMenu: headerMenuData?.map(item => ({
