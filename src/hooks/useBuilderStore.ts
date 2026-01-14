@@ -11,7 +11,8 @@ import {
   addBlockChild, 
   removeBlock, 
   moveBlock, 
-  duplicateBlock 
+  duplicateBlock,
+  resolveInsertTarget
 } from '@/lib/builder/utils';
 import { blockRegistry } from '@/lib/builder/registry';
 import { createEmptyPage } from '@/lib/builder/types';
@@ -34,28 +35,6 @@ export function useBuilderStore(initialContent?: BlockNode) {
     historyIndex: 0,
     isDirty: false,
   }));
-
-  // Push to history
-  const pushHistory = useCallback((newContent: BlockNode) => {
-    setState(prev => {
-      // Trim future history if we're not at the end
-      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
-      newHistory.push(cloneBlockNode(newContent));
-      
-      // Limit history size
-      if (newHistory.length > MAX_HISTORY) {
-        newHistory.shift();
-      }
-      
-      return {
-        ...prev,
-        content: newContent,
-        history: newHistory,
-        historyIndex: newHistory.length - 1,
-        isDirty: true,
-      };
-    });
-  }, []);
 
   // Set content without history (for initial load)
   const setContent = useCallback((content: BlockNode, preserveSelection?: boolean) => {
@@ -102,84 +81,187 @@ export function useBuilderStore(initialContent?: BlockNode) {
 
   // Update block props
   const updateProps = useCallback((blockId: string, props: Record<string, unknown>) => {
-    const newContent = updateBlockProps(state.content, blockId, props);
-    pushHistory(newContent);
-  }, [state.content, pushHistory]);
+    setState(prev => {
+      const newContent = updateBlockProps(prev.content, blockId, props);
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return {
+        ...prev,
+        content: newContent,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
 
-  // Add a new block
+  // Add a new block - uses functional setState to avoid stale closure
   const addBlock = useCallback((type: string, parentId?: string, index?: number) => {
     const definition = blockRegistry.get(type);
     if (!definition) {
-      console.warn(`Block type "${type}" not found in registry`);
+      console.warn(`[addBlock] Block type "${type}" not found in registry`);
       return;
     }
 
     const newBlock: BlockNode = {
-      id: `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
       type,
       props: { ...definition.defaultProps },
       children: definition.canHaveChildren ? [] : undefined,
     };
 
-    // Use content's root id instead of hardcoded 'root'
-    const targetParentId = parentId || state.content.id;
-    const newContent = addBlockChild(state.content, targetParentId, newBlock, index);
-    pushHistory(newContent);
-    selectBlock(newBlock.id);
-  }, [state.content, pushHistory, selectBlock]);
+    console.log('[addBlock] Creating block:', { type, parentId, index, newBlockId: newBlock.id });
 
-  // Remove a block
+    setState(prev => {
+      // Resolve the correct parent and index using current state
+      let targetParentId: string;
+      let targetIndex: number | undefined;
+      
+      if (parentId !== undefined) {
+        // Explicit parent provided
+        targetParentId = parentId;
+        targetIndex = index;
+      } else {
+        // Resolve the best insert target based on current selection
+        const resolved = resolveInsertTarget(prev.content, prev.selectedBlockId);
+        targetParentId = resolved.parentId;
+        targetIndex = resolved.index;
+      }
+      
+      console.log('[addBlock] Current content:', { 
+        contentId: prev.content.id, 
+        contentType: prev.content.type,
+        childrenCount: prev.content.children?.length,
+        targetParentId,
+        targetIndex,
+        selectedBlockId: prev.selectedBlockId
+      });
+      
+      const newContent = addBlockChild(prev.content, targetParentId, newBlock, targetIndex);
+      
+      // Verify block was added
+      const addedBlock = findBlockById(newContent, newBlock.id);
+      if (!addedBlock) {
+        console.error('[addBlock] Block was NOT added! Check addBlockChild logic.');
+        return prev;
+      }
+      
+      console.log('[addBlock] Block added successfully:', { 
+        newBlockId: newBlock.id, 
+        newChildrenCount: newContent.children?.length 
+      });
+      
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      
+      return {
+        ...prev,
+        content: newContent,
+        selectedBlockId: newBlock.id,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
+
+  // Remove a block - uses functional setState to avoid stale closure
   const removeBlockById = useCallback((blockId: string) => {
-    const block = findBlockById(state.content, blockId);
-    if (!block) return;
+    setState(prev => {
+      const block = findBlockById(prev.content, blockId);
+      if (!block) return prev;
 
-    const definition = blockRegistry.get(block.type);
-    if (definition?.isRemovable === false) return;
+      const definition = blockRegistry.get(block.type);
+      if (definition?.isRemovable === false) return prev;
 
-    const newContent = removeBlock(state.content, blockId);
-    pushHistory(newContent);
-    
-    if (state.selectedBlockId === blockId) {
-      selectBlock(null);
-    }
-  }, [state.content, state.selectedBlockId, pushHistory, selectBlock]);
+      const newContent = removeBlock(prev.content, blockId);
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      
+      return {
+        ...prev,
+        content: newContent,
+        selectedBlockId: prev.selectedBlockId === blockId ? null : prev.selectedBlockId,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
 
-  // Move a block
+  // Move a block - uses functional setState to avoid stale closure
   const moveBlockById = useCallback((blockId: string, newParentId: string, newIndex: number) => {
-    const newContent = moveBlock(state.content, blockId, newParentId, newIndex);
-    pushHistory(newContent);
-  }, [state.content, pushHistory]);
+    setState(prev => {
+      const newContent = moveBlock(prev.content, blockId, newParentId, newIndex);
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return {
+        ...prev,
+        content: newContent,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
 
-  // Duplicate a block
+  // Duplicate a block - uses functional setState to avoid stale closure
   const duplicateBlockById = useCallback((blockId: string) => {
-    const block = findBlockById(state.content, blockId);
-    if (!block) return;
+    setState(prev => {
+      const block = findBlockById(prev.content, blockId);
+      if (!block) return prev;
 
-    const definition = blockRegistry.get(block.type);
-    if (definition?.isRemovable === false) return;
+      const definition = blockRegistry.get(block.type);
+      if (definition?.isRemovable === false) return prev;
 
-    const newContent = duplicateBlock(state.content, blockId);
-    pushHistory(newContent);
-  }, [state.content, pushHistory]);
+      const newContent = duplicateBlock(prev.content, blockId);
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return {
+        ...prev,
+        content: newContent,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
 
-  // Toggle block visibility
+  // Toggle block visibility - uses functional setState to avoid stale closure
   const toggleBlockHidden = useCallback((blockId: string) => {
-    const block = findBlockById(state.content, blockId);
-    if (!block) return;
+    setState(prev => {
+      const block = findBlockById(prev.content, blockId);
+      if (!block) return prev;
 
-    const newContent = updateBlockProps(state.content, blockId, {});
-    // Need to toggle hidden on the block node itself, not props
-    const toggleHiddenInTree = (node: BlockNode): BlockNode => {
-      if (node.id === blockId) {
-        return { ...node, hidden: !node.hidden };
-      }
-      if (node.children) {
-        return { ...node, children: node.children.map(toggleHiddenInTree) };
-      }
-      return node;
-    };
-    pushHistory(toggleHiddenInTree(state.content));
-  }, [state.content, pushHistory]);
+      // Need to toggle hidden on the block node itself, not props
+      const toggleHiddenInTree = (node: BlockNode): BlockNode => {
+        if (node.id === blockId) {
+          return { ...node, hidden: !node.hidden };
+        }
+        if (node.children) {
+          return { ...node, children: node.children.map(toggleHiddenInTree) };
+        }
+        return node;
+      };
+      
+      const newContent = toggleHiddenInTree(prev.content);
+      const newHistory = prev.history.slice(0, prev.historyIndex + 1);
+      newHistory.push(cloneBlockNode(newContent));
+      if (newHistory.length > MAX_HISTORY) newHistory.shift();
+      return {
+        ...prev,
+        content: newContent,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        isDirty: true,
+      };
+    });
+  }, []);
 
   // Undo
   const undo = useCallback(() => {
