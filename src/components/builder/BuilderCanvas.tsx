@@ -31,7 +31,7 @@ interface BuilderCanvasProps {
   context: BlockRenderContext;
   selectedBlockId: string | null;
   onSelectBlock: (id: string | null) => void;
-  onAddBlock?: (type: string, parentId: string, index: number) => void;
+  onAddBlock?: (type: string, parentId?: string, index?: number) => void;
   onMoveBlock?: (blockId: string, direction: 'up' | 'down') => void;
   onDuplicateBlock?: (blockId: string) => void;
   onDeleteBlock?: (blockId: string) => void;
@@ -119,16 +119,26 @@ export function BuilderCanvas({
     onDragEnd: useCallback((event: DragEndEvent) => {
       const { active, over } = event;
       
-      if (!over || !onAddBlock) return;
+      if (!onAddBlock) return;
       
       const blockType = active.data.current?.blockType;
-      if (!blockType) return;
+      const isNewBlock = active.data.current?.isNewBlock;
       
-      const overData = over.data.current;
-      const parentId = overData?.parentId || content.id;
-      const index = overData?.index ?? (content.children?.length || 0);
+      // Only handle new blocks from the drawer
+      if (!blockType || !isNewBlock) return;
       
-      onAddBlock(blockType, parentId, index);
+      // If dropped over a specific target, use that position
+      if (over) {
+        const overData = over.data.current;
+        const parentId = overData?.parentId || content.id;
+        const index = overData?.index ?? (content.children?.length || 0);
+        onAddBlock(blockType, parentId, index);
+      } else {
+        // If dropped anywhere (even outside canvas), add at the end
+        // This allows dropping from drawer without precise targeting
+        onAddBlock(blockType);
+      }
+      
       setDropIndex(null);
     }, [onAddBlock, content]),
     onDragOver: useCallback((event: any) => {

@@ -61,21 +61,51 @@ interface BuilderSidebarProps {
 }
 
 // Blocks that should be hidden from the sidebar (infrastructure only)
-const SIDEBAR_HIDDEN_BLOCKS = new Set(['Header', 'Footer', 'Page']);
+// Section IS hidden because it's just a container - we show its CHILDREN instead
+const SIDEBAR_HIDDEN_BLOCKS = new Set(['Header', 'Footer', 'Page', 'Section']);
 
-// Get direct children of the root (main sections), filtering out infrastructure blocks
-// Note: Section is NOT hidden because we want to show content blocks in the sidebar
+// Get all content blocks for sidebar display
+// This flattens Section containers to show their children directly
+// This way the user sees "Image", "RichText", etc. instead of "LayoutDashboard Seção"
 function getMainSections(content: BlockNode, hideStructural: boolean = true): BlockNode[] {
   if (!content.children) return [];
   if (!hideStructural) return content.children;
-  // Filter out ONLY infrastructure blocks (Header, Footer, Page) - NOT Section
-  return content.children.filter(block => !SIDEBAR_HIDDEN_BLOCKS.has(block.type));
+  
+  // Collect all visible blocks, flattening Section containers
+  const result: BlockNode[] = [];
+  
+  for (const block of content.children) {
+    // Skip infrastructure blocks entirely
+    if (block.type === 'Header' || block.type === 'Footer' || block.type === 'Page') {
+      continue;
+    }
+    
+    // For Section blocks, show their children instead of the Section itself
+    if (block.type === 'Section') {
+      if (block.children && block.children.length > 0) {
+        result.push(...block.children);
+      }
+      continue;
+    }
+    
+    // All other blocks are shown directly
+    result.push(block);
+  }
+  
+  return result;
 }
 
-// Get all sections including structural ones (for positioning calculations)
-function getAllSections(content: BlockNode): BlockNode[] {
-  if (!content.children) return [];
-  return content.children;
+// Find the parent of a block (for move operations)
+function findBlockParent(content: BlockNode, blockId: string): BlockNode | null {
+  if (!content.children) return null;
+  for (const child of content.children) {
+    if (child.id === blockId) return content;
+    if (child.children) {
+      const found = findBlockParent(child, blockId);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 // Sortable block item
@@ -236,9 +266,8 @@ export function BuilderSidebar({
   const [activeId, setActiveId] = useState<string | null>(null);
   
   // Get visible sections (without structural blocks like Header/Footer)
+  // This now flattens Section containers to show their children
   const sections = getMainSections(content, true);
-  // Get all sections for drag positioning
-  const allSections = getAllSections(content);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -264,10 +293,12 @@ export function BuilderSidebar({
     const overIndex = sections.findIndex(s => s.id === over.id);
 
     if (activeIndex !== -1 && overIndex !== -1) {
-      // Calculate actual index in allSections considering structural blocks
-      const overBlock = sections[overIndex];
-      const actualOverIndex = allSections.findIndex(s => s.id === overBlock.id);
-      onMoveBlock(active.id as string, content.id, actualOverIndex);
+      // Find the parent of the block being moved and the target position
+      const activeBlock = sections[activeIndex];
+      const parent = findBlockParent(content, activeBlock.id);
+      if (parent) {
+        onMoveBlock(active.id as string, parent.id, overIndex);
+      }
     }
   };
 
