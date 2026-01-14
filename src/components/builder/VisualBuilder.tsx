@@ -13,6 +13,7 @@ import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
 import { getDefaultTemplate } from '@/lib/builder/defaults';
 import { isEssentialBlock, getEssentialBlockReason } from '@/lib/builder/essentialBlocks';
+import { findBlockById, resolveInsertTarget } from '@/lib/builder/utils';
 import { BuilderToolbar } from './BuilderToolbar';
 import { BuilderCanvas } from './BuilderCanvas';
 import { BlockRenderer } from './BlockRenderer';
@@ -320,9 +321,42 @@ export function VisualBuilder({
 
   // Handle adding a new block (with optional parent and index for canvas insertion)
   const handleAddBlock = useCallback((type: string, parentId?: string, index?: number) => {
-    // Use provided parentId, or selected block, or root content id as fallback
-    const targetParentId = parentId || store.selectedBlockId || store.content.id;
-    store.addBlock(type, targetParentId, index);
+    let targetParentId: string;
+    let targetIndex: number | undefined;
+    
+    if (parentId !== undefined && index !== undefined) {
+      // Explicit parent and index provided (e.g., from drag-and-drop)
+      targetParentId = parentId;
+      targetIndex = index;
+    } else {
+      // Resolve the best insert target based on current selection
+      const resolved = resolveInsertTarget(store.content, store.selectedBlockId);
+      targetParentId = resolved.parentId;
+      targetIndex = resolved.index;
+    }
+    
+    // Validate that the parent exists
+    const parentExists = findBlockById(store.content, targetParentId);
+    
+    if (!parentExists) {
+      console.error('[handleAddBlock] Parent not found:', {
+        targetParentId,
+        contentId: store.content.id,
+        contentType: store.content.type,
+        selectedBlockId: store.selectedBlockId,
+      });
+      toast.error('Não foi possível adicionar o bloco. Tente novamente.');
+      return;
+    }
+    
+    console.log('[handleAddBlock] Adding block:', {
+      type,
+      targetParentId,
+      targetIndex,
+      selectedBlockId: store.selectedBlockId,
+    });
+    
+    store.addBlock(type, targetParentId, targetIndex);
     toast.success(`Bloco "${blockRegistry.get(type)?.label || type}" adicionado`);
   }, [store]);
 

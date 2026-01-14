@@ -1,6 +1,7 @@
 // =============================================
 // BUILDER SIDEBAR - Unified left menu (Yampi-style)
 // Shows only blocks from current page with drag/drop, visibility toggle, delete
+// Structural blocks (Header/Footer/Page) are hidden but insertion zones remain
 // =============================================
 
 import { useState, useCallback } from 'react';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import { BlockNode } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
+import { STRUCTURAL_BLOCK_TYPES, isStructuralBlock } from '@/lib/builder/utils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -45,11 +47,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isBlockRequired, canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
-import { isEssentialBlock } from '@/lib/builder/essentialBlocks';
-
-// Structural block types that should be hidden from the sidebar menu
-// These are "infrastructure" blocks - Header, Footer, etc.
-const STRUCTURAL_BLOCK_TYPES = new Set(['Header', 'Footer', 'Page']);
 
 interface BuilderSidebarProps {
   content: BlockNode;
@@ -69,10 +66,10 @@ function getMainSections(content: BlockNode, hideStructural: boolean = true): Bl
   if (!content.children) return [];
   if (!hideStructural) return content.children;
   // Filter out Header, Footer and other structural blocks from the visible list
-  return content.children.filter(block => !STRUCTURAL_BLOCK_TYPES.has(block.type));
+  return content.children.filter(block => !isStructuralBlock(block.type));
 }
 
-// Get all sections including structural ones (for positioning)
+// Get all sections including structural ones (for positioning calculations)
 function getAllSections(content: BlockNode): BlockNode[] {
   if (!content.children) return [];
   return content.children;
