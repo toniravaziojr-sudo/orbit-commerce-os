@@ -761,8 +761,19 @@ export function VisualBuilder({
           setDraggingBlockType(blockType);
         }
       }}
-      onDragEnd={() => {
+      onDragEnd={(event) => {
         setDraggingBlockType(null);
+        
+        // Handle dropping a new block from the AddBlockDrawer
+        const { active, over } = event;
+        const isNewBlock = active.data.current?.isNewBlock;
+        const blockType = active.data.current?.blockType;
+        
+        if (isNewBlock && blockType) {
+          console.log('[DndContext] Dropping new block:', { blockType, over: over?.id });
+          // Add the block at the default position (resolveInsertTarget will determine where)
+          handleAddBlock(blockType);
+        }
       }}
       onDragCancel={() => {
         setDraggingBlockType(null);

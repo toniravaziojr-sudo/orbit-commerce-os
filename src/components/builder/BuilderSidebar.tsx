@@ -4,7 +4,7 @@
 // Structural blocks (Header/Footer/Page) are hidden but insertion zones remain
 // =============================================
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { 
   GripVertical, 
   Eye, 
@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { BlockNode } from '@/lib/builder/types';
 import { blockRegistry } from '@/lib/builder/registry';
-import { STRUCTURAL_BLOCK_TYPES, isStructuralBlock } from '@/lib/builder/utils';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -61,12 +60,16 @@ interface BuilderSidebarProps {
   templateName?: string;
 }
 
-// Get direct children of the root (main sections), filtering out structural blocks
+// Blocks that should be hidden from the sidebar (infrastructure only)
+const SIDEBAR_HIDDEN_BLOCKS = new Set(['Header', 'Footer', 'Page']);
+
+// Get direct children of the root (main sections), filtering out infrastructure blocks
+// Note: Section is NOT hidden because we want to show content blocks in the sidebar
 function getMainSections(content: BlockNode, hideStructural: boolean = true): BlockNode[] {
   if (!content.children) return [];
   if (!hideStructural) return content.children;
-  // Filter out Header, Footer and other structural blocks from the visible list
-  return content.children.filter(block => !isStructuralBlock(block.type));
+  // Filter out ONLY infrastructure blocks (Header, Footer, Page) - NOT Section
+  return content.children.filter(block => !SIDEBAR_HIDDEN_BLOCKS.has(block.type));
 }
 
 // Get all sections including structural ones (for positioning calculations)
