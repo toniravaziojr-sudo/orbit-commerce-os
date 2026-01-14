@@ -24,76 +24,72 @@ interface AddBlockDrawerProps {
   onAddBlock: (type: string) => void;
 }
 
-// Category organization
+// Category organization - 6 categorias consolidadas
 type BlockCategoryType = 
   | 'banners'
   | 'products'
   | 'categories'
-  | 'media'
+  | 'galleries'
   | 'content'
-  | 'social-proof'
-  | 'interactive'
-  | 'info'
+  | 'engagement'
   | 'layout';
 
 const categoryLabels: Record<BlockCategoryType, string> = {
   banners: 'Banners',
-  products: 'Produtos / Coleções',
+  products: 'Produtos',
   categories: 'Categorias',
-  media: 'Mídia',
+  galleries: 'Galerias',
   content: 'Conteúdo',
-  'social-proof': 'Prova Social',
-  interactive: 'Interativo',
-  info: 'Informações',
+  engagement: 'Engajamento',
   layout: 'Layout',
 };
 
 const blockCategoryMapping: Record<string, BlockCategoryType> = {
-  // Banners
+  // Banners (seções de destaque)
   'HeroBanner': 'banners',
   'Hero': 'banners',
-  'Banner': 'banners',
-  'Image': 'banners',
-  // Products
-  'ProductGrid': 'products',
+  'BannerProducts': 'banners',
+  
+  // Produtos (coleções e exibição de produtos)
+  'CollectionSection': 'products',
   'ProductCarousel': 'products',
   'FeaturedProducts': 'products',
   'ProductCard': 'products',
-  'BannerProducts': 'products',
-  'CollectionSection': 'products',
-  // Categories
+  
+  // Categorias
   'CategoryList': 'categories',
   'FeaturedCategories': 'categories',
-  // Media
-  'VideoCarousel': 'media',
-  'ImageCarousel': 'media',
-  'ImageGallery': 'media',
-  'YouTubeVideo': 'media',
-  'VideoUpload': 'media',
-  // Content
+  
+  // Galerias (coleções de mídia)
+  'VideoCarousel': 'galleries',
+  'ImageCarousel': 'galleries',
+  'ImageGallery': 'galleries',
+  'LogosCarousel': 'galleries',
+  
+  // Conteúdo (itens únicos e textos)
   'RichText': 'content',
   'Button': 'content',
-  'ContentColumns': 'content',
-  'FeatureList': 'content',
+  'Image': 'content',
+  'YouTubeVideo': 'content',
+  'VideoUpload': 'content',
+  'TextBanners': 'content',
   'StepsTimeline': 'content',
   'CountdownTimer': 'content',
-  'LogosCarousel': 'content',
   'StatsNumbers': 'content',
-  'AccordionBlock': 'content',
-  // Social Proof
-  'Testimonials': 'social-proof',
-  // Interactive
-  'NewsletterBlock': 'interactive',
-  'ContactFormBlock': 'interactive',
-  'MapBlock': 'interactive',
-  'SocialFeedBlock': 'interactive',
-  'PersonalizedProducts': 'interactive',
-  'LivePurchases': 'interactive',
-  'PricingTable': 'interactive',
-  'PopupModal': 'interactive',
-  // Info
-  'InfoHighlights': 'info',
-  'FAQ': 'info',
+  'FAQ': 'content',
+  'InfoHighlights': 'content',
+  
+  // Engajamento (interação e prova social)
+  'Reviews': 'engagement',
+  'NewsletterBlock': 'engagement',
+  'ContactFormBlock': 'engagement',
+  'MapBlock': 'engagement',
+  'SocialFeedBlock': 'engagement',
+  'PersonalizedProducts': 'engagement',
+  'LivePurchases': 'engagement',
+  'PricingTable': 'engagement',
+  'PopupModal': 'engagement',
+  
   // Layout
   'Section': 'layout',
   'Container': 'layout',
@@ -102,16 +98,23 @@ const blockCategoryMapping: Record<string, BlockCategoryType> = {
   'Divider': 'layout',
 };
 
-// Visible blocks (excluding system blocks)
+// Visible blocks - removidos duplicados: Testimonials, AccordionBlock, ProductGrid, FeatureList, ContentColumns, Banner
 const visibleBlockTypes = new Set([
-  'HeroBanner', 'Hero', 'Banner', 'Image',
-  'ProductGrid', 'ProductCarousel', 'FeaturedProducts', 'ProductCard', 'BannerProducts', 'CollectionSection',
+  // Banners
+  'HeroBanner', 'Hero', 'BannerProducts',
+  // Produtos
+  'CollectionSection', 'ProductCarousel', 'FeaturedProducts', 'ProductCard',
+  // Categorias
   'CategoryList', 'FeaturedCategories',
-  'VideoCarousel', 'ImageCarousel', 'ImageGallery', 'YouTubeVideo', 'VideoUpload',
-  'RichText', 'Button', 'ContentColumns', 'FeatureList', 'StepsTimeline', 'CountdownTimer', 'LogosCarousel', 'StatsNumbers', 'AccordionBlock',
-  'Testimonials',
-  'NewsletterBlock', 'ContactFormBlock', 'MapBlock', 'SocialFeedBlock', 'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'PopupModal',
-  'InfoHighlights', 'FAQ',
+  // Galerias
+  'VideoCarousel', 'ImageCarousel', 'ImageGallery', 'LogosCarousel',
+  // Conteúdo
+  'RichText', 'Button', 'Image', 'YouTubeVideo', 'VideoUpload', 'TextBanners',
+  'StepsTimeline', 'CountdownTimer', 'StatsNumbers', 'FAQ', 'InfoHighlights',
+  // Engajamento
+  'Reviews', 'NewsletterBlock', 'ContactFormBlock', 'MapBlock', 'SocialFeedBlock',
+  'PersonalizedProducts', 'LivePurchases', 'PricingTable', 'PopupModal',
+  // Layout
   'Section', 'Container', 'Columns', 'Spacer', 'Divider',
 ]);
 
@@ -156,11 +159,9 @@ export function AddBlockDrawer({
       banners: [],
       products: [],
       categories: [],
-      media: [],
+      galleries: [],
       content: [],
-      'social-proof': [],
-      interactive: [],
-      info: [],
+      engagement: [],
       layout: [],
     };
 
@@ -182,11 +183,9 @@ export function AddBlockDrawer({
     'banners',
     'products',
     'categories',
-    'media',
+    'galleries',
     'content',
-    'social-proof',
-    'interactive',
-    'info',
+    'engagement',
     'layout',
   ];
 
