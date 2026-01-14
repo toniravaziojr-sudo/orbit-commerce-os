@@ -200,9 +200,8 @@ function SortableBlockItem({
         <span className="text-xs font-medium truncate">{displayName}</span>
       </button>
 
-      {/* Actions - show on hover */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-        {/* Visibility toggle */}
+      {/* Visibility toggle - show on hover */}
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -225,28 +224,6 @@ function SortableBlockItem({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-
-        {/* Delete button - only if not locked */}
-        {!isLocked && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                  }}
-                  className="p-1 rounded hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                Remover
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
       </div>
     </div>
   );
