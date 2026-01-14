@@ -29,6 +29,8 @@ interface StoreSettings {
   social_whatsapp?: string | null;
   contact_phone?: string | null;
   contact_email?: string | null;
+  contact_address?: string | null;
+  contact_support_hours?: string | null;
   social_facebook?: string | null;
   social_instagram?: string | null;
 }
@@ -111,19 +113,15 @@ export function StorefrontHeaderContent({
   const noticeActionTarget = String(props.noticeActionTarget || '_self') as '_self' | '_blank';
   const noticeActionTextColor = String(props.noticeActionTextColor || '');
   
-  // Contact props - with fallback to store_settings
-  const showWhatsApp = Boolean(props.showWhatsApp);
-  const whatsAppNumber = String(props.whatsAppNumber || storeSettings?.social_whatsapp || '');
-  const whatsAppLabel = String(props.whatsAppLabel || '');
-  const showPhone = Boolean(props.showPhone);
-  const phoneNumber = String(props.phoneNumber || storeSettings?.contact_phone || '');
-  const phoneLabel = String(props.phoneLabel || '');
-  const showEmail = Boolean(props.showEmail);
-  const emailAddress = String(props.emailAddress || storeSettings?.contact_email || '');
+  // Contact props - NOW pulled directly from store_settings (single source of truth)
+  // The toggle from header_config is removed - contact info always comes from store settings
+  const whatsAppNumber = String(storeSettings?.social_whatsapp || '');
+  const phoneNumber = String(storeSettings?.contact_phone || '');
+  const emailAddress = String(storeSettings?.contact_email || '');
   
-  // Extended contact props for attendance dropdown
-  const storeAddress = String(props.storeAddress || '');
-  const businessHours = String(props.businessHours || '');
+  // Extended contact props from store_settings
+  const storeAddress = String(storeSettings?.contact_address || '');
+  const businessHours = String(storeSettings?.contact_support_hours || '');
   
   // Customer area props
   const customerAreaEnabled = Boolean(props.customerAreaEnabled);
@@ -260,13 +258,13 @@ export function StorefrontHeaderContent({
     });
   };
   
-  // Use helper functions for validation
+  // Use helper functions for validation - now checking directly if data exists
   const whatsAppHref = getWhatsAppHref(whatsAppNumber);
   const phoneHref = getPhoneHref(phoneNumber);
   const emailHref = getEmailHref(emailAddress);
-  const isWhatsAppValid = showWhatsApp && isValidWhatsApp(whatsAppNumber);
-  const isPhoneValidFlag = showPhone && isValidPhone(phoneNumber);
-  const isEmailValid = showEmail && isValidEmail(emailAddress);
+  const isWhatsAppValid = isValidWhatsApp(whatsAppNumber);
+  const isPhoneValidFlag = isValidPhone(phoneNumber);
+  const isEmailValid = isValidEmail(emailAddress);
   
   // Check if any contact info is available for the dropdown
   const hasContactInfo = isWhatsAppValid || isPhoneValidFlag || isEmailValid || storeAddress || businessHours;
@@ -481,7 +479,7 @@ export function StorefrontHeaderContent({
                               onClick={handleLinkClick}
                             >
                               <MessageCircle className="h-5 w-5 text-green-600" />
-                              {whatsAppLabel || 'WhatsApp'}
+                              WhatsApp
                             </a>
                           )}
                           {isPhoneValidFlag && phoneHref && (
@@ -491,7 +489,7 @@ export function StorefrontHeaderContent({
                               onClick={handleLinkClick}
                             >
                               <Phone className="h-5 w-5 text-blue-600" />
-                              {phoneLabel || phoneNumber}
+                              Telefone
                             </a>
                           )}
                           {isEmailValid && emailHref && (
@@ -607,18 +605,13 @@ export function StorefrontHeaderContent({
               {hasContactInfo && (
                 <HeaderAttendanceDropdown
                   phoneNumber={phoneNumber}
-                  phoneLabel={phoneLabel}
                   whatsAppNumber={whatsAppNumber}
-                  whatsAppLabel={whatsAppLabel}
                   emailAddress={emailAddress}
                   address={storeAddress}
                   businessHours={businessHours}
                   headerTextColor={headerTextColor}
                   headerIconColor={headerIconColor}
                   isEditing={isEditing}
-                  showPhone={showPhone}
-                  showWhatsApp={showWhatsApp}
-                  showEmail={showEmail}
                 />
               )}
               

@@ -12,43 +12,33 @@ import {
 
 interface AttendanceDropdownProps {
   phoneNumber?: string;
-  phoneLabel?: string;
   whatsAppNumber?: string;
-  whatsAppLabel?: string;
   emailAddress?: string;
   address?: string;
   businessHours?: string;
   headerTextColor?: string;
   headerIconColor?: string;
   isEditing?: boolean;
-  showPhone?: boolean;
-  showWhatsApp?: boolean;
-  showEmail?: boolean;
 }
 
 export function HeaderAttendanceDropdown({
   phoneNumber,
-  phoneLabel,
   whatsAppNumber,
-  whatsAppLabel,
   emailAddress,
   address,
   businessHours,
   headerTextColor,
   headerIconColor,
   isEditing = false,
-  showPhone = true,
-  showWhatsApp = true,
-  showEmail = true,
 }: AttendanceDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Validate contact info
-  const isPhoneValid = showPhone && isValidPhone(phoneNumber);
-  const isWhatsAppValid = showWhatsApp && isValidWhatsApp(whatsAppNumber);
-  const isEmailValid = showEmail && isValidEmail(emailAddress);
+  // Validate contact info - show if valid data exists
+  const isPhoneValid = isValidPhone(phoneNumber);
+  const isWhatsAppValid = isValidWhatsApp(whatsAppNumber);
+  const isEmailValid = isValidEmail(emailAddress);
   const phoneHref = getPhoneHref(phoneNumber);
   const whatsAppHref = getWhatsAppHref(whatsAppNumber);
   const emailHref = getEmailHref(emailAddress);
@@ -178,7 +168,7 @@ export function HeaderAttendanceDropdown({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground">Compre por telefone</p>
                   <p className="text-sm font-semibold text-foreground truncate">
-                    {phoneLabel || phoneNumber}
+                    {phoneNumber}
                   </p>
                 </div>
               </a>
@@ -200,7 +190,7 @@ export function HeaderAttendanceDropdown({
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground">Fale no WhatsApp</p>
                   <p className="text-sm font-semibold text-foreground truncate">
-                    {whatsAppLabel || whatsAppNumber}
+                    {whatsAppNumber}
                   </p>
                 </div>
               </a>
