@@ -119,22 +119,6 @@ export function CheckoutConfigTab() {
 
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Zap className="h-4 w-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>Order Bump</Label>
-                <p className="text-sm text-muted-foreground">
-                  Ofertas adicionais antes de finalizar o pedido
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={form.orderBumpEnabled}
-              onCheckedChange={(checked) => handleChange('orderBumpEnabled', checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
               <div className="space-y-0.5">
                 <Label>Depoimentos</Label>

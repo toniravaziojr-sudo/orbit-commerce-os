@@ -160,22 +160,6 @@ export function CartConfigTab() {
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Tag className="h-4 w-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>Cross-sell</Label>
-                <p className="text-sm text-muted-foreground">
-                  Sugestões de produtos complementares
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={form.crossSellEnabled}
-              onCheckedChange={(checked) => handleChange('crossSellEnabled', checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
               <Truck className="h-4 w-4 text-muted-foreground" />
               <div className="space-y-0.5">
                 <Label>Calculadora de frete</Label>

@@ -46,7 +46,7 @@ export default function CartAndCheckout() {
           </TabsTrigger>
           <TabsTrigger value="abandoned" className="flex items-center gap-2">
             <ShoppingBag className="h-4 w-4" />
-            <span className="hidden sm:inline">Abandonados</span>
+            <span className="hidden sm:inline">Checkout Abandonado</span>
           </TabsTrigger>
         </TabsList>
 
