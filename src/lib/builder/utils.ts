@@ -5,9 +5,65 @@
 import type { BlockNode } from './types';
 import { blockRegistry } from './registry';
 
+// Structural block types that are "infrastructure" and hidden from user management
+export const STRUCTURAL_BLOCK_TYPES = new Set(['Header', 'Footer', 'Page']);
+
 // Generate unique ID
 export function generateBlockId(type: string): string {
   return `${type.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Check if a block type is structural (infrastructure)
+export function isStructuralBlock(blockType: string): boolean {
+  return STRUCTURAL_BLOCK_TYPES.has(blockType);
+}
+
+// Get the best insert index for a new block (after Header, before Footer)
+// Returns the index where new blocks should be inserted by default
+export function getDefaultInsertIndex(content: BlockNode): number {
+  if (!content.children || content.children.length === 0) return 0;
+  
+  // Find Footer index - insert before it
+  const footerIndex = content.children.findIndex(child => child.type === 'Footer');
+  if (footerIndex !== -1) return footerIndex;
+  
+  // No footer found, insert at end
+  return content.children.length;
+}
+
+// Get user-managed blocks (excluding structural blocks)
+export function getUserManagedBlocks(content: BlockNode): BlockNode[] {
+  if (!content.children) return [];
+  return content.children.filter(child => !isStructuralBlock(child.type));
+}
+
+// Resolve the correct parent ID and insert index for adding a block
+// This ensures blocks are added to the right place in the tree
+export function resolveInsertTarget(content: BlockNode, selectedBlockId: string | null): {
+  parentId: string;
+  index: number | undefined;
+} {
+  // The root content is always the parent for top-level blocks
+  // We insert directly into content.children
+  const parentId = content.id;
+  
+  // Calculate insert index: after selected block, or at default position
+  let index: number | undefined = undefined;
+  
+  if (selectedBlockId && content.children) {
+    const selectedIndex = content.children.findIndex(child => child.id === selectedBlockId);
+    if (selectedIndex !== -1) {
+      // Insert after selected block
+      index = selectedIndex + 1;
+    }
+  }
+  
+  // If no valid selected block, use default insert position (before Footer)
+  if (index === undefined) {
+    index = getDefaultInsertIndex(content);
+  }
+  
+  return { parentId, index };
 }
 
 // Deep clone a block node
