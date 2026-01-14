@@ -36,17 +36,7 @@ const defaultHeaderProps: Record<string, unknown> = {
   featuredPromosEnabled: false,
 };
 
-// Debounce hook for delayed save
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
-}
-
-// Color input component with INSTANT preview and debounced auto-save
+// Color input component - calls onChange on every change for instant preview
 function ColorInput({ 
   value, 
   onChange, 
@@ -59,33 +49,19 @@ function ColorInput({
   placeholder?: string;
 }) {
   const [localValue, setLocalValue] = useState(value);
-  const debouncedValue = useDebounce(localValue, 600);
-  const isFirstRender = useRef(true);
-  const lastSavedValue = useRef(value);
   
-  // Sync with external value on initial load
+  // Sync with external value on initial load only
   useEffect(() => {
-    if (value !== lastSavedValue.current) {
-      setLocalValue(value);
-      lastSavedValue.current = value;
-    }
+    setLocalValue(value);
   }, [value]);
   
-  // Auto-save after debounce (not on first render)
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    if (debouncedValue !== lastSavedValue.current) {
-      lastSavedValue.current = debouncedValue;
-      onChange(debouncedValue);
-    }
-  }, [debouncedValue, onChange]);
+  const handleChange = (newValue: string) => {
+    setLocalValue(newValue);
+    onChange(newValue); // Instant callback
+  };
   
   const handleClear = () => {
     setLocalValue('');
-    lastSavedValue.current = '';
     onChange('');
   };
   
@@ -96,12 +72,12 @@ function ColorInput({
         <input
           type="color"
           value={localValue || '#000000'}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           className="w-7 h-7 rounded border cursor-pointer"
         />
         <Input
           value={localValue || ''}
-          onChange={(e) => setLocalValue(e.target.value)}
+          onChange={(e) => handleChange(e.target.value)}
           placeholder={placeholder}
           className="flex-1 h-7 text-xs"
         />
@@ -217,10 +193,28 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     },
   });
 
+  // Update cache immediately for instant preview
+  const updateCacheOptimistically = useCallback((propsToSave: Record<string, unknown>) => {
+    const updatedConfig: BlockNode = {
+      id: 'global-header',
+      type: 'Header',
+      props: propsToSave,
+    };
+    
+    // Update the global layout cache immediately
+    queryClient.setQueryData(['global-layout-editor', tenantId], (old: unknown) => {
+      if (!old || typeof old !== 'object') return old;
+      return { ...old, header_config: updatedConfig };
+    });
+  }, [queryClient, tenantId]);
+
   // Debounced save function to prevent spam
   const debouncedSave = useCallback((propsToSave: Record<string, unknown>) => {
     const propsJson = JSON.stringify(propsToSave);
     if (propsJson === lastSavedPropsRef.current) return;
+    
+    // Update cache immediately for instant preview
+    updateCacheOptimistically(propsToSave);
     
     if (saveTimeoutRef.current) {
       clearTimeout(saveTimeoutRef.current);
@@ -229,8 +223,8 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
     saveTimeoutRef.current = setTimeout(() => {
       lastSavedPropsRef.current = propsJson;
       saveMutation.mutate(propsToSave);
-    }, 300);
-  }, [saveMutation]);
+    }, 400);
+  }, [saveMutation, updateCacheOptimistically]);
 
   // Update a single prop - immediate UI, debounced save
   const updateProp = useCallback((key: string, value: unknown) => {
@@ -249,11 +243,13 @@ export function HeaderSettings({ tenantId, templateSetId }: HeaderSettingsProps)
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
+      // Update cache immediately for instant preview
+      updateCacheOptimistically(updated);
       lastSavedPropsRef.current = JSON.stringify(updated);
       saveMutation.mutate(updated);
       return updated;
     });
-  }, [saveMutation]);
+  }, [saveMutation, updateCacheOptimistically]);
 
   const toggleSection = (key: string) => {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }));
