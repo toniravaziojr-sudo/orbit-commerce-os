@@ -20,7 +20,6 @@ import { blockRegistry } from '@/lib/builder/registry';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
   TooltipContent,
@@ -46,6 +45,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { isBlockRequired, canDeleteBlock, getRequiredBlockInfo } from '@/lib/builder/pageContracts';
+import { isEssentialBlock } from '@/lib/builder/essentialBlocks';
+
+// Structural block types that should be hidden from the sidebar menu
+// These are "infrastructure" blocks - Header, Footer, etc.
+const STRUCTURAL_BLOCK_TYPES = new Set(['Header', 'Footer', 'Page']);
 
 interface BuilderSidebarProps {
   content: BlockNode;
@@ -60,8 +64,16 @@ interface BuilderSidebarProps {
   templateName?: string;
 }
 
-// Get direct children of the root (main sections)
-function getMainSections(content: BlockNode): BlockNode[] {
+// Get direct children of the root (main sections), filtering out structural blocks
+function getMainSections(content: BlockNode, hideStructural: boolean = true): BlockNode[] {
+  if (!content.children) return [];
+  if (!hideStructural) return content.children;
+  // Filter out Header, Footer and other structural blocks from the visible list
+  return content.children.filter(block => !STRUCTURAL_BLOCK_TYPES.has(block.type));
+}
+
+// Get all sections including structural ones (for positioning)
+function getAllSections(content: BlockNode): BlockNode[] {
   if (!content.children) return [];
   return content.children;
 }
@@ -223,7 +235,10 @@ export function BuilderSidebar({
 }: BuilderSidebarProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   
-  const sections = getMainSections(content);
+  // Get visible sections (without structural blocks like Header/Footer)
+  const sections = getMainSections(content, true);
+  // Get all sections for drag positioning
+  const allSections = getAllSections(content);
   
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -244,11 +259,15 @@ export function BuilderSidebar({
 
     if (!over || active.id === over.id) return;
 
+    // Use visible sections for drag logic
     const activeIndex = sections.findIndex(s => s.id === active.id);
     const overIndex = sections.findIndex(s => s.id === over.id);
 
     if (activeIndex !== -1 && overIndex !== -1) {
-      onMoveBlock(active.id as string, content.id, overIndex);
+      // Calculate actual index in allSections considering structural blocks
+      const overBlock = sections[overIndex];
+      const actualOverIndex = allSections.findIndex(s => s.id === overBlock.id);
+      onMoveBlock(active.id as string, content.id, actualOverIndex);
     }
   };
 

@@ -1,23 +1,19 @@
 // =============================================
 // THEME SETTINGS PANEL - Yampi-style theme configuration
+// Overlay panel that keeps canvas visible
 // Navigation: Pages, Typography, Colors, Custom CSS
 // =============================================
 
 import { useState } from 'react';
-import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { PagesSettings } from './theme-settings/PagesSettings';
 import { TypographySettings } from './theme-settings/TypographySettings';
 import { ColorsSettings } from './theme-settings/ColorsSettings';
 import { CustomCSSSettings } from './theme-settings/CustomCSSSettings';
+import { PageSettingsContent } from './theme-settings/PageSettingsContent';
 
 interface ThemeSettingsPanelProps {
   open: boolean;
@@ -27,7 +23,7 @@ interface ThemeSettingsPanelProps {
   onNavigateToPage?: (pageType: string) => void;
 }
 
-type SettingsView = 'menu' | 'pages' | 'typography' | 'colors' | 'css';
+type SettingsView = 'menu' | 'pages' | 'typography' | 'colors' | 'css' | 'page-detail';
 
 interface MenuItem {
   id: SettingsView;
@@ -71,9 +67,13 @@ export function ThemeSettingsPanel({
   onNavigateToPage,
 }: ThemeSettingsPanelProps) {
   const [currentView, setCurrentView] = useState<SettingsView>('menu');
+  const [selectedPageType, setSelectedPageType] = useState<string | null>(null);
 
   const handleBack = () => {
-    if (currentView === 'menu') {
+    if (currentView === 'page-detail') {
+      setCurrentView('pages');
+      setSelectedPageType(null);
+    } else if (currentView === 'menu') {
       onOpenChange(false);
     } else {
       setCurrentView('menu');
@@ -82,7 +82,18 @@ export function ThemeSettingsPanel({
 
   const handleClose = () => {
     setCurrentView('menu');
+    setSelectedPageType(null);
     onOpenChange(false);
+  };
+
+  const handlePageSelect = (pageType: string) => {
+    setSelectedPageType(pageType);
+    setCurrentView('page-detail');
+  };
+
+  const handleNavigateToPage = (pageType: string) => {
+    handleClose();
+    onNavigateToPage?.(pageType);
   };
 
   const renderContent = () => {
@@ -92,12 +103,18 @@ export function ThemeSettingsPanel({
           <PagesSettings 
             tenantId={tenantId} 
             templateSetId={templateSetId}
-            onNavigateToPage={(pageType) => {
-              handleClose();
-              onNavigateToPage?.(pageType);
-            }}
+            onNavigateToPage={handleNavigateToPage}
+            onPageSelect={handlePageSelect}
           />
         );
+      case 'page-detail':
+        return selectedPageType ? (
+          <PageSettingsContent
+            tenantId={tenantId}
+            pageType={selectedPageType}
+            onNavigateToEdit={() => handleNavigateToPage(selectedPageType)}
+          />
+        ) : null;
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
@@ -113,6 +130,8 @@ export function ThemeSettingsPanel({
     switch (currentView) {
       case 'pages':
         return 'Páginas';
+      case 'page-detail':
+        return getPageLabel(selectedPageType);
       case 'typography':
         return 'Tipografia';
       case 'colors':
@@ -124,24 +143,46 @@ export function ThemeSettingsPanel({
     }
   };
 
-  return (
-    <Sheet open={open} onOpenChange={handleClose}>
-      <SheetContent side="left" className="w-80 p-0">
-        <SheetHeader className="p-4 border-b">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleBack}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <SheetTitle>{getTitle()}</SheetTitle>
-          </div>
-        </SheetHeader>
+  if (!open) return null;
 
-        <ScrollArea className="h-[calc(100vh-65px)]">
+  return (
+    <>
+      {/* Semi-transparent overlay - clicking closes the panel */}
+      <div 
+        className="fixed inset-0 bg-black/20 z-40 transition-opacity duration-200"
+        onClick={handleClose}
+      />
+      
+      {/* Sliding panel */}
+      <div 
+        className={cn(
+          'fixed left-0 top-0 h-full w-80 bg-background border-r shadow-xl z-50',
+          'transform transition-transform duration-200 ease-out',
+          open ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 p-3 border-b">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleBack}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <span className="font-semibold text-sm flex-1">{getTitle()}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <ScrollArea className="h-[calc(100vh-57px)]">
           {currentView === 'menu' ? (
             <div className="p-2 space-y-1">
               {menuItems.map((item) => (
@@ -174,7 +215,25 @@ export function ThemeSettingsPanel({
             </div>
           )}
         </ScrollArea>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
+}
+
+// Helper to get page label
+function getPageLabel(pageType: string | null): string {
+  const labels: Record<string, string> = {
+    home: 'Página Inicial',
+    category: 'Categoria',
+    product: 'Produto',
+    cart: 'Carrinho',
+    checkout: 'Checkout',
+    thank_you: 'Obrigado',
+    account: 'Minha Conta',
+    account_orders: 'Pedidos',
+    account_order_detail: 'Pedido',
+    tracking: 'Rastreio',
+    blog: 'Blog',
+  };
+  return labels[pageType || ''] || 'Página';
 }
