@@ -109,13 +109,14 @@ export function CartDemoBlock({
     <div className="container mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-8">
         <ShoppingCart className="h-8 w-8 text-primary" />
-        <h1 className="text-3xl font-bold">{title}</h1>
+        <h1 className="text-2xl font-bold">{title}</h1>
         <Badge variant="secondary" className="ml-2">{cartItems.length} itens</Badge>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-8">
-        {/* Cart Items */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Cart Layout - uses sf-cart-layout for container query responsiveness */}
+      <div className="sf-cart-layout">
+        {/* Cart Items - main column */}
+        <div className="space-y-6 min-w-0">
           {/* Items List */}
           <Card>
             <CardHeader className="pb-2">
@@ -177,7 +178,8 @@ export function CartDemoBlock({
                 <CardTitle className="text-lg">Você também pode gostar</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Grid uses sf-offers-grid for container-based responsiveness */}
+                <div className="sf-offers-grid">
                   {crossSellProducts.map((product) => (
                     <div key={product.id} className="group">
                       <div className="aspect-square rounded-lg overflow-hidden bg-muted mb-2">
@@ -201,8 +203,8 @@ export function CartDemoBlock({
           )}
         </div>
 
-        {/* Order Summary */}
-        <div className="lg:col-span-1">
+        {/* Order Summary - sidebar */}
+        <div className="sf-cart-summary min-w-0">
           <Card className="sticky top-4">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg">Resumo do Pedido</CardTitle>

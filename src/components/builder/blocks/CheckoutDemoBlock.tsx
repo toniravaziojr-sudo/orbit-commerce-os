@@ -153,9 +153,10 @@ export function CheckoutDemoBlock({
         </div>
       )}
 
-      <div className="grid lg:grid-cols-5 gap-8">
-        {/* Checkout Form */}
-        <div className="lg:col-span-3 space-y-6">
+      {/* Checkout Layout - uses sf-checkout-layout for container query responsiveness */}
+      <div className="sf-checkout-layout">
+        {/* Checkout Form - main column */}
+        <div className="space-y-6 min-w-0">
           {/* Contact Info (completed) */}
           <Card className="border-green-200 dark:border-green-900">
             <CardHeader className="pb-2">
@@ -262,9 +263,9 @@ export function CheckoutDemoBlock({
                   </div>
                 </RadioGroup>
 
-                {/* Credit card form */}
+                {/* Credit card form - uses sf-checkout-form-grid for responsiveness */}
                 <div className="space-y-4 pt-4 border-t">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="sf-checkout-form-grid">
                     <div className="col-span-2">
                       <Label htmlFor="card-number">Número do Cartão</Label>
                       <Input id="card-number" placeholder="0000 0000 0000 0000" />
@@ -340,8 +341,8 @@ export function CheckoutDemoBlock({
           )}
         </div>
 
-        {/* Order Summary */}
-        <div className="lg:col-span-2">
+        {/* Order Summary - sidebar */}
+        <div className="sf-checkout-summary-desktop min-w-0">
           <Card className="sticky top-4">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center gap-2">
