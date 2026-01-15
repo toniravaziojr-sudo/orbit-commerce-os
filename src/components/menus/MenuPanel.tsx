@@ -355,6 +355,7 @@ export default function MenuPanel({
     const wasNesting = nestingTargetId !== null;
     const wasUnnesting = isUnnesting;
     const targetId = nestingTargetId;
+    const deltaX = event.delta.x;
 
     setDraggedId(null);
     setNestingTargetId(null);
@@ -366,10 +367,10 @@ export default function MenuPanel({
 
     const activeId = active.id as string;
     const activeItem = localItems.find(i => i.id === activeId);
+    if (!activeItem) return;
 
-    // Unnesting: dragged left = move to root level
-    if (wasUnnesting && activeItem?.parent_id) {
-      // Encontrar o parent atual e colocar DEPOIS dele no nível do parent
+    // Unnesting: dragged left = move up one level (to parent's level)
+    if (wasUnnesting && activeItem.parent_id) {
       const currentParent = localItems.find(i => i.id === activeItem.parent_id);
       const grandParentId = currentParent?.parent_id || null;
       const siblingsOfParent = localItems.filter(i => i.parent_id === grandParentId && !i.isDeleted);
@@ -381,7 +382,6 @@ export default function MenuPanel({
           if (i.id === activeId) {
             return { ...i, parent_id: grandParentId, sort_order: newSortOrder };
           }
-          // Shift items after insertion point
           if (i.parent_id === grandParentId && i.sort_order >= newSortOrder && !i.isDeleted && i.id !== activeId) {
             return { ...i, sort_order: i.sort_order + 1 };
           }
@@ -402,55 +402,69 @@ export default function MenuPanel({
       return;
     }
 
-    // Normal reorder - drop sobre outro item
+    // Normal drop - determine behavior based on target
     if (!over) return;
     const overId = over.id as string;
     if (activeId === overId) return;
 
     const overItem = localItems.find(i => i.id === overId);
+    if (!overItem) return;
 
-    if (activeItem && overItem) {
-      // O item vai para o MESMO NÍVEL do item sobre o qual foi solto
+    // Determinar se é mesma hierarquia ou não
+    const sameParent = activeItem.parent_id === overItem.parent_id;
+
+    if (sameParent) {
+      // Reordenar dentro do mesmo nível
+      const siblings = localItems.filter(i => i.parent_id === activeItem.parent_id && !i.isDeleted);
+      const oldIndex = siblings.findIndex(i => i.id === activeId);
+      const newIndex = siblings.findIndex(i => i.id === overId);
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const reordered = arrayMove(siblings, oldIndex, newIndex);
+        
+        setLocalItems(prev => {
+          const updated = [...prev];
+          reordered.forEach((item, index) => {
+            const idx = updated.findIndex(i => i.id === item.id);
+            if (idx !== -1) {
+              updated[idx] = { ...updated[idx], sort_order: index };
+            }
+          });
+          return updated;
+        });
+      }
+    } else {
+      // Mover para o nível do overItem (ficar como irmão dele)
       const targetParentId = overItem.parent_id;
       
-      // Pegar todos os irmãos no nível alvo (excluindo o item arrastado se já estiver lá)
+      // Pegar todos os irmãos no nível alvo
       const siblings = localItems.filter(i => 
         i.parent_id === targetParentId && !i.isDeleted && i.id !== activeId
       );
       
-      // Encontrar a posição do overItem nos irmãos
+      // Encontrar a posição do overItem e inserir DEPOIS dele
       const overIndex = siblings.findIndex(i => i.id === overId);
-      
-      // Inserir DEPOIS do overItem
-      const insertIndex = overIndex + 1;
+      const insertIndex = overIndex >= 0 ? overIndex + 1 : siblings.length;
 
       setLocalItems(prev => {
-        // Primeiro, remover o activeItem da contagem de sort_order anterior
-        const updated: LocalMenuItem[] = [];
-        
-        // Reconstruir os irmãos com o novo item inserido
+        // Reconstruir lista com nova ordem
         const newSiblings = [...siblings];
-        newSiblings.splice(insertIndex, 0, { ...activeItem, parent_id: targetParentId, sort_order: insertIndex });
+        newSiblings.splice(insertIndex, 0, activeItem);
         
-        // Atualizar sort_order de todos os irmãos
         const siblingUpdates = new Map<string, number>();
         newSiblings.forEach((item, index) => {
           siblingUpdates.set(item.id, index);
         });
 
-        prev.forEach(i => {
+        return prev.map(i => {
           if (i.id === activeId) {
-            // Mover para novo parent com novo sort_order
-            updated.push({ ...i, parent_id: targetParentId, sort_order: siblingUpdates.get(i.id) ?? 0 });
-          } else if (siblingUpdates.has(i.id)) {
-            // Atualizar sort_order dos irmãos
-            updated.push({ ...i, sort_order: siblingUpdates.get(i.id)! });
-          } else {
-            updated.push(i);
+            return { ...i, parent_id: targetParentId, sort_order: siblingUpdates.get(i.id) ?? insertIndex };
           }
+          if (siblingUpdates.has(i.id)) {
+            return { ...i, sort_order: siblingUpdates.get(i.id)! };
+          }
+          return i;
         });
-
-        return updated;
       });
     }
   };
