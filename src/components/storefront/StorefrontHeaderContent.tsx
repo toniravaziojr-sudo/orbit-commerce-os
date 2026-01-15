@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram, ChevronDown } from 'lucide-react';
+import { Search, ShoppingCart, Menu, Phone, MessageCircle, User, Mail, Facebook, Instagram, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -764,17 +764,39 @@ export function StorefrontHeaderContent({
                         onMouseLeave={handleDropdownLeave}
                       >
                         {item.children.map((child, index) => (
-                          <LinkWrapper
-                            key={child.id}
-                            to={getMenuItemUrl(child)}
-                            className={cn(
-                              "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
-                              index === 0 && "rounded-t-sm",
-                              index === item.children.length - 1 && "rounded-b-sm"
+                          <div key={child.id} className="relative group/submenu">
+                            <LinkWrapper
+                              to={getMenuItemUrl(child)}
+                              className={cn(
+                                "flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+                                index === 0 && "rounded-t-sm",
+                                index === item.children.length - 1 && !child.children?.length && "rounded-b-sm"
+                              )}
+                            >
+                              <span>{child.label}</span>
+                              {child.children && child.children.length > 0 && (
+                                <ChevronRight className="h-3 w-3 opacity-60" />
+                              )}
+                            </LinkWrapper>
+                            {/* Sub-submenu (3rd level) */}
+                            {child.children && child.children.length > 0 && (
+                              <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-lg shadow-xl py-2 min-w-[180px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
+                                {child.children.map((grandchild, gIndex) => (
+                                  <LinkWrapper
+                                    key={grandchild.id}
+                                    to={getMenuItemUrl(grandchild)}
+                                    className={cn(
+                                      "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+                                      gIndex === 0 && "rounded-t-sm",
+                                      gIndex === child.children.length - 1 && "rounded-b-sm"
+                                    )}
+                                  >
+                                    <span>{grandchild.label}</span>
+                                  </LinkWrapper>
+                                ))}
+                              </div>
                             )}
-                          >
-                            <span>{child.label}</span>
-                          </LinkWrapper>
+                          </div>
                         ))}
                       </div>
                     )}
