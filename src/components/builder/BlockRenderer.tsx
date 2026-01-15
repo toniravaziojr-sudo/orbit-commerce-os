@@ -278,13 +278,14 @@ export function BlockRenderer({
   if (isStructuralSection && isEditing) {
     return (
       <div data-block-id={node.id} className="relative">
-        {/* No SectionBlock wrapper - just render children directly */}
+        {/* No SectionBlock wrapper - just render children directly, no spacing */}
         {node.children?.length ? (
           <>
             {node.children.map((child, index) => (
-              <div key={child.id} className="group/block">
+              <div key={child.id} className="group/add-block relative">
+                {/* AddBlockButton before first block - appears on hover only, no real space */}
                 {index === 0 && onAddBlock && (
-                  <div className="py-1">
+                  <div className="absolute left-0 right-0 -top-3 z-10 opacity-0 group-hover/add-block:opacity-100 transition-opacity">
                     <AddBlockButton parentId={node.id} index={0} onAddBlock={onAddBlock} />
                   </div>
                 )}
@@ -306,8 +307,9 @@ export function BlockRenderer({
                   parentId={node.id}
                 />
                 
+                {/* AddBlockButton after each block - appears on hover only, no real space */}
                 {onAddBlock && (
-                  <div className="py-1">
+                  <div className="absolute left-0 right-0 -bottom-3 z-10 opacity-0 group-hover/add-block:opacity-100 transition-opacity">
                     <AddBlockButton parentId={node.id} index={index + 1} onAddBlock={onAddBlock} />
                   </div>
                 )}
@@ -315,13 +317,12 @@ export function BlockRenderer({
             ))}
           </>
         ) : (
-          /* Empty structural section - show only AddBlockButton */
-          <div className="py-4">
+          /* Empty structural section - show AddBlockButton centered, minimal height */
+          <div className="py-8 flex items-center justify-center">
             <AddBlockButton
               parentId={node.id}
               index={0}
               onAddBlock={onAddBlock!}
-              className="opacity-60"
             />
           </div>
         )}
