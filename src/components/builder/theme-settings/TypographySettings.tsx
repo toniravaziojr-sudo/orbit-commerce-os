@@ -1,12 +1,15 @@
 // =============================================
 // TYPOGRAPHY SETTINGS - Font configuration
+// Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
+import { Loader2 } from 'lucide-react';
+import { useThemeTypography, DEFAULT_THEME_TYPOGRAPHY, ThemeTypography } from '@/hooks/useThemeSettings';
 
 interface TypographySettingsProps {
   tenantId: string;
@@ -25,16 +28,51 @@ const fontFamilies = [
 ];
 
 export function TypographySettings({ tenantId, templateSetId }: TypographySettingsProps) {
-  const [headingFont, setHeadingFont] = useState('inter');
-  const [bodyFont, setBodyFont] = useState('inter');
-  const [baseFontSize, setBaseFontSize] = useState(16);
+  const { typography: savedTypography, updateTypography, isLoading, isSaving } = useThemeTypography(tenantId, templateSetId);
+  const [localTypography, setLocalTypography] = useState<ThemeTypography>(DEFAULT_THEME_TYPOGRAPHY);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadDone = useRef(false);
+
+  // Initialize local state from hook data
+  useEffect(() => {
+    if (savedTypography && !initialLoadDone.current) {
+      setLocalTypography(savedTypography);
+      initialLoadDone.current = true;
+    }
+  }, [savedTypography]);
+
+  // Debounced save
+  const debouncedSave = useCallback((updates: Partial<ThemeTypography>) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      updateTypography(updates);
+    }, 500);
+  }, [updateTypography]);
+
+  const handleChange = (key: keyof ThemeTypography, value: string | number) => {
+    setLocalTypography(prev => {
+      const updated = { ...prev, [key]: value };
+      debouncedSave({ [key]: value });
+      return updated;
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       {/* Heading Font */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">Fonte dos títulos</Label>
-        <Select value={headingFont} onValueChange={setHeadingFont}>
+        <Select value={localTypography.headingFont} onValueChange={(v) => handleChange('headingFont', v)}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -56,7 +94,7 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
       {/* Body Font */}
       <div className="space-y-2">
         <Label className="text-sm font-medium">Fonte do corpo</Label>
-        <Select value={bodyFont} onValueChange={setBodyFont}>
+        <Select value={localTypography.bodyFont} onValueChange={(v) => handleChange('bodyFont', v)}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
@@ -79,11 +117,11 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-sm font-medium">Tamanho base</Label>
-          <span className="text-sm text-muted-foreground">{baseFontSize}px</span>
+          <span className="text-sm text-muted-foreground">{localTypography.baseFontSize}px</span>
         </div>
         <Slider
-          value={[baseFontSize]}
-          onValueChange={([v]) => setBaseFontSize(v)}
+          value={[localTypography.baseFontSize]}
+          onValueChange={([v]) => handleChange('baseFontSize', v)}
           min={12}
           max={20}
           step={1}
@@ -96,12 +134,16 @@ export function TypographySettings({ tenantId, templateSetId }: TypographySettin
       {/* Preview */}
       <div className="p-4 rounded-lg border bg-muted/30 space-y-2">
         <p className="text-xs text-muted-foreground uppercase tracking-wider">Preview</p>
-        <h3 className="text-lg font-bold">Título de exemplo</h3>
-        <p className="text-sm">Este é um parágrafo de exemplo para visualizar a tipografia selecionada.</p>
+        <h3 className="text-lg font-bold" style={{ fontFamily: localTypography.headingFont }}>
+          Título de exemplo
+        </h3>
+        <p className="text-sm" style={{ fontFamily: localTypography.bodyFont, fontSize: localTypography.baseFontSize }}>
+          Este é um parágrafo de exemplo para visualizar a tipografia selecionada.
+        </p>
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        ⚠️ Alterações serão aplicadas ao salvar o tema
+        {isSaving ? '💾 Salvando...' : '✓ Tipografia salva automaticamente neste template'}
       </p>
     </div>
   );

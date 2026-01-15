@@ -1,18 +1,15 @@
 // =============================================
-// MINI CART SETTINGS - Carrinho Suspenso configuration
-// Uses cart_config JSON column in store_settings
-// Navigates to Home page and shows mini-cart preview in canvas
+// MINI CART SETTINGS - Hanging cart drawer configuration
+// Uses centralized useThemeSettings hook (template-wide)
 // =============================================
 
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Json } from '@/integrations/supabase/types';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { Loader2, ShoppingBag, Gift, Truck, Percent, Clock, ArrowRight } from 'lucide-react';
+import { useThemeMiniCart, DEFAULT_THEME_MINI_CART, ThemeMiniCartConfig } from '@/hooks/useThemeSettings';
 
 interface MiniCartSettingsProps {
   tenantId: string;
@@ -20,286 +17,211 @@ interface MiniCartSettingsProps {
   onNavigateToPage?: (pageType: string) => void;
   showPreview?: boolean;
   onTogglePreview?: (open: boolean) => void;
-  onConfigChange?: (config: MiniCartConfig) => void;
+  onConfigChange?: (config: ThemeMiniCartConfig) => void;
 }
 
-export interface MiniCartConfig {
-  miniCartEnabled: boolean;
-  showGoToCartButton: boolean;
-  showCrossSell: boolean;
-  showCoupon: boolean;
-  showShippingCalculator: boolean;
-  showFreeShippingProgress: boolean;
-  freeShippingThreshold: number;
-  showStockReservationTimer: boolean;
-  stockReservationMinutes: number;
-}
-
-export const DEFAULT_MINI_CART_CONFIG: MiniCartConfig = {
-  miniCartEnabled: true,
-  showGoToCartButton: true,
-  showCrossSell: true,
-  showCoupon: true,
-  showShippingCalculator: false,
-  showFreeShippingProgress: true,
-  freeShippingThreshold: 299,
-  showStockReservationTimer: false,
-  stockReservationMinutes: 15,
-};
+export type { ThemeMiniCartConfig as MiniCartConfig };
+export { DEFAULT_THEME_MINI_CART as DEFAULT_MINI_CART_CONFIG };
 
 export function MiniCartSettings({ 
   tenantId, 
   templateSetId, 
-  onNavigateToPage,
-  showPreview,
+  onNavigateToPage, 
+  showPreview, 
   onTogglePreview,
-  onConfigChange,
+  onConfigChange 
 }: MiniCartSettingsProps) {
-  const queryClient = useQueryClient();
-  const [config, setConfig] = useState<MiniCartConfig>(DEFAULT_MINI_CART_CONFIG);
-  const [isLoading, setIsLoading] = useState(true);
+  const { miniCart: savedMiniCart, updateMiniCart, isLoading, isSaving } = useThemeMiniCart(tenantId, templateSetId);
+  const [localConfig, setLocalConfig] = useState<ThemeMiniCartConfig>(DEFAULT_THEME_MINI_CART);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialLoadDone = useRef(false);
 
-  // Navigate to home page on mount to show mini-cart in context
+  // Navigate to home to show preview context
   useEffect(() => {
     onNavigateToPage?.('home');
   }, [onNavigateToPage]);
 
-  // Load settings from cart_config JSON column + auto-show preview
+  // Initialize local state from hook data
   useEffect(() => {
-    async function loadSettings() {
-      if (!tenantId) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('store_settings')
-          .select('cart_config')
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (error) throw error;
-
-        if (data?.cart_config) {
-          const cartConfig = data.cart_config as Record<string, unknown>;
-          const loadedConfig: MiniCartConfig = {
-            miniCartEnabled: cartConfig.miniCartEnabled as boolean ?? DEFAULT_MINI_CART_CONFIG.miniCartEnabled,
-            showGoToCartButton: cartConfig.showGoToCartButton as boolean ?? DEFAULT_MINI_CART_CONFIG.showGoToCartButton,
-            showCrossSell: cartConfig.miniCartShowCrossSell as boolean ?? DEFAULT_MINI_CART_CONFIG.showCrossSell,
-            showCoupon: cartConfig.miniCartShowCoupon as boolean ?? DEFAULT_MINI_CART_CONFIG.showCoupon,
-            showShippingCalculator: cartConfig.miniCartShowShipping as boolean ?? DEFAULT_MINI_CART_CONFIG.showShippingCalculator,
-            showFreeShippingProgress: cartConfig.miniCartShowFreeShippingProgress as boolean ?? DEFAULT_MINI_CART_CONFIG.showFreeShippingProgress,
-            freeShippingThreshold: cartConfig.freeShippingThreshold as number ?? DEFAULT_MINI_CART_CONFIG.freeShippingThreshold,
-            showStockReservationTimer: cartConfig.miniCartShowStockTimer as boolean ?? DEFAULT_MINI_CART_CONFIG.showStockReservationTimer,
-            stockReservationMinutes: cartConfig.stockReservationMinutes as number ?? DEFAULT_MINI_CART_CONFIG.stockReservationMinutes,
-          };
-          setConfig(loadedConfig);
-          onConfigChange?.(loadedConfig);
-        }
-      } catch (err) {
-        console.error('Error loading mini cart settings:', err);
-      } finally {
-        setIsLoading(false);
-      }
+    if (savedMiniCart && !initialLoadDone.current) {
+      setLocalConfig(savedMiniCart);
+      onConfigChange?.(savedMiniCart);
+      initialLoadDone.current = true;
     }
+  }, [savedMiniCart, onConfigChange]);
 
-    loadSettings();
-    
-    // Auto-show preview when entering mini cart settings
+  // Auto-toggle preview when entering/leaving this settings view
+  useEffect(() => {
     onTogglePreview?.(true);
-    
-    // Auto-hide preview when leaving settings (cleanup)
-    return () => {
-      onTogglePreview?.(false);
-    };
-  }, [tenantId]);
+    return () => onTogglePreview?.(false);
+  }, [onTogglePreview]);
 
-  // Save mutation - merge into cart_config using upsert
-  const saveMutation = useMutation({
-    mutationFn: async (newConfig: MiniCartConfig) => {
-      // First get current cart_config to merge
-      const { data: current } = await supabase
-        .from('store_settings')
-        .select('id, cart_config')
-        .eq('tenant_id', tenantId)
-        .maybeSingle();
+  // Debounced save for number inputs
+  const debouncedSave = useCallback((updates: Partial<ThemeMiniCartConfig>) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      updateMiniCart(updates);
+    }, 500);
+  }, [updateMiniCart]);
 
-      const existingConfig = (current?.cart_config as Record<string, unknown>) || {};
+  // Handle change with optimistic update + save
+  const handleChange = useCallback((key: keyof ThemeMiniCartConfig, value: boolean | number) => {
+    setLocalConfig(prev => {
+      const updated = { ...prev, [key]: value };
+      onConfigChange?.(updated);
       
-      // Merge mini-cart settings into cart_config
-      const updatedCartConfig = {
-        ...existingConfig,
-        miniCartEnabled: newConfig.miniCartEnabled,
-        showGoToCartButton: newConfig.showGoToCartButton,
-        miniCartShowCrossSell: newConfig.showCrossSell,
-        miniCartShowCoupon: newConfig.showCoupon,
-        miniCartShowShipping: newConfig.showShippingCalculator,
-        miniCartShowFreeShippingProgress: newConfig.showFreeShippingProgress,
-        freeShippingThreshold: newConfig.freeShippingThreshold,
-        miniCartShowStockTimer: newConfig.showStockReservationTimer,
-        stockReservationMinutes: newConfig.stockReservationMinutes,
-      };
-
-      // Use upsert to handle both create and update cases
-      const { error } = await supabase
-        .from('store_settings')
-        .upsert(
-          { 
-            tenant_id: tenantId, 
-            cart_config: updatedCartConfig as unknown as Json,
-          },
-          { onConflict: 'tenant_id' }
-        );
-
-      if (error) throw error;
-      return newConfig;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
-      queryClient.invalidateQueries({ queryKey: ['cart-config', tenantId] });
-      toast.success('Configurações salvas');
-    },
-    onError: (err) => {
-      console.error('Error saving mini cart settings:', err);
-      toast.error('Erro ao salvar configurações');
-    },
-  });
-
-  const handleChange = (key: keyof MiniCartConfig, value: boolean | number) => {
-    const newConfig = { ...config, [key]: value };
-    setConfig(newConfig);
-    
-    // Immediately update the preview with new config
-    onConfigChange?.(newConfig);
-    
-    // Then save to database
-    saveMutation.mutate(newConfig);
-  };
+      // Immediate save for booleans, debounced for numbers
+      if (typeof value === 'boolean') {
+        updateMiniCart({ [key]: value });
+      } else {
+        debouncedSave({ [key]: value });
+      }
+      
+      return updated;
+    });
+  }, [updateMiniCart, debouncedSave, onConfigChange]);
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
+  const isDisabled = !localConfig.miniCartEnabled;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Configure o mini-carrinho que aparece ao adicionar produtos
+        Configure o carrinho suspenso (mini-cart) que aparece ao adicionar produtos.
       </p>
 
-      {/* Main toggle */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
-          <Label className="text-sm font-medium">Ativar carrinho suspenso</Label>
-          <p className="text-xs text-muted-foreground">
-            Exibe drawer lateral ao adicionar produtos
-          </p>
+      {/* Main Toggle */}
+      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+        <div className="flex items-center gap-2">
+          <ShoppingBag className="h-4 w-4 text-primary" />
+          <div>
+            <Label className="text-sm font-medium">Ativar Carrinho Suspenso</Label>
+            <p className="text-xs text-muted-foreground">Mini-cart lateral ao adicionar produtos</p>
+          </div>
         </div>
         <Switch
-          checked={config.miniCartEnabled}
-          onCheckedChange={(checked) => handleChange('miniCartEnabled', checked)}
+          checked={localConfig.miniCartEnabled}
+          onCheckedChange={(v) => handleChange('miniCartEnabled', v)}
         />
       </div>
 
       <Separator />
-      
-      <div className={cn("space-y-4", !config.miniCartEnabled && "opacity-50")}>
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Funcionalidades do carrinho suspenso
-          </p>
-          {!config.miniCartEnabled && (
-            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
-              Desativado na loja
-            </span>
-          )}
-        </div>
 
-        {/* Free Shipping Progress Bar */}
+      {/* Features */}
+      <div className={`space-y-3 ${isDisabled ? 'opacity-50 pointer-events-none' : ''}`}>
+        <h4 className="text-sm font-medium">Funcionalidades</h4>
+
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Barra de Frete Grátis</Label>
-            <p className="text-xs text-muted-foreground">
-              Mostra progresso para frete grátis
-            </p>
+          <div className="flex items-center gap-2">
+            <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs">Barra de Frete Grátis</Label>
           </div>
           <Switch
-            checked={config.showFreeShippingProgress}
-            onCheckedChange={(checked) => handleChange('showFreeShippingProgress', checked)}
+            checked={localConfig.showFreeShippingProgress}
+            onCheckedChange={(v) => handleChange('showFreeShippingProgress', v)}
           />
         </div>
 
-        {/* Go to Cart Button */}
+        {localConfig.showFreeShippingProgress && (
+          <div className="pl-6 space-y-1">
+            <Label className="text-[10px]">Valor mínimo para frete grátis (R$)</Label>
+            <Input
+              type="number"
+              value={localConfig.freeShippingThreshold}
+              onChange={(e) => handleChange('freeShippingThreshold', Number(e.target.value))}
+              className="h-7 text-xs w-32"
+              min={0}
+            />
+          </div>
+        )}
+
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Botão "Ir para Carrinho"</Label>
-            <p className="text-xs text-muted-foreground">
-              Link para página completa do carrinho
-            </p>
+          <div className="flex items-center gap-2">
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs">Botão "Ir para Carrinho"</Label>
           </div>
           <Switch
-            checked={config.showGoToCartButton}
-            onCheckedChange={(checked) => handleChange('showGoToCartButton', checked)}
+            checked={localConfig.showGoToCartButton}
+            onCheckedChange={(v) => handleChange('showGoToCartButton', v)}
           />
         </div>
 
-        {/* Cross-sell */}
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Mostrar Cross-sell</Label>
-            <p className="text-xs text-muted-foreground">
-              Sugestões de produtos adicionais
-            </p>
+          <div className="flex items-center gap-2">
+            <Gift className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs">Cross-sell (Produtos Relacionados)</Label>
           </div>
           <Switch
-            checked={config.showCrossSell}
-            onCheckedChange={(checked) => handleChange('showCrossSell', checked)}
+            checked={localConfig.showCrossSell}
+            onCheckedChange={(v) => handleChange('showCrossSell', v)}
           />
         </div>
 
-        {/* Coupon */}
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Campo de Cupom</Label>
-            <p className="text-xs text-muted-foreground">
-              Permite aplicar cupom no mini-carrinho
-            </p>
+          <div className="flex items-center gap-2">
+            <Percent className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs">Campo de Cupom</Label>
           </div>
           <Switch
-            checked={config.showCoupon}
-            onCheckedChange={(checked) => handleChange('showCoupon', checked)}
+            checked={localConfig.showCoupon}
+            onCheckedChange={(v) => handleChange('showCoupon', v)}
           />
         </div>
 
-        {/* Shipping Calculator */}
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Calculadora de Frete</Label>
-            <p className="text-xs text-muted-foreground">
-              Calcular frete no mini-carrinho
-            </p>
+          <div className="flex items-center gap-2">
+            <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label className="text-xs">Calculadora de Frete</Label>
           </div>
           <Switch
-            checked={config.showShippingCalculator}
-            onCheckedChange={(checked) => handleChange('showShippingCalculator', checked)}
+            checked={localConfig.showShippingCalculator}
+            onCheckedChange={(v) => handleChange('showShippingCalculator', v)}
           />
         </div>
 
-        {/* Stock Reservation Timer */}
+        <Separator />
+
         <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <Label className="text-sm">Timer de Reserva</Label>
-            <p className="text-xs text-muted-foreground">
-              Mostra tempo restante para reserva de estoque
-            </p>
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <div>
+              <Label className="text-xs">Timer de Reserva de Estoque</Label>
+              <p className="text-[10px] text-muted-foreground">Urgência para completar a compra</p>
+            </div>
           </div>
           <Switch
-            checked={config.showStockReservationTimer}
-            onCheckedChange={(checked) => handleChange('showStockReservationTimer', checked)}
+            checked={localConfig.showStockReservationTimer}
+            onCheckedChange={(v) => handleChange('showStockReservationTimer', v)}
           />
         </div>
+
+        {localConfig.showStockReservationTimer && (
+          <div className="pl-6 space-y-1">
+            <Label className="text-[10px]">Tempo de reserva (minutos)</Label>
+            <Input
+              type="number"
+              value={localConfig.stockReservationMinutes}
+              onChange={(e) => handleChange('stockReservationMinutes', Number(e.target.value))}
+              className="h-7 text-xs w-32"
+              min={1}
+              max={60}
+            />
+          </div>
+        )}
       </div>
+
+      <p className="text-xs text-muted-foreground text-center pt-2">
+        {isSaving ? '💾 Salvando...' : '✓ Configurações salvas automaticamente neste template'}
+      </p>
     </div>
   );
 }
