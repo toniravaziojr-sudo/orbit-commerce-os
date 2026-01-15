@@ -275,6 +275,9 @@ export function PageSettingsContent({
       queryClient.invalidateQueries({ queryKey: ['checkout-page-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['thankyou-page-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
+      // Also invalidate the specific hooks used in VisualBuilder
+      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
       toast.success('Configurações salvas');
     },
     onError: () => {

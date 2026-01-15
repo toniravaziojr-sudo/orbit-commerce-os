@@ -2,8 +2,7 @@
 // CATEGORY SETTINGS PANEL - Accordion for category-specific settings
 // =============================================
 
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import {
@@ -65,8 +64,10 @@ export function CategorySettingsPanel({
       if (error) throw error;
       return newSettings;
     },
-    onSuccess: () => {
+    onSuccess: (newSettings) => {
+      // Invalidate both queries to ensure sync
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'category'] });
+      queryClient.invalidateQueries({ queryKey: ['category-settings', tenantId] });
       toast.success('Configurações salvas');
     },
     onError: () => {
@@ -135,42 +136,42 @@ export function CategorySettingsPanel({
   );
 }
 
-// Hook to load category settings
+// Hook to load category settings - now using React Query for proper reactivity
 export function useCategorySettings(tenantId: string) {
-  const [settings, setSettings] = useState<CategorySettings>({
-    showCategoryName: true,
-    showBanner: true,
-    showRatings: true,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadSettings() {
-      if (!tenantId) return;
+  const queryClient = useQueryClient();
+  
+  const { data, isLoading } = useQuery({
+    queryKey: ['category-settings', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
       
-      try {
-        const { data, error } = await supabase
-          .from('storefront_page_templates')
-          .select('page_overrides')
-          .eq('tenant_id', tenantId)
-          .eq('page_type', 'category')
-          .maybeSingle();
+      const { data, error } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenantId)
+        .eq('page_type', 'category')
+        .maybeSingle();
 
-        if (error) throw error;
+      if (error) throw error;
 
-        const overrides = data?.page_overrides as Record<string, unknown> | null;
-        if (overrides?.categorySettings) {
-          setSettings(prev => ({ ...prev, ...(overrides.categorySettings as CategorySettings) }));
-        }
-      } catch (err) {
-        console.error('Error loading category settings:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return (overrides?.categorySettings as CategorySettings) || null;
+    },
+    enabled: !!tenantId,
+    staleTime: 0, // Always fetch fresh data after invalidation
+    refetchOnMount: 'always',
+  });
 
-    loadSettings();
-  }, [tenantId]);
+  const settings: CategorySettings = {
+    showCategoryName: data?.showCategoryName ?? true,
+    showBanner: data?.showBanner ?? true,
+    showRatings: data?.showRatings ?? true,
+  };
+
+  const setSettings = (newSettings: CategorySettings) => {
+    // Optimistic update via query cache
+    queryClient.setQueryData(['category-settings', tenantId], newSettings);
+  };
 
   return { settings, setSettings, isLoading };
 }
