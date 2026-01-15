@@ -6,7 +6,7 @@
 // =============================================
 
 import React from 'react';
-import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package } from 'lucide-react';
+import { CreditCard, Truck, User, MapPin, Lock, Shield, BadgeCheck, Sparkles, ChevronRight, Check, Package, Tag, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -41,6 +41,8 @@ interface CheckoutDemoBlockProps {
   showTimeline?: boolean;
   showPaymentOptions?: boolean;
   showTrustBadges?: boolean;
+  showCouponField?: boolean;
+  showTestimonials?: boolean;
   // Textos editáveis
   contactTitle?: string;
   shippingTitle?: string;
@@ -96,6 +98,8 @@ export function CheckoutDemoBlock({
   showTimeline = true,
   showPaymentOptions = true,
   showTrustBadges = true,
+  showCouponField = true,
+  showTestimonials = true,
   contactTitle = 'Informações de Contato',
   shippingTitle = 'Endereço de Entrega',
   paymentTitle = 'Forma de Pagamento',
@@ -373,6 +377,26 @@ export function CheckoutDemoBlock({
                 ))}
               </div>
 
+              {/* Coupon Field */}
+              {showCouponField && (
+                <>
+                  <Separator />
+                  <div className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        placeholder="Cupom de desconto"
+                        className="pl-9"
+                      />
+                    </div>
+                    <Button variant="secondary" size="sm">
+                      Aplicar
+                    </Button>
+                  </div>
+                </>
+              )}
+
               <Separator />
 
               {/* Totals */}
@@ -417,6 +441,33 @@ export function CheckoutDemoBlock({
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <BadgeCheck className="h-3 w-3" />
                     <span>Verificado</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Testimonials */}
+              {showTestimonials && (
+                <div className="pt-4 border-t">
+                  <p className="text-xs font-medium text-muted-foreground uppercase mb-3">O que dizem nossos clientes</p>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground italic">"Entrega super rápida! Produto excelente."</p>
+                      <p className="text-xs font-medium mt-1">Maria S.</p>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Star key={i} className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground italic">"Recomendo muito! Atendimento nota 10."</p>
+                      <p className="text-xs font-medium mt-1">João P.</p>
+                    </div>
                   </div>
                 </div>
               )}

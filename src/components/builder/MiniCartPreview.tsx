@@ -283,10 +283,6 @@ export function MiniCartPreview({
           </div>
         </div>
 
-        {/* Preview indicator */}
-        <div className="absolute bottom-2 left-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[10px] px-2 py-0.5 rounded">
-          Visualização de exemplo
-        </div>
       </div>
     </>
   );

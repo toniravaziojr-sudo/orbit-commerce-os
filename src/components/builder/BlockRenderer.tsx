@@ -1059,12 +1059,16 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
   // Merge page settings with block props - page settings take precedence
   const effectiveShowOrderBump = checkoutSettings?.showOrderBump ?? showOrderBump ?? true;
   const effectiveShowTimeline = checkoutSettings?.showTimeline ?? showTimeline ?? true;
+  const effectiveShowCoupon = checkoutSettings?.couponEnabled ?? true;
+  const effectiveShowTestimonials = checkoutSettings?.testimonialsEnabled ?? true;
 
   if (isEditing) {
     return (
       <CheckoutDemoBlock 
         showOrderBump={effectiveShowOrderBump} 
-        showTimeline={effectiveShowTimeline} 
+        showTimeline={effectiveShowTimeline}
+        showCouponField={effectiveShowCoupon}
+        showTestimonials={effectiveShowTestimonials}
         isEditing 
       />
     );

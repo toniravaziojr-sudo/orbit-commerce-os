@@ -215,94 +215,91 @@ export function MiniCartSettings({
             </span>
           )}
         </div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Funcionalidades do carrinho suspenso
+
+        {/* Free Shipping Progress Bar */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Barra de Frete Grátis</Label>
+            <p className="text-xs text-muted-foreground">
+              Mostra progresso para frete grátis
             </p>
-            
-            {/* Free Shipping Progress Bar */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Barra de Frete Grátis</Label>
-                <p className="text-xs text-muted-foreground">
-                  Mostra progresso para frete grátis
-                </p>
-              </div>
-              <Switch
-                checked={config.showFreeShippingProgress}
-                onCheckedChange={(checked) => handleChange('showFreeShippingProgress', checked)}
-              />
-            </div>
-
-            {/* Go to Cart Button */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Botão "Ir para Carrinho"</Label>
-                <p className="text-xs text-muted-foreground">
-                  Link para página completa do carrinho
-                </p>
-              </div>
-              <Switch
-                checked={config.showGoToCartButton}
-                onCheckedChange={(checked) => handleChange('showGoToCartButton', checked)}
-              />
-            </div>
-
-            {/* Cross-sell */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Mostrar Cross-sell</Label>
-                <p className="text-xs text-muted-foreground">
-                  Sugestões de produtos adicionais
-                </p>
-              </div>
-              <Switch
-                checked={config.showCrossSell}
-                onCheckedChange={(checked) => handleChange('showCrossSell', checked)}
-              />
-            </div>
-
-            {/* Coupon */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Campo de Cupom</Label>
-                <p className="text-xs text-muted-foreground">
-                  Permite aplicar cupom no mini-carrinho
-                </p>
-              </div>
-              <Switch
-                checked={config.showCoupon}
-                onCheckedChange={(checked) => handleChange('showCoupon', checked)}
-              />
-            </div>
-
-            {/* Shipping Calculator */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Calculadora de Frete</Label>
-                <p className="text-xs text-muted-foreground">
-                  Calcular frete no mini-carrinho
-                </p>
-              </div>
-              <Switch
-                checked={config.showShippingCalculator}
-                onCheckedChange={(checked) => handleChange('showShippingCalculator', checked)}
-              />
-            </div>
-
-            {/* Stock Reservation Timer */}
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Timer de Reserva</Label>
-                <p className="text-xs text-muted-foreground">
-                  Mostra tempo restante para reserva de estoque
-                </p>
-              </div>
-              <Switch
-                checked={config.showStockReservationTimer}
-                onCheckedChange={(checked) => handleChange('showStockReservationTimer', checked)}
-              />
-            </div>
           </div>
+          <Switch
+            checked={config.showFreeShippingProgress}
+            onCheckedChange={(checked) => handleChange('showFreeShippingProgress', checked)}
+          />
+        </div>
+
+        {/* Go to Cart Button */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Botão "Ir para Carrinho"</Label>
+            <p className="text-xs text-muted-foreground">
+              Link para página completa do carrinho
+            </p>
+          </div>
+          <Switch
+            checked={config.showGoToCartButton}
+            onCheckedChange={(checked) => handleChange('showGoToCartButton', checked)}
+          />
+        </div>
+
+        {/* Cross-sell */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Mostrar Cross-sell</Label>
+            <p className="text-xs text-muted-foreground">
+              Sugestões de produtos adicionais
+            </p>
+          </div>
+          <Switch
+            checked={config.showCrossSell}
+            onCheckedChange={(checked) => handleChange('showCrossSell', checked)}
+          />
+        </div>
+
+        {/* Coupon */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Campo de Cupom</Label>
+            <p className="text-xs text-muted-foreground">
+              Permite aplicar cupom no mini-carrinho
+            </p>
+          </div>
+          <Switch
+            checked={config.showCoupon}
+            onCheckedChange={(checked) => handleChange('showCoupon', checked)}
+          />
+        </div>
+
+        {/* Shipping Calculator */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Calculadora de Frete</Label>
+            <p className="text-xs text-muted-foreground">
+              Calcular frete no mini-carrinho
+            </p>
+          </div>
+          <Switch
+            checked={config.showShippingCalculator}
+            onCheckedChange={(checked) => handleChange('showShippingCalculator', checked)}
+          />
+        </div>
+
+        {/* Stock Reservation Timer */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label className="text-sm">Timer de Reserva</Label>
+            <p className="text-xs text-muted-foreground">
+              Mostra tempo restante para reserva de estoque
+            </p>
+          </div>
+          <Switch
+            checked={config.showStockReservationTimer}
+            onCheckedChange={(checked) => handleChange('showStockReservationTimer', checked)}
+          />
+        </div>
+      </div>
     </div>
   );
 }
