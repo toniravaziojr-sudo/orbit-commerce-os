@@ -33,6 +33,7 @@ interface CartDemoBlockProps {
   showCrossSell?: boolean;
   showCouponField?: boolean;
   showTrustBadges?: boolean;
+  showShippingCalculator?: boolean;
   // Textos editáveis
   title?: string;
   checkoutButtonText?: string;
@@ -86,6 +87,7 @@ export function CartDemoBlock({
   showCrossSell = true,
   showCouponField = true,
   showTrustBadges = true,
+  showShippingCalculator = true,
   title = 'Carrinho de Compras',
   checkoutButtonText = 'Finalizar Compra',
   continueShoppingText = 'Continuar Comprando',
@@ -173,6 +175,31 @@ export function CartDemoBlock({
               ))}
             </CardContent>
           </Card>
+
+          {/* Shipping Calculator - Demo placeholder */}
+          {showShippingCalculator && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Truck className="h-5 w-5" />
+                  Calcular Frete
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Digite seu CEP"
+                    className="flex-1 h-10 px-3 border rounded-lg text-sm bg-background"
+                    maxLength={9}
+                  />
+                  <Button variant="secondary" size="sm" className="h-10">
+                    Calcular
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Cross-sell */}
           {showCrossSell && crossSellProducts.length > 0 && (

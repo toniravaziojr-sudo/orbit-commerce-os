@@ -532,27 +532,8 @@ export const defaultCartTemplate: BlockNode = {
         },
       ],
     },
-    // Cross-sell Slot (busca de /offers)
-    {
-      id: generateBlockId('Section'),
-      type: 'Section',
-      props: {
-        backgroundColor: '#f9fafb',
-        paddingY: 48,
-      },
-      children: [
-        {
-          id: generateBlockId('CrossSellSlot'),
-          type: 'CrossSellSlot',
-          props: {
-            title: 'Você também pode gostar',
-            maxItems: 4,
-            variant: 'normal',
-            showWhenEmpty: true,
-          },
-        },
-      ],
-    },
+    // REMOVED: CrossSellSlot was duplicating the internal cross-sell of CartDemoBlock/CartContent
+    // Cross-sell is now handled ONLY internally by the Cart block, controlled by showCrossSell toggle
     {
       id: generateBlockId('Footer'),
       type: 'Footer',

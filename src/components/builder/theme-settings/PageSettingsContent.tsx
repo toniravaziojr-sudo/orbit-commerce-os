@@ -235,20 +235,37 @@ export function PageSettingsContent({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 px-3 pb-3">
                 {group.settings.map((config) => (
-                  <div key={config.key} className="flex items-center justify-between py-1">
-                    <div className="space-y-0.5">
-                      <Label htmlFor={config.key} className="text-sm">
-                        {config.label}
-                      </Label>
-                      {config.description && (
-                        <p className="text-xs text-muted-foreground">{config.description}</p>
-                      )}
+                  <div key={config.key} className="space-y-2">
+                    <div className="flex items-center justify-between py-1">
+                      <div className="space-y-0.5">
+                        <Label htmlFor={config.key} className="text-sm">
+                          {config.label}
+                        </Label>
+                        {config.description && (
+                          <p className="text-xs text-muted-foreground">{config.description}</p>
+                        )}
+                      </div>
+                      <Switch
+                        id={config.key}
+                        checked={settings[config.key] ?? config.defaultValue}
+                        onCheckedChange={(checked) => handleChange(config.key, checked)}
+                      />
                     </div>
-                    <Switch
-                      id={config.key}
-                      checked={settings[config.key] ?? config.defaultValue}
-                      onCheckedChange={(checked) => handleChange(config.key, checked)}
-                    />
+                    {/* Show upload input when toggle is enabled and config has upload */}
+                    {config.hasUpload && (settings[config.key] ?? config.defaultValue) && (
+                      <div className="pl-4 border-l-2 border-muted">
+                        <input
+                          type="text"
+                          placeholder="URL da imagem..."
+                          className="w-full h-8 px-3 text-xs border rounded-lg bg-background"
+                          value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
+                          onChange={(e) => handleChange(config.key.replace('Enabled', 'Url'), e.target.value as unknown as boolean)}
+                        />
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Use o Meu Drive para hospedar a imagem
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </CollapsibleContent>
@@ -345,6 +362,7 @@ interface SettingConfig {
   description?: string;
   defaultValue: boolean;
   group?: string;
+  hasUpload?: boolean; // If true, shows image upload when enabled
 }
 
 function getSettingsConfig(pageType: string): SettingConfig[] {
@@ -365,18 +383,16 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'openMiniCartOnAdd', label: 'Abrir carrinho ao adicionar', defaultValue: true },
     ],
     cart: [
-      // Carrinho Suspenso
-      { key: 'miniCartEnabled', label: 'Ativar carrinho suspenso', description: 'Drawer lateral ao adicionar produtos', defaultValue: true, group: 'mini-cart' },
-      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Exibe botão para página completa', defaultValue: true, group: 'mini-cart' },
-      // Funcionalidades
+      // Funcionalidades da Página do Carrinho
       { key: 'shippingCalculatorEnabled', label: 'Calculadora de frete', description: 'Permite calcular frete antes do checkout', defaultValue: true, group: 'features' },
       { key: 'couponEnabled', label: 'Cupom de desconto', description: 'Campo para aplicar cupom', defaultValue: true, group: 'features' },
+      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa (visível em outros locais)', defaultValue: true, group: 'features' },
       // sessionTrackingEnabled is always true - no UI toggle needed
       // Ofertas
       { key: 'showCrossSell', label: 'Mostrar Cross-sell', description: 'Sugestões de produtos adicionais', defaultValue: true, group: 'offers' },
       // Banner
-      { key: 'bannerDesktopEnabled', label: 'Banner Desktop', description: '1920x250 pixels', defaultValue: false, group: 'banner' },
-      { key: 'bannerMobileEnabled', label: 'Banner Mobile', description: '768x200 pixels', defaultValue: false, group: 'banner' },
+      { key: 'bannerDesktopEnabled', label: 'Banner Desktop', description: '1920x250 pixels', defaultValue: false, group: 'banner', hasUpload: true },
+      { key: 'bannerMobileEnabled', label: 'Banner Mobile', description: '768x200 pixels', defaultValue: false, group: 'banner', hasUpload: true },
     ],
     checkout: [
       // Funcionalidades
@@ -405,12 +421,6 @@ interface SettingsGroup {
 
 function getGroupedSettings(configs: SettingConfig[]): SettingsGroup[] {
   const groupMap: Record<string, SettingsGroup> = {
-    'mini-cart': { 
-      id: 'mini-cart', 
-      label: 'Carrinho Suspenso', 
-      icon: <ShoppingCart className="h-4 w-4 text-muted-foreground" />,
-      settings: [] 
-    },
     'features': { 
       id: 'features', 
       label: 'Funcionalidades', 
