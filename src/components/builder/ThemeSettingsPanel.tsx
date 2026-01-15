@@ -101,44 +101,65 @@ export function ThemeSettingsPanel({
   const [currentView, setCurrentViewInternal] = useState<SettingsView>(viewFromUrl || 'menu');
   const [selectedPageType, setSelectedPageTypeInternal] = useState<string | null>(pageFromUrl);
 
-  // Sync view state with URL
+  // Sync view state with URL - uses functional update to avoid stale params
+  const updateUrlParams = useCallback((updates: { view?: SettingsView; page?: string | null }) => {
+    setSearchParams((prevParams) => {
+      const newParams = new URLSearchParams(prevParams);
+      
+      if (updates.view !== undefined) {
+        if (updates.view === 'menu') {
+          newParams.delete('settingsView');
+          newParams.delete('settingsPage');
+        } else {
+          newParams.set('settingsView', updates.view);
+        }
+      }
+      
+      if (updates.page !== undefined) {
+        if (updates.page) {
+          newParams.set('settingsPage', updates.page);
+        } else {
+          newParams.delete('settingsPage');
+        }
+      }
+      
+      return newParams;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const setCurrentView = useCallback((view: SettingsView) => {
     setCurrentViewInternal(view);
-    const newParams = new URLSearchParams(searchParams);
-    if (view === 'menu') {
-      newParams.delete('settingsView');
-      newParams.delete('settingsPage');
-    } else {
-      newParams.set('settingsView', view);
-    }
-    setSearchParams(newParams, { replace: true });
-  }, [searchParams, setSearchParams]);
+    updateUrlParams({ view });
+  }, [updateUrlParams]);
 
   const setSelectedPageType = useCallback((pageType: string | null) => {
     setSelectedPageTypeInternal(pageType);
-    const newParams = new URLSearchParams(searchParams);
-    if (pageType) {
-      newParams.set('settingsPage', pageType);
-    } else {
-      newParams.delete('settingsPage');
-    }
-    setSearchParams(newParams, { replace: true });
-  }, [searchParams, setSearchParams]);
+    updateUrlParams({ page: pageType });
+  }, [updateUrlParams]);
+
+  // Combined setter for page selection (avoids race condition)
+  const setPageAndView = useCallback((pageType: string, view: SettingsView) => {
+    setCurrentViewInternal(view);
+    setSelectedPageTypeInternal(pageType);
+    updateUrlParams({ view, page: pageType });
+  }, [updateUrlParams]);
 
   // Sync from URL on mount/change (important for page navigation)
   useEffect(() => {
     if (viewFromUrl && viewFromUrl !== currentView) {
       setCurrentViewInternal(viewFromUrl);
     }
-    if (pageFromUrl && pageFromUrl !== selectedPageType) {
+    if (pageFromUrl !== undefined && pageFromUrl !== selectedPageType) {
       setSelectedPageTypeInternal(pageFromUrl);
     }
   }, [viewFromUrl, pageFromUrl]);
 
   const handleBack = () => {
     if (currentView === 'page-detail') {
-      setCurrentView('pages');
-      setSelectedPageType(null);
+      // Use combined update to clear both at once
+      setCurrentViewInternal('pages');
+      setSelectedPageTypeInternal(null);
+      updateUrlParams({ view: 'pages', page: null });
     } else if (currentView === 'menu') {
       onOpenChange(false);
     } else {
@@ -147,16 +168,18 @@ export function ThemeSettingsPanel({
   };
 
   const handleClose = () => {
-    setCurrentView('menu');
-    setSelectedPageType(null);
+    // Clear all state at once
+    setCurrentViewInternal('menu');
+    setSelectedPageTypeInternal(null);
+    updateUrlParams({ view: 'menu', page: null });
     onOpenChange(false);
   };
 
   // AJUSTE 2: Ao selecionar página no theme settings, navegamos automaticamente para ela
   // Isso permite preview em tempo real das configurações
   const handlePageSelect = (pageType: string) => {
-    setSelectedPageType(pageType);
-    setCurrentView('page-detail');
+    // Use combined setter to avoid race condition between view and page params
+    setPageAndView(pageType, 'page-detail');
     // Navegar automaticamente para a página selecionada para ver mudanças em tempo real
     onNavigateToPage?.(pageType);
   };

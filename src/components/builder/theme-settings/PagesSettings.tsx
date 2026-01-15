@@ -34,15 +34,15 @@ interface PageItem {
 }
 
 const pages: PageItem[] = [
-  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" /> },
+  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" />, hasSettings: false },
   { id: 'category', label: 'Categoria', icon: <Grid3X3 className="h-4 w-4" />, hasSettings: true },
   { id: 'product', label: 'Produto', icon: <Package className="h-4 w-4" />, hasSettings: true },
   { id: 'cart', label: 'Carrinho', icon: <ShoppingCart className="h-4 w-4" />, hasSettings: true },
   { id: 'checkout', label: 'Checkout', icon: <CreditCard className="h-4 w-4" />, hasSettings: true },
   { id: 'thank_you', label: 'Obrigado', icon: <CheckCircle2 className="h-4 w-4" />, hasSettings: true },
-  { id: 'account', label: 'Minha Conta', icon: <User className="h-4 w-4" /> },
-  { id: 'account_orders', label: 'Pedidos', icon: <FileText className="h-4 w-4" /> },
-  { id: 'account_order_detail', label: 'Pedido', icon: <FileText className="h-4 w-4" /> },
+  { id: 'account', label: 'Minha Conta', icon: <User className="h-4 w-4" />, hasSettings: false },
+  { id: 'account_orders', label: 'Pedidos', icon: <FileText className="h-4 w-4" />, hasSettings: false },
+  { id: 'account_order_detail', label: 'Pedido', icon: <FileText className="h-4 w-4" />, hasSettings: false },
   { id: 'tracking', label: 'Rastreio', icon: <Truck className="h-4 w-4" />, hasSettings: true },
   { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" />, hasSettings: true },
 ];
@@ -54,12 +54,12 @@ export function PagesSettings({
   onPageSelect,
 }: PagesSettingsProps) {
   const handlePageClick = (pageId: string, hasSettings: boolean) => {
-    // If page has settings, show settings panel first
+    // Always navigate to the page first
+    onNavigateToPage?.(pageId);
+    
+    // If page has settings, also show settings panel
     if (hasSettings && onPageSelect) {
       onPageSelect(pageId);
-    } else {
-      // Otherwise navigate directly to edit
-      onNavigateToPage?.(pageId);
     }
   };
 
