@@ -169,13 +169,14 @@ function TreeNode({
     transition,
   };
 
-  // Filter out Header/Footer from children to display
-  // Also filter out empty Sections that are structural (direct children of root)
+  // Filter out structural blocks from children to display
+  // Structural blocks: Header, Footer, and Sections that are direct children of root
   const visibleChildren = node.children?.filter(child => {
     // Never show Header/Footer in tree
     if (['Header', 'Footer'].includes(child.type)) return false;
-    // Hide empty Sections that are direct children of root (structural containers)
-    if (child.type === 'Section' && isRoot && (!child.children || child.children.length === 0)) {
+    // Hide ALL Sections that are direct children of root (structural containers)
+    // They are invisible in the canvas too - users add blocks via "+ Adicionar bloco" button
+    if (child.type === 'Section' && isRoot) {
       return false;
     }
     return true;
@@ -188,8 +189,8 @@ function TreeNode({
     return null;
   }
   
-  // Don't render empty Sections that are structural (at depth 1, direct child of root)
-  if (node.type === 'Section' && depth === 1 && (!node.children || node.children.length === 0)) {
+  // Don't render Sections that are structural (at depth 1, direct child of root)
+  if (node.type === 'Section' && depth === 1) {
     return null;
   }
 
