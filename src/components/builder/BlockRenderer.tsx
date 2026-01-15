@@ -270,6 +270,35 @@ export function BlockRenderer({
   // Block cannot be deleted if it's locked
   const canDelete = canDeleteBlock(pageType, node.type) && !isEssential;
 
+  // Check if this is a structural Section (direct child of root) - should be invisible/non-selectable
+  const isStructuralSection = node.type === 'Section' && parentId === 'root';
+  
+  // For structural Sections: render as transparent container (no outline, no selection, no quick actions)
+  // but keep the AddBlockButton visible inside
+  if (isStructuralSection && isEditing) {
+    return (
+      <div data-block-id={node.id} className="relative">
+        <BlockErrorBoundary
+          blockId={node.id}
+          blockType={node.type}
+          pageType={pageType}
+          isEditing={isEditing}
+          isSafeMode={isSafeMode}
+        >
+          <BlockComponent 
+            {...node.props} 
+            context={context}
+            isEditing={isEditing}
+            isInteractMode={isInteractMode}
+            block={node}
+          >
+            {renderChildren()}
+          </BlockComponent>
+        </BlockErrorBoundary>
+      </div>
+    );
+  }
+
   return (
     <div
       data-block-id={node.id}
