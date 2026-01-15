@@ -2,8 +2,7 @@
 // PRODUCT SETTINGS PANEL - Accordion for product page settings
 // =============================================
 
-import { useState, useEffect } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
 import {
@@ -72,6 +71,7 @@ export function ProductSettingsPanel({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, 'product'] });
+      queryClient.invalidateQueries({ queryKey: ['product-settings', tenantId] });
       toast.success('Configurações salvas');
     },
     onError: () => {
@@ -209,47 +209,47 @@ export function ProductSettingsPanel({
   );
 }
 
-// Hook to load product settings
+// Hook to load product settings - now using React Query for proper reactivity
 export function useProductSettings(tenantId: string) {
-  const [settings, setSettings] = useState<ProductSettings>({
-    showGallery: true,
-    showDescription: true,
-    showVariants: true,
-    showStock: true,
-    showRelatedProducts: true,
-    showBuyTogether: true,
-    showReviews: true,
-    openMiniCartOnAdd: true,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadSettings() {
-      if (!tenantId) return;
+  const queryClient = useQueryClient();
+  
+  const { data, isLoading } = useQuery({
+    queryKey: ['product-settings', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
       
-      try {
-        const { data, error } = await supabase
-          .from('storefront_page_templates')
-          .select('page_overrides')
-          .eq('tenant_id', tenantId)
-          .eq('page_type', 'product')
-          .maybeSingle();
+      const { data, error } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenantId)
+        .eq('page_type', 'product')
+        .maybeSingle();
 
-        if (error) throw error;
+      if (error) throw error;
 
-        const overrides = data?.page_overrides as Record<string, unknown> | null;
-        if (overrides?.productSettings) {
-          setSettings(prev => ({ ...prev, ...(overrides.productSettings as ProductSettings) }));
-        }
-      } catch (err) {
-        console.error('Error loading product settings:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return (overrides?.productSettings as ProductSettings) || null;
+    },
+    enabled: !!tenantId,
+    staleTime: 0, // Always fetch fresh data after invalidation
+    refetchOnMount: 'always',
+  });
 
-    loadSettings();
-  }, [tenantId]);
+  const settings: ProductSettings = {
+    showGallery: data?.showGallery ?? true,
+    showDescription: data?.showDescription ?? true,
+    showVariants: data?.showVariants ?? true,
+    showStock: data?.showStock ?? true,
+    showRelatedProducts: data?.showRelatedProducts ?? true,
+    showBuyTogether: data?.showBuyTogether ?? true,
+    showReviews: data?.showReviews ?? true,
+    openMiniCartOnAdd: data?.openMiniCartOnAdd ?? true,
+  };
+
+  const setSettings = (newSettings: ProductSettings) => {
+    // Optimistic update via query cache
+    queryClient.setQueryData(['product-settings', tenantId], newSettings);
+  };
 
   return { settings, setSettings, isLoading };
 }
