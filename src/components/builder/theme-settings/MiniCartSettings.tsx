@@ -21,22 +21,31 @@ interface MiniCartSettingsProps {
   onNavigateToPage?: (pageType: string) => void;
   showPreview?: boolean;
   onTogglePreview?: (open: boolean) => void;
+  onConfigChange?: (config: MiniCartConfig) => void;
 }
 
-interface MiniCartConfig {
+export interface MiniCartConfig {
   miniCartEnabled: boolean;
   showGoToCartButton: boolean;
   showCrossSell: boolean;
   showCoupon: boolean;
   showShippingCalculator: boolean;
+  showFreeShippingProgress: boolean;
+  freeShippingThreshold: number;
+  showStockReservationTimer: boolean;
+  stockReservationMinutes: number;
 }
 
-const DEFAULT_CONFIG: MiniCartConfig = {
+export const DEFAULT_MINI_CART_CONFIG: MiniCartConfig = {
   miniCartEnabled: true,
   showGoToCartButton: true,
   showCrossSell: true,
   showCoupon: true,
   showShippingCalculator: false,
+  showFreeShippingProgress: true,
+  freeShippingThreshold: 299,
+  showStockReservationTimer: false,
+  stockReservationMinutes: 15,
 };
 
 export function MiniCartSettings({ 
@@ -45,9 +54,10 @@ export function MiniCartSettings({
   onNavigateToPage,
   showPreview,
   onTogglePreview,
+  onConfigChange,
 }: MiniCartSettingsProps) {
   const queryClient = useQueryClient();
-  const [config, setConfig] = useState<MiniCartConfig>(DEFAULT_CONFIG);
+  const [config, setConfig] = useState<MiniCartConfig>(DEFAULT_MINI_CART_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
 
   // Navigate to home page on mount to show mini-cart in context
@@ -71,14 +81,19 @@ export function MiniCartSettings({
 
         if (data?.cart_config) {
           const cartConfig = data.cart_config as Record<string, unknown>;
-          // Extract mini-cart specific settings from cart_config
-          setConfig({
-            miniCartEnabled: cartConfig.miniCartEnabled as boolean ?? DEFAULT_CONFIG.miniCartEnabled,
-            showGoToCartButton: cartConfig.showGoToCartButton as boolean ?? DEFAULT_CONFIG.showGoToCartButton,
-            showCrossSell: cartConfig.miniCartShowCrossSell as boolean ?? DEFAULT_CONFIG.showCrossSell,
-            showCoupon: cartConfig.miniCartShowCoupon as boolean ?? DEFAULT_CONFIG.showCoupon,
-            showShippingCalculator: cartConfig.miniCartShowShipping as boolean ?? DEFAULT_CONFIG.showShippingCalculator,
-          });
+          const loadedConfig: MiniCartConfig = {
+            miniCartEnabled: cartConfig.miniCartEnabled as boolean ?? DEFAULT_MINI_CART_CONFIG.miniCartEnabled,
+            showGoToCartButton: cartConfig.showGoToCartButton as boolean ?? DEFAULT_MINI_CART_CONFIG.showGoToCartButton,
+            showCrossSell: cartConfig.miniCartShowCrossSell as boolean ?? DEFAULT_MINI_CART_CONFIG.showCrossSell,
+            showCoupon: cartConfig.miniCartShowCoupon as boolean ?? DEFAULT_MINI_CART_CONFIG.showCoupon,
+            showShippingCalculator: cartConfig.miniCartShowShipping as boolean ?? DEFAULT_MINI_CART_CONFIG.showShippingCalculator,
+            showFreeShippingProgress: cartConfig.miniCartShowFreeShippingProgress as boolean ?? DEFAULT_MINI_CART_CONFIG.showFreeShippingProgress,
+            freeShippingThreshold: cartConfig.freeShippingThreshold as number ?? DEFAULT_MINI_CART_CONFIG.freeShippingThreshold,
+            showStockReservationTimer: cartConfig.miniCartShowStockTimer as boolean ?? DEFAULT_MINI_CART_CONFIG.showStockReservationTimer,
+            stockReservationMinutes: cartConfig.stockReservationMinutes as number ?? DEFAULT_MINI_CART_CONFIG.stockReservationMinutes,
+          };
+          setConfig(loadedConfig);
+          onConfigChange?.(loadedConfig);
         }
       } catch (err) {
         console.error('Error loading mini cart settings:', err);
@@ -88,7 +103,7 @@ export function MiniCartSettings({
     }
 
     loadSettings();
-  }, [tenantId]);
+  }, [tenantId, onConfigChange]);
 
   // Save mutation - merge into cart_config
   const saveMutation = useMutation({
@@ -110,6 +125,10 @@ export function MiniCartSettings({
         miniCartShowCrossSell: newConfig.showCrossSell,
         miniCartShowCoupon: newConfig.showCoupon,
         miniCartShowShipping: newConfig.showShippingCalculator,
+        miniCartShowFreeShippingProgress: newConfig.showFreeShippingProgress,
+        freeShippingThreshold: newConfig.freeShippingThreshold,
+        miniCartShowStockTimer: newConfig.showStockReservationTimer,
+        stockReservationMinutes: newConfig.stockReservationMinutes,
       };
 
       const { error } = await supabase
@@ -120,9 +139,10 @@ export function MiniCartSettings({
       if (error) throw error;
       return newConfig;
     },
-    onSuccess: () => {
+    onSuccess: (newConfig) => {
       queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
       queryClient.invalidateQueries({ queryKey: ['cart-config', tenantId] });
+      onConfigChange?.(newConfig);
       toast.success('Configurações salvas');
     },
     onError: () => {
@@ -130,7 +150,7 @@ export function MiniCartSettings({
     },
   });
 
-  const handleChange = (key: keyof MiniCartConfig, value: boolean) => {
+  const handleChange = (key: keyof MiniCartConfig, value: boolean | number) => {
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
     saveMutation.mutate(newConfig);
@@ -190,6 +210,21 @@ export function MiniCartSettings({
               Funcionalidades do carrinho suspenso
             </p>
             
+            {/* Free Shipping Progress Bar */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Barra de Frete Grátis</Label>
+                <p className="text-xs text-muted-foreground">
+                  Mostra progresso para frete grátis
+                </p>
+              </div>
+              <Switch
+                checked={config.showFreeShippingProgress}
+                onCheckedChange={(checked) => handleChange('showFreeShippingProgress', checked)}
+              />
+            </div>
+
+            {/* Go to Cart Button */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-sm">Botão "Ir para Carrinho"</Label>
@@ -203,6 +238,7 @@ export function MiniCartSettings({
               />
             </div>
 
+            {/* Cross-sell */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-sm">Mostrar Cross-sell</Label>
@@ -216,6 +252,7 @@ export function MiniCartSettings({
               />
             </div>
 
+            {/* Coupon */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-sm">Campo de Cupom</Label>
@@ -229,6 +266,7 @@ export function MiniCartSettings({
               />
             </div>
 
+            {/* Shipping Calculator */}
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label className="text-sm">Calculadora de Frete</Label>
@@ -239,6 +277,20 @@ export function MiniCartSettings({
               <Switch
                 checked={config.showShippingCalculator}
                 onCheckedChange={(checked) => handleChange('showShippingCalculator', checked)}
+              />
+            </div>
+
+            {/* Stock Reservation Timer */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-sm">Timer de Reserva</Label>
+                <p className="text-xs text-muted-foreground">
+                  Mostra tempo restante para reserva de estoque
+                </p>
+              </div>
+              <Switch
+                checked={config.showStockReservationTimer}
+                onCheckedChange={(checked) => handleChange('showStockReservationTimer', checked)}
               />
             </div>
           </div>

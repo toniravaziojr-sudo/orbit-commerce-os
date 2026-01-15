@@ -6,6 +6,7 @@
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
 import { MiniCartPreview } from './MiniCartPreview';
+import { MiniCartConfig } from './theme-settings/MiniCartSettings';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -50,6 +51,7 @@ interface BuilderCanvasProps {
   // Mini-cart preview controls
   showMiniCartPreview?: boolean;
   onToggleMiniCartPreview?: (open: boolean) => void;
+  miniCartConfig?: MiniCartConfig;
 }
 
 export function BuilderCanvas({ 
@@ -70,6 +72,7 @@ export function BuilderCanvas({
   storeSettings,
   showMiniCartPreview = false,
   onToggleMiniCartPreview,
+  miniCartConfig,
 }: BuilderCanvasProps) {
   const [internalViewport, setInternalViewport] = useState<ViewportMode>('desktop');
   const [zoom, setZoom] = useState<number>(100);
@@ -331,6 +334,7 @@ export function BuilderCanvas({
                   open={showMiniCartPreview}
                   onOpenChange={onToggleMiniCartPreview || (() => {})}
                   viewport={viewport}
+                  config={miniCartConfig}
                 />
               </div>
             </div>
