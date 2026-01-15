@@ -1,5 +1,6 @@
 // =============================================
 // MINI CART SETTINGS - Carrinho Suspenso configuration
+// Uses cart_config JSON column in store_settings
 // =============================================
 
 import { useState, useEffect } from 'react';
@@ -17,7 +18,7 @@ interface MiniCartSettingsProps {
 }
 
 interface MiniCartConfig {
-  enabled: boolean;
+  miniCartEnabled: boolean;
   showGoToCartButton: boolean;
   showCrossSell: boolean;
   showCoupon: boolean;
@@ -25,7 +26,7 @@ interface MiniCartConfig {
 }
 
 const DEFAULT_CONFIG: MiniCartConfig = {
-  enabled: true,
+  miniCartEnabled: true,
   showGoToCartButton: true,
   showCrossSell: true,
   showCoupon: true,
@@ -37,7 +38,7 @@ export function MiniCartSettings({ tenantId, templateSetId }: MiniCartSettingsPr
   const [config, setConfig] = useState<MiniCartConfig>(DEFAULT_CONFIG);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load settings
+  // Load settings from cart_config JSON column
   useEffect(() => {
     async function loadSettings() {
       if (!tenantId) return;
@@ -45,14 +46,22 @@ export function MiniCartSettings({ tenantId, templateSetId }: MiniCartSettingsPr
       try {
         const { data, error } = await supabase
           .from('store_settings')
-          .select('mini_cart_config')
+          .select('cart_config')
           .eq('tenant_id', tenantId)
           .maybeSingle();
 
         if (error) throw error;
 
-        if (data?.mini_cart_config) {
-          setConfig({ ...DEFAULT_CONFIG, ...(data.mini_cart_config as MiniCartConfig) });
+        if (data?.cart_config) {
+          const cartConfig = data.cart_config as Record<string, unknown>;
+          // Extract mini-cart specific settings from cart_config
+          setConfig({
+            miniCartEnabled: cartConfig.miniCartEnabled as boolean ?? DEFAULT_CONFIG.miniCartEnabled,
+            showGoToCartButton: cartConfig.showGoToCartButton as boolean ?? DEFAULT_CONFIG.showGoToCartButton,
+            showCrossSell: cartConfig.miniCartShowCrossSell as boolean ?? DEFAULT_CONFIG.showCrossSell,
+            showCoupon: cartConfig.miniCartShowCoupon as boolean ?? DEFAULT_CONFIG.showCoupon,
+            showShippingCalculator: cartConfig.miniCartShowShipping as boolean ?? DEFAULT_CONFIG.showShippingCalculator,
+          });
         }
       } catch (err) {
         console.error('Error loading mini cart settings:', err);
@@ -64,12 +73,31 @@ export function MiniCartSettings({ tenantId, templateSetId }: MiniCartSettingsPr
     loadSettings();
   }, [tenantId]);
 
-  // Save mutation
+  // Save mutation - merge into cart_config
   const saveMutation = useMutation({
     mutationFn: async (newConfig: MiniCartConfig) => {
+      // First get current cart_config to merge
+      const { data: current } = await supabase
+        .from('store_settings')
+        .select('cart_config')
+        .eq('tenant_id', tenantId)
+        .maybeSingle();
+
+      const existingConfig = (current?.cart_config as Record<string, unknown>) || {};
+      
+      // Merge mini-cart settings into cart_config
+      const updatedCartConfig = {
+        ...existingConfig,
+        miniCartEnabled: newConfig.miniCartEnabled,
+        showGoToCartButton: newConfig.showGoToCartButton,
+        miniCartShowCrossSell: newConfig.showCrossSell,
+        miniCartShowCoupon: newConfig.showCoupon,
+        miniCartShowShipping: newConfig.showShippingCalculator,
+      };
+
       const { error } = await supabase
         .from('store_settings')
-        .update({ mini_cart_config: newConfig as unknown as Json })
+        .update({ cart_config: updatedCartConfig as unknown as Json })
         .eq('tenant_id', tenantId);
 
       if (error) throw error;
@@ -77,6 +105,7 @@ export function MiniCartSettings({ tenantId, templateSetId }: MiniCartSettingsPr
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['store-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['cart-config', tenantId] });
       toast.success('Configurações salvas');
     },
     onError: () => {
@@ -113,12 +142,12 @@ export function MiniCartSettings({ tenantId, templateSetId }: MiniCartSettingsPr
           </p>
         </div>
         <Switch
-          checked={config.enabled}
-          onCheckedChange={(checked) => handleChange('enabled', checked)}
+          checked={config.miniCartEnabled}
+          onCheckedChange={(checked) => handleChange('miniCartEnabled', checked)}
         />
       </div>
 
-      {config.enabled && (
+      {config.miniCartEnabled && (
         <>
           <Separator />
           
