@@ -11,8 +11,6 @@ import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
-import { Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MiniCartSettingsProps {
@@ -65,7 +63,7 @@ export function MiniCartSettings({
     onNavigateToPage?.('home');
   }, [onNavigateToPage]);
 
-  // Load settings from cart_config JSON column
+  // Load settings from cart_config JSON column + auto-show preview
   useEffect(() => {
     async function loadSettings() {
       if (!tenantId) return;
@@ -103,7 +101,15 @@ export function MiniCartSettings({
     }
 
     loadSettings();
-  }, [tenantId, onConfigChange]);
+    
+    // Auto-show preview when entering mini cart settings
+    onTogglePreview?.(true);
+    
+    // Auto-hide preview when leaving settings (cleanup)
+    return () => {
+      onTogglePreview?.(false);
+    };
+  }, [tenantId]);
 
   // Save mutation - merge into cart_config using upsert
   const saveMutation = useMutation({
@@ -172,10 +178,6 @@ export function MiniCartSettings({
     saveMutation.mutate(newConfig);
   };
 
-  const handleTogglePreview = () => {
-    onTogglePreview?.(!showPreview);
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -203,19 +205,6 @@ export function MiniCartSettings({
           onCheckedChange={(checked) => handleChange('miniCartEnabled', checked)}
         />
       </div>
-
-      {/* Preview button - opens mini-cart in canvas */}
-      {config.miniCartEnabled && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full gap-2"
-          onClick={handleTogglePreview}
-        >
-          {showPreview ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          {showPreview ? 'Ocultar Carrinho Suspenso' : 'Visualizar Carrinho Suspenso'}
-        </Button>
-      )}
 
       {config.miniCartEnabled && (
         <>
