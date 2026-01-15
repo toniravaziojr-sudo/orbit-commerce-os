@@ -145,7 +145,7 @@ export function ThemeSettingsPanel({
       case 'footer':
         return <FooterSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'mini-cart':
-        return <MiniCartSettings tenantId={tenantId} templateSetId={templateSetId} />;
+        return <MiniCartSettings tenantId={tenantId} templateSetId={templateSetId} onNavigateToPage={onNavigateToPage} />;
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
