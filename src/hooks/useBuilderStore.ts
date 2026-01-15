@@ -192,8 +192,32 @@ export function useBuilderStore(initialContent?: BlockNode) {
   // Remove a block - uses functional setState to avoid stale closure
   const removeBlockById = useCallback((blockId: string) => {
     setState(prev => {
+      // CRITICAL: Never allow deleting the root block
+      if (blockId === prev.content?.id) {
+        console.warn('[Builder] Attempted to delete root block - blocked');
+        return prev;
+      }
+
       const block = findBlockById(prev.content, blockId);
       if (!block) return prev;
+
+      // CRITICAL: Protect structural container types
+      const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
+      if (structuralTypes.includes(block.type)) {
+        // Check if this is a direct child of root (main structure)
+        if (prev.content?.children?.some(c => c.id === blockId)) {
+          console.warn('[Builder] Attempted to delete structural block - blocked');
+          return prev;
+        }
+        // Check if it contains essential blocks
+        const hasEssentialChild = block.children?.some(child => 
+          ['Header', 'Footer'].includes(child.type)
+        );
+        if (hasEssentialChild) {
+          console.warn('[Builder] Attempted to delete container with essential blocks - blocked');
+          return prev;
+        }
+      }
 
       const definition = blockRegistry.get(block.type);
       if (definition?.isRemovable === false) return prev;
