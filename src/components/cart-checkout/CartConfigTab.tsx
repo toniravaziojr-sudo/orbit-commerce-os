@@ -190,21 +190,7 @@ export function CartConfigTab() {
             />
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-              <div className="space-y-0.5">
-                <Label>Rastreamento de sessões</Label>
-                <p className="text-sm text-muted-foreground">
-                  Rastreia sessões de checkout para análise de conversão
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={form.sessionTrackingEnabled}
-              onCheckedChange={(checked) => handleChange('sessionTrackingEnabled', checked)}
-            />
-          </div>
+          {/* Session tracking is always enabled - no UI toggle needed */}
         </CardContent>
       </Card>
 

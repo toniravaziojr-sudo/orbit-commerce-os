@@ -371,7 +371,7 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       // Funcionalidades
       { key: 'shippingCalculatorEnabled', label: 'Calculadora de frete', description: 'Permite calcular frete antes do checkout', defaultValue: true, group: 'features' },
       { key: 'couponEnabled', label: 'Cupom de desconto', description: 'Campo para aplicar cupom', defaultValue: true, group: 'features' },
-      { key: 'sessionTrackingEnabled', label: 'Rastreamento de sessões', description: 'Rastreia sessões para análise', defaultValue: true, group: 'features' },
+      // sessionTrackingEnabled is always true - no UI toggle needed
       // Ofertas
       { key: 'showCrossSell', label: 'Mostrar Cross-sell', description: 'Sugestões de produtos adicionais', defaultValue: true, group: 'offers' },
       // Banner
