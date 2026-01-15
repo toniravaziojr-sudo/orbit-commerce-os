@@ -103,7 +103,30 @@ export function VisualBuilder({
   const [isInteractMode, setIsInteractMode] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
-  const [showThemeSettings, setShowThemeSettings] = useState(false);
+  
+  // AJUSTE 2: Preserve theme settings panel state via URL param
+  // This prevents the panel from closing when navigating between pages
+  const themeSettingsFromUrl = searchParams.get('settings') === 'theme';
+  const [showThemeSettings, setShowThemeSettingsInternal] = useState(themeSettingsFromUrl);
+  
+  // Sync URL with theme settings state
+  const setShowThemeSettings = useCallback((open: boolean) => {
+    setShowThemeSettingsInternal(open);
+    const url = new URL(window.location.href);
+    if (open) {
+      url.searchParams.set('settings', 'theme');
+    } else {
+      url.searchParams.delete('settings');
+    }
+    // Replace state without full navigation to avoid re-mount
+    window.history.replaceState({}, '', url.toString());
+  }, []);
+  
+  // Sync from URL on mount/change
+  useEffect(() => {
+    setShowThemeSettingsInternal(themeSettingsFromUrl);
+  }, [themeSettingsFromUrl]);
+  
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
   
   // Example selectors state (for Product/Category templates)
@@ -888,9 +911,11 @@ export function VisualBuilder({
           tenantId={tenantId}
           templateSetId={templateSetId}
           onNavigateToPage={(newPageType) => {
-            // Navigate to edit different page type
+            // Navigate to edit different page type while preserving theme settings panel state
             const url = new URL(window.location.href);
             url.searchParams.set('edit', newPageType);
+            // Preserve settings param to keep theme settings open
+            url.searchParams.set('settings', 'theme');
             navigate(url.pathname + url.search);
           }}
         />
