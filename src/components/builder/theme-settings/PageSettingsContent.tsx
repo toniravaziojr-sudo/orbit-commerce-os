@@ -14,18 +14,131 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
-  ExternalLink, 
   ChevronDown, 
-  ShoppingCart, 
   Truck, 
   Percent,
   Image as ImageIcon,
-  CreditCard,
-  MessageSquare,
-  BarChart3
+  BarChart3,
+  Upload,
+  Link,
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+// Banner Upload Component with URL input and file upload
+function BannerUploadInput({ 
+  configKey, 
+  value, 
+  onChange, 
+  dimensions 
+}: { 
+  configKey: string; 
+  value: string; 
+  onChange: (url: string) => void;
+  dimensions: string;
+}) {
+  const [activeTab, setActiveTab] = useState<'url' | 'upload'>('url');
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecione um arquivo de imagem');
+      return;
+    }
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A imagem deve ter no máximo 5MB');
+      return;
+    }
+
+    // Create object URL for preview (in production, upload to storage)
+    // For now, show toast with instructions to use Meu Drive
+    toast.info('Use o Meu Drive para fazer upload permanente da imagem, ou cole a URL abaixo.');
+    
+    // Switch to URL tab for manual entry
+    setActiveTab('url');
+  };
+
+  return (
+    <div className="pl-4 border-l-2 border-muted space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+          Tamanho recomendado: {dimensions}
+        </p>
+      </div>
+      
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'url' | 'upload')}>
+        <TabsList className="w-full grid grid-cols-2 h-8">
+          <TabsTrigger value="url" className="text-xs gap-1">
+            <Link className="h-3 w-3" />
+            URL
+          </TabsTrigger>
+          <TabsTrigger value="upload" className="text-xs gap-1">
+            <Upload className="h-3 w-3" />
+            Upload
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="url" className="mt-2">
+          <Input
+            type="text"
+            placeholder="https://..."
+            className="h-8 text-xs"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Cole a URL da imagem ou use o Meu Drive
+          </p>
+        </TabsContent>
+        
+        <TabsContent value="upload" className="mt-2">
+          <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+            <div className="flex flex-col items-center justify-center pt-2 pb-3">
+              <Upload className="w-6 h-6 mb-1 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Clique para selecionar
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                PNG, JPG ou WEBP (máx. 5MB)
+              </p>
+            </div>
+            <input
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+          </label>
+          <p className="text-[10px] text-muted-foreground mt-1 text-center">
+            💡 Para upload permanente, use o <strong>Meu Drive</strong> e cole a URL
+          </p>
+        </TabsContent>
+      </Tabs>
+      
+      {/* Preview */}
+      {value && (
+        <div className="mt-2">
+          <p className="text-[10px] text-muted-foreground mb-1">Prévia:</p>
+          <img 
+            src={value} 
+            alt="Preview do banner" 
+            className="w-full h-16 object-cover rounded border"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface PageSettingsContentProps {
   tenantId: string;
@@ -194,18 +307,6 @@ export function PageSettingsContent({
 
   return (
     <div className="space-y-4">
-      {/* Edit button */}
-      <Button
-        variant="outline"
-        size="sm"
-        className="w-full gap-2"
-        onClick={onNavigateToEdit}
-      >
-        <ExternalLink className="h-4 w-4" />
-        Editar página
-      </Button>
-
-      <Separator />
 
       {/* Settings toggles */}
       {settingsConfig.length === 0 ? (
@@ -253,18 +354,12 @@ export function PageSettingsContent({
                     </div>
                     {/* Show upload input when toggle is enabled and config has upload */}
                     {config.hasUpload && (settings[config.key] ?? config.defaultValue) && (
-                      <div className="pl-4 border-l-2 border-muted">
-                        <input
-                          type="text"
-                          placeholder="URL da imagem..."
-                          className="w-full h-8 px-3 text-xs border rounded-lg bg-background"
-                          value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
-                          onChange={(e) => handleChange(config.key.replace('Enabled', 'Url'), e.target.value as unknown as boolean)}
-                        />
-                        <p className="text-[10px] text-muted-foreground mt-1">
-                          Use o Meu Drive para hospedar a imagem
-                        </p>
-                      </div>
+                      <BannerUploadInput
+                        configKey={config.key}
+                        value={String(settings[config.key.replace('Enabled', 'Url')] || '')}
+                        onChange={(url) => handleChange(config.key.replace('Enabled', 'Url'), url as unknown as boolean)}
+                        dimensions={config.key === 'bannerDesktopEnabled' ? '1920 x 250 px' : '768 x 200 px'}
+                      />
                     )}
                   </div>
                 ))}
