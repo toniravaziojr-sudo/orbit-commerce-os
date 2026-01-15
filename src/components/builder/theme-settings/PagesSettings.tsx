@@ -43,8 +43,8 @@ const pages: PageItem[] = [
   { id: 'account', label: 'Minha Conta', icon: <User className="h-4 w-4" /> },
   { id: 'account_orders', label: 'Pedidos', icon: <FileText className="h-4 w-4" /> },
   { id: 'account_order_detail', label: 'Pedido', icon: <FileText className="h-4 w-4" /> },
-  { id: 'tracking', label: 'Rastreio', icon: <Truck className="h-4 w-4" /> },
-  { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" /> },
+  { id: 'tracking', label: 'Rastreio', icon: <Truck className="h-4 w-4" />, hasSettings: true },
+  { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" />, hasSettings: true },
 ];
 
 export function PagesSettings({ 

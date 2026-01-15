@@ -5,7 +5,7 @@
 // =============================================
 
 import { useState } from 'react';
-import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -16,6 +16,7 @@ import { CustomCSSSettings } from './theme-settings/CustomCSSSettings';
 import { PageSettingsContent } from './theme-settings/PageSettingsContent';
 import { HeaderSettings } from './theme-settings/HeaderSettings';
 import { FooterSettings } from './theme-settings/FooterSettings';
+import { MiniCartSettings } from './theme-settings/MiniCartSettings';
 
 interface ThemeSettingsPanelProps {
   open: boolean;
@@ -25,7 +26,7 @@ interface ThemeSettingsPanelProps {
   onNavigateToPage?: (pageType: string) => void;
 }
 
-type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'typography' | 'colors' | 'css' | 'page-detail';
+type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'typography' | 'colors' | 'css' | 'page-detail';
 
 interface MenuItem {
   id: SettingsView;
@@ -52,6 +53,12 @@ const menuItems: MenuItem[] = [
     label: 'Rodapé',
     icon: <PanelBottom className="h-4 w-4" />,
     description: 'Configurações do rodapé',
+  },
+  {
+    id: 'mini-cart',
+    label: 'Carrinho Suspenso',
+    icon: <ShoppingCart className="h-4 w-4" />,
+    description: 'Mini-carrinho lateral',
   },
   {
     id: 'colors',
@@ -137,6 +144,8 @@ export function ThemeSettingsPanel({
         return <HeaderSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'footer':
         return <FooterSettings tenantId={tenantId} templateSetId={templateSetId} />;
+      case 'mini-cart':
+        return <MiniCartSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
@@ -158,6 +167,8 @@ export function ThemeSettingsPanel({
         return 'Cabeçalho';
       case 'footer':
         return 'Rodapé';
+      case 'mini-cart':
+        return 'Carrinho Suspenso';
       case 'typography':
         return 'Tipografia';
       case 'colors':
