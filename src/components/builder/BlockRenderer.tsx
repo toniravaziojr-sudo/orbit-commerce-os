@@ -270,31 +270,61 @@ export function BlockRenderer({
   // Block cannot be deleted if it's locked
   const canDelete = canDeleteBlock(pageType, node.type) && !isEssential;
 
-  // Check if this is a structural Section (direct child of root) - should be invisible/non-selectable
+  // Check if this is a structural Section (direct child of root) - should be completely invisible
   const isStructuralSection = node.type === 'Section' && parentId === 'root';
   
-  // For structural Sections: render as transparent container (no outline, no selection, no quick actions)
-  // but keep the AddBlockButton visible inside
+  // For structural Sections: render ONLY the AddBlockButton, no container/wrapper at all
+  // The user adds blocks that already have their own margins, colors, etc.
   if (isStructuralSection && isEditing) {
     return (
       <div data-block-id={node.id} className="relative">
-        <BlockErrorBoundary
-          blockId={node.id}
-          blockType={node.type}
-          pageType={pageType}
-          isEditing={isEditing}
-          isSafeMode={isSafeMode}
-        >
-          <BlockComponent 
-            {...node.props} 
-            context={context}
-            isEditing={isEditing}
-            isInteractMode={isInteractMode}
-            block={node}
-          >
-            {renderChildren()}
-          </BlockComponent>
-        </BlockErrorBoundary>
+        {/* No SectionBlock wrapper - just render children directly */}
+        {node.children?.length ? (
+          <>
+            {node.children.map((child, index) => (
+              <div key={child.id} className="group/block">
+                {index === 0 && onAddBlock && (
+                  <div className="py-1">
+                    <AddBlockButton parentId={node.id} index={0} onAddBlock={onAddBlock} />
+                  </div>
+                )}
+                
+                <BlockRenderer
+                  node={child}
+                  context={context}
+                  isEditing={isEditing}
+                  isInteractMode={isInteractMode}
+                  isSafeMode={isSafeMode}
+                  onSelect={onSelect}
+                  onAddBlock={onAddBlock}
+                  onMoveBlock={onMoveBlock}
+                  onDuplicateBlock={onDuplicateBlock}
+                  onDeleteBlock={onDeleteBlock}
+                  onToggleHidden={onToggleHidden}
+                  siblingIndex={index}
+                  siblingsCount={node.children!.length}
+                  parentId={node.id}
+                />
+                
+                {onAddBlock && (
+                  <div className="py-1">
+                    <AddBlockButton parentId={node.id} index={index + 1} onAddBlock={onAddBlock} />
+                  </div>
+                )}
+              </div>
+            ))}
+          </>
+        ) : (
+          /* Empty structural section - show only AddBlockButton */
+          <div className="py-4">
+            <AddBlockButton
+              parentId={node.id}
+              index={0}
+              onAddBlock={onAddBlock!}
+              className="opacity-60"
+            />
+          </div>
+        )}
       </div>
     );
   }
