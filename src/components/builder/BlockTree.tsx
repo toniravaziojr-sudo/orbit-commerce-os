@@ -148,6 +148,9 @@ function TreeNode({
   const isExpanded = expandedNodes.has(node.id);
   const isSelected = selectedBlockId === node.id;
   const isRoot = node.id === 'root';
+  
+  // Header and Footer are configured via Theme Settings, not shown in tree
+  const isHeaderFooter = ['Header', 'Footer'].includes(node.type);
 
   const {
     attributes,
@@ -158,7 +161,7 @@ function TreeNode({
     isDragging,
   } = useSortable({ 
     id: node.id,
-    disabled: isRoot || definition?.isRemovable === false,
+    disabled: isRoot || definition?.isRemovable === false || isHeaderFooter,
   });
 
   const style = {
@@ -166,7 +169,17 @@ function TreeNode({
     transition,
   };
 
-  const childIds = node.children?.map(c => c.id) || [];
+  // Filter out Header/Footer from children to display
+  const visibleChildren = node.children?.filter(child => 
+    !['Header', 'Footer'].includes(child.type)
+  ) || [];
+  const childIds = visibleChildren.map(c => c.id);
+  const hasVisibleChildren = visibleChildren.length > 0;
+
+  // Don't render Header/Footer nodes in the tree
+  if (isHeaderFooter) {
+    return null;
+  }
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -191,7 +204,7 @@ function TreeNode({
         )}
 
         {/* Expand/Collapse */}
-        {hasChildren ? (
+        {hasVisibleChildren ? (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -218,10 +231,10 @@ function TreeNode({
         </span>
       </div>
 
-      {/* Children */}
-      {hasChildren && isExpanded && (
+      {/* Children - only visible children (excludes Header/Footer) */}
+      {hasVisibleChildren && isExpanded && (
         <SortableContext items={childIds} strategy={verticalListSortingStrategy}>
-          {node.children!.map((child) => (
+          {visibleChildren.map((child) => (
             <TreeNode
               key={child.id}
               node={child}
