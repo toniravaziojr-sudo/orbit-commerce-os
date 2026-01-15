@@ -37,7 +37,7 @@ import { ShipmentGenerator } from '@/components/shipping/ShipmentGenerator';
 import { TrackingTab } from '@/components/shipping/TrackingTab';
 import { SuccessRatePopover } from '@/components/shipping/SuccessRatePopover';
 import { DateRangeFilter } from '@/components/ui/date-range-filter';
-import { FreeShippingRulesTab } from '@/components/shipping/FreeShippingRulesTab';
+import { FreeShippingSubTabs } from '@/components/shipping/FreeShippingSubTabs';
 import { CustomShippingRulesTab } from '@/components/shipping/CustomShippingRulesTab';
 import {
   PieChart,
@@ -456,9 +456,9 @@ export default function ShippingDashboard() {
           <CarrierCardsGrid />
         </TabsContent>
 
-        {/* Frete Grátis Tab */}
+        {/* Frete Grátis Tab with Sub-tabs */}
         <TabsContent value="frete-gratis" className="mt-6">
-          <FreeShippingRulesTab />
+          <FreeShippingSubTabs />
         </TabsContent>
 
         {/* Frete Personalizado Tab */}
