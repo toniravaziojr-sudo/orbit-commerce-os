@@ -570,7 +570,7 @@ export function VisualBuilder({
 
   // Handle deleting a specific block (for quick actions)
   const handleDeleteBlockById = useCallback((blockId: string) => {
-    const { findBlockById, findBlockByType } = require('@/lib/builder/utils');
+    const { findBlockById } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     if (!block) return;
     
@@ -580,23 +580,33 @@ export function VisualBuilder({
       return;
     }
     
+    // CRITICAL: NEVER allow deleting Header or Footer
+    if (['Header', 'Footer'].includes(block.type)) {
+      toast.error('O cabeçalho e rodapé são partes essenciais e não podem ser removidos');
+      return;
+    }
+    
     // CRITICAL: Protect structural container types that could break the page
     const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
     if (structuralTypes.includes(block.type)) {
-      // Check if this container has Header or Footer children
-      const hasEssentialChild = block.children?.some(child => 
-        ['Header', 'Footer'].includes(child.type) || 
-        isEssentialBlock(child.type, pageType)
-      );
-      if (hasEssentialChild) {
-        toast.error('Este container possui blocos essenciais e não pode ser removido');
-        return;
-      }
-      
-      // If the structural block is direct child of root, don't allow deletion
-      if (store.content?.children?.some(c => c.id === blockId)) {
-        toast.error('Não é possível excluir containers estruturais da página');
-        return;
+      // Check if this is a direct child of root
+      const isDirectChildOfRoot = store.content?.children?.some(c => c.id === blockId);
+      if (isDirectChildOfRoot) {
+        // Count Sections at root level
+        const sectionCount = store.content?.children?.filter(c => c.type === 'Section').length || 0;
+        // If this is the last Section, don't delete
+        if (block.type === 'Section' && sectionCount <= 1) {
+          toast.error('É necessário manter pelo menos uma seção na página');
+          return;
+        }
+        // Check if this container has Header or Footer children
+        const hasEssentialChild = block.children?.some(child => 
+          ['Header', 'Footer'].includes(child.type)
+        );
+        if (hasEssentialChild) {
+          toast.error('Este container possui blocos essenciais e não pode ser removido');
+          return;
+        }
       }
     }
     

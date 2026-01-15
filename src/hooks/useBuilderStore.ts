@@ -201,21 +201,33 @@ export function useBuilderStore(initialContent?: BlockNode) {
       const block = findBlockById(prev.content, blockId);
       if (!block) return prev;
 
+      // CRITICAL: NEVER delete Header or Footer
+      if (['Header', 'Footer'].includes(block.type)) {
+        console.warn('[Builder] Attempted to delete Header/Footer - blocked');
+        return prev;
+      }
+
       // CRITICAL: Protect structural container types
       const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
       if (structuralTypes.includes(block.type)) {
         // Check if this is a direct child of root (main structure)
-        if (prev.content?.children?.some(c => c.id === blockId)) {
-          console.warn('[Builder] Attempted to delete structural block - blocked');
-          return prev;
-        }
-        // Check if it contains essential blocks
-        const hasEssentialChild = block.children?.some(child => 
-          ['Header', 'Footer'].includes(child.type)
-        );
-        if (hasEssentialChild) {
-          console.warn('[Builder] Attempted to delete container with essential blocks - blocked');
-          return prev;
+        const isDirectChildOfRoot = prev.content?.children?.some(c => c.id === blockId);
+        if (isDirectChildOfRoot) {
+          // Count how many Sections exist at root level
+          const sectionCount = prev.content?.children?.filter(c => c.type === 'Section').length || 0;
+          // If this is the last/only Section, don't delete
+          if (block.type === 'Section' && sectionCount <= 1) {
+            console.warn('[Builder] Cannot delete last Section - blocked');
+            return prev;
+          }
+          // Check if it contains essential blocks
+          const hasEssentialChild = block.children?.some(child => 
+            ['Header', 'Footer'].includes(child.type)
+          );
+          if (hasEssentialChild) {
+            console.warn('[Builder] Attempted to delete container with essential blocks - blocked');
+            return prev;
+          }
         }
       }
 
