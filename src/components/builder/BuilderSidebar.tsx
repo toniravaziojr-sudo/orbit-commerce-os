@@ -345,9 +345,9 @@ export function BuilderSidebar({
 
           {/* Add section button */}
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
-            className="w-full mt-2 gap-2 text-muted-foreground hover:text-foreground justify-start"
+            className="w-full mt-3 gap-2 text-muted-foreground hover:text-foreground hover:bg-muted justify-start border-dashed"
             onClick={onOpenAddBlock}
           >
             <Plus className="h-4 w-4" />
@@ -357,16 +357,15 @@ export function BuilderSidebar({
       </ScrollArea>
 
       {/* Footer with theme settings */}
-      <div className="border-t p-2">
-        <div className="text-[10px] text-muted-foreground uppercase tracking-wider px-2 mb-1">
+      <div className="border-t p-3 bg-muted/30">
+        <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1 font-medium">
           Tema
         </div>
-        <div className="text-sm font-medium px-2 mb-2">{templateName}</div>
+        <div className="text-sm font-semibold mb-3 text-foreground">{templateName}</div>
         
         <Button
-          variant="ghost"
           size="sm"
-          className="w-full justify-between text-muted-foreground hover:text-foreground"
+          className="w-full justify-between bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
           onClick={onOpenThemeSettings}
         >
           <div className="flex items-center gap-2">
