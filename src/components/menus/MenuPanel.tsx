@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { MenuItem, useMenuItems } from '@/hooks/useMenus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import {
   useSensors,
   DragEndEvent,
   DragStartEvent,
+  DragMoveEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -46,8 +47,7 @@ interface SortableMenuItemRowProps {
   onToggleExpand: (id: string) => void;
   onEdit: (item: MenuItem) => void;
   onDelete: (id: string) => void;
-  shiftPressed: boolean;
-  draggedOverId: string | null;
+  isNestingTarget: boolean;
 }
 
 function SortableMenuItemRow({
@@ -58,8 +58,7 @@ function SortableMenuItemRow({
   onToggleExpand,
   onEdit,
   onDelete,
-  shiftPressed,
-  draggedOverId,
+  isNestingTarget,
 }: SortableMenuItemRowProps) {
   const {
     attributes,
@@ -75,15 +74,13 @@ function SortableMenuItemRow({
     transition,
   };
 
-  const isDropTarget = draggedOverId === item.id && shiftPressed;
-
   return (
     <div ref={setNodeRef} style={style}>
       <div
         className={cn(
           "flex items-center gap-2 p-2 border rounded-md bg-card transition-all group",
           isDragging && "opacity-50 ring-2 ring-primary",
-          isDropTarget && "ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20"
+          isNestingTarget && "ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20"
         )}
         style={{ marginLeft: depth * 20 }}
       >
@@ -116,7 +113,7 @@ function SortableMenuItemRow({
           <p className="text-sm font-medium truncate">{item.label}</p>
         </div>
 
-        {isDropTarget && (
+        {isNestingTarget && (
           <Badge className="bg-green-500 text-white text-xs shrink-0">
             Submenu
           </Badge>
@@ -145,8 +142,7 @@ function SortableMenuItemRow({
               onToggleExpand={onToggleExpand}
               onEdit={onEdit}
               onDelete={onDelete}
-              shiftPressed={shiftPressed}
-              draggedOverId={draggedOverId}
+              isNestingTarget={false}
             />
           ))}
         </div>
@@ -154,6 +150,9 @@ function SortableMenuItemRow({
     </div>
   );
 }
+
+// Threshold in pixels for horizontal drag to trigger nesting
+const NESTING_THRESHOLD = 40;
 
 export default function MenuPanel({
   title,
@@ -164,9 +163,10 @@ export default function MenuPanel({
 }: MenuPanelProps) {
   const { items, reorderItems, deleteItem } = useMenuItems(menuId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [shiftPressed, setShiftPressed] = useState(false);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [draggedOverId, setDraggedOverId] = useState<string | null>(null);
+  const [horizontalOffset, setHorizontalOffset] = useState(0);
+  const [nestingTargetId, setNestingTargetId] = useState<string | null>(null);
+  const dragStartXRef = useRef<number>(0);
 
   // Build hierarchical structure
   const buildHierarchy = (flatItems: MenuItem[] | undefined): MenuItemWithChildren[] => {
@@ -199,6 +199,21 @@ export default function MenuPanel({
   const hierarchicalItems = useMemo(() => buildHierarchy(items), [items]);
   const allItemIds = useMemo(() => items?.map(i => i.id) || [], [items]);
 
+  // Get flat list to find "item above" for nesting
+  const flattenedItems = useMemo(() => {
+    const result: MenuItem[] = [];
+    const flatten = (items: MenuItemWithChildren[]) => {
+      items.forEach(item => {
+        result.push(item);
+        if (item.children.length > 0) {
+          flatten(item.children);
+        }
+      });
+    };
+    flatten(hierarchicalItems);
+    return result;
+  }, [hierarchicalItems]);
+
   // Expand all items by default
   useEffect(() => {
     if (items) {
@@ -207,56 +222,66 @@ export default function MenuPanel({
     }
   }, [items]);
 
-  // Track shift key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setShiftPressed(true);
-    };
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') setShiftPressed(false);
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
   const handleDragStart = (event: DragStartEvent) => {
-    setDraggedId(event.active.id as string);
+    const activeId = event.active.id as string;
+    setDraggedId(activeId);
+    dragStartXRef.current = (event.active.rect.current.initial?.left ?? 0);
+    setHorizontalOffset(0);
+    setNestingTargetId(null);
   };
 
-  const handleDragOver = (event: any) => {
-    const overId = event.over?.id as string | null;
-    setDraggedOverId(overId);
+  const handleDragMove = (event: DragMoveEvent) => {
+    if (!draggedId || !items) return;
+
+    const deltaX = event.delta.x;
+    setHorizontalOffset(deltaX);
+
+    // If dragging right beyond threshold, find the item above to nest under
+    if (deltaX > NESTING_THRESHOLD) {
+      const draggedIndex = flattenedItems.findIndex(i => i.id === draggedId);
+      if (draggedIndex > 0) {
+        // Find the closest non-child item above
+        const itemAbove = flattenedItems[draggedIndex - 1];
+        // Can't nest under own children
+        const draggedItem = items.find(i => i.id === draggedId);
+        if (itemAbove && itemAbove.id !== draggedItem?.parent_id) {
+          setNestingTargetId(itemAbove.id);
+        }
+      } else {
+        setNestingTargetId(null);
+      }
+    } else {
+      setNestingTargetId(null);
+    }
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    setDraggedId(null);
-    setDraggedOverId(null);
+    const wasNesting = nestingTargetId !== null;
+    const targetId = nestingTargetId;
 
-    if (!over || !items) return;
+    setDraggedId(null);
+    setHorizontalOffset(0);
+    setNestingTargetId(null);
+
+    if (!items) return;
 
     const activeId = active.id as string;
-    const overId = over.id as string;
 
-    if (activeId === overId) return;
-
-    if (shiftPressed) {
-      // Move as child of target
+    // Nesting: dragged right beyond threshold
+    if (wasNesting && targetId) {
+      // Move as child of the item above
       await supabase
         .from('menu_items')
-        .update({ parent_id: overId })
+        .update({ parent_id: targetId })
         .eq('id', activeId);
 
       // Reorder children
-      const currentChildren = items.filter(i => i.parent_id === overId);
+      const currentChildren = items.filter(i => i.parent_id === targetId);
       for (let i = 0; i < currentChildren.length; i++) {
         await supabase
           .from('menu_items')
@@ -271,39 +296,44 @@ export default function MenuPanel({
         .eq('id', activeId);
 
       reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
-    } else {
-      // Reorder at same level
-      const activeItem = items.find(i => i.id === activeId);
-      const overItem = items.find(i => i.id === overId);
+      return;
+    }
 
-      if (activeItem && overItem) {
-        // Same parent level reorder
-        const siblings = items.filter(i => i.parent_id === overItem.parent_id);
-        const oldIndex = siblings.findIndex(i => i.id === activeId);
-        const newIndex = siblings.findIndex(i => i.id === overId);
+    // Normal reorder
+    if (!over) return;
+    const overId = over.id as string;
+    if (activeId === overId) return;
 
-        if (oldIndex !== -1) {
-          const reordered = arrayMove(siblings, oldIndex, newIndex);
-          const orderedIds = reordered.map(i => i.id);
+    const activeItem = items.find(i => i.id === activeId);
+    const overItem = items.find(i => i.id === overId);
 
-          // Update sort orders
-          for (let i = 0; i < orderedIds.length; i++) {
-            await supabase
-              .from('menu_items')
-              .update({ sort_order: i, parent_id: overItem.parent_id })
-              .eq('id', orderedIds[i]);
-          }
+    if (activeItem && overItem) {
+      // Same parent level reorder
+      const siblings = items.filter(i => i.parent_id === overItem.parent_id);
+      const oldIndex = siblings.findIndex(i => i.id === activeId);
+      const newIndex = siblings.findIndex(i => i.id === overId);
 
-          reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
-        } else {
-          // Moving from different parent - put at same level as target
+      if (oldIndex !== -1) {
+        const reordered = arrayMove(siblings, oldIndex, newIndex);
+        const orderedIds = reordered.map(i => i.id);
+
+        // Update sort orders
+        for (let i = 0; i < orderedIds.length; i++) {
           await supabase
             .from('menu_items')
-            .update({ parent_id: overItem.parent_id })
-            .eq('id', activeId);
-
-          reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+            .update({ sort_order: i, parent_id: overItem.parent_id })
+            .eq('id', orderedIds[i]);
         }
+
+        reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+      } else {
+        // Moving from different parent - put at same level as target
+        await supabase
+          .from('menu_items')
+          .update({ parent_id: overItem.parent_id })
+          .eq('id', activeId);
+
+        reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
       }
     }
   };
@@ -346,8 +376,6 @@ export default function MenuPanel({
           onClick={async () => {
             if (!menuId) {
               await onCreateMenu();
-              // Menu will be created, but we can't open dialog until parent re-renders with new menuId
-              // The user will need to click again after menu is created
               return;
             }
             onAddItem(menuId);
@@ -357,11 +385,11 @@ export default function MenuPanel({
           Adicionar item
         </Button>
 
-        {/* Shift hint */}
-        {shiftPressed && draggedId && (
+        {/* Nesting indicator */}
+        {draggedId && nestingTargetId && (
           <div className="p-2 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded text-xs text-green-800 dark:text-green-200 flex items-center gap-2">
             <ChevronRight className="h-3 w-3" />
-            <span>Solte sobre um item para criar submenu</span>
+            <span>Solte para criar submenu</span>
           </div>
         )}
 
@@ -371,7 +399,7 @@ export default function MenuPanel({
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
+            onDragMove={handleDragMove}
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={allItemIds} strategy={verticalListSortingStrategy}>
@@ -386,8 +414,7 @@ export default function MenuPanel({
                     onToggleExpand={handleToggleExpand}
                     onEdit={onEditItem}
                     onDelete={handleDeleteItem}
-                    shiftPressed={shiftPressed}
-                    draggedOverId={draggedOverId}
+                    isNestingTarget={nestingTargetId === item.id}
                   />
                 ))}
               </div>
@@ -409,7 +436,7 @@ export default function MenuPanel({
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3 w-3 mt-0.5 shrink-0" />
               <span>
-                Arraste para reordenar. Segure <kbd className="px-1 bg-muted rounded text-[10px]">Shift</kbd> para criar submenu.
+                Arraste para reordenar. Arraste para a direita para criar submenu.
               </span>
             </div>
           </div>
