@@ -1017,6 +1017,7 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
       <CartDemoBlock 
         showCrossSell={effectiveShowCrossSell} 
         showCouponField={effectiveShowCoupon}
+        showShippingCalculator={effectiveShowShipping}
         showTrustBadges={showTrustBadges}
         isEditing 
       />
