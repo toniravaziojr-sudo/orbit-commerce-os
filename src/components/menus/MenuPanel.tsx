@@ -330,24 +330,33 @@ export default function MenuPanel({
       return;
     }
 
-    // Dragging RIGHT beyond threshold = nest
-    // Se o item acima já for um submenu (tem parent_id), virar IRMÃO dele (mesmo parent)
-    // Se o item acima for root, virar filho dele
+    // Dragging RIGHT beyond threshold = nest (progressivo)
+    // - Se item arrastado e item acima têm o MESMO parent → virar filho do item acima (aprofundar)
+    // - Se têm parents DIFERENTES → ir para o nível do item acima (virar irmão dele)
     if (deltaX > NESTING_THRESHOLD) {
       const draggedIndex = flattenedItems.findIndex(i => i.id === draggedId);
       if (draggedIndex > 0) {
         const itemAbove = flattenedItems[draggedIndex - 1];
         if (itemAbove && itemAbove.id !== draggedItem?.parent_id) {
-          // Se item acima já é submenu (tem parent), usar o parent dele como target
-          // Senão, usar o próprio item como target
-          const targetForNesting = itemAbove.parent_id ? itemAbove.parent_id : itemAbove.id;
+          // Verificar se já estão no mesmo nível
+          const sameLevel = draggedItem?.parent_id === itemAbove.parent_id;
           
-          // Só ativar se não for o parent atual do item arrastado
-          if (targetForNesting !== draggedItem?.parent_id) {
-            setNestingTargetId(targetForNesting);
+          if (sameLevel) {
+            // Já está no mesmo nível - aprofundar: virar filho do item acima
+            setNestingTargetId(itemAbove.id);
             setIsUnnesting(false);
             setDropPosition('inside');
             return;
+          } else {
+            // Níveis diferentes - ir para o nível do item acima
+            const targetForNesting = itemAbove.parent_id ? itemAbove.parent_id : itemAbove.id;
+            
+            if (targetForNesting !== draggedItem?.parent_id) {
+              setNestingTargetId(targetForNesting);
+              setIsUnnesting(false);
+              setDropPosition('inside');
+              return;
+            }
           }
         }
       }
