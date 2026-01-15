@@ -380,14 +380,14 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
       { key: 'showRelatedProducts', label: 'Mostrar Produtos Relacionados', defaultValue: true },
       { key: 'showBuyTogether', label: 'Mostrar Compre Junto', defaultValue: true },
       { key: 'showReviews', label: 'Mostrar Avaliações', defaultValue: true },
-      { key: 'openMiniCartOnAdd', label: 'Abrir carrinho ao adicionar', defaultValue: true },
+      { key: 'openMiniCartOnAdd', label: 'Abrir carrinho suspenso ao adicionar', description: 'Abre o mini-carrinho lateral', defaultValue: true },
+      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa do carrinho', defaultValue: true },
     ],
     cart: [
       // Funcionalidades da Página do Carrinho
       { key: 'shippingCalculatorEnabled', label: 'Calculadora de frete', description: 'Permite calcular frete antes do checkout', defaultValue: true, group: 'features' },
       { key: 'couponEnabled', label: 'Cupom de desconto', description: 'Campo para aplicar cupom', defaultValue: true, group: 'features' },
-      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Link para página completa (visível em outros locais)', defaultValue: true, group: 'features' },
-      // sessionTrackingEnabled is always true - no UI toggle needed
+      { key: 'showGoToCartButton', label: 'Botão "Ir para Carrinho"', description: 'Visível em outros locais (produto, mini-cart)', defaultValue: true, group: 'features' },
       // Ofertas
       { key: 'showCrossSell', label: 'Mostrar Cross-sell', description: 'Sugestões de produtos adicionais', defaultValue: true, group: 'offers' },
       // Banner
@@ -407,6 +407,16 @@ function getSettingsConfig(pageType: string): SettingConfig[] {
     thank_you: [
       { key: 'showUpsell', label: 'Mostrar Upsell', description: 'Ofertas pós-compra', defaultValue: true },
       { key: 'showWhatsApp', label: 'Mostrar WhatsApp', description: 'Link para suporte', defaultValue: true },
+    ],
+    tracking: [
+      { key: 'showTitle', label: 'Mostrar título', defaultValue: true },
+      { key: 'showDescription', label: 'Mostrar descrição', defaultValue: true },
+    ],
+    blog: [
+      { key: 'showExcerpt', label: 'Mostrar resumo', defaultValue: true },
+      { key: 'showImage', label: 'Mostrar imagem', defaultValue: true },
+      { key: 'showTags', label: 'Mostrar tags', defaultValue: true },
+      { key: 'showPagination', label: 'Mostrar paginação', defaultValue: true },
     ],
   };
   return configs[pageType] || [];
