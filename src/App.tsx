@@ -250,6 +250,16 @@ const App = () => {
                 }
               />
 
+              {/* QA Storefront - Platform admin only, no tenant required */}
+              <Route
+                path="/admin/qa/storefront"
+                element={
+                  <ProtectedRoute requireTenant={false}>
+                    <QAStorefront />
+                  </ProtectedRoute>
+                }
+              />
+
 
               {!shouldUseTenantRootRoutes && (
                 <Route
@@ -345,7 +355,6 @@ const App = () => {
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   <Route path="/platform/billing" element={<PlatformBilling />} />
                   <Route path="/platform/emails" element={<SystemEmails />} />
-                  <Route path="/admin/qa/storefront" element={<QAStorefront />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<SystemUsers />} />
                   {/* Legacy redirects */}
