@@ -80,7 +80,7 @@ function SortableMenuItemRow({
         className={cn(
           "flex items-center gap-2 p-2 border rounded-md bg-card transition-all group",
           isDragging && "opacity-50 ring-2 ring-primary",
-          isNestingTarget && "ring-2 ring-green-500 bg-green-50 dark:bg-green-900/20"
+          isNestingTarget && "border-primary border-dashed bg-primary/5"
         )}
         style={{ marginLeft: depth * 20 }}
       >
@@ -112,12 +112,6 @@ function SortableMenuItemRow({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium truncate">{item.label}</p>
         </div>
-
-        {isNestingTarget && (
-          <Badge className="bg-green-500 text-white text-xs shrink-0">
-            Submenu
-          </Badge>
-        )}
 
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(item)}>
@@ -151,8 +145,9 @@ function SortableMenuItemRow({
   );
 }
 
-// Threshold in pixels for horizontal drag to trigger nesting
+// Threshold in pixels for horizontal drag to trigger nesting/unnesting
 const NESTING_THRESHOLD = 40;
+const UNNESTING_THRESHOLD = -40;
 
 export default function MenuPanel({
   title,
@@ -164,9 +159,8 @@ export default function MenuPanel({
   const { items, reorderItems, deleteItem } = useMenuItems(menuId);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [horizontalOffset, setHorizontalOffset] = useState(0);
   const [nestingTargetId, setNestingTargetId] = useState<string | null>(null);
-  const dragStartXRef = useRef<number>(0);
+  const [isUnnesting, setIsUnnesting] = useState(false);
 
   // Build hierarchical structure
   const buildHierarchy = (flatItems: MenuItem[] | undefined): MenuItemWithChildren[] => {
@@ -229,73 +223,79 @@ export default function MenuPanel({
   const handleDragStart = (event: DragStartEvent) => {
     const activeId = event.active.id as string;
     setDraggedId(activeId);
-    dragStartXRef.current = (event.active.rect.current.initial?.left ?? 0);
-    setHorizontalOffset(0);
     setNestingTargetId(null);
+    setIsUnnesting(false);
   };
 
   const handleDragMove = (event: DragMoveEvent) => {
     if (!draggedId || !items) return;
 
     const deltaX = event.delta.x;
-    setHorizontalOffset(deltaX);
+    const draggedItem = items.find(i => i.id === draggedId);
 
-    // If dragging right beyond threshold, find the item above to nest under
+    // Dragging LEFT beyond threshold = unnest (remove from submenu)
+    if (deltaX < UNNESTING_THRESHOLD && draggedItem?.parent_id) {
+      setIsUnnesting(true);
+      setNestingTargetId(null);
+      return;
+    }
+
+    // Dragging RIGHT beyond threshold = nest under item above
     if (deltaX > NESTING_THRESHOLD) {
       const draggedIndex = flattenedItems.findIndex(i => i.id === draggedId);
       if (draggedIndex > 0) {
-        // Find the closest non-child item above
         const itemAbove = flattenedItems[draggedIndex - 1];
-        // Can't nest under own children
-        const draggedItem = items.find(i => i.id === draggedId);
         if (itemAbove && itemAbove.id !== draggedItem?.parent_id) {
           setNestingTargetId(itemAbove.id);
+          setIsUnnesting(false);
+          return;
         }
-      } else {
-        setNestingTargetId(null);
       }
-    } else {
-      setNestingTargetId(null);
     }
+
+    setNestingTargetId(null);
+    setIsUnnesting(false);
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     const wasNesting = nestingTargetId !== null;
+    const wasUnnesting = isUnnesting;
     const targetId = nestingTargetId;
 
     setDraggedId(null);
-    setHorizontalOffset(0);
     setNestingTargetId(null);
+    setIsUnnesting(false);
 
     if (!items) return;
 
     const activeId = active.id as string;
+    const activeItem = items.find(i => i.id === activeId);
 
-    // Nesting: dragged right beyond threshold
+    // Unnesting: dragged left = move to root level
+    if (wasUnnesting && activeItem?.parent_id) {
+      const rootItems = items.filter(i => !i.parent_id);
+      const newSortOrder = rootItems.length;
+
+      await supabase
+        .from('menu_items')
+        .update({ parent_id: null, sort_order: newSortOrder })
+        .eq('id', activeId);
+
+      reorderItems.mutate(items.map(i => i.id));
+      return;
+    }
+
+    // Nesting: dragged right = move as child
     if (wasNesting && targetId) {
-      // Move as child of the item above
-      await supabase
-        .from('menu_items')
-        .update({ parent_id: targetId })
-        .eq('id', activeId);
-
-      // Reorder children
       const currentChildren = items.filter(i => i.parent_id === targetId);
-      for (let i = 0; i < currentChildren.length; i++) {
-        await supabase
-          .from('menu_items')
-          .update({ sort_order: i })
-          .eq('id', currentChildren[i].id);
-      }
 
-      // Add the new child at the end
       await supabase
         .from('menu_items')
-        .update({ sort_order: currentChildren.length })
+        .update({ parent_id: targetId, sort_order: currentChildren.length })
         .eq('id', activeId);
 
-      reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+      reorderItems.mutate(items.map(i => i.id));
       return;
     }
 
@@ -304,7 +304,6 @@ export default function MenuPanel({
     const overId = over.id as string;
     if (activeId === overId) return;
 
-    const activeItem = items.find(i => i.id === activeId);
     const overItem = items.find(i => i.id === overId);
 
     if (activeItem && overItem) {
@@ -325,7 +324,7 @@ export default function MenuPanel({
             .eq('id', orderedIds[i]);
         }
 
-        reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+        reorderItems.mutate(items.map(i => i.id));
       } else {
         // Moving from different parent - put at same level as target
         await supabase
@@ -333,7 +332,7 @@ export default function MenuPanel({
           .update({ parent_id: overItem.parent_id })
           .eq('id', activeId);
 
-        reorderItems.mutate(items.map(i => i.id)); // Trigger refresh
+        reorderItems.mutate(items.map(i => i.id));
       }
     }
   };
@@ -385,11 +384,23 @@ export default function MenuPanel({
           Adicionar item
         </Button>
 
-        {/* Nesting indicator */}
-        {draggedId && nestingTargetId && (
-          <div className="p-2 bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded text-xs text-green-800 dark:text-green-200 flex items-center gap-2">
-            <ChevronRight className="h-3 w-3" />
-            <span>Solte para criar submenu</span>
+        {/* Simple drag hint */}
+        {draggedId && (nestingTargetId || isUnnesting) && (
+          <div className={cn(
+            "p-2 rounded text-xs flex items-center gap-2 border",
+            nestingTargetId ? "bg-primary/10 border-primary/30 text-primary" : "bg-muted border-muted-foreground/30 text-muted-foreground"
+          )}>
+            {nestingTargetId ? (
+              <>
+                <ChevronRight className="h-3 w-3" />
+                <span>→ Submenu</span>
+              </>
+            ) : (
+              <>
+                <ChevronRight className="h-3 w-3 rotate-180" />
+                <span>← Voltar ao nível principal</span>
+              </>
+            )}
           </div>
         )}
 
@@ -436,7 +447,7 @@ export default function MenuPanel({
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3 w-3 mt-0.5 shrink-0" />
               <span>
-                Arraste para reordenar. Arraste para a direita para criar submenu.
+                → direita = submenu · ← esquerda = voltar
               </span>
             </div>
           </div>
