@@ -26,6 +26,7 @@ import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
+import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
 import { toast } from 'sonner';
 import { LayoutGrid } from 'lucide-react';
 import { 
@@ -104,10 +105,14 @@ export function VisualBuilder({
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showAddBlockDrawer, setShowAddBlockDrawer] = useState(false);
   
-  // AJUSTE 2: Preserve theme settings panel state via URL param
+// AJUSTE 2: Preserve theme settings panel state via URL param
   // This prevents the panel from closing when navigating between pages
   const themeSettingsFromUrl = searchParams.get('settings') === 'theme';
   const [showThemeSettings, setShowThemeSettingsInternal] = useState(themeSettingsFromUrl);
+  
+  // Mini-cart preview state via URL param
+  const miniCartPreviewFromUrl = searchParams.get('miniCartPreview') === '1';
+  const [showMiniCartPreview, setShowMiniCartPreviewInternal] = useState(miniCartPreviewFromUrl);
   
   // Sync URL with theme settings state
   const setShowThemeSettings = useCallback((open: boolean) => {
@@ -122,10 +127,26 @@ export function VisualBuilder({
     window.history.replaceState({}, '', url.toString());
   }, []);
   
+  // Sync URL with mini-cart preview state
+  const setShowMiniCartPreview = useCallback((open: boolean) => {
+    setShowMiniCartPreviewInternal(open);
+    const url = new URL(window.location.href);
+    if (open) {
+      url.searchParams.set('miniCartPreview', '1');
+    } else {
+      url.searchParams.delete('miniCartPreview');
+    }
+    window.history.replaceState({}, '', url.toString());
+  }, []);
+  
   // Sync from URL on mount/change
   useEffect(() => {
     setShowThemeSettingsInternal(themeSettingsFromUrl);
   }, [themeSettingsFromUrl]);
+  
+  useEffect(() => {
+    setShowMiniCartPreviewInternal(miniCartPreviewFromUrl);
+  }, [miniCartPreviewFromUrl]);
   
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
   
@@ -918,6 +939,16 @@ export function VisualBuilder({
             url.searchParams.set('settings', 'theme');
             navigate(url.pathname + url.search);
           }}
+          showMiniCartPreview={showMiniCartPreview}
+          onToggleMiniCartPreview={setShowMiniCartPreview}
+        />
+        
+        {/* Mini-cart preview drawer - controlled from theme settings */}
+        <MiniCartDrawer
+          open={showMiniCartPreview}
+          onOpenChange={setShowMiniCartPreview}
+          tenantSlug={context.tenantSlug || ''}
+          isPreview={true}
         />
 
         {/* Center - Canvas */}
