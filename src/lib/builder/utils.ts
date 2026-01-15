@@ -220,6 +220,8 @@ export function removeBlock(root: BlockNode, id: string): BlockNode {
   
   // Protected structural types that should never be deleted if they contain essential blocks
   const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
+  // Essential blocks that can NEVER be deleted
+  const essentialBlocks = ['Header', 'Footer'];
   
   function removeFromChildren(node: BlockNode): boolean {
     if (!node.children) return false;
@@ -227,6 +229,12 @@ export function removeBlock(root: BlockNode, id: string): BlockNode {
     const index = node.children.findIndex(child => child.id === id);
     if (index !== -1) {
       const targetBlock = node.children[index];
+      
+      // CRITICAL: NEVER delete Header or Footer
+      if (essentialBlocks.includes(targetBlock.type)) {
+        console.warn('[Builder] Cannot remove essential block:', targetBlock.type);
+        return false;
+      }
       
       // Check if block is removable via registry
       const blockDef = blockRegistry.get(targetBlock.type);
@@ -237,11 +245,20 @@ export function removeBlock(root: BlockNode, id: string): BlockNode {
       // CRITICAL: Don't delete structural blocks that contain Header/Footer
       if (structuralTypes.includes(targetBlock.type)) {
         const hasEssential = targetBlock.children?.some(child => 
-          ['Header', 'Footer'].includes(child.type)
+          essentialBlocks.includes(child.type)
         );
         if (hasEssential) {
           console.warn('[Builder] Cannot remove structural block containing Header/Footer');
           return false;
+        }
+        
+        // Don't delete last Section at root level
+        if (targetBlock.type === 'Section' && node.id === 'root') {
+          const sectionCount = node.children.filter(c => c.type === 'Section').length;
+          if (sectionCount <= 1) {
+            console.warn('[Builder] Cannot remove last Section');
+            return false;
+          }
         }
       }
       

@@ -51,16 +51,56 @@ interface ColorInput {
 
 const colorInputs: ColorInput[] = [
   // Primary button group
-  { id: 'buttonPrimaryBg', label: 'Fundo do Botão Primário', description: 'Cor de fundo dos botões principais (Comprar, Adicionar ao carrinho)', group: 'primary' },
-  { id: 'buttonPrimaryText', label: 'Texto do Botão Primário', description: 'Cor do texto nos botões principais', group: 'primary' },
-  { id: 'buttonPrimaryHover', label: 'Hover do Botão Primário', description: 'Cor ao passar o mouse sobre botões principais', group: 'primary' },
+  { 
+    id: 'buttonPrimaryBg', 
+    label: 'Fundo do Botão Primário', 
+    description: 'Aplicado em: botão "Comprar agora", "Adicionar ao carrinho", "Finalizar pedido", "Assinar newsletter" e todos os CTAs principais', 
+    group: 'primary' 
+  },
+  { 
+    id: 'buttonPrimaryText', 
+    label: 'Texto do Botão Primário', 
+    description: 'Aplicado em: texto dentro dos botões primários (ex: "COMPRAR", "ADICIONAR"). Use cor clara para fundos escuros', 
+    group: 'primary' 
+  },
+  { 
+    id: 'buttonPrimaryHover', 
+    label: 'Hover do Botão Primário', 
+    description: 'Aplicado em: efeito ao passar o mouse nos botões primários. Recomendado: versão mais escura da cor de fundo', 
+    group: 'primary' 
+  },
   // Secondary button group
-  { id: 'buttonSecondaryBg', label: 'Fundo do Botão Secundário', description: 'Cor de fundo dos botões secundários (Cancelar, Voltar)', group: 'secondary' },
-  { id: 'buttonSecondaryText', label: 'Texto do Botão Secundário', description: 'Cor do texto nos botões secundários', group: 'secondary' },
-  { id: 'buttonSecondaryHover', label: 'Hover do Botão Secundário', description: 'Cor ao passar o mouse sobre botões secundários', group: 'secondary' },
+  { 
+    id: 'buttonSecondaryBg', 
+    label: 'Fundo do Botão Secundário', 
+    description: 'Aplicado em: botões "Cancelar", "Voltar", "Ver detalhes", botões outline e ações menos importantes', 
+    group: 'secondary' 
+  },
+  { 
+    id: 'buttonSecondaryText', 
+    label: 'Texto do Botão Secundário', 
+    description: 'Aplicado em: texto dentro dos botões secundários. Geralmente cor escura para fundos claros', 
+    group: 'secondary' 
+  },
+  { 
+    id: 'buttonSecondaryHover', 
+    label: 'Hover do Botão Secundário', 
+    description: 'Aplicado em: efeito ao passar o mouse nos botões secundários. Recomendado: versão levemente mais escura', 
+    group: 'secondary' 
+  },
   // Text colors
-  { id: 'textPrimary', label: 'Texto Primário', description: 'Cor principal para títulos e textos importantes', group: 'text' },
-  { id: 'textSecondary', label: 'Texto Secundário', description: 'Cor para descrições e textos auxiliares', group: 'text' },
+  { 
+    id: 'textPrimary', 
+    label: 'Texto Principal', 
+    description: 'Aplicado em: títulos de seções, nomes de produtos, preços, títulos de páginas e textos de destaque em toda a loja', 
+    group: 'text' 
+  },
+  { 
+    id: 'textSecondary', 
+    label: 'Texto Secundário', 
+    description: 'Aplicado em: descrições de produtos, subtítulos, legendas, informações de frete, avisos e textos auxiliares', 
+    group: 'text' 
+  },
 ];
 
 export function ColorsSettings({ tenantId, templateSetId }: ColorsSettingsProps) {

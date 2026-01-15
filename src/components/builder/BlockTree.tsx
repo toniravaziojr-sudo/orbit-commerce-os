@@ -170,14 +170,26 @@ function TreeNode({
   };
 
   // Filter out Header/Footer from children to display
-  const visibleChildren = node.children?.filter(child => 
-    !['Header', 'Footer'].includes(child.type)
-  ) || [];
+  // Also filter out empty Sections that are structural (direct children of root)
+  const visibleChildren = node.children?.filter(child => {
+    // Never show Header/Footer in tree
+    if (['Header', 'Footer'].includes(child.type)) return false;
+    // Hide empty Sections that are direct children of root (structural containers)
+    if (child.type === 'Section' && isRoot && (!child.children || child.children.length === 0)) {
+      return false;
+    }
+    return true;
+  }) || [];
   const childIds = visibleChildren.map(c => c.id);
   const hasVisibleChildren = visibleChildren.length > 0;
 
   // Don't render Header/Footer nodes in the tree
   if (isHeaderFooter) {
+    return null;
+  }
+  
+  // Don't render empty Sections that are structural (at depth 1, direct child of root)
+  if (node.type === 'Section' && depth === 1 && (!node.children || node.children.length === 0)) {
     return null;
   }
 
