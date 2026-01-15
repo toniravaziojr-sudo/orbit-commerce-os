@@ -4,7 +4,8 @@
 // Navigation: Pages, Header, Footer, Typography, Colors, Custom CSS
 // =============================================
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronRight, Palette, Type, FileCode, Layout, X, PanelTop, PanelBottom, ShoppingCart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -87,8 +88,48 @@ export function ThemeSettingsPanel({
   templateSetId,
   onNavigateToPage,
 }: ThemeSettingsPanelProps) {
-  const [currentView, setCurrentView] = useState<SettingsView>('menu');
-  const [selectedPageType, setSelectedPageType] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Preserve view and selected page via URL params to survive re-renders
+  const viewFromUrl = searchParams.get('settingsView') as SettingsView | null;
+  const pageFromUrl = searchParams.get('settingsPage');
+  
+  const [currentView, setCurrentViewInternal] = useState<SettingsView>(viewFromUrl || 'menu');
+  const [selectedPageType, setSelectedPageTypeInternal] = useState<string | null>(pageFromUrl);
+
+  // Sync view state with URL
+  const setCurrentView = useCallback((view: SettingsView) => {
+    setCurrentViewInternal(view);
+    const newParams = new URLSearchParams(searchParams);
+    if (view === 'menu') {
+      newParams.delete('settingsView');
+      newParams.delete('settingsPage');
+    } else {
+      newParams.set('settingsView', view);
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const setSelectedPageType = useCallback((pageType: string | null) => {
+    setSelectedPageTypeInternal(pageType);
+    const newParams = new URLSearchParams(searchParams);
+    if (pageType) {
+      newParams.set('settingsPage', pageType);
+    } else {
+      newParams.delete('settingsPage');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // Sync from URL on mount/change (important for page navigation)
+  useEffect(() => {
+    if (viewFromUrl && viewFromUrl !== currentView) {
+      setCurrentViewInternal(viewFromUrl);
+    }
+    if (pageFromUrl && pageFromUrl !== selectedPageType) {
+      setSelectedPageTypeInternal(pageFromUrl);
+    }
+  }, [viewFromUrl, pageFromUrl]);
 
   const handleBack = () => {
     if (currentView === 'page-detail') {
