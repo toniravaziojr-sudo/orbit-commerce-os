@@ -224,6 +224,7 @@ export function ThemeSettingsPanel({
             onNavigateToPage={onNavigateToPage}
             showPreview={showMiniCartPreview}
             onTogglePreview={onToggleMiniCartPreview}
+            onConfigChange={onMiniCartConfigChange}
           />
         );
       case 'typography':
