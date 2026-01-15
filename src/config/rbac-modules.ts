@@ -25,11 +25,10 @@ export const ROUTE_TO_PERMISSION: Record<string, { module: string; submodule?: s
   '/categories': { module: 'ecommerce', submodule: 'categories' },
   '/customers': { module: 'ecommerce', submodule: 'customers' },
   '/discounts': { module: 'ecommerce', submodule: 'discounts' },
-  '/abandoned-checkouts': { module: 'ecommerce', submodule: 'orders' },
+  '/abandoned-checkouts': { module: 'ecommerce', submodule: 'abandoned-checkouts' },
   
   // Loja Online
   '/storefront': { module: 'storefront', submodule: 'storefront' },
-  '/cart-checkout': { module: 'storefront', submodule: 'cart-checkout' },
   '/menus': { module: 'storefront', submodule: 'menus' },
   '/pages': { module: 'storefront', submodule: 'pages' },
   '/page-templates': { module: 'storefront', submodule: 'pages' },
@@ -88,9 +87,10 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'ecommerce',
     label: 'E-commerce',
-    description: 'Pedidos, produtos, categorias, clientes e descontos',
+    description: 'Pedidos, produtos, categorias, clientes, descontos e checkout abandonado',
     submodules: [
       { key: 'orders', label: 'Pedidos', route: '/orders' },
+      { key: 'abandoned-checkouts', label: 'Checkout Abandonado', route: '/abandoned-checkouts' },
       { key: 'products', label: 'Produtos', route: '/products' },
       { key: 'categories', label: 'Categorias', route: '/categories' },
       { key: 'customers', label: 'Clientes', route: '/customers' },
@@ -100,10 +100,9 @@ export const MODULES: ModuleConfig[] = [
   {
     key: 'storefront',
     label: 'Loja Online',
-    description: 'Loja virtual, checkout, menus, páginas e blog',
+    description: 'Loja virtual, menus, páginas e blog',
     submodules: [
       { key: 'storefront', label: 'Loja Virtual', route: '/storefront' },
-      { key: 'cart-checkout', label: 'Carrinho e Checkout', route: '/cart-checkout' },
       { key: 'menus', label: 'Menus', route: '/menus' },
       { key: 'pages', label: 'Páginas da Loja', route: '/pages' },
       { key: 'blog', label: 'Blog', route: '/blog' },

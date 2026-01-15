@@ -334,9 +334,9 @@ const App = () => {
                   <Route path="/account/company" element={<CompanyData />} />
                   <Route path="/account/billing" element={<AccountBilling />} />
                   <Route path="/storefront" element={<StorefrontSettings />} />
-                  <Route path="/storefront/conversao" element={<Navigate to="/cart-checkout" replace />} />
-                  <Route path="/cart-checkout" element={<CartAndCheckout />} />
-                  <Route path="/abandoned-checkouts" element={<Navigate to="/cart-checkout?tab=abandoned" replace />} />
+                  <Route path="/storefront/conversao" element={<Navigate to="/abandoned-checkouts" replace />} />
+                  <Route path="/cart-checkout" element={<Navigate to="/abandoned-checkouts" replace />} />
+                  <Route path="/abandoned-checkouts" element={<AbandonedCheckouts />} />
                   <Route path="/dev/url-diagnostics" element={<UrlDiagnostics />} />
                   {/* Platform admin routes */}
                   <Route path="/platform/integrations" element={<PlatformIntegrations />} />
