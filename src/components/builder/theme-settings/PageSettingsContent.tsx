@@ -156,7 +156,12 @@ export function PageSettingsContent({
       return newSettings;
     },
     onSuccess: () => {
+      // Invalidate ALL relevant queries so builder blocks refresh immediately
       queryClient.invalidateQueries({ queryKey: ['page-overrides', tenantId, pageType] });
+      queryClient.invalidateQueries({ queryKey: ['cart-page-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['checkout-page-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['thankyou-page-settings', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['page-settings', tenantId] });
       toast.success('Configurações salvas');
     },
     onError: () => {

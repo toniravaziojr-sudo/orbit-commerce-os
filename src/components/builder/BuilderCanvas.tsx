@@ -253,63 +253,74 @@ export function BuilderCanvas({
       )}
 
       {/* Canvas Area - Centered with container queries */}
-      {/* AJUSTE 1: Zoom centralizado - usa wrapper flex centralizado com margin auto */}
+      {/* AJUSTE: Zoom centralizado - usa display: flex no container pai e width calculada */}
       <ScrollArea className="flex-1 bg-muted/50">
         <div 
           className={cn(
-            "min-h-full flex items-start justify-center p-4",
+            "min-h-full p-4",
             isOver && "bg-primary/5"
           )}
           onClick={handleCanvasClick}
+          style={{
+            // Container takes full width and centers content via flexbox
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+          }}
         >
-          {/* Zoom wrapper - FIXED: centralizado estruturalmente com margin auto e transform-origin center */}
+          {/* Zoom wrapper - TRUE CENTER: fixed width wrapper that scales visually but maintains center position */}
           <div
-            className="flex-shrink-0"
             style={{ 
-              transform: `scale(${zoom / 100})`,
-              transformOrigin: 'top center',
-              // Compensate for scale to prevent drift - scale shrinks visually but element keeps original size in layout
-              // We use margin-based centering instead of relying on flex alone
-              marginLeft: 'auto',
-              marginRight: 'auto',
+              // The wrapper has the SCALED width so the flex container centers it correctly
+              width: `${currentViewportSize.width * (zoom / 100)}px`,
+              // Transform scales the visual but transform-origin keeps it centered
+              display: 'flex',
+              justifyContent: 'center',
             }}
           >
-            {/* Container query wrapper - this is the key to responsive preview */}
             <div
-              ref={setNodeRef}
-              className={cn(
-                'storefront-container bg-background transition-all duration-300',
-                viewport === 'mobile' && 'rounded-2xl shadow-xl border-4 border-muted/50'
-              )}
-              style={{ 
-                width: `${currentViewportSize.width}px`,
-                minHeight: viewport === 'mobile' ? '700px' : '600px',
-                containerType: 'inline-size',
-                containerName: 'storefront',
-                ...themeStyles,
+              style={{
+                transform: `scale(${zoom / 100})`,
+                transformOrigin: 'top center',
               }}
             >
-              {/* Mobile notch decoration */}
-              {viewport === 'mobile' && (
-                <div className="h-6 bg-muted/20 flex items-center justify-center rounded-t-xl">
-                  <div className="w-20 h-1 bg-muted rounded-full" />
-                </div>
-              )}
-              
-              <BlockRenderer
-                node={content}
-                context={{ ...context, viewport }}
-                isSelected={selectedBlockId === content.id}
-                isEditing={!isPreviewMode && !isInteractMode}
-                isInteractMode={isInteractMode}
-                isSafeMode={isSafeMode}
-                onSelect={isInteractMode ? undefined : onSelectBlock}
-                onAddBlock={isInteractMode ? undefined : onAddBlock}
-                onMoveBlock={isInteractMode ? undefined : onMoveBlock}
-                onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
-                onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
-                onToggleHidden={isInteractMode ? undefined : onToggleHidden}
-              />
+              {/* Container query wrapper - this is the key to responsive preview */}
+              <div
+                ref={setNodeRef}
+                className={cn(
+                  'storefront-container bg-background transition-all duration-300',
+                  viewport === 'mobile' && 'rounded-2xl shadow-xl border-4 border-muted/50'
+                )}
+                style={{ 
+                  width: `${currentViewportSize.width}px`,
+                  minHeight: viewport === 'mobile' ? '700px' : '600px',
+                  containerType: 'inline-size',
+                  containerName: 'storefront',
+                  ...themeStyles,
+                }}
+              >
+                {/* Mobile notch decoration */}
+                {viewport === 'mobile' && (
+                  <div className="h-6 bg-muted/20 flex items-center justify-center rounded-t-xl">
+                    <div className="w-20 h-1 bg-muted rounded-full" />
+                  </div>
+                )}
+                
+                <BlockRenderer
+                  node={content}
+                  context={{ ...context, viewport }}
+                  isSelected={selectedBlockId === content.id}
+                  isEditing={!isPreviewMode && !isInteractMode}
+                  isInteractMode={isInteractMode}
+                  isSafeMode={isSafeMode}
+                  onSelect={isInteractMode ? undefined : onSelectBlock}
+                  onAddBlock={isInteractMode ? undefined : onAddBlock}
+                  onMoveBlock={isInteractMode ? undefined : onMoveBlock}
+                  onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
+                  onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
+                  onToggleHidden={isInteractMode ? undefined : onToggleHidden}
+                />
+              </div>
             </div>
           </div>
         </div>
