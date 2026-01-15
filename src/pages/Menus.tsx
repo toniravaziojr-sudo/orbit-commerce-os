@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useMenus, useMenuItems, MenuItem } from '@/hooks/useMenus';
 import { useCategories } from '@/hooks/useProducts';
 import { useStorePages } from '@/hooks/useStorePages';
@@ -6,6 +6,20 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import MenuPanel from '@/components/menus/MenuPanel';
 import MenuItemDialog from '@/components/menus/MenuItemDialog';
+
+// Local item type for pending changes
+interface LocalMenuItem {
+  id: string;
+  menu_id: string;
+  label: string;
+  item_type: 'category' | 'page' | 'external';
+  ref_id: string | null;
+  url: string | null;
+  sort_order: number;
+  parent_id: string | null;
+  isNew?: boolean;
+  isDeleted?: boolean;
+}
 
 export default function Menus() {
   const { menus, isLoading, createMenu } = useMenus();
@@ -16,9 +30,13 @@ export default function Menus() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogMenuId, setDialogMenuId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  
+  // Callback refs for local state updates
+  const onItemCreatedRef = useRef<((item: LocalMenuItem) => void) | null>(null);
+  const onItemUpdatedRef = useRef<((item: LocalMenuItem) => void) | null>(null);
 
-  // Get items for the dialog
-  const { items: dialogMenuItems, createItem, updateItem } = useMenuItems(dialogMenuId);
+  // Get items for the dialog (only for existingItems reference)
+  const { items: dialogMenuItems } = useMenuItems(dialogMenuId);
 
   // Menu references
   const headerMenu = menus?.find(m => m.location === 'header');
@@ -38,21 +56,25 @@ export default function Menus() {
     });
   };
 
-  // Open add dialog
-  const handleAddItem = (menuId: string) => {
+  // Open add dialog with callback
+  const handleAddItem = (menuId: string, onItemCreated: (item: LocalMenuItem) => void) => {
     setDialogMenuId(menuId);
     setEditingItem(null);
+    onItemCreatedRef.current = onItemCreated;
+    onItemUpdatedRef.current = null;
     setDialogOpen(true);
   };
 
-  // Open edit dialog
-  const handleEditItem = (item: MenuItem) => {
+  // Open edit dialog with callback
+  const handleEditItem = (item: MenuItem, onItemUpdated: (item: LocalMenuItem) => void) => {
     setDialogMenuId(item.menu_id);
     setEditingItem(item);
+    onItemCreatedRef.current = null;
+    onItemUpdatedRef.current = onItemUpdated;
     setDialogOpen(true);
   };
 
-  // Submit item
+  // Submit item - now calls the callback instead of DB
   const handleSubmitItem = async (data: {
     menu_id: string;
     label: string;
@@ -62,10 +84,26 @@ export default function Menus() {
     sort_order: number;
     parent_id: string | null;
   }) => {
-    if (editingItem) {
-      await updateItem.mutateAsync({ id: editingItem.id, ...data });
-    } else {
-      await createItem.mutateAsync(data);
+    if (editingItem && onItemUpdatedRef.current) {
+      // Update existing item locally
+      onItemUpdatedRef.current({
+        id: editingItem.id,
+        ...data,
+      });
+    } else if (onItemCreatedRef.current) {
+      // Create new item locally with temp ID
+      onItemCreatedRef.current({
+        id: crypto.randomUUID(),
+        ...data,
+      });
+    }
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      onItemCreatedRef.current = null;
+      onItemUpdatedRef.current = null;
     }
   };
 
@@ -125,7 +163,7 @@ export default function Menus() {
       {dialogMenuId && (
         <MenuItemDialog
           open={dialogOpen}
-          onOpenChange={setDialogOpen}
+          onOpenChange={handleDialogClose}
           menuId={dialogMenuId}
           editingItem={editingItem}
           existingItems={dialogMenuItems || []}
