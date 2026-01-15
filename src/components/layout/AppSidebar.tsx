@@ -84,6 +84,7 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Pedidos", href: "/orders", icon: ShoppingCart },
+      { title: "Checkout Abandonado", href: "/abandoned-checkouts", icon: ShoppingBag },
       { title: "Produtos", href: "/products", icon: Package },
       { title: "Categorias", href: "/categories", icon: FolderTree },
       { title: "Clientes", href: "/customers", icon: Users },
@@ -95,7 +96,6 @@ const fullNavigation: NavGroup[] = [
     collapsible: true,
     items: [
       { title: "Loja Virtual", href: "/storefront", icon: Store },
-      { title: "Carrinho e Checkout", href: "/cart-checkout", icon: ShoppingBag },
       { title: "Menus", href: "/menus", icon: Menu },
       { title: "Páginas da Loja", href: "/pages", icon: FileText },
       { title: "Blog", href: "/blog", icon: BookOpen },
