@@ -253,19 +253,25 @@ export function BuilderCanvas({
       )}
 
       {/* Canvas Area - Centered with container queries */}
+      {/* AJUSTE 1: Zoom centralizado - usa wrapper flex centralizado com margin auto */}
       <ScrollArea className="flex-1 bg-muted/50">
         <div 
           className={cn(
-            "min-h-full p-4 flex justify-center",
+            "min-h-full flex items-start justify-center p-4",
             isOver && "bg-primary/5"
           )}
           onClick={handleCanvasClick}
         >
-          {/* Zoom wrapper - centered with transform-origin top center */}
+          {/* Zoom wrapper - FIXED: centralizado estruturalmente com margin auto e transform-origin center */}
           <div
+            className="flex-shrink-0"
             style={{ 
               transform: `scale(${zoom / 100})`,
               transformOrigin: 'top center',
+              // Compensate for scale to prevent drift - scale shrinks visually but element keeps original size in layout
+              // We use margin-based centering instead of relying on flex alone
+              marginLeft: 'auto',
+              marginRight: 'auto',
             }}
           >
             {/* Container query wrapper - this is the key to responsive preview */}
