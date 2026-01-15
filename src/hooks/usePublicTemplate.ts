@@ -1,5 +1,5 @@
 // =============================================
-// PUBLIC TEMPLATE HOOK - Fetch published templates
+// PUBLIC TEMPLATE HOOK - Fetch published templates from storefront_template_sets
 // =============================================
 
 import { useQuery } from '@tanstack/react-query';
@@ -31,39 +31,70 @@ export function usePublicTemplate(tenantSlug: string, pageType: PageType): Publi
         throw new Error('Tenant not found');
       }
 
-      // Get the template for this page type
-      const { data: template, error: templateError } = await supabase
-        .from('storefront_page_templates')
-        .select('published_version')
+      // Get store settings to find the published_template_id
+      const { data: storeSettings, error: settingsError } = await supabase
+        .from('store_settings')
+        .select('published_template_id, is_published')
         .eq('tenant_id', tenant.id)
-        .eq('page_type', pageType)
-        .single();
+        .maybeSingle();
 
-      if (templateError && templateError.code !== 'PGRST116') {
-        throw templateError;
+      if (settingsError) {
+        throw settingsError;
       }
 
-      // If no published version, return default
-      if (!template?.published_version) {
+      // If store is not published, return default
+      if (!storeSettings?.is_published) {
         return {
           content: getDefaultTemplate(pageType),
           isDefault: true,
         };
       }
 
-      // Get the published version content
-      const { data: version, error: versionError } = await supabase
-        .from('store_page_versions')
-        .select('content')
+      // If no published template id, try to get any published template set
+      let templateSetId = storeSettings.published_template_id;
+      
+      if (!templateSetId) {
+        // Fallback: get the first published template set
+        const { data: fallbackTemplate } = await supabase
+          .from('storefront_template_sets')
+          .select('id')
+          .eq('tenant_id', tenant.id)
+          .eq('is_published', true)
+          .limit(1)
+          .maybeSingle();
+        
+        if (fallbackTemplate) {
+          templateSetId = fallbackTemplate.id;
+        }
+      }
+
+      if (!templateSetId) {
+        return {
+          content: getDefaultTemplate(pageType),
+          isDefault: true,
+        };
+      }
+
+      // Get the published content from the template set
+      const { data: templateSet, error: templateError } = await supabase
+        .from('storefront_template_sets')
+        .select('published_content')
+        .eq('id', templateSetId)
         .eq('tenant_id', tenant.id)
-        .eq('entity_type', 'template')
-        .eq('page_type', pageType)
-        .eq('version', template.published_version)
-        .eq('status', 'published')
         .single();
 
-      if (versionError) {
-        // Fallback to default if version not found
+      if (templateError) {
+        console.warn('Template set not found:', templateError);
+        return {
+          content: getDefaultTemplate(pageType),
+          isDefault: true,
+        };
+      }
+
+      // Extract the page content from published_content
+      const publishedContent = templateSet.published_content as unknown as Record<string, BlockNode | null> | null;
+      
+      if (!publishedContent || !publishedContent[pageType]) {
         return {
           content: getDefaultTemplate(pageType),
           isDefault: true,
@@ -71,7 +102,7 @@ export function usePublicTemplate(tenantSlug: string, pageType: PageType): Publi
       }
 
       return {
-        content: version.content as unknown as BlockNode,
+        content: publishedContent[pageType] as BlockNode,
         isDefault: false,
       };
     },
