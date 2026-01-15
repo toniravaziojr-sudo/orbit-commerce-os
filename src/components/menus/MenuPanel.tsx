@@ -181,8 +181,9 @@ function SortableMenuItemRow({
 }
 
 // Threshold in pixels for horizontal drag to trigger nesting/unnesting
-const NESTING_THRESHOLD = 40;
-const UNNESTING_THRESHOLD = -40;
+// Much higher thresholds to require very intentional horizontal movement
+const NESTING_THRESHOLD = 80;
+const UNNESTING_THRESHOLD = -80;
 
 export default function MenuPanel({
   title,
@@ -204,6 +205,8 @@ export default function MenuPanel({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [nestingTargetId, setNestingTargetId] = useState<string | null>(null);
   const [isUnnesting, setIsUnnesting] = useState(false);
+  // Track initial X position to calculate absolute movement
+  const dragStartX = useRef<number>(0);
 
   // Sync local state with DB items when they change
   useEffect(() => {
@@ -298,6 +301,7 @@ export default function MenuPanel({
     setDraggedId(activeId);
     setNestingTargetId(null);
     setIsUnnesting(false);
+    dragStartX.current = 0;
   };
 
   const handleDragMove = (event: DragMoveEvent) => {
@@ -305,6 +309,18 @@ export default function MenuPanel({
 
     const deltaX = event.delta.x;
     const draggedItem = localItems.find(i => i.id === draggedId);
+
+    // Only trigger nesting/unnesting with very intentional horizontal movement
+    // and minimal vertical movement ratio
+    const deltaY = Math.abs(event.delta.y);
+    const absX = Math.abs(deltaX);
+    
+    // If vertical movement is much greater than horizontal, ignore nesting
+    if (deltaY > absX * 1.5) {
+      setNestingTargetId(null);
+      setIsUnnesting(false);
+      return;
+    }
 
     // Dragging LEFT beyond threshold = unnest (remove from submenu)
     if (deltaX < UNNESTING_THRESHOLD && draggedItem?.parent_id) {
@@ -318,6 +334,7 @@ export default function MenuPanel({
       const draggedIndex = flattenedItems.findIndex(i => i.id === draggedId);
       if (draggedIndex > 0) {
         const itemAbove = flattenedItems[draggedIndex - 1];
+        // Only nest if item above is not already the parent
         if (itemAbove && itemAbove.id !== draggedItem?.parent_id) {
           setNestingTargetId(itemAbove.id);
           setIsUnnesting(false);
