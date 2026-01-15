@@ -189,20 +189,20 @@ export function ThemeSettingsPanel({
         )}
       >
         {/* Header */}
-        <div className="flex items-center gap-2 p-3 border-b">
+        <div className="flex items-center gap-2 p-3 border-b bg-muted/30">
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 hover:bg-background"
             onClick={handleBack}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <span className="font-semibold text-sm flex-1">{getTitle()}</span>
+          <span className="font-semibold text-sm flex-1 text-foreground">{getTitle()}</span>
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8"
+            className="h-8 w-8 hover:bg-background"
             onClick={handleClose}
           >
             <X className="h-4 w-4" />
@@ -211,28 +211,29 @@ export function ThemeSettingsPanel({
 
         <ScrollArea className="h-[calc(100vh-57px)]">
           {currentView === 'menu' ? (
-            <div className="p-2 space-y-1">
+            <div className="p-3 space-y-1">
               {menuItems.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => setCurrentView(item.id)}
                   className={cn(
                     'w-full flex items-center gap-3 px-3 py-3 rounded-lg',
-                    'hover:bg-muted transition-colors text-left group'
+                    'hover:bg-primary hover:text-primary-foreground transition-all text-left group',
+                    'border border-transparent hover:border-primary/20 hover:shadow-sm'
                   )}
                 >
-                  <div className="flex-shrink-0 text-muted-foreground">
+                  <div className="flex-shrink-0 text-muted-foreground group-hover:text-primary-foreground">
                     {item.icon}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm">{item.label}</div>
                     {item.description && (
-                      <div className="text-xs text-muted-foreground truncate">
+                      <div className="text-xs text-muted-foreground group-hover:text-primary-foreground/80 truncate">
                         {item.description}
                       </div>
                     )}
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary-foreground group-hover:translate-x-0.5 transition-transform" />
                 </button>
               ))}
             </div>
