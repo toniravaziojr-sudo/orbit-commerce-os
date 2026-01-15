@@ -62,39 +62,78 @@ export const PAGE_FEATURE_SLOTS: Record<string, FeatureSlot[]> = {
 };
 
 /**
- * Resolve feature render mode
- * @param pageType - The current page type
- * @param featureId - The feature slot ID
- * @param enabled - Whether the feature toggle is enabled
+ * Resolve feature render mode - CONTRATO ÚNICO (PASSO 5)
+ * 
+ * This is the SINGLE SOURCE OF TRUTH for feature/slot rendering decisions.
+ * All feature slots (CrossSell, OrderBump, Upsell, Cupom, Frete, Depoimentos, etc.)
+ * MUST use this function to determine what to render.
+ * 
+ * Rules:
+ * - Editor + enabled + hasRealData => render 'real'
+ * - Editor + enabled + !hasRealData => render 'skeleton'
+ * - Editor + !enabled => render 'none'
+ * - Public + enabled + hasRealData => render 'real'
+ * - Public + enabled + !hasRealData => render 'none' (NEVER skeleton in public)
+ * - Public + !enabled => render 'none'
+ * 
+ * @param enabled - Whether the feature toggle is enabled in settings
  * @param hasRealData - Whether real data exists for this feature
- * @param mode - Current render mode (editor or public)
+ * @param isEditor - Whether we're in editor mode (true) or public mode (false)
+ * @param pageType - Optional: The current page type (for logging)
+ * @param featureId - Optional: The feature slot ID (for logging)
  */
 export function resolveFeatureRenderMode(
+  enabled: boolean,
+  hasRealData: boolean,
+  isEditor: boolean,
+  pageType?: string,
+  featureId?: string
+): FeatureRenderResult {
+  // Feature disabled = never render anywhere
+  if (!enabled) {
+    return { 
+      render: 'none', 
+      reason: `Feature ${featureId || 'unknown'} disabled in settings` 
+    };
+  }
+
+  // Editor mode: always show something when enabled (skeleton or real)
+  if (isEditor) {
+    if (hasRealData) {
+      return { 
+        render: 'real', 
+        reason: `Real data available for ${featureId || 'feature'}` 
+      };
+    }
+    return { 
+      render: 'skeleton', 
+      reason: `Showing skeleton for ${featureId || 'feature'} (no real data in editor)` 
+    };
+  }
+
+  // Public mode: only render if real data exists (NEVER skeleton)
+  if (hasRealData) {
+    return { 
+      render: 'real', 
+      reason: `Real data available for ${featureId || 'feature'}` 
+    };
+  }
+
+  return { 
+    render: 'none', 
+    reason: `No real data for ${featureId || 'feature'} in public mode` 
+  };
+}
+
+// Legacy signature support (for backward compatibility during migration)
+export function resolveFeatureRenderModeLegacy(
   pageType: string,
   featureId: string,
   enabled: boolean,
   hasRealData: boolean,
   mode: RenderMode
 ): FeatureRenderResult {
-  // Feature disabled = never render
-  if (!enabled) {
-    return { render: 'none', reason: 'Feature disabled in settings' };
-  }
-
-  // Editor mode: always show something (skeleton or real)
-  if (mode === 'editor') {
-    if (hasRealData) {
-      return { render: 'real', reason: 'Real data available' };
-    }
-    return { render: 'skeleton', reason: 'Showing skeleton for editor preview' };
-  }
-
-  // Public mode: only render if real data exists
-  if (hasRealData) {
-    return { render: 'real', reason: 'Real data available' };
-  }
-
-  return { render: 'none', reason: 'No real data for public rendering' };
+  return resolveFeatureRenderMode(enabled, hasRealData, mode === 'editor', pageType, featureId);
 }
 
 /**

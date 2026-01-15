@@ -80,11 +80,52 @@ export function PropsEditor({
     ? propsEntries.filter(([key]) => !HEADER_NOTICE_PROPS.includes(key))
     : propsEntries;
 
-  // Header and Footer are configured via Theme Settings, not here
-  const isHeaderFooter = ['Header', 'Footer'].includes(definition.type);
+  // SYSTEM BLOCKS - Configured via Theme Settings, not via PropsEditor
+  // These blocks have configurations in Theme Settings (Páginas section)
+  const SYSTEM_BLOCKS = [
+    'Header', 
+    'Footer', 
+    'Cart', 
+    'Checkout', 
+    'ThankYou',
+    'TrackingLookup',
+    'BlogListing',
+    'AccountHub',
+    'OrdersList',
+    'OrderDetail',
+  ];
+  
+  const isSystemBlock = SYSTEM_BLOCKS.includes(definition.type);
+  
+  // Get the redirect message based on block type
+  const getSystemBlockRedirect = (type: string): { section: string; description: string } => {
+    switch (type) {
+      case 'Header':
+        return { section: 'Cabeçalho', description: 'Configure menus, busca, atendimento e mais' };
+      case 'Footer':
+        return { section: 'Rodapé', description: 'Configure colunas, menus e informações' };
+      case 'Cart':
+        return { section: 'Páginas > Carrinho', description: 'Configure frete, cupom, cross-sell e mais' };
+      case 'Checkout':
+        return { section: 'Páginas > Checkout', description: 'Configure timeline, order bump, depoimentos' };
+      case 'ThankYou':
+        return { section: 'Páginas > Obrigado', description: 'Configure upsell e WhatsApp' };
+      case 'TrackingLookup':
+        return { section: 'Páginas > Rastreio', description: 'Configure formulário de rastreio' };
+      case 'BlogListing':
+        return { section: 'Páginas > Blog', description: 'Configure listagem de posts' };
+      case 'AccountHub':
+      case 'OrdersList':
+      case 'OrderDetail':
+        return { section: 'Páginas > Minha Conta', description: 'Estrutura padrão da área do cliente' };
+      default:
+        return { section: 'Configurações do tema', description: 'Configure em Configurações do tema' };
+    }
+  };
 
-  // Special message for Header/Footer blocks
-  if (isHeaderFooter) {
+  // Special message for system blocks
+  if (isSystemBlock) {
+    const redirect = getSystemBlockRedirect(definition.type);
     return (
       <div className="h-full flex flex-col border-l">
         {/* Header */}
@@ -101,14 +142,13 @@ export function PropsEditor({
           <div className="p-4 bg-muted/30 rounded-lg space-y-3">
             <Settings2 className="h-8 w-8 mx-auto text-muted-foreground" />
             <div>
-              <h4 className="font-medium text-sm">Configurações do tema</h4>
+              <h4 className="font-medium text-sm">{redirect.section}</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                O {definition.type === 'Header' ? 'cabeçalho' : 'rodapé'} é configurado em 
-                <strong className="text-primary"> Configurações do tema</strong>
+                {redirect.description}
               </p>
             </div>
             <p className="text-[10px] text-muted-foreground">
-              Clique em "Configurações do tema" no menu esquerdo para personalizar cores, menus, exibição e mais.
+              Clique em <strong className="text-primary">Configurações do tema</strong> no menu esquerdo.
             </p>
           </div>
         </div>

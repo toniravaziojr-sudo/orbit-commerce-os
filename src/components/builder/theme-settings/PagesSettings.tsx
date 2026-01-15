@@ -1,8 +1,8 @@
 // =============================================
 // PAGES SETTINGS - Configure pages structure
+// PASSO 2: Updated to use template-wide settings via useThemeSettings
 // =============================================
 
-import { useState } from 'react';
 import { 
   Home, 
   Grid3X3, 
@@ -31,20 +31,21 @@ interface PageItem {
   label: string;
   icon: React.ReactNode;
   hasSettings?: boolean;
+  description?: string;
 }
 
 const pages: PageItem[] = [
-  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" />, hasSettings: false },
-  { id: 'category', label: 'Categoria', icon: <Grid3X3 className="h-4 w-4" />, hasSettings: true },
-  { id: 'product', label: 'Produto', icon: <Package className="h-4 w-4" />, hasSettings: true },
-  { id: 'cart', label: 'Carrinho', icon: <ShoppingCart className="h-4 w-4" />, hasSettings: true },
-  { id: 'checkout', label: 'Checkout', icon: <CreditCard className="h-4 w-4" />, hasSettings: true },
-  { id: 'thank_you', label: 'Obrigado', icon: <CheckCircle2 className="h-4 w-4" />, hasSettings: true },
-  { id: 'account', label: 'Minha Conta', icon: <User className="h-4 w-4" />, hasSettings: false },
-  { id: 'account_orders', label: 'Pedidos', icon: <FileText className="h-4 w-4" />, hasSettings: false },
-  { id: 'account_order_detail', label: 'Pedido', icon: <FileText className="h-4 w-4" />, hasSettings: false },
-  { id: 'tracking', label: 'Rastreio', icon: <Truck className="h-4 w-4" />, hasSettings: true },
-  { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" />, hasSettings: true },
+  { id: 'home', label: 'Página Inicial', icon: <Home className="h-4 w-4" />, hasSettings: false, description: 'Layout e seções editáveis via blocos' },
+  { id: 'category', label: 'Categoria', icon: <Grid3X3 className="h-4 w-4" />, hasSettings: true, description: 'Banner, nome e avaliações' },
+  { id: 'product', label: 'Produto', icon: <Package className="h-4 w-4" />, hasSettings: true, description: 'Galeria, compre junto, avaliações' },
+  { id: 'cart', label: 'Carrinho', icon: <ShoppingCart className="h-4 w-4" />, hasSettings: true, description: 'Frete, cupom, cross-sell' },
+  { id: 'checkout', label: 'Checkout', icon: <CreditCard className="h-4 w-4" />, hasSettings: true, description: 'Timeline, order bump, depoimentos' },
+  { id: 'thank_you', label: 'Obrigado', icon: <CheckCircle2 className="h-4 w-4" />, hasSettings: true, description: 'Upsell e WhatsApp' },
+  { id: 'account', label: 'Minha Conta', icon: <User className="h-4 w-4" />, hasSettings: false, description: 'Área do cliente' },
+  { id: 'account_orders', label: 'Pedidos', icon: <FileText className="h-4 w-4" />, hasSettings: false, description: 'Lista de pedidos' },
+  { id: 'account_order_detail', label: 'Pedido', icon: <FileText className="h-4 w-4" />, hasSettings: false, description: 'Detalhe do pedido' },
+  { id: 'tracking', label: 'Rastreio', icon: <Truck className="h-4 w-4" />, hasSettings: true, description: 'Formulário de rastreio' },
+  { id: 'blog', label: 'Blog', icon: <BookOpen className="h-4 w-4" />, hasSettings: true, description: 'Listagem de posts' },
 ];
 
 export function PagesSettings({ 
@@ -66,7 +67,7 @@ export function PagesSettings({
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground mb-3">
-        Clique em uma página para ver suas configurações
+        Clique para navegar e configurar cada página
       </p>
       
       {pages.map((page) => (
@@ -81,11 +82,16 @@ export function PagesSettings({
           <div className="flex-shrink-0 text-muted-foreground">
             {page.icon}
           </div>
-          <span className="flex-1 text-sm font-medium">{page.label}</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-medium block">{page.label}</span>
+            {page.description && (
+              <span className="text-[10px] text-muted-foreground line-clamp-1">{page.description}</span>
+            )}
+          </div>
           {page.hasSettings && (
-            <Settings2 className="h-3.5 w-3.5 text-muted-foreground/50" />
+            <Settings2 className="h-3.5 w-3.5 text-muted-foreground/50 flex-shrink-0" />
           )}
-          <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
         </button>
       ))}
     </div>

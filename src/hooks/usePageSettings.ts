@@ -102,14 +102,48 @@ function getSettingsKey(pageType: string): string {
   return keys[pageType] || `${pageType}Settings`;
 }
 
-export function usePageSettings<T extends PageSettings>(tenantId: string, pageType: string) {
+/**
+ * Hook to fetch page settings
+ * Now supports optional templateSetId for template-wide settings
+ * Falls back to tenant-wide storefront_page_templates for compatibility
+ */
+export function usePageSettings<T extends PageSettings>(
+  tenantId: string, 
+  pageType: string,
+  templateSetId?: string
+) {
   return useQuery({
-    queryKey: ['page-settings', tenantId, pageType],
+    // Include templateSetId in query key for proper caching
+    queryKey: ['page-settings', tenantId, templateSetId || 'tenant', pageType],
     queryFn: async (): Promise<T> => {
       if (!tenantId || !pageType) {
         return (DEFAULT_SETTINGS[pageType] || {}) as T;
       }
 
+      // If templateSetId is provided, try to get settings from template set first
+      if (templateSetId) {
+        const { data: templateSet, error: tsError } = await supabase
+          .from('storefront_template_sets')
+          .select('draft_content')
+          .eq('id', templateSetId)
+          .eq('tenant_id', tenantId)
+          .maybeSingle();
+
+        if (!tsError && templateSet?.draft_content) {
+          const draftContent = templateSet.draft_content as Record<string, unknown>;
+          const themeSettings = draftContent.themeSettings as Record<string, unknown> | undefined;
+          const pageSettings = themeSettings?.pageSettings as Record<string, unknown> | undefined;
+          
+          if (pageSettings?.[pageType]) {
+            return {
+              ...(DEFAULT_SETTINGS[pageType] || {}),
+              ...(pageSettings[pageType] as T),
+            } as T;
+          }
+        }
+      }
+
+      // Fallback: get from storefront_page_templates (legacy/compatibility)
       const { data, error } = await supabase
         .from('storefront_page_templates')
         .select('page_overrides')
