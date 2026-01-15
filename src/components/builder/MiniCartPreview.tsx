@@ -76,6 +76,13 @@ export function MiniCartPreview({
           viewport === 'mobile' ? 'w-full' : 'w-[380px] max-w-[90%]'
         )}
       >
+        {/* Disabled banner */}
+        {!config.miniCartEnabled && (
+          <div className="bg-orange-100 text-orange-700 text-xs px-4 py-2 text-center font-medium">
+            ⚠️ Carrinho suspenso desativado na loja
+          </div>
+        )}
+        
         {/* Header */}
         <div className="border-b px-4 py-4 flex-shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
