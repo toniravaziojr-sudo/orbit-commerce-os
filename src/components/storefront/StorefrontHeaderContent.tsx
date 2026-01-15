@@ -759,18 +759,21 @@ export function StorefrontHeaderContent({
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-0 mt-1 bg-background border rounded-md shadow-lg py-1 min-w-[160px] z-50"
+                        className="absolute top-full left-0 mt-2 bg-popover border border-border rounded-lg shadow-xl py-2 min-w-[200px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
-                        {item.children.map((child) => (
+                        {item.children.map((child, index) => (
                           <LinkWrapper
                             key={child.id}
                             to={getMenuItemUrl(child)}
-                            className="block px-4 py-2 text-xs hover:bg-muted transition-colors"
-                            style={{ color: undefined }}
+                            className={cn(
+                              "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+                              index === 0 && "rounded-t-sm",
+                              index === item.children.length - 1 && "rounded-b-sm"
+                            )}
                           >
-                            {child.label}
+                            <span>{child.label}</span>
                           </LinkWrapper>
                         ))}
                       </div>

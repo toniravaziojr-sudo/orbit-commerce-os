@@ -67,8 +67,26 @@ export default function MenuItemDialog({
     }
   }, [open, editingItem]);
 
-  // Parent options: only root items (no parent) and not self
-  const parentOptions = existingItems.filter(i => !i.parent_id && i.id !== editingItem?.id);
+  // Parent options: root items (no parent) that are not self
+  // Also exclude any descendants of the current item to prevent circular references
+  const getDescendantIds = (itemId: string): string[] => {
+    const descendants: string[] = [];
+    const children = existingItems.filter(i => i.parent_id === itemId);
+    children.forEach(child => {
+      descendants.push(child.id);
+      descendants.push(...getDescendantIds(child.id));
+    });
+    return descendants;
+  };
+  
+  const descendantIds = editingItem ? getDescendantIds(editingItem.id) : [];
+  // Allow any item that is not the current item and not a descendant of current item
+  // For simplicity, limit to root items only (items without parent_id) to maintain 2-level max depth
+  const parentOptions = existingItems.filter(i => 
+    !i.parent_id && // Only root items can be parents
+    i.id !== editingItem?.id && // Not self
+    !descendantIds.includes(i.id) // Not a descendant
+  );
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
