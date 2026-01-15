@@ -40,12 +40,14 @@ export function getBlankTemplate(pageType: string): BlockNode {
             noticeEnabled: false,
           },
         },
-        // Empty section for user to start adding blocks
+        // Empty structural section for user to start adding blocks
+        // paddingY: 0 - no margins, blocks fill the space completely
         {
           id: generateBlockId('Section'),
           type: 'Section',
           props: {
-            paddingY: 48,
+            paddingY: 0,
+            paddingX: 0,
             backgroundColor: 'transparent',
           },
           children: [],
