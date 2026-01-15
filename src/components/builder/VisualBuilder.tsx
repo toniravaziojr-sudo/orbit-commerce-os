@@ -26,7 +26,7 @@ import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
-import { MiniCartDrawer } from '@/components/storefront/MiniCartDrawer';
+import { MiniCartPreview } from './MiniCartPreview';
 import { toast } from 'sonner';
 import { LayoutGrid } from 'lucide-react';
 import { 
@@ -943,12 +943,10 @@ export function VisualBuilder({
           onToggleMiniCartPreview={setShowMiniCartPreview}
         />
         
-        {/* Mini-cart preview drawer - controlled from theme settings */}
-        <MiniCartDrawer
+        {/* Mini-cart preview drawer - uses MiniCartPreview for builder (no CartContext needed) */}
+        <MiniCartPreview
           open={showMiniCartPreview}
           onOpenChange={setShowMiniCartPreview}
-          tenantSlug={context.tenantSlug || ''}
-          isPreview={true}
         />
 
         {/* Center - Canvas */}
