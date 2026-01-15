@@ -443,12 +443,16 @@ export default function MenuPanel({
 
         {/* Instructions at bottom */}
         {hierarchicalItems.length > 0 && (
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t space-y-2">
             <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="h-3 w-3 mt-0.5 shrink-0" />
               <span>
                 → direita = submenu · ← esquerda = voltar
               </span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded text-xs text-amber-700 dark:text-amber-400">
+              <Info className="h-3 w-3 shrink-0" />
+              <span>As alterações são salvas automaticamente ao adicionar, editar ou arrastar itens.</span>
             </div>
           </div>
         )}
