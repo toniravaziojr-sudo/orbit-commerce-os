@@ -374,29 +374,51 @@ export default function MenuPanel({
     const overItem = localItems.find(i => i.id === overId);
 
     if (activeItem && overItem) {
-      // Same parent level reorder
-      const siblings = localItems.filter(i => i.parent_id === overItem.parent_id && !i.isDeleted);
-      const oldIndex = siblings.findIndex(i => i.id === activeId);
-      const newIndex = siblings.findIndex(i => i.id === overId);
+      // Get all siblings at the target level (same parent_id as overItem)
+      const targetParentId = overItem.parent_id;
+      const siblings = localItems.filter(i => i.parent_id === targetParentId && !i.isDeleted);
+      
+      // Check if activeItem is already at this level
+      const isAlreadySibling = activeItem.parent_id === targetParentId;
+      
+      if (isAlreadySibling) {
+        // Same parent level reorder
+        const oldIndex = siblings.findIndex(i => i.id === activeId);
+        const newIndex = siblings.findIndex(i => i.id === overId);
 
-      if (oldIndex !== -1) {
-        const reordered = arrayMove(siblings, oldIndex, newIndex);
+        if (oldIndex !== -1 && newIndex !== -1) {
+          const reordered = arrayMove(siblings, oldIndex, newIndex);
+          
+          setLocalItems(prev => {
+            const updated = [...prev];
+            reordered.forEach((item, index) => {
+              const idx = updated.findIndex(i => i.id === item.id);
+              if (idx !== -1) {
+                updated[idx] = { ...updated[idx], sort_order: index };
+              }
+            });
+            return updated;
+          });
+        }
+      } else {
+        // Moving from different parent - put at same level as target (next to overItem)
+        const overIndex = siblings.findIndex(i => i.id === overId);
+        const newSortOrder = overIndex >= 0 ? overIndex + 1 : siblings.length;
         
+        // Shift subsequent items down
         setLocalItems(prev => {
-          const updated = [...prev];
-          reordered.forEach((item, index) => {
-            const idx = updated.findIndex(i => i.id === item.id);
-            if (idx !== -1) {
-              updated[idx] = { ...updated[idx], sort_order: index, parent_id: overItem.parent_id };
+          const updated = prev.map(i => {
+            if (i.id === activeId) {
+              return { ...i, parent_id: targetParentId, sort_order: newSortOrder };
             }
+            // Shift items at target level that come after insertion point
+            if (i.parent_id === targetParentId && i.sort_order >= newSortOrder && !i.isDeleted) {
+              return { ...i, sort_order: i.sort_order + 1 };
+            }
+            return i;
           });
           return updated;
         });
-      } else {
-        // Moving from different parent - put at same level as target
-        setLocalItems(prev => prev.map(i => 
-          i.id === activeId ? { ...i, parent_id: overItem.parent_id } : i
-        ));
       }
     }
   };
