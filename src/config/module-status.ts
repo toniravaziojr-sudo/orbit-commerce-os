@@ -24,7 +24,7 @@ export const MODULE_STATUS_MAP: Record<string, ModuleStatus> = {
   // Loja Online
   '/storefront': 'pending',
   '/cart-checkout': 'pending',
-  '/menus': 'pending',
+  '/menus': 'ready',
   '/pages': 'pending',
   '/blog': 'pending',
   
