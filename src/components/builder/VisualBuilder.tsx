@@ -147,9 +147,21 @@ export function VisualBuilder({
     setShowThemeSettingsInternal(themeSettingsFromUrl);
   }, [themeSettingsFromUrl]);
   
+  // Auto-close mini-cart preview when not in mini-cart settings
+  const settingsView = searchParams.get('settingsView');
+  const isInMiniCartSettings = themeSettingsFromUrl && settingsView === 'miniCart';
+  
   useEffect(() => {
-    setShowMiniCartPreviewInternal(miniCartPreviewFromUrl);
-  }, [miniCartPreviewFromUrl]);
+    // Only show mini-cart preview when inside mini-cart settings
+    if (miniCartPreviewFromUrl && !isInMiniCartSettings) {
+      // Clean up URL and close preview
+      setShowMiniCartPreview(false);
+    } else if (isInMiniCartSettings) {
+      setShowMiniCartPreviewInternal(true);
+    } else {
+      setShowMiniCartPreviewInternal(miniCartPreviewFromUrl);
+    }
+  }, [miniCartPreviewFromUrl, isInMiniCartSettings, setShowMiniCartPreview]);
   
   const [canvasViewport, setCanvasViewport] = useState<'desktop' | 'mobile'>('desktop');
   
