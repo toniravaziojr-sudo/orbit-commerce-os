@@ -11,6 +11,7 @@ import { Json } from '@/integrations/supabase/types';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface MiniCartSettingsProps {
@@ -166,11 +167,6 @@ export function MiniCartSettings({
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
     
-    // If disabling mini-cart, also close the preview
-    if (key === 'miniCartEnabled' && value === false) {
-      onTogglePreview?.(false);
-    }
-    
     // Immediately update the preview with new config
     onConfigChange?.(newConfig);
     
@@ -206,11 +202,19 @@ export function MiniCartSettings({
         />
       </div>
 
-      {config.miniCartEnabled && (
-        <>
-          <Separator />
-          
-          <div className="space-y-4">
+      <Separator />
+      
+      <div className={cn("space-y-4", !config.miniCartEnabled && "opacity-50")}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Funcionalidades do carrinho suspenso
+          </p>
+          {!config.miniCartEnabled && (
+            <span className="text-xs text-orange-600 bg-orange-100 px-2 py-0.5 rounded">
+              Desativado na loja
+            </span>
+          )}
+        </div>
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Funcionalidades do carrinho suspenso
             </p>
@@ -299,8 +303,6 @@ export function MiniCartSettings({
               />
             </div>
           </div>
-        </>
-      )}
     </div>
   );
 }
