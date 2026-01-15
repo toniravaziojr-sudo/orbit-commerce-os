@@ -285,10 +285,17 @@ export function BlockRenderer({
         <div className="absolute -top-6 left-0 bg-primary text-primary-foreground text-xs px-2 py-1 rounded-t z-10 flex items-center gap-1">
           {definition.label}
           {node.hidden && <span className="text-xs">(oculto)</span>}
+          {/* Header/Footer: show message directing to Theme Settings */}
+          {['Header', 'Footer'].includes(node.type) && (
+            <span className="ml-2 text-primary-foreground/80">
+              → Configurações do tema
+            </span>
+          )}
         </div>
       )}
       
-      {isEditing && node.type !== 'Page' && (
+      {/* Quick actions - NOT shown for Header/Footer (they use Theme Settings) */}
+      {isEditing && node.type !== 'Page' && !['Header', 'Footer'].includes(node.type) && (
         <BlockQuickActions
           blockId={node.id}
           blockType={node.type}

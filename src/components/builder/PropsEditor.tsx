@@ -80,6 +80,42 @@ export function PropsEditor({
     ? propsEntries.filter(([key]) => !HEADER_NOTICE_PROPS.includes(key))
     : propsEntries;
 
+  // Header and Footer are configured via Theme Settings, not here
+  const isHeaderFooter = ['Header', 'Footer'].includes(definition.type);
+
+  // Special message for Header/Footer blocks
+  if (isHeaderFooter) {
+    return (
+      <div className="h-full flex flex-col border-l">
+        {/* Header */}
+        <div className="p-2 border-b bg-muted/30">
+          <div className="flex items-center gap-1.5">
+            <span className="text-base">{definition.icon}</span>
+            <div>
+              <h3 className="font-semibold text-xs">{definition.label}</h3>
+              <p className="text-[10px] text-muted-foreground">Estrutura padrão</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+          <div className="p-4 bg-muted/30 rounded-lg space-y-3">
+            <Settings2 className="h-8 w-8 mx-auto text-muted-foreground" />
+            <div>
+              <h4 className="font-medium text-sm">Configurações do tema</h4>
+              <p className="text-xs text-muted-foreground mt-1">
+                O {definition.type === 'Header' ? 'cabeçalho' : 'rodapé'} é configurado em 
+                <strong className="text-primary"> Configurações do tema</strong>
+              </p>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Clique em "Configurações do tema" no menu esquerdo para personalizar cores, menus, exibição e mais.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col border-l">
       {/* Header */}
