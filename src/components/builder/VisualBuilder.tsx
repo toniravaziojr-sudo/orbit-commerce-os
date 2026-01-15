@@ -26,7 +26,7 @@ import { VersionHistoryDialog } from './VersionHistoryDialog';
 import { CategorySettingsPanel, useCategorySettings } from './CategorySettingsPanel';
 import { ProductSettingsPanel, useProductSettings } from './ProductSettingsPanel';
 import { BuilderDebugPanel, DebugQueryState, addSupabaseError } from './BuilderDebugPanel';
-import { MiniCartPreview } from './MiniCartPreview';
+// MiniCartPreview is now rendered inside BuilderCanvas
 import { toast } from 'sonner';
 import { LayoutGrid } from 'lucide-react';
 import { 
@@ -943,12 +943,6 @@ export function VisualBuilder({
           onToggleMiniCartPreview={setShowMiniCartPreview}
         />
         
-        {/* Mini-cart preview drawer - uses MiniCartPreview for builder (no CartContext needed) */}
-        <MiniCartPreview
-          open={showMiniCartPreview}
-          onOpenChange={setShowMiniCartPreview}
-        />
-
         {/* Center - Canvas */}
         <div className="flex-1 overflow-hidden">
           <BuilderCanvas
@@ -971,6 +965,8 @@ export function VisualBuilder({
               secondary_color: context.settings?.secondary_color,
               accent_color: context.settings?.accent_color,
             }}
+            showMiniCartPreview={showMiniCartPreview}
+            onToggleMiniCartPreview={setShowMiniCartPreview}
           />
         </div>
 

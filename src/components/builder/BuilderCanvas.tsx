@@ -5,6 +5,7 @@
 
 import { BlockNode, BlockRenderContext } from '@/lib/builder/types';
 import { BlockRenderer } from './BlockRenderer';
+import { MiniCartPreview } from './MiniCartPreview';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
@@ -46,6 +47,9 @@ interface BuilderCanvasProps {
     secondary_color?: string | null;
     accent_color?: string | null;
   } | null;
+  // Mini-cart preview controls
+  showMiniCartPreview?: boolean;
+  onToggleMiniCartPreview?: (open: boolean) => void;
 }
 
 export function BuilderCanvas({ 
@@ -64,6 +68,8 @@ export function BuilderCanvas({
   viewport: controlledViewport,
   onViewportChange,
   storeSettings,
+  showMiniCartPreview = false,
+  onToggleMiniCartPreview,
 }: BuilderCanvasProps) {
   const [internalViewport, setInternalViewport] = useState<ViewportMode>('desktop');
   const [zoom, setZoom] = useState<number>(100);
@@ -284,11 +290,10 @@ export function BuilderCanvas({
                 transformOrigin: 'top center',
               }}
             >
-              {/* Container query wrapper - this is the key to responsive preview */}
               <div
                 ref={setNodeRef}
                 className={cn(
-                  'storefront-container bg-background transition-all duration-300',
+                  'storefront-container bg-background transition-all duration-300 relative overflow-hidden',
                   viewport === 'mobile' && 'rounded-2xl shadow-xl border-4 border-muted/50'
                 )}
                 style={{ 
@@ -319,6 +324,13 @@ export function BuilderCanvas({
                   onDuplicateBlock={isInteractMode ? undefined : onDuplicateBlock}
                   onDeleteBlock={isInteractMode ? undefined : onDeleteBlock}
                   onToggleHidden={isInteractMode ? undefined : onToggleHidden}
+                />
+
+                {/* Mini-cart preview overlay - rendered inside the canvas for realistic preview */}
+                <MiniCartPreview
+                  open={showMiniCartPreview}
+                  onOpenChange={onToggleMiniCartPreview || (() => {})}
+                  viewport={viewport}
                 />
               </div>
             </div>
