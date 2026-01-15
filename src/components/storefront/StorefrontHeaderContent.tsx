@@ -728,8 +728,8 @@ export function StorefrontHeaderContent({
           </div>
         )}
         
-        {/* === DESKTOP SECONDARY NAV BAR: Categories + Featured Promos === */}
-        {(forceDesktop || !forceMobile) && (categories.length > 0 || featuredPromosUrl) && (
+        {/* === DESKTOP SECONDARY NAV BAR: Header Menu Items + Featured Promos === */}
+        {(forceDesktop || !forceMobile) && (hierarchicalMenuItems.length > 0 || featuredPromosUrl) && (
           <nav className={cn(
             "flex items-center justify-between py-2 border-t border-muted/30",
             forceMobile ? "hidden" : (forceDesktop ? "flex" : "hidden md:flex")
@@ -739,17 +739,53 @@ export function StorefrontHeaderContent({
             minHeight: '32px'
           }}
           >
-            {/* Categories Navigation - Left side */}
+            {/* Header Menu Items Navigation - Left side */}
             <div className="flex items-center gap-4 flex-1">
-              {categories.map((category) => (
-                <LinkWrapper
-                  key={category.id}
-                  to={`${baseUrl}/category/${category.slug}`}
-                  className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap"
-                  style={{ color: headerTextColor || undefined }}
-                >
-                  {category.name || category.slug}
-                </LinkWrapper>
+              {hierarchicalMenuItems.map((item) => (
+                item.children.length > 0 ? (
+                  <div 
+                    key={item.id}
+                    className="relative"
+                    onMouseEnter={() => handleDropdownEnter(item.id)}
+                    onMouseLeave={handleDropdownLeave}
+                  >
+                    <LinkWrapper
+                      to={getMenuItemUrl(item)}
+                      className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap inline-flex items-center gap-1"
+                      style={{ color: headerTextColor || undefined }}
+                    >
+                      {item.label}
+                      <ChevronDown className="h-3 w-3" />
+                    </LinkWrapper>
+                    {openDropdown === item.id && (
+                      <div 
+                        className="absolute top-full left-0 mt-1 bg-background border rounded-md shadow-lg py-1 min-w-[160px] z-50"
+                        onMouseEnter={() => handleDropdownEnter(item.id)}
+                        onMouseLeave={handleDropdownLeave}
+                      >
+                        {item.children.map((child) => (
+                          <LinkWrapper
+                            key={child.id}
+                            to={getMenuItemUrl(child)}
+                            className="block px-4 py-2 text-xs hover:bg-muted transition-colors"
+                            style={{ color: undefined }}
+                          >
+                            {child.label}
+                          </LinkWrapper>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <LinkWrapper
+                    key={item.id}
+                    to={getMenuItemUrl(item)}
+                    className="text-xs font-medium hover:opacity-70 transition-colors whitespace-nowrap"
+                    style={{ color: headerTextColor || undefined }}
+                  >
+                    {item.label}
+                  </LinkWrapper>
+                )
               ))}
             </div>
             
