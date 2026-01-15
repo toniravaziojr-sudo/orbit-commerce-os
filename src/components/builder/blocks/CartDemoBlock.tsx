@@ -53,30 +53,33 @@ interface CartDemoBlockProps {
   isEditing?: boolean;
 }
 
-// Default demo items (usados apenas quando não há props)
+// Default demo items - usando placeholders neutros (NÃO cosméticos)
+// Estes são usados apenas no editor quando não há conteúdo real
 const defaultCartItems: DemoCartItem[] = [
   {
     id: 'cart-1',
     name: 'Produto Exemplo 1',
     price: 89.90,
     compare_at_price: 129.90,
-    image: 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=200&h=200&fit=crop',
+    // Placeholder neutro - sem referência a categoria específica
+    image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EProduto%3C/text%3E%3C/svg%3E',
     quantity: 2,
   },
   {
     id: 'cart-2',
     name: 'Produto Exemplo 2',
     price: 59.90,
-    image: 'https://images.unsplash.com/photo-1570194065650-d99fb4b38b17?w=200&h=200&fit=crop',
+    image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23e5e7eb" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EProduto%3C/text%3E%3C/svg%3E',
     quantity: 1,
   },
 ];
 
+// Placeholders neutros para cross-sell (NÃO cosméticos)
 const defaultCrossSellProducts: DemoProduct[] = [
-  { id: 'cs-1', name: 'Sugestão 1', price: 39.90, image: 'https://images.unsplash.com/photo-1608248597279-f99d160bfcbc?w=200&h=200&fit=crop' },
-  { id: 'cs-2', name: 'Sugestão 2', price: 49.90, image: 'https://images.unsplash.com/photo-1617897903246-719242758050?w=200&h=200&fit=crop' },
-  { id: 'cs-3', name: 'Sugestão 3', price: 29.90, image: 'https://images.unsplash.com/photo-1599305090598-fe179d501227?w=200&h=200&fit=crop' },
-  { id: 'cs-4', name: 'Sugestão 4', price: 69.90, image: 'https://images.unsplash.com/photo-1591360236480-4ed861025fa1?w=200&h=200&fit=crop' },
+  { id: 'cs-1', name: 'Sugestão 1', price: 39.90, image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ESugestão%3C/text%3E%3C/svg%3E' },
+  { id: 'cs-2', name: 'Sugestão 2', price: 49.90, image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ESugestão%3C/text%3E%3C/svg%3E' },
+  { id: 'cs-3', name: 'Sugestão 3', price: 29.90, image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ESugestão%3C/text%3E%3C/svg%3E' },
+  { id: 'cs-4', name: 'Sugestão 4', price: 69.90, image: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="12" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ESugestão%3C/text%3E%3C/svg%3E' },
 ];
 
 export function CartDemoBlock({

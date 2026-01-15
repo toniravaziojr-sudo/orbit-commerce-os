@@ -978,11 +978,48 @@ function CheckoutStepsBlock({ isEditing, context }: any) {
   return <CheckoutStepWizard tenantId={tenantId} />;
 }
 
-function CartBlock({ isEditing, context, showCrossSell }: any) {
+function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTrustBadges }: any) {
   const tenantId = context?.settings?.tenant_id || '';
+  
+  // Fetch page settings from database to respect toggle states
+  const { data: cartSettings } = useQuery({
+    queryKey: ['cart-page-settings', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      
+      const { data, error } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenantId)
+        .eq('page_type', 'cart')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching cart settings:', error);
+        return null;
+      }
+      
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return overrides?.cartSettings as Record<string, boolean> | null;
+    },
+    enabled: !!tenantId && isEditing,
+    staleTime: 2000, // Refresh frequently to catch toggle changes
+  });
+  
+  // Merge page settings with block props - page settings take precedence
+  const effectiveShowCrossSell = cartSettings?.showCrossSell ?? showCrossSell ?? true;
+  const effectiveShowCoupon = cartSettings?.couponEnabled ?? showCouponField ?? true;
+  const effectiveShowShipping = cartSettings?.shippingCalculatorEnabled ?? true;
 
   if (isEditing) {
-    return <CartDemoBlock showCrossSell={showCrossSell} isEditing />;
+    return (
+      <CartDemoBlock 
+        showCrossSell={effectiveShowCrossSell} 
+        showCouponField={effectiveShowCoupon}
+        showTrustBadges={showTrustBadges}
+        isEditing 
+      />
+    );
   }
 
   return <CartContent tenantId={tenantId} />;
@@ -990,9 +1027,44 @@ function CartBlock({ isEditing, context, showCrossSell }: any) {
 
 function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any) {
   const tenantId = context?.settings?.tenant_id || '';
+  
+  // Fetch page settings from database to respect toggle states
+  const { data: checkoutSettings } = useQuery({
+    queryKey: ['checkout-page-settings', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      
+      const { data, error } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenantId)
+        .eq('page_type', 'checkout')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching checkout settings:', error);
+        return null;
+      }
+      
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return overrides?.checkoutSettings as Record<string, boolean> | null;
+    },
+    enabled: !!tenantId && isEditing,
+    staleTime: 2000,
+  });
+  
+  // Merge page settings with block props - page settings take precedence
+  const effectiveShowOrderBump = checkoutSettings?.showOrderBump ?? showOrderBump ?? true;
+  const effectiveShowTimeline = checkoutSettings?.showTimeline ?? showTimeline ?? true;
 
   if (isEditing) {
-    return <CheckoutDemoBlock showOrderBump={showOrderBump} showTimeline={showTimeline} isEditing />;
+    return (
+      <CheckoutDemoBlock 
+        showOrderBump={effectiveShowOrderBump} 
+        showTimeline={effectiveShowTimeline} 
+        isEditing 
+      />
+    );
   }
 
   return <CheckoutStepWizard tenantId={tenantId} />;
@@ -1000,7 +1072,37 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
 
 function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp = true }: any) {
   const tenantSlug = context?.tenantSlug || '';
+  const tenantId = context?.settings?.tenant_id || '';
   const isPreview = context?.isPreview || false;
+  
+  // Fetch page settings from database to respect toggle states
+  const { data: thankYouSettings } = useQuery({
+    queryKey: ['thankyou-page-settings', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return null;
+      
+      const { data, error } = await supabase
+        .from('storefront_page_templates')
+        .select('page_overrides')
+        .eq('tenant_id', tenantId)
+        .eq('page_type', 'thank_you')
+        .maybeSingle();
+      
+      if (error) {
+        console.error('Error fetching thank you settings:', error);
+        return null;
+      }
+      
+      const overrides = data?.page_overrides as Record<string, unknown> | null;
+      return overrides?.thankYouSettings as Record<string, boolean> | null;
+    },
+    enabled: !!tenantId && isEditing,
+    staleTime: 2000,
+  });
+  
+  // Merge page settings with props - page settings take precedence
+  const effectiveShowUpsell = thankYouSettings?.showUpsell ?? true;
+  const effectiveShowWhatsApp = thankYouSettings?.showWhatsApp ?? showWhatsApp ?? true;
   
   if (isEditing) {
     return (
@@ -1030,7 +1132,13 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
           </div>
         )}
         
-        {showWhatsApp && (
+        {effectiveShowUpsell && (
+          <div className="border rounded-lg p-6 mb-6 bg-muted/50">
+            <p className="text-sm text-muted-foreground">[Upsell - Ofertas pós-compra aparecerão aqui]</p>
+          </div>
+        )}
+        
+        {effectiveShowWhatsApp && (
           <Button variant="outline" className="gap-2">
             <MessageCircle className="h-4 w-4" />
             Falar com suporte via WhatsApp
