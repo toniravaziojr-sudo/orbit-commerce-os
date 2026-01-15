@@ -185,8 +185,15 @@ export function BlockRenderer({
   };
 
   // Render children with "+" buttons between them
+  // Check if this is a root Page block - should NOT show AddBlockButtons between Header/Section/Footer
+  const isRootPage = node.type === 'Page' && !parentId;
+  
   const renderChildren = () => {
     if (!node.children?.length) {
+      // For root Page, never show AddBlockButton (blocks are added via left menu)
+      if (isRootPage) {
+        return null;
+      }
       if (definition.canHaveChildren && isEditing && onAddBlock) {
         return (
           <div className="py-4 group">
@@ -206,7 +213,9 @@ export function BlockRenderer({
       <>
         {node.children.map((child, index) => (
           <div key={child.id} className="group/block">
-            {index === 0 && isEditing && onAddBlock && definition.canHaveChildren && (
+            {/* NO AddBlockButton for root Page children (Header/Section/Footer) */}
+            {/* Blocks are added ONLY via left menu - no inline buttons */}
+            {!isRootPage && index === 0 && isEditing && onAddBlock && definition.canHaveChildren && (
               <div className="py-1">
                 <AddBlockButton parentId={node.id} index={0} onAddBlock={onAddBlock} />
               </div>
@@ -234,7 +243,8 @@ export function BlockRenderer({
               <div className="w-full">{context.afterHeaderSlot}</div>
             )}
             
-            {isEditing && onAddBlock && definition.canHaveChildren && (
+            {/* NO AddBlockButton for root Page children */}
+            {!isRootPage && isEditing && onAddBlock && definition.canHaveChildren && (
               <div className="py-1">
                 <AddBlockButton parentId={node.id} index={index + 1} onAddBlock={onAddBlock} />
               </div>
