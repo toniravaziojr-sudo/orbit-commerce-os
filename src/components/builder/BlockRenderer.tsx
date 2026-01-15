@@ -1003,7 +1003,8 @@ function CartBlock({ isEditing, context, showCrossSell, showCouponField, showTru
       return overrides?.cartSettings as Record<string, boolean> | null;
     },
     enabled: !!tenantId && isEditing,
-    staleTime: 2000, // Refresh frequently to catch toggle changes
+    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
+    refetchOnMount: 'always',
   });
   
   // Merge page settings with block props - page settings take precedence
@@ -1050,7 +1051,8 @@ function CheckoutBlock({ isEditing, context, showOrderBump, showTimeline }: any)
       return overrides?.checkoutSettings as Record<string, boolean> | null;
     },
     enabled: !!tenantId && isEditing,
-    staleTime: 2000,
+    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
+    refetchOnMount: 'always',
   });
   
   // Merge page settings with block props - page settings take precedence
@@ -1097,7 +1099,8 @@ function ThankYouBlock({ isEditing, context, showTimeline = true, showWhatsApp =
       return overrides?.thankYouSettings as Record<string, boolean> | null;
     },
     enabled: !!tenantId && isEditing,
-    staleTime: 2000,
+    staleTime: 0, // Always fetch fresh to catch toggle changes immediately
+    refetchOnMount: 'always',
   });
   
   // Merge page settings with props - page settings take precedence
