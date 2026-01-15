@@ -1,22 +1,18 @@
 // =============================================
-// MINI CART PREVIEW - Preview-only drawer for builder
+// MINI CART PREVIEW - Preview-only overlay for builder canvas
 // Shows mock data without CartContext dependency
+// Renders as an overlay inside the builder canvas (not a global Sheet)
 // =============================================
 
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Truck, Gift, Check } from 'lucide-react';
+import { ShoppingCart, Truck, Check, X } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface MiniCartPreviewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  viewport?: 'desktop' | 'mobile';
 }
 
 // Mock cart item for preview
@@ -39,25 +35,43 @@ const MOCK_ITEMS = [
 
 export function MiniCartPreview({ 
   open, 
-  onOpenChange, 
+  onOpenChange,
+  viewport = 'desktop',
 }: MiniCartPreviewProps) {
   const subtotal = MOCK_ITEMS.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const shipping = 15.90;
   const total = subtotal + shipping;
 
+  if (!open) return null;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent 
-        className="p-0 w-full sm:w-[400px] sm:max-w-md flex flex-col"
-        side="right"
+    <>
+      {/* Backdrop overlay */}
+      <div 
+        className="absolute inset-0 bg-black/40 z-40 transition-opacity"
+        onClick={() => onOpenChange(false)}
+      />
+      
+      {/* Drawer panel - slides in from right, inside the canvas */}
+      <div 
+        className={cn(
+          "absolute top-0 right-0 h-full bg-background border-l shadow-xl z-50 flex flex-col transition-transform duration-300",
+          viewport === 'mobile' ? 'w-full' : 'w-[380px] max-w-[90%]'
+        )}
       >
         {/* Header */}
-        <SheetHeader className="border-b px-4 py-4 flex-shrink-0">
+        <div className="border-b px-4 py-4 flex-shrink-0 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5" />
-            <SheetTitle className="text-base font-semibold">Carrinho</SheetTitle>
+            <span className="text-base font-semibold">Carrinho</span>
           </div>
-        </SheetHeader>
+          <button 
+            onClick={() => onOpenChange(false)}
+            className="p-1 hover:bg-muted rounded-md transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
         {/* Body - scrollable */}
         <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -163,7 +177,7 @@ export function MiniCartPreview({
         <div className="absolute bottom-2 left-2 bg-yellow-100 border border-yellow-300 text-yellow-800 text-[10px] px-2 py-0.5 rounded">
           Visualização de exemplo
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </>
   );
 }
