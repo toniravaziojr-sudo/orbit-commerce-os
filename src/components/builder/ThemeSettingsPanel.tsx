@@ -25,6 +25,8 @@ interface ThemeSettingsPanelProps {
   tenantId: string;
   templateSetId?: string;
   onNavigateToPage?: (pageType: string) => void;
+  showMiniCartPreview?: boolean;
+  onToggleMiniCartPreview?: (open: boolean) => void;
 }
 
 type SettingsView = 'menu' | 'pages' | 'header' | 'footer' | 'mini-cart' | 'typography' | 'colors' | 'css' | 'page-detail';
@@ -87,6 +89,8 @@ export function ThemeSettingsPanel({
   tenantId,
   templateSetId,
   onNavigateToPage,
+  showMiniCartPreview,
+  onToggleMiniCartPreview,
 }: ThemeSettingsPanelProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -186,7 +190,15 @@ export function ThemeSettingsPanel({
       case 'footer':
         return <FooterSettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'mini-cart':
-        return <MiniCartSettings tenantId={tenantId} templateSetId={templateSetId} onNavigateToPage={onNavigateToPage} />;
+        return (
+          <MiniCartSettings 
+            tenantId={tenantId} 
+            templateSetId={templateSetId} 
+            onNavigateToPage={onNavigateToPage}
+            showPreview={showMiniCartPreview}
+            onTogglePreview={onToggleMiniCartPreview}
+          />
+        );
       case 'typography':
         return <TypographySettings tenantId={tenantId} templateSetId={templateSetId} />;
       case 'colors':
