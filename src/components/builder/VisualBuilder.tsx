@@ -570,9 +570,35 @@ export function VisualBuilder({
 
   // Handle deleting a specific block (for quick actions)
   const handleDeleteBlockById = useCallback((blockId: string) => {
-    const { findBlockById } = require('@/lib/builder/utils');
+    const { findBlockById, findBlockByType } = require('@/lib/builder/utils');
     const block = findBlockById(store.content, blockId);
     if (!block) return;
+    
+    // CRITICAL: Never allow deleting the root block
+    if (blockId === store.content?.id) {
+      toast.error('Não é possível excluir a estrutura principal da página');
+      return;
+    }
+    
+    // CRITICAL: Protect structural container types that could break the page
+    const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
+    if (structuralTypes.includes(block.type)) {
+      // Check if this container has Header or Footer children
+      const hasEssentialChild = block.children?.some(child => 
+        ['Header', 'Footer'].includes(child.type) || 
+        isEssentialBlock(child.type, pageType)
+      );
+      if (hasEssentialChild) {
+        toast.error('Este container possui blocos essenciais e não pode ser removido');
+        return;
+      }
+      
+      // If the structural block is direct child of root, don't allow deletion
+      if (store.content?.children?.some(c => c.id === blockId)) {
+        toast.error('Não é possível excluir containers estruturais da página');
+        return;
+      }
+    }
     
     // Check registry isRemovable
     const def = blockRegistry.get(block.type);

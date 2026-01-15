@@ -210,18 +210,41 @@ export function addBlockChild(
 
 // Remove a block from tree
 export function removeBlock(root: BlockNode, id: string): BlockNode {
+  // CRITICAL: Never remove the root block itself
+  if (root.id === id) {
+    console.warn('[Builder] Cannot remove root block');
+    return root;
+  }
+  
   const cloned = cloneBlockNode(root);
+  
+  // Protected structural types that should never be deleted if they contain essential blocks
+  const structuralTypes = ['Page', 'Section', 'Layout', 'StorefrontWrapper', 'PageWrapper'];
   
   function removeFromChildren(node: BlockNode): boolean {
     if (!node.children) return false;
     
     const index = node.children.findIndex(child => child.id === id);
     if (index !== -1) {
-      // Check if block is removable
-      const blockDef = blockRegistry.get(node.children[index].type);
+      const targetBlock = node.children[index];
+      
+      // Check if block is removable via registry
+      const blockDef = blockRegistry.get(targetBlock.type);
       if (blockDef?.isRemovable === false) {
         return false;
       }
+      
+      // CRITICAL: Don't delete structural blocks that contain Header/Footer
+      if (structuralTypes.includes(targetBlock.type)) {
+        const hasEssential = targetBlock.children?.some(child => 
+          ['Header', 'Footer'].includes(child.type)
+        );
+        if (hasEssential) {
+          console.warn('[Builder] Cannot remove structural block containing Header/Footer');
+          return false;
+        }
+      }
+      
       node.children.splice(index, 1);
       return true;
     }
