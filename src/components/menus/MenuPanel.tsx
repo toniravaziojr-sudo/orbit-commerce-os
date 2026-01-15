@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { MenuItem, useMenuItems } from '@/hooks/useMenus';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -181,9 +181,9 @@ function SortableMenuItemRow({
 }
 
 // Threshold in pixels for horizontal drag to trigger nesting/unnesting
-// Much higher thresholds to require very intentional horizontal movement
-const NESTING_THRESHOLD = 80;
-const UNNESTING_THRESHOLD = -80;
+// Moderado para detectar intenção clara de nesting
+const NESTING_THRESHOLD = 50;
+const UNNESTING_THRESHOLD = -50;
 
 export default function MenuPanel({
   title,
@@ -205,8 +205,9 @@ export default function MenuPanel({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [nestingTargetId, setNestingTargetId] = useState<string | null>(null);
   const [isUnnesting, setIsUnnesting] = useState(false);
-  // Track initial X position to calculate absolute movement
-  const dragStartX = useRef<number>(0);
+  // Track drop position indicator
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'after' | 'inside' | null>(null);
 
   // Sync local state with DB items when they change
   useEffect(() => {
@@ -301,22 +302,21 @@ export default function MenuPanel({
     setDraggedId(activeId);
     setNestingTargetId(null);
     setIsUnnesting(false);
-    dragStartX.current = 0;
+    setDropTargetId(null);
+    setDropPosition(null);
   };
 
   const handleDragMove = (event: DragMoveEvent) => {
     if (!draggedId || !localItems) return;
 
     const deltaX = event.delta.x;
-    const draggedItem = localItems.find(i => i.id === draggedId);
-
-    // Only trigger nesting/unnesting with very intentional horizontal movement
-    // and minimal vertical movement ratio
     const deltaY = Math.abs(event.delta.y);
     const absX = Math.abs(deltaX);
-    
-    // If vertical movement is much greater than horizontal, ignore nesting
-    if (deltaY > absX * 1.5) {
+    const draggedItem = localItems.find(i => i.id === draggedId);
+
+    // Se movimento vertical é dominante, não ativa nesting/unnesting por horizontal
+    // Mas ainda assim podemos indicar onde vai ser dropado
+    if (deltaY > absX * 2) {
       setNestingTargetId(null);
       setIsUnnesting(false);
       return;
@@ -326,6 +326,7 @@ export default function MenuPanel({
     if (deltaX < UNNESTING_THRESHOLD && draggedItem?.parent_id) {
       setIsUnnesting(true);
       setNestingTargetId(null);
+      setDropPosition('inside');
       return;
     }
 
@@ -334,10 +335,11 @@ export default function MenuPanel({
       const draggedIndex = flattenedItems.findIndex(i => i.id === draggedId);
       if (draggedIndex > 0) {
         const itemAbove = flattenedItems[draggedIndex - 1];
-        // Only nest if item above is not already the parent
+        // Only nest if item above is not already the parent AND not same item
         if (itemAbove && itemAbove.id !== draggedItem?.parent_id) {
           setNestingTargetId(itemAbove.id);
           setIsUnnesting(false);
+          setDropPosition('inside');
           return;
         }
       }
@@ -345,6 +347,7 @@ export default function MenuPanel({
 
     setNestingTargetId(null);
     setIsUnnesting(false);
+    setDropPosition(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -356,6 +359,8 @@ export default function MenuPanel({
     setDraggedId(null);
     setNestingTargetId(null);
     setIsUnnesting(false);
+    setDropTargetId(null);
+    setDropPosition(null);
 
     if (!localItems.length) return;
 
@@ -364,16 +369,30 @@ export default function MenuPanel({
 
     // Unnesting: dragged left = move to root level
     if (wasUnnesting && activeItem?.parent_id) {
-      const rootItems = localItems.filter(i => !i.parent_id && !i.isDeleted);
-      const newSortOrder = rootItems.length;
+      // Encontrar o parent atual e colocar DEPOIS dele no nível do parent
+      const currentParent = localItems.find(i => i.id === activeItem.parent_id);
+      const grandParentId = currentParent?.parent_id || null;
+      const siblingsOfParent = localItems.filter(i => i.parent_id === grandParentId && !i.isDeleted);
+      const parentIndex = siblingsOfParent.findIndex(i => i.id === currentParent?.id);
+      const newSortOrder = parentIndex >= 0 ? parentIndex + 1 : siblingsOfParent.length;
 
-      setLocalItems(prev => prev.map(i => 
-        i.id === activeId ? { ...i, parent_id: null, sort_order: newSortOrder } : i
-      ));
+      setLocalItems(prev => {
+        const updated = prev.map(i => {
+          if (i.id === activeId) {
+            return { ...i, parent_id: grandParentId, sort_order: newSortOrder };
+          }
+          // Shift items after insertion point
+          if (i.parent_id === grandParentId && i.sort_order >= newSortOrder && !i.isDeleted && i.id !== activeId) {
+            return { ...i, sort_order: i.sort_order + 1 };
+          }
+          return i;
+        });
+        return updated;
+      });
       return;
     }
 
-    // Nesting: dragged right = move as child
+    // Nesting: dragged right = move as child of item above
     if (wasNesting && targetId) {
       const currentChildren = localItems.filter(i => i.parent_id === targetId && !i.isDeleted);
 
@@ -383,7 +402,7 @@ export default function MenuPanel({
       return;
     }
 
-    // Normal reorder
+    // Normal reorder - drop sobre outro item
     if (!over) return;
     const overId = over.id as string;
     if (activeId === overId) return;
@@ -391,52 +410,48 @@ export default function MenuPanel({
     const overItem = localItems.find(i => i.id === overId);
 
     if (activeItem && overItem) {
-      // Get all siblings at the target level (same parent_id as overItem)
+      // O item vai para o MESMO NÍVEL do item sobre o qual foi solto
       const targetParentId = overItem.parent_id;
-      const siblings = localItems.filter(i => i.parent_id === targetParentId && !i.isDeleted);
       
-      // Check if activeItem is already at this level
-      const isAlreadySibling = activeItem.parent_id === targetParentId;
+      // Pegar todos os irmãos no nível alvo (excluindo o item arrastado se já estiver lá)
+      const siblings = localItems.filter(i => 
+        i.parent_id === targetParentId && !i.isDeleted && i.id !== activeId
+      );
       
-      if (isAlreadySibling) {
-        // Same parent level reorder
-        const oldIndex = siblings.findIndex(i => i.id === activeId);
-        const newIndex = siblings.findIndex(i => i.id === overId);
+      // Encontrar a posição do overItem nos irmãos
+      const overIndex = siblings.findIndex(i => i.id === overId);
+      
+      // Inserir DEPOIS do overItem
+      const insertIndex = overIndex + 1;
 
-        if (oldIndex !== -1 && newIndex !== -1) {
-          const reordered = arrayMove(siblings, oldIndex, newIndex);
-          
-          setLocalItems(prev => {
-            const updated = [...prev];
-            reordered.forEach((item, index) => {
-              const idx = updated.findIndex(i => i.id === item.id);
-              if (idx !== -1) {
-                updated[idx] = { ...updated[idx], sort_order: index };
-              }
-            });
-            return updated;
-          });
-        }
-      } else {
-        // Moving from different parent - put at same level as target (next to overItem)
-        const overIndex = siblings.findIndex(i => i.id === overId);
-        const newSortOrder = overIndex >= 0 ? overIndex + 1 : siblings.length;
+      setLocalItems(prev => {
+        // Primeiro, remover o activeItem da contagem de sort_order anterior
+        const updated: LocalMenuItem[] = [];
         
-        // Shift subsequent items down
-        setLocalItems(prev => {
-          const updated = prev.map(i => {
-            if (i.id === activeId) {
-              return { ...i, parent_id: targetParentId, sort_order: newSortOrder };
-            }
-            // Shift items at target level that come after insertion point
-            if (i.parent_id === targetParentId && i.sort_order >= newSortOrder && !i.isDeleted) {
-              return { ...i, sort_order: i.sort_order + 1 };
-            }
-            return i;
-          });
-          return updated;
+        // Reconstruir os irmãos com o novo item inserido
+        const newSiblings = [...siblings];
+        newSiblings.splice(insertIndex, 0, { ...activeItem, parent_id: targetParentId, sort_order: insertIndex });
+        
+        // Atualizar sort_order de todos os irmãos
+        const siblingUpdates = new Map<string, number>();
+        newSiblings.forEach((item, index) => {
+          siblingUpdates.set(item.id, index);
         });
-      }
+
+        prev.forEach(i => {
+          if (i.id === activeId) {
+            // Mover para novo parent com novo sort_order
+            updated.push({ ...i, parent_id: targetParentId, sort_order: siblingUpdates.get(i.id) ?? 0 });
+          } else if (siblingUpdates.has(i.id)) {
+            // Atualizar sort_order dos irmãos
+            updated.push({ ...i, sort_order: siblingUpdates.get(i.id)! });
+          } else {
+            updated.push(i);
+          }
+        });
+
+        return updated;
+      });
     }
   };
 
