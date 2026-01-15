@@ -415,16 +415,56 @@ export function StorefrontHeaderContent({
                                 </button>
                               </div>
                               {openMobileDropdowns.has(item.id) && (
-                                <div className="ml-4 border-l-2 border-muted">
+                                <div className="ml-4 border-l-2 border-primary/30">
                                   {item.children.map((child) => (
-                                    <LinkWrapper
-                                      key={child.id}
-                                      to={getMenuItemUrl(child)}
-                                      onClick={() => setMobileMenuOpen(false)}
-                                      className="py-2 px-4 text-sm text-muted-foreground hover:bg-muted rounded-lg block"
-                                    >
-                                      {child.label}
-                                    </LinkWrapper>
+                                    <div key={child.id}>
+                                      {child.children && child.children.length > 0 ? (
+                                        <>
+                                          <div className="flex items-center">
+                                            <LinkWrapper
+                                              to={getMenuItemUrl(child)}
+                                              onClick={() => setMobileMenuOpen(false)}
+                                              className="flex-1 py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-l-lg transition-colors"
+                                            >
+                                              {child.label}
+                                            </LinkWrapper>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleMobileDropdown(child.id)}
+                                              className="py-2 px-3 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-r-lg transition-colors"
+                                              aria-label={openMobileDropdowns.has(child.id) ? 'Fechar submenu' : 'Abrir submenu'}
+                                            >
+                                              <ChevronDown className={cn(
+                                                "h-3 w-3 transition-transform duration-200",
+                                                openMobileDropdowns.has(child.id) && "rotate-180"
+                                              )} />
+                                            </button>
+                                          </div>
+                                          {openMobileDropdowns.has(child.id) && (
+                                            <div className="ml-4 border-l-2 border-primary/20">
+                                              {child.children.map((grandchild) => (
+                                                <LinkWrapper
+                                                  key={grandchild.id}
+                                                  to={getMenuItemUrl(grandchild)}
+                                                  onClick={() => setMobileMenuOpen(false)}
+                                                  className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                                >
+                                                  {grandchild.label}
+                                                </LinkWrapper>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </>
+                                      ) : (
+                                        <LinkWrapper
+                                          to={getMenuItemUrl(child)}
+                                          onClick={() => setMobileMenuOpen(false)}
+                                          className="py-2 px-4 text-sm text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-lg block transition-colors"
+                                        >
+                                          {child.label}
+                                        </LinkWrapper>
+                                      )}
+                                    </div>
                                   ))}
                                 </div>
                               )}
@@ -759,7 +799,7 @@ export function StorefrontHeaderContent({
                     </LinkWrapper>
                     {openDropdown === item.id && (
                       <div 
-                        className="absolute top-full left-0 mt-2 bg-popover border border-border rounded-lg shadow-xl py-2 min-w-[200px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
+                        className="absolute top-full left-0 mt-2 bg-popover border border-primary/20 rounded-lg shadow-xl py-2 min-w-[200px] z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
                         onMouseEnter={() => handleDropdownEnter(item.id)}
                         onMouseLeave={handleDropdownLeave}
                       >
@@ -768,7 +808,7 @@ export function StorefrontHeaderContent({
                             <LinkWrapper
                               to={getMenuItemUrl(child)}
                               className={cn(
-                                "flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+                                "flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-primary/10 hover:text-primary transition-colors",
                                 index === 0 && "rounded-t-sm",
                                 index === item.children.length - 1 && !child.children?.length && "rounded-b-sm"
                               )}
@@ -780,13 +820,13 @@ export function StorefrontHeaderContent({
                             </LinkWrapper>
                             {/* Sub-submenu (3rd level) */}
                             {child.children && child.children.length > 0 && (
-                              <div className="absolute left-full top-0 ml-1 bg-popover border border-border rounded-lg shadow-xl py-2 min-w-[180px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
+                              <div className="absolute left-full top-0 ml-1 bg-popover border border-primary/20 rounded-lg shadow-xl py-2 min-w-[180px] z-50 hidden group-hover/submenu:block animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
                                 {child.children.map((grandchild, gIndex) => (
                                   <LinkWrapper
                                     key={grandchild.id}
                                     to={getMenuItemUrl(grandchild)}
                                     className={cn(
-                                      "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+                                      "flex items-center gap-2 px-4 py-2.5 text-sm text-popover-foreground hover:bg-primary/10 hover:text-primary transition-colors",
                                       gIndex === 0 && "rounded-t-sm",
                                       gIndex === child.children.length - 1 && "rounded-b-sm"
                                     )}
