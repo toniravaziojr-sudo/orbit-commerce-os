@@ -100,13 +100,17 @@ export function ThemeSettingsPanel({
     onOpenChange(false);
   };
 
+  // AJUSTE 2: Ao selecionar página no theme settings, navegamos automaticamente para ela
+  // Isso permite preview em tempo real das configurações
   const handlePageSelect = (pageType: string) => {
     setSelectedPageType(pageType);
     setCurrentView('page-detail');
+    // Navegar automaticamente para a página selecionada para ver mudanças em tempo real
+    onNavigateToPage?.(pageType);
   };
 
   const handleNavigateToPage = (pageType: string) => {
-    handleClose();
+    // Não fecha o painel ao navegar - mantém aberto para continuar editando
     onNavigateToPage?.(pageType);
   };
 
