@@ -273,60 +273,31 @@ export function BlockRenderer({
   // Check if this is a structural Section (direct child of root) - should be completely invisible
   const isStructuralSection = node.type === 'Section' && parentId === 'root';
   
-  // For structural Sections: render ONLY the AddBlockButton, no container/wrapper at all
-  // The user adds blocks that already have their own margins, colors, etc.
+  // For structural Sections: render children directly, NO wrappers, NO AddBlockButton
+  // Blocks are added ONLY via the left menu. No extra spacing/margins.
   if (isStructuralSection && isEditing) {
     return (
-      <div data-block-id={node.id} className="relative">
-        {/* No SectionBlock wrapper - just render children directly, no spacing */}
-        {node.children?.length ? (
-          <>
-            {node.children.map((child, index) => (
-              <div key={child.id} className="group/add-block relative">
-                {/* AddBlockButton before first block - appears on hover only, no real space */}
-                {index === 0 && onAddBlock && (
-                  <div className="absolute left-0 right-0 -top-3 z-10 opacity-0 group-hover/add-block:opacity-100 transition-opacity">
-                    <AddBlockButton parentId={node.id} index={0} onAddBlock={onAddBlock} />
-                  </div>
-                )}
-                
-                <BlockRenderer
-                  node={child}
-                  context={context}
-                  isEditing={isEditing}
-                  isInteractMode={isInteractMode}
-                  isSafeMode={isSafeMode}
-                  onSelect={onSelect}
-                  onAddBlock={onAddBlock}
-                  onMoveBlock={onMoveBlock}
-                  onDuplicateBlock={onDuplicateBlock}
-                  onDeleteBlock={onDeleteBlock}
-                  onToggleHidden={onToggleHidden}
-                  siblingIndex={index}
-                  siblingsCount={node.children!.length}
-                  parentId={node.id}
-                />
-                
-                {/* AddBlockButton after each block - appears on hover only, no real space */}
-                {onAddBlock && (
-                  <div className="absolute left-0 right-0 -bottom-3 z-10 opacity-0 group-hover/add-block:opacity-100 transition-opacity">
-                    <AddBlockButton parentId={node.id} index={index + 1} onAddBlock={onAddBlock} />
-                  </div>
-                )}
-              </div>
-            ))}
-          </>
-        ) : (
-          /* Empty structural section - show AddBlockButton centered, minimal height */
-          <div className="py-8 flex items-center justify-center">
-            <AddBlockButton
-              parentId={node.id}
-              index={0}
-              onAddBlock={onAddBlock!}
-            />
-          </div>
-        )}
-      </div>
+      <>
+        {node.children?.map((child, index) => (
+          <BlockRenderer
+            key={child.id}
+            node={child}
+            context={context}
+            isEditing={isEditing}
+            isInteractMode={isInteractMode}
+            isSafeMode={isSafeMode}
+            onSelect={onSelect}
+            onAddBlock={onAddBlock}
+            onMoveBlock={onMoveBlock}
+            onDuplicateBlock={onDuplicateBlock}
+            onDeleteBlock={onDeleteBlock}
+            onToggleHidden={onToggleHidden}
+            siblingIndex={index}
+            siblingsCount={node.children!.length}
+            parentId={node.id}
+          />
+        ))}
+      </>
     );
   }
 
