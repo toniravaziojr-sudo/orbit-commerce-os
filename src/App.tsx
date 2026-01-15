@@ -89,6 +89,7 @@ import Influencers from "@/pages/Influencers";
 import SupplierLeadsPage from "@/pages/SupplierLeads";
 import Affiliates from "@/pages/Affiliates";
 import SupportCenter from "@/pages/SupportCenter";
+import QAStorefront from "@/pages/admin/QAStorefront";
 
 // Storefront Pages
 import { StorefrontLayout } from "@/components/storefront/StorefrontLayout";
@@ -344,6 +345,7 @@ const App = () => {
                   <Route path="/platform/block-suggestions" element={<BlockSuggestions />} />
                   <Route path="/platform/billing" element={<PlatformBilling />} />
                   <Route path="/platform/emails" element={<SystemEmails />} />
+                  <Route path="/admin/qa/storefront" element={<QAStorefront />} />
                   {/* System routes - Owner only */}
                   <Route path="/system/users" element={<SystemUsers />} />
                   {/* Legacy redirects */}
